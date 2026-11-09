@@ -1,23 +1,15 @@
 // A row of headline figures as a description list: each cell is a term (what is
 // measured) and its figure (`MetricValue`: the number, then one line of context).
-// Extracted from the property list's portfolio strip
-// (`features/property/property-list-summary.tsx`) so the portal Results tab and
-// the portal home can print the same strip.
 //
-// Four looks, one structure (UI consistency scan: COLL-04):
-//
-// - `boxed` (the default): a bordered, rounded strip of `bg-card` cells one
-//   hairline apart. The property list uses it. Dense strips.
-// - `ruled`: no fill, hairlines above and below and between the cells, the first
-//   cell flush left. The portal Results and Activity strips and the dashboard
-//   topic pages use it. Narrow, it turns into the phone board's (AP11) bordered,
-//   rounded card of two columns with internal hairlines and a smaller figure.
-//   Page strips.
-// - `embedded`: the boxed cells with no frame of their own, for a strip that sits
-//   in a Card, which is the frame.
-// - `tiles`: separate bordered tiles that wrap, for a set of independent measures
-//   that is longer than a row (an import's counts, an analytics summary). Two
-//   columns narrow, `columns` (3 or 4) from `2xl`.
+// Four looks, one structure:
+// - `boxed` (default): a bordered, rounded strip of `bg-card` cells one hairline
+//   apart. Dense strips.
+// - `ruled`: no fill, hairlines above, below and between the cells. Narrow, it
+//   becomes a bordered, rounded card of two columns with internal hairlines and
+//   a smaller figure. Page strips.
+// - `embedded`: the boxed cells with no frame, for a strip inside a Card.
+// - `tiles`: separate bordered tiles that wrap, for independent measures longer
+//   than a row. Two columns narrow, `columns` (3 or 4) from `2xl`.
 //
 // The strip is a `@container`, so it lays itself out by the width of the column
 // it sits in, not the window: two columns in a narrow pane, one row from `3xl`

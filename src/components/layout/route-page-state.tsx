@@ -17,17 +17,13 @@ import {
 import { PageState, type PageStateBack, type PageStateFrame } from './page-state'
 import { SignedOutRedirect, useGuardedRouteError } from './use-guarded-route-error'
 
-// The route-bound half of PageState. Each component is what a route (or the
-// router, as its default) hands to `pendingComponent`, `errorComponent` or
-// `notFoundComponent`: it finds the page's identity on the route (see
-// `page-identity`), draws `PageState` in that frame, and for an error takes the
-// sanitised message, report, 401 redirect and retry from `useGuardedRouteError`.
+// The route-bound half of PageState: what a route hands to `pendingComponent`,
+// `errorComponent` or `notFoundComponent`. It reads the page's identity from the
+// route (`page-identity`) and, for an error, the behaviour from `useGuardedRouteError`.
 
 /**
- * True below the app shell's `<main>`. A not-found for an address no page answers
- * renders inside the boundary route's layout, so it is already in the shell; one a
- * loader threw replaces the layout, so it must bring a shell of its own. The shell
- * marks its children, and a boundary asks.
+ * True below the app shell's `<main>`. A not-found for an unanswered address renders
+ * inside the layout; one a loader threw replaces the layout and must bring its own shell.
  */
 export const ShellPresence = createContext(false)
 
@@ -39,11 +35,8 @@ function propertyNameIn(cached: unknown): string | undefined {
 }
 
 /**
- * What the address and the cache know about where a page sits: the Property in
- * the address, and its name once it has been read. The Property's own read comes
- * first; the Properties list, which the sidebar and the Properties page fill, is
- * the fallback, so a page reached by a link names its Property in the breadcrumb
- * while it loads rather than "Property".
+ * The Property in the address and its name once read: the Property's own read
+ * first, the Properties list as fallback, so the breadcrumb names it while loading.
  */
 export function usePageWhere(): Readonly<{ propertyId?: string; propertyName?: string }> {
   const { propertyId } = useParams({ strict: false }) as { propertyId?: string }
@@ -86,11 +79,7 @@ function useRouteFrame(): RouteFrame {
   }
 }
 
-/**
- * Below the app shell `<main>` pads the state. Anywhere else (the public pages,
- * or the shell's own load) nothing does, so the state brings the public
- * container the old defaults used.
- */
+/** Below the app shell `<main>` pads the state; elsewhere the state brings the public container. */
 function Framed({
   inShell,
   children,
@@ -144,12 +133,7 @@ const PAGE_NOT_FOUND: NotFoundCopy = {
   back: { to: '/properties', label: 'Back to properties' },
 }
 
-/**
- * What a not-found draws, without a frame: the entity the route says is gone (in
- * the page's own frame), else the page that does not exist. `RouteNotFound` adds
- * the frame a route needs; the shell's boundary draws it inside the shell (see
- * `NoticeState`, which adds the notices of `route-notice`).
- */
+/** What a not-found draws, without a frame: the entity the route says is gone, else the missing page. */
 export function NotFoundState({
   entity,
   frame,

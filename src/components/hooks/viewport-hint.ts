@@ -32,7 +32,7 @@ const WIDTH_PATTERN = /^\d{3,5}$/
 
 // MDN's advice for mobile detection: every major phone browser puts "Mobi" in
 // its user agent, and tablets do not. iPadOS sends a desktop user agent, so an
-// iPad without a cookie is treated as a desktop, as it was before.
+// iPad without a cookie is treated as a desktop.
 const MOBILE_USER_AGENT = /Mobi/
 
 export type ViewportRequest = Readonly<{

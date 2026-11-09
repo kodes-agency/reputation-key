@@ -1,14 +1,10 @@
-// "Follow the parent, or set my own" (UI consistency scan: FORM-09). The Property's
-// private-feedback target, a Property's quiet hours and a notification category each
-// asked it with a different control (a Checkbox, a pair of buttons, a "Use my default
-// here" button), different words and a different moment of saving, and none pointed at
-// the setting it followed. This row is the one answer: what the place follows (a link to
+// "Follow the parent, or set my own". The row shows what the place follows (a link to
 // the owner, where there is a page for it) and what that is worth, whether the place has
 // a value of its own, and one button that puts the inherited value back (or starts a
 // value of its own).
 //
 // The row draws no editor. The value the place sets is the caller's field, beside it,
-// which is enabled while `overridden` (the target's hours, the quiet hours' times).
+// which is enabled while `overridden`.
 //
 // `commit` is required, as it is on `SettingSwitchRow`:
 // - `immediate`: the buttons save at once. The caller reports a refusal in a toast, and

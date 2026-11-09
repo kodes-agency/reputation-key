@@ -1,33 +1,21 @@
-// The list table shell (UI consistency scan: COLL-03). Extracted from the
-// Properties list table, which `ui/table` was used raw around in thirteen files
-// with seven frames, four header recipes and four ways to degrade on a phone.
+// The list table shell. One DOM for every width, so a row's name renders once (e2e
+// and Storybook compile no container queries and rely on that). Below the frame's
+// own container width each row stacks as a small grid and the header row is hidden;
+// from it the same markup is a table.
 //
-// One DOM for every width, so a row's name renders once (the e2e journeys and
-// Storybook, which compile no container queries, both lean on that). Below a
-// container width each row stacks as a small grid and the header row is not shown;
-// from it the same markup is a table. The container is the frame's own, not the
-// window, so an open sidebar or a narrow column counts.
+// - `layout="rows"` (default): the frame is always drawn, stacked rows divided inside.
+// - `layout="cards"`: below the width each row is its own card; the frame appears with the table.
+// - `layout="scroll"`: always a framed table, scrolling sideways when wider than its column.
 //
-// - `layout="rows"` (the default): the frame is always drawn and the stacked rows
-//   are divided inside it. Properties, Members, Staff.
-// - `layout="cards"`: below the width each row is a card of its own and the frame
-//   only appears with the table. The Portals tables, whose rows are cards with
-//   buttons.
-// - `layout="scroll"`: always a table, framed, scrolling sideways when it is wider
-//   than its column. For a table that is wide by nature (a matrix, seven columns).
+// `from` is the container width the table starts at; each class is written out in
+// full so Tailwind sees it. `tracks` sets the stacked grid's columns and a cell
+// places itself with `col-start-*` / `row-start-*`.
 //
-// `from` is the container width the table starts at: `3xl` or `4xl` for rows, `2xl`
-// or `4xl` for cards (each class is written out in full below so Tailwind sees it,
-// and only the widths a layout uses are spelled). How a stacked row
-// arranges its cells is the caller's: `tracks` says how many columns the stacked
-// grid has, and a cell places itself with `col-start-*` / `row-start-*`.
-//
-// The cell that holds a row's actions menu is `<DataTableCell actions>`. A ghost trigger
-// has air around its glyph (14px at the 44px touch size below `md`, 8px at 32px from it),
-// so stacked it is pulled out by that much: the three dots meet the right edge of the
-// text beside them, sit on the line of the first row, and the control adds no height of
-// its own. The caller puts it in the corner of the first row (`col-start-N row-start-1`),
-// so its box never covers a control below it; a cell that spans rows adds `self-start`.
+// `<DataTableCell actions>` holds a row's actions menu. A ghost trigger has air
+// around its glyph (14px at the 44px touch size below `md`, 8px at 32px from it), so
+// stacked it is pulled out by that much: the dots meet the text's right edge and add
+// no height. Put it in the corner of the first row (`col-start-N row-start-1`) so its
+// box never covers a control below; a cell that spans rows adds `self-start`.
 import { createContext, use, type ComponentProps, type ReactNode } from 'react'
 import { ArrowDown, ArrowDownUp, ArrowUp } from 'lucide-react'
 import {
@@ -84,11 +72,10 @@ const ROWS = {
   },
 } as const satisfies Record<DataTableRowsFrom, Recipe>
 
-// A card keeps its border while it is a card: the last row's divider is dropped only
-// when the rows are table rows, where it would double the frame's own edge. Both rules
-// name the card rows (`data-slot="data-table-card"`, set by `DataTableRow`), because a
-// section's head row is a plain `TableRow` that ends a folded section's body and has
-// no border of its own to restore.
+// A card keeps its border while it is a card; the last row's divider is dropped only
+// for table rows, where it would double the frame's edge. Both rules name card rows
+// (`data-slot="data-table-card"`) because a section's head row is a plain `TableRow`
+// with no border of its own to restore.
 const CARDS = {
   '2xl': {
     frame: '@2xl:overflow-hidden @2xl:rounded-lg @2xl:border @2xl:bg-card',

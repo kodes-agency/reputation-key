@@ -1,29 +1,23 @@
-// The actions of an explicit-save group (UI consistency scan: FORM-01, FORM-19,
-// ACT-04; decisions 4, 5 and 6).
+// The actions of an explicit-save group.
 //
-// One row for every settings group that saves on a button: at the end of the group,
-// right-aligned, the primary last. Reset sits before it and shows only while the
-// group holds edits; it puts back the values the page last saved and never leaves
-// the page, so a settings group has no Cancel. A save that was refused is the
-// banner directly above the row. The container (a CardFooter, the end of a card's
-// body, a bordered panel) stays the section's own look.
+// One row at the end of the group, right-aligned, the primary last. Reset sits before
+// it and shows only while the group holds edits; it puts back the values the page last
+// saved and never leaves the page, so a settings group has no Cancel. A refused save is
+// the banner directly above the row. The container stays the section's own look.
 //
 // Two ways to say what is dirty and what Reset restores:
 // - `form`, for a TanStack Form group: dirty while a field differs from the form's
-//   defaults, and Reset is `form.reset()`. The saved values must reach the form as
-//   its `defaultValues` and a save that changes them must remount it (key the form's
+//   defaults, and Reset is `form.reset()`. The saved values must reach the form as its
+//   `defaultValues` and a save that changes them must remount it (key the form's
 //   component on the saved values): TanStack keeps a touched form's dirtiness from
-//   before its defaults moved, so a form that is not remounted stays "dirty" after a
-//   successful save.
-// - `dirty` and `onReset`, for a group that keeps its own state (the responsible
-//   managers' selection, the quiet hours). No `onReset` means nothing to put back
-//   (a create form): the row is then just the right-aligned primary.
+//   before its defaults moved, so a form that is not remounted stays "dirty".
+// - `dirty` and `onReset`, for a group that keeps its own state. No `onReset` means
+//   nothing to put back (a create form): the row is then just the primary.
 //
 // Reset leaves with the edits, so it hands the focus on: to the first control of the
-// group (the enclosing form, else the row's parent), else to the first control of the
-// Card or section the row sits in (the AI card's footer holds no field of its own), else
-// to another button of the row, else to the row itself. The focus is never left to fall
-// to the page.
+// group (the enclosing form, else the row's parent), else the first control of the Card
+// or section the row sits in, else another button of the row, else the row itself. The
+// focus is never left to fall to the page.
 import { useRef, useState, type ReactNode } from 'react'
 import { useStore, type AnyFormApi } from '@tanstack/react-form'
 import { Button } from '#/components/ui/button'

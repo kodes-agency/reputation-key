@@ -1,10 +1,8 @@
-// The Link-backed twin of `Tabs variant="line"`: a page's sibling views when each
-// view is a route (or a search value of one), so every view has an address, the
-// browser's Back button steps between them and a view can be bookmarked. It is a
-// navigation landmark of links with `aria-current`, not an ARIA tablist: a
-// tablist promises a panel in the same document, and the panel here is the route
-// below. The look is not part of that split, so it comes from the same recipe
-// as the Radix line tabs (`tabs-line-styles.ts`).
+// The Link-backed twin of `Tabs variant="line"`: sibling views that are each a route
+// (or a search value of one), so every view has an address and Back steps between
+// them. A navigation landmark of links with `aria-current`, not an ARIA tablist: a
+// tablist promises a panel in the same document. The look comes from the same
+// recipe as the Radix line tabs (`tabs-line-styles.ts`).
 //
 //   <LinkTabs aria-label="Google rating goal views">
 //     <LinkTab to="/goals" search={{ view: 'active' }} current={view === 'active'}>
@@ -12,15 +10,12 @@
 //     </LinkTab>
 //   </LinkTabs>
 //
-// A `LinkTab` is a `NavLink` in a list item, so it takes a router link's own props
-// (`to`, `params`, `search`) and the one answer to "is this the page": `current`.
-// The router's own test (the location is at or below the link's path and holds its
-// search) never speaks, so a bare `/list` beside `/list?tab=removed` is not also
-// announced as current, and no link needs `activeOptions` to say so.
+// A `LinkTab` takes a router link's props plus `current`. The router's own active
+// test never speaks, so a bare `/list` beside `/list?tab=removed` is not also
+// announced as current.
 //
-// Like every strip, the row keeps one line, scrolls sideways when the tabs do not
-// fit, hides its scrollbar, fades the side that continues and scrolls the current
-// tab into view (a deep link to the last tab opens on it).
+// The row keeps one line, scrolls sideways, hides its scrollbar, fades the side
+// that continues and scrolls the current tab into view.
 import { useRef, type ComponentProps } from 'react'
 
 import { cn } from '#/lib/utils'

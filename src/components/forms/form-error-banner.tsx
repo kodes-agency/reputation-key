@@ -1,17 +1,11 @@
-// Shared form building block — displays top-level mutation errors.
-// Used in every form in the app.
-// Per patterns.md example #27.
+// Shared form building block: displays top-level mutation errors.
 //
-// TanStack Start serializes server-thrown Errors via seroval and re-throws
-// them on the client. The mutation.error will be an Error instance with
-// .message from the server. Custom properties (code, status) are also
-// preserved by seroval.
+// TanStack Start serializes server-thrown Errors via seroval and re-throws them on the
+// client, keeping `.message` and custom properties (code, status).
 //
-// What it prints is the toast's rule (`actionErrorMessage`): the server's own
-// sentence for a 4xx refusal, which a context wrote for the person who pressed
-// the button, and one generic sentence for anything else. A 5xx or an untagged
-// error carries text that was never written for a reader and may name internal
-// state, so it is not shown here any more than in a toast.
+// What it prints is the toast's rule (`actionErrorMessage`): the server's own sentence
+// for a 4xx refusal, and one generic sentence for anything else. A 5xx or an untagged
+// error carries text never written for a reader and may name internal state.
 
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
@@ -21,12 +15,10 @@ type Props = Readonly<{
 }>
 
 /**
- * A server function whose `.validator` schema rejects the payload throws a
- * ZodError, and seroval hands the client an Error whose `.message` is the raw
- * `JSON.stringify(issues)` dump. Rendering that verbatim showed users
- * `[{"origin":"string","code":"too_small",...}]`. Parse it back into
- * `field: message` lines — the same shape `shared/config/env.ts` uses for
- * issue lists.
+ * A server function whose `.validator` schema rejects the payload throws a ZodError,
+ * and seroval hands the client an Error whose `.message` is the raw
+ * `JSON.stringify(issues)` dump. Parse it back into `field: message` lines, the same
+ * shape `shared/config/env.ts` uses for issue lists.
  */
 type IssueLike = Readonly<{ path?: unknown; message?: unknown }>
 

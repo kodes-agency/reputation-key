@@ -1,8 +1,7 @@
-// The anatomy every shared form field has (UI consistency scan: FORM-05): a Field
-// holding the label (with its optional marker), the control, a line of help and
-// the error, in that order. FormTextField, FormTextarea and FormNumberField draw
-// their control inside it; a control of another kind (a combobox, a time input)
-// does the same instead of rebuilding Field, FieldLabel and FieldError.
+// The anatomy every shared form field has: a Field holding the label (with its
+// optional marker), the control, a line of help and the error, in that order. A control
+// of another kind (a combobox, a time input) uses this instead of rebuilding Field,
+// FieldLabel and FieldError.
 import type { ReactNode } from 'react'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field'
 

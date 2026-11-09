@@ -17,11 +17,10 @@ export type StripEdges = Readonly<{ atStart: boolean; atEnd: boolean }>
  * sides.
  *
  * Start edge, even for a pill clipped on the RIGHT: the strip snaps its pills
- * to their start (`snap-x`, `snap-start`), so a position that is not a pill's
- * start is pulled to the nearest one, and at 320 px that left the active pill
- * half off the edge (253 to 339 in a 320 px strip). The pill's own start is
- * where the browser would put it anyway, and it shows the pill whole unless it
- * is wider than the view. `padding` is therefore the strip's scroll padding.
+ * to their start (`snap-x`, `snap-start`), so any other position is pulled to
+ * the nearest pill start and can leave the active pill half off the edge. The
+ * pill's own start shows it whole unless it is wider than the view. `padding`
+ * is therefore the strip's scroll padding.
  *
  * `pillLeft` is measured in scroll-content coordinates (not the viewport), so
  * the strip's own scroll offset is not part of it.
@@ -100,9 +99,8 @@ export function stripFadeStyle({
  * scroll the page around it.
  *
  * The breathing room is the strip's scroll padding, never less than the edge
- * fade's width, so the revealed item clears the 24px fade instead of sitting
- * half under it. A strip that snaps keeps `scroll-px-6`, the same width, so this
- * position is one the snap keeps rather than pulls to the nearest item. Measured
+ * fade's width, so the revealed item clears the fade. A snapping strip keeps
+ * `scroll-px-6`, the same width, so this position is one the snap keeps. Measured
  * from bounding boxes, so it holds whichever ancestor is the item's offset parent.
  */
 export function revealCurrentItem(strip: HTMLElement) {

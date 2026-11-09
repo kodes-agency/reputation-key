@@ -1,21 +1,17 @@
-// A boolean setting (UI consistency scan: FORM-08): the label, and its help, at the
-// start of the row, the switch at the end. It was drawn five ways (the switch before
-// its text, the label left with the switch pushed right, the label then the switch,
-// a switch and an On/Off word in a table cell, and a Checkbox standing in for one),
-// and none said when it saves.
+// A boolean setting: the label, and its help, at the start of the row, the switch at
+// the end.
 //
-// `commit` says it, and is required, and the row shows it as soon as the switch moves:
+// `commit` is required, and the row shows it as soon as the switch moves:
 // - `immediate`: flipping the switch saves at once. The row says "Saving…" while the
 //   save runs and "Saved" for a moment when it lands. `onCheckedChange` hands back the
 //   save's promise (a rejection, or `false`, is a refusal: the caller's mutation has
-//   reported it in a toast, decision 6, and the row says nothing more). `pending` is for
-//   a row whose switch must also wait while the save runs; the notification channels
-//   do not pass it, because the switch has already moved and a second flip queues.
+//   reported it in a toast, and the row says nothing more). `pending` is for a row
+//   whose switch must also wait while the save runs; the notification channels do not
+//   pass it, because the switch has already moved and a second flip queues.
 // - `deferred`: the switch is one field of a group that saves on its Save (or on the
 //   wizard's last step). While its value differs from the saved one (`unsaved`) the
-//   row says "Unsaved", so a person does not leave believing the flip was kept. The
-//   group's own button carries the pending state, so the row has no "Saving…" of its
-//   own. A group with no saved value yet (a wizard step) passes no `unsaved`.
+//   row says "Unsaved". The group's own button carries the pending state. A group
+//   with no saved value yet (a wizard step) passes no `unsaved`.
 //
 // A Checkbox is not a setting: it stays for a statement the person agrees to
 // (`ConsentCheckbox`) and for choosing several things from a list.
@@ -188,14 +184,14 @@ export function SettingSwitchRow({
   )
 }
 
-// What the save behind a flipped switch is doing, as the row says it (UI consistency
-// scan: FORM-08). A row that saves as it is flipped hands its handler's promise to
-// `track`: "Saving…" while it runs, "Saved" for a moment when it lands, nothing when
-// it was refused (the caller has said so in a toast, decision 6).
+// What the save behind a flipped switch is doing, as the row says it. A row that saves
+// as it is flipped hands its handler's promise to `track`: "Saving…" while it runs,
+// "Saved" for a moment when it lands, nothing when it was refused (the caller has said
+// so in a toast).
 //
-// A save is refused when its promise rejects or resolves `false`. Anything else
-// resolved is a save that landed. Flips that overlap are one stretch of saving: the
-// row settles when the last of them has, and says "Saved" only if that one landed.
+// A save is refused when its promise rejects or resolves `false`. Flips that overlap
+// are one stretch of saving: the row settles when the last of them has, and says
+// "Saved" only if that one landed.
 
 /** How long "Saved" stays beside the switch. */
 const SAVED_NOTICE_MS = 2500

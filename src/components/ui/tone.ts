@@ -6,11 +6,9 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-// The tones a notice or a status pill can take (UI consistency scan: SURF-05,
-// COLL-05). Alert, Badge and StatusBadge draw every tinted surface from this one
-// table, so "warning" is the same amber box and the same triangle wherever it
-// appears, and a colour is never the only thing that says so: each tone has one
-// icon, and a pill prints its words.
+// The tones a notice or a status pill can take. Alert, Badge and StatusBadge draw
+// every tinted surface from this table, and a colour is never the only thing that
+// says so: each tone has one icon, and a pill prints its words.
 //
 //   positive  healthy, saved, connected          --positive on --success-muted
 //   warn      needs a person, may break          --warn on --warn-muted
@@ -18,10 +16,8 @@ import {
 //   info      worth knowing, nothing to do       --link on the accent tint
 //   neutral   quiet: off, archived, no change    --muted-foreground on --muted
 //
-// Each ink is the text-grade value of its colour and each tint is the quietest
-// surface it was measured on; `token-contrast.test.ts` reads both from the
-// variants that use them and holds every pair to 4.5:1 in the light and the
-// dark theme. The tinted edge is atmosphere, not a boundary anyone relies on.
+// `token-contrast.test.ts` holds every ink/tint pair to 4.5:1 in both themes. The
+// tinted edge is atmosphere, not a boundary anyone relies on.
 
 export type Tone = 'positive' | 'warn' | 'negative' | 'info' | 'neutral'
 
@@ -61,12 +57,9 @@ export const TONE_INK: Readonly<Record<Tone, string>> = {
 }
 
 /**
- * The one icon each tone wears, wherever it is drawn. `CircleAlert` is the
- * product's error glyph (FormErrorBanner, the router's error boundary) and
- * `TriangleAlert` the warning glyph; the older `AlertCircle`, `AlertTriangle`,
- * `CheckCircle2` and `OctagonAlert` are the same shapes under other names and
- * are not used for a tone. `neutral` has none to speak of, so a status pill in
- * that tone draws a quiet ring.
+ * The one icon each tone wears, wherever it is drawn. `CircleAlert` is the product's
+ * error glyph and `TriangleAlert` the warning glyph. `neutral` has none, so a
+ * status pill in that tone draws a quiet ring.
  */
 export const TONE_ICON: Readonly<Record<Exclude<Tone, 'neutral'>, LucideIcon>> = {
   positive: CircleCheck,

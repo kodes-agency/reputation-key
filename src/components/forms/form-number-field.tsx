@@ -1,22 +1,18 @@
-// Number field for forms — the control the Response Target cards, the rows of
-// the table that sets several goals and the month target dialog share. A whole
-// number unless it is given a `step` (a rating average takes one decimal place).
-// Per conventions: shared form building blocks live in components/forms/.
+// Number field for forms. A whole number unless it is given a `step` (a rating average
+// takes one decimal place).
 //
-// Deliberately not FormTextField with type="number": that one reports invalid
-// from `isTouched && !isValid`, which hides a submit-time error on a field the
-// person never focused. A target the server refused must show its reason, so
-// this control reads the errors themselves. It is otherwise the same field: the
-// same Field, FieldLabel, help line and optional marker as FormTextField.
+// Deliberately not FormTextField with type="number": that one reports invalid from
+// `isTouched && !isValid`, which hides a submit-time error on a field the person never
+// focused. A target the server refused must show its reason, so this control reads the
+// errors themselves. It is otherwise the same field.
 
 import type { ReactNode } from 'react'
 import { Input } from '#/components/ui/input'
 import { describedByOf, FormFieldFrame } from './form-field-frame'
 
 /**
- * Just the surface a number control touches on a TanStack Form field. Named
- * structurally rather than through the form's generic field type, which would
- * make this component's props depend on the whole form shape.
+ * Just the surface a number control touches on a TanStack Form field, named
+ * structurally so this component's props do not depend on the whole form shape.
  */
 export type NumberFieldApi = Readonly<{
   state: Readonly<{
@@ -28,8 +24,7 @@ export type NumberFieldApi = Readonly<{
 }>
 
 /**
- * A number control bound to one form field. Every target input is this control
- * with a different label and range; a cleared or non-numeric control reads as
+ * A number control bound to one form field. A cleared or non-numeric control reads as
  * NaN, which the schema names and the input must not show.
  */
 export function FormNumberField({

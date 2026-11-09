@@ -1,17 +1,12 @@
 // The one control for "which window am I looking at": a time range, drawn as a
-// segmented control (a short, always-answered choice, see `segmented-control`)
-// where a row of segments fits and as a Select below `sm`, where five segments
-// would wrap on a phone. Both render the same options under the same name, and
-// the page shows one at a time with CSS alone, so there is no layout flash and no
-// width to measure. The segments are a tap target below `md`.
+// segmented control where a row of segments fits and as a Select below `sm`, where
+// five segments would wrap on a phone. Both render the same options under the same
+// name and the page shows one at a time with CSS alone, so there is no layout flash
+// and no width to measure. The segments are a tap target below `md`.
 //
-// The control is controlled and remembers nothing: a range is the state of the
-// page it filters, and the page keeps it where it keeps its other state. A
-// dashboard topic page keeps it in the URL (`?range=`), so a link or a reload
-// reads the same window. The Portal Results window is a viewing preference that
-// follows a reader from portal to portal, so it is remembered per reader
-// (`portal-results-window.ts`). Each page brings its own preset list; the
-// control is the shell, not the vocabulary.
+// The control is controlled and remembers nothing: a range is the state of the page
+// it filters. Each page brings its own preset list; the control is the shell, not
+// the vocabulary.
 import {
   Select,
   SelectContent,
