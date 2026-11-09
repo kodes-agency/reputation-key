@@ -365,6 +365,50 @@ export const notificationEmailSuppressions = pgTable(
   ],
 )
 
+/**
+ * When the provider last lifted an address from its own suppression list. An
+ * event is applied in the order it happened, not the order it arrived: a bounce
+ * that happened before the removal must not suppress the address again when a
+ * delayed delivery brings it in afterwards. Keyed like the suppressions, by the
+ * keyed digest alone.
+ *
+ * Lifetime: one row per address, replaced in place, so it grows with addresses
+ * lifted and not with events. Kept as long as a delayed bounce for the address
+ * could still arrive and be wrongly applied; the row holds a digest and a time
+ * only. Forgetting an address outright removes its row; no retention sweep.
+ */
+export const notificationEmailSuppressionRemovals = pgTable(
+  'notification_email_suppression_removals',
+  {
+    addressHash: varchar('address_hash', { length: 64 }).primaryKey(),
+    removedAt: timestamp('removed_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    check(
+      'notification_email_suppression_removals_address_hash_valid',
+      sql`${t.addressHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+  ],
+)
+
+/** The provider retries a failed delivery for about a day; a week covers it with room. */
+export const RESEND_WEBHOOK_DELIVERY_RETENTION_DAYS = 7
+
+/**
+ * Provider event deliveries already applied, by the provider's delivery id, so
+ * a redelivery is acknowledged without being applied twice.
+ *
+ * Lifetime: one row per delivery, so it must be pruned. A row only has to
+ * outlast the provider's retry window; the retention sweep deletes it
+ * `RESEND_WEBHOOK_DELIVERY_RETENTION_DAYS` after `applied_at`.
+ */
+export const resendWebhookDeliveries = pgTable('resend_webhook_deliveries', {
+  eventId: varchar('event_id', { length: 255 }).primaryKey(),
+  appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
+  // resend_webhook_deliveries_retention_idx (the retention sweep's order) is
+  // built by the concurrent-index sidecar; see concurrent-index-registry.ts.
+})
+
 // ── Immutable daily-digest attempts ────────────────────────────────
 
 /**

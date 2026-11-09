@@ -862,6 +862,13 @@
       "when": 1800000003000,
       "tag": "0122_notification_email_frozen_request",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1800000004000,
+      "tag": "0123_resend_event_ordering",
+      "breakpoints": true
     }
   ]
 }
