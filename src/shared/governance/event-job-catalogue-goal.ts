@@ -11,10 +11,9 @@
 import type { JobFamilyRow } from './event-job-catalogue'
 import { durable, ev, type EventFamilyRow } from './event-job-catalogue-rows'
 
-const NOTIFICATION_GOAL_OUTBOX =
-  'src/contexts/feed/infrastructure/goal-outbox-consumers.ts'
+const NOTIFICATION_GOAL_OUTBOX = 'src/contexts/feed/infrastructure/goal-notice-routes.ts'
 const NOTIFICATION_RATING_GOAL_OUTBOX =
-  'src/contexts/feed/infrastructure/rating-goal-notice-consumers.ts'
+  'src/contexts/feed/infrastructure/goal-notice-routes.ts'
 
 export const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('goal.monthly_result.closed', [
