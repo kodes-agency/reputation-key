@@ -3,15 +3,20 @@ import type { Database } from '#/shared/db'
 import { BACKUP_ERASURE_LEDGER_CONTEXTS } from '#/shared/db/schema/backup-erasure-ledger.schema'
 import { composeRightsExecutors } from './rights-executors'
 
-const deps = { db: {} as Database, runNotification: vi.fn() }
+const deps = {
+  db: {} as Database,
+  runNotification: vi.fn(),
+  portalObjectStore: { deleteObject: vi.fn() },
+}
 
 describe('composeRightsExecutors', () => {
-  it('composes the five context executors in order', () => {
+  it('composes every context executor in order', () => {
     expect(composeRightsExecutors(deps, false).map(({ name }) => name)).toEqual([
       'google-integration',
       'review',
       'inbox',
       'reporting',
+      'portal',
       'notification',
     ])
   })
@@ -40,7 +45,16 @@ describe('composeRightsExecutors', () => {
       'review',
       'inbox',
       'reporting',
+      'portal',
       'notification',
     ])
+  })
+
+  it('refuses to silently omit Portal when the image store is missing', () => {
+    const { portalObjectStore: _store, ...withoutStore } = deps
+    expect(() =>
+      // @ts-expect-error A caller without Portal's required effect must fail closed.
+      composeRightsExecutors(withoutStore, false),
+    ).toThrow('Portal image store is required')
   })
 })

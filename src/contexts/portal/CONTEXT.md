@@ -18,6 +18,13 @@ assignment, and governed access artifacts.
   `src/components/features/portal/`. Neither imports the context build at runtime.
 - `build.ts` composes request management separately from worker jobs. Portal and
   Guest retain separate builds.
+- `infrastructure/adapters/portal-rights.adapter.ts` supplies Property and
+  Organization reports and erasure, plus Organization export, to
+  `scripts/ops/rights-request.ts` through `composition/rights-executors.ts`.
+  Composition requires the image store. Images are deleted outside the database
+  transaction before the rows in `PORTAL_PURGE_PLAN`; journal failure blocks both.
+  Production apply remains refused. Restore-command replay is not yet wired;
+  the integration test exercises the shared fence with a test-local replayer.
 
 ## Boundaries
 

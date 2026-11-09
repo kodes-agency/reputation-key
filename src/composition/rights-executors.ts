@@ -3,6 +3,8 @@
 // decides which executors exist for a request and what each one is given.
 
 import type { Database } from '#/shared/db'
+import { createPortalRightsExecutor } from '#/contexts/portal/infrastructure/adapters/portal-rights.adapter'
+import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 import { createReportingRightsExecutor } from '#/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
 import { createGoogleRightsExecutor } from '#/shared/ops/rights/google-rights-executor'
 import {
@@ -19,6 +21,7 @@ import { reputationReplyScopeEffects } from './reply-scope-effects'
 export type RightsExecutorsDeps = Readonly<{
   db: Database
   runNotification: NotificationRightsExecutorDeps['run']
+  portalObjectStore: Pick<StoragePort, 'deleteObject'>
   now?: () => Date
 }>
 
@@ -33,6 +36,7 @@ export function composeRightsExecutors(
     run: deps.runNotification,
   })
   if (finalWarning) return [notification]
+  if (!deps.portalObjectStore) throw new Error('Portal image store is required')
   return [
     createGoogleRightsExecutor({ db: deps.db, now }),
     createReviewRightsExecutor({
@@ -42,6 +46,11 @@ export function composeRightsExecutors(
     }),
     createInboxRightsExecutor({ db: deps.db, now }),
     createReportingRightsExecutor(deps.db, now),
+    createPortalRightsExecutor({
+      db: deps.db,
+      objectStore: deps.portalObjectStore,
+      now,
+    }),
     notification,
   ]
 }
