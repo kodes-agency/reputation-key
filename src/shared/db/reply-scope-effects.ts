@@ -25,9 +25,21 @@ export type ReplyScopeEffects = Readonly<{
     request: OrganizationReplyRequest,
   ): Promise<number>
   deleteOrganizationPublicationAttempts(tx: Tx, organizationId: string): Promise<number>
+  /** The same effects for the Replies to one Property's Reviews. */
+  cancelRepliesForPropertyClosing(tx: Tx, request: PropertyReplyRequest): Promise<number>
+  scrubPropertyReplyContent(tx: Tx, request: PropertyReplyRequest): Promise<number>
+  releasePropertyAttemptConfirmations(
+    tx: Tx,
+    request: PropertyReplyRequest,
+  ): Promise<number>
+  deletePropertyPublicationAttempts(
+    tx: Tx,
+    request: Readonly<{ organizationId: string; propertyId: string }>,
+  ): Promise<number>
 }>
 
 type OrganizationReplyRequest = Readonly<{ organizationId: string; occurredAt: Date }>
+type PropertyReplyRequest = OrganizationReplyRequest & Readonly<{ propertyId: string }>
 
 /**
  * Fails closed: an entry point built without the effects stops at the first
