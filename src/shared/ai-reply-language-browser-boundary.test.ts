@@ -1,6 +1,7 @@
 import { globSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { readUiSources } from '#/shared/testing/source-tree'
 
 const ROOT = resolve(import.meta.dirname, '../..')
 const CLASSIFIER_REFERENCE =
@@ -17,6 +18,11 @@ describe('AI language server-only boundary', () => {
         if (CLASSIFIER_REFERENCE.test(readFileSync(resolve(ROOT, path), 'utf8')))
           violations.push(path)
       }
+    }
+    // Feature screens under src/contexts/<context>/<feature>/ui reach the browser too.
+    for (const file of readUiSources({ includeTs: true, comments: 'kept' })) {
+      if (file.path.startsWith('src/contexts/') && CLASSIFIER_REFERENCE.test(file.text))
+        violations.push(file.path)
     }
     expect(violations).toEqual([])
   })

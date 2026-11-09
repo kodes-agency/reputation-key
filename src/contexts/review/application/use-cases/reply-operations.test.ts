@@ -550,6 +550,31 @@ describe('draftReply', () => {
     expect(deps.replyRepo.saveDraft).not.toHaveBeenCalled()
   })
 
+  it('refuses accepting an AI draft over a draft newer than the one on screen', async () => {
+    const existing = makeReply({ stateRevision: 3 })
+    const accept = vi.fn()
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(existing),
+      aiSuggestedDraftStore: { accept, assertCurrentBinding: vi.fn() },
+    })
+
+    await expect(
+      draftReply(deps)(
+        {
+          reviewId: REVIEW_ID,
+          text: 'Suggested reply',
+          provenanceToken: 'signed-token',
+          expectedReply: { id: existing.id, stateRevision: 2 },
+        },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({
+      code: 'invalid_transition',
+      message: 'Reply status changed concurrently',
+    })
+    expect(accept).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['invalid', 'ai_suggestion_invalid'],
     ['expired', 'ai_suggestion_expired'],
@@ -1634,6 +1659,32 @@ describe('deleteReply', () => {
       expect(deps.replyRepo.deleteDraft).not.toHaveBeenCalled()
     },
   )
+
+  it.each([null, { id: REPLY_ID, stateRevision: 1 }])(
+    'refuses a delete from a screen that showed %j instead of the stored draft',
+    async (expectedReply) => {
+      const deps = makeDeps({
+        replyRepo: replyRepoWith(makeReply({ stateRevision: 2 })),
+      })
+      await expect(
+        deleteReply(deps)({ reviewId: REVIEW_ID, expectedReply }, MANAGER_CTX),
+      ).rejects.toMatchObject({
+        code: 'invalid_transition',
+        message: 'Reply status changed concurrently',
+      })
+      expect(deps.replyRepo.deleteDraft).not.toHaveBeenCalled()
+    },
+  )
+
+  it('deletes the draft the screen showed', async () => {
+    const reply = makeReply({ stateRevision: 2 })
+    const deps = makeDeps({ replyRepo: replyRepoWith(reply) })
+    await deleteReply(deps)(
+      { reviewId: REVIEW_ID, expectedReply: { id: reply.id, stateRevision: 2 } },
+      MANAGER_CTX,
+    )
+    expect(deps.replyRepo.deleteDraft).toHaveBeenCalledWith(reply)
+  })
 
   it('treats a reply that changed before the delete as invalid_transition', async () => {
     const deps = makeDeps({

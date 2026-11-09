@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { isBlockedCapability } from '#/shared/auth/beta-capabilities'
+import { readUiSources } from '#/shared/testing/source-tree'
 
 const ROOT = process.cwd()
 
@@ -29,6 +30,9 @@ describe('Contact Request beta containment', () => {
     const entryPaths = [
       ...sourceFiles(join(ROOT, 'src/routes')),
       ...sourceFiles(join(ROOT, 'src/components')),
+      ...readUiSources({ includeTs: true, comments: 'kept' })
+        .filter((file) => file.path.startsWith('src/contexts/'))
+        .map((file) => join(ROOT, file.path)),
       ...sourceFiles(join(ROOT, 'src/contexts/guest/server')),
       ...sourceFiles(join(ROOT, 'src/worker')),
       ...sourceFiles(join(ROOT, 'src/shared/jobs')),

@@ -314,9 +314,20 @@ export function createReplyComposerController(initialInput: ReplyComposerInput) 
         () => input.onSubmit(draftEditMetric(draft)),
       )
     },
-    /** After the server deletes the draft the box is emptied; a failed delete changes nothing. */
+    /**
+     * Edits not yet sent are dropped when the delete is issued, so none can
+     * follow it to the server. After the server deletes the draft the box is
+     * emptied; a failed delete changes nothing and the dropped edit is saved again.
+     */
     async deleteDraft<T>(run: () => Promise<T>): Promise<T> {
-      const result = await run()
+      const dropped = coordinator.discardUnsent()
+      let result: T
+      try {
+        result = await run()
+      } catch (error) {
+        if (dropped) coordinator.schedule(dropped, isValidReplyDraft(dropped))
+        throw error
+      }
       coordinator.reset()
       noteEdit('type')
       commit({
