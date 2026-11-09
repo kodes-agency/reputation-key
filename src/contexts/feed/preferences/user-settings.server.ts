@@ -10,8 +10,10 @@
 
 import { propertyId, type OrganizationId, type UserId } from '#/shared/domain/ids'
 import type { NotificationPreferenceRepositoryPort } from '../application/ports/notification-preference-repository.port'
-import type { NotificationQuietHoursInput } from '../application/dto/notification-preference.dto'
-import type { NotificationUserSettingsInput } from '../application/dto/notification-user-settings.dto'
+import type {
+  NotificationQuietHoursInput,
+  NotificationUserSettingsInput,
+} from './contracts'
 import { createPersonalDeliveryWindow } from '../domain/constructors-preference'
 import { DEFAULT_NOTIFICATION_LOCALE } from '../domain/notification-policy'
 import { NO_QUIET_HOURS } from '../domain/notification-preference-resolution'
@@ -21,13 +23,13 @@ import type {
   NotificationUserSettings,
   PersonalDeliveryWindow,
 } from '../domain/notification-types'
-import type { NotificationOrganizationScopeResolver } from './repositories/notification-organization-scope.repository'
+import type { NotificationOrganizationScopeResolver } from '../infrastructure/repositories/notification-organization-scope.repository'
 import {
   isResolvableTimezone,
   recipientTimezoneSource,
   resolveRecipientTimezone,
   type RecipientTimezoneSource,
-} from './jobs/recipient-timezone'
+} from '../infrastructure/jobs/recipient-timezone'
 
 type Deps = Readonly<{
   preferenceRepo: Pick<

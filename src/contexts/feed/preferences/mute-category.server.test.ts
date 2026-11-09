@@ -8,7 +8,7 @@ import {
 import {
   muteNotificationCategory,
   undoNotificationCategoryMute,
-} from './mute-notification-category'
+} from './mute-category.server'
 
 const NOW = new Date('2026-08-26T08:00:00.000Z')
 

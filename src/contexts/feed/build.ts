@@ -91,7 +91,7 @@ import {
   muteNotificationCategory,
   undoNotificationCategoryMute,
   type PreviousPropertySetting,
-} from './application/use-cases/mute-notification-category'
+} from './preferences/mute-category.server'
 import { createImmediateEmailEnqueue } from './infrastructure/jobs/immediate-email-enqueue'
 import { withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import {
@@ -144,9 +144,11 @@ import {
   registerOrganizationPurgePendingNoticeConsumer,
 } from './infrastructure/identity-account-outbox-consumers'
 import { createNotificationOrganizationScopeResolver } from './infrastructure/repositories/notification-organization-scope.repository'
-import { createNotificationUserSettings } from './infrastructure/notification-user-settings'
-import type { NotificationQuietHoursInput } from './application/dto/notification-preference.dto'
-import type { NotificationUserSettingsInput } from './application/dto/notification-user-settings.dto'
+import { createNotificationUserSettings } from './preferences/user-settings.server'
+import type {
+  NotificationQuietHoursInput,
+  NotificationUserSettingsInput,
+} from './preferences/contracts'
 
 import type { OutboxRepository } from '#/shared/outbox'
 

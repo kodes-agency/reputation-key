@@ -110,6 +110,24 @@ describe('source policy lint rules', () => {
     },
   )
 
+  it.each([
+    'src/components/features/settings/policy-fixture.tsx',
+    'src/contexts/feed/preferences/ui/policy-fixture.tsx',
+  ])('refuses a planted Feed preference server import in %s', (filename) => {
+    for (const code of [
+      "import { createNotificationUserSettings } from '#/contexts/feed/preferences/user-settings.server'",
+      "import { muteNotificationCategory } from '../mute-category.server'",
+    ])
+      expect(messages(code, filename, 'browser-server')).toEqual(['serverOnly'])
+    expect(
+      messages(
+        "import { notificationUserSettingsDto } from '#/contexts/feed/preferences/contracts'",
+        filename,
+        'browser-server',
+      ),
+    ).toEqual([])
+  })
+
   it('preserves only the named browser configuration RPC at the root route', () => {
     const target = '#/shared/observability/browser-observability.server'
     expect(
