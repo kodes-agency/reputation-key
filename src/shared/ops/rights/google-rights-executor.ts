@@ -17,6 +17,8 @@ import type { Database } from '#/shared/db'
 import {
   closeGoogleIntegration,
   eraseGoogleIntegrationForProperty,
+  googleClosureRefusal,
+  googlePropertyErasureRefusal,
   readGoogleRightsExport,
   readGoogleRightsPropertyExport,
   readGoogleRightsPropertyReport,
@@ -38,6 +40,21 @@ export function createGoogleRightsExecutor(
   return Object.freeze({
     name: 'google-integration',
     scopes: ['access', 'organization', 'property'] as const,
+    journalContexts: ['integration'] as const,
+    async preflight(plan) {
+      if (plan.scope === 'property') {
+        if (!plan.propertyId) return { ok: false, error: '--property is required' }
+        const refusal = await googlePropertyErasureRefusal(
+          deps.db,
+          plan.organizationId,
+          plan.propertyId,
+        )
+        return refusal ? { ok: false, error: refusal } : { ok: true }
+      }
+      if (plan.scope === 'access') return { ok: true }
+      const refusal = await googleClosureRefusal(deps.db, plan.organizationId, now())
+      return refusal ? { ok: false, error: refusal } : { ok: true }
+    },
     report: (plan) =>
       plan.scope === 'property' && plan.propertyId
         ? readGoogleRightsPropertyReport(deps.db, plan.organizationId, plan.propertyId)

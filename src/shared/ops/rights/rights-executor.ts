@@ -4,7 +4,9 @@
 // The command contract decides whether a request may apply at all; this module
 // only runs the executors that cover the requested scope.
 
+import type { BackupErasureLedgerContext } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type { OperatorIO } from '../operator-command'
+import type { RightsJournal } from './rights-journal'
 import type { RightsRequestPlan, RightsRequestScope } from './rights-request-command'
 
 export type RightsExportFile = Readonly<{
@@ -17,9 +19,20 @@ export type RightsApplyOutcome =
   | Readonly<{ ok: true; lines: ReadonlyArray<string> }>
   | Readonly<{ ok: false; error: string }>
 
+export type RightsPreflightOutcome =
+  Readonly<{ ok: true }> | Readonly<{ ok: false; error: string }>
+
 export type RightsExecutor = Readonly<{
   name: string
   scopes: ReadonlyArray<RightsRequestScope>
+  /** Lifecycle contexts whose erasure this executor journals before it applies. */
+  journalContexts: ReadonlyArray<BackupErasureLedgerContext>
+  /**
+   * Read-only refusals that need no write: a missing argument, a scope the
+   * executor cannot erase, a context that is not ready. Runs for every
+   * covering executor before the first apply.
+   */
+  preflight?: (plan: RightsRequestPlan) => Promise<RightsPreflightOutcome>
   /** Content-free lines: counts, codes and ids only. */
   report: (plan: RightsRequestPlan) => Promise<ReadonlyArray<string>>
   /** The allowlisted files this context adds to an access or closure export. */
@@ -31,6 +44,8 @@ export type RunRightsExecutorsInput = Readonly<{
   plan: RightsRequestPlan
   executors: ReadonlyArray<RightsExecutor>
   io: OperatorIO
+  /** Apply is refused when the journal has no store. */
+  journal: RightsJournal
   writeExportFile: (path: string, bytes: Uint8Array) => Promise<void>
 }>
 
@@ -62,10 +77,78 @@ async function writeExports(
   return written
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'unexpected error'
+}
+
+/** The first refusal any covering executor or the journal gives, or null. */
+async function firstPreflightRefusal(
+  input: RunRightsExecutorsInput,
+  covering: ReadonlyArray<RightsExecutor>,
+): Promise<string | null> {
+  const { plan, journal } = input
+  for (const executor of covering) {
+    const journalError = journal.check(plan, executor.journalContexts)
+    if (journalError) return `${executor.name}: ${journalError}`
+    try {
+      const outcome = (await executor.preflight?.(plan)) ?? { ok: true as const }
+      if (!outcome.ok) return `${executor.name}: ${outcome.error}`
+    } catch (error) {
+      return `${executor.name}: ${errorMessage(error)}`
+    }
+  }
+  return null
+}
+
+async function applyJournaled(
+  input: RunRightsExecutorsInput,
+  executor: RightsExecutor,
+): Promise<RightsApplyOutcome> {
+  try {
+    return await input.journal.run(input.plan, executor.journalContexts, () =>
+      executor.apply(input.plan),
+    )
+  } catch (error) {
+    return { ok: false, error: errorMessage(error) }
+  }
+}
+
+async function applyAll(
+  input: RunRightsExecutorsInput,
+  covering: ReadonlyArray<RightsExecutor>,
+): Promise<number> {
+  const { plan, io } = input
+  const refusal = await firstPreflightRefusal(input, covering)
+  if (refusal) {
+    io.err(`rights-request: ${refusal}; nothing was changed`)
+    return 1
+  }
+  const applied: string[] = []
+  for (const executor of covering) {
+    const outcome = await applyJournaled(input, executor)
+    if (!outcome.ok) {
+      const done = applied.length > 0 ? applied.join(', ') : 'none'
+      io.err(
+        `rights-request: ${executor.name}: ${outcome.error}; executors applied before it: ${done}`,
+      )
+      return 1
+    }
+    applied.push(executor.name)
+    for (const line of outcome.lines) io.out(`${executor.name}: ${line}`)
+    io.out(
+      `audit: ${executor.name} applied scope=${plan.scope} org=${plan.organizationId}` +
+        `${plan.propertyId ? ` property=${plan.propertyId}` : ''}` +
+        ` journal=${input.journal.entryIds(plan, executor.journalContexts).join(',')}`,
+    )
+  }
+  return 0
+}
+
 /**
- * Report and export in report mode; apply in apply mode. A refusal from one
- * executor stops the run before the next one starts, so a closure never
- * continues past a context that is not ready.
+ * Report and export in report mode; apply in apply mode. Every covering
+ * executor and the journal are checked before the first apply, so a refusal
+ * changes nothing. A refusal after that point stops the run before the next
+ * executor starts and names the executors that had already applied.
  */
 export async function runRightsExecutors(
   input: RunRightsExecutorsInput,
@@ -80,17 +163,7 @@ export async function runRightsExecutors(
     )
     return 1
   }
-  if (plan.mode === 'apply') {
-    for (const executor of covering) {
-      const outcome = await executor.apply(plan)
-      if (!outcome.ok) {
-        io.err(`rights-request: ${executor.name}: ${outcome.error}; nothing was changed`)
-        return 1
-      }
-      for (const line of outcome.lines) io.out(`${executor.name}: ${line}`)
-    }
-    return 0
-  }
+  if (plan.mode === 'apply') return applyAll(input, covering)
   for (const executor of covering) {
     for (const line of await executor.report(plan)) io.out(`${executor.name}: ${line}`)
   }

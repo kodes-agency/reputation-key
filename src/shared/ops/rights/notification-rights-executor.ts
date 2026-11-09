@@ -46,6 +46,17 @@ export function createNotificationRightsExecutor(
   return Object.freeze({
     name: 'notification',
     scopes: ['access', 'property', 'organization'] as const,
+    journalContexts: ['notification'] as const,
+    // The only refusal apply gives before it touches a row; later failures are
+    // runtime errors that the runner reports with the executors already applied.
+    async preflight(plan) {
+      return deps.finalWarning && plan.scope !== 'organization'
+        ? {
+            ok: false,
+            error: 'Final warnings are sent for an Organization, not a Property',
+          }
+        : { ok: true }
+    },
     async report(plan) {
       return (await deps.run(request(plan, 'report'))).lines
     },

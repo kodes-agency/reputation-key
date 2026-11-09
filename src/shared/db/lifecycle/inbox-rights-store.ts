@@ -203,40 +203,59 @@ async function affected(tx: Tx, statement: SQL): Promise<number> {
   return (await tx.execute(statement)).rowCount ?? 0
 }
 
+/** The reason a closure would be refused, or null. Writes nothing. */
+export async function inboxClosureRefusal(
+  db: Database,
+  organizationId: string,
+): Promise<string | null> {
+  return db.transaction(
+    async (tx) =>
+      (await organizationExists(tx, organizationId)) ? null : 'organization not found',
+    { isolationLevel: 'repeatable read', accessMode: 'read only' },
+  )
+}
+
 /**
  * Cancels schedulable reminders, then deletes the Organization's items and the
  * rows that are not children of an item. Handling history, cycles, targets,
  * reminders, exclusions, notes and outcomes go with their item through
  * ON DELETE CASCADE, the only delete their immutability triggers accept.
+ * Runs inside the caller's transaction.
  */
+export async function closeInboxInTx(
+  tx: Tx,
+  organizationId: string,
+  now: Date,
+): Promise<InboxClosureOutcome> {
+  if (!(await organizationExists(tx, organizationId))) {
+    return { ok: false, error: 'organization not found' }
+  }
+  await affected(
+    tx,
+    sql`UPDATE inbox_response_target_reminders
+        SET cancelled_at = ${now}, updated_at = GREATEST(updated_at, ${now}::timestamptz)
+        WHERE organization_id = ${organizationId}
+          AND delivered_at IS NULL AND cancelled_at IS NULL`,
+  )
+  let deleted = 0
+  for (const table of [
+    'inbox_items',
+    'inbox_response_target_organization_policies',
+    'inbox_private_feedback_target_property_overrides',
+    'inbox_user_views',
+  ] as const) {
+    deleted += await affected(
+      tx,
+      sql`DELETE FROM ${sql.identifier(table)} WHERE organization_id = ${organizationId}`,
+    )
+  }
+  return { ok: true, deleted }
+}
+
 export async function closeInbox(
   db: Database,
   organizationId: string,
   now: Date,
 ): Promise<InboxClosureOutcome> {
-  return db.transaction(async (tx): Promise<InboxClosureOutcome> => {
-    if (!(await organizationExists(tx, organizationId))) {
-      return { ok: false, error: 'organization not found' }
-    }
-    await affected(
-      tx,
-      sql`UPDATE inbox_response_target_reminders
-          SET cancelled_at = ${now}, updated_at = GREATEST(updated_at, ${now}::timestamptz)
-          WHERE organization_id = ${organizationId}
-            AND delivered_at IS NULL AND cancelled_at IS NULL`,
-    )
-    let deleted = 0
-    for (const table of [
-      'inbox_items',
-      'inbox_response_target_organization_policies',
-      'inbox_private_feedback_target_property_overrides',
-      'inbox_user_views',
-    ] as const) {
-      deleted += await affected(
-        tx,
-        sql`DELETE FROM ${sql.identifier(table)} WHERE organization_id = ${organizationId}`,
-      )
-    }
-    return { ok: true, deleted }
-  })
+  return db.transaction((tx) => closeInboxInTx(tx, organizationId, now))
 }
