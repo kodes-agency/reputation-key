@@ -12,6 +12,7 @@
  * gain a field for one consumer without every other consumer's layer changing
  * with it. Neither side may import the other's type.
  */
+import type { ReviewOpenTransaction } from './open-transaction'
 
 // Review's published expectation; Inbox mirrors it on its side (ADR 0008).
 // fallow-ignore-next-line code-duplication
@@ -69,6 +70,9 @@ export type ReviewReplyObservationAuthorityResult<T> =
 export type ReviewReplyObservationAuthority = Readonly<{
   withExactCurrent<T>(
     expectation: ReviewReplyObservationExpectation,
-    apply: (permit: ReviewCurrentReplyObservationPermit) => Promise<T>,
+    apply: (
+      permit: ReviewCurrentReplyObservationPermit,
+      tx: ReviewOpenTransaction,
+    ) => Promise<T>,
   ): Promise<ReviewReplyObservationAuthorityResult<T>>
 }>
