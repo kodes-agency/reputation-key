@@ -388,6 +388,7 @@ describe('notification email delivery aggregate (real reads)', () => {
 type OutcomeSeed = Readonly<{
   key: string
   status: string
+  cadence?: string
   providerState?: string
   lastErrorClass?: string
   retryCount?: number
@@ -410,7 +411,7 @@ async function seedOutcome(seed: OutcomeSeed) {
       accepted_at, failed_at, delivered_at, bounced_at, created_at, updated_at
     ) VALUES (
       gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, ${MARKER_PROP_UUID},
-      'urgent_operational', 'immediate', ${seed.status}, 'urgent', ${seed.key},
+      'urgent_operational', ${seed.cadence ?? 'immediate'}, ${seed.status}, 'urgent', ${seed.key},
       ${seed.providerMessageId ?? null}, ${seed.providerState ?? null},
       ${seed.lastErrorClass ?? null}, ${seed.retryCount ?? 0},
       ${seed.suppressionReason ?? null},
@@ -451,11 +452,13 @@ describe('notification email outcome aggregate (real reads)', () => {
       retryCount: 1,
       failedAt: hoursAgo(30),
     })
-    // Transient failures: two spent the budget (an urgent row left failed, a
-    // digest row suppressed after it); one is still under the budget.
+    // Transient failures: a digest row left failed at the retry budget and an
+    // immediate row retired as stale are given up; an immediate row past five
+    // attempts is still retrying, and one under the budget is too.
     await seedOutcome({
       key: 'obs-outcome-exhausted-failed',
       status: 'failed',
+      cadence: 'daily',
       lastErrorClass: 'transient',
       retryCount: 5,
       failedAt: hoursAgo(3),
@@ -464,8 +467,16 @@ describe('notification email outcome aggregate (real reads)', () => {
       key: 'obs-outcome-exhausted-suppressed',
       status: 'suppressed',
       lastErrorClass: 'transient',
-      retryCount: 5,
+      retryCount: 7,
+      suppressionReason: 'stale',
       failedAt: hoursAgo(4),
+    })
+    await seedOutcome({
+      key: 'obs-outcome-retrying-past-five',
+      status: 'failed',
+      lastErrorClass: 'transient',
+      retryCount: 7,
+      failedAt: hoursAgo(1),
     })
     await seedOutcome({
       key: 'obs-outcome-retrying',

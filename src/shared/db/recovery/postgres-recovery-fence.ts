@@ -241,6 +241,7 @@ export async function applyRecoveryFence(
           provider_state = 'restore_recovery_fence',
           suppression_reason = 'restore_recovery_fence',
           next_attempt_at = NULL,
+          provider_request = NULL,
           updated_at = clock_timestamp()
       WHERE status IN ('pending', 'delayed', 'failed')
       RETURNING id
@@ -250,6 +251,7 @@ export async function applyRecoveryFence(
       SET state = 'terminal',
           outcome_class = 'restore_recovery_fence',
           terminal_reason = 'restore_recovery_fence',
+          provider_request = NULL,
           failed_at = clock_timestamp(),
           updated_at = clock_timestamp()
       WHERE state IN ('prepared', 'retryable')

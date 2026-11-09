@@ -581,12 +581,16 @@ export type NotificationEmailMetrics = Omit<
 >
 
 /**
- * The delivery path's transient retry budget: a transient failure at this
- * retry count is never selected again (notification-email.repository's
- * dueForCadence, the digest batch readiness). Mirrored — shared cannot import
+ * The digest path's transient retry budget: a digest row at this retry count
+ * is never selected again (notification-email.repository's dueForCadence, the
+ * digest batch readiness). An immediate row has no count budget; it retries
+ * until its retry horizon retires it as stale. Mirrored — shared cannot import
  * the Feed context.
  */
 const EMAIL_RETRY_BUDGET = 5
+
+/** The suppression reason a row retired past its age or retry horizon carries. */
+const STALE_REASON = 'stale'
 
 /**
  * The suppression reason on a row the PROVIDER suppressed
@@ -621,9 +625,14 @@ function emailOutcomeAggregates() {
     accepted_24h: messages(inWindow(sql`${q.acceptedAt}`)),
     permanent_failures_24h: messages(sql`${q.status} = 'failed'
       AND ${q.lastErrorClass} = 'permanent' AND ${inWindow(sql`${q.failedAt}`)}`),
-    retry_exhausted_24h: messages(sql`${q.status} IN ('failed', 'suppressed')
-      AND ${q.lastErrorClass} = 'transient' AND ${q.retryCount} >= ${EMAIL_RETRY_BUDGET}
-      AND ${inWindow(sql`${q.failedAt}`)}`),
+    retry_exhausted_24h: messages(sql`${q.lastErrorClass} = 'transient' AND (
+      (${q.cadence} <> 'immediate' AND ${q.status} IN ('failed', 'suppressed')
+        AND ${q.retryCount} >= ${EMAIL_RETRY_BUDGET}
+        AND ${inWindow(sql`${q.failedAt}`)})
+      OR (${q.cadence} = 'immediate' AND ${q.status} = 'suppressed'
+        AND ${q.suppressionReason} = ${STALE_REASON}
+        AND ${inWindow(sql`${q.updatedAt}`)})
+    )`),
     bounced_24h: messages(
       sql`${q.providerState} = 'bounced' AND ${inWindow(sql`${q.bouncedAt}`)}`,
     ),
@@ -725,11 +734,12 @@ function emailDueClauses() {
       THEN ${q.createdAt} + ${DAILY_DIGEST_WAIT} ELSE ${q.createdAt} END
   )`
   // The delivery path's own "still sendable" set (dueForCadence, minus its
-  // time gates): a transient failure under the budget is a scheduled retry.
+  // time gates): a transient failure is a scheduled retry, for an immediate
+  // row until its horizon retires it, for a digest row under the budget.
   const sendable = sql`(
     ${q.status} IN ('pending', 'delayed')
     OR (${q.status} = 'failed' AND ${q.lastErrorClass} = 'transient'
-      AND ${q.retryCount} < ${EMAIL_RETRY_BUDGET})
+      AND (${q.cadence} = 'immediate' OR ${q.retryCount} < ${EMAIL_RETRY_BUDGET}))
   )`
   // Every send path — the digest, the urgent job, the orphan sweep — holds a
   // row whose Property is no longer active until the Property is restored, and

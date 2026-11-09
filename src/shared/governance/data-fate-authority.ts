@@ -475,6 +475,24 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'NTF-01',
   }),
   ...rows({
+    schemaFile: 'notification.schema.ts',
+    exportNames: ['notificationEmailSuppressionRemovals'],
+    owner: 'feed',
+    disposition: 'active_authority',
+    authority: 'NTF-01',
+    exitCriteria:
+      'Keyed address digest and a time, owned by no Organization: kept so a delayed bounce cannot suppress an address the provider lifted. Replaced in place, so it grows with addresses, not events. Removed only when the address is forgotten outright; Organization purge leaves it.',
+  }),
+  ...rows({
+    schemaFile: 'notification.schema.ts',
+    exportNames: ['resendWebhookDeliveries'],
+    owner: 'feed',
+    disposition: 'active_authority',
+    authority: 'NTF-01',
+    exitCriteria:
+      'Provider delivery ids only, owned by no Organization. The retention sweep deletes a row seven days after it was applied, outlasting the provider retry window; Organization purge leaves it.',
+  }),
+  ...rows({
     schemaFile: 'backup-erasure-ledger.schema.ts',
     exportNames: ['backupErasureLedger'],
     owner: 'identity',
