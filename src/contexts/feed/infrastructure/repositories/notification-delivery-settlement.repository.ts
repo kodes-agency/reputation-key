@@ -1,4 +1,4 @@
-import type { Database } from '#/shared/db'
+import type { Database, Tx } from '#/shared/db'
 import type { ReviewRatingForRouting } from '../../application/ports/review-rating-lookup.port'
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -17,7 +17,7 @@ import { createNotificationOrganizationEmailStopReader } from './notification-or
 import { createNotificationEmailRepository } from './notification-email.repository'
 import { createNotificationPreferenceRepository } from './notification-preference.repository'
 
-type SettlementDeps = Readonly<{
+export type SettlementDeps = Readonly<{
   db: Database
   clock: () => Date
   idGen: () => NotificationId
@@ -32,12 +32,14 @@ type SettlementDeps = Readonly<{
   }) => Promise<void>
 }>
 
+type NoticeWriteDeps = Omit<SettlementDeps, 'db' | 'enqueueImmediateEmail'>
+
 type TransactionOutcome =
   | Readonly<{ kind: 'duplicate' }>
   | Readonly<{ kind: 'applied'; immediateEmail: NotificationEmail | null }>
 
 async function assertDurableSource(
-  db: Database,
+  db: Pick<Database, 'select'>,
   organizationId: string,
   delivery: OutboxNotificationDelivery,
 ): Promise<void> {
@@ -58,8 +60,8 @@ async function assertDurableSource(
   }
 }
 
-async function enqueueImmediateAfterCommit(
-  deps: SettlementDeps,
+export async function enqueueImmediateAfterCommit(
+  deps: Pick<SettlementDeps, 'enqueueImmediateEmail' | 'logger'>,
   email: NotificationEmail | null,
 ): Promise<void> {
   if (!email || email.cadence !== 'immediate' || !deps.enqueueImmediateEmail) return
@@ -87,6 +89,48 @@ async function enqueueImmediateAfterCommit(
 }
 
 /**
+ * Writes one notice, its preferences-resolved channels and any email-queue row
+ * on the given transaction, and returns the immediate email row it queued so
+ * the caller can hand it to Redis after commit. Redis is deliberately outside
+ * the database transaction.
+ */
+export async function writeNoticeInTransaction(
+  deps: NoticeWriteDeps,
+  tx: Tx,
+  input: InsertNotificationInput,
+  audience: NotificationAudience,
+): Promise<NotificationEmail | null> {
+  // Drizzle's transaction handle implements the same query surface the
+  // adapters need; keep the cast at this infrastructure boundary.
+  const transactionDb = tx as unknown as Database
+  const notificationRepo = createNotificationRepository(transactionDb)
+  const baseEmailRepo = createNotificationEmailRepository(transactionDb)
+  let insertedEmail: NotificationEmail | null = null
+  const emailRepo: NotificationEmailRepositoryPort = {
+    ...baseEmailRepo,
+    insert: async (email) => {
+      const inserted = await baseEmailRepo.insert(email)
+      insertedEmail = inserted
+      return inserted
+    },
+  }
+
+  await insertNotification({
+    notificationRepo,
+    emailRepo,
+    preferenceRepo: createNotificationPreferenceRepository(transactionDb),
+    clock: deps.clock,
+    idGen: deps.idGen,
+    emailIdGen: deps.emailIdGen,
+    logger: deps.logger,
+    // Read inside the transaction, with the rows it decides about.
+    organizationEmailStop: createNotificationOrganizationEmailStopReader(transactionDb),
+    ratingForRouting: deps.ratingForRouting,
+  })(input, audience)
+  return insertedEmail
+}
+
+/**
  * PostgreSQL side of the Redis→notification bridge. The delivery receipt is
  * inserted first inside the same transaction as preferences, notification and
  * email-queue writes. Its primary key is the concurrency claim: one worker
@@ -105,10 +149,7 @@ export const createNotificationDeliverySettlement = (
     ) => {
       const outcome = await deps.db.transaction(
         async (tx): Promise<TransactionOutcome> => {
-          // Drizzle's transaction handle implements the same query surface the
-          // adapters need; keep the cast at this infrastructure boundary.
-          const transactionDb = tx as unknown as Database
-          await assertDurableSource(transactionDb, input.organizationId, delivery)
+          await assertDurableSource(tx, input.organizationId, delivery)
 
           const claimed = await tx
             .insert(eventConsumerReceipts)
@@ -121,35 +162,9 @@ export const createNotificationDeliverySettlement = (
             .returning({ eventId: eventConsumerReceipts.eventId })
           if (claimed.length === 0) return { kind: 'duplicate' }
 
-          const notificationRepo = createNotificationRepository(transactionDb)
-          const baseEmailRepo = createNotificationEmailRepository(transactionDb)
-          let insertedEmail: NotificationEmail | null = null
-          const emailRepo: NotificationEmailRepositoryPort = {
-            ...baseEmailRepo,
-            insert: async (email) => {
-              const inserted = await baseEmailRepo.insert(email)
-              insertedEmail = inserted
-              return inserted
-            },
-          }
+          const immediateEmail = await writeNoticeInTransaction(deps, tx, input, audience)
 
-          await insertNotification({
-            notificationRepo,
-            emailRepo,
-            preferenceRepo: createNotificationPreferenceRepository(transactionDb),
-            clock: deps.clock,
-            idGen: deps.idGen,
-            emailIdGen: deps.emailIdGen,
-            logger: deps.logger,
-            // Read inside the transaction, with the rows it decides about.
-            organizationEmailStop:
-              createNotificationOrganizationEmailStopReader(transactionDb),
-            ratingForRouting: deps.ratingForRouting,
-            // Redis is deliberately outside the database transaction. The
-            // captured immediate row is enqueued only after commit below.
-          })(input, audience)
-
-          return { kind: 'applied', immediateEmail: insertedEmail }
+          return { kind: 'applied', immediateEmail }
         },
       )
 
@@ -160,8 +175,7 @@ export const createNotificationDeliverySettlement = (
 
     settleObsolete: async (source, delivery) => {
       await deps.db.transaction(async (tx) => {
-        const transactionDb = tx as unknown as Database
-        await assertDurableSource(transactionDb, source.organizationId, delivery)
+        await assertDurableSource(tx, source.organizationId, delivery)
         await tx
           .insert(eventConsumerReceipts)
           .values({

@@ -1,22 +1,22 @@
 import type { PortalResponsibilityNeeded } from '#/contexts/portal/application/public-api'
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
+import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 import type { PropertyPayloadDeps } from './notification-payload-facts'
-import { enqueueResponsibilityGapNotification } from './responsibility-gap-notification'
+import { responsibilityGapNotices } from './responsibility-gap-notification'
 
 export const ON_PORTAL_RESPONSIBILITY_NEEDED_CONSUMER =
   'notification.on-portal-responsibility-needed' as const
 
 export type PortalNotificationConsumerDeps = PropertyPayloadDeps &
+  NoticeDeliveryDeps &
   Readonly<{
-    queue: NotificationJobEnqueuePort
     userLookup: UserLookupPort
     logger: LoggerPort
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
   }>
 
 type Payload = Readonly<{
@@ -55,7 +55,7 @@ function parse(
 export async function handleNotificationPortalResponsibilityNeeded(
   deps: PortalNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' }>> {
+): Promise<ConsumerResult> {
   const payload = parse(event)
   const needed: PortalResponsibilityNeeded = {
     _tag: 'portal.responsibility_became_needed',
@@ -68,16 +68,15 @@ export async function handleNotificationPortalResponsibilityNeeded(
     sourceAggregateVersion: payload.sourceAggregateVersion,
     occurredAt: new Date(payload.occurredAt),
   }
-  await enqueueResponsibilityGapNotification(deps, needed, {
-    kind: 'portal',
-    portalId: needed.portalId,
-  })
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  return deliverNotices(
+    deps,
+    event,
     ON_PORTAL_RESPONSIBILITY_NEEDED_CONSUMER,
-    'applied',
+    await responsibilityGapNotices(deps, needed, {
+      kind: 'portal',
+      portalId: needed.portalId,
+    }),
   )
-  return { status: 'applied' }
 }
 
 export function registerPortalNotificationConsumers(
