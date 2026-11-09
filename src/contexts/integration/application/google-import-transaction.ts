@@ -18,7 +18,7 @@ import type {
 import type {
   GoogleImportV2ItemIntent,
   GoogleImportV2RetryCandidate,
-  GoogleImportV2SagaIntent,
+  GoogleImportV2Intent,
   GoogleImportV2Store,
 } from './ports/google-import-v2-store.port'
 import {
@@ -28,10 +28,11 @@ import {
   type GoogleImportSemanticRequest,
 } from './google-import-replay'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import { planGoogleImportSagaBatches } from './google-import-saga'
 import { classifyGoogleImportCommitFailure } from './google-import-error-taxonomy'
 
 const EFFECT_DEADLINE_MS = 24 * 60 * 60 * 1_000
+/** How many candidate references one claim call takes. */
+const CANDIDATE_CLAIM_SIZE = 100
 type ImportInputItem = StartPropertyImportV2Input['items'][number]
 type OrderedImportCandidate = Readonly<{
   input: ImportInputItem
@@ -210,7 +211,7 @@ export function createGoogleImportTransaction(
     logger: LoggerPort
     idGen?: () => string
     /** Explicit request cancellation. Absent means the capability is unavailable. */
-    cancelImportSaga?: (organizationId: string, importJobId: string) => Promise<unknown>
+    cancelImport?: (organizationId: string, importJobId: string) => Promise<unknown>
   }>,
 ) {
   const replay = createGoogleImportReplayDigests(deps.replayKeys)
@@ -311,21 +312,21 @@ export function createGoogleImportTransaction(
     return claimed.candidates
   }
 
-  const publishSaga = async (
-    intent: GoogleImportV2SagaIntent,
+  const publishImport = async (
+    intent: GoogleImportV2Intent,
     semanticRequest: GoogleImportSemanticRequest,
   ): Promise<Readonly<{ importJobId: string; replayed: boolean }> | null> => {
     let missingReplayCode: GoogleImportTransactionErrorCode = 'request_conflict'
     try {
-      if ((await deps.store.commitSaga(intent)) === 'committed') {
+      if ((await deps.store.commitImport(intent)) === 'committed') {
         return { importJobId: intent.id, replayed: false }
       }
     } catch (error) {
       const failureClass = classifyGoogleImportCommitFailure(error)
       if (failureClass === 'unclassified') {
         deps.logger.error(
-          { err: error, operation: 'commitSaga', requestId: intent.requestId },
-          'Google import saga commit threw without a classified cause',
+          { err: error, operation: 'commitImport', requestId: intent.requestId },
+          'Google import commit threw without a classified cause',
         )
       }
       if (failureClass === 'contract_rejected') return fail('contract_rejected')
@@ -376,7 +377,10 @@ export function createGoogleImportTransaction(
     }
 
     const candidateRefs = input.items.map((item) => item.candidateRef)
-    const referenceBatches = planGoogleImportSagaBatches(candidateRefs)
+    const claimGroups: string[][] = []
+    for (let offset = 0; offset < candidateRefs.length; offset += CANDIDATE_CLAIM_SIZE) {
+      claimGroups.push(candidateRefs.slice(offset, offset + CANDIDATE_CLAIM_SIZE))
+    }
     const claimIdentities: Array<{
       candidateRefs: readonly string[]
       organizationId: string
@@ -392,9 +396,9 @@ export function createGoogleImportTransaction(
       }
     }
     try {
-      for (const batch of referenceBatches) {
+      for (const group of claimGroups) {
         const identity = {
-          candidateRefs: batch.items,
+          candidateRefs: group,
           organizationId: scope.organizationId,
           userId: scope.userId,
           requestId: input.requestId,
@@ -429,24 +433,18 @@ export function createGoogleImportTransaction(
 
       // Close authorization/profile races before publishing a durable dispatch intent.
       await authorizeEntries(ordered, actor)
-      const batches = planGoogleImportSagaBatches(items).map((batch) => ({
-        id: idGen(),
-        requestId: idGen(),
-        ordinal: batch.ordinal,
-        items: batch.items,
-        outboxEventId: idGen(),
-      }))
-      const intent = {
+      const intent: GoogleImportV2Intent = {
         id: importJobId,
         organizationId: scope.organizationId,
         requestId: input.requestId,
         initiatedBy: scope.userId,
         wireReplay: replay.signWire(scope, input),
         semanticReplay: replay.signSemantic(scope, semanticRequest),
-        batches,
+        items,
         now,
+        outboxEventId: idGen(),
       }
-      const result = await publishSaga(intent, semanticRequest)
+      const result = await publishImport(intent, semanticRequest)
       if (result === null) {
         // Preserve the bounded claims until expiry when the commit is ambiguous.
         releaseClaims = false
@@ -582,9 +580,9 @@ export function createGoogleImportTransaction(
     if (current.status !== 'queued' && current.status !== 'processing') {
       return status(importJobId, actor)
     }
-    if (!deps.cancelImportSaga) return fail('temporarily_unavailable')
+    if (!deps.cancelImport) return fail('temporarily_unavailable')
     try {
-      await deps.cancelImportSaga(String(actor.organizationId), importJobId)
+      await deps.cancelImport(String(actor.organizationId), importJobId)
       return status(importJobId, actor)
     } catch (error) {
       if (error instanceof GoogleImportTransactionError) throw error

@@ -19,7 +19,7 @@ describe('Google property import v2 contract', () => {
     expect(PROPERTY_IMPORT_RETENTION_RELEASED_EVENT).toBe(
       'integration.property_import.retention_released',
     )
-    expect(GOOGLE_PROPERTY_IMPORT_ITEM_JOB).toBe('import-gbp-property-item-v2')
+    expect(GOOGLE_PROPERTY_IMPORT_ITEM_JOB).toBe('import-gbp-property-item')
     expect(GOOGLE_PROPERTY_IMPORT_ITEM_JOB).not.toContain(':')
   })
 

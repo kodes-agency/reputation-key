@@ -495,7 +495,7 @@ describe('createRedriveJob (BQC-3.6)', () => {
 
   it('refuses generic redrive for fenced domain-owned import items', async () => {
     const { quarantine, id } = await seedQuarantinedJob({
-      name: 'import-gbp-property-item-v2',
+      name: 'import-gbp-property-item',
       data: {
         organizationId: 'org-1',
         itemId: '00000000-0000-4000-8000-000000000001',

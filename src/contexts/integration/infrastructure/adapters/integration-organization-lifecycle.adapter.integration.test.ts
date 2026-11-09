@@ -35,6 +35,8 @@ const OWNED_TABLES = [
   'gbp_import_sagas',
   'gbp_import_requests',
   'gbp_import_request_items',
+  'google_imports',
+  'google_import_items',
   'idempotency_receipts',
   'authorization_execution_permits',
 ] as const
@@ -67,6 +69,7 @@ type Fixture = Readonly<{
   connectionId: string
   sagaId: string
   batchId: string
+  importId: string
   permitId: string
 }>
 
@@ -114,7 +117,91 @@ async function seedBareOrganization(): Promise<string> {
   return organizationId
 }
 
-async function seedFixture(): Promise<Fixture> {
+type FixtureOptions = Readonly<{ legacyImports?: boolean }>
+
+async function seedSingleRootImport(fixture: Fixture): Promise<void> {
+  await lease.pool.query(
+    `INSERT INTO google_imports (
+       id, organization_id, request_id, initiated_by, total_count,
+       wire_replay_key_version, wire_replay_digest,
+       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, 2, 'wire_v1', $5, 'semantic_v1', $5, $6, $6)`,
+    [
+      fixture.importId,
+      fixture.organizationId,
+      randomUUID(),
+      fixture.userId,
+      MARKERS.replayDigest,
+      CREATED_AT,
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO google_import_items (
+       id, organization_id, import_id, connection_id,
+       destination_property_id, provider_account_suffix, provider_location_suffix,
+       expected_connection_lifecycle_version, expected_connection_access_version,
+       expected_credential_generation, expected_execution_policy_version,
+       expected_actor_role, expected_permission_digest, expected_principal_kind,
+       expected_permission_version, action, update_existing_profile,
+       property_name, country_code, timezone, status, next_dispatch_at,
+       effect_deadline_at, created_at, updated_at
+     ) VALUES (
+       $1, $2, $3, $4, $5, 'account-suffix', 'location-suffix', 1, 1, 1,
+       'beta-local-2', 'AccountAdmin', repeat('a', 64), 'user', 1,
+       'create', true, 'Imported Location', 'US', 'UTC', 'pending', $6,
+       $7, $6, $6
+     )`,
+    [
+      randomUUID(),
+      fixture.organizationId,
+      fixture.importId,
+      fixture.connectionId,
+      randomUUID(),
+      CREATED_AT,
+      new Date(CREATED_AT.getTime() + 86_400_000),
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO google_import_items (
+       id, organization_id, import_id, destination_property_id, action,
+       update_existing_profile, property_name, country_code, timezone, status,
+       outcome_code, first_terminal_at, effect_deadline_at, created_at, updated_at
+     ) VALUES (
+       $1, $2, $3, $4, 'create', true, 'Imported Location', 'US', 'UTC',
+       'imported', 'imported', $5, $6, $5, $5
+     )`,
+    [
+      randomUUID(),
+      fixture.organizationId,
+      fixture.importId,
+      fixture.propertyId,
+      CREATED_AT,
+      new Date(CREATED_AT.getTime() + 86_400_000),
+    ],
+  )
+}
+
+/** The pending item reaches a terminal state the way the expiry sweep leaves it. */
+async function cancelPendingSingleRootItems(organizationId: string): Promise<void> {
+  await lease.pool.query(
+    `UPDATE google_import_items
+     SET status = 'cancelled', outcome_code = 'authorization_changed',
+         first_terminal_at = $2, next_dispatch_at = NULL, connection_id = NULL,
+         destination_property_id = NULL, provider_account_suffix = NULL,
+         provider_location_suffix = NULL,
+         expected_connection_lifecycle_version = NULL,
+         expected_connection_access_version = NULL,
+         expected_credential_generation = NULL,
+         expected_execution_policy_version = NULL, expected_actor_role = NULL,
+         expected_permission_digest = NULL, expected_principal_kind = NULL,
+         expected_permission_version = NULL
+     WHERE organization_id = $1 AND status IN ('pending', 'processing')`,
+    [organizationId, OCCURRED_AT],
+  )
+}
+
+async function seedFixture(options: FixtureOptions = {}): Promise<Fixture> {
+  const legacyImports = options.legacyImports ?? true
   const suffix = randomUUID()
   const fixture: Fixture = {
     organizationId: `integration-lifecycle-org-${suffix}`,
@@ -124,6 +211,7 @@ async function seedFixture(): Promise<Fixture> {
     connectionId: randomUUID(),
     sagaId: randomUUID(),
     batchId: randomUUID(),
+    importId: randomUUID(),
     permitId: randomUUID(),
   }
   fixtures.push(fixture)
@@ -171,68 +259,71 @@ async function seedFixture(): Promise<Fixture> {
      VALUES ($1, $2, 'Closure Property', $3, 'UTC', $4, $4)`,
     [fixture.propertyId, fixture.organizationId, `closure-${suffix}`, CREATED_AT],
   )
-  await lease.pool.query(
-    `INSERT INTO gbp_import_sagas (
-       id, organization_id, request_id, initiated_by, total_count, batch_count,
-       wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 2, 1, 'wire_v1', $5, 'semantic_v1', $5, $6, $6)`,
-    [
-      fixture.sagaId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      MARKERS.replayDigest,
-      CREATED_AT,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO gbp_import_requests (
-       id, organization_id, request_id, initiated_by, saga_id, batch_ordinal,
-       status, total_count, processed_count, pending_count, processing_count,
-       imported_count, wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, 0, 'processing', 2, 1, 1, 0, 1,
-               'wire_v1', $6, 'semantic_v1', $6, $7, $7)`,
-    [
-      fixture.batchId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      fixture.sagaId,
-      MARKERS.replayDigest,
-      CREATED_AT,
-    ],
-  )
-  for (const status of ['imported', 'pending'] as const) {
+  if (legacyImports) {
     await lease.pool.query(
-      `INSERT INTO gbp_import_request_items (
-         id, organization_id, import_job_id, connection_id,
-         destination_property_id, provider_account_suffix,
-         provider_location_suffix, expected_connection_lifecycle_version,
-         expected_connection_access_version, expected_credential_generation,
-         action, update_existing_profile, property_name, country_code, timezone, status,
-         outcome_code, first_terminal_at, effect_deadline_at,
-         created_at, updated_at
-       ) VALUES (
-         $1, $2, $3, $4, $5, 'account-suffix', 'location-suffix', 1, 1, 1,
-         'create', true, 'Imported Location', 'US', 'UTC', $6, $7,
-         $8, $9, $10, $10
-       )`,
+      `INSERT INTO gbp_import_sagas (
+         id, organization_id, request_id, initiated_by, total_count, batch_count,
+         wire_replay_key_version, wire_replay_digest,
+         semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
+       ) VALUES ($1, $2, $3, $4, 2, 1, 'wire_v1', $5, 'semantic_v1', $5, $6, $6)`,
       [
-        randomUUID(),
+        fixture.sagaId,
         fixture.organizationId,
-        fixture.batchId,
-        fixture.connectionId,
         randomUUID(),
-        status,
-        status === 'imported' ? 'imported' : null,
-        status === 'imported' ? CREATED_AT : null,
-        new Date(CREATED_AT.getTime() + 86_400_000),
+        fixture.userId,
+        MARKERS.replayDigest,
         CREATED_AT,
       ],
     )
+    await lease.pool.query(
+      `INSERT INTO gbp_import_requests (
+         id, organization_id, request_id, initiated_by, saga_id, batch_ordinal,
+         status, total_count, processed_count, pending_count, processing_count,
+         imported_count, wire_replay_key_version, wire_replay_digest,
+         semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
+       ) VALUES ($1, $2, $3, $4, $5, 0, 'processing', 2, 1, 1, 0, 1,
+                 'wire_v1', $6, 'semantic_v1', $6, $7, $7)`,
+      [
+        fixture.batchId,
+        fixture.organizationId,
+        randomUUID(),
+        fixture.userId,
+        fixture.sagaId,
+        MARKERS.replayDigest,
+        CREATED_AT,
+      ],
+    )
+    for (const status of ['imported', 'pending'] as const) {
+      await lease.pool.query(
+        `INSERT INTO gbp_import_request_items (
+           id, organization_id, import_job_id, connection_id,
+           destination_property_id, provider_account_suffix,
+           provider_location_suffix, expected_connection_lifecycle_version,
+           expected_connection_access_version, expected_credential_generation,
+           action, update_existing_profile, property_name, country_code, timezone, status,
+           outcome_code, first_terminal_at, effect_deadline_at,
+           created_at, updated_at
+         ) VALUES (
+           $1, $2, $3, $4, $5, 'account-suffix', 'location-suffix', 1, 1, 1,
+           'create', true, 'Imported Location', 'US', 'UTC', $6, $7,
+           $8, $9, $10, $10
+         )`,
+        [
+          randomUUID(),
+          fixture.organizationId,
+          fixture.batchId,
+          fixture.connectionId,
+          randomUUID(),
+          status,
+          status === 'imported' ? 'imported' : null,
+          status === 'imported' ? CREATED_AT : null,
+          new Date(CREATED_AT.getTime() + 86_400_000),
+          CREATED_AT,
+        ],
+      )
+    }
   }
+  await seedSingleRootImport(fixture)
   await lease.pool.query(
     `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
      VALUES ('google_disconnect_revoke', $1, jsonb_build_object(
@@ -536,6 +627,16 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
       semantic_replay_digest: null,
     })
 
+    const singleRootParent = await lease.pool.query(
+      `SELECT deletion_fence, wire_replay_digest IS NOT NULL AS keeps_replay_digest
+       FROM google_imports WHERE organization_id = $1`,
+      [fixture.organizationId],
+    )
+    expect(singleRootParent.rows[0]).toEqual({
+      deletion_fence: 1,
+      keeps_replay_digest: true,
+    })
+
     const receipt = await lease.pool.query(
       `SELECT context, phase, payload->>'outcome' AS outcome,
               payload->>'evidenceRef' AS evidence_ref
@@ -631,7 +732,7 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
     expect(failure).toBeInstanceOf(IntegrationPurgeReadinessBlockedError)
     expect((failure as IntegrationPurgeReadinessBlockedError).blockers).toEqual([
       { code: 'live_connections', count: 1 },
-      { code: 'in_flight_import_items', count: 1 },
+      { code: 'in_flight_import_items', count: 2 },
     ])
     // Read only: the full contents of every owned table are unchanged.
     expect(await tableSnapshot(fixture.organizationId)).toEqual(before)
@@ -668,6 +769,7 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
        WHERE organization_id = $1 AND status IN ('pending', 'processing')`,
       [fixture.organizationId, OCCURRED_AT],
     )
+    await cancelPendingSingleRootItems(fixture.organizationId)
     await advanceAuthorityTo(fixture.organizationId, lineage, 'closing')
     const before = await tableSnapshot(fixture.organizationId)
 
@@ -753,5 +855,69 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
       [fixture.organizationId],
     )
     expect(receipts.rows[0]).toEqual({ count: 1 })
+  })
+
+  it('refuses readiness for an import item still in flight on the single-root store', async () => {
+    const fixture = await seedFixture({ legacyImports: false })
+    const lineage = randomUUID()
+    await advanceAuthorityTo(fixture.organizationId, lineage, 'closure_requested')
+    const contributor = createIntegrationOrganizationLifecycleContributor({
+      db,
+      provider: recordingProvider(),
+    })
+    await contributor.prepareClosing(
+      contributionRequest(
+        fixture.organizationId,
+        lineage,
+        revisionFor('closure_requested'),
+      ),
+    )
+    await advanceAuthorityTo(fixture.organizationId, lineage, 'closing')
+
+    const failure = await contributor
+      .verifyPurgeReadiness(
+        contributionRequest(fixture.organizationId, lineage, revisionFor('closing')),
+      )
+      .catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(IntegrationPurgeReadinessBlockedError)
+    expect((failure as IntegrationPurgeReadinessBlockedError).blockers).toEqual([
+      { code: 'in_flight_import_items', count: 1 },
+    ])
+  })
+
+  it('fences, then purges, an Organization whose only imports are on the single-root store', async () => {
+    const fixture = await seedFixture({ legacyImports: false })
+    const neighbour = await seedFixture({ legacyImports: false })
+    const lineage = randomUUID()
+    await advanceAuthorityTo(fixture.organizationId, lineage, 'closure_requested')
+    const contributor = createIntegrationOrganizationLifecycleContributor({
+      db,
+      provider: recordingProvider(),
+    })
+
+    // Imports alone are a footprint: closing must not answer no_data.
+    const closing = await contributor.prepareClosing(
+      contributionRequest(
+        fixture.organizationId,
+        lineage,
+        revisionFor('closure_requested'),
+      ),
+    )
+    expect(closing.outcome).toBe('complete')
+
+    await cancelPendingSingleRootItems(fixture.organizationId)
+    await advanceAuthorityTo(fixture.organizationId, lineage, 'purging')
+    const neighbourBefore = await tableSnapshot(neighbour.organizationId)
+
+    const purged = await contributor.purge(
+      contributionRequest(fixture.organizationId, lineage, revisionFor('purging')),
+    )
+
+    expect(purged.outcome).toBe('complete')
+    const counts = await tableCounts(fixture.organizationId)
+    expect(counts.google_imports).toBe(0)
+    expect(counts.google_import_items).toBe(0)
+    expect(await tableSnapshot(neighbour.organizationId)).toEqual(neighbourBefore)
   })
 })

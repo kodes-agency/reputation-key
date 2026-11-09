@@ -2,7 +2,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { completeGoogleImportsForRestore } from '#/contexts/integration/infrastructure/google-import-completion'
+import { completeImportsForRestore } from '#/contexts/integration/imports/import-completion.server'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
 import { getEnv } from '#/shared/config/env'
 import { createDatabase, type Database } from '#/shared/db'
@@ -175,7 +175,7 @@ async function commitRecoveryRun(
         tx as unknown as Database,
         replyScopeEffects,
       )
-      return completeGoogleImportsForRestore(
+      return completeImportsForRestore(
         tx,
         {
           ensureImportFollowUps: binding.ensureImportFollowUps,

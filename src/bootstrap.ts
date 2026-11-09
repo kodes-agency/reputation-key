@@ -20,7 +20,11 @@ import { createRedisAlertStateStore } from '#/shared/health/alert-state'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
 import { readAllQueueDepths } from '#/shared/health/queue-depth'
 import { isCapabilityJobEnabled, type Capability } from '#/shared/auth/beta-capabilities'
-import { createGoogleImportV2ItemJobHandler } from '#/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job'
+import { createGoogleImportV2ItemJobHandler } from '#/contexts/integration/infrastructure/jobs/import-gbp-property-item.job'
+import {
+  createRetiredImportItemHandler,
+  RETIRED_IMPORT_ITEM_JOB,
+} from '#/contexts/integration/infrastructure/jobs/retired-import-item.job'
 import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from '#/contexts/integration/application/google-import-v2-contract'
 import {
   createGoogleImportClaimReaperHandler,
@@ -330,6 +334,12 @@ export async function bootstrap(
   ) {
     throw new Error('Google import v2 processor dependencies are unavailable')
   }
+
+  // Drains deliveries queued under the retired item job name.
+  container.jobRegistry.register(
+    RETIRED_IMPORT_ITEM_JOB,
+    createRetiredImportItemHandler(container.logger),
+  )
 
   // Recovery owns a durable appointment even when Queue Redis loses a job.
   registerCapabilityGatedJob(

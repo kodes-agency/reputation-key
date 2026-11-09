@@ -29,12 +29,11 @@ import {
   IMPORT_TEST_ENCRYPTION_KEY,
 } from '#/shared/testing/google-import-acceptance.test-fixtures'
 import { PROPERTY_IMPORT_RETENTION_RELEASED_EVENT } from '#/contexts/integration/application/google-import-v2-contract'
-import { createImportStore } from '#/contexts/integration/imports/import-store.server'
 
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import type { GoogleImportV2Store } from '#/contexts/integration/application/ports/google-import-v2-store.port'
 import * as bindingModule from '#/contexts/property/infrastructure/property-google-binding-store'
-import * as importStoreModule from '#/contexts/integration/infrastructure/google-import-v2-store'
+import * as importStoreModule from '#/contexts/integration/imports/import-store.server'
 import { createTokenEncryptionAdapter } from '#/contexts/integration/infrastructure/adapters/token-encryption.adapter'
 import {
   createDurableImportReferenceKeys,
@@ -45,7 +44,6 @@ import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resol
 import { member, organization, user } from '#/shared/db/schema/auth'
 import { permissionVersion } from '#/shared/db/schema/dac.schema'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import { gbpImportSagas } from '#/shared/db/schema/google-import-v2.schema'
 import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import {
@@ -212,12 +210,11 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
         return { ...binding, createBoundProperty }
       },
     )
-    vi.spyOn(importStoreModule, 'createGoogleImportV2Store').mockImplementation(
-      (...args) => {
-        store = createImportStore(...args)
-        return store
-      },
-    )
+    const originalStoreFactory = importStoreModule.createImportStore
+    vi.spyOn(importStoreModule, 'createImportStore').mockImplementation((...args) => {
+      store = originalStoreFactory(...args)
+      return store
+    })
     const runtime = createGoogleImportAcceptanceFixture({
       db,
       pool: db.$client,
@@ -245,7 +242,6 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
         await runtime.close()
         keys.dispose()
         await db.delete(googleImports).where(eq(googleImports.organizationId, orgId))
-        await db.delete(gbpImportSagas).where(eq(gbpImportSagas.organizationId, orgId))
         await db
           .delete(propertyPortalBrandContents)
           .where(eq(propertyPortalBrandContents.organizationId, orgId))
