@@ -621,7 +621,12 @@ assigned to its recipient on that Property (the work check is given the
 recipient for it). Both counts are restated at send. A closed cycle settles a grouped
 reopen in-app once none of its items stands, except a row that coalesced a
 second bulk reopen.
-Notification jobs perform insert, urgent-email, digest, and missing-notification repair work. The daily
+Notification jobs perform insert, immediate-email, digest, and missing-notification repair work.
+`email/send-emails.server.ts` sends immediate mail: it renders a row once, stores the
+provider request on the row (`provider_request`) before the first attempt, and every
+retry re-checks the recipient and sends that stored request under the same key until the
+23-hour retry horizon closes the row. An attempted row without a stored request is closed,
+never re-rendered. The daily
 digest groups lines in queue order and freezes membership from those same lines.
 `digest-batch-identity.ts` owns member, request and provider-key fingerprints;
 assembly uses the email renderer's group contract. The repository retains the

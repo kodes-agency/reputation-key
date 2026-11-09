@@ -6,6 +6,7 @@
 
 import type {
   DeliveryErrorClass,
+  FrozenEmailRequest,
   NotificationCadence,
   NotificationEmail,
 } from '../../domain/notification-types'
@@ -162,16 +163,21 @@ export type NotificationEmailRepositoryPort = Readonly<{
     now: Date,
   ): Promise<readonly NotificationEmail[]>
   /**
-   * Record that a provider attempt is starting, BEFORE the call. Only the
-   * first attempt is kept: the provider's 24-hour idempotency window opens
-   * there, and a retry past it could send a second email.
+   * Store the request an immediate email will be sent with and record that a
+   * provider attempt is starting, in one write, BEFORE the call. The first
+   * request wins: a row that is already frozen keeps its request, and that is
+   * the one returned, so a retry or a second worker repeats it verbatim. Only
+   * the first attempt time is kept: the provider's 24-hour idempotency window
+   * opens there, and a retry past it could send a second email. `null` when the
+   * row can no longer be sent.
    */
-  markAttemptStarted(
+  freezeProviderRequest(
     id: NotificationEmailId,
     orgId: OrganizationId,
     propertyId: PropertyId | null,
+    request: FrozenEmailRequest,
     startedAt: Date,
-  ): Promise<void>
+  ): Promise<FrozenEmailRequest | null>
   markAccepted(
     id: NotificationEmailId,
     orgId: OrganizationId,

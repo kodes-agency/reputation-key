@@ -92,7 +92,7 @@ import {
   undoNotificationCategoryMute,
   type PreviousPropertySetting,
 } from './preferences/mute-category.server'
-import { createImmediateEmailEnqueue } from './infrastructure/jobs/immediate-email-enqueue'
+import { createImmediateEmailEnqueue } from './email/send-emails.server'
 import { withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import {
   markNotificationRead,
