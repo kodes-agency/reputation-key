@@ -11,20 +11,23 @@
 //     bucket setting — refusal happens before the harness opens anything.
 //   - All work runs IN-PROCESS through the production repository/handler
 //     paths — never a BullMQ enqueue; the drill has no worker and no queue.
-//   - Erasure replay is not wired: the command says so on every run.
+//   - Erasure replay: journal=<file> names the local erasure journal export;
+//     apply re-applies it through applyRestoreResurrectionFence and refuses
+//     without it.
 //
 // The restore-only apply path requires the typed beta environment name;
 // the confirmation is logged with the operator and time before mutation.
 //
 // Usage:
-//   pnpm ops restore-verify --operator <id>            — dry-run report
-//   pnpm ops restore-verify --operator <id> --reason <text> --apply --yes closed-beta-v2
+//   pnpm ops restore-verify --operator <id> journal=<file>            — dry-run report
+//   pnpm ops restore-verify --operator <id> journal=<file> --reason <text> --apply --yes closed-beta-v2
 //
 // Requires DATABASE_URL (pointed at the ISOLATED restore target) and
 // RESTORE_MODE=isolated. Policy-evaluated like every operator command (the
 // decision is printed, not stored). Cutover afterwards = pin the printed recovery run/generation,
 // UNSET RESTORE_MODE, and redeploy; normal PITR sibling boot re-verifies it.
 
+import { readFile } from 'node:fs/promises'
 import { sql } from 'drizzle-orm'
 import { getEnv } from '../../src/shared/config/env'
 import {
@@ -46,6 +49,9 @@ import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
 } from '../../src/contexts/review/application/public-api'
 import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
+import { composeRightsReplayers } from '../../src/composition/rights-executors'
+import { applyRestoreResurrectionFence } from '../../src/shared/db/lifecycle/backup-erasure-ledger'
+import { loadNotificationRightsReplayers } from '../../src/contexts/feed/application/public-api'
 import { runOperatorCommand } from './operator-command'
 
 async function main(): Promise<void> {
@@ -67,6 +73,22 @@ async function main(): Promise<void> {
         env,
         confirmation: args.yes,
         clock: container.clock,
+        erasureReplay: {
+          journalFile:
+            args.positionals.find((token) => token.startsWith('journal='))?.slice(8) ??
+            null,
+          readFile: (path) => readFile(path, 'utf8'),
+          apply: async (input) => {
+            const replayers = composeRightsReplayers({
+              db: container.db,
+              now: container.clock,
+              notificationReplayers: await loadNotificationRightsReplayers(),
+            })
+            return container.db.transaction((tx) =>
+              applyRestoreResurrectionFence(tx, { ...input, replayers }),
+            )
+          },
+        },
         reviewLifecycle,
         countExpired: async () => {
           const report = await collectReviewSourceContentLifecycleReport(

@@ -31,3 +31,8 @@ export const runNotificationRightsRequest = createServerOnlyFn(
     )
   },
 )
+
+export const loadNotificationRightsReplayers = createServerOnlyFn(async () => {
+  const replayer = await import('../rights/replayer.server')
+  return replayer.createNotificationRightsReplayers()
+})

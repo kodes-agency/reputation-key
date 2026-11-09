@@ -6,6 +6,8 @@ import { completeImportsForRestore } from '#/contexts/integration/imports/import
 import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
 import { getEnv } from '#/shared/config/env'
 import { createDatabase, type Database } from '#/shared/db'
+import { ZERO_BACKUP_ERASURE_REPLAY_COUNTS } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { encodeErasureJournalExport } from '#/shared/db/lifecycle/erasure-journal.server'
 import {
   applyRecoveryFence,
   inspectRecoveryFence,
@@ -239,6 +241,17 @@ function restoreCommand(
         },
         clock,
         confirmation: 'closed-beta-v2',
+        erasureReplay: {
+          journalFile: '/secure/erasure-journal.json',
+          readFile: async () => encodeErasureJournalExport([], new Date()),
+          // An empty journal: this proof is about the Review receipt, not replay.
+          apply: async () => ({
+            verified: true,
+            counts: ZERO_BACKUP_ERASURE_REPLAY_COUNTS,
+            unreplayedEntryIds: [],
+            heldEntryIds: [],
+          }),
+        },
         reviewLifecycle: invocation.authority,
         countExpired,
         // This fixture has no import or retention-registry candidates.
@@ -279,8 +292,8 @@ describe('typed-confirmation recovery receipt discovery (PostgreSQL)', () => {
   ) {
     // Receipts cannot be deleted. Each proof owns a migrated disposable database
     // so page commits and fresh connections exercise the production safeguards.
-    const database = `test_recovery_${randomUUID().replaceAll('-', '')}`
     const target = new URL(getEnv().DATABASE_URL)
+    const database = `${target.pathname.slice(1, 21)}_recovery_${randomUUID().replaceAll('-', '')}`
     target.pathname = `/${database}`
     const url = target.toString()
     validateTestDatabaseUrl(url)
