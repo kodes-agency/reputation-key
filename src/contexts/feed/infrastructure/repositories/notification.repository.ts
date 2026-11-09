@@ -6,7 +6,6 @@ import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
 import {
   notificationId,
-  unbrand,
   userId,
   type NotificationId,
   type UserId,
@@ -15,6 +14,7 @@ import type { Notification, NotificationStatus } from '../../domain/notification
 import { notificationFromRow } from './notification-row.mapper'
 import { isCurrentInboxAssignee } from '../adapters/inbox-item-lookup.adapter'
 import { notificationError } from '../../domain/notification-errors'
+import { writeNotification } from '../../notify/write.server'
 import { ACTIONABLE_NOTIFICATION_TYPES } from '../../domain/notification-settlement'
 import { NOTIFICATION_CATEGORIES } from '../../domain/notification-delivery-policy'
 import { getDefaultEnabled } from '../../domain/notification-policy'
@@ -265,61 +265,8 @@ const mayBecomeUnread = (userId: string) =>
 export const createNotificationRepository = (db: Database) => ({
   // ── Mutations ────────────────────────────────────────────────────
 
-  insert: async (notification: Notification): Promise<Notification> => {
-    const row = await db
-      .insert(notifications)
-      .values({
-        id: unbrand(notification.id),
-        userId: unbrand(notification.userId),
-        organizationId: unbrand(notification.organizationId),
-        propertyId:
-          notification.propertyId === null ? null : unbrand(notification.propertyId),
-        type: notification.type,
-        category: notification.category,
-        priority: notification.priority,
-        status: notification.status,
-        resourceType: notification.resourceType,
-        resourceId: notification.resourceId,
-        eventId: notification.eventId,
-        title: notification.title,
-        body: notification.body,
-        payload: notification.payload,
-        coalescedCount: notification.coalescedCount,
-        coalescedLatestAt: notification.coalescedLatestAt,
-        readAt: notification.readAt,
-        createdAt: notification.createdAt,
-        updatedAt: notification.updatedAt,
-      })
-      // ADR 0046 r.2: the conflict target is now the PARTIAL unique index, so
-      // drizzle needs its predicate (`targetWhere`) alongside the columns —
-      // without the predicate PostgreSQL cannot infer which index arbitrates.
-      // Reaching this branch means two events raced past the use case's unread
-      // lookup, so it coalesces like the checked path (`applyCoalescence`):
-      // bump the count, stamp the latest arrival, merge the payload newest-wins
-      // with the count written in as `occurrences`. Live surfaces render from
-      // that payload; the title/body snapshot is the fresh event's fallback.
-      // A settled row sits outside the index, so a racing repeat never
-      // revives one: it lands as a fresh row with its own email.
-      .onConflictDoUpdate({
-        target: [notifications.userId, notifications.type, notifications.resourceId],
-        targetWhere: sql`status = 'unread' AND resolved_at IS NULL`,
-        set: {
-          title: notification.title,
-          body: notification.body,
-          payload: sql`COALESCE(${notifications.payload}, '{}'::jsonb) || excluded.payload || jsonb_build_object('occurrences', ${notifications.coalescedCount} + 1)`,
-          priority: notification.priority,
-          coalescedCount: sql`${notifications.coalescedCount} + 1`,
-          coalescedLatestAt: notification.updatedAt,
-          updatedAt: notification.updatedAt,
-        },
-      })
-      .returning()
-
-    const r = row[0]
-    if (!r)
-      throw notificationError('insert_failed', 'No row returned from notification INSERT')
-    return notificationFromRow(r)
-  },
+  insert: (notification: Notification): Promise<Notification> =>
+    writeNotification(db, notification),
 
   // Who was told. Read state is irrelevant: somebody who read the escalation
   // notice was still told about it, and a settled row still proves it. The
@@ -549,44 +496,6 @@ export const createNotificationRepository = (db: Database) => ({
       )
       .limit(1)
     return rows[0] ? notificationFromRow(rows[0]) : null
-  },
-
-  // ADR 0046 r.2 bump: persist the already-coalesced entity produced by
-  // `applyCoalescence` — the re-rendered copy, the merged payload, the count
-  // and the latest-arrival stamp. `updatedAt` is the entity's, not `now()`, so
-  // the row matches exactly what the use case returned to the caller. The
-  // lookup took no lock, so the row may have been read, dismissed or settled
-  // since, or bumped by another event: the status guard and the count the
-  // lookup saw (`seenCount`) leave such a row alone and report the miss. The
-  // count is a compare-and-set because the entity carries an absolute sum;
-  // writing it over another bump would drop that event from the row. The
-  // caller's fresh row then folds into the waiting one with the insert's own
-  // relative `coalesced_count + 1`.
-  refreshUnread: async (
-    notification: Notification,
-    seenCount: number,
-  ): Promise<boolean> => {
-    const bumped = await db
-      .update(notifications)
-      .set({
-        title: notification.title,
-        body: notification.body,
-        payload: notification.payload,
-        coalescedCount: notification.coalescedCount,
-        coalescedLatestAt: notification.coalescedLatestAt,
-        updatedAt: notification.updatedAt,
-      })
-      .where(
-        and(
-          eq(notifications.id, unbrand(notification.id)),
-          eq(notifications.userId, unbrand(notification.userId)),
-          eq(notifications.organizationId, unbrand(notification.organizationId)),
-          eq(notifications.coalescedCount, seenCount),
-          stillWaiting,
-        ),
-      )
-      .returning({ id: notifications.id })
-    return bumped.length > 0
   },
 
   // Read -> unread for the row menu. The partial unread-uniqueness index means
