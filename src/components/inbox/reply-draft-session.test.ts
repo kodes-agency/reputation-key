@@ -290,3 +290,81 @@ describe('detail-owned drafting session', () => {
     h.session.dispose()
   })
 })
+describe('assist requests owned by the session', () => {
+  const identity = 'ai:professional:property_default:draft:standard'
+  const entry = (key: string) => ({
+    key,
+    trigger: 'draft' as const,
+    args: ['professional', false, undefined, undefined, undefined] as [
+      'professional',
+      boolean,
+      undefined,
+      undefined,
+      undefined,
+    ],
+  })
+  it('keeps the key for a busy retry and joins a request in flight', () => {
+    const { assist } = harness().session
+    const token = assist.begin(identity, entry('k1'))
+    const promise = Promise.resolve()
+    assist.track(identity, promise)
+    expect(assist.pending(identity)?.key).toBe('k1')
+    expect(assist.joined(identity)).toBe(promise)
+    expect(assist.joined('other')).toBeNull()
+    assist.finish(identity)
+    expect(assist.joined(identity)).toBeNull()
+    expect(assist.pending(identity)?.key).toBe('k1')
+    assist.forget(identity)
+    expect(assist.pending(identity)).toBeUndefined()
+    expect(assist.isCurrent(token)).toBe(true)
+  })
+  it('clears the spinner of its owner after typing retired the answer', () => {
+    const { assist } = harness().session
+    const token = assist.begin(identity, entry('k1'))
+    assist.reset()
+    expect(assist.isCurrent(token)).toBe(false)
+    expect(assist.ownsSpinner(token)).toBe(true)
+    const next = assist.begin(identity, entry('k2'))
+    expect(assist.ownsSpinner(token)).toBe(false)
+    expect(assist.ownsSpinner(next)).toBe(true)
+  })
+  it('forgets every request when it is reset, and retire keeps the keys', () => {
+    const { assist } = harness().session
+    assist.begin(identity, entry('k1'))
+    assist.retire()
+    expect(assist.latest()?.key).toBe('k1')
+    assist.reset()
+    expect(assist.latest()).toBeUndefined()
+  })
+  it('sends the template-only request to the injected RPC and never to the stream', async () => {
+    const h = harness()
+    h.session.reveal()
+    const legacy = vi.fn().mockResolvedValue(fallback)
+    const generate = h.session.generate(legacy)
+    const target = { kind: 'property_default' } as const
+    expect(await generate('professional', target, true, 'key', 'draft')).toBe(fallback)
+    expect(legacy).toHaveBeenCalledWith('professional', target, true, 'key', 'draft')
+    expect(h.stream).not.toHaveBeenCalled()
+    expect(h.session.getSnapshot().visible).toBe(true)
+    const none = await h.session.generate(undefined)('professional', target, true, 'k')
+    expect(none).toMatchObject({ status: 'unavailable' })
+  })
+  it('streams a non-template request and reports a retired one as source changed', async () => {
+    const h = harness()
+    const generate = h.session.generate(undefined)
+    const run = generate('professional', { kind: 'property_default' }, false, 'k')
+    h.session.dismiss()
+    expect(await run).toMatchObject({ status: 'unavailable', code: 'source_changed' })
+    expect(h.stream).toHaveBeenCalledOnce()
+  })
+  it('restores a finished draft for a later reader and drops it on dispose', async () => {
+    const h = harness()
+    const run = h.session.request(options)
+    h.event({ sequence: 1, step: 'done', result: fallback })
+    h.finish()
+    await run
+    expect(h.session.getSnapshot()).toMatchObject({ visible: true, result: fallback })
+    h.session.dispose()
+    expect(h.stream.mock.calls[0]![1].aborted).toBe(true)
+  })
+})

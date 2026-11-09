@@ -1,5 +1,9 @@
 import type { ReplyDraftingStreamEvent } from '#/contexts/ai/server/reply-progress-stream.server'
-import type { ReplySuggestionResult } from './reply-suggestion-contract'
+import type {
+  PendingReplyRequest,
+  ReplySuggestionGenerate,
+  ReplySuggestionResult,
+} from './reply-suggestion-contract'
 import type { DraftStream, DraftStreamRequest } from './reply-draft-stream'
 
 export type DraftSessionSnapshot = Readonly<{
@@ -28,6 +32,57 @@ export type DraftSessionOptions = Pick<
   DraftStreamRequest,
   'tone' | 'targetLanguage' | 'trigger' | 'length' | 'maxWords'
 >
+
+/**
+ * Which assist request may still deliver its answer, and which owns the
+ * spinner — two different questions.
+ *
+ * `sequence` is bumped by a new request, a dismissal and a release, because all
+ * three retire a pending answer. The spinner cannot follow it: the textarea
+ * stays enabled during generation, so typing dismisses a request that is still
+ * running, and clearing the spinner only while `sequence` still matched left it
+ * on for the life of the mount. Only a new request takes `generating`, and it
+ * raises the flag itself, so its owner may always clear it. A click that joins
+ * the request in flight takes nothing.
+ */
+export function createAssistRequests() {
+  let sequence = 0
+  let generating = 0
+  let inFlight: { identity: string; promise: Promise<void> } | null = null
+  const keys = new Map<string, PendingReplyRequest>()
+  return {
+    joined: (identity: string) =>
+      inFlight?.identity === identity ? inFlight.promise : null,
+    pending: (identity: string) => keys.get(identity),
+    begin(identity: string, entry: PendingReplyRequest): number {
+      sequence += 1
+      generating = sequence
+      keys.set(identity, entry)
+      return sequence
+    },
+    track(identity: string, promise: Promise<void>) {
+      inFlight = { identity, promise }
+    },
+    isCurrent: (token: number) => token === sequence,
+    ownsSpinner: (token: number) => token === generating,
+    forget: (identity: string) => keys.delete(identity),
+    finish(identity: string) {
+      if (inFlight?.identity === identity) inFlight = null
+    },
+    latest: () => Array.from(keys.values()).at(-1),
+    /** Retire the pending answer and keep the keys. */
+    retire() {
+      sequence += 1
+    },
+    /** Retire the pending answer and forget every request. */
+    reset() {
+      sequence += 1
+      inFlight = null
+      keys.clear()
+    },
+  }
+}
+export type AssistRequests = ReturnType<typeof createAssistRequests>
 
 /** One detail owns work and delivery across editor collapse and mode changes. */
 export function createReplyDraftSession(
@@ -186,7 +241,51 @@ export function createReplyDraftSession(
     close()
     publish({ ...EMPTY, frame: state.frame })
   }
+  const reveal = () => {
+    explicitRequested = true
+    preparedAt = Date.now()
+    publish({ visible: true })
+    if (!state.running) {
+      clearTimeout(timer)
+      timer = setTimeout(() => publish({ slow: true }), 10_000)
+    }
+  }
   return {
+    assist: createAssistRequests(),
+    /**
+     * The generator the composer calls. The governed template is a separate
+     * RPC and stays injected; every other request is this session's stream.
+     */
+    generate(legacy: ReplySuggestionGenerate | undefined): ReplySuggestionGenerate {
+      return async (
+        tone,
+        targetLanguage,
+        templateOnly,
+        key,
+        trigger = 'draft',
+        options,
+      ) => {
+        if (templateOnly) {
+          dismiss()
+          reveal()
+          return legacy
+            ? legacy(tone, targetLanguage, true, key, trigger)
+            : {
+                status: 'unavailable',
+                code: 'target_language_unavailable',
+                retryAfterEpochMillis: null,
+              }
+        }
+        const result = await request({ tone, targetLanguage, trigger, ...options })
+        return (
+          result ?? {
+            status: 'unavailable',
+            code: 'source_changed',
+            retryAfterEpochMillis: null,
+          }
+        )
+      }
+    },
     subscribe(listener: () => void) {
       listeners.add(listener)
       return () => {
@@ -195,15 +294,7 @@ export function createReplyDraftSession(
     },
     getSnapshot: () => state,
     request,
-    reveal() {
-      explicitRequested = true
-      preparedAt = Date.now()
-      publish({ visible: true })
-      if (!state.running) {
-        clearTimeout(timer)
-        timer = setTimeout(() => publish({ slow: true }), 10_000)
-      }
-    },
+    reveal,
     seedFrame(frame: DraftSessionSnapshot['frame']) {
       if (!state.frame && frame) publish({ frame })
     },
