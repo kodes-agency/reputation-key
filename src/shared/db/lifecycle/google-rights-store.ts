@@ -472,7 +472,7 @@ export async function googlePropertyErasureRefusal(
 }
 
 /**
- * Deletes the Property's import items, then the imports those items leave empty. Other Properties' items in the same import keep their parent.
+ * Deletes the Property's import items, then the imports those items leave empty. Other Properties' items in the same import keep their parent, whose item count is lowered to match.
  */
 export async function eraseGoogleIntegrationForProperty(
   db: Database,
@@ -500,6 +500,20 @@ export async function eraseGoogleIntegrationForPropertyInTx(
               OR existing_property_id = ${propertyId})
           RETURNING import_id AS parent_id`,
   )
+  // Progress and retention both require the parent's count to equal its items.
+  await tx.execute(sql`
+      UPDATE google_imports AS parent
+      SET total_count = remaining.item_count
+      FROM (
+        SELECT item.import_id, count(*)::int AS item_count
+        FROM google_import_items AS item
+        WHERE item.organization_id = ${organizationId}
+          AND item.import_id = ANY(string_to_array(${newParents.join(',')}, ',')::uuid[])
+        GROUP BY item.import_id
+      ) AS remaining
+      WHERE parent.organization_id = ${organizationId}
+        AND parent.id = remaining.import_id
+        AND parent.total_count <> remaining.item_count`)
   const imports = await tx.execute(sql`
       DELETE FROM google_imports AS parent
       WHERE parent.organization_id = ${organizationId}
