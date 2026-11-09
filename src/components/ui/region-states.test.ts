@@ -28,9 +28,9 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
     'the dashed edge that marks a private note',
   'src/components/inbox/composer-mode-row.tsx': 'the private-note dock cue',
   'src/components/inbox/reply-composer.tsx': 'the private-note dock cue',
-  'src/components/features/portal/link-tree/linktree-icon-picker.tsx':
+  'src/contexts/portal/editor/ui/link-tree/linktree-icon-picker.tsx':
     'an upload tile, not a message',
-  'src/components/features/portal/link-tree/link-add-form.tsx':
+  'src/contexts/portal/editor/ui/link-tree/link-add-form.tsx':
     'the slot a new link is typed into, a form and not a message',
   'src/components/features/portal/property-look/property-look-photo-dialog.tsx':
     'the frame a photograph will fill',

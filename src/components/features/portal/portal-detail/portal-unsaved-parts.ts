@@ -4,7 +4,7 @@
 // with no name here is left out of the list rather than shown raw.
 
 import { GUEST_LOCALE_METADATA, isGuestLocale } from '#/shared/domain/guest-locale'
-import type { PortalDraftAttention } from '../portal-editor/portal-draft-autosave'
+import type { PortalDraftAttention } from '#/contexts/portal/editor/ui/portal-draft-autosave'
 
 const FIXED: Readonly<Record<string, string>> = {
   welcome: 'the portal’s name',

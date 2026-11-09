@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
+import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import {
   PREVIEW_DRAFT_ONE_LANGUAGE,
   previewReader,

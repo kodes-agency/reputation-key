@@ -14,7 +14,7 @@ import type { PortalReview } from '#/contexts/portal/application/portal-manageme
 import { cn } from '#/lib/utils'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
-import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
+import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import { useNow } from '../portal-history/use-now'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import type { PortalData } from '../shared/types'

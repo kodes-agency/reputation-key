@@ -10,7 +10,7 @@
 // screen lives in portal-detail-rules.ts.
 
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
-import { PortalEditor } from '../portal-editor/portal-editor'
+import { PortalEditor } from '#/contexts/portal/editor/ui/portal-editor'
 import { usePortalLinkIssuance } from '../portal-workspace/portal-link-issuance'
 import { PortalWorkspaceBodyFrame } from '../portal-workspace/portal-workspace-body-frame'
 import { derivePortalDetailView } from './portal-detail-rules'

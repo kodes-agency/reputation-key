@@ -17,9 +17,12 @@ import { usePortalLookPreviewPatch } from './portal-look-preview-context'
 import { wordmarkPatchOf } from './portal-look-preview-patch'
 import { PortalLookGroupSetting } from './portal-look-group-setting'
 import { identityFollowedValue, logoInputOf } from './portal-look-rules'
-import { saveWordmarkDraft } from './portal-look-save'
+import { saveWordmarkDraft } from '#/contexts/portal/editor/ui/portal-look-save'
 import type { PortalLookActions, PortalLookTarget } from './portal-look-types'
-import { usePortalLookDraft, usePortalLookSwitch } from './use-portal-look-draft'
+import {
+  usePortalLookDraft,
+  usePortalLookSwitch,
+} from '#/contexts/portal/editor/ui/use-portal-look-draft'
 
 const WORDMARK_KEY = 'portal-look-wordmark'
 
@@ -65,6 +68,7 @@ export function PortalLookIdentityBlock({
       </p>
       <PortalLookGroupSetting
         propertyId={target.propertyId}
+        draftKey={WORDMARK_KEY}
         value={identityFollowedValue(property.wordmark, property.logo !== null)}
         isOwn={view.mode === 'own'}
         inheritLabel="Use the property’s name and logo"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LINK_APPROVAL_NAMES } from '../link-tree/linktree-approval-names'
+import { LINK_APPROVAL_NAMES } from '#/contexts/portal/editor/ui/link-tree/linktree-approval-names'
 import {
   APPROVED_DESTINATION_STATUS,
   HELD_BACK_EXPLANATION,

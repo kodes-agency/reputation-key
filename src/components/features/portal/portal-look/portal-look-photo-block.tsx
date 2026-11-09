@@ -23,9 +23,12 @@ import { focalPatchOf } from './portal-look-preview-patch'
 import { PortalLookOwnPhoto } from './portal-look-own-photo'
 import { PropertyLookLink } from './portal-look-property-link'
 import { descriptionsOf, photoInputOf } from './portal-look-rules'
-import { saveFocalDraft } from './portal-look-save'
+import { saveFocalDraft } from '#/contexts/portal/editor/ui/portal-look-save'
 import type { PortalLookActions, PortalLookTarget } from './portal-look-types'
-import { usePortalLookDraft, usePortalLookSwitch } from './use-portal-look-draft'
+import {
+  usePortalLookDraft,
+  usePortalLookSwitch,
+} from '#/contexts/portal/editor/ui/use-portal-look-draft'
 
 const FOCAL_KEY = 'portal-photo-focal'
 
@@ -76,7 +79,7 @@ export function PortalLookPhotoBlock({
    * photo that is gone, so the phone is shown what the draft now says.
    */
   const switchTo = (photo: PortalLookPhotoInput['photo']) =>
-    void run(() => send(photo)).then((isDone) => {
+    void run(() => send(photo), { replaces: [FOCAL_KEY] }).then((isDone) => {
       if (isDone) showInPreview(null)
     })
   const hero = view.mode === 'own' ? view.hero : null
@@ -124,7 +127,7 @@ export function PortalLookPhotoBlock({
           description={descriptions[locales[0] ?? 'en']}
           onReplace={() => setIsOpen(true)}
           onRemove={async () => {
-            await write(() => send({ mode: 'none' }))
+            await write(() => send({ mode: 'none' }), { replaces: [FOCAL_KEY] })
             showInPreview(null)
           }}
         />
@@ -140,7 +143,9 @@ export function PortalLookPhotoBlock({
         description={`Shown at the top of ${portalName} only.`}
         footerNote="Live pages change when you publish this portal."
         onSave={async (written) => {
-          await write(() => savePhoto({ data: photoInputOf(target, written) }))
+          await write(() => savePhoto({ data: photoInputOf(target, written) }), {
+            replaces: [FOCAL_KEY],
+          })
           showInPreview(null)
           focal.land(
             written.focalX === undefined || written.focalY === undefined
