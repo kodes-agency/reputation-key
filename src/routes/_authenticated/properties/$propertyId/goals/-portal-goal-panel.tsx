@@ -5,12 +5,12 @@
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
-import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
-import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
+import type { PortalGoalCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-card-ready'
+import type { PortalGoalSheetCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-sheet'
 import {
   PortalGoalSection,
   type PortalGoalRead,
-} from '#/components/goals/portal-goal-section'
+} from '#/contexts/reporting/monthly-goals/ui/portal-goal-section'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   markPortalGoalReadsStale,
@@ -21,7 +21,7 @@ import {
   focusPortalGoalCardTitle,
   portalGoalDoorShown,
   usePortalGoalSheet,
-} from './-portal-goal-sheet-host'
+} from '../../../../../contexts/reporting/monthly-goals/ui/portal-goal-sheet-host'
 
 type Props = Readonly<{
   propertyId: string

@@ -14,11 +14,11 @@ import { buildGoalResultsMatrix } from '#/contexts/reporting/application/goal-re
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
-import { PortalGoalResults } from '#/components/goals/portal-goal-results'
+import { PortalGoalResults } from '#/contexts/reporting/monthly-goals/ui/portal-goal-results'
 import {
   endedPortalGoals,
   hasPortalGoalResults,
-} from '#/components/goals/portal-goal-results-view'
+} from '#/contexts/reporting/monthly-goals/ui/portal-goal-results-view'
 import { portalGoalResultsQueries } from './-portal-goal-queries'
 
 const TITLE = 'Portal goal results'

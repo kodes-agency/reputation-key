@@ -2,12 +2,12 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
-import { SEAVIEW } from '#/components/goals/portal-goal-page.stories.fixtures'
+import { SEAVIEW } from './portal-goal-page.stories.fixtures'
 import {
   SEVERAL_RUNNING,
   SEVERAL_STOPPED,
-} from '#/components/goals/portal-goal-single-page.stories.fixtures'
-import { outline } from '#/components/goals/portal-goal.stories.play'
+} from './portal-goal-single-page.stories.fixtures'
+import { outline } from './portal-goal.stories.play'
 import { PortalGoalSeveralPage } from './portal-goal-several-page'
 
 const stopMock = fn(async () => ({ programId: 'program-several' }))
