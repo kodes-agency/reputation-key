@@ -35,6 +35,8 @@ type Fixture = Readonly<{
   userId: string
   memberId: string
   propertyId: string
+  siblingPropertyId: string
+  importId: string
   connectionId: string
   sagaId: string
   batchId: string
@@ -52,6 +54,8 @@ async function seed(options: { live: boolean }): Promise<Fixture> {
     userId: `rights-user-${suffix}`,
     memberId: `rights-member-${suffix}`,
     propertyId: randomUUID(),
+    siblingPropertyId: randomUUID(),
+    importId: randomUUID(),
     connectionId: randomUUID(),
     sagaId: randomUUID(),
     batchId: randomUUID(),
@@ -104,6 +108,12 @@ async function seed(options: { live: boolean }): Promise<Fixture> {
      VALUES ($1, $2, 'Rights Property', $3, 'UTC', $4, $4)`,
     [fixture.propertyId, fixture.organizationId, `rights-${suffix}`, CREATED_AT],
   )
+  await q(
+    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+     VALUES ($1, $2, 'Sibling Property', $3, 'UTC', $4, $4)`,
+    [fixture.siblingPropertyId, fixture.organizationId, `sibling-${suffix}`, CREATED_AT],
+  )
+  await seedGoogleImport(fixture)
   await q(
     `INSERT INTO gbp_import_sagas (
        id, organization_id, request_id, initiated_by, total_count, batch_count,
@@ -215,6 +225,140 @@ async function seed(options: { live: boolean }): Promise<Fixture> {
   return fixture
 }
 
+async function insertGoogleImport(fixture: Fixture, importId: string): Promise<void> {
+  await lease.pool.query(
+    `INSERT INTO google_imports (
+       id, organization_id, request_id, initiated_by, total_count,
+       wire_replay_key_version, wire_replay_digest,
+       semantic_replay_key_version, semantic_replay_digest,
+       first_terminal_at, purge_at, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, 2, 'wire_v1', $5, 'semantic_v1', $5,
+               $6, $6::timestamptz + interval '30 days', $6, $6)`,
+    [
+      importId,
+      fixture.organizationId,
+      randomUUID(),
+      fixture.userId,
+      MARKERS.replayDigest,
+      CREATED_AT,
+    ],
+  )
+}
+
+async function insertGoogleItem(
+  fixture: Fixture,
+  importId: string,
+  propertyId: string,
+): Promise<void> {
+  await lease.pool.query(
+    `INSERT INTO google_import_items (
+       id, organization_id, import_id, destination_property_id,
+       action, update_existing_profile, property_name, country_code, timezone,
+       status, outcome_code, first_terminal_at, effect_deadline_at,
+       created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, 'create', true, 'Imported Location', 'US', 'UTC',
+               'imported', 'imported', $5, $6, $5, $5)`,
+    [
+      randomUUID(),
+      fixture.organizationId,
+      importId,
+      propertyId,
+      CREATED_AT,
+      new Date(CREATED_AT.getTime() + 86_400_000),
+    ],
+  )
+}
+
+async function insertPendingGoogleItem(
+  fixture: Fixture,
+  importId: string,
+  propertyId: string,
+): Promise<void> {
+  await lease.pool.query(
+    `INSERT INTO google_import_items (
+       id, organization_id, import_id, destination_property_id,
+       connection_id, provider_account_suffix, provider_location_suffix,
+       expected_connection_lifecycle_version, expected_connection_access_version,
+       expected_credential_generation, expected_execution_policy_version,
+       expected_actor_role, expected_permission_digest, expected_principal_kind,
+       expected_permission_version,
+       action, update_existing_profile, property_name, country_code, timezone,
+       status, effect_deadline_at, next_dispatch_at, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $6, 1, 1, 1, 'v1', 'owner', $7, 'user', 1,
+               'create', true, 'Imported Location', 'US', 'UTC',
+               'pending', $8, $9, $9, $9)`,
+    [
+      randomUUID(),
+      fixture.organizationId,
+      importId,
+      propertyId,
+      fixture.connectionId,
+      MARKERS.providerSuffix,
+      'a'.repeat(64),
+      new Date(CREATED_AT.getTime() + 86_400_000),
+      CREATED_AT,
+    ],
+  )
+}
+
+/** One new-store import with a terminal item for each of the two Properties. */
+async function seedGoogleImport(fixture: Fixture): Promise<void> {
+  await insertGoogleImport(fixture, fixture.importId)
+  for (const propertyId of [fixture.propertyId, fixture.siblingPropertyId]) {
+    await insertGoogleItem(fixture, fixture.importId, propertyId)
+  }
+}
+
+/** A new-store import and an old-store batch holding only the Property's items. */
+async function seedSoloImports(fixture: Fixture, propertyId: string): Promise<void> {
+  const soloImportId = randomUUID()
+  await insertGoogleImport(fixture, soloImportId)
+  await insertGoogleItem(fixture, soloImportId, propertyId)
+  const soloBatchId = randomUUID()
+  await lease.pool.query(
+    `INSERT INTO gbp_import_requests (
+       id, organization_id, request_id, initiated_by, saga_id, batch_ordinal,
+       status, total_count, processed_count, pending_count, processing_count,
+       imported_count, wire_replay_key_version, wire_replay_digest,
+       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, 1, 'processing', 1, 1, 0, 0, 1,
+               'wire_v1', $6, 'semantic_v1', $6, $7, $7)`,
+    [
+      soloBatchId,
+      fixture.organizationId,
+      randomUUID(),
+      fixture.userId,
+      fixture.sagaId,
+      MARKERS.replayDigest,
+      CREATED_AT,
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO gbp_import_request_items (
+       id, organization_id, import_job_id, connection_id,
+       destination_property_id, provider_account_suffix,
+       provider_location_suffix, expected_connection_lifecycle_version,
+       expected_connection_access_version, expected_credential_generation,
+       action, update_existing_profile, property_name, country_code, timezone, status,
+       outcome_code, first_terminal_at, effect_deadline_at,
+       created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, $9, $9, 1, 1, 1,
+               'create', true, 'Imported Location', 'US', 'UTC', 'imported', 'imported',
+               $6, $7, $8, $8)`,
+    [
+      randomUUID(),
+      fixture.organizationId,
+      soloBatchId,
+      fixture.connectionId,
+      propertyId,
+      CREATED_AT,
+      new Date(CREATED_AT.getTime() + 86_400_000),
+      CREATED_AT,
+      MARKERS.providerSuffix,
+    ],
+  )
+}
+
 async function cleanup(fixture: Fixture): Promise<void> {
   const q = lease.pool.query.bind(lease.pool)
   await q(
@@ -224,6 +368,8 @@ async function cleanup(fixture: Fixture): Promise<void> {
   )
   for (const table of [
     'authorization_execution_permits',
+    'google_import_items',
+    'google_imports',
     'gbp_import_request_items',
     'gbp_import_requests',
     'gbp_import_sagas',
@@ -244,6 +390,8 @@ const TENANT_TABLES = [
   'gbp_import_sagas',
   'gbp_import_requests',
   'gbp_import_request_items',
+  'google_imports',
+  'google_import_items',
   'authorization_execution_permits',
 ] as const
 
@@ -358,6 +506,12 @@ describe.sequential('Google rights executor through the rights-request command',
       asked.connectionId,
     ])
     expect(payload.importItemStateCounts.length).toBeGreaterThan(0)
+    expect(payload.imports.map((row: { id: string }) => row.id)).toEqual([asked.importId])
+    expect(
+      payload.importItemStateCounts.some(
+        (row: { import_job_id: string }) => row.import_job_id === asked.importId,
+      ),
+    ).toBe(true)
     for (const secret of Object.values(MARKERS)) expect(file).not.toContain(secret)
     expect(file).not.toContain(other.organizationId)
     expect(file).not.toContain(other.connectionId)
@@ -391,6 +545,8 @@ describe.sequential('Google rights executor through the rights-request command',
     expect(first.exit).toBe(0)
 
     for (const table of [
+      'google_import_items',
+      'google_imports',
       'gbp_import_request_items',
       'gbp_import_requests',
       'gbp_import_sagas',
@@ -427,6 +583,7 @@ describe.sequential('Google rights executor through the rights-request command',
     expect(report.exit).toBe(0)
     expect(report.out.join('\n')).toContain('google-integration: connections=1')
     expect(report.out.join('\n')).toContain('live_connections=1')
+    expect(report.out.join('\n')).toContain('imports=1')
     expect(await snapshot(asked.organizationId)).toBe(before)
 
     const unknown = `rights-missing-${randomUUID()}`
@@ -443,6 +600,129 @@ describe.sequential('Google rights executor through the rights-request command',
 
     expect(result.exit).toBe(1)
     expect(result.err.join('\n')).toContain('apply is disabled in production')
+    expect(await snapshot(asked.organizationId)).toBe(before)
+  })
+
+  it("exports one Property's import items without provider identifiers", async () => {
+    const asked = await seed({ live: false })
+    await seedSoloImports(asked, asked.propertyId)
+
+    const result = await runScript([
+      'access',
+      '--org',
+      asked.organizationId,
+      '--property',
+      asked.propertyId,
+      'out=/export',
+    ])
+
+    expect(result.exit).toBe(0)
+    const file = result.files.get(`/export/${GOOGLE_RIGHTS_EXPORT_PATH}`)
+    expect(file).toBeDefined()
+    const payload = JSON.parse(file ?? '{}')
+    expect(payload.propertyId).toBe(asked.propertyId)
+    const total = payload.importItems.reduce(
+      (sum: number, row: { item_count: number }) => sum + row.item_count,
+      0,
+    )
+    expect(total).toBe(3)
+    expect(
+      payload.importItems.some(
+        (row: { import_job_id: string }) => row.import_job_id === asked.importId,
+      ),
+    ).toBe(true)
+    expect(file).not.toContain(asked.siblingPropertyId)
+    for (const secret of Object.values(MARKERS)) expect(file).not.toContain(secret)
+  })
+
+  it("erases one Property's import items in both stores and prunes emptied parents", async () => {
+    const asked = await seed({ live: false })
+    await seedSoloImports(asked, asked.propertyId)
+    const items = (table: string, column: string, propertyId: string) =>
+      lease.pool
+        .query(
+          `SELECT count(*)::int AS count FROM ${table}
+           WHERE organization_id = $1 AND ${column} = $2`,
+          [asked.organizationId, propertyId],
+        )
+        .then((result) => Number(result.rows[0]?.count))
+    const propertyArgs = (mode: string[]) => [
+      'property',
+      '--org',
+      asked.organizationId,
+      '--property',
+      asked.propertyId,
+      ...mode,
+    ]
+
+    const report = await runScript(propertyArgs([]))
+    expect(report.exit).toBe(0)
+    expect(report.out.join('\n')).toContain('google_import_items=2')
+    expect(report.out.join('\n')).toContain('import_items=1')
+
+    const result = await runScript(
+      propertyArgs([
+        ...VERIFIED,
+        '--reason',
+        'erasure request',
+        '--ticket',
+        'T-2',
+        `confirm=ERASE PROPERTY ${asked.propertyId}`,
+        '--apply',
+        '--yes',
+        'ops:rights-request',
+      ]),
+    )
+
+    expect(result.exit).toBe(0)
+    expect(
+      await items('google_import_items', 'destination_property_id', asked.propertyId),
+    ).toBe(0)
+    expect(
+      await items(
+        'google_import_items',
+        'destination_property_id',
+        asked.siblingPropertyId,
+      ),
+    ).toBe(1)
+    expect(
+      await items(
+        'gbp_import_request_items',
+        'destination_property_id',
+        asked.propertyId,
+      ),
+    ).toBe(0)
+    // The shared import keeps its parent for the sibling; the solo import is gone.
+    expect(await rowCount('google_imports', asked.organizationId)).toBe(1)
+    // The solo batch is pruned; the original batch still holds the other items.
+    expect(await rowCount('gbp_import_requests', asked.organizationId)).toBe(1)
+    expect(await rowCount('gbp_import_request_items', asked.organizationId)).toBe(2)
+  })
+
+  it('refuses to erase a Property with an import item in flight', async () => {
+    const asked = await seed({ live: false })
+    await insertPendingGoogleItem(asked, asked.importId, asked.propertyId)
+    const before = await snapshot(asked.organizationId)
+
+    const result = await runScript([
+      'property',
+      '--org',
+      asked.organizationId,
+      '--property',
+      asked.propertyId,
+      ...VERIFIED,
+      '--reason',
+      'erasure request',
+      '--ticket',
+      'T-3',
+      `confirm=ERASE PROPERTY ${asked.propertyId}`,
+      '--apply',
+      '--yes',
+      'ops:rights-request',
+    ])
+
+    expect(result.exit).not.toBe(0)
+    expect(result.err.join('\n')).toContain('in_flight_import_items=1')
     expect(await snapshot(asked.organizationId)).toBe(before)
   })
 })

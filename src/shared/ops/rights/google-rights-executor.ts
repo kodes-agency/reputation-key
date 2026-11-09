@@ -16,7 +16,10 @@ import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
 import {
   closeGoogleIntegration,
+  eraseGoogleIntegrationForProperty,
   readGoogleRightsExport,
+  readGoogleRightsPropertyExport,
+  readGoogleRightsPropertyReport,
   readGoogleRightsReport,
 } from '#/shared/db/lifecycle/google-rights-store'
 import type { RightsExecutor } from './rights-executor'
@@ -34,10 +37,19 @@ export function createGoogleRightsExecutor(
   const now = deps.now ?? (() => new Date())
   return Object.freeze({
     name: 'google-integration',
-    scopes: ['access', 'organization'] as const,
-    report: (plan) => readGoogleRightsReport(deps.db, plan.organizationId, now()),
+    scopes: ['access', 'organization', 'property'] as const,
+    report: (plan) =>
+      plan.scope === 'property' && plan.propertyId
+        ? readGoogleRightsPropertyReport(deps.db, plan.organizationId, plan.propertyId)
+        : readGoogleRightsReport(deps.db, plan.organizationId, now()),
     async exportFiles(plan) {
-      const payload = await readGoogleRightsExport(deps.db, plan.organizationId)
+      const payload = plan.propertyId
+        ? await readGoogleRightsPropertyExport(
+            deps.db,
+            plan.organizationId,
+            plan.propertyId,
+          )
+        : await readGoogleRightsExport(deps.db, plan.organizationId)
       return [
         {
           path: GOOGLE_RIGHTS_EXPORT_PATH,
@@ -46,6 +58,15 @@ export function createGoogleRightsExecutor(
       ]
     },
     async apply(plan) {
+      if (plan.scope === 'property') {
+        if (!plan.propertyId) return { ok: false, error: '--property is required' }
+        const erased = await eraseGoogleIntegrationForProperty(
+          deps.db,
+          plan.organizationId,
+          plan.propertyId,
+        )
+        return erased.ok ? { ok: true, lines: [`deleted=${erased.deleted}`] } : erased
+      }
       const outcome = await closeGoogleIntegration(deps.db, plan.organizationId, now())
       return outcome.ok
         ? {

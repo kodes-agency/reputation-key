@@ -50,6 +50,8 @@ type Row = Readonly<Record<string, unknown>>
 
 /** Tables whose rows for the Organization are deleted at closure, children first. */
 const PURGE_DELETE_TABLES = Object.freeze([
+  'google_import_items',
+  'google_imports',
   'gbp_import_request_items',
   'gbp_import_requests',
   'gbp_import_sagas',
@@ -84,10 +86,46 @@ async function footprint(tx: Tx, organizationId: string) {
       (SELECT count(*)::int FROM google_connections
         WHERE organization_id = ${organizationId}) AS connections,
       (SELECT count(*)::int FROM gbp_import_requests
-        WHERE organization_id = ${organizationId}) AS imports
+        WHERE organization_id = ${organizationId}) AS imports,
+      (SELECT count(*)::int FROM google_imports
+        WHERE organization_id = ${organizationId}) AS google_imports
   `)
   const row = result.rows[0] as Row | undefined
-  return { connections: count(row, 'connections'), imports: count(row, 'imports') }
+  return {
+    connections: count(row, 'connections'),
+    imports: count(row, 'imports'),
+    googleImports: count(row, 'google_imports'),
+  }
+}
+
+async function propertyFootprint(tx: Tx, organizationId: string, propertyId: string) {
+  const result = await tx.execute(sql`
+    SELECT
+      (SELECT count(*)::int FROM gbp_import_request_items
+        WHERE organization_id = ${organizationId}
+          AND (destination_property_id = ${propertyId}
+            OR existing_property_id = ${propertyId})) AS import_items,
+      (SELECT count(*)::int FROM google_import_items
+        WHERE organization_id = ${organizationId}
+          AND (destination_property_id = ${propertyId}
+            OR existing_property_id = ${propertyId})) AS google_import_items,
+      (SELECT count(*)::int FROM gbp_import_request_items
+        WHERE organization_id = ${organizationId}
+          AND (destination_property_id = ${propertyId}
+            OR existing_property_id = ${propertyId})
+          AND status IN ('pending', 'processing'))
+      + (SELECT count(*)::int FROM google_import_items
+        WHERE organization_id = ${organizationId}
+          AND (destination_property_id = ${propertyId}
+            OR existing_property_id = ${propertyId})
+          AND status IN ('pending', 'processing')) AS in_flight_import_items
+  `)
+  const row = result.rows[0] as Row | undefined
+  return {
+    importItems: count(row, 'import_items'),
+    googleImportItems: count(row, 'google_import_items'),
+    inFlight: count(row, 'in_flight_import_items'),
+  }
 }
 
 async function blockers(
@@ -105,6 +143,9 @@ async function blockers(
             OR status NOT IN ('disconnected', 'failed')
           )) AS live_connections,
       (SELECT count(*)::int FROM gbp_import_request_items
+        WHERE organization_id = ${organizationId}
+          AND status IN ('pending', 'processing'))
+      + (SELECT count(*)::int FROM google_import_items
         WHERE organization_id = ${organizationId}
           AND status IN ('pending', 'processing')) AS in_flight_import_items,
       (SELECT count(*)::int FROM idempotency_receipts
@@ -196,17 +237,45 @@ export async function readGoogleRightsExport(db: Database, organizationId: strin
           FROM gbp_import_requests AS request
           WHERE request.organization_id = ${organizationId}
           ORDER BY request.created_at, request.id`),
-        importItemStateCounts: await rows(sql`
+        imports: await rows(sql`
           SELECT
-            item.import_job_id::text AS import_job_id,
-            item.status::text AS status,
-            item.action::text AS action,
-            item.outcome_code::text AS outcome_code,
-            count(*)::int AS item_count
-          FROM gbp_import_request_items AS item
-          WHERE item.organization_id = ${organizationId}
-          GROUP BY item.import_job_id, item.status, item.action, item.outcome_code
-          ORDER BY item.import_job_id, item.status, item.action, item.outcome_code`),
+            parent.id::text AS id,
+            parent.request_id::text AS request_id,
+            parent.initiated_by,
+            parent.total_count,
+            to_char(parent.first_terminal_at AT TIME ZONE 'UTC', ${UTC}) AS first_terminal_at,
+            to_char(parent.purge_at AT TIME ZONE 'UTC', ${UTC}) AS purge_at,
+            to_char(parent.created_at AT TIME ZONE 'UTC', ${UTC}) AS created_at,
+            to_char(parent.updated_at AT TIME ZONE 'UTC', ${UTC}) AS updated_at
+          FROM google_imports AS parent
+          WHERE parent.organization_id = ${organizationId}
+          ORDER BY parent.created_at, parent.id`),
+        importItemStateCounts: await rows(sql`
+          SELECT grouped.import_job_id, grouped.status, grouped.action,
+                 grouped.outcome_code, grouped.item_count
+          FROM (
+            SELECT
+              item.import_job_id::text AS import_job_id,
+              item.status::text AS status,
+              item.action::text AS action,
+              item.outcome_code::text AS outcome_code,
+              count(*)::int AS item_count
+            FROM gbp_import_request_items AS item
+            WHERE item.organization_id = ${organizationId}
+            GROUP BY item.import_job_id, item.status, item.action, item.outcome_code
+            UNION ALL
+            SELECT
+              item.import_id::text AS import_job_id,
+              item.status::text AS status,
+              item.action::text AS action,
+              item.outcome_code::text AS outcome_code,
+              count(*)::int AS item_count
+            FROM google_import_items AS item
+            WHERE item.organization_id = ${organizationId}
+            GROUP BY item.import_id, item.status, item.action, item.outcome_code
+          ) AS grouped
+          ORDER BY grouped.import_job_id, grouped.status, grouped.action,
+                   grouped.outcome_code`),
         disconnectCleanupAttempts: await rows(sql`
           SELECT
             receipt.key AS id,
@@ -316,7 +385,7 @@ export async function readGoogleRightsReport(
       const held = await footprint(tx, organizationId)
       const found = await blockers(tx, organizationId, now)
       return [
-        `connections=${held.connections} import_batches=${held.imports}`,
+        `connections=${held.connections} import_batches=${held.imports} imports=${held.googleImports}`,
         found.length === 0
           ? 'closure blockers: none'
           : `closure blockers: ${found.map((b) => `${b.code}=${b.count}`).join(',')}`,
@@ -346,5 +415,152 @@ export async function closeGoogleIntegration(
     const found = await blockers(tx, organizationId, now)
     if (found.length > 0) return { ok: false, error: blockerError(found) }
     return { ok: true, ...(await purge(tx, organizationId, now)) }
+  })
+}
+
+/** Counts and blocker codes only, for one Property's import items. */
+export async function readGoogleRightsPropertyReport(
+  db: Database,
+  organizationId: string,
+  propertyId: string,
+): Promise<ReadonlyArray<string>> {
+  return db.transaction(
+    async (tx) => {
+      const held = await propertyFootprint(tx, organizationId, propertyId)
+      return [
+        `import_items=${held.importItems} google_import_items=${held.googleImportItems}`,
+        held.inFlight === 0
+          ? 'erasure blockers: none'
+          : `erasure blockers: in_flight_import_items=${held.inFlight}`,
+      ]
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' },
+  )
+}
+
+/** One Property's import items: states, actions, outcomes and times only. */
+export async function readGoogleRightsPropertyExport(
+  db: Database,
+  organizationId: string,
+  propertyId: string,
+) {
+  return db.transaction(
+    async (tx) => {
+      const rows = async (query: ReturnType<typeof sql>) =>
+        (await tx.execute(query)).rows as Row[]
+      return {
+        version: EXPORT_VERSION,
+        organizationId,
+        propertyId,
+        importItems: await rows(sql`
+          SELECT grouped.import_job_id, grouped.status, grouped.action,
+                 grouped.outcome_code, grouped.item_count, grouped.first_terminal_at,
+                 grouped.last_updated_at
+          FROM (
+            SELECT
+              item.import_job_id::text AS import_job_id,
+              item.status::text AS status,
+              item.action::text AS action,
+              item.outcome_code::text AS outcome_code,
+              count(*)::int AS item_count,
+              to_char(min(item.first_terminal_at) AT TIME ZONE 'UTC', ${UTC}) AS first_terminal_at,
+              to_char(max(item.updated_at) AT TIME ZONE 'UTC', ${UTC}) AS last_updated_at
+            FROM gbp_import_request_items AS item
+            WHERE item.organization_id = ${organizationId}
+              AND (item.destination_property_id = ${propertyId}
+                OR item.existing_property_id = ${propertyId})
+            GROUP BY item.import_job_id, item.status, item.action, item.outcome_code
+            UNION ALL
+            SELECT
+              item.import_id::text AS import_job_id,
+              item.status::text AS status,
+              item.action::text AS action,
+              item.outcome_code::text AS outcome_code,
+              count(*)::int AS item_count,
+              to_char(min(item.first_terminal_at) AT TIME ZONE 'UTC', ${UTC}) AS first_terminal_at,
+              to_char(max(item.updated_at) AT TIME ZONE 'UTC', ${UTC}) AS last_updated_at
+            FROM google_import_items AS item
+            WHERE item.organization_id = ${organizationId}
+              AND (item.destination_property_id = ${propertyId}
+                OR item.existing_property_id = ${propertyId})
+            GROUP BY item.import_id, item.status, item.action, item.outcome_code
+          ) AS grouped
+          ORDER BY grouped.import_job_id, grouped.status, grouped.action,
+                   grouped.outcome_code`),
+        excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
+      }
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' },
+  )
+}
+
+async function deleteReturningIds(
+  tx: Tx,
+  query: ReturnType<typeof sql>,
+): Promise<ReadonlyArray<string>> {
+  const result = await tx.execute(query)
+  return result.rows.map((row) => String((row as Row).parent_id))
+}
+
+/**
+ * Deletes the Property's import items, then the imports and batches those items
+ * leave empty. Other Properties' items in the same import keep their parent.
+ */
+export async function eraseGoogleIntegrationForProperty(
+  db: Database,
+  organizationId: string,
+  propertyId: string,
+): Promise<GoogleClosureOutcome> {
+  return db.transaction(async (tx): Promise<GoogleClosureOutcome> => {
+    const held = await propertyFootprint(tx, organizationId, propertyId)
+    if (held.inFlight > 0) {
+      return {
+        ok: false,
+        error: `Google integration is not ready to erase (in_flight_import_items=${held.inFlight})`,
+      }
+    }
+    const newParents = await deleteReturningIds(
+      tx,
+      sql`DELETE FROM google_import_items
+          WHERE organization_id = ${organizationId}
+            AND (destination_property_id = ${propertyId}
+              OR existing_property_id = ${propertyId})
+          RETURNING import_id AS parent_id`,
+    )
+    const oldParents = await deleteReturningIds(
+      tx,
+      sql`DELETE FROM gbp_import_request_items
+          WHERE organization_id = ${organizationId}
+            AND (destination_property_id = ${propertyId}
+              OR existing_property_id = ${propertyId})
+          RETURNING import_job_id AS parent_id`,
+    )
+    const imports = await tx.execute(sql`
+      DELETE FROM google_imports AS parent
+      WHERE parent.organization_id = ${organizationId}
+        AND parent.id = ANY(string_to_array(${newParents.join(',')}, ',')::uuid[])
+        AND NOT EXISTS (
+          SELECT 1 FROM google_import_items AS item
+          WHERE item.organization_id = parent.organization_id
+            AND item.import_id = parent.id)
+      RETURNING 1`)
+    const requests = await tx.execute(sql`
+      DELETE FROM gbp_import_requests AS parent
+      WHERE parent.organization_id = ${organizationId}
+        AND parent.id = ANY(string_to_array(${oldParents.join(',')}, ',')::uuid[])
+        AND NOT EXISTS (
+          SELECT 1 FROM gbp_import_request_items AS item
+          WHERE item.organization_id = parent.organization_id
+            AND item.import_job_id = parent.id)
+      RETURNING 1`)
+    return {
+      ok: true,
+      deleted:
+        newParents.length +
+        oldParents.length +
+        imports.rows.length +
+        requests.rows.length,
+      scrubbed: 0,
+    }
   })
 }
