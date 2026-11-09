@@ -1,5 +1,5 @@
 // The rules of the test-quality gate, apart from the walk and the register so
-// they can be run on their own: `scripts/check-test-quality.mjs` applies them
+// they can be run on their own: `eslint-rules/test-quality.mjs` applies them
 // to the repository, `scripts/ci/test-quality-rules.test.ts` to single lines
 // and to register entries written for the purpose. What each rule is for is
 // stated in the gate's header.

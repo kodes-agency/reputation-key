@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Review context — an erased Review (tombstone) in the repository's reads
 // (S10-01, S10-02). Real PostgreSQL.
 //
@@ -61,7 +62,7 @@ const SWEEP_THRESHOLD = new Date('1900-07-01T12:00:00.000Z')
 
 let pool: Pool
 const db = getDb()
-const repo = createReviewRepository(db, () => READ_AT)
+const repo = createReviewRepository(db, () => READ_AT, undefined, replyScopeEffects)
 
 async function clean(): Promise<void> {
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
@@ -113,14 +114,18 @@ async function eraseThroughTheLifecycle(
   state: TombstoneState,
 ): Promise<void> {
   const erased = await db.transaction((tx) =>
-    eraseReviewSourceContent(tx, {
-      reviewId: reviewId(id),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      sourceEpoch: 0,
-      expectedSourceRevision: 0,
-      state,
-    }),
+    eraseReviewSourceContent(
+      tx,
+      {
+        reviewId: reviewId(id),
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        sourceEpoch: 0,
+        expectedSourceRevision: 0,
+        state,
+      },
+      replyScopeEffects,
+    ),
   )
   expect(erased).toBe(true)
 }
@@ -195,17 +200,6 @@ describe.sequential('an erased Review in the repository reads', () => {
 
   it('findByOrganizationId skips erased Reviews', async () => {
     const found = await repo.findByOrganizationId(ORG)
-
-    expect(found.map((review) => review.id)).toEqual([LIVE])
-  })
-
-  it('findRecentEligibleByPropertyId does not serve an erased Review whose clock is still running', async () => {
-    const found = await repo.findRecentEligibleByPropertyId(
-      PROPERTY,
-      ORG,
-      { limit: 10 },
-      READ_AT,
-    )
 
     expect(found.map((review) => review.id)).toEqual([LIVE])
   })

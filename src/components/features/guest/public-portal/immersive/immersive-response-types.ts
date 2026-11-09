@@ -1,5 +1,5 @@
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import type { NoteDraft, NoteSubmission } from './immersive-note-card'
 import type { RatingSubmission } from './immersive-rating-card'
 import type { ResponseClock } from './immersive-response-rows'
@@ -38,7 +38,7 @@ export type YourResponseActions = Readonly<{
 
 export type ImmersiveResponseViewProps = Readonly<{
   /** The one v2 pack of the page's language. */
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   /** The property's display name: "Only Avela Resort sees your rating." */
   displayName: string
   availability?: 'available' | 'loading' | 'unavailable'

@@ -20,32 +20,29 @@ import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { capabilityExecutionControl } from '#/shared/db/schema/google-content-control.schema'
 import { googleImports, googleImportItems } from '#/shared/db/schema/google-import.schema'
+import { workItems } from '#/shared/db/schema/work-items.schema'
 import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 import {
   createGoogleImportAcceptanceFixture,
   IMPORT_TEST_NOW,
   IMPORT_TEST_DAY_MS,
-  IMPORT_TEST_REFERENCE_KEYS,
   IMPORT_TEST_ENCRYPTION_KEY,
 } from '#/shared/testing/google-import-acceptance.test-fixtures'
 import { PROPERTY_IMPORT_RETENTION_RELEASED_EVENT } from '#/contexts/integration/application/google-import-v2-contract'
-import { createImportStore } from '#/contexts/integration/imports/import-store.server'
 
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import type { GoogleImportV2Store } from '#/contexts/integration/application/ports/google-import-v2-store.port'
 import * as bindingModule from '#/contexts/property/infrastructure/property-google-binding-store'
-import * as importStoreModule from '#/contexts/integration/infrastructure/google-import-v2-store'
+import * as importStoreModule from '#/contexts/integration/imports/import-store.server'
 import { createTokenEncryptionAdapter } from '#/contexts/integration/infrastructure/adapters/token-encryption.adapter'
 import {
   createDurableImportReferenceKeys,
   invalidationScopeFor,
 } from '#/contexts/integration/infrastructure/durable-import-reference-keys'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import { member, organization, user } from '#/shared/db/schema/auth'
 import { permissionVersion } from '#/shared/db/schema/dac.schema'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import { gbpImportSagas } from '#/shared/db/schema/google-import-v2.schema'
 import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import {
@@ -124,8 +121,7 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
     const otherUserId = randomUUID()
     const connectionId = randomUUID()
     const now = IMPORT_TEST_NOW
-    const keys = createVersionedHmacKeyring(IMPORT_TEST_REFERENCE_KEYS)
-    const invalidationKeys = createDurableImportReferenceKeys({ keys })
+    const invalidationKeys = createDurableImportReferenceKeys({})
       .invalidationKeys(invalidationScopeFor('connection', [orgId, connectionId]))
       .map((fence) => fence.key)
     const encryptionKey = IMPORT_TEST_ENCRYPTION_KEY
@@ -212,12 +208,11 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
         return { ...binding, createBoundProperty }
       },
     )
-    vi.spyOn(importStoreModule, 'createGoogleImportV2Store').mockImplementation(
-      (...args) => {
-        store = createImportStore(...args)
-        return store
-      },
-    )
+    const originalStoreFactory = importStoreModule.createImportStore
+    vi.spyOn(importStoreModule, 'createImportStore').mockImplementation((...args) => {
+      store = originalStoreFactory(...args)
+      return store
+    })
     const runtime = createGoogleImportAcceptanceFixture({
       db,
       pool: db.$client,
@@ -243,9 +238,8 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
         db.select().from(properties).where(eq(properties.organizationId, orgId)),
       async cleanup() {
         await runtime.close()
-        keys.dispose()
+        await db.delete(workItems).where(eq(workItems.organizationId, orgId))
         await db.delete(googleImports).where(eq(googleImports.organizationId, orgId))
-        await db.delete(gbpImportSagas).where(eq(gbpImportSagas.organizationId, orgId))
         await db
           .delete(propertyPortalBrandContents)
           .where(eq(propertyPortalBrandContents.organizationId, orgId))

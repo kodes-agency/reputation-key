@@ -74,7 +74,7 @@ describe('jobEnqueueOptions (BQC-3.6)', () => {
   })
 
   it('gives fenced Google import items five jittered exponential attempts', () => {
-    expect(jobEnqueueOptions('import-gbp-property-item-v2')).toEqual({
+    expect(jobEnqueueOptions('import-gbp-property-item')).toEqual({
       attempts: 5,
       backoff: {
         type: 'exponential',
@@ -85,8 +85,8 @@ describe('jobEnqueueOptions (BQC-3.6)', () => {
   })
 
   it('reports the maximum BullMQ backoff before the next retry', () => {
-    expect(jobRetryDelayUpperBoundMs('import-gbp-property-item-v2', 1)).toBe(30_000)
-    expect(jobRetryDelayUpperBoundMs('import-gbp-property-item-v2', 4)).toBe(240_000)
+    expect(jobRetryDelayUpperBoundMs('import-gbp-property-item', 1)).toBe(30_000)
+    expect(jobRetryDelayUpperBoundMs('import-gbp-property-item', 4)).toBe(240_000)
     expect(jobRetryDelayUpperBoundMs('health-check', 2)).toBe(60_000)
   })
   it('throws on an unknown job name (config failure, not silent default)', () => {

@@ -3,6 +3,7 @@ import { buildAiContext } from '#/contexts/ai/build'
 import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { getLogger } from '#/shared/observability/logger'
+import { reputationReplyScopeEffects } from './reply-scope-effects'
 import { createAiRuntimeProviders } from './provider-runtime'
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { buildPropertyContext } from '#/contexts/property/build'
@@ -41,6 +42,7 @@ export function wireAi(
 ) {
   const ai = buildAiContext({
     db,
+    replyEffects: reputationReplyScopeEffects,
     outboxRepo,
     redis,
     logger: getLogger(),

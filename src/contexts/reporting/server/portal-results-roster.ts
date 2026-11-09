@@ -6,6 +6,10 @@
 // roster and zones the use case needs, one of each per Property.
 
 import { portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { PropertyAccessLookup } from '#/shared/domain/property-access'
+import { scopeForPermission } from '#/shared/domain/permissions'
+import { createExecutionPolicy } from '#/shared/auth/execution-policy'
 import type {
   PortalResultsPropertyZone,
   PortalResultsRosterEntry,
@@ -21,6 +25,24 @@ export type OrganizationRoster = Readonly<{
   portals: PortalResultsRosterEntry[]
   properties: PortalResultsPropertyZone[]
 }>
+
+/** Only grant facts are reused within this read; every policy decision still runs. */
+export async function rosterAccess(ctx: AuthContext, lookup: PropertyAccessLookup) {
+  const dashboardScope = scopeForPermission(ctx, 'dashboard.read')
+  const needsGrants =
+    dashboardScope === 'assigned-properties' ||
+    scopeForPermission(ctx, 'portal.read') === 'assigned-properties'
+  const grants = needsGrants
+    ? [...((await lookup(ctx.organizationId, ctx.userId, false)) ?? [])]
+    : []
+  return {
+    assignedIds: dashboardScope === 'organization' ? null : grants,
+    policy: createExecutionPolicy({
+      listAccessiblePropertyIds: async (orgId, uid) =>
+        orgId === ctx.organizationId && uid === ctx.userId ? grants : [],
+    }),
+  }
+}
 
 /**
  * A Portal is read only through its Property's own zone. A Property with no zone

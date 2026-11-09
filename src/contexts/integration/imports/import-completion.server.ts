@@ -1,5 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm'
-import { googleImportItems } from '#/shared/db/schema/google-import.schema'
+import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { organizationId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
@@ -282,4 +282,51 @@ export async function completeImportItem(
     .where(googleImportItemScope(input.organizationId, input.itemId))
   await markTerminalParent(tx, input.organizationId, item.importId, input.now)
   return 'completed'
+}
+
+/** Isolated restore calls the same completion policy inside its fence transaction. */
+export async function completeImportsForRestore(
+  tx: Tx,
+  deps: GoogleImportCompletionDeps,
+  now: Date,
+) {
+  const candidates = await tx
+    .select({
+      organizationId: googleImportItems.organizationId,
+      itemId: googleImportItems.id,
+      retryRevision: googleImportItems.retryRevision,
+      importId: googleImportItems.importId,
+    })
+    .from(googleImportItems)
+    .where(
+      sql`${googleImportItems.status} IN ('pending', 'processing') OR ${googleImportItems.outcomeCode} = 'temporarily_unavailable'`,
+    )
+  let items = 0
+  const parents = new Set<string>()
+  for (const { importId, ...item } of candidates) {
+    if (
+      (await completeImportItem(tx, deps, {
+        ...item,
+        now,
+        authority: { kind: 'lifecycle' },
+        outcomeCode: 'authorization_changed',
+        retainRetryState: false,
+      })) === 'completed'
+    ) {
+      items++
+      parents.add(importId)
+    }
+  }
+  // A restored import can have every item terminal without a purge clock.
+  // Start that clock through the same terminal marker.
+  const unmarked = await tx
+    .select({ id: googleImports.id, organizationId: googleImports.organizationId })
+    .from(googleImports)
+    .where(sql`${googleImports.firstTerminalAt} IS NULL`)
+    .for('update')
+  for (const parent of unmarked) {
+    await markTerminalParent(tx, parent.organizationId, parent.id, now)
+    parents.add(parent.id)
+  }
+  return { items, parents: parents.size }
 }

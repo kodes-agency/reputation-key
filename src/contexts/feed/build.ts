@@ -67,10 +67,10 @@ import {
 import { registerBulkAssignmentNotificationConsumer } from './infrastructure/bulk-assignment-outbox-consumers'
 import { registerAssignmentReleaseNotificationConsumer } from './infrastructure/assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
-import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-consumers'
-import { registerAiGuestVoiceSummaryNoticeConsumer } from './infrastructure/ai-guest-voice-summary-notice-consumers'
-import { registerAiUrgentReviewNoticeConsumer } from './infrastructure/ai-urgent-review-notice-consumers'
-import { registerRatingGoalNoticeConsumer } from './infrastructure/rating-goal-notice-consumers'
+import { registerGoalNotificationConsumer } from './infrastructure/goal-notice-routes'
+import { registerAiGuestVoiceSummaryNoticeConsumer } from './infrastructure/goal-notice-routes'
+import { registerAiUrgentReviewNoticeConsumer } from './infrastructure/goal-notice-routes'
+import { registerRatingGoalNoticeConsumer } from './infrastructure/goal-notice-routes'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './infrastructure/notification-settlement-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
@@ -91,8 +91,8 @@ import {
   muteNotificationCategory,
   undoNotificationCategoryMute,
   type PreviousPropertySetting,
-} from './application/use-cases/mute-notification-category'
-import { createImmediateEmailEnqueue } from './infrastructure/jobs/immediate-email-enqueue'
+} from './preferences/mute-category.server'
+import { createImmediateEmailEnqueue } from './email/send-emails.server'
 import { withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import {
   markNotificationRead,
@@ -120,13 +120,17 @@ import { createNotificationFeedReads } from './application/notification-feed-rea
 import { toNotificationView } from './application/notification-view'
 import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
 import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
-import { createNotificationDeliveryRuntime } from './application/notification-delivery-runtime'
+import {
+  createNotificationDeliveryProcessors,
+  type NotificationDeliveryWorkerInput,
+} from './infrastructure/jobs/notification-delivery-processors'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import {
   withBetaOutboxNotificationDelivery,
   withDeliveryRepairJobs,
 } from './infrastructure/outbox-notification-delivery'
 import type { NotificationJobEnqueuePort } from './infrastructure/inbox-notification-fanout'
+import { createNoticeWriter, type NoticeWriter } from './notify/consumers.server'
 import { createNotificationDeliverySettlement } from './infrastructure/repositories/notification-delivery-settlement.repository'
 import { createNotificationDeliveryLagRepository } from './infrastructure/repositories/notification-delivery-lag.repository'
 import { NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS } from './infrastructure/repositories/health-read-timeout'
@@ -141,9 +145,11 @@ import {
   registerOrganizationPurgePendingNoticeConsumer,
 } from './infrastructure/identity-account-outbox-consumers'
 import { createNotificationOrganizationScopeResolver } from './infrastructure/repositories/notification-organization-scope.repository'
-import { createNotificationUserSettings } from './infrastructure/notification-user-settings'
-import type { NotificationQuietHoursInput } from './application/dto/notification-preference.dto'
-import type { NotificationUserSettingsInput } from './application/dto/notification-user-settings.dto'
+import { createNotificationUserSettings } from './preferences/user-settings.server'
+import type {
+  NotificationQuietHoursInput,
+  NotificationUserSettingsInput,
+} from './preferences/contracts'
 
 import type { OutboxRepository } from '#/shared/outbox'
 
@@ -420,9 +426,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     : undefined
   const ratingForRouting = createReviewRatingForRouting(input.db, input.reviewRatings)
 
-  // Surfaced on the container as `notificationDeliverySettlement`. It was
-  // defined here but never exposed, so bootstrap built the insert-notification
-  // handler without it and every outbox-delivered notification threw.
+  // Handed to the insert-notification processor: without it every
+  // outbox-delivered notification throws.
   const deliverySettlement = createNotificationDeliverySettlement({
     db: input.db,
     clock: input.clock,
@@ -431,6 +436,20 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     logger: input.logger,
     ratingForRouting,
     enqueueImmediateEmail,
+  })
+
+  // The account, integration, Portal and Property routes write their notices
+  // in the transaction that claims their receipt.
+  const noticeWriter = createNoticeWriter({
+    db: input.db,
+    clock: input.clock,
+    idGen: () => notificationId(input.idGen()),
+    emailIdGen: () => notificationEmailId(input.idGen()),
+    logger: input.logger,
+    ratingForRouting,
+    enqueueImmediateEmail,
+    authorizeAudience,
+    workState,
   })
 
   const publicApi = {
@@ -663,22 +682,22 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const registerNotificationRoutes = (
     consumerRegistry: ConsumerRegistry,
     queue: NotificationJobEnqueuePort,
+    noticeWriter?: NoticeWriter,
   ) => {
+    const notices = { queue, noticeWriter, receipts: input.outboxRepo }
     registerIdentityAccountNotificationConsumers(consumerRegistry, {
-      queue,
+      ...notices,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     // LIF-01 program bullet 5 — the mandatory final notice at Purge Pending.
     // Registering it does NOT arm the lifecycle: the transition that produces
     // the fact is still driven by a quarantined schedule.
     registerOrganizationPurgePendingNoticeConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerNotificationConsumers(consumerRegistry, {
       ...fanoutReads,
@@ -741,44 +760,39 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       receipts: input.outboxRepo,
     })
     registerGoalNotificationConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       monthlyResultFacts: input.monthlyResultFacts,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerRatingGoalNoticeConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     // The one notice an AI finding starts: a review analysis found a review Urgent.
     registerAiUrgentReviewNoticeConsumer(consumerRegistry, {
       ...fanoutReads,
-      queue,
-      receipts: input.outboxRepo,
+      ...notices,
     })
     // The Monday email: a Property's Guest voice in three lines, to the managers who asked.
     registerAiGuestVoiceSummaryNoticeConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       responsibleManagers: input.responsibleManagers,
       activeProperty: fanoutReads.activeProperty,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerPortalNotificationConsumers(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerPortalDestinationNotificationConsumer(consumerRegistry, {
       queue,
@@ -797,18 +811,16 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       receipts: input.outboxRepo,
     })
     registerPropertyNotificationConsumers(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerIntegrationNotificationConsumers(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       googleConnectionProperties: input.googleConnectionProperties,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerReviewImportNotificationConsumers(consumerRegistry, {
       queue,
@@ -830,7 +842,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
    */
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     if (!notificationDeliveryQueue) return
-    registerNotificationRoutes(consumerRegistry, notificationDeliveryQueue)
+    registerNotificationRoutes(consumerRegistry, notificationDeliveryQueue, noticeWriter)
     // Executable readiness contract: compare the beta trigger/recipient
     // matrix with the consumers that are actually present in this worker.
     // ARC-03-T7: read the registry this container just registered into — a
@@ -859,19 +871,34 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   return {
     publicApi,
     worker: Object.freeze({ registerOutboxConsumers }),
-    // ARC-03-T12: one named delivery capability replaces the root's reach into
-    // Notification's private repository trio and loose handlers.
-    delivery: createNotificationDeliveryRuntime({
-      repos: { notificationRepo, emailRepo, preferenceRepo: prefRepo },
-      handlers: {
-        handleResendEvent,
-        authorizeAudience,
-        recipientStanding,
-        workState,
-        deliverySettlement,
-        ratingForRouting,
-        reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
-      },
+    delivery: Object.freeze({
+      repos: Object.freeze({ notificationRepo, emailRepo, preferenceRepo: prefRepo }),
+      handleResendEvent,
+      authorizeAudience,
+      recipientStanding,
+      workState,
+      deliverySettlement,
+      ratingForRouting,
+      /** Builds the worker's insert, email and digest processors. */
+      createProcessors: (worker: NotificationDeliveryWorkerInput) =>
+        createNotificationDeliveryProcessors(
+          {
+            db: input.db,
+            notificationRepo,
+            emailRepo,
+            preferenceRepo: prefRepo,
+            userLookup,
+            recipientStanding,
+            workState,
+            authorizeAudience,
+            deliverySettlement,
+            ratingForRouting,
+            clock: input.clock,
+            logger: input.logger,
+          },
+          worker,
+        ),
+      reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
     }),
   } as const
 }

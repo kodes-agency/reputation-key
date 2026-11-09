@@ -6,6 +6,7 @@
  * cycle and immutable target snapshot; Review tables and provider content
  * never cross the context boundary.
  */
+import type { ReviewOpenTransaction } from './open-transaction'
 
 export type ReviewProviderObservationOrigin =
   'ongoing' | 'historical_onboarding' | 'legacy_unknown'
@@ -108,11 +109,17 @@ export type ReviewResponseTargetAuthorityResult<T> =
 export type ReviewResponseTargetAuthority = Readonly<{
   withExactCurrent<T>(
     expectation: ReviewResponseTargetExpectation,
-    apply: (permit: ReviewCurrentResponseTargetPermit) => Promise<T>,
+    apply: (
+      permit: ReviewCurrentResponseTargetPermit,
+      tx: ReviewOpenTransaction,
+    ) => Promise<T>,
   ): Promise<ReviewResponseTargetAuthorityResult<T>>
   withExactCurrentBatch<T>(
     expectations: readonly ReviewResponseTargetExpectation[],
-    apply: (permits: readonly ReviewCurrentResponseTargetPermit[]) => Promise<T>,
+    apply: (
+      permits: readonly ReviewCurrentResponseTargetPermit[],
+      tx: ReviewOpenTransaction,
+    ) => Promise<T>,
   ): Promise<ReviewResponseTargetAuthorityResult<T>>
   /**
    * Hold Review's current source fence while Inbox atomically materializes or
@@ -120,6 +127,9 @@ export type ReviewResponseTargetAuthority = Readonly<{
    */
   withInboxProjection<T>(
     expectation: ReviewInboxProjectionExpectation,
-    apply: (permit: ReviewCurrentInboxProjectionPermit) => Promise<T>,
+    apply: (
+      permit: ReviewCurrentInboxProjectionPermit,
+      tx: ReviewOpenTransaction,
+    ) => Promise<T>,
   ): Promise<ReviewResponseTargetAuthorityResult<T>>
 }>

@@ -6,7 +6,7 @@ import { submitForm, submitHandler } from '#/components/forms/form-submit'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { useAction } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { useDialogBusy } from '#/components/ui/dialog-dismissal'
 import { Kbd } from '#/components/ui/kbd'
@@ -55,7 +55,7 @@ const TYPE_OPTIONS: ReadonlyArray<BetaFeedbackChoice<BetaFeedbackType>> = [
 ]
 
 export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFormProps) {
-  const submit = useAction(submitFeedback)
+  const submit = useActionMutation(submitFeedback)
   // This body owns the request, the launcher owns the dialog: the report is not
   // lost to an Escape while it is on its way.
   useDialogBusy(submit.isPending)

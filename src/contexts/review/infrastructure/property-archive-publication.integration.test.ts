@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Archiving a Property cancels its undispatched reply publications (PostgreSQL).
 //
 // The provider authorizer refuses a write unless the Property is active at the
@@ -170,13 +171,18 @@ async function authorizeReply(sourceEpoch = 0): Promise<void> {
     PROPERTY,
     sourceEpoch,
   ])
-  await createReviewRepository(db, () => NOW).upsert({ ...review(), sourceEpoch })
+  await createReviewRepository(db, () => NOW, undefined, replyScopeEffects).upsert({
+    ...review(),
+    sourceEpoch,
+  })
   const pending = pendingReply()
   await createReplyRepository(db, () => NOW).upsert(pending)
   const authorized = await createAtomicReplyCommandStore(
     db,
     () => NOW,
     async () => true,
+    undefined,
+    replyScopeEffects,
   ).markPublicationAuthorized(
     pending,
     { status: 'approved', approvedBy: AUTHOR, approvedAt: NOW },
@@ -249,6 +255,7 @@ const propertyApi = {
 function reviewWorkerConsumers() {
   const registry = createConsumerRegistry()
   buildReviewContext({
+    replyEffects: replyScopeEffects,
     publicationActorAuthority: async () => true,
     replyBrandProfiles: { isCurrentAiReplyBrandProfile: async () => true },
     db,
@@ -351,7 +358,12 @@ function publishWorker() {
   }
   const handler = createPublishReplyHandler({
     replyRepo: createReplyRepository(db, () => ARCHIVED_AT),
-    reviewRepo: createReviewRepository(db, () => ARCHIVED_AT),
+    reviewRepo: createReviewRepository(
+      db,
+      () => ARCHIVED_AT,
+      undefined,
+      replyScopeEffects,
+    ),
     googleReviewApi: googleReviewApi as never,
     googleReplyObservationStore: createGoogleReplyObservationStore(db),
     // The read of Google before the claim is the real use case; the Property's
@@ -373,6 +385,8 @@ function publishWorker() {
       db,
       () => ARCHIVED_AT,
       async () => true,
+      undefined,
+      replyScopeEffects,
     ),
     dispatchEvidence: { findDispatchEvidence: vi.fn() } as never,
     clock: () => ARCHIVED_AT,

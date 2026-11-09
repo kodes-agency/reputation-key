@@ -25,8 +25,7 @@ export type IntegrationOrganizationExportPayload = Readonly<{
   requestedAsOf: string
   snapshotBound: 'repeatable_read_within_15m_of_request'
   googleConnections: readonly ExportRecord[]
-  importSagas: readonly ExportRecord[]
-  importBatches: readonly ExportRecord[]
+  imports: readonly ExportRecord[]
   importItemStateCounts: readonly ExportRecord[]
   disconnectCleanupAttempts: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
@@ -61,20 +60,20 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  * - `google_connections.google_subject`, `google_account_email` and `scopes` are
  *   the Google-controlled identity of the grant, its display label, and the exact
  *   provider authority it carries. None is a fact about the tenant's own records.
- * - `gbp_import_request_items` is read only as **counts grouped by state**. Its
- *   rows carry `provider_account_suffix`, `provider_location_suffix` and
+ * - `google_import_items` are read only as
+ *   **counts grouped by state**. Their rows carry `provider_account_suffix`, `provider_location_suffix` and
  *   `google_review_uri`: provider-controlled identifiers and a Google-owned
  *   destination URI. A per-item file would put a location id in the archive,
  *   which this context may never do.
  * - `google_oauth_exchange` idempotency receipts are the crash boundary that
  *   briefly holds an application-encrypted provider token response.
- * - `credential_revoke_permits`, `authorization_execution_permits` and
- *   `capability_*` control rows are admission/permit internals.
+ * - `authorization_execution_permits` and `capability_*` control rows are
+ *   admission/permit internals.
  * - `google_disconnect_revoke` receipt payloads include a keyed digest of the
  *   exact token being revoked and the cleanup permit identifier; the attempt's
  *   state, outcome and timings are exported without them.
- * - `gbp_import_sagas` / `gbp_import_requests` replay key versions and digests
- *   are keyed idempotency material, not lifecycle status.
+ * - `google_imports` replay key
+ *   versions and digests are keyed idempotency material, not lifecycle status.
  * - `google_import_discovery_records` are pre-confirmation provider candidate
  *   pages behind HMAC handles — raw Google-controlled content with a 24-hour
  *   bound, copied for one browser session and never a tenant record.
@@ -232,17 +231,12 @@ function csvRow(recordType: string, record: ExportRecord): readonly string[] {
 }
 
 type IntegrationExportCollection =
-  | 'googleConnections'
-  | 'importSagas'
-  | 'importBatches'
-  | 'importItemStateCounts'
-  | 'disconnectCleanupAttempts'
+  'googleConnections' | 'imports' | 'importItemStateCounts' | 'disconnectCleanupAttempts'
 
 const CSV_COLLECTIONS: readonly (readonly [string, IntegrationExportCollection])[] =
   Object.freeze([
     ['google_connection', 'googleConnections'],
-    ['import_saga', 'importSagas'],
-    ['import_batch', 'importBatches'],
+    ['import', 'imports'],
     ['import_item_state_count', 'importItemStateCounts'],
     ['disconnect_cleanup_attempt', 'disconnectCleanupAttempts'],
   ])
@@ -336,45 +330,19 @@ async function readPayload(
         (record) => [record.created_at, record.id],
       )
 
-      const importSagas = await readRows(
+      const imports = await readRows(
         snapshot,
         sql`SELECT
-              saga.id::text AS id,
-              saga.request_id::text AS request_id,
-              saga.initiated_by,
-              saga.total_count,
-              saga.batch_count,
-              to_char(saga.created_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS created_at,
-              to_char(saga.updated_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS updated_at
-            FROM gbp_import_sagas AS saga
-            WHERE saga.organization_id = ${organizationId}`,
-        (record) => [record.created_at, record.id],
-      )
-
-      const importBatches = await readRows(
-        snapshot,
-        sql`SELECT
-              request.id::text AS id,
-              request.saga_id::text AS saga_id,
-              request.batch_ordinal,
-              request.request_id::text AS request_id,
-              request.initiated_by,
-              request.status::text AS status,
-              request.total_count,
-              request.processed_count,
-              request.pending_count,
-              request.processing_count,
-              request.imported_count,
-              request.relinked_count,
-              request.already_exists_count,
-              request.failed_count,
-              request.cancelled_count,
-              to_char(request.first_terminal_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS first_terminal_at,
-              to_char(request.purge_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS purge_at,
-              to_char(request.created_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS created_at,
-              to_char(request.updated_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS updated_at
-            FROM gbp_import_requests AS request
-            WHERE request.organization_id = ${organizationId}`,
+              parent.id::text AS id,
+              parent.request_id::text AS request_id,
+              parent.initiated_by,
+              parent.total_count,
+              to_char(parent.first_terminal_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS first_terminal_at,
+              to_char(parent.purge_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS purge_at,
+              to_char(parent.created_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS created_at,
+              to_char(parent.updated_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS updated_at
+            FROM google_imports AS parent
+            WHERE parent.organization_id = ${organizationId}`,
         (record) => [record.created_at, record.id],
       )
 
@@ -384,16 +352,26 @@ async function readPayload(
       const importItemStateCounts = await readRows(
         snapshot,
         sql`SELECT
-              item.import_job_id::text AS import_job_id,
-              item.status::text AS status,
-              item.action::text AS action,
-              item.outcome_code::text AS outcome_code,
-              count(*)::int AS item_count,
-              to_char(min(item.created_at) AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS first_created_at,
-              to_char(max(item.updated_at) AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS last_updated_at
-            FROM gbp_import_request_items AS item
-            WHERE item.organization_id = ${organizationId}
-            GROUP BY item.import_job_id, item.status, item.action, item.outcome_code`,
+              grouped.import_job_id,
+              grouped.status,
+              grouped.action,
+              grouped.outcome_code,
+              grouped.item_count,
+              grouped.first_created_at,
+              grouped.last_updated_at
+            FROM (
+              SELECT
+                item.import_id::text AS import_job_id,
+                item.status::text AS status,
+                item.action::text AS action,
+                item.outcome_code::text AS outcome_code,
+                count(*)::int AS item_count,
+                to_char(min(item.created_at) AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS first_created_at,
+                to_char(max(item.updated_at) AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS last_updated_at
+              FROM google_import_items AS item
+              WHERE item.organization_id = ${organizationId}
+              GROUP BY item.import_id, item.status, item.action, item.outcome_code
+            ) AS grouped`,
         (record) => [
           record.import_job_id,
           record.status,
@@ -430,8 +408,7 @@ async function readPayload(
         requestedAsOf: asOf.toISOString(),
         snapshotBound: 'repeatable_read_within_15m_of_request',
         googleConnections,
-        importSagas,
-        importBatches,
+        imports,
         importItemStateCounts,
         disconnectCleanupAttempts,
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,

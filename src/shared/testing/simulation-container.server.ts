@@ -9,7 +9,7 @@
 // The DB is still real by default — for ephemeral isolation, pass a per-run
 // Database override. Identity and externals (better-auth, Google, Resend) are
 // real unless overridden — BQC-6.1 delivers the full set of fakes: pass
-// identityPort/email plus providers { googleOAuth, gbpApi, storage } (the
+// identityPort/email plus providers { googleOAuth, storage } (the
 // in-memory fakes in this directory) for a network-free simulation.
 
 import {
@@ -50,7 +50,7 @@ export type SimulationContainerOptions = {
   /** Override the email sender (capture emails instead of sending). */
   email?: typeof SendInvitationEmail
   /** Override external provider adapters (BQC-6.1: in-memory googleOAuth /
-   * gbpApi / storage for a network-free simulation). */
+   * storage for a network-free simulation). */
   providers?: ProviderOverrides
   /** Validated process configuration override for deterministic simulations. */
   env?: Env

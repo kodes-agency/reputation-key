@@ -6,9 +6,9 @@
 // the notice never says who accepted (ADR 0046 r.8).
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, userId } from '#/shared/domain/ids'
-import type { ConsumerEvent, OutboxRepository } from '#/shared/outbox'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import type { ConsumerEvent } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
+import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 import {
   buildOrganizationPayload,
   type OrganizationPayloadDeps,
@@ -18,10 +18,7 @@ export const INVITATION_ACCEPTED_INVITER_CONSUMER =
   'notification.on-identity-invitation-accepted-inviter' as const
 
 export type InvitationAcceptedInviterNoticeDeps = OrganizationPayloadDeps &
-  Readonly<{
-    queue: NotificationJobEnqueuePort
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
-  }>
+  NoticeDeliveryDeps
 
 type InvitationAcceptedPayload = Readonly<{
   organizationId: string
@@ -41,7 +38,7 @@ type InvitationAcceptedPayload = Readonly<{
 export async function handleInvitationAcceptedInviterNotice(
   deps: InvitationAcceptedInviterNoticeDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<ConsumerResult> {
   if (event.propertyId !== null || event.sourceContext !== 'identity') {
     throw new Error('Invitation accepted envelope attribution mismatch')
   }
@@ -55,36 +52,30 @@ export async function handleInvitationAcceptedInviterNotice(
   }
   const { inviterId } = payload
   if (inviterId === undefined || inviterId === '') {
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      INVITATION_ACCEPTED_INVITER_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
+    return deliverNotices(deps, event, INVITATION_ACCEPTED_INVITER_CONSUMER, [], {
+      status: 'obsolete',
+    })
   }
 
   const organization = organizationId(event.organizationId)
   const named = await buildOrganizationPayload(deps, organization)
-  await deps.queue.add(
-    INSERT_NOTIFICATION_JOB_NAME,
-    {
-      userId: userId(inviterId),
-      organizationId: organization,
-      propertyId: null,
-      type: 'account.invitation_accepted',
-      resourceType: 'organization',
-      resourceId: event.organizationId,
-      eventId: event.eventId,
-      ...(Object.keys(named).length > 0 ? { payload: named } : {}),
-      audience: { kind: 'account_admin' },
-    },
-    // Apart from the new member's own job for the same fact.
-    { jobId: `${event.eventId}-inviter-${inviterId}` },
-  )
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  return deliverNotices(
+    deps,
+    event,
     INVITATION_ACCEPTED_INVITER_CONSUMER,
-    'applied',
+    [
+      {
+        userId: userId(inviterId),
+        organizationId: organization,
+        propertyId: null,
+        type: 'account.invitation_accepted',
+        resourceType: 'organization',
+        resourceId: event.organizationId,
+        ...(Object.keys(named).length > 0 ? { payload: named } : {}),
+        audience: { kind: 'account_admin' },
+      },
+    ],
+    // Apart from the new member's own job for the same fact.
+    { jobId: () => `${event.eventId}-inviter-${inviterId}` },
   )
-  return { status: 'applied' }
 }

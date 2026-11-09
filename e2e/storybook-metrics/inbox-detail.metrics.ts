@@ -59,7 +59,7 @@ import { expect, test } from '@playwright/test'
 import { EXCLUDED_STORIES, EXCLUDED_TITLES } from './inbox-detail-exclusions'
 import {
   DECLARATION_ERRORS,
-  INBOX_STORY_IMPORT_PREFIX,
+  INBOX_STORY_IMPORT_PREFIXES,
   MEASURED_STORIES,
   VIEWPORTS,
   type MeasuredStory,
@@ -161,13 +161,14 @@ test.describe('declared stories', () => {
   // across 16 existing titles had never been measured. Now every story whose
   // file is under `src/components/inbox/` is measured, excluded by id with a
   // reason, or belongs to a title excluded with a reason.
-  test('account for every story under src/components/inbox', async ({ request }) => {
+  test('account for every inbox story', async ({ request }) => {
     const response = await request.get('/index.json')
     expect(response.ok(), `GET /index.json answered ${response.status()}`).toBe(true)
     const index = (await response.json()) as StorybookIndex
     const inbox = Object.values(index.entries).filter(
       (entry) =>
-        entry.type === 'story' && entry.importPath.startsWith(INBOX_STORY_IMPORT_PREFIX),
+        entry.type === 'story' &&
+        INBOX_STORY_IMPORT_PREFIXES.some((prefix) => entry.importPath.startsWith(prefix)),
     )
     const titleOf = new Map(inbox.map((entry) => [entry.id, entry.title]))
     const measured = new Set(MEASURED_STORIES.map((story) => story.id))

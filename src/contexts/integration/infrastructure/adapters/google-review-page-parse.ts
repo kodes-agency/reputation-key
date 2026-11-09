@@ -49,7 +49,7 @@ const STAR_RATING_MAP: Readonly<Record<string, StarRating | undefined>> = {
 //
 // `reviewReplyUrl` is read since 2026-10-17 ("Open on Google" in the Inbox) and
 // never fails a page (`google-review-page.ts`).
-export const gbpReviewItemSchema = z.object({
+const gbpReviewItemSchema = z.object({
   name: z.string().min(1).max(1_024),
   starRating: z.string(),
   comment: z.string().optional(),
@@ -114,7 +114,7 @@ const gbpReviewsPageSchema = z
     }
   })
 
-export type GbpReviewItem = z.infer<typeof gbpReviewItemSchema>
+type GbpReviewItem = z.infer<typeof gbpReviewItemSchema>
 
 function parseDate(value: string): Date {
   const parsed = new Date(value)
@@ -123,7 +123,7 @@ function parseDate(value: string): Date {
   return parsed
 }
 
-export function mapReview(
+function mapReview(
   raw: GbpReviewItem,
   locationName: string,
 ): GoogleReviewRead & Readonly<{ replyUnreadable: boolean }> {
@@ -180,13 +180,26 @@ export function mapReview(
   }
 }
 
-export type ParsedReviewsPage = Readonly<{
+type ParsedReviewsPage = Readonly<{
   reviews: ReadonlyArray<ReturnType<typeof mapReview>>
   totalReviewCount: number
   /** Null only when the provider reports zero reviews. */
   averageRating: number | null
   nextPageToken: string | undefined
 }>
+
+export function parseReview(
+  raw: unknown,
+  locationName: string,
+  logger: LoggerPort,
+): ReturnType<typeof mapReview> {
+  const parsed = gbpReviewItemSchema.safeParse(raw)
+  if (!parsed.success) throw reviewApiError('malformed_response', false)
+  const review = mapReview(parsed.data, locationName)
+  reportRefusedReviewPages(logger, 'reviews.get', [parsed.data], [review.googleReviewUrl])
+  reportReplyModeration(logger, 'reviews.get', [parsed.data])
+  return review
+}
 
 /**
  * One reviews.list response body, validated and mapped. A page Google considers

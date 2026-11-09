@@ -7,7 +7,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalLanguageCoverage } from '#/contexts/portal/application/portal-management-contracts'
 import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
-import type { UpdatePortalVariables } from '../shared/types'
+import type { ChangePortalLanguagesVariables } from '../shared/types'
 import { PortalLanguagesSection } from './portal-languages-section'
 import {
   AuthedRouterDecorator,
@@ -32,11 +32,11 @@ const meta: Meta<typeof PortalLanguagesSection> = {
 export default meta
 type Story = StoryObj<typeof PortalLanguagesSection>
 
-function update(): Action<UpdatePortalVariables> {
+function update(): Action<ChangePortalLanguagesVariables> {
   return Object.assign(
-    fn(async (_input: UpdatePortalVariables) => undefined),
+    fn(async (_input: ChangePortalLanguagesVariables) => undefined),
     { isPending: false, error: null as unknown, isSuccess: false, data: null },
-  ) as unknown as Action<UpdatePortalVariables>
+  ) as unknown as Action<ChangePortalLanguagesVariables>
 }
 
 const complete = (locale: 'en' | 'bg', isFallback: boolean) => ({

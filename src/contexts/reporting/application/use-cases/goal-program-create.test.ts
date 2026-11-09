@@ -1,9 +1,9 @@
 // createGoalCore writes one Program for a start period its caller resolved.
 // The request command around it (authorise, resolve the month) is covered
-// through the service in goal-programs.test.ts; these cases pin what the core
+// through the service in goal-programs.integration.test.ts; these cases pin what the core
 // owes a caller that resolves the month once for several goals.
 import { describe, expect, it, vi } from 'vitest'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import { createGoalCore } from './goal-program-create'
 import type { GoalActor, GoalProgramDependencies } from './goal-program-shared'

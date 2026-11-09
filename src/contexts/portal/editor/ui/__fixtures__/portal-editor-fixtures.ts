@@ -5,6 +5,7 @@ import { fn } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import { previewReader } from '#/components/features/portal/portal-preview/__fixtures__/portal-preview-fixtures'
 import type {
+  ChangePortalLanguagesVariables,
   CompleteReviewVariables,
   UpdatePortalVariables,
 } from '#/components/features/portal/shared/types'
@@ -68,6 +69,9 @@ export function storyLink(
 
 export function makeResources(
   autosaveUpdateMutation: Action<UpdatePortalVariables>,
+  changeLanguagesMutation: Action<ChangePortalLanguagesVariables> = action(
+    async () => undefined,
+  ),
 ): PortalEditorResources {
   return {
     portal,
@@ -141,6 +145,7 @@ export function makeResources(
       ],
     },
     autosaveUpdateMutation,
+    changeLanguagesMutation,
     completeReviewMutation: action(async (_input: CompleteReviewVariables) => ({
       status: 'recorded' as const,
     })),

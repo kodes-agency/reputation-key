@@ -9,7 +9,11 @@ const PORTAL_ID = 'portal-1'
 
 const setup = (over: Partial<ReviewPublishDeps> = {}) => {
   const deps = {
-    review: { action: 'publish_changes', publishesAsVersion: 6 },
+    review: {
+      action: 'publish_changes',
+      publishesAsVersion: 6,
+      reviewDigest: 'digest-6',
+    },
     portalId: PORTAL_ID,
     publishChanges: vi.fn(async () => ({ outcome: 'published' as const, version: 6 })),
     goLive: vi.fn(async () => ({ success: true })),
@@ -39,19 +43,35 @@ describe('publishReview', () => {
 
     await publishReview(deps)
 
-    expect(deps.publishChanges).toHaveBeenCalledWith({ data: { portalId: PORTAL_ID } })
+    expect(deps.publishChanges).toHaveBeenCalledWith({
+      data: { portalId: PORTAL_ID, reviewedDigest: 'digest-6' },
+    })
     expect(deps.goLive).not.toHaveBeenCalled()
     expect(deps.notify.success).toHaveBeenCalledWith('Version 6 is live')
     expect(deps.leave).toHaveBeenCalledTimes(1)
   })
 
+  it('does not publish changes when the review has no digest to hand back', async () => {
+    const deps = setup({
+      review: { action: 'publish_changes', publishesAsVersion: 6, reviewDigest: null },
+    })
+
+    await publishReview(deps)
+
+    expect(deps.publishChanges).not.toHaveBeenCalled()
+    expect(deps.refreshReview).toHaveBeenCalledTimes(1)
+    expect(deps.leave).not.toHaveBeenCalled()
+  })
+
   it('takes a portal that is not live live, naming the version it publishes as', async () => {
-    const deps = setup({ review: { action: 'publish', publishesAsVersion: 1 } })
+    const deps = setup({
+      review: { action: 'publish', publishesAsVersion: 1, reviewDigest: null },
+    })
 
     await publishReview(deps)
 
     expect(deps.goLive).toHaveBeenCalledWith({
-      data: { portalId: PORTAL_ID, publicationState: 'published' },
+      data: { portalId: PORTAL_ID },
     })
     expect(deps.publishChanges).not.toHaveBeenCalled()
     expect(deps.notify.success).toHaveBeenCalledWith('Version 1 is live')
@@ -90,7 +110,7 @@ describe('publishReview', () => {
 
   it('reports a refused first publication the same way', async () => {
     const deps = setup({
-      review: { action: 'publish', publishesAsVersion: 1 },
+      review: { action: 'publish', publishesAsVersion: 1, reviewDigest: 'digest-1' },
       goLive: vi.fn(async () => {
         throw new Error('no manager')
       }),
@@ -104,7 +124,9 @@ describe('publishReview', () => {
   })
 
   it('does nothing for a portal that cannot be published', async () => {
-    const deps = setup({ review: { action: 'none', publishesAsVersion: 1 } })
+    const deps = setup({
+      review: { action: 'none', publishesAsVersion: 1, reviewDigest: null },
+    })
 
     await publishReview(deps)
 

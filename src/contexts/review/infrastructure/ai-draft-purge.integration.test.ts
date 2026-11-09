@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // The AI draft purge against real PostgreSQL.
 //
 // An AI-assisted reply is the unedited output of one AI operation. The purge
@@ -103,20 +104,31 @@ type SeededReply = Readonly<{
 const { privateKey, publicKey } = generateKeyPairSync('ed25519')
 
 const db = getDb()
-const reviewRepository = createReviewRepository(db, () => new Date())
+const reviewRepository = createReviewRepository(
+  db,
+  () => new Date(),
+  undefined,
+  replyScopeEffects,
+)
 const replyRepository = createReplyRepository(db, () => new Date())
 const replyCommandStore = createAtomicReplyCommandStore(
   db,
   () => new Date(),
   async () => true,
+  undefined,
+  replyScopeEffects,
 )
 const draftStore = createAiSuggestedDraftStore(
   db,
   new Map([['provenance-v1', publicKey]]),
   { isCurrentAiReplyBrandProfile: async () => true },
 )
-const profiles = createPropertyProcessingProfileAdapter(db, () => new Date())
-const control = createAiControlAdapter(db)
+const profiles = createPropertyProcessingProfileAdapter(
+  db,
+  () => new Date(),
+  replyScopeEffects,
+)
+const control = createAiControlAdapter(db, replyScopeEffects)
 
 let sequence = 0
 /** A UUID no other row in this file uses; `kind` keeps the families apart. */
@@ -606,7 +618,13 @@ async function observeGuestEdit(seeded: SeededReply): Promise<Review> {
   const editedAt = new Date(
     (seeded.review.sourceUpdatedAt ?? observedAt).getTime() + 1000,
   )
-  return createAtomicReviewCommandStore(db, () => new Date()).upsertAndRecord(
+  return createAtomicReviewCommandStore(
+    db,
+    () => new Date(),
+    undefined,
+    undefined,
+    replyScopeEffects,
+  ).upsertAndRecord(
     {
       ...seeded.review,
       rating: 2,
@@ -662,34 +680,64 @@ const PURGE_ENTRY_POINTS: ReadonlyArray<readonly [string, PurgeEntryPoint]> = [
   [
     'a Property change',
     (tx, s) =>
-      purgeAiDraftsForProperty(tx, { organizationId: ORG, propertyId: s.property }),
+      purgeAiDraftsForProperty(
+        tx,
+        { organizationId: ORG, propertyId: s.property },
+        replyScopeEffects,
+      ),
   ],
   [
     'a processing-profile change',
     (tx, s) =>
-      purgeAiDraftsForProfile(tx, { organizationId: ORG, propertyId: s.property }),
+      purgeAiDraftsForProfile(
+        tx,
+        { organizationId: ORG, propertyId: s.property },
+        replyScopeEffects,
+      ),
   ],
   [
     'an AI Authorization change',
     (tx, s) =>
-      purgeAiDraftsForAuthorization(tx, {
-        organizationId: ORG,
-        propertyId: s.property,
-      }),
+      purgeAiDraftsForAuthorization(
+        tx,
+        {
+          organizationId: ORG,
+          propertyId: s.property,
+        },
+        replyScopeEffects,
+      ),
   ],
-  ['an Organization closing', (tx) => purgeAiDraftsForOrganization(tx, ORG)],
+  [
+    'an Organization closing',
+    (tx) => purgeAiDraftsForOrganization(tx, ORG, replyScopeEffects),
+  ],
   [
     'a Review change',
-    (tx, s) => purgeAiDraftsForReview(tx, { organizationId: ORG, reviewId: s.review.id }),
+    (tx, s) =>
+      purgeAiDraftsForReview(
+        tx,
+        { organizationId: ORG, reviewId: s.review.id },
+        replyScopeEffects,
+      ),
   ],
-  ['the global AI control', (tx) => purgeAiDraftsForControl(tx, 'global', null)],
+  [
+    'the global AI control',
+    (tx) => purgeAiDraftsForControl(tx, 'global', null, replyScopeEffects),
+  ],
   [
     'the provider AI control',
-    (tx) => purgeAiDraftsForControl(tx, 'provider_deployment_profile', PROVIDER_PROFILE),
+    (tx) =>
+      purgeAiDraftsForControl(
+        tx,
+        'provider_deployment_profile',
+        PROVIDER_PROFILE,
+        replyScopeEffects,
+      ),
   ],
   [
     'the reply-drafting AI control',
-    (tx) => purgeAiDraftsForControl(tx, 'capability', 'reply_drafting'),
+    (tx) =>
+      purgeAiDraftsForControl(tx, 'capability', 'reply_drafting', replyScopeEffects),
   ],
 ]
 
@@ -772,7 +820,10 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
         .where(eq(properties.id, seeded.property))
         .limit(1)
 
-      const archived = await createPropertyLifecycleCommandStore(db).transitionLifecycle({
+      const archived = await createPropertyLifecycleCommandStore(
+        db,
+        replyScopeEffects,
+      ).transitionLifecycle({
         organizationId: ORG,
         propertyId: seeded.property,
         expectedSourceEpoch: SOURCE_EPOCH,
@@ -803,14 +854,18 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       const seeded = await seedAiReply('authorized')
 
       const erased = await db.transaction((tx) =>
-        eraseReviewSourceContent(tx, {
-          reviewId: seeded.review.id,
-          organizationId: ORG,
-          propertyId: seeded.property,
-          sourceEpoch: SOURCE_EPOCH,
-          expectedSourceRevision: 1,
-          state: 'source_expired',
-        }),
+        eraseReviewSourceContent(
+          tx,
+          {
+            reviewId: seeded.review.id,
+            organizationId: ORG,
+            propertyId: seeded.property,
+            sourceEpoch: SOURCE_EPOCH,
+            expectedSourceRevision: 1,
+            state: 'source_expired',
+          },
+          replyScopeEffects,
+        ),
       )
 
       expect(erased).toBe(true)
@@ -831,10 +886,14 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       })
 
       await db.transaction((tx) =>
-        purgeAiDraftsForProperty(tx, {
-          organizationId: ORG,
-          propertyId: seeded.property,
-        }),
+        purgeAiDraftsForProperty(
+          tx,
+          {
+            organizationId: ORG,
+            propertyId: seeded.property,
+          },
+          replyScopeEffects,
+        ),
       )
 
       await expectWithdrawnWithEvidence(seeded)
@@ -848,10 +907,14 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
     it('leaves a draft a manager can write a new reply into', async () => {
       const seeded = await seedAiReply('authorized')
       await db.transaction((tx) =>
-        purgeAiDraftsForProperty(tx, {
-          organizationId: ORG,
-          propertyId: seeded.property,
-        }),
+        purgeAiDraftsForProperty(
+          tx,
+          {
+            organizationId: ORG,
+            propertyId: seeded.property,
+          },
+          replyScopeEffects,
+        ),
       )
 
       const rewritten = await replyRepository.saveDraft(
@@ -874,10 +937,14 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
     it('cannot be claimed by a publish job that read it before the purge', async () => {
       const seeded = await seedAiReply('authorized')
       await db.transaction((tx) =>
-        purgeAiDraftsForProperty(tx, {
-          organizationId: ORG,
-          propertyId: seeded.property,
-        }),
+        purgeAiDraftsForProperty(
+          tx,
+          {
+            organizationId: ORG,
+            propertyId: seeded.property,
+          },
+          replyScopeEffects,
+        ),
       )
 
       const claimed = await claimForDispatch(seeded)
@@ -1064,10 +1131,14 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       const seeded = await seedAiReply('draft')
 
       await db.transaction((tx) =>
-        purgeAiDraftsForProperty(tx, {
-          organizationId: ORG,
-          propertyId: seeded.property,
-        }),
+        purgeAiDraftsForProperty(
+          tx,
+          {
+            organizationId: ORG,
+            propertyId: seeded.property,
+          },
+          replyScopeEffects,
+        ),
       )
 
       expect(await replyRows(seeded.review.id)).toEqual([])
@@ -1079,10 +1150,14 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       const seeded = await seedAiReply('pending_approval')
 
       await db.transaction((tx) =>
-        purgeAiDraftsForProperty(tx, {
-          organizationId: ORG,
-          propertyId: seeded.property,
-        }),
+        purgeAiDraftsForProperty(
+          tx,
+          {
+            organizationId: ORG,
+            propertyId: seeded.property,
+          },
+          replyScopeEffects,
+        ),
       )
 
       expect(await replyRows(seeded.review.id)).toEqual([])
@@ -1126,10 +1201,14 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       ])
 
       await db.transaction((tx) =>
-        purgeAiDraftsForProperty(tx, {
-          organizationId: ORG,
-          propertyId: seeded.property,
-        }),
+        purgeAiDraftsForProperty(
+          tx,
+          {
+            organizationId: ORG,
+            propertyId: seeded.property,
+          },
+          replyScopeEffects,
+        ),
       )
 
       expect(await replyRows(seeded.review.id)).toEqual([WITHDRAWN])
@@ -1145,10 +1224,14 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       const seeded = await seedCancelledAiReply()
       const readBySubmit = await storedReply(seeded)
       await db.transaction((tx) =>
-        purgeAiDraftsForProperty(tx, {
-          organizationId: ORG,
-          propertyId: seeded.property,
-        }),
+        purgeAiDraftsForProperty(
+          tx,
+          {
+            organizationId: ORG,
+            propertyId: seeded.property,
+          },
+          replyScopeEffects,
+        ),
       )
 
       const submitted = await submitForApproval(readBySubmit, seeded.property, new Date())
@@ -1168,10 +1251,14 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       expect(resubmitted).toMatchObject({ status: 'pending_approval' })
 
       await db.transaction((tx) =>
-        purgeAiDraftsForProperty(tx, {
-          organizationId: ORG,
-          propertyId: seeded.property,
-        }),
+        purgeAiDraftsForProperty(
+          tx,
+          {
+            organizationId: ORG,
+            propertyId: seeded.property,
+          },
+          replyScopeEffects,
+        ),
       )
 
       expect(await replyRows(seeded.review.id)).toEqual([WITHDRAWN])
@@ -1201,10 +1288,14 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       `)
 
       await db.transaction((tx) =>
-        purgeAiDraftsForProperty(tx, {
-          organizationId: ORG,
-          propertyId: edited.property,
-        }),
+        purgeAiDraftsForProperty(
+          tx,
+          {
+            organizationId: ORG,
+            propertyId: edited.property,
+          },
+          replyScopeEffects,
+        ),
       )
 
       expect(await replyRows(edited.review.id)).toMatchObject([

@@ -1,13 +1,14 @@
 // Login form stories.
 // The sign-in `mutation` is an `Action` prop (the reactive wrapper returned by
-// `useAction(serverFn)`) — NOT a raw server fn. So stories build mock Actions
+// `useActionMutation(serverFn)`) — NOT a raw server fn. So stories build mock Actions
 // directly with controllable `isPending`/`error`/`isSuccess`, which is the
 // type-correct way to reach every state without a live server. The resend is
 // the opposite: a bare function, because the notice that calls it owns each
 // resend's state.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { useAction, type Action } from '#/components/hooks/use-action'
+import type { Action } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { LoginForm } from './login-form'
 
@@ -213,7 +214,7 @@ export const UnverifiedEmailResendRefused: Story = {
 function RepeatedUnverifiedSignIn({
   resendVerification,
 }: Readonly<{ resendVerification: ResendVerification }>) {
-  const signIn = useAction(async (_input: LoginInput) => {
+  const signIn = useActionMutation(async (_input: LoginInput) => {
     throw unverifiedRefusal
   })
   return <LoginForm mutation={signIn} resendVerification={resendVerification} />

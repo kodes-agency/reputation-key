@@ -26,14 +26,22 @@ own source review, inbox, property, portal, identity, or goal state.
 - The notification audience may read Goal monthly-result facts only through
   Goal's application public API.
 - Whether a notice's work still waits is asked of the context that owns it,
-  through `application/notification-work-state.ts` (container
-  `notificationWorkerRuntime.workState`, passed to the insert, immediate-email
-  and digest jobs): Inbox's lookups, Review's reply state through
+  through `application/notification-work-state.ts` (built into the delivery
+  processors in `infrastructure/jobs/notification-delivery-processors.ts`, which
+  pass it to the insert, immediate-email and digest jobs): Inbox's lookups, Review's reply state through
   `ReplyWorkStateLookupPort` (`review.lookups.reply.findStatesByReviewIds`,
   internal replies only), Portal Health, responsibility, and the Organization
   lifecycle. Feed reads the Property lifecycle through `ActivePropertyLookup`
   and a bulk reopen's cycles through `GroupedReopenStorePort`, which reads that
   one fact's outbox payload by id.
+
+## Preferences
+
+`preferences/` is a feature folder. `contracts.ts` holds the browser-safe
+request shapes (preference, quiet hours, formatting) that the settings screens
+and the server functions share; `mute-category.server.ts` and
+`user-settings.server.ts` are server-only and are built in `build.ts`. Browser
+code and stories import `contracts.ts` only.
 
 ## Audit storage
 
@@ -252,7 +260,11 @@ Organization notices are never hidden.
 
 Settings controls and their serialized save hook live in
 `src/components/features/settings/notification-*.{ts,tsx}` and
-`use-notification-preference-saves.ts`. Preference reads, apply-default writes,
+`use-notification-preference-saves.ts`. Saves, two-channel defaults and
+multi-Property resets share one browser write queue per
+category in `notification-preference-writes.ts`: a reset waits for earlier saves,
+and later edits use the inherited values or new default it established. Other
+categories remain independent. Preference reads, apply-default writes,
 resets and mute Undo share their user/Organization/Property/category scope in
 `infrastructure/repositories/notification-preference.repository.ts`. Property
 quiet-window reads and clearing share their recipient scope there too. Undo
@@ -328,7 +340,7 @@ An Urgent review raises one alert (`review.ai_urgent_detected`; ADR 0046, amende
 identifier-only fact per review revision (`ai.review_analysis.urgent_detected`, from the AI
 context; the fact says which revision and nothing of why), and
 `notification.on-ai-review-urgent-detected`
-(`infrastructure/ai-urgent-review-notice-consumers.ts`) turns it into "An urgent review
+(`notify/goals.server.ts`, registered in `infrastructure/goal-notice-routes.ts`) turns it into "An urgent review
 needs you at <Property>" for whoever receives that Property's review notifications: the
 Property's responsible managers, AccountAdmins when none is eligible, under the
 `responsible_scope` audience of `review.created` (the assignee and the people who wrote
@@ -351,7 +363,7 @@ The Monday email is `guest_voice.summary` (ADR 0046, amended 2026-10-30), raised
 `ai.guest_voice_summary.ready`, which the AI context records at most once per Property per
 Property-local Monday when the week held something or it is the first Monday of the month.
 `notification.on-ai-guest-voice-summary-ready`
-(`infrastructure/ai-guest-voice-summary-notice-consumers.ts`) queues one notice per
+(`notify/goals.server.ts`, registered in `infrastructure/goal-notice-routes.ts`) queues one notice per
 AccountAdmin and PropertyManager still eligible for the Property (`property_operator`) and
 leaves the rest to the reader's preferences: the category `guest_voice` ("Guest voice
 summary") is opt-in on both channels and offers `immediate` only, so its email is a message of
@@ -399,7 +411,7 @@ below what its target needs; also at most once in 14 days; it replaced the
 Can't reach notice), and a keep goal dropped below. Reporting decides them and writes one
 `goal.rating_goal.transitioned` fact per notice with the change it stores, so
 each is told once; `notification.on-rating-goal-transitioned`
-(`infrastructure/rating-goal-notice-consumers.ts`) only fans each fact out to
+(`notify/goals.server.ts`, registered in `infrastructure/goal-notice-routes.ts`) only fans each fact out to
 the Property's responsible managers, AccountAdmins as the fallback, under a
 `responsible_scope` audience. They are `recognition` ("Google rating goal") in
 name only: change notices about a Property figure, never workforce
@@ -609,7 +621,12 @@ assigned to its recipient on that Property (the work check is given the
 recipient for it). Both counts are restated at send. A closed cycle settles a grouped
 reopen in-app once none of its items stands, except a row that coalesced a
 second bulk reopen.
-Notification jobs perform insert, urgent-email, digest, and missing-notification repair work. The daily
+Notification jobs perform insert, immediate-email, digest, and missing-notification repair work.
+`email/send-emails.server.ts` sends immediate mail: it renders a row once, stores the
+provider request on the row (`provider_request`) before the first attempt, and every
+retry re-checks the recipient and sends that stored request under the same key until the
+23-hour retry horizon closes the row. An attempted row without a stored request is closed,
+never re-rendered. The daily
 digest groups lines in queue order and freezes membership from those same lines.
 `digest-batch-identity.ts` owns member, request and provider-key fingerprints;
 assembly uses the email renderer's group contract. The repository retains the

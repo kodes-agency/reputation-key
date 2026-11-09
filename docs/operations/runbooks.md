@@ -96,8 +96,8 @@ definitions and security controls live in
 
 **Trigger:** Import job running too long, stuck at a checkpoint, or reporting failure.
 **Impact:** P2 — delayed first-time setup for a property.
-**Diagnostics:** Read the import's rows: the saga root in `gbp_import_sagas`, its batches of at most 100 in `gbp_import_requests` (`status` and the per-status counts), and one row per location in `gbp_import_request_items` (`status`, `outcome_code`, `claim_lease_expires_at`). Check `review_sync_state` checkpoint. Check worker logs for errors.
-**Containment:** No operator command cancels an import (§10). The AccountAdmin who started the import (`initiated_by` on its `gbp_import_sagas` row) can cancel it in the app, which cancels the whole saga; that cancel is gated like any other manager action (`integration.manage`, capability `property.import_gbp_v2`). Nobody else can see, cancel or retry it, another AccountAdmin of the same Organization included: the app answers anyone else as if the import did not exist. When that user cannot act, contain it as §10 describes (an AccountAdmin disconnecting Google cancels that connection's imports), preserve the request identifiers, and never edit the rows by hand. Property remains in `active` lifecycle state.
+**Diagnostics:** Read the import's rows: the import in `google_imports` and one row per location in `google_import_items` (`status`, `outcome_code`, `claim_lease_expires_at`); progress is counted from the items. Imports finished before the single-import store are in `gbp_import_requests` and `gbp_import_request_items`. Check `review_sync_state` checkpoint. Check worker logs for errors.
+**Containment:** No operator command cancels an import (§10). The AccountAdmin who started the import (`initiated_by` on its `google_imports` row) can cancel it in the app, which cancels the whole import; that cancel is gated like any other manager action (`integration.manage`, capability `property.import_gbp_v2`). Nobody else can see, cancel or retry it, another AccountAdmin of the same Organization included: the app answers anyone else as if the import did not exist. When that user cannot act, contain it as §10 describes (an AccountAdmin disconnecting Google cancels that connection's imports), preserve the request identifiers, and never edit the rows by hand. Property remains in `active` lifecycle state.
 **Recovery:** Nothing is restarted by hand, and an item keeps its checkpoint (durable — resumes, doesn't restart). An item left `processing` by a worker that died is found by the `google-import-claim-reaper` job once its 60-second claim lease has elapsed: the claim is released for the next attempt, or the item ends as `temporarily_unavailable` when its attempts are spent, which the AccountAdmin who started the import, and nobody else, can retry in the app. An item still `pending` or `processing` 24 hours after the import started (its effect deadline) is ended by the daily import lifecycle sweep, and so is a spent item found after that deadline: it ends `internal_error`, shown as "Import could not be completed", with its provider identifiers scrubbed. It cannot be retried, so the AccountAdmin imports the location again. Check Google API connectivity first.
 **Verification:** Import progresses past the stuck checkpoint. Review count increases.
 **Escalation:** Bozhidar Denev if import fails after retry.
@@ -1499,6 +1499,25 @@ coalescing index narrowed to unsettled rows), `0037` (`replies.submitted_by`,
 nullable, no backfill) and `0038` (`notification_digest_batches.provider_request`,
 nullable). All are additive or narrowing; every row the old index admitted
 satisfies the new one.
+
+**Required before the release that drops the old import tables: imports idle.**
+Migration `0124` drops the three retired import tables and the enum only they used.
+It locks them and refuses to run while any item is `pending` or `processing`, or any
+root is `queued` or `processing`, but the check is also made first, read-only, on the
+beta database (read through the Railway SSH recipe, counts only). Deploy it alone,
+after this returns 0 in both columns and the queue holds no `import-gbp-property-item-v2`
+delivery that still needs work:
+
+```sql
+SELECT
+  (SELECT count(*) FROM gbp_import_request_items WHERE status IN ('pending', 'processing')) AS old_active,
+  (SELECT count(*) FROM gbp_import_requests WHERE status IN ('queued', 'processing')) AS old_active_roots;
+```
+
+If either is not 0, wait for the imports to finish or let their owners cancel them
+in the app; do not edit the rows by hand. The finished history in those tables goes
+with the drop. A worker on the release still completes a delivery queued under the
+retired item job name without doing the work.
 
 **Order: web first, then the worker.** `pnpm ops deploy-ci-images` rolls web,
 then the worker, then provider Redis, each settling healthy at its digest before

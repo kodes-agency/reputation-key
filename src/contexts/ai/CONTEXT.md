@@ -54,6 +54,37 @@ analysis version strings are unchanged. Server-function entry paths stay under
 `server/`. Language-script and Chinese-orthography verifiers remain reachable
 through reply-language verification and local-template acceptance.
 
+## Handler tests
+
+Analysis, reply drafting and backlog-policy integration suites share the
+PostgreSQL harness in `infrastructure/testing/handler-harness.test-fixtures.ts`.
+It uses the production consent, control, operation and budget adapters. Each
+example rolls back its rows and global control transitions, including on failure.
+Feature fixtures supply synthetic source snapshots and provider responses. Integration
+test files own shared test-helper imports and historical runtime mocks, and supply
+the backlog fixture with outbox delivery and logging helpers. Model, provider
+transport and draft measurement tests retain their focused coverage.
+
+## History replay
+
+`replay/` owns enrollment, backlog draining and reopening abandoned analysis.
+Its shared contract keeps the stored enrollment vocabulary; readiness maps it
+to preparing, running, caught up or needing attention without changing the
+public readiness response. Server implementations use `*.server.ts`.
+
+Enrollment pins at most 100 reviews per transaction. The authorization's
+start-sequence watermark selects remaining candidates; each committed page
+allocates newer sequences and writes its events atomically. A restart therefore
+continues with the unpinned reviews. Snapshot evidence includes both remaining
+candidates and committed pages. Source changes refresh that evidence instead
+of stalling. Changed snapshots invalidate assisted approval; a population over
+10,000 waits for fresh operator approval before any further page. Inconsistent
+replay evidence remains a durable stalled state, visible as needing attention.
+
+Property locks precede enrollment and Review locks on every page. Settlement
+and outstanding-analysis checks still govern catch-up. Worker drain budgets,
+the approval command and orphan-sequence release retain their existing roles.
+
 ## Model
 
 The active per-Property capabilities are Review Analysis and Reply Drafting.
@@ -524,7 +555,7 @@ the `provider` execution-control head. Migration 0078 admits the scopes `provide
 heads only: `resolveAiExecutionStopFence` and the budget admission check read the
 deployment-profile head (`provider:<deployment profile version>`), the fence holds exactly three
 heads, and no head is seeded for a concrete provider. It needs the binding schema in
-`ai-internal-transport-contract.ts` (at its file-length ceiling, to be split first), the stop
+`ai-internal-transport-contract.ts`, the stop
 fence, the claim and the admission check wired to it, a seeded head per provider (migration 0084
 or later, since 0078 to 0083 are taken) and a test that kills provider A while B stays eligible.
 Nothing can run on Anthropic until it is selected, so nothing is exposed today.
@@ -913,25 +944,31 @@ review's current one answers not found, writing nothing, even before the use cas
 asks through a plain function fetched with its first use (`routes/_authenticated/-inbox-fns.ts`),
 so the stub stays out of the first-paint closure.
 
-The aggregate head counts every sequence the settlement ledger settles for its
-profile generation, including one a newer sequence of the same review had
-already superseded, so coverage can complete. A head that is the only head of
-its epoch is set to the ledger's count each time it counts, so one that missed a
-sequence earlier is corrected by the next settlement of its Property; a rolled
-profile generation has a sibling head, counts only its own settlements, and is
-never set from the ledger, which spans generations. A review whose newest
-sequence settles without an analysis (deleted at Google, expired, its text
-removed, its analysis abandoned) is withdrawn from the daily aggregates, so a
-day counts only reviews analysed at their current sequence. A Trend schedule the
-head has moved past is stale, not retried. The Trend scheduler, the Trend store
-and the Trend report read take coverage from the head's count too, as the Trend
-run does, never from the ledger: a rolled generation is not scheduled and does
-not read caught up until it is rebuilt. Two kinds of data written before
-those corrections are not repaired by the code: a head short of the ledger, and
-a review that stayed in its days after it was deleted. `docs/operations/runbooks.md`
-§22 gives a read-only statement that finds each, and a statement that recounts
-the first; the second is not withdrawn, and what it holds is de-identified
-insight data under the 24-month retention of `docs/obligations.md` §2.
+`ai-property-aggregate-settlement.ts` owns ledger identity, replay and stale-sequence
+decisions. The aggregate adapter holds the Property advisory lock and supplies its
+transaction, so ledger writes, contribution changes and coverage updates commit together.
+The ledger identity deliberately excludes the processing profile version; coverage
+remains specific to each profile's head.
+
+The aggregate head counts every settled sequence, including superseded sequences.
+An epoch's only head reconciles its count with the ledger on each settlement.
+A processing-profile rollover creates a new, incomplete head in the profile
+transaction. `ai-profile-rebuild.ts` resumes bounded batches from the recurring
+enrollment sweep, using contributions still assigned to older profiles as durable
+pending work. It takes Review's Property fence before the aggregate advisory lock,
+then rechecks the active source, merchant authorization and profile. Each batch
+moves effective contributions to the new profile and recomputes their local dates;
+mentions, corrections and operation provenance stay attached to the same sequences.
+Inbox reads and filters accept the rebuilt projection of that exact sequence while
+retaining the profile recorded on its paid operation.
+Coverage excludes pending effective contributions until rebuilding converges. No
+provider work or replay of the current profile population is started.
+
+A newer no-result settlement withdraws the review's contributions across profiles
+so an interrupted rebuild cannot resurrect them. Legacy daily/aspect projection
+writers are retired; retained legacy window reads derive counts and aspects from
+current contributions and stored analysis evidence. The historical drift queries
+in `docs/operations/runbooks.md` §22 remain available for older data.
 
 Coverage owes a settlement for every sequence after the authorization's start
 up to the Review head, except the ones Review gave back. The Review writer
@@ -1131,7 +1168,7 @@ They grant no authorization and are never evidence of AI authorship.
 Map item 10 was re-verified on stacked base `2add7d844`: adoption is at
 `ai-suggested-draft-store.ts:378–513` (binary receipt 495–511); first save is at
 `reply.repository.ts:580–597`; provenance clearing remains
-`reply-write-guards.ts:159–170` and `reply-set-clause.ts:30–47`; submission is
+`../reputation/replies/store.server.ts` and `reply-set-clause.ts:30–47`; submission is
 `reply-operations.ts:529–568`; confirmed observation is
 `google-reply-observation-store.ts:510–565`. The map itself starts item 10 at
 line 383. Those are base references; this change adds measurement alongside them.
@@ -1140,10 +1177,10 @@ Other map-10 base references: the adoption columns in `ai.schema.ts` are now
 271–276 (the map's 263–269 is stale), with their CHECK at 375; Reply AI fields
 start at `review.schema.ts:836`, authorship CHECK at 919, and the provenance CHECK
 is delegated at 932 to `reply-ai-provenance-check.ts:26`. Browser dismiss/adopt
-start at `use-reply-suggestion.ts:251/256`, composer adoption/Undo/submit at
-`use-reply-composer.ts:185/237/294`, and save/submit callbacks at
+start at `replies/ui/use-reply-suggestion.ts:251/256`, composer adoption/Undo/submit at
+`replies/ui/use-reply-composer.ts:185/237/294`, and save/submit callbacks at
 `use-reply-actions.ts:199/214`. The first-save clearing rule remains
-`reply-ai-text.ts:65` and the write guard at `reply-write-guards.ts:168`.
+`reply-ai-text.ts:65` and the write guard at `../reputation/replies/store.server.ts`.
 
 ## Reply drafting v2 release — PR-B3b (pending owner deployment approval)
 

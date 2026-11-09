@@ -23,10 +23,6 @@ const MEMBER_ID = 'member-google-admission-authority-test'
 const CONNECTION_ID = '8e000000-0000-4000-8000-000000000001'
 const PERMIT_ID = '8d000000-0000-4000-8000-000000000001'
 const CLEANUP_PERMIT_ID = '8d000000-0000-4000-8000-000000000002'
-const SOURCE_WORK_PERMIT_ID = '8d000000-0000-4000-8000-000000000003'
-const SOURCE_OPERATION_ID = '8d000000-0000-4000-8000-000000000004'
-const REVOKE_PERMIT_ID = '8d000000-0000-4000-8000-000000000005'
-const SUBJECT_GUARD_ID = '8d000000-0000-4000-8000-000000000006'
 const DISCONNECT_ATTEMPT_ID = '8d000000-0000-4000-8000-000000000007'
 const DISCONNECT_PERMIT_ID = '8d000000-0000-4000-8000-000000000008'
 const NOW = new Date()
@@ -146,53 +142,7 @@ async function seedPermit(): Promise<void> {
   )
 }
 
-async function clearCredentialLifecycle(): Promise<void> {
-  await pool.query(
-    `DELETE FROM credential_revoke_permits
-      WHERE source_operation_id IN (
-        SELECT id FROM google_credential_source_operations WHERE organization_id = $1
-      )`,
-    [ORGANIZATION_ID],
-  )
-  await pool.query(
-    'DELETE FROM google_credential_source_operations WHERE organization_id = $1',
-    [ORGANIZATION_ID],
-  )
-  await pool.query('DELETE FROM google_subject_authority_guards WHERE id = $1', [
-    SUBJECT_GUARD_ID,
-  ])
-}
-
-async function seedDispatchingCleanupPermit(): Promise<void> {
-  const cleanupVector = {
-    ...vector,
-    requestBindingSha256: compiledCleanup.admission.requestBindingSha256,
-    credentialBinding: compiledCleanup.admission.credentialBinding,
-    requestBodySha256: compiledCleanup.admission.requestBodySha256,
-    requestBodyBytes: compiledCleanup.admission.requestBodyBytes,
-  }
-  await pool.query(
-    `INSERT INTO authorization_execution_permits (
-      id, capability, organization_id, connection_id, initiator_user_id,
-      operation_key, route_key, route_catalog_version, quota_policy_id,
-      authorization_vector, state, admitted_at, start_deadline_at,
-      started_at, operation_deadline_at, completed_at
-    ) VALUES (
-      $1, 'property.import_gbp_v2', $2, $3, $4,
-      'provider.oauth.token.refresh', 'oauth.token.refresh', $5, 'google-credential-refresh-v1',
-      $6::jsonb, 'completed', $7, $8, $7, $8, $7
-    )`,
-    [
-      SOURCE_WORK_PERMIT_ID,
-      ORGANIZATION_ID,
-      CONNECTION_ID,
-      USER_ID,
-      compiledCleanup.catalogueVersion,
-      JSON.stringify(vector),
-      new Date(NOW.getTime() - 2_000),
-      new Date(NOW.getTime() + 60_000),
-    ],
-  )
+async function seedUnlinkedCleanupPermit(): Promise<void> {
   await pool.query(
     `INSERT INTO authorization_execution_permits (
       id, capability, organization_id, connection_id, initiator_user_id,
@@ -200,8 +150,7 @@ async function seedDispatchingCleanupPermit(): Promise<void> {
       authorization_vector, state, admitted_at, start_deadline_at
     ) VALUES (
       $1, 'property.import_gbp_v2', $2, $3, $4,
-      'provider.oauth.revoke', $5, $6, $7,
-      $8::jsonb, 'admitted', $9, $10
+      'provider.oauth.revoke', $5, $6, $7, $8::jsonb, 'admitted', $9, $10
     )`,
     [
       CLEANUP_PERMIT_ID,
@@ -211,54 +160,15 @@ async function seedDispatchingCleanupPermit(): Promise<void> {
       compiledCleanup.routeKey,
       compiledCleanup.catalogueVersion,
       compiledCleanup.admission.quotaPolicyId,
-      JSON.stringify(cleanupVector),
+      JSON.stringify({
+        ...vector,
+        requestBindingSha256: compiledCleanup.admission.requestBindingSha256,
+        credentialBinding: compiledCleanup.admission.credentialBinding,
+        requestBodySha256: compiledCleanup.admission.requestBodySha256,
+        requestBodyBytes: compiledCleanup.admission.requestBodyBytes,
+      }),
       NOW,
       new Date(NOW.getTime() + 30_000),
-    ],
-  )
-  await pool.query(
-    `INSERT INTO google_subject_authority_guards (
-      id, project_client_hmac_key_version, project_client_hmac,
-      subject_hmac_key_version, subject_hmac, generation, next_sequence,
-      source_cutoff_sequence, state, cleanup_deadline_at
-    ) VALUES ($1, 'v1', $2, 'v1', $3, 1, 2, 1, 'cleanup_pending', $4)`,
-    [SUBJECT_GUARD_ID, 'e'.repeat(43), 'f'.repeat(43), new Date(NOW.getTime() + 60_000)],
-  )
-  await pool.query(
-    `INSERT INTO google_credential_source_operations (
-      id, guard_id, source_work_permit_id, organization_id, connection_id,
-      sequence, kind, state, expected_lifecycle_version,
-      expected_access_version, expected_credential_generation,
-      operation_deadline_at, provider_started_at, terminal_at, outcome_code,
-      created_at, updated_at
-    ) VALUES (
-      $1, $2, $3, $4, $5, 1, 'refresh', 'terminal', 1, 1, 1,
-      $6, $7, $8, 'rotated_credential_committed', $7, $8
-    )`,
-    [
-      SOURCE_OPERATION_ID,
-      SUBJECT_GUARD_ID,
-      SOURCE_WORK_PERMIT_ID,
-      ORGANIZATION_ID,
-      CONNECTION_ID,
-      new Date(NOW.getTime() + 60_000),
-      new Date(NOW.getTime() - 2_000),
-      new Date(NOW.getTime() - 1_000),
-    ],
-  )
-  await pool.query(
-    `INSERT INTO credential_revoke_permits (
-      id, guard_id, source_operation_id, cleanup_work_permit_id, state,
-      cleanup_deadline_at, activated_at, dispatching_at
-    ) VALUES ($1, $2, $3, $4, 'dispatching', $5, $6, $7)`,
-    [
-      REVOKE_PERMIT_ID,
-      SUBJECT_GUARD_ID,
-      SOURCE_OPERATION_ID,
-      CLEANUP_PERMIT_ID,
-      new Date(NOW.getTime() + 60_000),
-      new Date(NOW.getTime() - 1_000),
-      NOW,
     ],
   )
 }
@@ -311,7 +221,6 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  await clearCredentialLifecycle()
   await pool.query(
     `DELETE FROM idempotency_receipts
      WHERE scope = 'google_disconnect_revoke'
@@ -352,7 +261,6 @@ beforeEach(async () => {
 })
 
 afterAll(async () => {
-  await clearCredentialLifecycle()
   await pool.query(
     `DELETE FROM idempotency_receipts
      WHERE scope = 'google_disconnect_revoke'
@@ -1179,42 +1087,18 @@ describe('Postgres Google admission permit authority', () => {
     })
   })
 
-  it('starts only a linked dispatching cleanup after ordinary work is denied', async () => {
-    await pool.query('DELETE FROM authorization_execution_permits WHERE id = $1', [
-      PERMIT_ID,
-    ])
-    await seedDispatchingCleanupPermit()
-    await pool.query(
-      `UPDATE capability_execution_control
-          SET denied = true, denied_at = $1
-        WHERE capability = 'property.import_gbp_v2'`,
-      [NOW],
-    )
-    await pool.query(
-      `UPDATE google_connections
-          SET status = 'disconnecting', credential_use_state = 'cleanup_only'
-        WHERE id = $1`,
-      [CONNECTION_ID],
-    )
+  it('refuses a revoke permit without a live Disconnect receipt', async () => {
+    await seedUnlinkedCleanupPermit()
     const adapter = authority()
     const snapshot = await adapter.load(CLEANUP_PERMIT_ID)
     if (!snapshot) throw new Error('expected cleanup permit snapshot')
 
-    await expect(adapter.start(snapshot)).resolves.toBe('started')
-
-    await pool.query(
-      `UPDATE authorization_execution_permits
-          SET state = 'admitted', started_at = NULL, operation_deadline_at = NULL
-        WHERE id = $1`,
+    await expect(adapter.start(snapshot)).resolves.toBe('changed')
+    const result = await pool.query(
+      'SELECT state, started_at FROM authorization_execution_permits WHERE id = $1',
       [CLEANUP_PERMIT_ID],
     )
-    await pool.query(
-      `UPDATE credential_revoke_permits
-          SET cleanup_work_permit_id = NULL
-        WHERE id = $1`,
-      [REVOKE_PERMIT_ID],
-    )
-    await expect(adapter.start(snapshot)).resolves.toBe('changed')
+    expect(result.rows).toEqual([{ state: 'fenced', started_at: null }])
   })
 
   it('acquires one disconnect cleanup permit and reconciles a started crash without resending', async () => {

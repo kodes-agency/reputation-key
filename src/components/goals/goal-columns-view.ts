@@ -75,3 +75,15 @@ export function columnsModel(
         : { left: (plan.from / columns.length) * 100, height: plan.value * scale },
   }
 }
+
+/** Few bars stay together, at this much a bar, rather than spread across a wide page. */
+const FEW_COLUMNS = 5
+const COLUMN_REM = 7
+
+/**
+ * The widest the plot grows, in rem; null for the whole width. The pointer is read against
+ * this box, so it must be the box the bars fill and no wider.
+ */
+export function plotMaxWidthRem(count: number, hasPlan: boolean): number | null {
+  return hasPlan || count > FEW_COLUMNS ? null : count * COLUMN_REM
+}

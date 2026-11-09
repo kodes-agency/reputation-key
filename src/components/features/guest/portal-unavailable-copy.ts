@@ -1,5 +1,5 @@
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { GuestPortalCopyV2 } from './public-portal/language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from './public-portal/language-packs/guest-copy'
 
 /** The words of the unavailable page in one language. */
 export type PortalUnavailableCopy = Readonly<{
@@ -14,7 +14,7 @@ export type PortalUnavailableCopy = Readonly<{
  * The unavailable page's words in one language, taken from that language's
  * copy pack so the page says exactly what the guest page says elsewhere.
  */
-export function unavailableCopyOf(pack: GuestPortalCopyV2): PortalUnavailableCopy {
+export function unavailableCopyOf(pack: GuestPortalCopy): PortalUnavailableCopy {
   return {
     locale: pack.locale,
     title: pack.copy.unavailableTitle,

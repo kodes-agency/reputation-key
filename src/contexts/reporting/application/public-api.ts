@@ -1,16 +1,17 @@
+import type { Tx } from '#/shared/outbox/commit'
+import type { PortalRatingGoalBlock } from './running-portal-rating-goal'
 // Reporting context — the single cross-context interface for metrics, goals,
 // and dashboard reads. Implementation modules inside this context import one
 // another directly through the normal layer rules rather than through this file.
 
 import type { GoalMetricCorrectionImpactLookup } from './ports/goal-metric-correction-impact.lookup'
 import type { CurrentGoogleReputationSnapshotStore } from './ports/current-google-reputation-snapshot.port'
-import type { PortalLifetimeAggregatePort } from './ports/portal-lifetime-aggregate.port'
 import type { PortalAnalyticsRepository } from './ports/portal-analytics.repository'
 import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,
 } from './use-cases/query-goal-metric'
-import type { GovernedMetricVersion } from '../domain/metric-registry'
+import type { GovernedMetricVersion } from '../readings/contracts'
 
 // Metric contracts.
 export type { GovernedGoalMetricQuery, GovernedGoalMetricResult }
@@ -25,15 +26,12 @@ export {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
   findMetricVersionById,
-} from '../domain/metric-registry'
+} from '../readings/contracts'
 export type {
   GovernedMetricVersion,
   SeededMetricRegistryEntry,
-} from '../domain/metric-registry'
-export type { PortalLifetimeAggregatePort } from './ports/portal-lifetime-aggregate.port'
+} from '../readings/contracts'
 
-/** Cross-context lifetime reads; mutation remains Reporting-owned. */
-export type PortalLifetimeReadApi = Readonly<Pick<PortalLifetimeAggregatePort, 'get'>>
 export type {
   FindGoalMetricCorrectionImpactsInput,
   GoalMetricCorrectionImpact,
@@ -42,7 +40,6 @@ export type {
 export type MetricPublicApi = Readonly<{
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
   portalAnalytics: PortalAnalyticsRepository
-  portalLifetime: PortalLifetimeReadApi
   getCurrentOnGoogle: CurrentGoogleReputationSnapshotStore['getCurrentOnGoogle']
   findGoalMetricCorrectionImpacts: GoalMetricCorrectionImpactLookup['findGoalMetricCorrectionImpacts']
   getApprovedGoalVersion?: (
@@ -52,6 +49,16 @@ export type MetricPublicApi = Readonly<{
 
 // Goal contracts.
 export type PortalRatingGoalReadApi = Readonly<{
+  /** Caller holds the shared Property goal fence before any Portal row lock. */
+  findPortalRatingGoalBlockInTransaction(
+    tx: Tx,
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      portalId: string
+      at: Date
+    }>,
+  ): Promise<PortalRatingGoalBlock | null>
   findPortalRatingGoalBlock(
     organizationId: string,
     propertyId: string,
@@ -64,13 +71,14 @@ export type {
   MonthlyResultRevisionNotificationFacts,
 } from './ports/monthly-result-notification-facts.lookup'
 export type { GoalMetric, GoalSubject } from '../domain/goal-program'
+export { goalSubjectIdentity } from '../domain/goal-subject'
 export { buildGoalResultsMatrix } from './goal-results-matrix'
 export type {
   GoalResultsMatrix,
   GoalResultsMatrixEvidence,
   GoalResultsMatrixRow,
 } from './goal-results-matrix'
-export { GoalProgramError } from './use-cases/goal-programs'
+export { GoalProgramError } from './use-cases/goal-program-shared'
 export type { GoalProgress, GoalProgressReading } from './use-cases/goal-progress'
 export type { GoalListProgress } from './use-cases/goal-list-progress'
 export type {
@@ -96,7 +104,6 @@ export type {
   PortalCountKPIValue,
   PortalEngagementFunnel,
   PortalKPIs,
-  PortalLifetimeReconciliationState,
   PortalResponseIntegritySummary,
   PortalRatingLanguages,
   PortalResultsThresholds,

@@ -3,7 +3,6 @@ import type { Database } from '#/shared/db'
 import {
   materialReviewRevisions,
   googleReplyObservations,
-  replies,
   reviews,
   reviewSourceObservations,
 } from '#/shared/db/schema/review.schema'
@@ -12,7 +11,9 @@ import { unbrand } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { Review } from '../domain/types'
+import { deleteGoogleSyncMirrors } from '#/contexts/reputation/application/public-api'
 
 type ReviewSourceContentWriter = Pick<Database, 'insert'>
 
@@ -125,6 +126,7 @@ export async function eraseReviewSourceContent(
     expectedSourceRevision: number
     state: 'source_expired' | 'provider_deleted'
   }>,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<boolean> {
   const rows = await tx
     .update(reviews)
@@ -162,10 +164,14 @@ export async function eraseReviewSourceContent(
     )
     .returning({ id: reviews.id })
   if (!rows[0]) return false
-  await purgeAiDraftsForReview(tx, {
-    organizationId: input.organizationId,
-    reviewId: input.reviewId,
-  })
+  await purgeAiDraftsForReview(
+    tx,
+    {
+      organizationId: input.organizationId,
+      reviewId: input.reviewId,
+    },
+    replyEffects,
+  )
 
   // Historical identities and comparison controls remain, but provider-owned
   // values are removed from every retained observation/revision across all
@@ -237,15 +243,10 @@ export async function eraseReviewSourceContent(
   // Pre-RPL provider mirrors are provider-owned source content too. Current
   // code no longer creates them; erase any retained compatibility row during
   // the same lifecycle transaction.
-  await tx
-    .delete(replies)
-    .where(
-      and(
-        eq(replies.reviewId, input.reviewId),
-        eq(replies.organizationId, input.organizationId),
-        eq(replies.source, 'google_sync'),
-      ),
-    )
+  await deleteGoogleSyncMirrors(tx, {
+    organizationId: input.organizationId,
+    reviewId: input.reviewId,
+  })
 
   await tx
     .delete(reviewSourceContents)

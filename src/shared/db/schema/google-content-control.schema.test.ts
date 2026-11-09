@@ -3,10 +3,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core'
 import {
   authorizationExecutionPermits,
   capabilityExecutionControl,
-  credentialRevokePermits,
   googleContentCapabilityEnum,
-  googleCredentialSourceOperations,
-  googleSubjectAuthorityGuards,
 } from './google-content-control.schema'
 import { googleConnections } from './google-connection.schema'
 
@@ -53,47 +50,14 @@ describe('Google Content control schema', () => {
     )
   })
 
-  it('models source authority and one-use cleanup without credential bodies', () => {
+  it('keeps connection cleanup state and admission metadata without credential bodies', () => {
     expect(columnNames(googleConnections)).toEqual(
       expect.arrayContaining(['credential_use_state', 'cleanup_material_deadline_at']),
-    )
-    expect(columnNames(googleSubjectAuthorityGuards)).toEqual(
-      expect.arrayContaining([
-        'subject_hmac_key_version',
-        'subject_hmac',
-        'generation',
-        'next_sequence',
-        'source_cutoff_sequence',
-        'state',
-      ]),
-    )
-    expect(columnNames(googleCredentialSourceOperations)).toEqual(
-      expect.arrayContaining([
-        'guard_id',
-        'source_work_permit_id',
-        'sequence',
-        'kind',
-        'state',
-      ]),
-    )
-    expect(columnNames(credentialRevokePermits)).toEqual(
-      expect.arrayContaining([
-        'guard_id',
-        'source_operation_id',
-        'token_hmac_key_version',
-        'token_hmac',
-        'cleanup_deadline_at',
-        'send_authorization_expires_at',
-        'state',
-      ]),
     )
 
     const allColumns = [
       authorizationExecutionPermits,
       capabilityExecutionControl,
-      credentialRevokePermits,
-      googleCredentialSourceOperations,
-      googleSubjectAuthorityGuards,
     ].flatMap(columnNames)
     expect(allColumns).not.toEqual(
       expect.arrayContaining([

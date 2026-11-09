@@ -29,11 +29,14 @@ import {
   FORBIDDEN_MODULE_PATHS,
   validateGooglePerformanceLiveDependencies,
 } from './google-performance-live-boundary'
-import { GOOGLE_PERFORMANCE_LIVE_DEPENDENCY_DESCRIPTORS } from '#/contexts/integration/build'
+import { GOOGLE_PERFORMANCE_LIVE_DEPENDENCY_DESCRIPTORS } from '#/contexts/integration/performance/google-performance-runtime.server'
 
 const ROOT = process.cwd()
 const SRC = join(ROOT, 'src')
-const BUILD_FILE = join(SRC, 'contexts/integration/build.ts')
+const BUILD_FILE = join(
+  SRC,
+  'contexts/integration/performance/google-performance-runtime.server.ts',
+)
 const USE_CASE_FILE = join(
   SRC,
   'contexts/integration/application/get-property-google-performance.ts',
@@ -54,7 +57,8 @@ function stripComments(source: string): string {
  */
 function injectedPropertyNames(source: string): string[] {
   const start = source.indexOf(WIRING_CALL)
-  if (start === -1) throw new Error(`wiring call '${WIRING_CALL}' not found in build.ts`)
+  if (start === -1)
+    throw new Error(`wiring call '${WIRING_CALL}' not found in the Performance runtime`)
   let depth = 0
   const segments: string[] = []
   let segment = ''
@@ -163,7 +167,7 @@ function runtimeModuleClosure(entry: string): string[] {
 }
 
 describe('architecture: live Google Performance has no persistence dependency', () => {
-  it('accepts the real wiring descriptors exported from the Performance build site', () => {
+  it('accepts the real wiring descriptors exported from the Performance runtime', () => {
     expect(GOOGLE_PERFORMANCE_LIVE_DEPENDENCY_DESCRIPTORS.length).toBeGreaterThan(0)
     expect(
       validateGooglePerformanceLiveDependencies(
@@ -223,7 +227,7 @@ describe('architecture: live Google Performance has no persistence dependency', 
 
   it.each([
     '#/contexts/integration/infrastructure/repositories/google-connection.repository',
-    '#/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job',
+    '#/contexts/integration/infrastructure/jobs/import-gbp-property-item.job',
     '#/shared/cache/google-performance-cache',
   ] as const)(
     'rejects an allowed-kind dependency from forbidden module %s',

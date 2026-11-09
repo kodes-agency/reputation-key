@@ -1,12 +1,6 @@
-// Retention sweep job — BQC-1.6: production-scheduled bounded retention
-// with content-free evidence for every subject.
-//
-// Runs Guest-owned Contact Request material expiry, Google import lifecycle,
-// and the static rule registry through bounded owning seams. Per subject: an
-// evidence row is opened before cleanup starts and closed with counts + outcome
-// + error code (retention_runs, migration 0013). A failing subject does not
-// block the others; the job throws after the sweep when any subject failed
-// (queue retry + operator visibility).
+// Bounded retention through the owning cleanup seams and static registry.
+// Evidence records counts and failures; one failed subject cannot block others.
+// The worker entry point stays inactive until the approved activation release.
 
 import type { Job } from 'bullmq'
 import type { Database } from '#/shared/db'
@@ -16,6 +10,8 @@ import {
 } from '#/shared/db/retention/execute-retention-rule'
 import { closeRetentionRun, openRetentionRun } from '#/shared/db/retention/evidence'
 import { retentionRuleCutoff } from '#/shared/db/retention/retention-cutoff'
+import { RESEND_WEBHOOK_DELIVERY_RETENTION_DAYS } from '#/shared/db/schema/notification.schema'
+import { SCHEDULED_RETENTION_ACTIVE } from '#/shared/db/retention/scheduled-retention-activation'
 import { SETTLED_OUTBOX_EVENTS_WHERE } from '#/shared/outbox/infrastructure/retention.server'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
@@ -158,6 +154,25 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMonths: GUEST_VISIT_FACT_RETENTION_MONTHS,
   },
   {
+    // Reporting's copy of each Guest fact, kept 24 calendar months from the
+    // instant it was recorded. A correction restricts its reading's deletion
+    // and removing it alone would revive the corrected value, so each batch
+    // deletes a reading together with its corrections.
+    subject: 'metric_readings.expired',
+    table: 'metric_readings',
+    keyColumns: ['id'],
+    tsColumn: 'recorded_at',
+    olderThanMonths: GUEST_VISIT_FACT_RETENTION_MONTHS,
+    dependents: [
+      {
+        table: 'metric_corrections',
+        referenceColumn: 'reading_id',
+        keyColumn: 'id',
+        selfReferenceColumn: 'supersedes_correction_id',
+      },
+    ],
+  },
+  {
     subject: 'outbox_events.published',
     table: 'outbox_events',
     keyColumns: ['id'],
@@ -264,6 +279,14 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     keyColumns: ['target_kind', 'target_id', 'property_id', 'category'],
     tsColumn: 'created_at',
     olderThanMs: 365 * DAY_MS,
+  },
+  {
+    // Only has to outlast the provider's retry window.
+    subject: 'resend_webhook_deliveries',
+    table: 'resend_webhook_deliveries',
+    keyColumns: ['event_id'],
+    tsColumn: 'applied_at',
+    olderThanMs: RESEND_WEBHOOK_DELIVERY_RETENTION_DAYS * DAY_MS,
   },
   {
     subject: 'recent_activity_replay_facts',
@@ -376,7 +399,7 @@ type RetentionSweepDeps = Readonly<{
   >
 }>
 
-type RetentionSweepFailure = { subject: string; error: string }
+type RetentionSweepFailure = { subject: string }
 type RetentionSweepLogger = ReturnType<typeof getLogger>
 
 /**
@@ -386,20 +409,20 @@ type RetentionSweepLogger = ReturnType<typeof getLogger>
  */
 async function recordRetentionFailure(
   deps: RetentionSweepDeps,
-  runId: string,
+  runId: string | undefined,
   subject: string,
   err: unknown,
   failures: RetentionSweepFailure[],
   logger: RetentionSweepLogger,
   logMessage: string,
 ): Promise<void> {
-  const message = err instanceof Error ? err.message : String(err)
-  failures.push({ subject, error: message })
-  await closeRetentionRun(deps.db, runId, {
-    finishedAt: deps.clock(),
-    outcome: 'failed',
-    errorCode: message.slice(0, 200),
-  }).catch(() => {})
+  failures.push({ subject })
+  if (runId)
+    await closeRetentionRun(deps.db, runId, {
+      finishedAt: deps.clock(),
+      outcome: 'failed',
+      errorCode: 'retention_failed',
+    }).catch(() => {})
   logger.warn({ err, subject }, logMessage)
 }
 
@@ -413,15 +436,19 @@ async function sweepRedactedMaterial(
   label: string,
 ): Promise<void> {
   const startedAt = deps.clock()
-  const runId = await openRetentionRun(deps.db, subject, batchSize, startedAt)
+  let runId: string | undefined
   try {
+    runId = await openRetentionRun(deps.db, subject, batchSize, startedAt)
     const result = await sweep({ batchSize })
     await closeRetentionRun(deps.db, runId, {
       finishedAt: deps.clock(),
       batches: result.batches,
       rowsDeleted: 0,
       rowsRedacted: result.processed,
-      outcome: 'completed',
+      // A capped pass still owes expired work. The existing retention.failure
+      // alert stays raised until a later scheduled pass finishes the backlog.
+      outcome: result.capped ? 'failed' : 'completed',
+      ...(result.capped ? { errorCode: 'retention_capped' } : {}),
     })
     logger.info(
       { subject, ...result },
@@ -450,13 +477,14 @@ async function sweepGoogleImportLifecycle(
 ): Promise<void> {
   const subject = GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT
   const startedAt = deps.clock()
-  const runId = await openRetentionRun(
-    deps.db,
-    subject,
-    GOOGLE_IMPORT_LIFECYCLE_BATCH_SIZE,
-    startedAt,
-  )
+  let runId: string | undefined
   try {
+    runId = await openRetentionRun(
+      deps.db,
+      subject,
+      GOOGLE_IMPORT_LIFECYCLE_BATCH_SIZE,
+      startedAt,
+    )
     const result = await sweep()
     await closeRetentionRun(deps.db, runId, {
       finishedAt: deps.clock(),
@@ -491,35 +519,49 @@ async function sweepRetentionRules(
   for (const rule of rules) {
     const startedAt = deps.clock()
     const cutoff = retentionRuleCutoff(rule, startedAt)
-    const runId = await openRetentionRun(deps.db, rule.subject, batchSize, startedAt)
+    let runId: string | undefined
+    let batches = 0
+    let rows = 0
     try {
-      const result = await executeRetentionRule(deps.db, rule, { cutoff, batchSize })
+      runId = await openRetentionRun(deps.db, rule.subject, batchSize, startedAt)
+      const result = await executeRetentionRule(deps.db, rule, {
+        cutoff,
+        batchSize,
+        onBatch: (batch, count) => {
+          batches = batch
+          rows += count
+        },
+      })
       await closeRetentionRun(deps.db, runId, {
         finishedAt: deps.clock(),
         batches: result.batches,
         rowsDeleted: result.rowsDeleted,
         rowsRedacted: result.rowsRedacted ?? 0,
-        outcome: 'completed',
+        outcome: result.capped ? 'failed' : 'completed',
+        ...(result.capped ? { errorCode: 'retention_capped' } : {}),
       })
       logger.info(
         { subject: rule.subject, ...result },
         result.capped
-          ? // BQC-3.7: the drain stopped at the per-run batch cap with rows
-            // remaining — the next scheduled run continues where this one
-            // stopped. The evidence row still closes as 'completed'.
-            'retention sweep rule reached the per-run batch cap — remaining rows continue next scheduled run'
+          ? 'retention sweep rule reached the per-run batch cap — remaining rows continue next scheduled run'
           : 'retention sweep rule completed',
       )
     } catch (err) {
-      await recordRetentionFailure(
-        deps,
-        runId,
-        rule.subject,
-        err,
-        failures,
-        logger,
-        'retention sweep rule failed',
-      )
+      if (!runId) {
+        failures.push({ subject: rule.subject })
+        logger.warn({ err, subject: rule.subject }, 'retention evidence unavailable')
+        continue
+      }
+      await closeRetentionRun(deps.db, runId, {
+        finishedAt: deps.clock(),
+        batches,
+        rowsDeleted: rule.operation === 'redact' ? 0 : rows,
+        rowsRedacted: rule.operation === 'redact' ? rows : 0,
+        outcome: 'failed',
+        errorCode: 'retention_failed',
+      }).catch(() => {})
+      failures.push({ subject: rule.subject })
+      logger.warn({ err, subject: rule.subject }, 'retention sweep rule failed')
     }
   }
 }
@@ -574,5 +616,17 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
         )
       }
     })
+  }
+}
+
+/** The worker uses this entry point; isolated restore retains explicit apply. */
+export const createScheduledRetentionSweepHandler = (deps: RetentionSweepDeps) => {
+  const apply = createRetentionSweepHandler(deps)
+  return async (job: Job) => {
+    if (!SCHEDULED_RETENTION_ACTIVE) {
+      getLogger().info({ mode: 'inactive' }, 'scheduled retention is inactive')
+      return { mode: 'inactive' } as const
+    }
+    return apply(job)
   }
 }

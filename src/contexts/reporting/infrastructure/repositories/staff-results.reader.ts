@@ -2,17 +2,21 @@ import {
   asOfCorrectionTipJoin,
   effectiveReadingValue,
 } from '../readings/effective-readings.server'
-import { createStaffGoalsReader } from './staff-goals.reader'
+import { createStaffGoalsReader, type StaffResultsScope } from './staff-goals.reader'
 import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,
 } from '../../application/use-cases/query-goal-metric'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { staffResultsSeries, staffResultsWindow } from '../../domain/staff-results-window'
+import {
+  staffResultsSeries,
+  staffResultsWindow,
+  type StaffPeriod,
+  type StaffResultsSeries,
+} from '../../domain/staff-results-window'
 import { PORTAL_AVERAGE_MIN_SAMPLE } from '../../domain/portal-results-thresholds'
-import { METRIC_VERSION_IDS, findMetricVersionById } from '../../domain/metric-registry'
-import type { StaffResultsReader } from '../../application/ports/staff-results-reader.port'
+import { METRIC_VERSION_IDS, findMetricVersionById } from '../../readings/contracts'
 
 /** Only the two approved numeric measures are selectable by this reader. */
 function metricPolicy(versionId: string) {
@@ -43,6 +47,34 @@ function readingsSql(
     )})
       AND ${metricPolicy(version)} AND readings.event_at >= ${start} AND readings.event_at < ${end} AND (${cutoff}::timestamptz IS NULL OR readings.recorded_at < ${cutoff}::timestamptz)`
 }
+
+export type StaffResultsReader = Readonly<{
+  targetsEnabled: boolean
+  results(
+    scope: StaffResultsScope,
+    period: StaffPeriod,
+  ): Promise<
+    Readonly<{
+      scans: number
+      series: StaffResultsSeries | null
+      ratingCount?: number
+      averageRating?: number
+      ratingsCutoff?: string
+    }>
+  >
+  scans(
+    scope: StaffResultsScope,
+    portalIds: readonly string[],
+    period: StaffPeriod,
+    /** The instant the period is measured at; `results` passes its own so its columns add up. */
+    now?: Date,
+  ): Promise<ReadonlyMap<string, number>>
+  goals(
+    scope: StaffResultsScope,
+  ): Promise<
+    readonly Readonly<{ id: string; name: string; target: number; scans: number }>[]
+  >
+}>
 
 export function createStaffResultsReader(
   db: Database,

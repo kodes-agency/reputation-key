@@ -1,7 +1,7 @@
 // Integration build — provider override proof (BQC-6.1).
 //
 // The composition-level characterization test can only observe the storage
-// override at the container boundary; the googleOAuth/gbpApi slots thread
+// override at the container boundary; the googleOAuth slots thread
 // into THIS build seam, so the honored-override proof lives here.
 // Construction is query-free: the DB is a Proxy that throws on any access.
 
@@ -16,7 +16,6 @@ import { GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE } from '#/contexts/review/applica
 import type { GoogleProviderEndpoints } from './build'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
-import { createInMemoryGbpApiPort } from '#/shared/testing/in-memory-gbp-api-port'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildIntegrationContext } from './build'
 import type { GoogleAuthorizedProviderExecutor } from './application/ports/google-authorized-provider-executor.port'
@@ -65,7 +64,6 @@ const CONFIG = {
 
 function buildDeps(overrides: {
   googleOAuth?: ReturnType<typeof createInMemoryGoogleOAuthPort>
-  gbpApi?: ReturnType<typeof createInMemoryGbpApiPort>
   googleAuthorizedProviderExecutor?: GoogleAuthorizedProviderExecutor
   googleImportReferences?: GoogleImportReferenceStore
   authorizeGoogleImportContent?: GoogleImportContentAuthorizer
@@ -76,7 +74,6 @@ function buildDeps(overrides: {
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
   oauthStateHandles?: OAuthStateHandleService
   refreshPolicyStoreRequired?: () => Promise<void>
-  assertDirectCredentialEgressAllowed?: (operation: string) => void
 }) {
   return {
     db: dbStub,
@@ -166,8 +163,11 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
   })
 
   it('routes Review reads and reply publication through their distinct system authorities', () => {
-    const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
-    const start = source.indexOf('const googleReviewSyncAuthorizer =')
+    const source = readFileSync(
+      new URL('./review-sync/google-review-sync-runtime.server.ts', import.meta.url),
+      'utf8',
+    )
+    const start = source.indexOf('const reviewSyncAuthorizer =')
     const end = source.indexOf('const googleReviewApi:', start)
     expect(start).toBeGreaterThanOrEqual(0)
     expect(end).toBeGreaterThan(start)
@@ -187,14 +187,22 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
   it('routes notification account lookup and desired-state writes through the governed executor', () => {
     const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
     const start = source.indexOf('const googleNotificationProviderExecutor =')
-    const end = source.indexOf('const gbpSubscribeBackfill =', start)
+    const end = source.indexOf('const googleImportRuntime =', start)
     expect(start).toBeGreaterThanOrEqual(0)
     expect(end).toBeGreaterThan(start)
     const notificationWiring = source.slice(start, end)
     expect(notificationWiring).toContain('createSingle401RefreshExecutor')
     expect(notificationWiring).toContain('createMyBusinessNotificationsAdapter')
     expect(notificationWiring).toContain('authorization_unavailable')
+    expect(notificationWiring).toContain('notifications: notificationsPort')
     expect(notificationWiring).not.toContain('createGoogleAccountManagementAdapter')
+    const runtime = readFileSync(
+      new URL('./infrastructure/google-notification-runtime.ts', import.meta.url),
+      'utf8',
+    )
+    expect(runtime).toContain('manageNotifications({')
+    expect(runtime).toContain('notifications: deps.notifications')
+    expect(runtime).not.toContain('createGoogleAccountManagementAdapter')
     // The account targets come from active Property bindings, never discovery.
     const authorizer = readFileSync(
       new URL(
@@ -203,7 +211,12 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
       ),
       'utf8',
     )
-    expect(source).toContain('createGoogleNotificationProviderAuthorizer({')
+    expect(
+      readFileSync(
+        new URL('./review-sync/google-review-sync-runtime.server.ts', import.meta.url),
+        'utf8',
+      ),
+    ).toContain('createGoogleNotificationProviderAuthorizer({')
     expect(authorizer).toContain('const targetedAccounts = new Set<string>()')
     expect(authorizer).toContain('gbpAccountId: binding.accountId')
     expect(authorizer).not.toContain('listAccounts')
@@ -217,12 +230,10 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     expect(source).toContain('registerProviderAuthorizationInvalidationConsumer')
   })
 
-  it('honors injected googleOAuth and gbpApi overrides', () => {
+  it('honors the injected googleOAuth override', () => {
     const googleOAuth = createInMemoryGoogleOAuthPort()
-    const gbpApi = createInMemoryGbpApiPort()
-    const ctx = buildIntegrationContext(buildDeps({ googleOAuth, gbpApi }))
+    const ctx = buildIntegrationContext(buildDeps({ googleOAuth }))
     expect(ctx.internal.repos.oauthPort).toBe(googleOAuth)
-    expect(ctx.internal.repos.gbpApiPort).toBe(gbpApi)
   })
 
   it('constructs bounded import discovery only with every protected dependency', () => {
@@ -290,19 +301,11 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     expect(missingLease.internal.useCases.renewGooglePerformanceLease).toBeNull()
   })
 
-  it('keeps the legacy direct account adapter dark when no override is injected', async () => {
-    const ctx = buildIntegrationContext(buildDeps({}))
-    const oauth = ctx.internal.repos.oauthPort
-    const gbp = ctx.internal.repos.gbpApiPort
+  it('constructs the OAuth adapter without the in-memory fake helpers', () => {
+    const oauth = buildIntegrationContext(buildDeps({})).internal.repos.oauthPort
     expect(typeof oauth.exchangeCode).toBe('function')
     expect(typeof oauth.refreshAccessToken).toBe('function')
-    expect(typeof gbp.listAccounts).toBe('function')
-    // The default adapters are constructed, not the in-memory fakes' extras.
     expect('setExchangeResult' in oauth).toBe(false)
-    expect('setAccounts' in gbp).toBe(false)
-    await expect(gbp.listAccounts('credential')).rejects.toThrow(
-      'Legacy Google account lookup is unavailable',
-    )
   })
 
   it('refuses Google review calls when the governed executor is unavailable', async () => {
@@ -329,21 +332,18 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     ).rejects.toMatchObject({ code: GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE })
   })
 
-  it('threads the production credential-egress refusal into the real OAuth adapter', async () => {
-    const refusal = new Error('credential gateway required')
-    const assertDirectCredentialEgressAllowed = vi.fn(() => {
-      throw refusal
-    })
-    const ctx = buildIntegrationContext(
-      buildDeps({ assertDirectCredentialEgressAllowed }),
-    )
-
-    await expect(
-      ctx.internal.repos.oauthPort.refreshAccessToken('refresh-token'),
-    ).rejects.toBe(refusal)
-    expect(assertDirectCredentialEgressAllowed).toHaveBeenCalledWith(
-      'oauth.token.refresh',
-    )
+  it('refuses OAuth without a governed executor before opening a credential socket', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>()
+    vi.stubGlobal('fetch', fetch)
+    try {
+      const ctx = buildIntegrationContext(buildDeps({}))
+      await expect(
+        ctx.internal.repos.oauthPort.refreshAccessToken('refresh-token'),
+      ).rejects.toMatchObject({ code: 'token_refresh_failed' })
+      expect(fetch).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
 

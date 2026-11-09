@@ -72,6 +72,7 @@ export function PortalResultsAbout({
           data.localDays,
           data.period.timezone,
           data.thresholds.comparisonMinSample,
+          data.period.endAt,
         )}
       </p>
       <div className="space-y-5 pt-2 pb-2">

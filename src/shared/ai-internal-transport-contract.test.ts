@@ -4,12 +4,7 @@ import { z } from 'zod/v4'
 import { createVersionedHmacKeyring } from './security/versioned-hmac-keyring'
 import { MERCHANT_AI_NOTICE_VERSION } from './merchant-ai-notice-contract'
 import {
-  AI_INTERNAL_JSON_MAX_DEPTH,
-  AI_INTERNAL_JSON_MAX_NODES,
   AI_INTERNAL_RESPONSE_MAX_BYTES,
-  explainJsonBytesRejection,
-  parseAiInternalJsonBytes,
-  parseAiProviderJsonBytes,
   aiSettlementRequestSchema,
   aiSettlementReceiptSchema,
   parseAiAdmissionRequest,
@@ -21,6 +16,13 @@ import {
   verifyAiRequestBinding,
   type AiAdmissionDescriptorV1,
 } from './ai-internal-transport-contract'
+import {
+  AI_INTERNAL_JSON_MAX_DEPTH,
+  AI_INTERNAL_JSON_MAX_NODES,
+  explainJsonBytesRejection,
+  parseAiInternalJsonBytes,
+  parseAiProviderJsonBytes,
+} from './ai-json'
 
 const UUIDS = {
   operation: '10000000-0000-4000-8000-000000000001',

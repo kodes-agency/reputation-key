@@ -21,8 +21,9 @@ export type GoogleImportDiscoveryAuthorizationVector = Readonly<
 /**
  * Durable, server-side pre-confirmation discovery checkpoints.
  *
- * Browser-visible handles contain a random nonce. Only its HMAC-derived key is
- * stored. Provider identifiers and display content stay in the credential-home
+ * The browser-visible handle is the random server identifier stored as the
+ * reference key; each row is bound to its organization, user and connection and
+ * re-authorized on redemption. Provider identifiers and display content stay in the credential-home
  * database, expire after the bounded discovery window, and never enter URLs,
  * logs, events, or the browser's durable storage.
  */

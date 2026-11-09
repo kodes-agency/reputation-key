@@ -15,87 +15,29 @@ import {
   withdrawGuestResponseFn,
 } from '#/contexts/guest/server/public'
 import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-scans'
-import {
-  ImmersivePublicPortal,
-  type GuestPortalCopyV2,
-} from '#/components/features/guest'
+import { ImmersivePublicPortal } from '#/components/features/guest'
 import { guestPageHead } from '#/components/features/guest/guest-page-head'
 import { PortalUnavailable } from '#/components/features/guest/portal-unavailable'
 import type { PortalUnavailableCopy } from '#/components/features/guest/portal-unavailable-copy'
 import { PortalUnavailableInBrowserLanguage } from '#/components/features/guest/portal-unavailable-in-browser-language'
-import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
 import { guestKeys } from '#/shared/queries/query-keys'
+import {
+  formAvailability,
+  publicPortalQuery as guestPageQuery,
+  type GuestPageData,
+} from '#/contexts/guest/page/ui/guest-page-data'
 import { useServerFn } from '@tanstack/react-start'
-import { useAction } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 
 // The public UUID is only a channel marker. The server binds it to the stable
 // address and exact live publication before it can qualify an observation.
+const publicPortalQuery = (token: string, locale?: GuestLocale) =>
+  guestPageQuery(getPublicPortal, token, locale)
+
 const portalSearchSchema = z.object({
   accessArtifact: z.uuid().optional().catch(undefined),
   locale: guestLocaleSchema.optional().catch(undefined),
 })
-
-/**
- * Statuses `getPublicPortal` uses for the deliberate "there is no portal here"
- * posture: 404 `portal_not_found` (bad or rotated token, denied capability), 410
- * `portal_inactive` (unpublished portal, suspended property) and 403 `forbidden`.
- * All of them must stay externally indistinguishable to a guest, so they collapse
- * to the same `null`. Every other failure (500 from a DB blip, a network fault) is
- * rethrown: swallowing it cached a successful `null` for the whole 5-minute
- * staleTime, so a sub-second outage pinned the unavailable page for five minutes.
- */
-const unavailablePostureStatus: Readonly<Record<number, true>> = {
-  403: true,
-  404: true,
-  410: true,
-}
-
-/**
- * `ServerFunctionError` carries `.status` across the server/client boundary
- * (`serverFunctionErrorAdapter`); narrowing structurally keeps this route
- * independent of the class.
- */
-function isUnavailablePosture(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null || !('status' in error)) return false
-  const { status } = error
-  return typeof status === 'number' && unavailablePostureStatus[status] === true
-}
-
-/**
- * What the page renders from: the server's loader data and, for a schema
- * version 3 portal, the one copy pack of the page's language. The pack is loaded
- * with the data (one language, one dynamic import), so the server render and the
- * hydration read the same copy and no client request fetches it afterwards. A
- * pack that cannot be loaded fails the whole read, never to another language.
- */
-export type GuestPageData = PublicPortalLoaderData &
-  Readonly<{ pack: GuestPortalCopyV2 | null }>
-
-const publicPortalQuery = (token: string, locale?: GuestLocale) =>
-  queryOptions({
-    queryKey: guestKeys.publicPortal({ token, locale: locale ?? 'auto' }),
-    queryFn: async (): Promise<GuestPageData | null> => {
-      try {
-        const data = await getPublicPortal({ data: { token, locale } })
-        // A dynamic import of the loader's own module, not the guest barrel: the
-        // loader belongs to the route's critical chunk, and a static edge to the
-        // barrel would put the whole guest page in every page's first paint.
-        const pack = data.immersive
-          ? await (
-              await import('#/components/features/guest/public-portal/language-packs/load-guest-copy-v2')
-            ).loadGuestPortalCopyV2(
-              data.localization.selectedLocale,
-              data.localization.languagePackVersion,
-            )
-          : null
-        return { ...data, pack }
-      } catch (error) {
-        if (isUnavailablePosture(error)) return null
-        throw error
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-  })
 
 /**
  * The words of the unavailable page, in the language the visitor's browser asks
@@ -114,23 +56,6 @@ const unavailableCopyQuery = () =>
       ),
     staleTime: 5 * 60 * 1000,
   })
-
-/**
- * C1: the server resolves the `portal.guest_response` capability decision. The
- * form view has no separate 'unavailable' branch — a
- * tenant-disabled response surface and a transient failure read the same to a
- * guest, so both land on its 'error' copy.
- */
-const formAvailability: Readonly<
-  Record<
-    'available' | 'permission_denied' | 'unavailable',
-    'available' | 'permission_denied' | 'error'
-  >
-> = {
-  available: 'available',
-  permission_denied: 'permission_denied',
-  unavailable: 'error',
-}
 
 export const Route = createFileRoute('/p/$token')({
   validateSearch: portalSearchSchema,
@@ -154,10 +79,7 @@ export const Route = createFileRoute('/p/$token')({
 /**
  * Gate only — it owns no hooks beyond the query. Every other hook lives in
  * `PublicPortalView`, so the hook count cannot change when `data` flips
- * null↔loaded on a revalidation. The previous inline `if (!data) return …` guard
- * sat above five `useAction`/`useServerFn` calls and threw "Rendered more hooks
- * than during the previous render" on that transition, dropping the whole public
- * page into `errorComponent`.
+ * null↔loaded on a revalidation.
  */
 function PublicPortalPage() {
   const { token } = Route.useParams()
@@ -186,14 +108,16 @@ function PublicPortalView({
 }: Readonly<{ token: string; data: GuestPageData }>) {
   const { accessArtifact, locale } = Route.useSearch()
   const queryClient = useQueryClient()
-  const submitResponse = useAction(useServerFn(submitGuestResponseFn))
-  const correctResponse = useAction(useServerFn(correctGuestResponseFn))
-  const startNewResponseAction = useAction(useServerFn(startNewGuestResponseFn))
-  const withdrawResponse = useAction(useServerFn(withdrawGuestResponseFn))
-  const withdrawPrivateFeedback = useAction(useServerFn(withdrawPrivateFeedbackFn))
-  const submitPrivateFeedback = useAction(useServerFn(submitPrivateFeedbackFn))
-  const selectGoogleReview = useAction(useServerFn(selectGoogleReviewFn))
-  const selectSecondaryLink = useAction(useServerFn(selectSecondaryLinkFn))
+  const submitResponse = useActionMutation(useServerFn(submitGuestResponseFn))
+  const correctResponse = useActionMutation(useServerFn(correctGuestResponseFn))
+  const startNewResponseAction = useActionMutation(useServerFn(startNewGuestResponseFn))
+  const withdrawResponse = useActionMutation(useServerFn(withdrawGuestResponseFn))
+  const withdrawPrivateFeedback = useActionMutation(
+    useServerFn(withdrawPrivateFeedbackFn),
+  )
+  const submitPrivateFeedback = useActionMutation(useServerFn(submitPrivateFeedbackFn))
+  const selectGoogleReview = useActionMutation(useServerFn(selectGoogleReviewFn))
+  const selectSecondaryLink = useActionMutation(useServerFn(selectSecondaryLinkFn))
   const recordScan = useServerFn(recordScanFn)
   const { csrfNonce } = data.guestSession
 

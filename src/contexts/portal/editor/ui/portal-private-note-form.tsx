@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { useForm } from '@tanstack/react-form'
 import type { z } from 'zod/v4'
-import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
+import { updatePortalSettingsInputSchema } from '#/contexts/portal/application/dto/portal-intents.dto'
 import type { Action } from '#/components/hooks/use-action'
 import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
 import { RatingThresholdField } from '#/components/forms/rating-threshold-field'
@@ -15,7 +15,7 @@ import type {
   UpdatePortalVariables,
 } from '#/components/features/portal/shared/types'
 
-const privateNoteFormSchema = updatePortalInputSchema
+const privateNoteFormSchema = updatePortalSettingsInputSchema
   .pick({ privateFeedbackThreshold: true, skipPrivateRating: true })
   .required()
 type FormValues = z.infer<typeof privateNoteFormSchema>

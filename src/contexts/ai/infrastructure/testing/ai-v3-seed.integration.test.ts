@@ -8,6 +8,7 @@ import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/goog
 import { getDb, type Database } from '#/shared/db'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
 import { createV3Seed, mentionOf, seededReviewId } from './ai-v3-seed'
+import { createAiGuestVoiceFactsAdapter } from '../adapters/ai-guest-voice-facts.adapter'
 
 const IDS = {
   organizationId: 'ai-v3-seed-adopt-test-org',
@@ -18,6 +19,43 @@ const IDS = {
 const MINE = `organization_id = '${IDS.organizationId}' AND property_id = '${IDS.propertyId}'`
 
 const NOON = (day: number) => new Date(Date.UTC(2026, 9, day, 16, 0, 0))
+
+it('resets coverage to the new population when the same v3 seed is set up again', async () => {
+  const db = getDb()
+  const seed = createV3Seed(db, {
+    organizationId: 'ai-v3-seed-reuse-test-org',
+    propertyId: '79010000-0000-4000-8000-000000000001',
+    idPrefix: '79010000',
+  })
+  const review = { index: 1, rating: 2, reviewedAt: NOON(10) } as const
+  const facts = () =>
+    createAiGuestVoiceFactsAdapter(db).readFacts(seed.scope, {
+      startLocalDate: '2026-10-10',
+      endLocalDate: '2026-10-10',
+    })
+  try {
+    await seed.setUp()
+    await seed.addReview(review)
+    await seed.reanalyze({ ...review, sequence: 2 })
+    expect((await facts())?.coverage).toEqual({
+      settledAnalysisCount: 2,
+      expectedAnalysisCount: 2,
+      awaitingAnalysisCount: 0,
+    })
+    await seed.tearDown()
+
+    await seed.setUp()
+    await seed.addReview(review)
+    await seed.seal()
+    expect((await facts())?.coverage).toEqual({
+      settledAnalysisCount: 1,
+      expectedAnalysisCount: 1,
+      awaitingAnalysisCount: 0,
+    })
+  } finally {
+    await seed.tearDown()
+  }
+})
 
 async function count(db: Database, table: string, where: string): Promise<number> {
   const result = await db.execute<{ n: number }>(

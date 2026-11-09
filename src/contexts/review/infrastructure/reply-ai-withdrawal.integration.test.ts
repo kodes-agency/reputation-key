@@ -2,7 +2,7 @@
 //
 // Two rules meet on an AI-assisted reply. Each reply command starts only from
 // the states it names and carries that as the compare-and-set of its write
-// (reply-write-guards.ts). The AI draft purge
+// (reputation/replies/store.server.ts). The AI draft purge
 // (src/shared/db/ai/ai-draft-purge.ts) withdraws unedited AI text that may no
 // longer be published: it deletes a reply nobody confirmed, and empties one
 // that has publication evidence behind it. The purge writes SQL of its own, in

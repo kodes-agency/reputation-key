@@ -25,7 +25,7 @@ import {
   type ListFilters,
 } from './inbox-cache-test-harness'
 import type { InboxServerFns } from './types'
-import { useAddInboxNote } from './use-add-inbox-note'
+import { useAddInboxNote } from '../../contexts/reputation/inbox/ui/use-add-inbox-note'
 import { useInboxDetail } from './use-inbox-detail'
 
 vi.mock('@tanstack/react-router', () => ({

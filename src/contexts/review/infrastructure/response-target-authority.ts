@@ -12,6 +12,8 @@ import type {
   ReviewResponseTargetEligibility,
   ReviewResponseTargetExpectation,
 } from '../application/ports/response-target-authority.port'
+import type { ReviewOpenTransaction } from '../application/ports/open-transaction'
+import { lendReviewTransaction } from './open-transaction'
 import { runWithReviewExactCurrentApplyAdmission } from './exact-current-apply-admission'
 import { lockReviewSourceMutationScope } from './review-source-mutation-serialization'
 import {
@@ -371,7 +373,10 @@ export const createReviewResponseTargetAuthority = (
 ): ReviewResponseTargetAuthority => ({
   withExactCurrent: async <T>(
     expectation: ReviewResponseTargetExpectation,
-    apply: (permit: ReviewCurrentResponseTargetPermit) => Promise<T>,
+    apply: (
+      permit: ReviewCurrentResponseTargetPermit,
+      tx: ReviewOpenTransaction,
+    ) => Promise<T>,
   ) =>
     runWithReviewExactCurrentApplyAdmission(db, () =>
       db.transaction(async (tx) => {
@@ -379,13 +384,16 @@ export const createReviewResponseTargetAuthority = (
         if (!permit) return { status: 'obsolete' as const }
         return {
           status: 'current' as const,
-          value: await apply(permit),
+          value: await apply(permit, lendReviewTransaction(tx)),
         }
       }),
     ),
   withExactCurrentBatch: async <T>(
     expectations: readonly ReviewResponseTargetExpectation[],
-    apply: (permits: readonly ReviewCurrentResponseTargetPermit[]) => Promise<T>,
+    apply: (
+      permits: readonly ReviewCurrentResponseTargetPermit[],
+      tx: ReviewOpenTransaction,
+    ) => Promise<T>,
   ) => {
     if (expectations.length < 1 || expectations.length > 100) {
       throw new TypeError(
@@ -408,13 +416,19 @@ export const createReviewResponseTargetAuthority = (
           if (!permit) return { status: 'obsolete' as const }
           permits.push(permit)
         }
-        return { status: 'current' as const, value: await apply(permits) }
+        return {
+          status: 'current' as const,
+          value: await apply(permits, lendReviewTransaction(tx)),
+        }
       }),
     )
   },
   withInboxProjection: async <T>(
     expectation: ReviewInboxProjectionExpectation,
-    apply: (permit: ReviewCurrentInboxProjectionPermit) => Promise<T>,
+    apply: (
+      permit: ReviewCurrentInboxProjectionPermit,
+      tx: ReviewOpenTransaction,
+    ) => Promise<T>,
   ) =>
     runWithReviewExactCurrentApplyAdmission(db, () =>
       db.transaction(async (tx) => {
@@ -422,7 +436,7 @@ export const createReviewResponseTargetAuthority = (
         if (!permit) return { status: 'obsolete' as const }
         return {
           status: 'current' as const,
-          value: await apply(permit),
+          value: await apply(permit, lendReviewTransaction(tx)),
         }
       }),
     ),

@@ -22,7 +22,7 @@ import { addLocalDays, localDateOf } from '../../src/contexts/reporting/domain/l
 import {
   findMetricVersionById,
   METRIC_VERSION_IDS,
-} from '../../src/contexts/reporting/domain/metric-registry'
+} from '../../src/contexts/reporting/readings/contracts'
 import { propertyWallClockToInstant } from '../../src/shared/domain/property-calendar'
 import { calendarPeriodRange } from '../../src/shared/domain/period-range'
 import {
@@ -135,8 +135,8 @@ export async function seedPortalGoalProperty(
     })
     await callServerFn(page, {
       file: PORTALS,
-      exportName: 'updatePortal',
-      data: { portalId: portal.id, publicationState: 'published' },
+      exportName: 'publishPortal',
+      data: { portalId: portal.id },
     })
     portals.push({ id: portal.id, name })
   }

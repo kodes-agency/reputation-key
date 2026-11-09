@@ -874,6 +874,26 @@ export async function seedReview(input: {
     ],
   )
   const reviewId = rows[0].id
+  // The provider-content row the readers serve from. Without a content clock the
+  // review holds nothing to serve, so it has none. It cascades with the review.
+  if (contentExpiresAt !== null) {
+    await dbQuery(
+      `INSERT INTO review_source_contents (
+         review_id, organization_id, property_id, platform, external_id,
+         external_location_id, google_connection_id, reviewer_name, rating, text,
+         language_code, reviewed_at, source_created_at, source_updated_at,
+         first_fetched_at, last_fetched_at, content_expires_at,
+         source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+       )
+       SELECT id, organization_id, property_id, platform, external_id,
+              external_location_id, google_connection_id, reviewer_name, rating, text,
+              language_code, reviewed_at, source_created_at, source_updated_at,
+              first_fetched_at, last_fetched_at, content_expires_at,
+              source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+       FROM reviews WHERE id = $1::uuid`,
+      [reviewId],
+    )
+  }
   // IBX-01-T9: revision 1 of the review's material identity. Observing a review
   // ALWAYS writes this row in production (review-observation.repository.ts), and
   // everything anchored to a review revision — the Handling Cycle, publication

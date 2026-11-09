@@ -211,6 +211,17 @@ the rail when empty, so its empty state can say where feedback comes from.
 
 ## Runtime
 
+`build.ts` assembles adapters and durable registrations; `build-use-cases.ts`
+constructs the use cases and projects the existing `InboxPublicApi` contract.
+The production and Storybook containers share that projection. Lookup adapters
+receive the named foreign sources directly and retain their content eligibility
+and effective-reply decisions.
+
+`src/composition/get-inbox-review-analysis.server.ts` binds the detail's AI read
+to Review's current source epoch, revision and analysis sequence. It withholds
+another Property's source and leaves actor authorization and output eligibility
+to AI's delivery read.
+
 The list panel and its selectable list live together in
 [`../reputation/inbox/ui/inbox-list.tsx`](../reputation/inbox/ui/inbox-list.tsx),
 with their Storybook states alongside. The page and the other Inbox screens

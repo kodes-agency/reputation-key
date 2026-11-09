@@ -4,12 +4,12 @@ import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { findMetricVersionById } from '../../domain/metric-registry'
+import { findMetricVersionById } from '../../readings/contracts'
 import {
   createGoalProgramService,
   type GoalActor,
   type GoalMetricReadPort,
-} from '../../application/use-cases/goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 import { createGoalProgramRepository } from './goal-program.repository'
 import { readGoalMetricSourceHead } from './goal-metric-source-head'
 

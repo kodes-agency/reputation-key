@@ -24,7 +24,7 @@ export function PortalLanguageMenu({
   onChange,
 }: Props) {
   return (
-    <RowActionsMenu name={languageName}>
+    <RowActionsMenu name={languageName} width={isFallback ? 'wide' : 'default'}>
       {isFallback ? (
         <>
           <RowActionsLabel className="text-xs font-normal text-muted-foreground">

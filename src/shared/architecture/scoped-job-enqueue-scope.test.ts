@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Scoped job families — what a family is enqueued with must give the
 // delayed-execution gate a scope.
 //
@@ -40,7 +41,7 @@ import type { OutboxRepository } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
 import { handleInvitationAcceptedInviterNotice } from '#/contexts/feed/infrastructure/invitation-accepted-inviter-notice'
-import { createImmediateEmailEnqueue } from '#/contexts/feed/infrastructure/jobs/immediate-email-enqueue'
+import { createImmediateEmailEnqueue } from '#/contexts/feed/email/send-emails.server'
 import { createNotificationConsumerDeps } from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
 import { createGoogleImportV2Queue } from '#/contexts/integration/infrastructure/google-import-v2-queue'
 import { buildReviewContext } from '#/contexts/review/build'
@@ -84,6 +85,7 @@ const producer = (enqueue: (queue: Queue) => Promise<void>): ScopedJobEnqueue =>
 
 function reviewContext(jobQueue: Queue) {
   return buildReviewContext({
+    replyEffects: replyScopeEffects,
     publicationActorAuthority: async () => true,
     replyBrandProfiles: { isCurrentAiReplyBrandProfile: async () => true },
     db: {} as never,
@@ -119,7 +121,7 @@ function reviewContext(jobQueue: Queue) {
 const receipts = { insertReceipt: async () => undefined } as unknown as OutboxRepository
 
 const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
-  'import-gbp-property-item-v2': producer(async (queue) => {
+  'import-gbp-property-item': producer(async (queue) => {
     await createGoogleImportV2Queue(queue).addImportItemJobs([
       {
         jobId: `google-import-item-${ID(2)}`,

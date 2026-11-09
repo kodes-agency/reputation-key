@@ -1,4 +1,4 @@
-import type { LoadedReplyTemplate } from './use-reply-template'
+import type { LoadedReplyTemplate } from '#/contexts/reputation/replies/ui/use-reply-template'
 
 /**
  * What the composer's current draft was produced from — row 18's result tag.
@@ -48,7 +48,7 @@ export type ReplyDraftAdoption = Readonly<{
  * started from, whatever the text now says. The AI tag, by contrast, does
  * survive a reload: every save that is not an AI acceptance writes
  * `aiGenerated: false` (the `ends_adoption` rule of a draft save, applied by
- * `reply-write-guards.ts`), so a saved `true` still describes the text, and
+ * `reputation/replies/store.server.ts`), so a saved `true` still describes the text, and
  * the saved tag is the one the AI acceptance store stamped
  * (`ai-suggested-draft-store.ts`).
  *

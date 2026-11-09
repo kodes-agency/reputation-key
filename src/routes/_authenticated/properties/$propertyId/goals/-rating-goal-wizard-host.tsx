@@ -5,20 +5,20 @@
 import { lazy, Suspense, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
-import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { RATING_GOAL_HEADING_ID } from '#/components/goals/rating-goal-card-header'
-import type { PortalNextStep } from '#/components/goals/rating-goal-portal-step'
-import type { RatingGoalRecapCommands } from '#/components/goals/rating-goal-recap'
-import type { RegionRead } from '#/components/goals/rating-goal-section'
-import type { RatingGoalWizardIntent } from '#/components/goals/rating-goal-wizard-view'
-import { dashboardKeys, goalKeys, propertyKeys } from '#/shared/queries/query-keys'
+import type { RatingGoalSetupView } from '#/contexts/reporting/rating-goals/contracts'
+import { RATING_GOAL_HEADING_ID } from '#/contexts/reporting/rating-goals/ui/rating-goal-card-header'
+import type { PortalNextStep } from '#/contexts/reporting/rating-goals/ui/rating-goal-portal-step'
+import type { RatingGoalRecapCommands } from '#/contexts/reporting/rating-goals/ui/rating-goal-recap'
+import type { RegionRead } from '#/contexts/reporting/rating-goals/ui/rating-goal-section'
+import { ratingGoalMutationKeys } from '#/contexts/reporting/rating-goals/ui/rating-goal-query-policy'
+import type { RatingGoalWizardIntent } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard-view'
 import {
   ratingGoalCardQuery,
   ratingGoalCommands,
   ratingGoalSetupQuery,
 } from './-rating-goal-queries'
 
-const loadWizard = () => import('#/components/goals/rating-goal-wizard')
+const loadWizard = () => import('#/contexts/reporting/rating-goals/ui/rating-goal-wizard')
 const RatingGoalWizard = lazy(() =>
   loadWizard().then((module) => ({ default: module.RatingGoalWizard })),
 )
@@ -141,12 +141,11 @@ export function useRatingGoalRecapCommands(propertyId: string): RatingGoalRecapC
     keepPaceFn: ratingGoalCommands.keepRatingGoalPace,
     changeRatingGoalFn: ratingGoalCommands.changeRatingGoal,
     onAnswered: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: goalKeys.ratingGoal(propertyId) }),
-        queryClient.invalidateQueries({ queryKey: propertyKeys.setup(propertyId) }),
-        queryClient.invalidateQueries({ queryKey: propertyKeys.setupSummaries() }),
-        queryClient.invalidateQueries({ queryKey: dashboardKeys.fleets() }),
-      ])
+      await Promise.all(
+        ratingGoalMutationKeys(propertyId).map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey }),
+        ),
+      )
     },
   }
 }

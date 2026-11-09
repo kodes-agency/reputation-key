@@ -1,15 +1,12 @@
-import { admitGoogleImportSync } from './infrastructure/google-import-sync-acceptance'
-// Review context — build function (composition root)
-// Per architecture: "Build functions wire ports → adapters, deps → use cases."
-// Returns the public API surface of the review context.
+// Review composition: storage, provider transport, reply wiring and worker contributions.
 
+import { wireReplyUseCases, projectReviewReplyApi } from './build-reply-use-cases.server'
+import type { ResolveReplyTemplateLanguage } from './application/use-cases/layered-reply-template-operations'
+import { admitGoogleImportSync } from './infrastructure/google-import-sync-acceptance'
 import { randomUUID } from 'node:crypto'
-import {
-  createCld3ReplyLanguageDetector,
-  resolveConcreteReplyLanguage,
-} from '#/shared/ai-reply-language-verifier'
 import { reviewError } from './domain/errors'
 import type { Database } from '#/shared/db'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import type { Queue } from 'bullmq'
 import type { Pool } from 'pg'
@@ -51,6 +48,7 @@ import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/appli
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReviewObservationRepository } from './infrastructure/repositories/review-observation.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
+import { createReviewReplyWriter } from './infrastructure/reply-writer'
 import { createReplyLibraryRepository } from './infrastructure/repositories/reply-library.repository'
 import {
   createAiReplyVoicePublicApi,
@@ -121,41 +119,7 @@ import {
 import type { PropertyGoogleReadBindingPort } from './application/ports/property-google-read-binding.port'
 import { readBindingFromPropertyScope } from './application/property-google-read-binding'
 import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
-import {
-  draftReply,
-  submitReply,
-  approveReply,
-  rejectReply,
-  deleteReply,
-  retryPublish,
-  editPublishedReply,
-} from './application/use-cases/reply-operations'
-import {
-  checkReplyDraft,
-  listReplyTemplates,
-  loadReplyTemplate,
-  type CheckReplyDraft,
-  type ListReplyTemplates,
-  type LoadReplyTemplate,
-  type ResolveReplyTemplateLanguage,
-} from './application/use-cases/layered-reply-template-operations'
-import {
-  getReplyLibrary,
-  resetReplyTemplate,
-  saveReplyTemplate,
-  saveReplyVoice,
-  setReplyTemplateHidden,
-  type GetReplyLibrary,
-  type ResetReplyTemplate,
-  type SaveReplyTemplate,
-  type SaveReplyVoice,
-  type SetReplyTemplateHidden,
-} from './application/use-cases/reply-library-layer-operations'
 import { reconcileReplyPublication } from './application/use-cases/reconcile-reply-publication'
-import {
-  checkReplyPublication,
-  type CheckReplyPublication,
-} from './application/use-cases/check-reply-publication'
 import {
   cancelPublicationsForConnection,
   cancelPublicationsForProperty,
@@ -173,6 +137,8 @@ import { registerReplyPublicationConsumers } from './infrastructure/outbox-consu
 
 export type ReviewContextBuildInput = Readonly<{
   db: Database
+  /** Ends Replies when a Review's content is erased or outdated. */
+  replyEffects: ReplyScopeEffects
   outboxRepo: OutboxRepository
   clock: () => Date
   idGen: () => string
@@ -213,10 +179,13 @@ export type ReviewContextBuildInput = Readonly<{
  * that intentionally do not construct the full application container.
  */
 export const wireReviewSourceContentLifecycle = (
-  input: Pick<ReviewContextBuildInput, 'db' | 'clock' | 'expiryActivation'>,
+  input: Pick<
+    ReviewContextBuildInput,
+    'db' | 'clock' | 'expiryActivation' | 'replyEffects'
+  >,
 ): RunReviewSourceContentLifecycle =>
   createRunReviewSourceContentLifecycle({
-    store: createReviewSourceContentLifecycleStore(input.db),
+    store: createReviewSourceContentLifecycleStore(input.db, input.replyEffects),
     clock: input.clock,
     authorizeApply: createAuthorizeReviewExpiryApply(input.expiryActivation),
   })
@@ -241,25 +210,7 @@ export type ReviewContextApi = Readonly<{
         } & Pick<TargetedGoogleReviewQueuePort, 'addTargetedFetchJob'>
       >
       /** Review-owned reply workflow presented to Review HTTP adapters. */
-      reply: Readonly<{
-        draft: ReturnType<typeof draftReply>
-        submit: ReturnType<typeof submitReply>
-        approve: ReturnType<typeof approveReply>
-        editPublished: ReturnType<typeof editPublishedReply>
-        reject: ReturnType<typeof rejectReply>
-        delete: ReturnType<typeof deleteReply>
-        retryPublish: ReturnType<typeof retryPublish>
-        /** D5: read-only "Check Google again"; never authorizes or enqueues. */
-        checkPublication: CheckReplyPublication
-        listTemplates: ListReplyTemplates
-        loadTemplate: LoadReplyTemplate
-        checkDraft: CheckReplyDraft
-        getLibrary: GetReplyLibrary
-        saveVoice: SaveReplyVoice
-        saveTemplate: SaveReplyTemplate
-        setTemplateHidden: SetReplyTemplateHidden
-        resetTemplate: ResetReplyTemplate
-      }>
+      reply: ReturnType<typeof projectReviewReplyApi>
     }>
   /** Bounded operator maintenance. These capabilities preserve Review's
    * invariants without exposing its repositories or request workflows. */
@@ -314,23 +265,14 @@ export type ReviewContextApi = Readonly<{
       headCheckQueue: ReviewHeadCheckQueuePort
       replyQueue: ReplyQueuePort
     }>
-    useCases: Readonly<{
-      runReviewProviderSnapshot: ReturnType<typeof runReviewProviderSnapshot>
-      runTargetedGoogleReviewFetch: ReturnType<typeof runTargetedGoogleReviewFetch>
-      checkReviewOnGoogle: CheckReviewOnGoogle
-      draftReply: ReturnType<typeof draftReply>
-      submitReply: ReturnType<typeof submitReply>
-      approveReply: ReturnType<typeof approveReply>
-      editPublishedReply: ReturnType<typeof editPublishedReply>
-      rejectReply: ReturnType<typeof rejectReply>
-      deleteReply: ReturnType<typeof deleteReply>
-      retryPublish: ReturnType<typeof retryPublish>
-      checkReplyPublication: CheckReplyPublication
-      listReplyTemplates: ListReplyTemplates
-      loadReplyTemplate: LoadReplyTemplate
-      reconcileReplyPublication: ReturnType<typeof reconcileReplyPublication>
-      runReviewSourceContentLifecycle: RunReviewSourceContentLifecycle
-    }>
+    useCases: ReturnType<typeof wireReplyUseCases> &
+      Readonly<{
+        runReviewProviderSnapshot: ReturnType<typeof runReviewProviderSnapshot>
+        runTargetedGoogleReviewFetch: ReturnType<typeof runTargetedGoogleReviewFetch>
+        checkReviewOnGoogle: CheckReviewOnGoogle
+        reconcileReplyPublication: ReturnType<typeof reconcileReplyPublication>
+        runReviewSourceContentLifecycle: RunReviewSourceContentLifecycle
+      }>
     /**
      * BQC-5.5: review-owned governed aggregate serving reads (ADR 0031
      * eligibility enforced here). Composition passes this to foreign
@@ -369,16 +311,25 @@ function reviewPublicationLifecycle(
 }
 
 export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContextApi => {
-  const reviewRepo = createReviewRepository(input.db, input.clock, input.logger)
+  const reviewRepo = createReviewRepository(
+    input.db,
+    input.clock,
+    input.logger,
+    input.replyEffects,
+  )
   const observationRepo = createReviewObservationRepository(input.db)
-  const replyRepo = createReplyRepository(input.db, input.clock)
+  const replyWriter = createReviewReplyWriter(input.db, input.clock)
+  const replyRepo = createReplyRepository(input.db, input.clock, replyWriter)
   const replyLibraryRepo = createReplyLibraryRepository(input.db, input.clock)
   const aiReplyVoice = createAiReplyVoicePublicApi({
     repository: replyLibraryRepo,
     reviews: reviewRepo,
   })
   const publicationCandidates = createPublicationReconciliationCandidateQuery(input.db)
-  const sourceContentLifecycleStore = createReviewSourceContentLifecycleStore(input.db)
+  const sourceContentLifecycleStore = createReviewSourceContentLifecycleStore(
+    input.db,
+    input.replyEffects,
+  )
   const recoveryPlanning = createReviewLifecycleRecoveryPlanningQuery(input.db)
   const recovery = createReviewLifecycleRecoveryAuthorityFactory({
     clock: input.clock,
@@ -516,6 +467,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     input.db,
     input.clock,
     input.publicationActorAuthority,
+    replyWriter,
+    input.replyEffects,
   )
   const googleReplyObservationStore = createGoogleReplyObservationStore(input.db)
   // D4: one reader of the non-dispatch evidence for the manager commands, the
@@ -546,30 +499,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     idGen: () => replyId(input.idGen()),
     staffPublicApi: input.staffPublicApi,
   }
-  const draftReplyUseCase = draftReply(replyDeps)
-  let replyLanguageDetector:
-    Awaited<ReturnType<typeof createCld3ReplyLanguageDetector>> | undefined
-  const resolveReplyLanguage =
-    input.resolveReplyLanguage ??
-    (async (request: Parameters<ResolveReplyTemplateLanguage>[0]) => {
-      replyLanguageDetector ??= await createCld3ReplyLanguageDetector()
-      return resolveConcreteReplyLanguage({
-        ...request,
-        detector: replyLanguageDetector,
-      })
-    })
-  const layeredReplyTemplateDeps = {
-    repository: replyLibraryRepo,
-    reviewRepo,
-    staffPublicApi: input.staffPublicApi,
-    draftReply: draftReplyUseCase,
-    resolveReplyLanguage,
-  }
-  const replyLibraryDeps = {
-    repository: replyLibraryRepo,
-    staffPublicApi: input.staffPublicApi,
-  }
-
   // BQC-3.8: disconnect cancels in-flight publications before/with the
   // source-content purge (the guarded store tolerates the race). Delivered by
   // the durable review.on-google-account-disconnected consumer.
@@ -596,11 +525,13 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         { event: 'review.provider_restatement' },
         'Google restated a review without moving its updateTime',
       ),
+    input.replyEffects,
   )
 
   const snapshotRepository = createReviewProviderSnapshotRepository(
     input.db,
     input.snapshotRunIdGen,
+    input.replyEffects,
   )
   const observationWriter = createReviewProviderObservationWriter({
     reviewRepo,
@@ -632,6 +563,13 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     subjectKeyService: providerSubjectKeys,
   })
   const useCases = {
+    ...wireReplyUseCases({
+      deps: replyDeps,
+      library: replyLibraryRepo,
+      resolveReplyLanguage: input.resolveReplyLanguage,
+      reconcileReplyPublication: reconcileReplyPublicationUseCase,
+      logger: input.logger,
+    }),
     runReviewProviderSnapshot: runReviewProviderSnapshot({
       repository: snapshotRepository,
       googleReviewApi: input.googleReviewApi,
@@ -667,31 +605,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       newObservationNonce: input.idGen,
       clock: input.clock,
     }),
-    draftReply: draftReplyUseCase,
-    submitReply: submitReply(replyDeps),
-    approveReply: approveReply(replyDeps),
-    rejectReply: rejectReply(replyDeps),
-    deleteReply: deleteReply(replyDeps),
-    retryPublish: retryPublish(replyDeps),
-    checkReplyPublication: checkReplyPublication({
-      replyRepo,
-      reviewRepo,
-      staffPublicApi: input.staffPublicApi,
-      commandStore: replyCommandStore,
-      dispatchEvidence,
-      reconcileReplyPublication: reconcileReplyPublicationUseCase,
-      clock: input.clock,
-      logger: input.logger,
-    }),
-    editPublishedReply: editPublishedReply(replyDeps),
-    listReplyTemplates: listReplyTemplates(layeredReplyTemplateDeps),
-    loadReplyTemplate: loadReplyTemplate(layeredReplyTemplateDeps),
-    checkReplyDraft: checkReplyDraft(layeredReplyTemplateDeps),
-    getReplyLibrary: getReplyLibrary(replyLibraryDeps),
-    saveReplyVoice: saveReplyVoice(replyLibraryDeps),
-    saveReplyTemplate: saveReplyTemplate(replyLibraryDeps),
-    setReplyTemplateHidden: setReplyTemplateHidden(replyLibraryDeps),
-    resetReplyTemplate: resetReplyTemplate(replyLibraryDeps),
     reconcileReplyPublication: reconcileReplyPublicationUseCase,
     runReviewSourceContentLifecycle: createRunReviewSourceContentLifecycle({
       store: sourceContentLifecycleStore,
@@ -741,6 +654,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   }>): Promise<void> => {
     const { registerReviewWorkerJobs } = await import('./infrastructure/worker-runtime')
     await registerReviewWorkerJobs({
+      replyEffects: input.replyEffects,
       db: input.db,
       pool: input.workerRuntime.pool,
       registry: input.workerRuntime.registry,
@@ -809,24 +723,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         }),
         addTargetedFetchJob: targetedQueue.addTargetedFetchJob,
       }),
-      reply: Object.freeze({
-        draft: useCases.draftReply,
-        submit: useCases.submitReply,
-        approve: useCases.approveReply,
-        editPublished: useCases.editPublishedReply,
-        reject: useCases.rejectReply,
-        delete: useCases.deleteReply,
-        retryPublish: useCases.retryPublish,
-        checkPublication: useCases.checkReplyPublication,
-        listTemplates: useCases.listReplyTemplates,
-        loadTemplate: useCases.loadReplyTemplate,
-        checkDraft: useCases.checkReplyDraft,
-        getLibrary: useCases.getReplyLibrary,
-        saveVoice: useCases.saveReplyVoice,
-        saveTemplate: useCases.saveReplyTemplate,
-        setTemplateHidden: useCases.setReplyTemplateHidden,
-        resetTemplate: useCases.resetReplyTemplate,
-      }),
+      reply: projectReviewReplyApi(useCases),
     },
     maintenance: Object.freeze({
       publicationReconciliation: Object.freeze({

@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // What turning review analysis off takes with it (PostgreSQL). The merchant notice of
 // 2026-10-30 tells the owner that turning a capability off and erasure "cover everything
 // listed under 'What review analysis keeps'": the analyses and their mentions, the
@@ -39,7 +40,7 @@ import {
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
-import { createReviewAnalysisEnrollmentAdapter } from './ai-review-analysis-enrollment.adapter'
+import { createReviewAnalysisEnrollmentAdapter } from '../../replay/enrollment-store.server'
 import {
   createV3Seed,
   mentionOf,
@@ -291,7 +292,7 @@ async function reconnectRefresh() {
   }))
   const refresh = createRefreshBoundGoogleCategories({
     findPropertyIds: async () => [IDS.propertyId],
-    binding: createPropertyGoogleBindingStore(db),
+    binding: createPropertyGoogleBindingStore(db, replyScopeEffects),
     authorize: async () => ({
       ok: true,
       accessToken: 'synthetic',

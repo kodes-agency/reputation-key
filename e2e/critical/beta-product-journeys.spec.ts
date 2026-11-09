@@ -104,6 +104,21 @@ async function endOpenGoalPrograms(page: Page, propertyId: string) {
   }
 }
 
+/** Publishes a live Portal's changes the way the review page does: the digest it showed is handed back. */
+async function publishReviewedChanges(page: Page, portalId: string) {
+  const review = await callServerFnGet<{ reviewDigest: string | null }>(page, {
+    file: 'src/contexts/portal/server/portal-review.ts',
+    exportName: 'getPortalReview',
+    data: { portalId },
+  })
+  expect(review.reviewDigest).not.toBeNull()
+  return await callServerFn<{ outcome: string }>(page, {
+    file: 'src/contexts/portal/server/portal-publish-changes.ts',
+    exportName: 'publishPortalChanges',
+    data: { portalId, reviewedDigest: review.reviewDigest },
+  })
+}
+
 /**
  * The month after the current one on a Property's own calendar, as the
  * `YYYY-MM` key the create command takes.
@@ -301,15 +316,15 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     expect(grouped.group.id).toBeTruthy()
 
     // Publishing has an ORDERED chain of preconditions, and the journey walks
-    // it. `createPortal` has no publicationState field, so `updatePortal` is
+    // it. `createPortal` has no publicationState field, so `publishPortal` is
     // the only route to 'published' and owns every one of them.
     //
     // First: a Portal with no public address cannot be published — there would
     // be nothing for a guest to arrive at.
     const addressDenial = await callServerFnExpectError(page, {
       file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'updatePortal',
-      data: { portalId: created.portal.id, publicationState: 'published' },
+      exportName: 'publishPortal',
+      data: { portalId: created.portal.id },
     })
     expect(addressDenial.message ?? '').toContain(
       'Create the Portal public address before publishing',
@@ -380,16 +395,20 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // seeded Portal, whose approval is fixture-provisioned, in "P1 Portal
     // management and opaque public URL survive reload" above.
 
+    await callServerFn(page, {
+      file: 'src/contexts/portal/server/portals.ts',
+      exportName: 'updatePortalSettings',
+      data: {
+        portalId: created.portal.id,
+        description: 'Published through the real Portal command.',
+      },
+    })
     const published = await callServerFn<{
       portal: { id: string; publicationState: string }
     }>(page, {
       file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'updatePortal',
-      data: {
-        portalId: created.portal.id,
-        description: 'Published through the real Portal command.',
-        publicationState: 'published',
-      },
+      exportName: 'publishPortal',
+      data: { portalId: created.portal.id },
     })
     expect(published.portal.publicationState).toBe('published')
     const rotated = await callServerFn<{
@@ -540,11 +559,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     ).toBeVisible()
 
     // Publishing Spa puts its own look live; Reception's page is untouched.
-    const spaPublished = await callServerFn<{ outcome: string }>(page, {
-      file: 'src/contexts/portal/server/portal-publish-changes.ts',
-      exportName: 'publishPortalChanges',
-      data: { portalId: spa.id },
-    })
+    const spaPublished = await publishReviewedChanges(page, spa.id)
     expect(spaPublished.outcome).toBe('published')
     const spaLive = await guestLookOf(page, spa.rawToken)
     expect(spaLive.accent).toBe(ownAccent)
@@ -561,11 +576,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const afterEdit = await lookOverviewOf(page, propertyId)
     expect(afterEdit.get(reception.id)?.pendingChangeCount).toBeGreaterThan(0)
     expect(afterEdit.get(spa.id)?.pendingChangeCount).toBe(0)
-    const spaNothing = await callServerFn<{ outcome: string }>(page, {
-      file: 'src/contexts/portal/server/portal-publish-changes.ts',
-      exportName: 'publishPortalChanges',
-      data: { portalId: spa.id },
-    })
+    const spaNothing = await publishReviewedChanges(page, spa.id)
     expect(spaNothing.outcome).toBe('unchanged')
 
     // The Property look page tells which portal has a look of its own.
@@ -580,11 +591,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     ).toBeVisible()
 
     // Publishing Reception brings the new accent to Reception only.
-    const receptionPublished = await callServerFn<{ outcome: string }>(page, {
-      file: 'src/contexts/portal/server/portal-publish-changes.ts',
-      exportName: 'publishPortalChanges',
-      data: { portalId: reception.id },
-    })
+    const receptionPublished = await publishReviewedChanges(page, reception.id)
     expect(receptionPublished.outcome).toBe('published')
     const receptionAfter = await guestLookOf(page, reception.rawToken)
     expect(receptionAfter.accent).toBe(editedAccent)
@@ -606,11 +613,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     expect(
       (await lookOverviewOf(page, propertyId)).get(spa.id)?.pendingChangeCount,
     ).toBeGreaterThan(0)
-    const spaBack = await callServerFn<{ outcome: string }>(page, {
-      file: 'src/contexts/portal/server/portal-publish-changes.ts',
-      exportName: 'publishPortalChanges',
-      data: { portalId: spa.id },
-    })
+    const spaBack = await publishReviewedChanges(page, spa.id)
     expect(spaBack.outcome).toBe('published')
     expect(await guestLookOf(page, spa.rawToken)).toEqual(receptionAfter)
   })
@@ -724,7 +727,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     )
     const portalMutationDenial = await callServerFnExpectError(page, {
       file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'updatePortal',
+      exportName: 'updatePortalSettings',
       data: {
         portalId: seed.p3PortalId,
         description: 'This cross-tenant mutation must remain inert.',
@@ -1165,7 +1168,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     // Revision is not exercised here. A program that has not started can be
     // revised (the change replaces the version that was waiting and keeps the
-    // start month), and goal-programs.test.ts and the repository suite cover
+    // start month), and goal-programs.integration.test.ts and the repository suite cover
     // that and the other revision rules directly.
 
     // A program that starts next month is 'scheduled' until that month begins,
@@ -1710,11 +1713,17 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // broken password repairs it on the way out.
     try {
       await signIn(page, seed.email, seed.password, BASE_ORIGIN, '/settings/security')
+      await waitForHydration(page)
       await page.getByLabel('Current password').fill(seed.password)
       await page.getByLabel('New password', { exact: true }).fill(temporaryPassword)
       await page.getByLabel('Confirm new password').fill(temporaryPassword)
       await clickWhenReady(page.getByRole('button', { name: 'Update password' }))
       await expect(page.getByText('Password updated')).toBeVisible()
+      // The form resets after the save resolves; a refill before that is wiped
+      // and the second submit would send nothing.
+      await expect(page.getByLabel('Current password')).toHaveValue('')
+      await expect(page.getByLabel('New password', { exact: true })).toHaveValue('')
+      await expect(page.getByLabel('Confirm new password')).toHaveValue('')
       await page.getByLabel('Current password').fill(temporaryPassword)
       await page.getByLabel('New password', { exact: true }).fill(seed.password)
       await page.getByLabel('Confirm new password').fill(seed.password)

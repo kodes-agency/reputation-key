@@ -62,7 +62,31 @@ describe('durable work through PostgreSQL', () => {
     org = randomUUID()
     otherOrg = randomUUID()
     receipt = randomUUID()
-    store = createWorkItems(db(), () => now)
+    const shared = createWorkItems(db(), () => now)
+    // Other suites share this database and may leave due work behind (an
+    // import suite's outbox relay delivers every pending event). Dispatch is
+    // global by design, so this suite counts only its own organizations' rows.
+    store = {
+      ...shared,
+      async reserveDispatch(dispatchBefore?: Date) {
+        const due = await shared.reserveDispatch(dispatchBefore)
+        if (due.length === 0) return due
+        const own = await db()
+          .select({ id: workItems.id })
+          .from(workItems)
+          .where(
+            and(
+              inArray(
+                workItems.id,
+                due.map((row) => row.id),
+              ),
+              inArray(workItems.organizationId, [org, otherOrg]),
+            ),
+          )
+        const ids = new Set(own.map((row) => row.id))
+        return due.filter((row) => ids.has(row.id))
+      },
+    }
   })
   afterEach(async () => {
     resetDelayedExecutionPolicy()

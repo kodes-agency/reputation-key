@@ -5,7 +5,12 @@ import { useId } from 'react'
 import { Check } from 'lucide-react'
 import { useBarSelection } from '#/components/hooks/use-bar-selection'
 import { cn } from '#/lib/utils'
-import { columnsModel, type GoalColumn, type GoalColumnsPlan } from './goal-columns-view'
+import {
+  columnsModel,
+  plotMaxWidthRem,
+  type GoalColumn,
+  type GoalColumnsPlan,
+} from './goal-columns-view'
 
 type Props = Readonly<{
   /** What the bars count, above them. */
@@ -25,11 +30,10 @@ const PLOT = { height: `${PLOT_REM}rem` } as const
 const PAN = { touchAction: 'pan-y' } as const
 const PLAN_KEY = { width: '1rem', borderTop: '1.5px solid var(--foreground)' } as const
 
-/** Few bars stay together, at this much a bar, rather than spread across a wide page. */
-const FEW_COLUMNS = 5
-const COLUMN_REM = 7
-const widthOf = (count: number) =>
-  count > FEW_COLUMNS ? undefined : { maxWidth: `${count * COLUMN_REM}rem` }
+const widthOf = (count: number, hasPlan: boolean) => {
+  const rem = plotMaxWidthRem(count, hasPlan)
+  return rem === null ? undefined : { maxWidth: `${rem}rem` }
+}
 
 /** How far past the bar a column's own number is marked, each side. */
 const MARK_REACH = '-0.3125rem'
@@ -130,14 +134,10 @@ export function GoalColumns({ caption, columns, plan, label, hint }: Props) {
         aria-label={label}
         aria-describedby={`${id}-value`}
         className="min-w-0 rounded focus-ring"
-        style={PAN}
+        style={{ ...PAN, ...widthOf(model.columns.length, plan !== undefined) }}
         {...interactionProps}
       >
-        <div
-          aria-hidden="true"
-          className="@container pt-6"
-          style={plan === undefined ? widthOf(model.columns.length) : undefined}
-        >
+        <div aria-hidden="true" className="@container pt-6">
           <div className="relative flex items-end gap-1 border-b" style={PLOT}>
             {model.columns.map((column, index) => (
               <Column

@@ -1,7 +1,7 @@
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import { guestLocaleFormatTag } from '#/shared/domain/guest-locale'
 import { formatGuestDeadline } from '../guest-deadline-format'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 
 /**
  * The one clock the section reads. `now` travels with the page data and
@@ -53,7 +53,7 @@ function windowState(clock: ResponseClock, window: Window): 'open' | 'ended' | '
 }
 
 function deadlineText(
-  pack: GuestPortalCopyV2,
+  pack: GuestPortalCopy,
   clock: ResponseClock,
   window: Window,
   state: 'open' | 'ended',
@@ -77,7 +77,7 @@ function deadlineText(
  * none of them.
  */
 export function responseSectionRows(
-  pack: GuestPortalCopyV2,
+  pack: GuestPortalCopy,
   response: GuestResponseView,
   clock: ResponseClock,
 ): readonly ResponseRow[] {
@@ -138,7 +138,7 @@ export function responseSectionRows(
 
 function row(
   id: ResponseRowId,
-  pack: GuestPortalCopyV2,
+  pack: GuestPortalCopy,
   clock: ResponseClock,
   window: Window,
   words: Readonly<{

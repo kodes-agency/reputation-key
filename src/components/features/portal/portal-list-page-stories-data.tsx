@@ -100,13 +100,13 @@ export const baseArgs = {
   propertyId: 'prop-1',
   propertyName: 'Avela Resort',
   archiveMutation: action<{
-    data: { portalId: string; publicationState: 'archived' }
+    data: { portalId: string }
   }>(),
   restoreMutation: action<{
-    data: { portalId: string; publicationState: 'disabled' }
+    data: { portalId: string }
   }>(),
   disableMutation: action<{
-    data: { portalId: string; publicationState: 'disabled' }
+    data: { portalId: string }
   }>(),
   groups: [poolSide, frontOfHouse],
   createMutation: action<{

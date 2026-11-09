@@ -48,8 +48,7 @@ const payload = (
     connection('a1', '2026-08-01T00:00:00.000000Z'),
     connection('b2', '2026-08-02T00:00:00.000000Z'),
   ],
-  importSagas: [],
-  importBatches: [],
+  imports: [],
   importItemStateCounts: [
     {
       import_job_id: 'job-1',
@@ -152,6 +151,23 @@ describe('Integration Organization Export entries', () => {
         }),
       ),
     ).toBe(0)
+  })
+
+  it('counts an import on its own as a record', () => {
+    const only = payload({
+      googleConnections: [],
+      importItemStateCounts: [],
+      imports: [{ id: 'import-1', total_count: 2 }],
+    })
+
+    expect(integrationExportRecordCount(only)).toBe(1)
+    const rows = text(
+      buildIntegrationExportEntries(only),
+      'integration/google-lifecycle.csv',
+    )
+      .trimEnd()
+      .split('\n')
+    expect(rows.slice(1).map((row) => row.split(',')[0])).toEqual(['import'])
   })
 
   it('is accepted by the Organization Export bundle builder', async () => {

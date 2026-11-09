@@ -1,3 +1,4 @@
+import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
 import { buildPortalAddressOperations } from './build-address-operations'
 import { assertPersonalGroupTargetAvailable } from './infrastructure/personal-portal-group-guard'
 import { renamePersonalPortalLabels } from './application/use-cases/rename-personal-portal-labels'
@@ -59,9 +60,15 @@ import { createPortalLastPrintRepository } from './infrastructure/repositories/p
 import { createPortalPrintWordingRepository } from './infrastructure/repositories/portal-print-wording.repository'
 import { getPortalCreationOptions } from './application/use-cases/get-portal-creation-options'
 import {
-  updatePortal,
-  type UpdatePortalDeps,
-} from './application/use-cases/update-portal'
+  archivePortal,
+  changePortalLanguages,
+  changePortalSlug,
+  disablePortal,
+  publishPortal,
+  restorePortal,
+  updatePortalSettings,
+} from './publication/portal-intents.server'
+import type { PortalIntentDeps } from './publication/portal-change.server'
 import { buildExperienceUseCases } from './build-experience'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
 import {
@@ -112,7 +119,7 @@ import { getPortalContactRequestManagerAuthorityFacts } from './application/use-
 import { createPortalRatingFacts } from './application/portal-rating-facts'
 import { createGoalReadinessFacts } from './application/goal-readiness-facts'
 import { createPortalWorkflowFactStore } from './infrastructure/portal-workflow-fact-store'
-import { createAtomicPortalCommandStore } from './infrastructure/portal-command-store'
+import { createAtomicPortalCommandStore } from './publication/portal-command-store.server'
 import { decidePublicExecution } from '#/shared/auth/execution-policy'
 import {
   portalGroupId,
@@ -171,12 +178,13 @@ type PortalContextDeps = Readonly<{
   storage?: StoragePort
   /** Optional image processor override (tests inject a fake decoder); absent = sharp. */
   imageProcessor?: ImageProcessorPort
-  ratingGoalGuard: UpdatePortalDeps['ratingGoalGuard']
+  ratingGoalGuard: PortalIntentDeps['ratingGoalGuard'] &
+    Pick<PortalRatingGoalReadApi, 'findPortalRatingGoalBlockInTransaction'>
 }>
 
 export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
-  const portalCommandStore = createAtomicPortalCommandStore(deps.db)
+  const portalCommandStore = createAtomicPortalCommandStore(deps.db, deps.ratingGoalGuard)
   const portalLinkRepo = createPortalLinkRepository(deps.db)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const portalGroupHistoryRepo = createPortalGroupHistoryRepository(deps.db)
@@ -367,7 +375,13 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       identityPublicApi: deps.identityManagerFacts,
       experienceRepo: portalExperienceRepo,
     }),
-    updatePortal: updatePortal(publishChangesDeps),
+    updatePortalSettings: updatePortalSettings(publishChangesDeps),
+    changePortalSlug: changePortalSlug(publishChangesDeps),
+    changePortalLanguages: changePortalLanguages(publishChangesDeps),
+    publishPortal: publishPortal(publishChangesDeps),
+    disablePortal: disablePortal(publishChangesDeps),
+    archivePortal: archivePortal(publishChangesDeps),
+    restorePortal: restorePortal(publishChangesDeps),
     publishPortalChanges: publishPortalChanges(publishChangesDeps),
     publishPortalsChanges: publishPortalsChanges(publishChangesDeps),
     rollbackPortalPublication: rollbackPortalPublication({

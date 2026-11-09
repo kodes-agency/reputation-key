@@ -1,6 +1,6 @@
 // Invite member form stories.
 // The form receives a mutation `Action` prop (the reactive wrapper returned by
-// `useAction`), so stories build mock Actions directly with controllable
+// `useActionMutation`), so stories build mock Actions directly with controllable
 // `isPending`/`error`/`isSuccess` — the type-correct way to reach every state
 // without a live server. Rendered inside the authed memory router
 // (AccountAdmin) per the member-directory convention.

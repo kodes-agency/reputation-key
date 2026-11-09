@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // BQC-3.8 — publication state machine integration tests (real Postgres).
 //
 // Migration 0015 (drizzle/0015_publication-state.sql) persists the durable
@@ -243,7 +244,12 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('the CHECK constraint rejects a publication_state outside the domain union', async () => {
     const db = getDb()
-    await createReviewRepository(db, () => new Date()).upsert(makeReview())
+    await createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    ).upsert(makeReview())
     await createReplyRepository(db, () => new Date()).upsert(makeReply())
 
     await expect(
@@ -262,9 +268,20 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('cancelPublications commits state + one fact per row in the batch tx; published rows stay untouched', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, () => new Date())
+    const store = createAtomicReplyCommandStore(
+      db,
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
 
     await reviewRepo.upsert(makeReview())
     // One review, three replies is impossible (unique review+source+org) —
@@ -366,9 +383,20 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('cancelPublications rolls the WHOLE batch back when one fact fails (no state/fact split)', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, () => new Date())
+    const store = createAtomicReplyCommandStore(
+      db,
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ publicationState: 'authorized' }))
@@ -434,12 +462,19 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('schedules every active state and defers pending reads without creating new write authority', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
     const store = createAtomicReplyCommandStore(
       db,
       () => new Date(),
       async () => true,
+      undefined,
+      replyScopeEffects,
     )
 
     const review = await reviewRepo.upsert(makeReview())
@@ -628,7 +663,13 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('cancelPublications tolerates purge-deleted rows (guarded update matches nothing)', async () => {
     const db = getDb()
-    const store = createAtomicReplyCommandStore(db, () => new Date())
+    const store = createAtomicReplyCommandStore(
+      db,
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
 
     // No rows seeded at all — the disconnect purge already deleted them.
     const count = await store.cancelPublications([
@@ -649,9 +690,20 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('a claimed row cannot be re-claimed after cancellation (race guard on real SQL)', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, () => new Date())
+    const store = createAtomicReplyCommandStore(
+      db,
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ publicationState: 'authorized' }))

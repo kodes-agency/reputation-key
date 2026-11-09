@@ -34,6 +34,7 @@
 // deletes items. Feedback-sourced items are OUT of scope: the guest context
 // is dark for beta (BQC-2.6), so its canonical data is not a rebuild source.
 
+import { lentTransactionArgs } from '../ports/review-open-transaction'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import type {
@@ -273,7 +274,13 @@ async function createAnsweredOnGoogle(
 ): Promise<Readonly<{ created: boolean }> | null> {
   const result = await deps.replyObservationAuthority.withExactCurrent(
     expectation,
-    (permit) => deps.commandStore.createReviewItemAnsweredOnGoogle(item, anchor, permit),
+    (permit, reviewTx) =>
+      deps.commandStore.createReviewItemAnsweredOnGoogle(
+        item,
+        anchor,
+        permit,
+        ...lentTransactionArgs(reviewTx),
+      ),
   )
   if (result.status === 'current') return result.value
   deps.logger.info(

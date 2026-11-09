@@ -144,6 +144,49 @@ function describeBlocker(blocker: PublicationBlocker): string {
   }
 }
 
+/** The configuration publishing `source` against `destination` would store; refused with the first blocker. */
+function buildPublicationConfiguration(
+  source: PortalPublicationSource,
+  destination: VerifiedPublicationDestination,
+): ImmersivePortalPublicationConfiguration {
+  const { blockers, content } = resolvePortalPublication(source)
+  const [first] = blockers
+  if (first) {
+    throw portalError('publication_snapshot_unavailable', describeBlocker(first))
+  }
+  return {
+    schemaVersion: IMMERSIVE_HUB_SCHEMA_VERSION,
+    ...content,
+    reviewGateway: {
+      privateFeedbackThreshold: source.privateFeedbackThreshold,
+      ...(source.skipPrivateRating === true ? { skipPrivateRating: true } : {}),
+      googleReview: { status: 'available', uri: destination.uri },
+    },
+    googleReviewBinding: {
+      retrievedAt: destination.retrievedAt.toISOString(),
+      sourceEpoch: destination.sourceEpoch,
+      profileVersion: destination.profileVersion,
+    },
+  }
+}
+
+/**
+ * The digest of what publishing `source` now would put live, or null when
+ * nothing can be published yet (a blocker, or no verified destination). The
+ * review hands it out and publication compares it with its own.
+ */
+export function reviewedPublicationDigest(
+  source: PortalPublicationSource,
+  destination: VerifiedPublicationDestination | null,
+): string | null {
+  if (destination === null || resolvePortalPublication(source).blockers.length > 0) {
+    return null
+  }
+  return digestPortalPublicationConfiguration(
+    buildPublicationConfiguration(source, destination),
+  )
+}
+
 /**
  * The schema version 3 snapshot publishing `input.source` would store. Nothing
  * else is written any more: a source with a gap in its primary language, a
@@ -154,25 +197,7 @@ export function buildPortalPublicationSnapshot(
   input: PublicationInput,
 ): PortalPublicationSnapshot {
   assertPublicationEnvelope(input)
-  const { blockers, content } = resolvePortalPublication(input.source)
-  const [first] = blockers
-  if (first) {
-    throw portalError('publication_snapshot_unavailable', describeBlocker(first))
-  }
-  const configuration: ImmersivePortalPublicationConfiguration = {
-    schemaVersion: IMMERSIVE_HUB_SCHEMA_VERSION,
-    ...content,
-    reviewGateway: {
-      privateFeedbackThreshold: input.source.privateFeedbackThreshold,
-      ...(input.source.skipPrivateRating === true ? { skipPrivateRating: true } : {}),
-      googleReview: { status: 'available', uri: input.destination.uri },
-    },
-    googleReviewBinding: {
-      retrievedAt: input.destination.retrievedAt.toISOString(),
-      sourceEpoch: input.destination.sourceEpoch,
-      profileVersion: input.destination.profileVersion,
-    },
-  }
+  const configuration = buildPublicationConfiguration(input.source, input.destination)
   const snapshot: PortalPublicationSnapshot = {
     // fallow-ignore-next-line code-duplication
     id: input.id,

@@ -8,7 +8,10 @@ import { dashboardKeys, goalKeys } from '#/shared/queries/query-keys'
 // The Portal goal results page's reads (below): the Goals list's own.
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
-import { listGoalPrograms } from '#/contexts/reporting/server/goal-programs'
+import {
+  getGoalProgramHistory,
+  listGoalPrograms,
+} from '#/contexts/reporting/server/goal-programs'
 import { portalKeys } from '#/shared/queries/query-keys'
 
 type MonthlyPortalGoalServer =
@@ -112,33 +115,91 @@ export async function markPortalGoalReadsStale(
 /** A read of the goals is good for this long, as on the Goals page. */
 const GOALS_STALE_MS = 30_000
 
-/**
- * The Portal goal results page's reads (`/goals/portal-results`, PLAN PG-18):
- * the Property's goals with every month's result, and the names of the Portals
- * and groups they count. They are the Goals page's own reads under the same
- * keys, so a page opened from the other reads nothing again; each is a copy the
- * route-query-definitions test holds to the same read. Here, in the chunk the
- * goal routes already fetch on demand, so the page adds no chunk of its own to
- * first paint's preload map. Their server functions are imported, unlike the
- * Monthly portal goal's: the Goals route already loads them with first paint.
- */
-export const portalGoalResultsQueries = (propertyId: string) => ({
-  goals: queryOptions({
+type ListedProgram = Awaited<ReturnType<typeof listGoalPrograms>>['programs'][number]
+
+/** The matrix and notification links explicitly ask for retained history. */
+export async function readPortalGoalProgramHistories(
+  propertyId: string,
+  summaries?: readonly ListedProgram[],
+) {
+  const listed = summaries ?? (await listGoalPrograms({ data: { propertyId } })).programs
+  const programs = await Promise.all(
+    listed.map(async (summary) => {
+      const results = new Map(summary.results.map((row) => [row.id, row]))
+      const versions = new Map(summary.versions.map((row) => [row.id, row]))
+      const assignments = new Map(summary.assignments.map((row) => [row.id, row]))
+      const changes = new Map(summary.targetChanges?.map((row) => [row.id, row]))
+      const targetProvenance = { ...summary.targetProvenance }
+      let after: { periodStart: Date; id: string } | undefined
+      do {
+        const page = await getGoalProgramHistory({
+          data: { propertyId, programId: summary.program.id, after },
+        })
+        for (const row of page.results) results.set(row.id, row)
+        for (const row of page.versions) versions.set(row.id, row)
+        for (const row of page.assignments) assignments.set(row.id, row)
+        for (const row of page.targetChanges) changes.set(row.id, row)
+        Object.assign(targetProvenance, page.targetProvenance)
+        after = page.next ?? undefined
+      } while (after)
+      return {
+        ...summary,
+        targetProvenance,
+        results: [...results.values()].sort(
+          (a, b) =>
+            a.periodStart.getTime() - b.periodStart.getTime() || a.id.localeCompare(b.id),
+        ),
+        versions: [...versions.values()],
+        assignments: [...assignments.values()],
+        targetChanges: [...changes.values()].sort(
+          (a, b) =>
+            a.createdAt.getTime() - b.createdAt.getTime() ||
+            a.changeId.localeCompare(b.changeId) ||
+            a.monthlyResultId.localeCompare(b.monthlyResultId),
+        ),
+      }
+    }),
+  )
+  return { programs }
+}
+
+/** Summary and history caches are distinct; mutations invalidate their shared prefix. */
+export const portalGoalResultsQueries = (
+  propertyId: string,
+  queryClient?: QueryClient,
+) => {
+  const summaries = queryOptions({
     queryKey: goalKeys.list({ propertyId, model: 'program' }),
     queryFn: () => listGoalPrograms({ data: { propertyId } }),
     staleTime: GOALS_STALE_MS,
-  }),
-  subjectNames: queryOptions({
-    queryKey: portalKeys.goalSubjectNames(propertyId),
-    queryFn: async () => {
-      const [groups, portals] = await Promise.all([
-        listPortalGroups({ data: { propertyId } }),
-        listPortals({ data: { propertyId } }),
-      ])
-      return { groups: groups.groups, portals: portals.portals }
-    },
-  }),
-})
+  })
+  const readHistory = async () =>
+    readPortalGoalProgramHistories(
+      propertyId,
+      (
+        await (queryClient
+          ? queryClient.fetchQuery(summaries)
+          : listGoalPrograms({ data: { propertyId } }))
+      ).programs,
+    )
+  return {
+    goals: queryOptions({
+      queryKey: [...goalKeys.list({ propertyId, model: 'program' }), 'history'],
+      queryFn: readHistory,
+      staleTime: GOALS_STALE_MS,
+    }),
+    subjectNames: queryOptions({
+      queryKey: portalKeys.goalSubjectNames(propertyId),
+      queryFn: async () => {
+        const [groups, portals] = await Promise.all([
+          listPortalGroups({ data: { propertyId } }),
+          listPortals({ data: { propertyId } }),
+        ])
+        return { groups: groups.groups, portals: portals.portals }
+      },
+    }),
+  }
+}
 
 /**
  * Primes the results page: both reads, together. A failure fails the page, as
@@ -148,7 +209,7 @@ export async function prefetchPortalGoalResults(
   queryClient: QueryClient,
   propertyId: string,
 ): Promise<void> {
-  const queries = portalGoalResultsQueries(propertyId)
+  const queries = portalGoalResultsQueries(propertyId, queryClient)
   await Promise.all([
     queryClient.ensureQueryData(queries.goals),
     queryClient.ensureQueryData(queries.subjectNames),

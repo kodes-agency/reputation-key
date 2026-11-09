@@ -13,7 +13,7 @@ import type { PropertyRatingGoal } from '../domain/rating-goal'
 import type {
   RatingGoalLowReviewRead,
   RatingGoalThisWeekView,
-} from './dto/rating-goal.types'
+} from '../rating-goals/contracts'
 import type { RatingGoalReading } from './rating-goal-reading'
 import { goalBasis } from './rating-goal-views'
 

@@ -1,22 +1,22 @@
 import type { PropertyResponsibilityNeeded } from '#/contexts/property/application/public-api'
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
+import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 import type { PropertyPayloadDeps } from './notification-payload-facts'
-import { enqueueResponsibilityGapNotification } from './responsibility-gap-notification'
+import { responsibilityGapNotices } from './responsibility-gap-notification'
 
 export const ON_PROPERTY_RESPONSIBILITY_NEEDED_CONSUMER =
   'notification.on-property-responsibility-needed' as const
 
 export type PropertyNotificationConsumerDeps = PropertyPayloadDeps &
+  NoticeDeliveryDeps &
   Readonly<{
-    queue: NotificationJobEnqueuePort
     userLookup: UserLookupPort
     logger: LoggerPort
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
   }>
 
 type Payload = Readonly<{
@@ -45,7 +45,7 @@ function parse(event: ConsumerEvent): Payload {
 export async function handleNotificationPropertyResponsibilityNeeded(
   deps: PropertyNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' }>> {
+): Promise<ConsumerResult> {
   const payload = parse(event)
   const needed: PropertyResponsibilityNeeded = {
     _tag: 'property.responsibility_became_needed',
@@ -56,16 +56,15 @@ export async function handleNotificationPropertyResponsibilityNeeded(
     actorUserId: payload.actorUserId ? userId(payload.actorUserId) : null,
     occurredAt: new Date(payload.occurredAt),
   }
-  await enqueueResponsibilityGapNotification(deps, needed, {
-    kind: 'property',
-    propertyId: needed.propertyId,
-  })
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  return deliverNotices(
+    deps,
+    event,
     ON_PROPERTY_RESPONSIBILITY_NEEDED_CONSUMER,
-    'applied',
+    await responsibilityGapNotices(deps, needed, {
+      kind: 'property',
+      propertyId: needed.propertyId,
+    }),
   )
-  return { status: 'applied' }
 }
 
 export function registerPropertyNotificationConsumers(

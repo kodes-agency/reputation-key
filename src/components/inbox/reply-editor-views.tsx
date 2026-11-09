@@ -25,7 +25,7 @@ import {
   DOCK_TEXT_ROW_CLASS,
   DOCK_TEXTAREA_CLASS,
 } from './composer-dock-rows'
-import { useReplyConfirmationHold } from './use-reply-confirmation-hold'
+import { useReplyConfirmationHold } from '#/contexts/reputation/replies/ui/use-reply-confirmation-hold'
 
 /**
  * Puts the caret in a reply editing surface as it opens, and brings it just

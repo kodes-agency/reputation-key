@@ -37,16 +37,15 @@ import {
   applyRecoveryFence,
   inspectRecoveryFence,
 } from '../../src/shared/db/recovery/postgres-recovery-fence'
-import {
-  createRetentionSweepHandler,
-  RETENTION_RULES,
-} from '../../src/shared/jobs/retention-sweep.job'
+import { createRetentionSweepHandler } from '../../src/shared/jobs/retention-sweep.job'
+import { RETENTION_RULES } from '../../src/composition/retention-rules'
 import { countRetentionRuleCandidates } from '../../src/shared/db/retention/execute-retention-rule'
 import { retentionRuleCutoff } from '../../src/shared/db/retention/retention-cutoff'
 import {
   collectReviewSourceContentLifecycleReport,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
 } from '../../src/contexts/review/application/public-api'
+import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
 import { runOperatorCommand } from './operator-command'
 
 async function main(): Promise<void> {
@@ -116,6 +115,7 @@ async function main(): Promise<void> {
             container.db,
             input,
             container.integrationWorkerRuntime.completeImportsForRestore,
+            reputationReplyScopeEffects,
           ),
         purgeEvidence: async (): Promise<ReadonlyArray<RestoreVerifyEvidenceRow>> => {
           const rows = await container.db.execute(sql`

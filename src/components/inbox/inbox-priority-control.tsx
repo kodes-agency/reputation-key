@@ -20,7 +20,10 @@ import {
   type InboxItem,
   type InboxPriority,
 } from '#/contexts/inbox/application/public-api'
-import type { InboxCurrentUser, InboxPriorityMenuBox } from './inbox-case-toolbar-props'
+import type {
+  InboxCurrentUser,
+  InboxPriorityMenuBox,
+} from '../../contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 import { INBOX_SOURCE_HANDLE_PERMISSION } from './inbox-owner-control'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import { InboxPriorityGlyph } from './inbox-priority-glyph'

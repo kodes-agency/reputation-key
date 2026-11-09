@@ -174,7 +174,6 @@ export function buildContainerCapabilities({
     inboxMaintenanceRuntime: inbox.maintenance,
     inboxRuntime: inbox.runtime,
     metricPublicApi: reporting.publicApi,
-    metricMaintenanceRuntime: reporting.maintenance,
     dashboardPublicApi: reporting.publicApi,
     goalPublicApi: reporting.publicApi,
     goalWorkerRuntime: reporting.worker,
@@ -195,26 +194,14 @@ export function buildContainerCapabilities({
     // BQC-2.7: least-privilege policy administration operations.
     policyAdmin: identity.policy.admin,
     portalPublicApi: portal.publicApi,
-    notificationWorkerRuntime: Object.freeze({
-      notificationRepo: notification.delivery.repos.notificationRepo,
-      emailRepo: notification.delivery.repos.emailRepo,
-      preferenceRepo: notification.delivery.repos.preferenceRepo,
-      // Rechecked immediately before every Property-scoped email is sent.
-      recipientStanding: notification.delivery.recipientStanding,
-      // Whether the work a notice asks for still waits: asked before it is
-      // written and again before its email is sent.
-      workState: notification.delivery.workState,
-      // A review's eligible rating, to route its notice as a Low ratings one.
-      ratingForRouting: notification.delivery.ratingForRouting,
-    }),
     handleResendEvent: notification.delivery.handleResendEvent,
-    notificationAudienceAuthorizer: notification.delivery.authorizeAudience,
-    notificationDeliverySettlement: notification.delivery.deliverySettlement,
-    // The repair sweep for notification deliveries that never settled
-    // (registered by bootstrap on the worker path). Undefined when no job
-    // queue exists.
-    reconcileMissingNotificationsHandler:
-      notification.delivery.reconcileMissingNotificationsHandler,
+    // The worker's insert, email and digest processors, plus the repair sweep
+    // for deliveries that never settled (undefined when no job queue exists).
+    notificationDelivery: Object.freeze({
+      createProcessors: notification.delivery.createProcessors,
+      reconcileMissingNotificationsHandler:
+        notification.delivery.reconcileMissingNotificationsHandler,
+    }),
     // BQC-2.2: version-gated strong read of persisted policy state.
     // Workers await this before starting; side-effect paths use it for
     // fresh reads (BQC-2.5). Owned by the identity build (readiness).

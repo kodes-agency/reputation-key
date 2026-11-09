@@ -1,0 +1,130 @@
+import { MapPin } from 'lucide-react'
+import type {
+  ImportAccountDto,
+  ImportCandidateDto,
+} from '#/contexts/integration/application/public-api'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '#/components/ui/card'
+import { EmptyState } from '#/components/ui/empty-state'
+import { SearchField } from '#/components/ui/search-field'
+import { GoogleImportAccountList } from '#/components/features/integration/google-import-manager/google-import-account-list'
+import { GoogleImportCandidateResults } from './google-import-candidate-results'
+import { GoogleImportSelectionFooter } from './google-import-selection-footer'
+
+type Props = Readonly<{
+  accounts: readonly ImportAccountDto[]
+  candidates: readonly ImportCandidateDto[]
+  selectedAccountRef: string | null
+  selectedIds: ReadonlySet<string>
+  search: string
+  isLoadingAccounts: boolean
+  isLoadingMoreAccounts: boolean
+  hasMoreAccounts: boolean
+  isLoadingCandidates: boolean
+  isLoadingMoreCandidates: boolean
+  hasMoreCandidates: boolean
+  accountsError: string | null
+  candidatesError: string | null
+  /** Restart discovery; null when the failure is not one a restart clears. */
+  onRecoverCandidates: (() => void) | null
+  selectAllError: string | null
+  isSelectingAll: boolean
+  onSearchChange: (value: string) => void
+  onSelectAccount: (accountRef: string) => void
+  onToggleCandidate: (candidate: ImportCandidateDto, checked: boolean) => void
+  onToggleLoaded: (checked: boolean) => void
+  onSelectAllEligible: () => void
+  onLoadMoreAccounts: () => void
+  onLoadMoreCandidates: () => void
+  onReview: () => void
+}>
+
+export function GoogleImportDiscoveryPanel(props: Props) {
+  const selectedAccount = props.accounts.find(
+    (account) => account.accountRef === props.selectedAccountRef,
+  )
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[minmax(15rem,0.34fr)_minmax(0,1fr)]">
+      <GoogleImportAccountList
+        accounts={props.accounts}
+        selectedAccountRef={props.selectedAccountRef}
+        isLoading={props.isLoadingAccounts}
+        isLoadingMore={props.isLoadingMoreAccounts}
+        hasMore={props.hasMoreAccounts}
+        error={props.accountsError}
+        onSelect={props.onSelectAccount}
+        onLoadMore={props.onLoadMoreAccounts}
+      />
+
+      <Card className="min-w-0 gap-4">
+        <CardHeader>
+          <CardTitle as="h2">
+            {selectedAccount ? selectedAccount.displayName : 'Locations'}
+          </CardTitle>
+          <CardDescription>
+            Search and select locations. Large selections continue in resumable background
+            batches.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!props.selectedAccountRef ? (
+            <EmptyState
+              icon={MapPin}
+              title="Choose a business account"
+              description="Its locations will appear here. Provider identifiers stay hidden."
+            />
+          ) : (
+            <>
+              <SearchField
+                label="Search loaded Google locations"
+                placeholder="Search loaded names, addresses, or categories"
+                value={props.search}
+                onValueChange={props.onSearchChange}
+                className="sm:w-full"
+              />
+
+              {props.selectAllError ? (
+                <Alert variant="warning">
+                  <AlertTitle>Some locations could not be loaded</AlertTitle>
+                  <AlertDescription>{props.selectAllError}</AlertDescription>
+                </Alert>
+              ) : null}
+
+              <GoogleImportCandidateResults
+                candidates={props.candidates}
+                selectedIds={props.selectedIds}
+                isLoading={props.isLoadingCandidates}
+                error={props.candidatesError}
+                onRecover={props.onRecoverCandidates}
+                onClearSearch={
+                  props.search.trim() === '' ? null : () => props.onSearchChange('')
+                }
+                onToggleCandidate={props.onToggleCandidate}
+                onToggleLoaded={props.onToggleLoaded}
+              />
+
+              <GoogleImportSelectionFooter
+                selectedCount={props.selectedIds.size}
+                loadedCount={props.candidates.length}
+                isLoadingCandidates={props.isLoadingCandidates}
+                isLoadingMoreCandidates={props.isLoadingMoreCandidates}
+                hasMoreCandidates={props.hasMoreCandidates}
+                isSelectingAll={props.isSelectingAll}
+                onSelectAllEligible={props.onSelectAllEligible}
+                onLoadMoreCandidates={props.onLoadMoreCandidates}
+                onReview={props.onReview}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

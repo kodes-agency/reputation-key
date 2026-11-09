@@ -1,14 +1,6 @@
-// The hourly job's listing of scheduled and active goals, against PostgreSQL.
-//
-// It loads every program's versions, assignments, results and the revisions of
-// those results by id. PostgreSQL takes at most 65,535 bound values in one
-// statement, and node-postgres writes the count as a 16-bit integer, so a
-// listing whose results outnumber that fails: nothing activates, no month
-// opens, no result reconciles or closes, for any tenant, until the volume
-// shrinks, and it never does (closed months are kept).
-//
-// Nothing is committed: monthly results cannot be deleted, so the fixture and
-// every statement run in one held transaction that is rolled back.
+// Maintenance reads current state independently of retained months. The ledger
+// stays pageable even beyond PostgreSQL's parameter limit. Fixtures live in a
+// held transaction because monthly results are immutable and cannot be deleted.
 
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -17,8 +9,11 @@ import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
-import type { GoalProgramBundle } from '../../application/ports/goal-program.repository'
+import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../readings/contracts'
+import type {
+  GoalDueResultCursor,
+  GoalProgramBundle,
+} from '../../application/ports/goal-program.repository'
 import { createGoalProgramRepository } from './goal-program.repository'
 
 /** One more month than a single statement can bind an id for. */
@@ -30,8 +25,10 @@ describe.sequential('Goal Program listing for maintenance (integration)', () => 
   let client: HeldTransaction['client']
   let db: Database
 
-  async function activeGoalWithMonths(count: number): Promise<GoalProgramBundle> {
-    const organizationId = `goal-listing-${randomUUID()}`
+  async function activeGoalWithMonths(
+    count: number,
+    organizationId = `goal-listing-${randomUUID()}`,
+  ): Promise<GoalProgramBundle> {
     const propertyId = randomUUID()
     const programId = randomUUID()
     const createdAt = new Date(FIRST_MONTH)
@@ -130,10 +127,137 @@ describe.sequential('Goal Program listing for maintenance (integration)', () => 
   it('lists a goal that holds more results than one statement can bind an id for', async () => {
     const goal = await activeGoalWithMonths(RESULT_COUNT)
 
-    const listed = (await createGoalProgramRepository(db).listOperational()).find(
-      (bundle) => bundle.program.id === goal.program.id,
-    )
+    const listed = (
+      await createGoalProgramRepository(db).listOperational({
+        organizationId: goal.program.organizationId,
+        propertyId: goal.program.propertyId,
+        id: '00000000-0000-0000-0000-000000000000',
+      })
+    ).find((bundle) => bundle.program.id === goal.program.id)
 
-    expect(listed?.results).toHaveLength(RESULT_COUNT)
+    expect(listed?.results).toHaveLength(1)
+    const repository = createGoalProgramRepository(db)
+    let retained = 0
+    const retainedIds = new Set<string>()
+    let after: { periodStart: Date; id: string } | undefined
+    do {
+      const page = await repository.listHistory(
+        goal.program.organizationId,
+        goal.program.propertyId,
+        goal.program.id,
+        { after },
+      )
+      expect(page.results.length).toBeLessThanOrEqual(100)
+      retained += page.results.length
+      for (const result of page.results) retainedIds.add(result.id)
+      after = page.next ?? undefined
+    } while (after)
+    expect(retained).toBe(RESULT_COUNT)
+    expect(retainedIds.size).toBe(RESULT_COUNT)
+  }, 120_000)
+
+  it('reads current figures independently of the ledger and pages every retained month', async () => {
+    const goal = await activeGoalWithMonths(7)
+    const repository = createGoalProgramRepository(db)
+    const summary = await repository.getSummary(
+      goal.program.organizationId,
+      goal.program.propertyId,
+      goal.program.id,
+    )
+    expect(summary?.results).toHaveLength(2)
+    const pages = []
+    let after: { periodStart: Date; id: string } | undefined
+    do {
+      const page = await repository.listHistory(
+        goal.program.organizationId,
+        goal.program.propertyId,
+        goal.program.id,
+        { limit: 3, after },
+      )
+      expect(page.results.length).toBeLessThanOrEqual(3)
+      pages.push(...page.results)
+      after = page.next ?? undefined
+    } while (after)
+    expect(pages).toHaveLength(7)
+    expect(new Set(pages.map((row) => row.id)).size).toBe(7)
+    expect(pages.map((row) => row.periodStart.toISOString())).toEqual([
+      '2026-07-01T00:00:00.000Z',
+      '2026-06-01T00:00:00.000Z',
+      '2026-05-01T00:00:00.000Z',
+      '2026-04-01T00:00:00.000Z',
+      '2026-03-01T00:00:00.000Z',
+      '2026-02-01T00:00:00.000Z',
+      '2026-01-01T00:00:00.000Z',
+    ])
+    expect(
+      await repository.getSummary(
+        'another-tenant',
+        goal.program.propertyId,
+        goal.program.id,
+      ),
+    ).toBeNull()
+    expect(
+      (
+        await repository.listHistory(
+          'another-tenant',
+          goal.program.propertyId,
+          goal.program.id,
+          { limit: 3 },
+        )
+      ).results,
+    ).toEqual([])
+  })
+
+  it('bounds Program and due-result pages and crosses cursor ties without losing history', async () => {
+    const prefix = `goal-paging-${randomUUID()}`
+    const goals: GoalProgramBundle[] = []
+    for (let index = 0; index < 101; index++) {
+      goals.push(
+        await activeGoalWithMonths(1, `${prefix}-${String(index).padStart(3, '0')}`),
+      )
+    }
+    const repository = createGoalProgramRepository(db)
+    const first = await repository.listOperational({
+      organizationId: prefix,
+      propertyId: '00000000-0000-0000-0000-000000000000',
+      id: '00000000-0000-0000-0000-000000000000',
+    })
+    expect(first.map(({ program }) => program.id)).toEqual(
+      goals.slice(0, 100).map(({ program }) => program.id),
+    )
+    expect(first.every(({ results }) => results.length === 1)).toBe(true)
+    const last = first[99]!.program
+    const second = await repository.listOperational({
+      organizationId: last.organizationId,
+      propertyId: last.propertyId,
+      id: last.id,
+    })
+    expect(second[0]!.program.id).toBe(goals[100]!.program.id)
+
+    const expected = new Set(goals.map(({ program }) => program.id))
+    const seen: string[] = []
+    const visited = new Set<string>()
+    let after: GoalDueResultCursor | undefined
+    while (true) {
+      const page = await repository.listDueResults(
+        new Date('2026-02-01T00:00:00Z'),
+        after,
+      )
+      expect(page.length).toBeLessThanOrEqual(100)
+      for (const result of page) {
+        expect(visited.has(result.id)).toBe(false)
+        visited.add(result.id)
+      }
+      seen.push(
+        ...page
+          .filter((result) => expected.has(result.programId))
+          .map((result) => result.programId),
+      )
+      if (page.length < 100) break
+      const tail = page[99]!
+      after = { periodEnd: tail.periodEnd, id: tail.id }
+    }
+    expect(seen).toHaveLength(101)
+    expect(new Set(seen)).toEqual(expected)
   }, 120_000)
 })

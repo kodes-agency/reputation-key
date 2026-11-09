@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // Portal working copy (F4): publish, the in-transaction verification and the
 // history comparison must all see one working copy. These tests seed the rows
 // by SQL and pin what the working copy is (golden), then prove that each of
@@ -159,7 +160,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
     const source = await publishRead(COMPLETE_SCENARIO)
 
-    await publishFromSource(COMPLETE_SCENARIO, source!)
+    await publishFromSource(COMPLETE_SCENARIO, source!, createPortalRatingGoalGuard())
 
     await expect(snapshotCount()).resolves.toBe(1)
     await expect(historyHasPendingChanges(COMPLETE_SCENARIO)).resolves.toBe(false)
@@ -168,7 +169,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
   it('reads back, through the repository, exactly the v3 snapshot it committed', async () => {
     await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
     const source = await publishRead(COMPLETE_SCENARIO)
-    await publishFromSource(COMPLETE_SCENARIO, source!)
+    await publishFromSource(COMPLETE_SCENARIO, source!, createPortalRatingGoalGuard())
 
     const active = await createPortalPublicationRepository(getDb()).findActiveForPortal(
       COMPLETE_SCENARIO.organizationId,
@@ -202,7 +203,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     await seedPortalWorkingCopy(getPool(), NO_BRAND_SCENARIO)
     const source = await publishRead(NO_BRAND_SCENARIO)
 
-    await publishFromSource(NO_BRAND_SCENARIO, source!)
+    await publishFromSource(NO_BRAND_SCENARIO, source!, createPortalRatingGoalGuard())
 
     await expect(snapshotCount()).resolves.toBe(1)
     await expect(historyHasPendingChanges(NO_BRAND_SCENARIO)).resolves.toBe(false)
@@ -212,7 +213,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     await seedPortalWorkingCopy(getPool(), INCOMPLETE_SCENARIO)
     const source = await publishRead(INCOMPLETE_SCENARIO)
 
-    await publishFromSource(INCOMPLETE_SCENARIO, source!)
+    await publishFromSource(INCOMPLETE_SCENARIO, source!, createPortalRatingGoalGuard())
 
     const { rows } = await getPool().query(
       `SELECT configuration->'localizedContent'->'bg'->'title' AS title
@@ -387,7 +388,9 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
 
     await getPool().query(mutation)
 
-    await expect(publishFromSource(COMPLETE_SCENARIO, source!)).rejects.toMatchObject({
+    await expect(
+      publishFromSource(COMPLETE_SCENARIO, source!, createPortalRatingGoalGuard()),
+    ).rejects.toMatchObject({
       code: 'revision_conflict',
     })
     await expect(snapshotCount()).resolves.toBe(0)
@@ -396,7 +399,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
   it('reports a pending change once the working copy moves past the published one', async () => {
     await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
     const source = await publishRead(COMPLETE_SCENARIO)
-    await publishFromSource(COMPLETE_SCENARIO, source!)
+    await publishFromSource(COMPLETE_SCENARIO, source!, createPortalRatingGoalGuard())
 
     await getPool().query(
       `UPDATE portal_link_texts SET label = 'Renamed', updated_at = $1 WHERE label = 'Меню'`,

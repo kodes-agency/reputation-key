@@ -10,6 +10,7 @@ import { buildIdentityContext } from '#/contexts/identity/build'
 import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
 import { sendInvitationEmail, sendStaffCodeReadyEmail } from '#/shared/auth/emails'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
+import { reputationReplyScopeEffects } from './reply-scope-effects'
 import { composeOrganizationLifecycle } from './organization-export-contributors'
 import type { CompositionRuntime, ContextWiringInput } from './runtime'
 import type { buildPropertyContext } from '#/contexts/property/build'
@@ -49,6 +50,7 @@ export function wireIdentity(
     env.BETTER_AUTH_SECRET,
   )
   const identity = buildIdentityContext({
+    replyEffects: reputationReplyScopeEffects,
     staffAccounts: {
       staffScanTargetsEnabled: env.STAFF_SCAN_TARGETS_ENABLED,
       authorizeProperty: (ctx, propertyId, action) =>
@@ -85,8 +87,8 @@ export function wireIdentity(
             ctx,
           ),
         publish: async (portalIdValue, ctx) => {
-          await getPortal().publicApi.management.updatePortal(
-            { portalId: portalIdValue, publicationState: 'published' },
+          await getPortal().publicApi.management.publishPortal(
+            { portalId: portalIdValue },
             ctx,
           )
         },

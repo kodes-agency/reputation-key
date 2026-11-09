@@ -18,15 +18,15 @@ import type { getGuestVoiceV2Fn } from '#/contexts/ai/server/guest-voice-v2'
 import { reviewId } from '#/shared/domain/ids'
 import { LARGE_READ } from '../../../contexts/ai/guest-voice/ui/guest-voice-fixtures-large'
 import { PropertyOverview } from './property-overview'
-import { RatingGoalCard } from '#/components/goals/rating-goal-card'
-import { PortalGoalOverview } from '#/components/goals/portal-goal-overview'
-import { overviewPortalGoalView } from '#/components/goals/portal-goal-overview-view'
-import { CARD_RUNNING } from '#/components/goals/portal-goal-running.stories.fixtures'
+import { RatingGoalCard } from '#/contexts/reporting/rating-goals/ui/rating-goal-card'
+import { PortalGoalOverview } from '#/contexts/reporting/monthly-goals/ui/portal-goal-overview'
+import { overviewPortalGoalView } from '#/contexts/reporting/monthly-goals/ui/portal-goal-overview-view'
+import { CARD_RUNNING } from '#/contexts/reporting/monthly-goals/ui/portal-goal-running.stories.fixtures'
 import {
   CARD,
   FIXTURE_NOW,
   FIXTURE_TIMEZONE,
-} from '#/components/goals/rating-goal.stories.fixtures'
+} from '#/contexts/reporting/rating-goals/ui/rating-goal.stories.fixtures'
 import {
   activeSignals,
   calmSignals,

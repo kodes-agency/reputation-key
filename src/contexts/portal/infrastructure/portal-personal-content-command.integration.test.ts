@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // A person's guest page takes over another Portal's wording, links and look in one
 // commit (R19). The rows and the working copy publication reads, on real PostgreSQL.
 
@@ -13,7 +14,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { loadCopySource } from '../application/create-portal-resolvers'
 import { planPortalContentCopy } from '../application/portal-content-copy'
 import { portalUpdated } from '../domain/events'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { createPortalExperienceRepository } from './repositories/portal-experience.repository'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
 import { createPortalLookRepository } from './repositories/portal-look.repository'
@@ -80,7 +81,7 @@ async function world() {
     SOURCE.organizationId,
     SOURCE.portalId,
   )
-  await publishFromSource(SOURCE, working!)
+  await publishFromSource(SOURCE, working!, createPortalRatingGoalGuard())
   await seedSiblingPortal(getPool(), SOURCE, {
     portalId: PAGE,
     slug: 'portal-polly',
@@ -185,7 +186,11 @@ async function world() {
       }),
     }
   }
-  return { command, publication, store: createAtomicPortalCommandStore(db) }
+  return {
+    command,
+    publication,
+    store: createAtomicPortalCommandStore(db, createPortalRatingGoalGuard()),
+  }
 }
 
 const pageContent = async () => ({

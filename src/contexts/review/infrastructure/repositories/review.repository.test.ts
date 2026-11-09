@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Review context — review repository integration tests
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
@@ -180,10 +181,38 @@ function makeReview(
     analysisSequence: 0,
     aiSourceByteLength: 1,
     aiSourceDigest: '0'.repeat(64),
+    firstFetchedAt: now,
+    lastFetchedAt: now,
+    contentExpiresAt: new Date(now.getTime() + 25 * 24 * 60 * 60 * 1000),
     createdAt: now,
     updatedAt: now,
     ...rest,
   } as Review
+}
+
+/**
+ * Gives every active Review of an Organization that holds a content clock its
+ * content row, the way the sync writes it. The rows go with their Reviews.
+ */
+async function seedSourceContents(organizationId: string) {
+  await pool.query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, reviewer_name, rating, text, reviewed_at,
+       first_fetched_at, last_fetched_at, content_expires_at, source_epoch,
+       source_revision, ai_source_byte_length, ai_source_digest
+     )
+     SELECT id, organization_id, property_id, platform, external_id,
+            external_location_id, reviewer_name, rating, text, reviewed_at,
+            first_fetched_at, COALESCE(last_fetched_at, reviewed_at),
+            content_expires_at, source_epoch, source_revision,
+            ai_source_byte_length, ai_source_digest
+     FROM reviews
+     WHERE organization_id = $1 AND source_content_state = 'active'
+       AND content_expires_at IS NOT NULL
+     ON CONFLICT (review_id) DO NOTHING`,
+    [organizationId],
+  )
 }
 
 /** `count` live Reviews of one Property, newest first by their review date. */
@@ -202,13 +231,19 @@ async function seedBulkReviews(count: number) {
      FROM generate_series(1, $3::int) AS n`,
     [ORG_A, PROP_A, count],
   )
+  await seedSourceContents(ORG_A)
 }
 
 describe.sequential('reviewRepository (integration)', () => {
   describe('upsert and findByExternalId', () => {
     it('inserts and retrieves a review', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const review = makeReview()
 
       const created = await repo.upsert(review)
@@ -222,14 +257,24 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('returns null for non-existent review', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const found = await repo.findByExternalId('google', 'non-existent', ORG_A)
       expect(found).toBeNull()
     })
 
     it('updates existing review on upsert', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const review = makeReview({ rating: 5 })
 
       await repo.upsert(review)
@@ -254,7 +299,12 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('advances fetch clock + hash baseline on an unchanged refetch, preserving firstFetchedAt', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
 
       await repo.upsert(
         makeReview({
@@ -293,7 +343,12 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('advances the clock and updates content + baseline on a changed refetch', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
 
       await repo.upsert(
         makeReview({
@@ -328,70 +383,14 @@ describe.sequential('reviewRepository (integration)', () => {
     })
   })
 
-  describe('findRecentEligibleByPropertyId (BQC-1.4 serving read)', () => {
-    const T1 = new Date('2025-06-01T12:00:00Z')
-    const FUTURE = new Date('2099-01-01T00:00:00Z')
-
-    it('returns only eligible reviews: excludes expired and clock-less rows', async () => {
-      const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
-
-      await repo.upsert(
-        makeReview({
-          id: '1a000000-0000-0000-0000-0000000000e1',
-          externalId: 'ext-eligible',
-          contentExpiresAt: FUTURE,
-        } as Partial<Omit<Review, 'id'>>),
-      )
-      await repo.upsert(
-        makeReview({
-          id: '1a000000-0000-0000-0000-0000000000e2',
-          externalId: 'ext-expired',
-          contentExpiresAt: new Date('2020-01-01T00:00:00Z'),
-        } as Partial<Omit<Review, 'id'>>),
-      )
-      await repo.upsert(
-        makeReview({
-          id: '1a000000-0000-0000-0000-0000000000e3',
-          externalId: 'ext-clockless',
-          contentExpiresAt: null,
-        } as unknown as Partial<Omit<Review, 'id'>>),
-      )
-
-      const rows = await repo.findRecentEligibleByPropertyId(
-        PROP_A,
-        ORG_A,
-        { limit: 10 },
-        T1,
-      )
-      expect(rows.map((r) => r.externalId)).toEqual(['ext-eligible'])
-    })
-
-    it('excludes rows at the exact expiry boundary (strictly future)', async () => {
-      const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
-
-      await repo.upsert(
-        makeReview({
-          id: '1a000000-0000-0000-0000-0000000000e4',
-          externalId: 'ext-boundary',
-          contentExpiresAt: T1,
-        } as Partial<Omit<Review, 'id'>>),
-      )
-
-      const rows = await repo.findRecentEligibleByPropertyId(
-        PROP_A,
-        ORG_A,
-        { limit: 10 },
-        T1,
-      )
-      expect(rows).toHaveLength(0)
-    })
-  })
-
   describe('readTrendPopulation', () => {
     it('returns the bounded current-revision population with local dates and separate star-only evidence', async () => {
-      const repo = createReviewRepository(getDb(), () => new Date())
+      const repo = createReviewRepository(
+        getDb(),
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const future = new Date('2099-01-01T00:00:00Z')
       const fetchedAt = new Date('2026-08-20T00:00:00Z')
       await repo.upsert(
@@ -530,7 +529,12 @@ describe.sequential('reviewRepository (integration)', () => {
     })
 
     it('answers complete, as it does when the plan stays serial, and logs nothing', async () => {
-      const seeding = createReviewRepository(getDb(), () => new Date())
+      const seeding = createReviewRepository(
+        getDb(),
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const fetchedAt = new Date('2026-08-20T00:00:00Z')
       const future = new Date('2099-01-01T00:00:00Z')
       // The first is before the window, so the evidence boundary has something to find.
@@ -558,6 +562,7 @@ describe.sequential('reviewRepository (integration)', () => {
         drizzle(parallelPool) as Database,
         () => new Date(),
         { warn },
+        replyScopeEffects,
       )
 
       const result = await repo.readTrendPopulation({
@@ -603,10 +608,13 @@ describe.sequential('reviewRepository (integration)', () => {
          FROM generate_series(1, 1001) AS series`,
         [ORG_A, PROP_A, GOOGLE_LOCATION_PRIMARY_RESOURCE],
       )
+      await seedSourceContents(ORG_A)
 
       const ids = await createReviewRepository(
         getDb(),
         () => new Date(),
+        undefined,
+        replyScopeEffects,
       ).findIdsByContentFilter(
         ORG_A,
         { ratingMin: 5, textQuery: 'complete filter' },
@@ -649,7 +657,12 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('walks all expiring rows in order with no duplicates or skips', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const threshold = new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000)
       const base = NOW.getTime()
       for (let i = 0; i < 5; i++) {
@@ -676,7 +689,12 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('does not re-scan rows inserted behind the cursor mid-walk', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const threshold = new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000)
       await seedExpiring(repo, 'c1', new Date(NOW.getTime() + 3 * 60 * 1000))
       await seedExpiring(repo, 'c2', new Date(NOW.getTime() + 4 * 60 * 1000))
@@ -707,7 +725,12 @@ describe.sequential('reviewRepository (integration)', () => {
     })
 
     it('offers the review of a Property a sync can still run for', async () => {
-      const repo = createReviewRepository(getDb(), () => new Date())
+      const repo = createReviewRepository(
+        getDb(),
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const threshold = new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000)
       await seedExpiring(repo, 'd0', new Date(NOW.getTime() + 60 * 1000))
 
@@ -733,7 +756,12 @@ describe.sequential('reviewRepository (integration)', () => {
     ] satisfies ReadonlyArray<readonly [string, SweepPropertyOptions]>)(
       'leaves out the reviews of a Property that is %s',
       async (_label, options) => {
-        const repo = createReviewRepository(getDb(), () => new Date())
+        const repo = createReviewRepository(
+          getDb(),
+          () => new Date(),
+          undefined,
+          replyScopeEffects,
+        )
         const threshold = new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000)
         await seedSweepProperty(options)
         await seedExpiring(repo, 'd1', new Date(NOW.getTime() + 60 * 1000))
@@ -748,7 +776,12 @@ describe.sequential('reviewRepository (integration)', () => {
   describe('tenant isolation', () => {
     it('same externalId, different org → separate reviews', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const sharedExternalId = 'ext-shared'
 
       await repo.upsert(
@@ -783,7 +816,12 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('findByExternalId does not leak across orgs', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
 
       await repo.upsert(
         makeReview({
@@ -801,7 +839,12 @@ describe.sequential('reviewRepository (integration)', () => {
   describe('findByPropertyId', () => {
     it('returns reviews for a property', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
 
       await repo.upsert(
         makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }),
@@ -817,7 +860,12 @@ describe.sequential('reviewRepository (integration)', () => {
     it('returns every review of the Property, past the per-request page size', async () => {
       // The Inbox repair command reads "all review sources"; a silent cap at 500
       // made a repair of a larger Property look complete (S14-04).
-      const repo = createReviewRepository(getDb(), () => new Date())
+      const repo = createReviewRepository(
+        getDb(),
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       await seedBulkReviews(501)
 
       const reviews = await repo.findByPropertyId(PROP_A, ORG_A)
@@ -827,7 +875,12 @@ describe.sequential('reviewRepository (integration)', () => {
     })
 
     it('still honours an explicit limit, newest first', async () => {
-      const repo = createReviewRepository(getDb(), () => new Date())
+      const repo = createReviewRepository(
+        getDb(),
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       await seedBulkReviews(5)
 
       const reviews = await repo.findByPropertyId(PROP_A, ORG_A, { limit: 2 })
@@ -837,7 +890,12 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('returns empty for property with no reviews', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const reviews = await repo.findByPropertyId(PROP_B, ORG_B)
       expect(reviews).toHaveLength(0)
     })
@@ -846,7 +904,12 @@ describe.sequential('reviewRepository (integration)', () => {
   describe('findByOrganizationId', () => {
     it('returns all reviews for an organization', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
 
       await repo.upsert(
         makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }),
@@ -860,7 +923,12 @@ describe.sequential('reviewRepository (integration)', () => {
     })
 
     it('returns every review of the organization, past the per-request page size', async () => {
-      const repo = createReviewRepository(getDb(), () => new Date())
+      const repo = createReviewRepository(
+        getDb(),
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       await seedBulkReviews(501)
 
       const reviews = await repo.findByOrganizationId(ORG_A)
@@ -870,7 +938,12 @@ describe.sequential('reviewRepository (integration)', () => {
     })
 
     it('returns the reviews of the organization in id order', async () => {
-      const repo = createReviewRepository(getDb(), () => new Date())
+      const repo = createReviewRepository(
+        getDb(),
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       await seedBulkReviews(40)
 
       const ids = (await repo.findByOrganizationId(ORG_A)).map((review) => review.id)
@@ -922,7 +995,12 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('walks all expired rows oldest-first across batch boundaries with no duplicates or skips', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const base = NOW.getTime()
       // 12 expired rows + noise: future and null lifecycle rows must be ignored.
       const suffixes = [
@@ -956,7 +1034,12 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('uses an exclusive contentExpiresAt boundary (a row expiring exactly at now is NOT eligible)', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
 
       await seedLifecycle(repo, 'b1', new Date(NOW.getTime() - 1)) // 1ms before now
       await seedLifecycle(repo, 'b2', NOW) // exactly now — excluded
@@ -968,7 +1051,12 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('breaks contentExpiresAt ties by id and resumes mid-tie without skips or repeats', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const tie = new Date(NOW.getTime() - 60 * 1000)
       // Same expiry instant for all three — order must fall back to id.
       await seedLifecycle(repo, 'c3', tie)
@@ -982,7 +1070,12 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('does not re-scan rows inserted behind the cursor mid-walk', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       await seedLifecycle(repo, 'd2', new Date(NOW.getTime() - 2 * 60 * 1000))
       await seedLifecycle(repo, 'd3', new Date(NOW.getTime() - 1 * 60 * 1000))
 
@@ -1016,7 +1109,12 @@ describe.sequential('reviewRepository (integration)', () => {
   describe('countExpiredBeforeAcrossTenants (BQC-8.3)', () => {
     it('counts exactly the purge-eligible rows (exclusive boundary, null/future ignored)', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db, () => new Date())
+      const repo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       const NOW = new Date('2025-06-01T12:00:00Z')
 
       await repo.upsert(
@@ -1051,7 +1149,12 @@ describe.sequential('reviewRepository (integration)', () => {
 
   describe('stable identity lifecycle surface', () => {
     it('does not expose destructive Review deletion entry points', () => {
-      const repo = createReviewRepository(getDb(), () => new Date())
+      const repo = createReviewRepository(
+        getDb(),
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
 
       expect(repo).not.toHaveProperty('deleteById')
       expect(repo).not.toHaveProperty('deleteByPropertyId')

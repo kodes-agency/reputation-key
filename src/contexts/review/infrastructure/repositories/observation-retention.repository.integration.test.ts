@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createAtomicReviewCommandStore } from '../review-command-store'
 import { reviewCreated, reviewUpdated } from '../../domain/events'
@@ -96,7 +97,13 @@ const nextKey = () => {
 
 function recordedRead(candidate: ReviewWrite) {
   const observedAt = candidate.lastFetchedAt!
-  return createAtomicReviewCommandStore(getDb(), () => observedAt).upsertAndRecord(
+  return createAtomicReviewCommandStore(
+    getDb(),
+    () => observedAt,
+    undefined,
+    undefined,
+    replyScopeEffects,
+  ).upsertAndRecord(
     candidate,
     (persisted) =>
       (persisted.analysisSequence === 1 ? reviewCreated : reviewUpdated)({
@@ -119,13 +126,12 @@ function recordedRead(candidate: ReviewWrite) {
 
 function quietRead(candidate: ReviewWrite) {
   const observedAt = candidate.lastFetchedAt!
-  return createReviewRepository(getDb(), () => observedAt).upsert(
-    candidate,
-    observedAt,
-    nextKey(),
-    'ongoing',
-    true,
-  )
+  return createReviewRepository(
+    getDb(),
+    () => observedAt,
+    undefined,
+    replyScopeEffects,
+  ).upsert(candidate, observedAt, nextKey(), 'ongoing', true)
 }
 
 /** One more read the old writer recorded: a copy of the newest row, keyed and
@@ -199,7 +205,10 @@ const sequencesOf = async (id: ReviewId) =>
 
 const lifecycleFindings = async (id: ReviewId) =>
   (
-    await createReviewSourceContentLifecycleStore(getDb()).readInspectionBatch({
+    await createReviewSourceContentLifecycleStore(
+      getDb(),
+      replyScopeEffects,
+    ).readInspectionBatch({
       evaluatedAt: new Date('2030-01-01T00:00:00.000Z'),
       after: null,
       limit: 10,
@@ -372,14 +381,18 @@ describe('the repeat prune', () => {
     await recordedRead(readOf(REVIEW_A, at(0)))
     await appendRepeats(REVIEW_A, [at(6), at(12)])
     await getDb().transaction((tx) =>
-      eraseReviewSourceContent(tx, {
-        reviewId: REVIEW_A,
-        organizationId: ORG,
-        propertyId: PROPERTY,
-        sourceEpoch: 0,
-        expectedSourceRevision: 1,
-        state: 'provider_deleted',
-      }),
+      eraseReviewSourceContent(
+        tx,
+        {
+          reviewId: REVIEW_A,
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          sourceEpoch: 0,
+          expectedSourceRevision: 1,
+          state: 'provider_deleted',
+        },
+        replyScopeEffects,
+      ),
     )
 
     const pruned = await retention().pruneRepeats({

@@ -64,6 +64,8 @@ const SOURCE_REVISION = 1
 const REVIEW_ANALYSIS_EPOCH = 1
 const PROPERTY_PROFILE_VERSION = 1
 const DIGEST = 'a'.repeat(64)
+/** The location of a seeded review's content row when the caller adopts none. */
+const SEED_LOCATION = 'ai-v3-seed-location'
 const SOURCE_BYTE_COUNT = 24
 const ACTOR_USER_ID = 'ai-v3-seed-actor'
 const TIMEZONE = 'America/New_York'
@@ -386,26 +388,24 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
         ? {}
         : { ...fetchedContent(review, adoptedLocation), expiresAt: CONTENT_EXPIRES_AT }),
     })
-    if (adoptedLocation !== undefined) {
-      await db.insert(reviewSourceContents).values({
-        reviewId: id,
-        organizationId: ids.organizationId,
-        propertyId: ids.propertyId,
-        platform: 'google',
-        externalId: `ai-v3-seed-${id}`,
-        ...fetchedContent(review, adoptedLocation),
-        reviewerName: 'Synthetic reviewer',
-        rating: review.rating,
-        text: 'Synthetic review',
-        languageCode: 'en',
-        reviewedAt: review.reviewedAt,
-        contentExpiresAt: CONTENT_EXPIRES_AT,
-        sourceEpoch: SOURCE_EPOCH,
-        sourceRevision: SOURCE_REVISION,
-        aiSourceByteLength: SOURCE_BYTE_COUNT,
-        aiSourceDigest: DIGEST,
-      })
-    }
+    await db.insert(reviewSourceContents).values({
+      reviewId: id,
+      organizationId: ids.organizationId,
+      propertyId: ids.propertyId,
+      platform: 'google',
+      externalId: `ai-v3-seed-${id}`,
+      ...fetchedContent(review, adoptedLocation ?? SEED_LOCATION),
+      reviewerName: 'Synthetic reviewer',
+      rating: review.rating,
+      text: 'Synthetic review',
+      languageCode: 'en',
+      reviewedAt: review.reviewedAt,
+      contentExpiresAt: CONTENT_EXPIRES_AT,
+      sourceEpoch: SOURCE_EPOCH,
+      sourceRevision: SOURCE_REVISION,
+      aiSourceByteLength: SOURCE_BYTE_COUNT,
+      aiSourceDigest: DIGEST,
+    })
     await db.insert(materialReviewRevisions).values({
       reviewId: id,
       revision: SOURCE_REVISION,
@@ -500,6 +500,7 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
       // registered facts; the app registers them at boot. Idempotent.
       registerAllEventSchemas()
       await clear()
+      lastIndex = 0
       initialControls = (
         await db
           .select({

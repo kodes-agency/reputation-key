@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { buildReviewContext } from '#/contexts/review/build'
+import { reputationReplyScopeEffects } from './reply-scope-effects'
 import { getLogger } from '#/shared/observability/logger'
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { buildPropertyContext } from '#/contexts/property/build'
@@ -25,6 +26,7 @@ export function wireReview(
 ) {
   const review = buildReviewContext({
     db,
+    replyEffects: reputationReplyScopeEffects,
     outboxRepo,
     clock,
     idGen: randomUUID,

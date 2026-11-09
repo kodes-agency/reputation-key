@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // Create-Portal command against real PostgreSQL (round 4, slice 26): the Portal,
 // its managers, its group membership and everything copied from another Portal
 // (its own look too, ADR 0070) commit together or not at all, and a copy never
@@ -27,7 +28,7 @@ import {
 } from '../domain/events'
 import type { PortalLookOverride } from '../domain/portal-look'
 import type { Portal } from '../domain/types'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { planPortalContentCopy } from '../application/portal-content-copy'
 import type { CreatePortalCommand } from '../application/ports/portal-command-store.port'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
@@ -71,7 +72,7 @@ const { getPool } = setupIntegrationDb({
   ],
 })
 
-const store = () => createAtomicPortalCommandStore(getDb())
+const store = () => createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())
 
 const portalOf = (overrides: Partial<Portal>) =>
   buildTestPortal({

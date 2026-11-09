@@ -9,6 +9,9 @@ import { builtinRules } from 'eslint/use-at-your-own-risk'
 import crossContextPublicApi from './eslint-rules/cross-context-public-api.mjs'
 import zodV4 from './eslint-rules/zod-v4.mjs'
 import queryState from './eslint-rules/query-state.mjs'
+import sourcePolicy from './eslint-rules/source-policy.mjs'
+import fileLength from './eslint-rules/file-length.mjs'
+import testQuality from './eslint-rules/test-quality.mjs'
 
 // BQC-5.1: local rules enforcing what eslint-plugin-boundaries cannot express.
 const local = {
@@ -1197,20 +1200,41 @@ export default tseslint.config(
     },
   },
 
-  // ─── Component file length enforcement ─────────────────────────────
-  // Components use the same 800-line limit as other source files.
+  ...fileLength,
   {
-    ignores: [
-      'src/components/ui/**',
-      'src/components/layout/manager-sidebar.tsx',
-      // Story files are fixtures (many variants), not components — not subject to the monolith limit.
-      'src/**/*.stories.tsx',
-      'src/**/*.stories.ts',
+    files: ['src/**/*.{ts,tsx}', 'scripts/**/*.{ts,mjs}', 'server/**/*.{ts,mjs}'],
+    plugins: { 'source-policy': sourcePolicy },
+    rules: { 'source-policy/system-scope': 'error' },
+  },
+  {
+    files: [
+      'src/components/**/*.{ts,tsx}',
+      'src/contexts/*/ui/**/*.{ts,tsx}',
+      FEATURE_UI,
     ],
-    files: ['src/components/**/*.{ts,tsx}'],
     rules: {
-      'max-lines': ['error', { max: 800, skipBlankLines: true, skipComments: true }],
+      'source-policy/component-filename': 'error',
+      'source-policy/component-server': 'error',
     },
+  },
+  {
+    files: [...UI_SOURCES, 'src/contexts/*/ui/**/*.{ts,tsx}'],
+    ignores: [...NOT_A_UI_SOURCE, 'src/routes/api/**'],
+    rules: { 'source-policy/browser-server': 'error' },
+  },
+  {
+    files: [
+      '{src,services,e2e,scripts,server,.storybook}/**/*.{test,spec}.{ts,tsx}',
+      '{src,services,e2e,scripts,server,.storybook}/**/*.stories.tsx',
+      '{src,services,e2e,scripts,server,.storybook}/**/*.metrics.ts',
+    ],
+    plugins: { 'test-quality': testQuality },
+    rules: { 'test-quality/checks': 'error' },
+  },
+  {
+    files: ['eslint-rules/test-quality.mjs'],
+    plugins: { 'test-quality': testQuality },
+    rules: { 'test-quality/register': 'error' },
   },
 
   // ─── UI consistency rules, all at `warn` ────────────────────────────

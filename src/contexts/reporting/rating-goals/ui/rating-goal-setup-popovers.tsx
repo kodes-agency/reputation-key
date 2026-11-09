@@ -1,0 +1,104 @@
+// Explain that the plan is a forecast, never a target for guests or staff, and preserve
+// the ask-every-guest wording. Keep open state in the draft so rotation preserves it.
+
+import type { ReactNode } from 'react'
+import { X } from 'lucide-react'
+import type { RatingGoalSetupInputs } from '#/contexts/reporting/rating-goals/contracts'
+import { ExplainTrigger } from '#/components/ui/explain-trigger'
+import { IconButton } from '#/components/ui/icon-button'
+import { Popover, PopoverContent } from '#/components/ui/popover'
+import { GOAL_SETUP_LINK } from '#/components/goals/goal-setup-parts'
+import { PLAN_POLICY_LINE, UNASKED_REVIEWS_LINE } from './rating-goal-copy'
+import { workedOutParagraphs } from './rating-goal-setup-copy'
+import type { PaceUnit, SetupPlan } from './rating-goal-setup-draft'
+import { tenthsText } from './rating-goal-view'
+
+type Which = 'why' | 'ask'
+
+type Props = Readonly<{
+  plan: SetupPlan
+  inputs: RatingGoalSetupInputs
+  unit: PaceUnit
+  open: Which | undefined
+  small: boolean
+  onToggle: (which: Which) => void
+}>
+
+function Explanation({
+  which,
+  label,
+  title,
+  props,
+  children,
+}: Readonly<{
+  which: Which
+  label: string
+  title: string
+  props: Props
+  children: ReactNode
+}>) {
+  return (
+    <Popover open={props.open === which} onOpenChange={() => props.onToggle(which)}>
+      <ExplainTrigger className={GOAL_SETUP_LINK}>{label}</ExplainTrigger>
+      <PopoverContent
+        side="top"
+        aria-label={title}
+        className="relative flex flex-col gap-2 text-sm text-muted-foreground"
+        style={{
+          width: props.small ? 'calc(100vw - 2rem)' : 520,
+          maxWidth: 'calc(100vw - 2rem)',
+        }}
+      >
+        <IconButton
+          label="Close"
+          size="icon-sm"
+          tooltip={false}
+          className="absolute right-3 top-3"
+          onClick={() => props.onToggle(which)}
+        >
+          <X aria-hidden="true" />
+        </IconButton>
+        <p className="pe-12 font-semibold text-foreground">{title}</p>
+        {children}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export function RatingGoalSetupPopovers(props: Props) {
+  const { plan, inputs, unit } = props
+  return (
+    <>
+      <Explanation
+        which="why"
+        label="How we worked this out"
+        title={`How we worked out ${tenthsText(plan.goal.targetTenths)}`}
+        props={props}
+      >
+        {workedOutParagraphs(plan, inputs, unit).map((runs, index) => (
+          <p key={index}>
+            {runs.map((run, part) =>
+              run.strong === true ? (
+                <b key={part} className="font-semibold text-foreground">
+                  {run.text}
+                </b>
+              ) : (
+                <span key={part}>{run.text}</span>
+              ),
+            )}
+          </p>
+        ))}
+      </Explanation>
+      <span aria-hidden="true">·</span>
+      <Explanation
+        which="ask"
+        label="Why every guest"
+        title="Why ask every guest"
+        props={props}
+      >
+        <p>{PLAN_POLICY_LINE}</p>
+        <p>{UNASKED_REVIEWS_LINE}</p>
+      </Explanation>
+    </>
+  )
+}

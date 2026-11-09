@@ -4,12 +4,12 @@ import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalVisitRecorder } from '../../portal-visit-recording'
 import { guestCopyText } from '../guest-copy-format'
 import type { SelectSecondaryLinkAction } from '../guest-response-form-types'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import { trackedLinkHref } from '../portal-link-href'
 import { GuestHeader } from './guest-header'
 import { GuestLanguageSwitcher } from './guest-language-switcher'
 import { GuestTitleBlock } from './guest-title-block'
-import type { GuestResponseActions } from './guest-response-actions'
+import type { GuestResponseActions } from '#/contexts/guest/page/ui/guest-response-actions'
 import { ImmersiveFooter } from './immersive-footer'
 import { immersiveFooterCopy } from './immersive-footer-copy'
 import { ImmersiveLinktree } from './immersive-linktree'
@@ -17,7 +17,7 @@ import { bindLinkTapCounter } from './linktree-follow'
 import { ImmersiveResponseView } from './immersive-response-view'
 import { ImmersiveShell } from './immersive-shell'
 import { useGuestClock } from './use-guest-clock'
-import { useImmersiveGuestResponse } from './use-immersive-guest-response'
+import { useGuestResponse } from '#/contexts/guest/page/ui/use-guest-response'
 
 /** What the route hands a live Immersive Hub page: the loader's data, the pack and the bound actions. */
 export type ImmersivePublicPortalProps = Readonly<{
@@ -25,7 +25,7 @@ export type ImmersivePublicPortalProps = Readonly<{
   /** The public channel marker, kept when the guest switches language. */
   accessArtifactId?: string
   /** The one v2 pack of the page's language. */
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   immersive: PublicImmersiveLoaderData
   selectedLocale: GuestLocale
   /** Every language the portal offers, in its own order. */
@@ -64,7 +64,7 @@ const AVAILABILITY = {
 export function ImmersivePublicPortal(props: ImmersivePublicPortalProps) {
   const { token, pack, immersive, selectedLocale } = props
   const { brand, content } = immersive
-  const session = useImmersiveGuestResponse({
+  const session = useGuestResponse({
     token,
     csrfNonce: props.csrfNonce,
     initialResponse: props.initialResponse,

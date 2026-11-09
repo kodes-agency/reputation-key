@@ -8,7 +8,7 @@
 //
 // Why it's safe: the sole value-importer is use-reply-actions.ts — the
 // sanctioned 5+-mutation exception (src/components/CONTEXT.md "Server-function
-// boundary", and the one inbox entry in scripts/check-component-boundaries.mjs).
+// boundary", and the one inbox entry in eslint-rules/source-policy.mjs).
 // The pane now calls that hook from two places, so the inbox-page story reaches
 // it on both paths (InboxPageV2 → inbox-detail-content directly for the
 // approve/reject/check/retry family, and → ReplyEditor for the draft and the

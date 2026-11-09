@@ -1,6 +1,12 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { aiPropertyProcessingProfiles, properties } from '#/shared/db/schema'
+import {
+  aiPropertyProcessingProfiles,
+  merchantAiEnablement,
+  properties,
+} from '#/shared/db/schema'
+import { lockAggregateHead } from './ai-property-aggregate-head'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import type { AiPropertyProfileResult } from '../../domain/types'
@@ -33,6 +39,7 @@ function compareExpected(
 export const createPropertyProcessingProfileAdapter = (
   db: Database,
   clock: () => Date,
+  replyEffects?: ReplyScopeEffects,
 ): PropertyProcessingProfilePort => {
   const readForAi: PropertyProcessingProfilePort['readForAi'] = async (input) => {
     const [row] = await db
@@ -162,6 +169,9 @@ export const createPropertyProcessingProfileAdapter = (
       })
       if (cell.status === 'policy_unavailable') return cell
 
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.organizationId} || ':' || ${input.propertyId}::text, 0))`,
+      )
       const [existing] = await tx
         .select()
         .from(aiPropertyProcessingProfiles)
@@ -217,10 +227,37 @@ export const createPropertyProcessingProfileAdapter = (
               updatedAt,
             },
           })
-        await purgeAiDraftsForProfile(tx, {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-        })
+        if (existing && existing.sourceEpoch === property.sourceEpoch) {
+          const [authorization] = await tx
+            .select()
+            .from(merchantAiEnablement)
+            .where(
+              and(
+                eq(merchantAiEnablement.organizationId, input.organizationId),
+                eq(merchantAiEnablement.propertyId, input.propertyId),
+                eq(merchantAiEnablement.authorizedSourceEpoch, property.sourceEpoch),
+                eq(merchantAiEnablement.state, 'enabled'),
+              ),
+            )
+            .limit(1)
+          if (authorization?.capabilities.includes('review_analysis')) {
+            await lockAggregateHead(tx, {
+              ...input,
+              sourceEpoch: property.sourceEpoch,
+              reviewAnalysisEpoch: authorization.reviewAnalysisEpoch,
+              propertyProfileVersion: profileVersion,
+              analysisSequence: 0,
+            })
+          }
+        }
+        await purgeAiDraftsForProfile(
+          tx,
+          {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+          },
+          replyEffects,
+        )
       }
 
       return {

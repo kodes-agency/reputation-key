@@ -24,7 +24,6 @@ export * from './portal-look.schema'
 export * from './guest.schema'
 export * from './google-connection.schema'
 export * from './google-import-discovery.schema'
-export * from './google-import-v2.schema'
 export * from './google-import.schema'
 export * from './review.schema'
 export * from './review-analysis-released-sequences.schema'
@@ -58,3 +57,5 @@ export * from './product-updates.schema'
 export * from './staff-accounts.schema'
 
 export * from './work-items.schema'
+
+export * from './google-notification-account.schema'

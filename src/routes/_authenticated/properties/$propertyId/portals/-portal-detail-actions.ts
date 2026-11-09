@@ -11,7 +11,9 @@ import {
   rotatePortalToken,
   savePortalLocalizedOverride,
   savePropertyPortalBrandContent,
-  updatePortal,
+  updatePortalSettings,
+  changePortalLanguages,
+  publishPortal,
 } from '#/contexts/portal/server/portals'
 import { publishPortalChanges } from '#/contexts/portal/server/portal-publish-changes'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
@@ -23,7 +25,10 @@ import {
 import { openPageErrorMessage } from '#/components/features/portal/portal-workspace/portal-open-page'
 import type { PortalLookActions } from '#/components/features/portal/portal-look/portal-look-types'
 import { portalKeys } from '#/shared/queries/query-keys'
-import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
+import type {
+  ChangePortalLanguagesVariables,
+  UpdatePortalVariables,
+} from '#/components/features/portal/shared/types'
 import type { PortalQueryResult } from './-portal-detail-data'
 import {
   downloadPortalPrintFinal,
@@ -48,16 +53,27 @@ import {
  * do. A refusal is reported by the caller that awaits the action: the header's
  * save status, or the Review page.
  */
-function usePortalUpdateAction(propertyId: string, portalId: string) {
+/** What an edit changes on the Portal as the page already shows it. */
+function drawnFields(input: { data: { portalId: string } }): Record<string, unknown> {
+  const { portalId: _portalId, ...patch } = input.data
+  void _portalId
+  return patch
+}
+
+function usePortalAutosaveAction<V extends { data: { portalId: string } }>(
+  propertyId: string,
+  portalId: string,
+  write: (input: V) => Promise<unknown>,
+  drawn: (input: V) => Record<string, unknown>,
+) {
   const queryClient = useQueryClient()
   const mutation = useMutation({
-    mutationFn: (input: UpdatePortalVariables) => updatePortal(input),
-    onMutate: async (input: UpdatePortalVariables) => {
+    mutationFn: write,
+    onMutate: async (input: V) => {
       const queryKey = portalKeys.detail(portalId)
       await queryClient.cancelQueries({ queryKey })
       const previous = queryClient.getQueryData<PortalQueryResult>(queryKey)
-      const { portalId: _portalId, ...patch } = input.data
-      void _portalId
+      const patch = drawn(input)
       queryClient.setQueryData<PortalQueryResult>(queryKey, (current) =>
         current?.portal
           ? { ...current, portal: { ...current.portal, ...patch } }
@@ -90,7 +106,7 @@ function usePortalUpdateAction(propertyId: string, portalId: string) {
     error: mutation.error,
     isSuccess: mutation.isSuccess,
     data: mutation.data ?? null,
-  }) as Action<UpdatePortalVariables>
+  }) as Action<V>
 }
 
 /**
@@ -115,7 +131,7 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     successMessage: 'Guest content saved',
     invalidateKeys: experienceInvalidations,
   })
-  // Autosaved as it is typed, so silent on success (see usePortalUpdateAction).
+  // Autosaved as it is typed, so silent on success (see usePortalAutosaveAction).
   const saveOverride = useActionMutation(savePortalLocalizedOverride, {
     invalidateKeys: experienceInvalidations,
   })
@@ -188,7 +204,24 @@ export function usePortalOpenPageReveal() {
  */
 export function usePortalDetailActions(propertyId: string, portalId: string) {
   const queryClient = useQueryClient()
-  const autosaveUpdate = usePortalUpdateAction(propertyId, portalId)
+  const autosaveUpdate = usePortalAutosaveAction<UpdatePortalVariables>(
+    propertyId,
+    portalId,
+    (input) => updatePortalSettings(input),
+    drawnFields,
+  )
+  const changeLanguages = usePortalAutosaveAction<ChangePortalLanguagesVariables>(
+    propertyId,
+    portalId,
+    (input) => changePortalLanguages(input),
+    drawnFields,
+  )
+  const goLive = usePortalAutosaveAction<{ data: { portalId: string } }>(
+    propertyId,
+    portalId,
+    (input) => publishPortal(input),
+    () => ({ publicationState: 'published' }),
+  )
   // Refetch the detail so `tokenStatus` (when the code was made, its transition
   // window) follows the code that was just made, replaced or stopped.
   const tokenInvalidations = [portalKeys.detail(portalId)]
@@ -251,7 +284,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     ],
   })
   // Publish the draft of a Portal that is live: the next version replaces the
-  // live one. A Portal that is not live goes live through `autosaveUpdate`.
+  // live one. A Portal that is not live goes live through `goLive`.
   // The page reports the outcome, so there is no toast here.
   const publishChanges = useActionMutation(publishPortalChanges, {
     invalidateKeys: [
@@ -265,6 +298,8 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
 
   return {
     autosaveUpdate,
+    changeLanguages,
+    goLive,
     issueToken,
     rotateToken,
     revokeToken,

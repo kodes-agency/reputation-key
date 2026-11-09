@@ -27,11 +27,11 @@ import type {
 } from '#/contexts/inbox/application/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
-import { submitFeedbackHandlingDecision } from './feedback-handling-submit'
+import { submitFeedbackHandlingDecision } from '../../contexts/reputation/inbox/ui/feedback-handling-submit'
 import { installInboxCacheHarness } from './inbox-cache-test-harness'
-import { createInboxItemStatusObserver } from './inbox-item-status-observer'
+import { createInboxItemStatusObserver } from '../../contexts/reputation/inbox/ui/inbox-item-status-observer'
 import type { InboxServerFns } from './types'
-import { useFeedbackHandlingMutations } from './use-feedback-handling-mutations'
+import { useFeedbackHandlingMutations } from '../../contexts/reputation/inbox/ui/use-feedback-handling-mutations'
 import { useReplyActions, type ReplyActions } from './use-reply-actions'
 
 vi.mock('@tanstack/react-router', () => ({
@@ -62,6 +62,7 @@ const replyServer = vi.hoisted(() => ({
   loadReplyTemplateFn: vi.fn(),
 }))
 vi.mock('#/contexts/review/server/reply', () => replyServer)
+vi.mock('#/contexts/review/server/reply-templates', () => replyServer)
 
 type Requests = { detail: number; list: number; counts: number }
 
@@ -228,6 +229,125 @@ describe('a refused reply command', () => {
     expect(outcome).toBe(offline)
     expect(vi.mocked(toast.error).mock.calls).toEqual([])
     expect(requests).toEqual({ detail: 1, list: 1, counts: 1 })
+  })
+
+  it('loads a template after the blur autosave and uses the revision that save returned', async () => {
+    const initial = { ...replyIn('draft'), stateRevision: 1 }
+    const saved = { ...initial, stateRevision: 2, text: 'Thank you for visiting.' }
+    const loaded = { ...saved, stateRevision: 3, text: 'We appreciate your feedback.' }
+    const pendingSave = Promise.withResolvers<typeof saved>()
+    replyServer.draftReplyFn.mockReturnValueOnce(pendingSave.promise)
+    replyServer.loadReplyTemplateFn.mockResolvedValueOnce(loaded)
+    const actions = pane.renderHooks(() =>
+      useReplyActions({
+        reviewId: REVIEW_ID,
+        reply: initial,
+        onReplyChanged: () => {},
+      }),
+    )
+
+    const save = actions.saveDraft(saved.text)
+    await pane.settle()
+    const load = actions.loadTemplate('builtin:thanks', { kind: 'property_default' })
+    try {
+      await pane.settle()
+      // Clicking the template menu blurs the box. That save is part of this
+      // editor's own work, so it must not make the next action stale.
+      expect(replyServer.loadReplyTemplateFn).not.toHaveBeenCalled()
+      pendingSave.resolve(saved)
+      await Promise.all([save, load])
+      expect(replyServer.loadReplyTemplateFn.mock.calls).toEqual([
+        [
+          {
+            data: {
+              reviewId: REVIEW_ID,
+              templateId: 'builtin:thanks',
+              targetLanguage: { kind: 'property_default' },
+              expectedReply: { id: saved.id, stateRevision: saved.stateRevision },
+            },
+          },
+        ],
+      ])
+    } finally {
+      pendingSave.resolve(saved)
+      await Promise.allSettled([save, load])
+    }
+  })
+
+  it('finishes an autosave before deletion so its delayed response cannot revive the deleted revision', async () => {
+    const initial = { ...replyIn('draft'), stateRevision: 1 }
+    const saved = { ...initial, stateRevision: 2, text: 'Thank you for visiting.' }
+    const recreated = { ...initial, id: 'reply-2' }
+    const pendingSave = Promise.withResolvers<typeof saved>()
+    replyServer.draftReplyFn.mockReturnValueOnce(pendingSave.promise)
+    replyServer.draftReplyFn.mockResolvedValueOnce(recreated)
+    replyServer.deleteReplyFn.mockResolvedValueOnce(undefined)
+    const actions = pane.renderHooks(() =>
+      useReplyActions({
+        reviewId: REVIEW_ID,
+        reply: initial,
+        onReplyChanged: () => {},
+      }),
+    )
+
+    const save = actions.saveDraft(saved.text)
+    await pane.settle()
+    const deletion = actions.deleteDraft()
+    try {
+      await pane.settle()
+      expect(replyServer.deleteReplyFn).not.toHaveBeenCalled()
+      pendingSave.resolve(saved)
+      await Promise.all([save, deletion])
+
+      await actions.saveDraft(recreated.text)
+      expect(replyServer.draftReplyFn.mock.calls[1]?.[0]).toMatchObject({
+        data: { expectedReply: null },
+      })
+    } finally {
+      pendingSave.resolve(saved)
+      await Promise.allSettled([save, deletion])
+    }
+  })
+
+  it('advances the original review fence when a pending mutation receives replacement callbacks', async () => {
+    const initial = { ...replyIn('draft'), stateRevision: 1 }
+    const saved = { ...initial, stateRevision: 2, text: 'Thank you for visiting.' }
+    const final = { ...saved, stateRevision: 3, text: 'We hope to see you again.' }
+    const pendingSave = Promise.withResolvers<typeof saved>()
+    replyServer.draftReplyFn.mockReturnValueOnce(pendingSave.promise)
+    replyServer.draftReplyFn.mockResolvedValueOnce(final)
+    const actions = pane.renderHooks(() =>
+      useReplyActions({
+        reviewId: REVIEW_ID,
+        reply: initial,
+        onReplyChanged: () => {},
+      }),
+    )
+    const firstSave = actions.saveDraft(saved.text)
+    await pane.settle()
+    const pendingMutation = pane.client.getMutationCache().getAll()[0]
+    if (!pendingMutation) throw new Error('The draft mutation did not start')
+    // Query replaces a pending mutation's options when the pane navigates.
+    // The new pane's callback cannot advance the previous review's fence.
+    pendingMutation.setOptions({
+      ...pendingMutation.options,
+      onSuccess: () => undefined,
+    })
+    const teardownSave = actions.saveDraft(final.text)
+    try {
+      pendingSave.resolve(saved)
+      await Promise.all([firstSave, teardownSave])
+      expect(replyServer.draftReplyFn.mock.calls[1]?.[0]).toMatchObject({
+        data: {
+          reviewId: REVIEW_ID,
+          expectedReply: { id: saved.id, stateRevision: saved.stateRevision },
+          text: final.text,
+        },
+      })
+    } finally {
+      pendingSave.resolve(saved)
+      await Promise.allSettled([firstSave, teardownSave])
+    }
   })
 })
 

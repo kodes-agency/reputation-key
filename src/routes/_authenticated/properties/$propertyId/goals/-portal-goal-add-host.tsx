@@ -9,8 +9,8 @@ import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/
 import type {
   PortalGoalAddCommands,
   PortalGoalAddOpening,
-} from '#/components/goals/portal-goal-add-sheet'
-import { portalGoalAddOffered } from '#/components/goals/portal-goal-add-view'
+} from '#/contexts/reporting/monthly-goals/ui/portal-goal-add-sheet'
+import { portalGoalAddOffered } from '#/contexts/reporting/monthly-goals/ui/portal-goal-add-view'
 import { Button } from '#/components/ui/button'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
@@ -18,9 +18,14 @@ import {
   portalGoalAddCommands,
   portalGoalAddQuery,
 } from './-portal-goal-queries'
-import { afresh, openedAs, useFocusReturn } from './-portal-goal-sheet-host'
+import {
+  afresh,
+  openedAs,
+  useFocusReturn,
+} from '../../../../../contexts/reporting/monthly-goals/ui/portal-goal-sheet-host'
 
-const loadSheet = () => import('#/components/goals/portal-goal-add-sheet')
+const loadSheet = () =>
+  import('#/contexts/reporting/monthly-goals/ui/portal-goal-add-sheet')
 const PortalGoalAddSheet = lazy(() =>
   loadSheet().then((module) => ({ default: module.PortalGoalAddSheet })),
 )

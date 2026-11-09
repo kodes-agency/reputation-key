@@ -82,13 +82,28 @@ live by itself (an Organization closing keeps it): readers decide from `liveSinc
 
 Archive is the Portal's removal, so it asks `portal.delete` (an AccountAdmin), the
 permission the Portals pages offer Archive on and the one a group's archive asks.
-`updatePortal` decides that itself from what it is asked to do (a patch that names
-`publicationState: 'archived'`, alone or bundled with an edit), so the rule holds
-whichever server function carries the patch. The `updatePortal` server function asks
-the policy for `portal.update` before the use case reads the patch, so an archive sent
-that way needs both, which the two built-in roles hold. Disable and Restore are updates
-(`portal.update`): a PropertyManager can take a live page down and bring an archived
-Portal back to Disabled.
+The archive intent asks for it itself, and the archive server function asks the policy
+for `portal.delete` too, so the rule holds whichever caller carries it. Disable and Restore
+are updates (`portal.update`): a PropertyManager can take a live page down and bring an
+archived Portal back to Disabled. A Portal's state changes only through the intents in
+`publication/portal-intents.server.ts` (publish, disable, archive, restore, settings,
+address, languages), each of which commits through `commitPortalChange`; none accepts
+another intent's fields.
+
+Link, link-text and Linktree-setting commands recheck content mutability in
+`infrastructure/portal-aggregate-fence.ts`, using the state returned by the
+revision update while it holds the Portal row lock. An archived write rolls back
+before content, history or facts change. Address issue, rotation and revocation
+use the revision fence without the content restriction, preserving address
+management on archived Portals.
+
+Rating-collector changes recheck Reporting's transaction-bound goal read while
+holding the shared Property goal fence, before publication, Portal, or Group
+row locks. Skipping private ratings, disabling, archiving, or deleting cannot
+remove a direct rating-goal subject or the last published collector in a wider
+goal. Commit refusals use `goal_needs_collector`; staff scan-switch protection
+retains its own guard. Group membership and create-with-group commands acquire
+the same Property fence first.
 
 A Portal changes group in one commit: `movePortalToGroup` (and create-with-move,
 where a new group takes Portals that are in another group) ends the old
@@ -504,6 +519,15 @@ the PDF and preview use the same measures and planners, checked with real fonts.
 - Print languages, wording and look come from the live publication. Draft-only
   languages and Portals without a live version cannot print. The Property country
   sets the default paper; an explicit paper choice wins.
+- The shared planner checks every ink and code box against all four live-area
+  edges, including unbreakable words at the smallest headline. Preview and PDF
+  keep the same refusal, including the optional back when selected. Rendered PDFs
+  are independently rasterized and QR-decoded to the issued address in tests.
+  Offer checks visit every occurrence; personal Portal
+  wording and wordmarks keep staff names private, including a live print's look.
+- Wording saves have their own actor and Organization write budgets. They never
+  spend the address-download budgets; authorization still precedes either limit,
+  and print files remain uncacheable even on refusal.
 - `printing/print-download.server.ts` reads stored pictures within their recorded
   size and verifies their hash before the audited address reveal. Missing or
   changed bytes refuse the print without a disclosure. Taken-down media is omitted.
@@ -643,7 +667,7 @@ optional, so they are never "missing". It carries
 identifiers and kinds, plus the fallback-language label of a link with a gap so a manager can
 tell which link it is, and nothing else; nothing is stored for it. Managers add only the
 languages that are offered and have a generation 2 guest copy pack, and a language change
-goes through the ordinary `updatePortal` command. The fallback language is never removed;
+goes through the languages intent. The fallback language is never removed;
 another one has to become the fallback first. There are no AI controls: the wording is
 written by hand in the Welcome and Linktree sections.
 

@@ -16,7 +16,11 @@ import {
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
-import { updatePortal } from '#/contexts/portal/server/portals'
+import {
+  archivePortal,
+  disablePortal,
+  restorePortal,
+} from '#/contexts/portal/server/portals'
 import {
   listPortalGroupHistory,
   movePortalToGroup,
@@ -140,15 +144,15 @@ function PortalGroupRoute() {
   })
   const history = useQuery({ ...groupHistoryQuery(propertyId, groupId), retry: false })
 
-  const archiveMutation = useActionMutation(updatePortal, {
+  const archiveMutation = useActionMutation(archivePortal, {
     successMessage: 'Portal archived',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
-  const restoreMutation = useActionMutation(updatePortal, {
+  const restoreMutation = useActionMutation(restorePortal, {
     successMessage: 'Portal restored as Disabled',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
-  const disableMutation = useActionMutation(updatePortal, {
+  const disableMutation = useActionMutation(disablePortal, {
     successMessage: 'Public page disabled',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })

@@ -94,7 +94,15 @@
 // e2e/error-detection.spec.ts can drive it directly for the injection proof.
 
 import { test as base, expect } from '@playwright/test'
-import type { ConsoleMessage, Page, Request, Response, TestInfo } from '@playwright/test'
+import type {
+  Browser,
+  BrowserContext,
+  ConsoleMessage,
+  Page,
+  Request,
+  Response,
+  TestInfo,
+} from '@playwright/test'
 import { ERROR_ALLOWLIST, type AllowlistEntry } from './error-allowlist'
 
 export type DetectionKind =
@@ -500,46 +508,80 @@ export function attachErrorDetection(
 }
 
 /**
+ * BQC-6.1 hermeticity: tests must never depend on real network. The app and
+ * guest font sets are self-hosted (src/shared/font-sets.ts), so no page asks a
+ * font CDN for anything; if one ever does, the Google hosts get an empty
+ * stylesheet instead of a slow real fetch, and glyph rendering is irrelevant to
+ * every assertion. Fontshare is not stubbed: the page fixture fails the test
+ * that requests it.
+ *
+ * The pattern is anchored at the scheme and terminated at the authority
+ * delimiter so it matches the HOST and nothing else: an unanchored alternation
+ * also matches these names inside a path or query string, and would silently
+ * answer a first-party request such as `/api/x?next=fonts.googleapis.com` with
+ * an empty stylesheet.
+ */
+export const FONT_HOST_PATTERN =
+  /^https?:\/\/(?:fonts\.googleapis\.com|fonts\.gstatic\.com)(?:[:/?#]|$)/
+
+/** Fontshare served the old app face; nothing may request it any more. */
+const FONTSHARE_HOST_PATTERN = /^https?:\/\/(?:[^/?#]+\.)?fontshare\.com(?:[:/?#]|$)/
+
+export async function stubFontHosts(context: BrowserContext): Promise<void> {
+  await context.route(FONT_HOST_PATTERN, (route) =>
+    route.fulfill({ status: 200, contentType: 'text/css', body: '' }),
+  )
+}
+
+/**
  * The harness `test`. Specs import { test, expect } from this module instead of
  * '@playwright/test'. The page-fixture override attaches detectors before any
  * navigation and asserts zero detections in teardown, so the FIRST test that
  * produces a runtime error fails immediately with the original error.
  */
-export const test = base.extend<{
-  /**
-   * Allowlist entries for THIS spec only, appended to ERROR_ALLOWLIST. For a
-   * refusal that is the behaviour under test (a journey that signs in as an
-   * unverified member and must see the 403), which would otherwise need a
-   * suite-wide entry. Same rules: narrow, owned, expiring. Set with
-   * `test.use({ extraErrorAllowlist: [...] })`.
-   */
-  extraErrorAllowlist: readonly AllowlistEntry[]
-}>({
+export const test = base.extend<
+  {
+    /**
+     * Allowlist entries for THIS spec only, appended to ERROR_ALLOWLIST. For a
+     * refusal that is the behaviour under test (a journey that signs in as an
+     * unverified member and must see the 403), which would otherwise need a
+     * suite-wide entry. Same rules: narrow, owned, expiring. Set with
+     * `test.use({ extraErrorAllowlist: [...] })`.
+     */
+    extraErrorAllowlist: readonly AllowlistEntry[]
+  },
+  { browser: Browser }
+>({
+  // Every context the suite opens gets the font stub: `browser.newContext()`,
+  // `browser.newPage()` (which opens its own context through `newContext`) and
+  // the default `context` fixture all go through this one method.
+  browser: [
+    async ({ browser }, use) => {
+      const newContext = browser.newContext.bind(browser)
+      browser.newContext = async (...args) => {
+        const context = await newContext(...args)
+        await stubFontHosts(context)
+        return context
+      }
+      await use(browser)
+      browser.newContext = newContext
+    },
+    { scope: 'worker' },
+  ],
   extraErrorAllowlist: [[], { option: true }],
   page: async ({ page, extraErrorAllowlist }, use, testInfo) => {
-    // BQC-6.1 hermeticity: the app font set is linked by RootDocument from
-    // external CDNs (src/shared/font-sets.ts: api.fontshare.com,
-    // fonts.googleapis.com — binaries from cdn.fontshare.com / fonts.gstatic.com).
-    // Tests must never depend on real network — fontshare returned 500 in CI
-    // once and gated a green suite (#274). Stub the four hosts with an empty
-    // stylesheet; glyph rendering is irrelevant to every assertion. Guest
-    // (Immersive Hub) pages self-host their fonts under /fonts/guest and are
-    // not affected by this stub. Follow-up for the product: self-host the app
-    // fonts.
-    //
-    // The pattern is anchored at the scheme and terminated at the authority
-    // delimiter so it matches the HOST and nothing else: an unanchored
-    // alternation also matches these names inside a path or query string, and
-    // would silently answer a first-party request such as
-    // `/api/x?next=fonts.googleapis.com` with an empty stylesheet.
-    await page.route(
-      /^https?:\/\/(?:api\.fontshare\.com|cdn\.fontshare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)(?:[:/?#]|$)/,
-      (route) => route.fulfill({ status: 200, contentType: 'text/css', body: '' }),
-    )
     const collector = attachErrorDetection(page, {
       extraAllowlist: extraErrorAllowlist,
     })
+    const fontshareRequests: string[] = []
+    const onRequest = (request: Request): void => {
+      if (FONTSHARE_HOST_PATTERN.test(request.url()))
+        fontshareRequests.push(request.url())
+    }
+    page.on('request', onRequest)
     await use(page)
+    page.off('request', onRequest)
+    expect(fontshareRequests, 'expected zero requests to fontshare.com').toEqual([])
     await collector.assertEmpty(testInfo)
   },
 })

@@ -17,6 +17,7 @@ import type { Database } from '../../src/shared/db'
 import { properties } from '../../src/shared/db/schema/property.schema'
 import { reviewGoogleReputationSnapshotFacts } from '../../src/shared/db/schema/review-reputation.schema'
 import { reviews } from '../../src/shared/db/schema/review.schema'
+import { reviewSourceContents } from '../../src/shared/db/schema/review-source-content.schema'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { registerAllEventSchemas } from '../../src/shared/events/schema-registrations'
 import { insertOutboxRow } from '../../src/shared/outbox/commit'
@@ -119,6 +120,31 @@ export async function ensureReviews(
           contentExpiresAt: FAR_FUTURE,
         },
       })
+    const content = {
+      reviewId: id,
+      ...scope,
+      platform: 'google' as const,
+      externalId: `e2e-beta-review-${ordinal.toString().padStart(3, '0')}`,
+      externalLocationId: `e2e-location-${scope.propertyId}`,
+      reviewerName,
+      rating: (index % 5) + 1,
+      text,
+      languageCode: 'en',
+      reviewedAt,
+      sourceCreatedAt: reviewedAt,
+      sourceUpdatedAt: reviewedAt,
+      firstFetchedAt: reviewedAt,
+      lastFetchedAt: reviewedAt,
+      contentExpiresAt: FAR_FUTURE,
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      aiSourceByteLength: provenance.byteLength,
+      aiSourceDigest: provenance.digest,
+    }
+    await db
+      .insert(reviewSourceContents)
+      .values(content)
+      .onConflictDoUpdate({ target: reviewSourceContents.reviewId, set: content })
   }
 }
 

@@ -16,7 +16,10 @@ import {
   createInsertNotificationHandler,
   type InsertNotificationJobData,
 } from './insert-notification.job'
-import { createUrgentEmailJobHandler, type UrgentEmailJobData } from './urgent-email.job'
+import {
+  createSendEmailsHandler,
+  type SendEmailJobData,
+} from '../../email/send-emails.server'
 import {
   loadItems,
   type DigestEntryDeps,
@@ -131,7 +134,7 @@ describe('an immediate email whose work was done after its row was written', () 
     emailRepo: {
       findById: vi.fn(async () => entry),
       markSuppressed: vi.fn(async () => {}),
-      markAttemptStarted: vi.fn(async () => {}),
+      freezeProviderRequest: vi.fn(async (_id, _org, _prop, request) => request),
       markAccepted: vi.fn(async () => {}),
       recordEmailUnsubscribeScope: vi.fn(async () => {}),
       isAddressSuppressed: vi.fn(async () => false),
@@ -175,11 +178,11 @@ describe('an immediate email whose work was done after its row was written', () 
       notificationEmailId: entry.id as string,
       organizationId: ORG as string,
       propertyId: PROPERTY as string,
-    } as unknown as UrgentEmailJobData,
+    } as unknown as SendEmailJobData,
   }
   const run = (built: ReturnType<typeof deps>) =>
-    createUrgentEmailJobHandler(
-      built as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    createSendEmailsHandler(
+      built as unknown as Parameters<typeof createSendEmailsHandler>[0],
     )(job)
 
   it('is retired, not sent, once the reply was decided', async () => {

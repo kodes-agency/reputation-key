@@ -178,20 +178,6 @@ CREATE TYPE "public"."google_import_v2_outcome" AS ENUM (
 
 
 --
--- Name: google_import_v2_parent_status; Type: TYPE; Schema: public; Owner: -
---
-
-CREATE TYPE "public"."google_import_v2_parent_status" AS ENUM (
-    'queued',
-    'processing',
-    'completed',
-    'completed_with_issues',
-    'failed',
-    'cancelled'
-);
-
-
---
 -- Name: google_subject_authority_guard_state; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -3170,9 +3156,6 @@ BEGIN
             INNER JOIN public.google_connections AS connection
               ON connection.organization_id = attempt.payload->>'organizationId'
              AND connection.id::text = attempt.payload->>'connectionId'
-            -- WP2.2: approval ceremony removed; see start_…_v1. Everything
-            -- below is the disconnect-revoke state machine, which is exactly
-            -- what this branch exists to prove.
             WHERE attempt.scope = 'google_disconnect_revoke'
               AND attempt.payload->>'cleanupWorkPermitId' = permit.id::text
               AND attempt.payload->>'organizationId' = permit.organization_id
@@ -3271,9 +3254,6 @@ BEGIN
           AND permit.route_key = 'oauth.token.exchange'
           AND EXISTS (
             SELECT 1
-            -- WP2.2: approval ceremony removed; see start_…_v1. The member and
-            -- permission joins stay — an OAuth exchange is only admissible when
-            -- initiated by a member whose permission version matches.
             FROM public.member AS member
             INNER JOIN public.permission_version AS permission
               ON permission.organization_id = permit.organization_id
@@ -3670,45 +3650,6 @@ BEGIN
                 )
               )
             )
-          )
-        ) OR (
-          -- Cleanup remains an already-authorized drain after ordinary work is
-          -- killed, membership changes, or a credential enters cleanup_only.
-          permit.route_key = 'oauth.revoke'
-          AND permit.property_id IS NULL
-          AND EXISTS (
-            SELECT 1
-            -- WP2.2: approval ceremony removed; see start_…_v1. The revoke
-            -- state machine below is the whole point of this branch — a
-            -- credential revocation may only be dispatched from a permit that
-            -- names a live, dispatching, not-yet-terminal revoke record.
-            FROM public.credential_revoke_permits AS revoke
-            INNER JOIN public.google_credential_source_operations AS source
-              ON source.id = revoke.source_operation_id
-             AND source.guard_id = revoke.guard_id
-            INNER JOIN public.google_subject_authority_guards AS guard
-              ON guard.id = revoke.guard_id
-            WHERE revoke.cleanup_work_permit_id = permit.id
-              AND revoke.state = 'dispatching'
-              AND revoke.cleanup_deadline_at > v_now
-              AND revoke.activated_at IS NOT NULL
-              AND revoke.dispatching_at IS NOT NULL
-              AND revoke.terminal_at IS NULL
-              AND revoke.token_hmac IS NULL
-              AND revoke.token_hmac_key_version IS NULL
-              AND revoke.send_authorization_expires_at IS NULL
-              AND permit.admitted_at <= revoke.dispatching_at
-              AND source.organization_id = permit.organization_id
-              AND source.connection_id IS NOT DISTINCT FROM permit.connection_id
-              AND source.source_work_permit_id <> permit.id
-              AND source.state = 'terminal'
-              AND source.provider_started_at IS NOT NULL
-              AND source.terminal_at IS NOT NULL
-              AND source.terminal_at <= revoke.dispatching_at
-              AND guard.state = 'cleanup_pending'
-              AND guard.active_source_operation_id IS NULL
-              AND guard.source_cutoff_sequence = source.sequence
-              AND guard.cleanup_deadline_at = revoke.cleanup_deadline_at
           )
         ) THEN 'started'
         ELSE 'changed'
@@ -5185,32 +5126,6 @@ CREATE TABLE "public"."capability_execution_control" (
 
 
 --
--- Name: credential_revoke_permits; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."credential_revoke_permits" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "guard_id" "uuid" NOT NULL,
-    "source_operation_id" "uuid" NOT NULL,
-    "cleanup_work_permit_id" "uuid",
-    "state" "public"."credential_revoke_permit_state" NOT NULL,
-    "token_hmac_key_version" character varying(50),
-    "token_hmac" character varying(128),
-    "cleanup_deadline_at" timestamp with time zone NOT NULL,
-    "send_authorization_expires_at" timestamp with time zone,
-    "activated_at" timestamp with time zone,
-    "dispatching_at" timestamp with time zone,
-    "terminal_at" timestamp with time zone,
-    "outcome_code" character varying(100),
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "credential_revoke_permits_hmac_pair_check" CHECK ((("token_hmac_key_version" IS NULL) = ("token_hmac" IS NULL))),
-    CONSTRAINT "credential_revoke_permits_send_window_check" CHECK ((("send_authorization_expires_at" IS NULL) OR ("send_authorization_expires_at" <= "cleanup_deadline_at"))),
-    CONSTRAINT "credential_revoke_permits_state_check" CHECK (((("state" = 'dormant'::"public"."credential_revoke_permit_state") AND ("token_hmac" IS NULL) AND ("send_authorization_expires_at" IS NULL) AND ("dispatching_at" IS NULL) AND ("terminal_at" IS NULL)) OR (("state" = 'active'::"public"."credential_revoke_permit_state") AND ("token_hmac" IS NOT NULL) AND ("send_authorization_expires_at" IS NOT NULL) AND ("activated_at" IS NOT NULL) AND ("dispatching_at" IS NULL) AND ("terminal_at" IS NULL)) OR (("state" = 'dispatching'::"public"."credential_revoke_permit_state") AND ("token_hmac" IS NULL) AND ("send_authorization_expires_at" IS NULL) AND ("dispatching_at" IS NOT NULL) AND ("terminal_at" IS NULL)) OR (("state" = ANY (ARRAY['consumed_no_revoke'::"public"."credential_revoke_permit_state", 'confirmed_not_sent'::"public"."credential_revoke_permit_state", 'confirmed_revoked'::"public"."credential_revoke_permit_state", 'cleanup_ambiguous'::"public"."credential_revoke_permit_state", 'provider_reset_confirmed'::"public"."credential_revoke_permit_state"])) AND ("token_hmac" IS NULL) AND ("send_authorization_expires_at" IS NULL) AND ("terminal_at" IS NOT NULL))))
-);
-
-
---
 -- Name: event_consumer_receipts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5238,126 +5153,6 @@ CREATE TABLE "public"."feedback" (
     "source" character varying(10) NOT NULL,
     "ip_hash" "text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
---
--- Name: gbp_import_request_items; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."gbp_import_request_items" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "import_job_id" "uuid" NOT NULL,
-    "connection_id" "uuid",
-    "existing_property_id" "uuid",
-    "destination_property_id" "uuid",
-    "provider_account_suffix" character varying(255),
-    "provider_location_suffix" character varying(255),
-    "google_review_uri" character varying(2048),
-    "expected_connection_lifecycle_version" integer,
-    "expected_connection_access_version" integer,
-    "expected_credential_generation" integer,
-    "expected_execution_policy_version" character varying(32),
-    "expected_actor_role" character varying(50),
-    "expected_permission_digest" character varying(64),
-    "expected_principal_kind" character varying(32),
-    "expected_permission_version" integer,
-    "expected_source_epoch" integer,
-    "expected_profile_version" integer,
-    "action" "public"."google_import_v2_action" NOT NULL,
-    "update_existing_profile" boolean NOT NULL,
-    "property_name" character varying(100) NOT NULL,
-    "property_address" "text",
-    "country_code" character varying(2),
-    "timezone" character varying(64) NOT NULL,
-    "status" "public"."google_import_v2_item_status" DEFAULT 'pending'::"public"."google_import_v2_item_status" NOT NULL,
-    "outcome_code" "public"."google_import_v2_outcome",
-    "effect_deadline_at" timestamp with time zone NOT NULL,
-    "retry_revision" integer DEFAULT 0 NOT NULL,
-    "highest_attempt_for_revision" integer DEFAULT 0 NOT NULL,
-    "claim_fence" "uuid",
-    "claim_lease_expires_at" timestamp with time zone,
-    "first_terminal_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "invalid_profile_field" character varying(16),
-    "google_primary_category" character varying(512),
-    "next_dispatch_at" timestamp with time zone,
-    "dispatch_epoch" integer DEFAULT 0 NOT NULL,
-    CONSTRAINT "gbp_import_request_items_attempt_fence_valid" CHECK (((("highest_attempt_for_revision" >= 0) AND ("highest_attempt_for_revision" <= 5)) AND (("claim_fence" IS NULL) = ("claim_lease_expires_at" IS NULL)) AND (("status" <> 'processing'::"public"."google_import_v2_item_status") OR (("claim_fence" IS NOT NULL) AND (("highest_attempt_for_revision" >= 1) AND ("highest_attempt_for_revision" <= 5)))))),
-    CONSTRAINT "gbp_import_request_items_authorization_snapshot_valid" CHECK (((("expected_execution_policy_version" IS NULL) AND ("expected_actor_role" IS NULL) AND ("expected_permission_digest" IS NULL) AND ("expected_principal_kind" IS NULL) AND ("expected_permission_version" IS NULL)) OR ((("char_length"(("expected_execution_policy_version")::"text") >= 1) AND ("char_length"(("expected_execution_policy_version")::"text") <= 32)) AND (("char_length"(("expected_actor_role")::"text") >= 1) AND ("char_length"(("expected_actor_role")::"text") <= 50)) AND (("expected_permission_digest")::"text" ~ '^[a-f0-9]{64}$'::"text") AND (("char_length"(("expected_principal_kind")::"text") >= 1) AND ("char_length"(("expected_principal_kind")::"text") <= 32)) AND ("expected_permission_version" >= 0)))),
-    CONSTRAINT "gbp_import_request_items_deadline_valid" CHECK (("effect_deadline_at" = ("created_at" + '24:00:00'::interval))),
-    CONSTRAINT "gbp_import_request_items_dispatch_epoch_valid" CHECK (("dispatch_epoch" >= 0)),
-    CONSTRAINT "gbp_import_request_items_generations_valid" CHECK ((((("expected_connection_lifecycle_version" >= 1) AND ("expected_connection_access_version" >= 1) AND ("expected_credential_generation" >= 1)) OR (("status" <> ALL (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND ("outcome_code" <> 'temporarily_unavailable'::"public"."google_import_v2_outcome") AND ("expected_connection_lifecycle_version" IS NULL) AND ("expected_connection_access_version" IS NULL) AND ("expected_credential_generation" IS NULL))) AND ("retry_revision" >= 0))),
-    CONSTRAINT "gbp_import_request_items_google_primary_category_valid" CHECK ((("google_primary_category" IS NULL) OR ((("char_length"(("google_primary_category")::"text") >= 1) AND ("char_length"(("google_primary_category")::"text") <= 512)) AND (("google_primary_category")::"text" = "btrim"(("google_primary_category")::"text"))))),
-    CONSTRAINT "gbp_import_request_items_google_review_uri_valid" CHECK ((("google_review_uri" IS NULL) OR (("google_review_uri")::"text" ~ '^https://'::"text"))),
-    CONSTRAINT "gbp_import_request_items_invalid_profile_field_valid" CHECK (((("invalid_profile_field" IS NULL) AND (("outcome_code" IS NULL) OR (("outcome_code")::"text" <> 'tenant_profile_invalid'::"text"))) OR ((("outcome_code")::"text" = 'tenant_profile_invalid'::"text") AND (("invalid_profile_field")::"text" = ANY ((ARRAY['name'::character varying, 'timezone'::character varying, 'country'::character varying])::"text"[]))))),
-    CONSTRAINT "gbp_import_request_items_profile_valid" CHECK (((("char_length"("btrim"(("property_name")::"text")) >= 1) AND ("char_length"("btrim"(("property_name")::"text")) <= 100)) AND (("char_length"(("timezone")::"text") >= 1) AND ("char_length"(("timezone")::"text") <= 64)) AND (("country_code" IS NULL) OR (("country_code")::"text" ~ '^[A-Z]{2}$'::"text")) AND ((("action" = 'create'::"public"."google_import_v2_action") AND ("existing_property_id" IS NULL) AND ("destination_property_id" IS NOT NULL) AND ("country_code" IS NOT NULL) AND ("update_existing_profile" = true) AND ("expected_source_epoch" IS NULL) AND ("expected_profile_version" IS NULL)) OR (("action" = 'relink'::"public"."google_import_v2_action") AND ("existing_property_id" IS NOT NULL) AND ("destination_property_id" = "existing_property_id") AND ("expected_source_epoch" >= 0) AND ("expected_profile_version" >= 1)) OR (("status" <> ALL (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND ("outcome_code" <> 'temporarily_unavailable'::"public"."google_import_v2_outcome") AND ("existing_property_id" IS NULL) AND (("status" = ANY (ARRAY['imported'::"public"."google_import_v2_item_status", 'relinked'::"public"."google_import_v2_item_status", 'already_exists'::"public"."google_import_v2_item_status"])) OR ("destination_property_id" IS NULL)) AND ("expected_source_epoch" IS NULL) AND ("expected_profile_version" IS NULL))))),
-    CONSTRAINT "gbp_import_request_items_provider_reference_retention_valid" CHECK (((("status" = ANY (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND ("connection_id" IS NOT NULL) AND ("provider_account_suffix" IS NOT NULL) AND ("provider_location_suffix" IS NOT NULL)) OR (("status" <> ALL (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND (("provider_account_suffix" IS NULL) = ("provider_location_suffix" IS NULL))))),
-    CONSTRAINT "gbp_import_request_items_provider_suffix_valid" CHECK (((("provider_account_suffix" IS NULL) OR (("provider_account_suffix")::"text" !~ '[/?#[:space:][:cntrl:]]'::"text")) AND (("provider_location_suffix" IS NULL) OR (("provider_location_suffix")::"text" !~ '[/?#[:space:][:cntrl:]]'::"text")))),
-    CONSTRAINT "gbp_import_request_items_status_outcome_valid" CHECK (((("status" = ANY (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND ("outcome_code" IS NULL)) OR (("status" = 'imported'::"public"."google_import_v2_item_status") AND ("outcome_code" = 'imported'::"public"."google_import_v2_outcome")) OR (("status" = 'relinked'::"public"."google_import_v2_item_status") AND ("outcome_code" = 'relinked'::"public"."google_import_v2_outcome")) OR (("status" = 'already_exists'::"public"."google_import_v2_item_status") AND ("outcome_code" = 'already_exists'::"public"."google_import_v2_outcome")) OR (("status" = 'failed'::"public"."google_import_v2_item_status") AND (("outcome_code")::"text" = ANY (ARRAY['active_binding_conflict'::"text", 'stale_binding'::"text", 'reauthentication_required'::"text", 'reconnect_required'::"text", 'temporarily_unavailable'::"text", 'cleanup_required'::"text", 'internal_error'::"text", 'tenant_profile_invalid'::"text"]))) OR (("status" = 'cancelled'::"public"."google_import_v2_item_status") AND (("outcome_code")::"text" = ANY (ARRAY['authorization_changed'::"text", 'user_cancelled'::"text", 'policy_disabled'::"text", 'organization_suspended'::"text", 'property_suspended'::"text", 'property_deleted'::"text"]))))),
-    CONSTRAINT "gbp_import_request_items_terminal_valid" CHECK ((("outcome_code" IS NULL) OR ("first_terminal_at" IS NOT NULL)))
-);
-
-
---
--- Name: gbp_import_requests; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."gbp_import_requests" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "request_id" "uuid" NOT NULL,
-    "initiated_by" character varying(255) NOT NULL,
-    "saga_id" "uuid",
-    "batch_ordinal" integer,
-    "status" "public"."google_import_v2_parent_status" DEFAULT 'queued'::"public"."google_import_v2_parent_status" NOT NULL,
-    "total_count" integer NOT NULL,
-    "processed_count" integer DEFAULT 0 NOT NULL,
-    "pending_count" integer NOT NULL,
-    "processing_count" integer DEFAULT 0 NOT NULL,
-    "imported_count" integer DEFAULT 0 NOT NULL,
-    "relinked_count" integer DEFAULT 0 NOT NULL,
-    "already_exists_count" integer DEFAULT 0 NOT NULL,
-    "failed_count" integer DEFAULT 0 NOT NULL,
-    "cancelled_count" integer DEFAULT 0 NOT NULL,
-    "deletion_fence" integer DEFAULT 0 NOT NULL,
-    "wire_replay_key_version" character varying(32),
-    "wire_replay_digest" character varying(43),
-    "semantic_replay_key_version" character varying(32),
-    "semantic_replay_digest" character varying(43),
-    "first_terminal_at" timestamp with time zone,
-    "purge_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "gbp_import_requests_counts_valid" CHECK (((("total_count" >= 1) AND ("total_count" <= 100)) AND ("deletion_fence" >= 0) AND ("pending_count" >= 0) AND ("processing_count" >= 0) AND ("imported_count" >= 0) AND ("relinked_count" >= 0) AND ("already_exists_count" >= 0) AND ("failed_count" >= 0) AND ("cancelled_count" >= 0) AND ("processed_count" = (((("imported_count" + "relinked_count") + "already_exists_count") + "failed_count") + "cancelled_count")) AND ("total_count" = (("pending_count" + "processing_count") + "processed_count")))),
-    CONSTRAINT "gbp_import_requests_replay_encoding_valid" CHECK ((("wire_replay_digest" IS NULL) OR ((("wire_replay_key_version")::"text" ~ '^[a-z][a-z0-9_-]{0,31}$'::"text") AND (("semantic_replay_key_version")::"text" ~ '^[a-z][a-z0-9_-]{0,31}$'::"text") AND (("wire_replay_digest")::"text" ~ '^[A-Za-z0-9_-]{43}$'::"text") AND (("semantic_replay_digest")::"text" ~ '^[A-Za-z0-9_-]{43}$'::"text")))),
-    CONSTRAINT "gbp_import_requests_replay_pairs_valid" CHECK (((("wire_replay_key_version" IS NULL) = ("wire_replay_digest" IS NULL)) AND (("semantic_replay_key_version" IS NULL) = ("semantic_replay_digest" IS NULL)) AND (("wire_replay_digest" IS NULL) = ("semantic_replay_digest" IS NULL)))),
-    CONSTRAINT "gbp_import_requests_saga_batch_valid" CHECK (((("saga_id" IS NULL) AND ("batch_ordinal" IS NULL)) OR (("saga_id" IS NOT NULL) AND ("batch_ordinal" >= 0)))),
-    CONSTRAINT "gbp_import_requests_terminal_times_valid" CHECK (((("first_terminal_at" IS NULL) = ("purge_at" IS NULL)) AND (("first_terminal_at" IS NULL) OR ("purge_at" = ("first_terminal_at" + '30 days'::interval))) AND (("status" = ANY (ARRAY['queued'::"public"."google_import_v2_parent_status", 'processing'::"public"."google_import_v2_parent_status"])) OR ("first_terminal_at" IS NOT NULL))))
-);
-
-
---
--- Name: gbp_import_sagas; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."gbp_import_sagas" (
-    "id" "uuid" NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "request_id" "uuid" NOT NULL,
-    "initiated_by" character varying(255) NOT NULL,
-    "total_count" integer NOT NULL,
-    "batch_count" integer NOT NULL,
-    "wire_replay_key_version" character varying(32) NOT NULL,
-    "wire_replay_digest" character varying(43) NOT NULL,
-    "semantic_replay_key_version" character varying(32) NOT NULL,
-    "semantic_replay_digest" character varying(43) NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "gbp_import_sagas_batch_shape_valid" CHECK ((("total_count" >= 1) AND ("batch_count" >= 1) AND ("total_count" > (("batch_count" - 1) * 100)) AND ("total_count" <= ("batch_count" * 100)))),
-    CONSTRAINT "gbp_import_sagas_replay_encoding_valid" CHECK (((("wire_replay_key_version")::"text" ~ '^[a-z][a-z0-9_-]{0,31}$'::"text") AND (("semantic_replay_key_version")::"text" ~ '^[a-z][a-z0-9_-]{0,31}$'::"text") AND (("wire_replay_digest")::"text" ~ '^[A-Za-z0-9_-]{43}$'::"text") AND (("semantic_replay_digest")::"text" ~ '^[A-Za-z0-9_-]{43}$'::"text")))
 );
 
 
@@ -5577,34 +5372,6 @@ CREATE TABLE "public"."google_connections" (
 
 
 --
--- Name: google_credential_source_operations; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."google_credential_source_operations" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "guard_id" "uuid" NOT NULL,
-    "source_work_permit_id" "uuid" NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "connection_id" "uuid",
-    "sequence" bigint NOT NULL,
-    "kind" "public"."google_credential_source_kind" NOT NULL,
-    "state" "public"."google_credential_source_state" NOT NULL,
-    "expected_lifecycle_version" bigint NOT NULL,
-    "expected_access_version" bigint NOT NULL,
-    "expected_credential_generation" bigint NOT NULL,
-    "operation_deadline_at" timestamp with time zone NOT NULL,
-    "provider_started_at" timestamp with time zone,
-    "terminal_at" timestamp with time zone,
-    "outcome_code" character varying(100),
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "google_credential_source_operations_deadline_check" CHECK (("operation_deadline_at" > "created_at")),
-    CONSTRAINT "google_credential_source_operations_sequence_check" CHECK (("sequence" >= 1)),
-    CONSTRAINT "google_credential_source_operations_state_check" CHECK (((("state" = 'registered'::"public"."google_credential_source_state") AND ("provider_started_at" IS NULL) AND ("terminal_at" IS NULL)) OR (("state" = ANY (ARRAY['provider_started'::"public"."google_credential_source_state", 'provider_outcome_ambiguous'::"public"."google_credential_source_state"])) AND ("provider_started_at" IS NOT NULL) AND ("terminal_at" IS NULL)) OR (("state" = ANY (ARRAY['terminal'::"public"."google_credential_source_state", 'provider_reset_terminal'::"public"."google_credential_source_state"])) AND ("terminal_at" IS NOT NULL))))
-);
-
-
---
 -- Name: google_import_discovery_records; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5725,6 +5492,18 @@ CREATE TABLE "public"."google_imports" (
 
 
 --
+-- Name: google_notification_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE "public"."google_notification_accounts" (
+    "account_key" character varying(64) NOT NULL,
+    "attempted_at" timestamp with time zone,
+    "verified_at" timestamp with time zone,
+    "configuration" "text"
+);
+
+
+--
 -- Name: google_reply_observation_heads; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5801,28 +5580,6 @@ CREATE TABLE "public"."google_reply_observations" (
     CONSTRAINT "google_reply_observations_semantics_valid" CHECK ((((("resolution")::"text" = 'confirmed_on_google'::"text") AND (("state")::"text" = 'live'::"text") AND (("change")::"text" <> 'deleted'::"text") AND (("provenance")::"text" = 'repkey_confirmed'::"text") AND ("matched_reply_id" IS NOT NULL) AND ("matched_publication_cycle" IS NOT NULL) AND ("matched_attempt_number" IS NOT NULL)) OR ((("resolution")::"text" = 'external_current_live'::"text") AND (("state")::"text" = 'live'::"text") AND (("change")::"text" <> 'deleted'::"text") AND (("provenance")::"text" = 'external_or_unknown'::"text") AND ("matched_reply_id" IS NULL) AND ("matched_publication_cycle" IS NULL) AND ("matched_attempt_number" IS NULL)) OR ((("resolution")::"text" = 'diverged'::"text") AND (("state")::"text" = 'live'::"text") AND (("change")::"text" <> 'deleted'::"text") AND (("provenance")::"text" = 'external_or_unknown'::"text") AND ("matched_reply_id" IS NULL) AND ("matched_publication_cycle" IS NULL) AND ("matched_attempt_number" IS NULL)) OR ((("resolution")::"text" = 'absent'::"text") AND (("state")::"text" = 'absent'::"text") AND (("change")::"text" = 'deleted'::"text") AND (("provenance")::"text" = 'none'::"text") AND ("matched_reply_id" IS NULL) AND ("matched_publication_cycle" IS NULL) AND ("matched_attempt_number" IS NULL)) OR ((("resolution")::"text" = 'unchanged'::"text") AND (("change")::"text" = 'unchanged'::"text") AND (((("state")::"text" = 'absent'::"text") AND (("provenance")::"text" = 'none'::"text")) OR ((("state")::"text" = 'live'::"text") AND (("provenance")::"text" = 'external_or_unknown'::"text"))) AND ("matched_reply_id" IS NULL) AND ("matched_publication_cycle" IS NULL) AND ("matched_attempt_number" IS NULL)))),
     CONSTRAINT "google_reply_observations_source_valid" CHECK ((("source")::"text" = ANY ((ARRAY['provider_snapshot'::character varying, 'targeted_reconciliation'::character varying])::"text"[]))),
     CONSTRAINT "google_reply_observations_state_valid" CHECK ((("state")::"text" = ANY ((ARRAY['live'::character varying, 'absent'::character varying])::"text"[])))
-);
-
-
---
--- Name: google_subject_authority_guards; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."google_subject_authority_guards" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "project_client_hmac_key_version" character varying(50) NOT NULL,
-    "project_client_hmac" character varying(128) NOT NULL,
-    "subject_hmac_key_version" character varying(50) NOT NULL,
-    "subject_hmac" character varying(128) NOT NULL,
-    "generation" bigint DEFAULT 0 NOT NULL,
-    "next_sequence" bigint DEFAULT 1 NOT NULL,
-    "source_cutoff_sequence" bigint,
-    "active_source_operation_id" "uuid",
-    "state" "public"."google_subject_authority_guard_state" DEFAULT 'open'::"public"."google_subject_authority_guard_state" NOT NULL,
-    "cleanup_deadline_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "google_subject_authority_guards_sequence_check" CHECK ((("next_sequence" >= 1) AND (("source_cutoff_sequence" IS NULL) OR ("source_cutoff_sequence" < "next_sequence"))))
 );
 
 
@@ -6724,7 +6481,19 @@ CREATE TABLE "public"."notification_email_queue" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "recipient_audience" "jsonb",
+    "provider_request" "jsonb",
     CONSTRAINT "notification_email_queue_mandatory_scope_check" CHECK ((((("category")::"text" = 'mandatory'::"text") AND ("property_id" IS NULL) AND (("cadence")::"text" = 'immediate'::"text")) OR ((("category")::"text" <> 'mandatory'::"text") AND ("property_id" IS NOT NULL))))
+);
+
+
+--
+-- Name: notification_email_suppression_removals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE "public"."notification_email_suppression_removals" (
+    "address_hash" character varying(64) NOT NULL,
+    "removed_at" timestamp with time zone NOT NULL,
+    CONSTRAINT "notification_email_suppression_removals_address_hash_valid" CHECK ((("address_hash")::"text" ~ '^[a-f0-9]{64}$'::"text"))
 );
 
 
@@ -8169,57 +7938,6 @@ CREATE TABLE "public"."property_rating_goals" (
 
 
 --
--- Name: property_reply_profiles; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."property_reply_profiles" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "greeting" character varying(120) NOT NULL,
-    "sign_off_positive" character varying(200) NOT NULL,
-    "sign_off_negative" character varying(200) NOT NULL,
-    "emoji_allowed" boolean DEFAULT false NOT NULL,
-    "escalation_contact" character varying(200),
-    "version" integer DEFAULT 1 NOT NULL,
-    "updated_by" character varying(255) NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "property_reply_profiles_version_positive" CHECK (("version" >= 1))
-);
-
-
---
--- Name: property_reply_templates; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."property_reply_templates" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "title" character varying(120) NOT NULL,
-    "rating_min" smallint NOT NULL,
-    "rating_max" smallint NOT NULL,
-    "has_text" boolean NOT NULL,
-    "aspect" character varying(40),
-    "open_label" character varying(80),
-    "language_tag" character varying(35) NOT NULL,
-    "body" "text" NOT NULL,
-    "enabled" boolean DEFAULT true NOT NULL,
-    "version" integer DEFAULT 1 NOT NULL,
-    "updated_by" character varying(255) NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "property_reply_templates_aspect_valid" CHECK ((("aspect" IS NULL) OR (("aspect")::"text" = ANY ((ARRAY['service'::character varying, 'staff'::character varying, 'quality'::character varying, 'value'::character varying, 'cleanliness'::character varying, 'wait_time'::character varying, 'atmosphere'::character varying, 'location'::character varying, 'accessibility'::character varying, 'other'::character varying, 'room'::character varying, 'food_and_drink'::character varying, 'noise'::character varying, 'wifi_and_tech'::character varying, 'check_in_out'::character varying, 'parking'::character varying, 'amenities'::character varying, 'events'::character varying])::"text"[])))),
-    CONSTRAINT "property_reply_templates_body_valid" CHECK ((("char_length"("btrim"("body")) > 0) AND ("char_length"("body") <= 4096))),
-    CONSTRAINT "property_reply_templates_language_tag_valid" CHECK ((("language_tag")::"text" ~ '^(en-Latn|es-Latn|fr-Latn|de-Latn|pt-Latn|it-Latn|nl-Latn|pl-Latn|tr-Latn|uk-Cyrl|ru-Cyrl|ar-Arab|he-Hebr|hi-Deva|bn-Beng|ta-Taml|th-Thai|vi-Latn|id-Latn|zh-Hans|zh-Hant|ja-Jpan|ko-Kore|bg-Cyrl)(-(001|002|003|005|009|011|013|014|015|017|018|019|021|029|030|034|035|039|053|054|057|061|142|143|145|150|151|154|155|202|419|AC|AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BV|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CP|CQ|CR|CU|CV|CW|CX|CY|CZ|DE|DG|DJ|DK|DM|DO|DZ|EA|EC|EE|EG|EH|ER|ES|ET|EU|EZ|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HM|HN|HR|HT|HU|IC|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|QO|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TA|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|UN|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|XA|XB|XK|YE|YT|ZA|ZM|ZW))?$'::"text")),
-    CONSTRAINT "property_reply_templates_rating_valid" CHECK (((("rating_min" >= 1) AND ("rating_min" <= 5)) AND (("rating_max" >= 1) AND ("rating_max" <= 5)) AND ("rating_min" <= "rating_max"))),
-    CONSTRAINT "property_reply_templates_title_nonempty" CHECK (("char_length"("btrim"(("title")::"text")) > 0)),
-    CONSTRAINT "property_reply_templates_version_positive" CHECK (("version" >= 1))
-);
-
-
---
 -- Name: property_reply_voices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8584,6 +8302,16 @@ CREATE TABLE "public"."reply_templates" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "reply_templates_base_valid" CHECK (((("property_id" IS NOT NULL) OR ("based_on_template_id" IS NULL)) AND ("num_nonnulls"("builtin_key", "based_on_template_id") <= 1))),
     CONSTRAINT "reply_templates_builtin_version_positive" CHECK ((("based_on_builtin_version" IS NULL) OR ("based_on_builtin_version" >= 1)))
+);
+
+
+--
+-- Name: resend_webhook_deliveries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE "public"."resend_webhook_deliveries" (
+    "event_id" character varying(255) NOT NULL,
+    "applied_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -9604,14 +9332,6 @@ ALTER TABLE ONLY "public"."capability_execution_control"
 
 
 --
--- Name: credential_revoke_permits credential_revoke_permits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."credential_revoke_permits"
-    ADD CONSTRAINT "credential_revoke_permits_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: event_consumer_receipts event_consumer_receipts_event_id_consumer_name_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9625,30 +9345,6 @@ ALTER TABLE ONLY "public"."event_consumer_receipts"
 
 ALTER TABLE ONLY "public"."feedback"
     ADD CONSTRAINT "feedback_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: gbp_import_request_items gbp_import_request_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."gbp_import_request_items"
-    ADD CONSTRAINT "gbp_import_request_items_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: gbp_import_requests gbp_import_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."gbp_import_requests"
-    ADD CONSTRAINT "gbp_import_requests_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: gbp_import_sagas gbp_import_sagas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."gbp_import_sagas"
-    ADD CONSTRAINT "gbp_import_sagas_pkey" PRIMARY KEY ("id");
 
 
 --
@@ -9796,14 +9492,6 @@ ALTER TABLE ONLY "public"."google_connections"
 
 
 --
--- Name: google_credential_source_operations google_credential_source_operations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."google_credential_source_operations"
-    ADD CONSTRAINT "google_credential_source_operations_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: google_import_discovery_records google_import_discovery_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9852,6 +9540,14 @@ ALTER TABLE ONLY "public"."google_imports"
 
 
 --
+-- Name: google_notification_accounts google_notification_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."google_notification_accounts"
+    ADD CONSTRAINT "google_notification_accounts_pkey" PRIMARY KEY ("account_key");
+
+
+--
 -- Name: google_reply_observation_heads google_reply_observation_heads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9865,14 +9561,6 @@ ALTER TABLE ONLY "public"."google_reply_observation_heads"
 
 ALTER TABLE ONLY "public"."google_reply_observations"
     ADD CONSTRAINT "google_reply_observations_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: google_subject_authority_guards google_subject_authority_guards_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."google_subject_authority_guards"
-    ADD CONSTRAINT "google_subject_authority_guards_pkey" PRIMARY KEY ("id");
 
 
 --
@@ -10201,6 +9889,14 @@ ALTER TABLE ONLY "public"."notification_digest_batches"
 
 ALTER TABLE ONLY "public"."notification_email_queue"
     ADD CONSTRAINT "notification_email_queue_pkey" PRIMARY KEY ("id");
+
+
+--
+-- Name: notification_email_suppression_removals notification_email_suppression_removals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."notification_email_suppression_removals"
+    ADD CONSTRAINT "notification_email_suppression_removals_pkey" PRIMARY KEY ("address_hash");
 
 
 --
@@ -10708,22 +10404,6 @@ ALTER TABLE ONLY "public"."property_rating_goals"
 
 
 --
--- Name: property_reply_profiles property_reply_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_reply_profiles"
-    ADD CONSTRAINT "property_reply_profiles_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: property_reply_templates property_reply_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_reply_templates"
-    ADD CONSTRAINT "property_reply_templates_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: property_reply_voices property_reply_voices_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10841,6 +10521,14 @@ ALTER TABLE ONLY "public"."reply_template_wordings"
 
 ALTER TABLE ONLY "public"."reply_templates"
     ADD CONSTRAINT "reply_templates_pkey" PRIMARY KEY ("id");
+
+
+--
+-- Name: resend_webhook_deliveries resend_webhook_deliveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."resend_webhook_deliveries"
+    ADD CONSTRAINT "resend_webhook_deliveries_pkey" PRIMARY KEY ("event_id");
 
 
 --
@@ -11541,13 +11229,6 @@ CREATE INDEX "beta_feedback_triage_work_queue_idx" ON "public"."beta_feedback_tr
 
 
 --
--- Name: credential_revoke_permits_active_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "credential_revoke_permits_active_idx" ON "public"."credential_revoke_permits" USING "btree" ("guard_id", "state", "cleanup_deadline_at");
-
-
---
 -- Name: email_queue_due_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11601,97 +11282,6 @@ CREATE INDEX "feedback_portal_idx" ON "public"."feedback" USING "btree" ("portal
 --
 
 CREATE UNIQUE INDEX "feedback_session_portal_unique" ON "public"."feedback" USING "btree" ("session_id", "portal_id");
-
-
---
--- Name: gbp_import_request_items_dispatch_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "gbp_import_request_items_dispatch_idx" ON "public"."gbp_import_request_items" USING "btree" ("organization_id", "id", "status") WHERE ("status" = ANY (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"]));
-
-
---
--- Name: gbp_import_request_items_due_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "gbp_import_request_items_due_idx" ON "public"."gbp_import_request_items" USING "btree" ("next_dispatch_at", "id");
-
-
---
--- Name: gbp_import_request_items_effect_deadline_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "gbp_import_request_items_effect_deadline_idx" ON "public"."gbp_import_request_items" USING "btree" ("effect_deadline_at", "id") WHERE ("status" = ANY (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"]));
-
-
---
--- Name: gbp_import_request_items_org_id_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "gbp_import_request_items_org_id_key" ON "public"."gbp_import_request_items" USING "btree" ("organization_id", "id");
-
-
---
--- Name: gbp_import_request_items_parent_status_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "gbp_import_request_items_parent_status_idx" ON "public"."gbp_import_request_items" USING "btree" ("organization_id", "import_job_id", "status", "retry_revision");
-
-
---
--- Name: gbp_import_requests_initiated_request_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "gbp_import_requests_initiated_request_idx" ON "public"."gbp_import_requests" USING "btree" ("organization_id", "initiated_by", "request_id");
-
-
---
--- Name: gbp_import_requests_org_id_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "gbp_import_requests_org_id_key" ON "public"."gbp_import_requests" USING "btree" ("organization_id", "id");
-
-
---
--- Name: gbp_import_requests_org_request_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "gbp_import_requests_org_request_unique" ON "public"."gbp_import_requests" USING "btree" ("organization_id", "request_id");
-
-
---
--- Name: gbp_import_requests_purge_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "gbp_import_requests_purge_idx" ON "public"."gbp_import_requests" USING "btree" ("purge_at", "id") WHERE ("purge_at" IS NOT NULL);
-
-
---
--- Name: gbp_import_requests_saga_batch_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "gbp_import_requests_saga_batch_unique" ON "public"."gbp_import_requests" USING "btree" ("organization_id", "saga_id", "batch_ordinal");
-
-
---
--- Name: gbp_import_sagas_initiated_request_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "gbp_import_sagas_initiated_request_idx" ON "public"."gbp_import_sagas" USING "btree" ("organization_id", "initiated_by", "request_id");
-
-
---
--- Name: gbp_import_sagas_org_id_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "gbp_import_sagas_org_id_key" ON "public"."gbp_import_sagas" USING "btree" ("organization_id", "id");
-
-
---
--- Name: gbp_import_sagas_org_request_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "gbp_import_sagas_org_request_unique" ON "public"."gbp_import_sagas" USING "btree" ("organization_id", "request_id");
 
 
 --
@@ -11776,27 +11366,6 @@ CREATE UNIQUE INDEX "google_connections_org_id_key" ON "public"."google_connecti
 --
 
 CREATE INDEX "google_connections_status_idx" ON "public"."google_connections" USING "btree" ("status") WHERE ("status" <> ALL (ARRAY['active'::"public"."connection_status", 'disconnected'::"public"."connection_status"]));
-
-
---
--- Name: google_credential_source_operations_active_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "google_credential_source_operations_active_idx" ON "public"."google_credential_source_operations" USING "btree" ("guard_id", "state", "operation_deadline_at");
-
-
---
--- Name: google_credential_source_operations_guard_sequence_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "google_credential_source_operations_guard_sequence_key" ON "public"."google_credential_source_operations" USING "btree" ("guard_id", "sequence");
-
-
---
--- Name: google_credential_source_operations_one_active_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "google_credential_source_operations_one_active_idx" ON "public"."google_credential_source_operations" USING "btree" ("guard_id") WHERE ("state" = ANY (ARRAY['registered'::"public"."google_credential_source_state", 'provider_started'::"public"."google_credential_source_state", 'provider_outcome_ambiguous'::"public"."google_credential_source_state"]));
 
 
 --
@@ -11909,20 +11478,6 @@ CREATE UNIQUE INDEX "google_reply_observations_revision_key" ON "public"."google
 --
 
 CREATE INDEX "google_reply_observations_scope_idx" ON "public"."google_reply_observations" USING "btree" ("organization_id", "property_id", "review_id", "observation_revision");
-
-
---
--- Name: google_subject_authority_guards_active_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "google_subject_authority_guards_active_idx" ON "public"."google_subject_authority_guards" USING "btree" ("state", "cleanup_deadline_at");
-
-
---
--- Name: google_subject_authority_guards_subject_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "google_subject_authority_guards_subject_key" ON "public"."google_subject_authority_guards" USING "btree" ("project_client_hmac_key_version", "project_client_hmac", "subject_hmac_key_version", "subject_hmac");
 
 
 --
@@ -13508,41 +13063,6 @@ CREATE INDEX "property_rating_goals_property_idx" ON "public"."property_rating_g
 
 
 --
--- Name: property_reply_profiles_property_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "property_reply_profiles_property_unique" ON "public"."property_reply_profiles" USING "btree" ("organization_id", "property_id");
-
-
---
--- Name: property_reply_profiles_scope_id_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "property_reply_profiles_scope_id_key" ON "public"."property_reply_profiles" USING "btree" ("organization_id", "property_id", "id");
-
-
---
--- Name: property_reply_templates_applicable_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "property_reply_templates_applicable_idx" ON "public"."property_reply_templates" USING "btree" ("organization_id", "property_id", "enabled", "has_text", "rating_min", "rating_max");
-
-
---
--- Name: property_reply_templates_property_title_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "property_reply_templates_property_title_unique" ON "public"."property_reply_templates" USING "btree" ("organization_id", "property_id", "title");
-
-
---
--- Name: property_reply_templates_scope_id_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "property_reply_templates_scope_id_key" ON "public"."property_reply_templates" USING "btree" ("organization_id", "property_id", "id");
-
-
---
 -- Name: property_rm_org_property_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13841,6 +13361,13 @@ CREATE INDEX "reply_templates_scope_active_idx" ON "public"."reply_templates" US
 --
 
 CREATE UNIQUE INDEX "reply_templates_scope_id_key" ON "public"."reply_templates" USING "btree" ("organization_id", "property_id", "id");
+
+
+--
+-- Name: resend_webhook_deliveries_retention_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "resend_webhook_deliveries_retention_idx" ON "public"."resend_webhook_deliveries" USING "btree" ("applied_at");
 
 
 --
@@ -14988,30 +14515,6 @@ ALTER TABLE ONLY "public"."beta_feedback_triage_transitions"
 
 
 --
--- Name: credential_revoke_permits credential_revoke_permits_cleanup_work_permit_id_authorization_; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."credential_revoke_permits"
-    ADD CONSTRAINT "credential_revoke_permits_cleanup_work_permit_id_authorization_" FOREIGN KEY ("cleanup_work_permit_id") REFERENCES "public"."authorization_execution_permits"("id") ON DELETE RESTRICT;
-
-
---
--- Name: credential_revoke_permits credential_revoke_permits_guard_id_google_subject_authority_gua; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."credential_revoke_permits"
-    ADD CONSTRAINT "credential_revoke_permits_guard_id_google_subject_authority_gua" FOREIGN KEY ("guard_id") REFERENCES "public"."google_subject_authority_guards"("id") ON DELETE RESTRICT;
-
-
---
--- Name: credential_revoke_permits credential_revoke_permits_source_operation_id_google_credential; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."credential_revoke_permits"
-    ADD CONSTRAINT "credential_revoke_permits_source_operation_id_google_credential" FOREIGN KEY ("source_operation_id") REFERENCES "public"."google_credential_source_operations"("id") ON DELETE RESTRICT;
-
-
---
 -- Name: event_consumer_receipts event_consumer_receipts_event_id_outbox_events_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15033,38 +14536,6 @@ ALTER TABLE ONLY "public"."feedback"
 
 ALTER TABLE ONLY "public"."feedback"
     ADD CONSTRAINT "feedback_rating_id_ratings_id_fk" FOREIGN KEY ("rating_id") REFERENCES "public"."ratings"("id") ON DELETE SET NULL;
-
-
---
--- Name: gbp_import_request_items gbp_import_request_items_connection_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."gbp_import_request_items"
-    ADD CONSTRAINT "gbp_import_request_items_connection_tenant_fk" FOREIGN KEY ("organization_id", "connection_id") REFERENCES "public"."google_connections"("organization_id", "id") ON DELETE RESTRICT;
-
-
---
--- Name: gbp_import_request_items gbp_import_request_items_parent_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."gbp_import_request_items"
-    ADD CONSTRAINT "gbp_import_request_items_parent_tenant_fk" FOREIGN KEY ("organization_id", "import_job_id") REFERENCES "public"."gbp_import_requests"("organization_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: gbp_import_request_items gbp_import_request_items_property_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."gbp_import_request_items"
-    ADD CONSTRAINT "gbp_import_request_items_property_tenant_fk" FOREIGN KEY ("organization_id", "existing_property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE RESTRICT;
-
-
---
--- Name: gbp_import_requests gbp_import_requests_saga_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."gbp_import_requests"
-    ADD CONSTRAINT "gbp_import_requests_saga_tenant_fk" FOREIGN KEY ("organization_id", "saga_id") REFERENCES "public"."gbp_import_sagas"("organization_id", "id") ON DELETE CASCADE;
 
 
 --
@@ -15161,22 +14632,6 @@ ALTER TABLE ONLY "public"."goal_subject_assignments"
 
 ALTER TABLE ONLY "public"."goal_subject_assignments"
     ADD CONSTRAINT "goal_subject_assignments_version_fk" FOREIGN KEY ("organization_id", "property_id", "program_id", "program_version_id", "metric_key") REFERENCES "public"."goal_program_versions"("organization_id", "property_id", "program_id", "id", "metric_key") ON DELETE RESTRICT;
-
-
---
--- Name: google_credential_source_operations google_credential_source_operations_guard_id_google_subject_aut; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."google_credential_source_operations"
-    ADD CONSTRAINT "google_credential_source_operations_guard_id_google_subject_aut" FOREIGN KEY ("guard_id") REFERENCES "public"."google_subject_authority_guards"("id") ON DELETE RESTRICT;
-
-
---
--- Name: google_credential_source_operations google_credential_source_operations_source_work_permit_id_autho; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."google_credential_source_operations"
-    ADD CONSTRAINT "google_credential_source_operations_source_work_permit_id_autho" FOREIGN KEY ("source_work_permit_id") REFERENCES "public"."authorization_execution_permits"("id") ON DELETE RESTRICT;
 
 
 --
@@ -16361,22 +15816,6 @@ ALTER TABLE ONLY "public"."property_rating_goal_deferrals"
 
 ALTER TABLE ONLY "public"."property_rating_goals"
     ADD CONSTRAINT "property_rating_goals_property_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE RESTRICT;
-
-
---
--- Name: property_reply_profiles property_reply_profiles_property_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_reply_profiles"
-    ADD CONSTRAINT "property_reply_profiles_property_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE RESTRICT;
-
-
---
--- Name: property_reply_templates property_reply_templates_property_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_reply_templates"
-    ADD CONSTRAINT "property_reply_templates_property_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE RESTRICT;
 
 
 --

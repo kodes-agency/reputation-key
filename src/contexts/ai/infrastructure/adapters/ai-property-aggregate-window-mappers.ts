@@ -1,7 +1,5 @@
-// How the legacy window's rows become the readers' types. Every mapper fails
-// closed: a row that breaks any correlated invariant is an error, never a
-// partial answer. Moved out of the aggregate store without changing, so that file
-// can hold the v3 contribution beside the v2 one.
+// Legacy window evidence is validated before deriving day counts. A broken
+// correlated invariant is an error, never a partial answer.
 
 import { reviewId } from '#/shared/domain/ids'
 import { isAspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
@@ -13,30 +11,62 @@ import type {
   AiPropertyUnavailableReview,
 } from '../../application/ports/ai-property-aggregate-store.port'
 import { safeSequence } from './ai-property-aggregate-head'
-import type { DailyRow } from './ai-property-aggregate-contributions'
-
-export function mapDaily(
-  row: DailyRow,
-  aspectCounts: readonly AiPropertyDailyAspectCount[],
-): AiPropertyDailyAggregate {
-  return {
-    localDate: row.localDate,
-    reviewCount: row.reviewCount,
-    ratingSum: row.ratingSum,
-    sentimentCounts: {
-      positive: row.positiveCount,
-      neutral: row.neutralCount,
-      negative: row.negativeCount,
-      mixed: row.mixedCount,
-    },
-    aspectCounts,
-    attentionCounts: {
-      urgent: row.urgentCount,
-      high: row.highCount,
-      medium: row.mediumCount,
-      low: row.lowCount,
-    },
+/** Legacy reads derive their day counts from the same current evidence rows. */
+export function dailyCountsFromReviews(
+  reviews: readonly AiPropertyAnalyzedReview[],
+): readonly AiPropertyDailyAggregate[] {
+  const days = new Map<
+    string,
+    {
+      localDate: string
+      reviewCount: number
+      ratingSum: number
+      sentimentCounts: Record<AiPropertyAnalyzedReview['sentiment'], number>
+      attentionCounts: Record<AiPropertyAnalyzedReview['attention'], number>
+      aspectCounts: AiPropertyDailyAspectCount[]
+    }
+  >()
+  for (const review of reviews) {
+    const day = days.get(review.localDate) ?? {
+      localDate: review.localDate,
+      reviewCount: 0,
+      ratingSum: 0,
+      sentimentCounts: { positive: 0, neutral: 0, negative: 0, mixed: 0 },
+      attentionCounts: { urgent: 0, high: 0, medium: 0, low: 0 },
+      aspectCounts: [],
+    }
+    day.reviewCount += 1
+    day.ratingSum += review.rating
+    day.sentimentCounts[review.sentiment] += 1
+    day.attentionCounts[review.attention] += 1
+    for (const aspect of review.aspects) {
+      const count = day.aspectCounts.find(
+        (value) => value.aspect === aspect.aspect && value.polarity === aspect.polarity,
+      )
+      if (count) {
+        day.aspectCounts[day.aspectCounts.indexOf(count)] = {
+          ...count,
+          count: count.count + 1,
+        }
+      } else {
+        day.aspectCounts.push({
+          aspect: aspect.aspect,
+          polarity: aspect.polarity,
+          count: 1,
+        })
+      }
+    }
+    days.set(review.localDate, day)
   }
+  return [...days.values()]
+    .sort((a, b) => a.localDate.localeCompare(b.localDate))
+    .map((day) => ({
+      ...day,
+      aspectCounts: day.aspectCounts.sort(
+        (a, b) =>
+          a.aspect.localeCompare(b.aspect) || a.polarity.localeCompare(b.polarity),
+      ),
+    }))
 }
 
 const SENTIMENT_VALUES: Readonly<Record<AiPropertyAnalyzedReview['sentiment'], true>> =

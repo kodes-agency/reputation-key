@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // A phone number or an email address on a Linktree tile, against real
 // PostgreSQL: the widened CHECK takes the `contact` source (migration 0073), a
 // contact is approved as a manager enters it, the job that checks websites again
@@ -26,7 +27,7 @@ import {
   validatePortalLinkDestination,
 } from '../domain/approved-destination'
 import { portalCreated } from '../domain/events'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { createPortalApprovedDestinationRepository } from './repositories/portal-approved-destination.repository'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
 import { createPortalRepository } from './repositories/portal.repository'
@@ -101,7 +102,10 @@ beforeEach(async () => {
      VALUES ($1, $2, 'Harbour House', 'harbour-house-contact', 'UTC', $3, $3)`,
     [PROPERTY_A, ORG_A, STORED_AT],
   )
-  await createAtomicPortalCommandStore(getDb()).createPortal({
+  await createAtomicPortalCommandStore(
+    getDb(),
+    createPortalRatingGoalGuard(),
+  ).createPortal({
     organizationId: ORG_A,
     portal,
     initialResponsibleManagerIds: [MANAGER],
@@ -289,7 +293,7 @@ describe('contact destinations (real PostgreSQL)', () => {
       portalRepo: createPortalRepository(db),
       portalLinkRepo: createPortalLinkRepository(db),
       staffPublicApi: staffApi,
-      commandStore: createAtomicPortalCommandStore(db),
+      commandStore: createAtomicPortalCommandStore(db, createPortalRatingGoalGuard()),
       destinationRepo: createPortalApprovedDestinationRepository(db),
       destinationNetworkValidator: {
         validate: async (uri: string) => {

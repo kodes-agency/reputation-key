@@ -47,6 +47,13 @@ export type TenantPredicateExemption = Readonly<{
 
 export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = [
   {
+    file: 'src/contexts/ai/infrastructure/adapters/ai-profile-rebuild.ts',
+    symbol: 'listPendingProfileRebuilds',
+    reason:
+      'The bounded worker sweep enumerates rolled profile identifiers across tenants. Each rebuild locks its Property and rechecks the tenant, source, active profile and merchant authorization before mutation.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
     symbol: 'claim',
     reason:
@@ -114,13 +121,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     symbol: 'hasActiveCapabilityWork',
     reason:
       'The global capability-control transaction must detect any remaining admitted work across tenants before completing its fence transition.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts',
-    symbol: 'hasActiveCleanupWork',
-    reason:
-      'The global capability-control transaction must detect any outstanding credential cleanup across tenants before completing its fence transition.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
@@ -306,70 +306,70 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'TENANT-CORRELATED',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-backlog.adapter.ts',
+    file: 'src/contexts/ai/replay/backlog-store.server.ts',
     symbol: 'claimReady',
     reason:
       'The bounded backlog drain intentionally claims ready review-analysis work across tenants, a few entries per Property, and returns each entry with its Organization and Property.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts',
+    file: 'src/contexts/ai/replay/enrollment-store.server.ts',
     symbol: 'listActionable',
     reason:
       'The bounded enrollment advance intentionally lists queued and running enrollments across tenants and returns each with its Organization and Property.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-reopen.adapter.ts',
+    file: 'src/contexts/ai/replay/reopen-store.server.ts',
     symbol: 'abandonedInCurrentLineageSql',
     reason:
       'The fragment joins enablement and operations to the review row on Organization and Property; reopenProperty restricts it to one Property of one Organization, and reopenAbandoned is the registered cross-tenant sweep.',
     category: 'TENANT-CORRELATED',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-reopen.adapter.ts',
+    file: 'src/contexts/ai/replay/reopen-store.server.ts',
     symbol: 'abandonedOperationSql',
     reason:
       "The fragment counts a review's earlier abandoned operations and ties them to the review row on Organization and Property; the statement that embeds it owns the tenant scope.",
     category: 'TENANT-CORRELATED',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-reopen.adapter.ts',
+    file: 'src/contexts/ai/replay/reopen-store.server.ts',
     symbol: 'currentSequenceAnalysedSql',
     reason:
       'The fragment asks whether the review row has a ready analysis and ties the analysis to that row on Organization and Property; the statement that embeds it owns the tenant scope.',
     category: 'TENANT-CORRELATED',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-reopen.adapter.ts',
+    file: 'src/contexts/ai/replay/reopen-store.server.ts',
     symbol: 'currentSequenceSettledSql',
     reason:
       'The fragment asks whether the review row is settled and ties the settlement to that row on Organization and Property; the statement that embeds it owns the tenant scope.',
     category: 'TENANT-CORRELATED',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-reopen.adapter.ts',
+    file: 'src/contexts/ai/replay/reopen-store.server.ts',
     symbol: 'reviewAnalysisOutstandingSql',
     reason:
       'The fragment ties operations, settlements and analyses to the review row on Organization and Property; the statement that embeds it restricts the review rows to one Property of one Organization.',
     category: 'TENANT-CORRELATED',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-reopen.adapter.ts',
+    file: 'src/contexts/ai/replay/reopen-store.server.ts',
     symbol: 'reopenAbandoned',
     reason:
       'The bounded reopen sweep intentionally finds Properties with abandoned review analysis across tenants and reopens each one inside a transaction scoped to its Organization and Property.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-reopen.adapter.ts',
+    file: 'src/contexts/ai/replay/reopen-store.server.ts',
     symbol: 'listSpentReviewAnalyses',
     reason:
       'The operator command ops:ai-reopen-analyses lists, for one Property or with `all` across tenants, the reviews whose automatic reopens are spent; it returns ids and codes only, each row carrying its Organization and Property.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-reopen.adapter.ts',
+    file: 'src/contexts/ai/replay/reopen-store.server.ts',
     symbol: 'reopenSpentReviewAnalyses',
     reason:
       'The operator command ops:ai-reopen-analyses finds Properties with spent review analysis, for one Property or with `all` across tenants, and reopens each one inside transactions scoped to its Organization and Property, as reopenAbandoned does.',
@@ -423,6 +423,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     reason:
       'The fragment looks for an unread sibling of the notification row being changed and ties it to that row on Organization; the statement that embeds it owns the tenant scope.',
     category: 'TENANT-CORRELATED',
+  },
+  {
+    file: 'src/contexts/feed/notify/write.server.ts',
+    symbol: 'writeNotification',
+    reason:
+      'The waiting slot is unique per user, type and resource, an index that carries no Organization, so the locked read finds the one row that index guards; the row it merges into and the one it inserts both take their Organization from the notification being written.',
+    category: 'LEGITIMATE-GLOBAL',
   },
   {
     file: 'src/contexts/feed/infrastructure/repositories/one-click-unsubscribe.repository.ts',
@@ -488,31 +495,10 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/google-import-v2-store.ts',
-    symbol: 'listExpiredItems',
-    reason:
-      'The bounded import lifecycle sweep intentionally lists items past their effect deadline across tenants and returns each with its Organization for the write that follows.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/google-import-v2-store.ts',
-    symbol: 'listPurgeCandidates',
-    reason:
-      'The bounded import purge sweep intentionally lists finished import requests past their purge time across tenants and returns each with its Organization and deletion fence.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/google-import-completion.ts',
-    symbol: 'completeGoogleImportsForRestore',
+    file: 'src/contexts/integration/imports/import-completion.server.ts',
+    symbol: 'completeImportsForRestore',
     reason:
       'The isolated restore recovery fence intentionally inventories active or retryable import checkpoints and unfinished parents across tenants. Each completion and parent reduction checks the selected Organization inside the serialized recovery transaction.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/google-import-dispatch-store.ts',
-    symbol: 'createGoogleImportDueReservation',
-    reason:
-      'The bounded recovery appointment reserves at most 100 due active items across tenants with SKIP LOCKED. Each appointment update and subsequent effect uses the reserved row’s Organization and claim authority.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
@@ -660,6 +646,27 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     symbol: 'selectLockedLifecycleRows',
     reason:
       'Locks one page of review rows by the ids the content-lifecycle sweep selected across tenants, after the reply scope of each is locked under its own Organization, and returns each row with its Organization and Property.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/reputation/replies/scope-effects.server.ts',
+    symbol: 'fenceReplyPublicationsAfterRestore',
+    reason:
+      'The existing restore recovery transaction intentionally fences in-flight Reply publications across every tenant. It runs only under the recovery authority and preserves the original cancellation and ambiguity predicates.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/reputation/replies/scope-effects.server.ts',
+    symbol: 'lockReplyReviewsInScope',
+    reason:
+      'Locks Review rows before Reply effects in a caller-owned transaction. Its SQL scope comes only from named server commands: tenant-bound lifecycle and AI withdrawal scopes, or the existing global AI control and restore recovery authorities.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/reputation/replies/scope-effects.server.ts',
+    symbol: 'withdrawAiDrafts',
+    reason:
+      'The existing AI control transition may withdraw stale AI drafts across tenants; Property, authorization and Review callers supply tenant predicates. Every affected Reply is correlated to its own Review tenant, and effects stay in the caller transaction.',
     category: 'LEGITIMATE-GLOBAL',
   },
 ] as const

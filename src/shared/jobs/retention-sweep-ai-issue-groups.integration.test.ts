@@ -14,6 +14,7 @@ import { createRetentionSweepHandler, RETENTION_RULES } from './retention-sweep.
 const ORGANIZATION_ID = 'ai-issue-retention-test-org'
 const PROPERTY_ID = '7a370000-0000-4000-8000-000000000001'
 const RUN_AT = new Date('2026-10-30T12:00:00.000Z')
+const NEXT_RUN_AT = new Date('2026-10-30T12:00:01.000Z')
 const GENERATED_AT = new Date('2026-09-08T10:00:00.000Z')
 const PAST = new Date('2026-10-29T12:00:00.000Z')
 const FUTURE = new Date('2026-10-31T12:00:00.000Z')
@@ -34,10 +35,10 @@ const confinedRules = RETENTION_RULES.filter((rule) =>
   extraWhere: `${rule.extraWhere === undefined ? '' : `(${rule.extraWhere}) AND `}organization_id = '${ORGANIZATION_ID}'`,
 }))
 
-async function sweep(batchSize = 500): Promise<void> {
+async function sweep(batchSize = 500, runAt = RUN_AT): Promise<void> {
   const handler = createRetentionSweepHandler({
     db,
-    clock: () => RUN_AT,
+    clock: () => runAt,
     rules: confinedRules,
     batchSize,
   })
@@ -102,11 +103,17 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await fixture.reset()
-  await lease.pool.query(`DELETE FROM retention_runs WHERE started_at = $1`, [RUN_AT])
+  await lease.pool.query(`DELETE FROM retention_runs WHERE started_at IN ($1, $2)`, [
+    RUN_AT,
+    NEXT_RUN_AT,
+  ])
 })
 
 afterAll(async () => {
-  await lease.pool.query(`DELETE FROM retention_runs WHERE started_at = $1`, [RUN_AT])
+  await lease.pool.query(`DELETE FROM retention_runs WHERE started_at IN ($1, $2)`, [
+    RUN_AT,
+    NEXT_RUN_AT,
+  ])
   await fixture.remove()
   await lease.release()
 })
@@ -194,7 +201,7 @@ describe.sequential('Property issue group retention sweep', () => {
     expect(await counts()).toEqual({ groups: 0, members: 0 })
   })
 
-  it('closes a batch-capped subject as completed so the next run can continue', async () => {
+  it('records capped work as failed and completes the remaining rows on the next run', async () => {
     for (let index = 0; index < 101; index += 1) {
       await insertGroup(PAST, letters(index))
     }
@@ -211,9 +218,30 @@ describe.sequential('Property issue group retention sweep', () => {
     expect(run.rows).toEqual([
       {
         subject: 'ai_property_issue_groups.expired',
-        outcome: 'completed',
+        outcome: 'failed',
         batches: 100,
         rows_deleted: 100,
+        error_code: 'retention_capped',
+      },
+    ])
+
+    await sweep(1, NEXT_RUN_AT)
+
+    expect(await counts()).toEqual({ groups: 0, members: 0 })
+    const resumed = await lease.pool.query(
+      `SELECT subject, outcome, batches, rows_deleted, error_code
+       FROM retention_runs
+       WHERE started_at IN ($1, $2) AND subject = 'ai_property_issue_groups.expired'
+       ORDER BY started_at`,
+      [RUN_AT, NEXT_RUN_AT],
+    )
+    expect(resumed.rows).toEqual([
+      ...run.rows,
+      {
+        subject: 'ai_property_issue_groups.expired',
+        outcome: 'completed',
+        batches: 1,
+        rows_deleted: 1,
         error_code: null,
       },
     ])

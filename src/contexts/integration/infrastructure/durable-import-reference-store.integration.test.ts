@@ -22,7 +22,6 @@ const SECOND_REQUEST_ID = '82000000-0000-4000-8000-000000000004'
 const START_MS = Date.parse('2026-08-27T10:00:00.000Z')
 const DAY_MS = 24 * 60 * 60_000
 
-const handleKeys = createVersionedHmacKeyring(`v1:${'31'.repeat(32)}`)
 const leasePrincipalKeys = createVersionedHmacKeyring(`v1:${'32'.repeat(32)}`)
 let randomCounter = 0
 let leaseCounter = 0
@@ -74,7 +73,6 @@ const authorization = (
 const createStore = () =>
   createDurableGoogleImportReferenceStore({
     db: getDb(),
-    handleKeys,
     leasePrincipalKeys,
     leases,
     clock: () => new Date(nowMs),
@@ -101,9 +99,7 @@ const candidates = (start: number, count: number): ImportDiscoveryCandidate[] =>
 
 describe('durable Google import discovery checkpoint', () => {
   let lease: TestLease
-  const invalidationKeys = createDurableImportReferenceKeys({
-    keys: handleKeys,
-  }).invalidationKeys(
+  const invalidationKeys = createDurableImportReferenceKeys({}).invalidationKeys(
     invalidationScopeFor('connection', [ORGANIZATION_ID, CONNECTION_ID]),
   )
 
@@ -151,7 +147,6 @@ describe('durable Google import discovery checkpoint', () => {
       [invalidationKeys.map((item) => item.key)],
     )
     await lease?.release()
-    handleKeys.dispose()
     leasePrincipalKeys.dispose()
   })
 
@@ -347,6 +342,115 @@ describe('durable Google import discovery checkpoint', () => {
         authorization: authorization(),
       }),
     ).resolves.toEqual({ ok: false, code: 'expired' })
+  })
+
+  it('refuses a reference to another organization, user or connection', async () => {
+    const store = createStore()
+    const published = await store.publishAccountPage({
+      authorization: authorization(),
+      accounts: [account],
+      nextPageToken: null,
+      contentDeadlineMs: nowMs + DAY_MS,
+    })
+    expect(published.ok).toBe(true)
+    if (!published.ok) return
+    const accountRef = published.value.items[0]!.accountRef
+    const foreign = [
+      authorization({ organizationId: 'org-durable-google-import-foreign' }),
+      authorization({ userId: 'user-durable-google-import-foreign' }),
+      authorization({ connectionId: '82000000-0000-4000-8000-000000000009' }),
+    ]
+
+    for (const other of foreign) {
+      await expect(
+        store.resolveAccount({ accountRef, authorization: other }),
+      ).resolves.toEqual({ ok: false, code: 'binding_mismatch' })
+    }
+    await expect(
+      store.resolveAccount({ accountRef, authorization: authorization() }),
+    ).resolves.toMatchObject({ ok: true, accountId: account.accountId })
+    await expect(
+      store.resolveAccount({
+        accountRef: 'not-a-server-identifier',
+        authorization: authorization(),
+      }),
+    ).resolves.toEqual({ ok: false, code: 'malformed' })
+  })
+
+  it('refuses a candidate claim from another organization or user', async () => {
+    const store = createStore()
+    const accountsPage = await store.publishAccountPage({
+      authorization: authorization(),
+      accounts: [account],
+      nextPageToken: null,
+      contentDeadlineMs: nowMs + DAY_MS,
+    })
+    expect(accountsPage.ok).toBe(true)
+    if (!accountsPage.ok) return
+    const page = await store.publishCandidatePage({
+      authorization: authorization(),
+      account: {
+        accountRef: accountsPage.value.items[0]!.accountRef,
+        accountId: account.accountId,
+        displayName: account.displayName,
+      },
+      candidates: candidates(0, 1),
+      nextPageToken: null,
+      contentDeadlineMs: nowMs + DAY_MS,
+    })
+    expect(page.ok).toBe(true)
+    if (!page.ok) return
+    const claim = {
+      candidateRefs: [page.value.items[0]!.candidateRef!],
+      organizationId: ORGANIZATION_ID,
+      userId: USER_ID,
+      requestId: FIRST_REQUEST_ID,
+    }
+
+    await expect(
+      store.claimCandidates({
+        ...claim,
+        organizationId: 'org-durable-google-import-foreign',
+      }),
+    ).resolves.toEqual({ ok: false, code: 'binding_mismatch' })
+    await expect(
+      store.claimCandidates({ ...claim, userId: 'user-durable-google-import-foreign' }),
+    ).resolves.toEqual({ ok: false, code: 'binding_mismatch' })
+    await expect(store.claimCandidates(claim)).resolves.toMatchObject({ ok: true })
+  })
+
+  it('drops pending references when the connection is relinked', async () => {
+    const store = createStore()
+    const published = await store.publishAccountPage({
+      authorization: authorization(),
+      accounts: [account],
+      nextPageToken: null,
+      contentDeadlineMs: nowMs + DAY_MS,
+    })
+    expect(published.ok).toBe(true)
+    if (!published.ok) return
+    const accountRef = published.value.items[0]!.accountRef
+
+    await expect(
+      store.resolveAccount({
+        accountRef,
+        authorization: authorization({ connectionLifecycleVersion: 4 }),
+      }),
+    ).resolves.toEqual({ ok: false, code: 'binding_mismatch' })
+    await expect(
+      store.invalidateConnection({
+        organizationId: ORGANIZATION_ID,
+        connectionId: CONNECTION_ID,
+      }),
+    ).resolves.toBe(true)
+    await expect(
+      store.resolveAccount({ accountRef, authorization: authorization() }),
+    ).resolves.toEqual({ ok: false, code: 'not_found' })
+    const remaining = await lease.pool.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM google_import_discovery_records WHERE organization_id = $1',
+      [ORGANIZATION_ID],
+    )
+    expect(remaining.rows[0]?.count).toBe('0')
   })
 
   it('checkpoints more than 2,000 candidates without a fleet-total cap', async () => {

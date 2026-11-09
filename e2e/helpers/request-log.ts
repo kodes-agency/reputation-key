@@ -14,13 +14,12 @@
 // events — page.request APIRequestContext calls (signIn's auth API posts) are
 // never recorded here. WebSockets are separate page events and not recorded.
 //
-// Font CDNs: the app fonts are Satoshi (api.fontshare.com → cdn.fontshare.com
-// binaries) and Plus Jakarta Sans/JetBrains Mono (fonts.googleapis.com →
-// fonts.gstatic.com binaries), linked by the root document on every page that
-// uses the 'app' font set (src/shared/font-sets.ts). Those are the app's OWN
-// static assets — not external service/data calls — so they are
-// default-allowed in assertNoExternalHosts. Anything else external (Resend,
-// Google APIs, AI providers, analytics) still fails the assertion.
+// Font CDNs: the app and guest fonts are self-hosted (src/shared/font-sets.ts),
+// so any font CDN request is a regression. The Google font hosts stay
+// default-allowed in assertNoExternalHosts as static assets, not service calls;
+// Fontshare is no longer allowed and fails it like any other external host.
+// Anything else external (Resend, Google APIs, AI providers, analytics) still
+// fails the assertion.
 //
 // The Immersive Hub guest page uses the 'guest' set, self-hosted under
 // /fonts/guest/. A journey on such a page asserts it with
@@ -64,8 +63,6 @@ export type RequestLog = Readonly<{
 
 /** The app's own stylesheet font CDNs — static assets, not service calls. */
 export const FONT_CDN_HOSTS: readonly string[] = [
-  'api.fontshare.com',
-  'cdn.fontshare.com',
   'fonts.googleapis.com',
   'fonts.gstatic.com',
 ]

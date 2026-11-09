@@ -224,6 +224,20 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
         target: reviews.id,
         set: { analysisSequence, sourceRevision },
       })
+    await db.execute(sql`
+      INSERT INTO review_source_contents (
+        review_id, organization_id, property_id, platform, external_id,
+        external_location_id, reviewer_name, rating, text, language_code,
+        reviewed_at, last_fetched_at, content_expires_at, source_epoch,
+        source_revision, ai_source_byte_length, ai_source_digest
+      )
+      SELECT id, organization_id, property_id, platform, external_id,
+             'locations/ai-v3-flow', reviewer_name, rating, text, language_code,
+             reviewed_at, reviewed_at, content_expires_at, source_epoch,
+             source_revision, ai_source_byte_length, ai_source_digest
+      FROM reviews WHERE id = ${id}::uuid
+      ON CONFLICT (review_id) DO UPDATE SET source_revision = EXCLUDED.source_revision
+    `)
     await db
       .insert(materialReviewRevisions)
       .values({

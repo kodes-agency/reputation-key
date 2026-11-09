@@ -143,6 +143,24 @@ retention. PostgreSQL receipts own
 correctness; Redis provides abuse control and observation-loss monitoring. State,
 source-event identities, and identifier-only outbox facts commit atomically.
 
+Response and private-feedback withdrawals have dormant bucket-journal wiring in
+`infrastructure/guest-withdrawal-journal.server.ts`. Its
+`GUEST_WITHDRAWAL_JOURNAL_ACTIVE` setting ships false, preserving today's journey.
+When enabled, the command store checks the existing session/state predicate,
+writes an IDs-only intent outside the deletion transaction, then rechecks that
+predicate in the transaction. Failed bucket writes block deletion and produce a
+content-free monitoring alert. The journal records the response ID under distinct
+`guest_response` and `guest_feedback` target kinds, never the session or content.
+Existing self-service session matching and 24-hour deadlines remain in force.
+
+Activation requires an owner-approved release setting that constant true, after
+the isolated restore command replays both target kinds from local journal evidence
+and proves resurrected response and feedback erasure, including a replay-omitted
+negative control. Guest replay handlers for those target kinds, the command wiring
+and its proof remain outstanding. Verify the bucket's 45-day expiry and backups
+no older than 30 days, including the Manual
+backup, before activation. The passing data restore alone does not authorize it.
+
 `publicApi.requests` is Guest's request surface (`docs/standards.md` §3.1): what Guest's
 own server functions call, and nothing another context is typed against. A guest has no
 member to authorize, so these functions do not authorize a caller themselves; admission is
@@ -194,6 +212,10 @@ PostgreSQL integration tests cover receipt atomicity, exact deadlines, replay,
 withdrawal/reveal serialization, outbox readiness, and tenant fences.
 
 Public Portal UI lives in `src/components/features/guest/public-portal/immersive/`.
+`public-portal/language-packs/load-guest-copy.ts` loads one immutable template
+pack for the selected locale. `guest-copy.ts` defines the browser-safe copy
+contract; locale module names are plain while stored pack IDs retain their
+versions. Frozen copy from snapshot schemas 1 and 2 lives only in test fixtures.
 The response phone stories leave feedback validation, rating correction and
 withdrawal confirmation open in all six languages for the shared phone-width
 and accessibility checks.

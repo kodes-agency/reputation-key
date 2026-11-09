@@ -9,10 +9,30 @@
  */
 import type { Tx } from '#/shared/outbox/commit'
 
-export type { GoogleReview, StarRating } from '../domain/types'
+export type { GoogleReview, Reply, StarRating } from '../domain/types'
 export type { ReplyModeration } from '../domain/reply-moderation'
+export type { ReplyDraftCheckDto } from './dto/reply-library.dto'
 
 export { unfilledReplySlotsMessage } from '../domain/rules'
+
+// What the Reputation reply writer needs to decide a Reply write. Review keeps
+// the rules; the writer applies them inside its own transactions.
+export { reviewError } from '../domain/errors'
+export { aiTextRuleOf } from '../domain/reply-ai-text'
+export { googleReplyTextDigest } from '../domain/google-reply-observation'
+export {
+  hasPublicationRecord,
+  replyCommandMayStart,
+} from '../domain/reply-command-preconditions'
+export type { ReplyCommand } from '../domain/reply-command-preconditions'
+export type {
+  PersistedPublicationState,
+  PublicationFailureClass,
+} from '../domain/reply-publication-workflow'
+export type { ReplyCommandStore } from './ports/reply-command-store.port'
+export type { ConditionalReplyUpdate, ReplyRepository } from './ports/reply.repository'
+export type { ReplyWriter, UncertainSendSnapshot } from './ports/reply-writer.port'
+export { UNCERTAIN_ATTEMPT_OUTCOMES } from './ports/reply-writer.port'
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events
 export type {

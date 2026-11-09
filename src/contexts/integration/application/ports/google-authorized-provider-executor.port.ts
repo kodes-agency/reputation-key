@@ -92,3 +92,27 @@ export type GoogleAuthorizedProviderExecutor = Readonly<{
     }>,
   ): Promise<GoogleProviderExecutionResult>
 }>
+
+/** Wraps an executor so one 401 refreshes the access token and retries once. */
+export type GoogleRefreshingProviderExecutorFactory = (
+  deps: Readonly<{
+    executor: GoogleAuthorizedProviderExecutor
+    refreshAccessToken: (
+      input: Readonly<{ authorization: GoogleProviderCallAuthorization }>,
+    ) => Promise<unknown>
+    getAccessToken: (
+      input: Readonly<{ authorization: GoogleProviderCallAuthorization }>,
+    ) => Promise<string>
+    reauthorize: (
+      input: Readonly<{ authorization: GoogleProviderCallAuthorization }>,
+    ) => Promise<GoogleProviderCallAuthorization>
+  }>,
+) => GoogleAuthorizedProviderExecutor
+
+export type GoogleProviderTokenAccess = Pick<
+  Parameters<GoogleRefreshingProviderExecutorFactory>[0],
+  'refreshAccessToken' | 'getAccessToken'
+>
+
+export type GoogleProviderReauthorize =
+  Parameters<GoogleRefreshingProviderExecutorFactory>[0]['reauthorize']

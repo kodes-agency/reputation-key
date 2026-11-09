@@ -2,7 +2,7 @@
 //
 // This is the exact path a user clicks in the inbox reply editor, so both the
 // resolved value and the thrown value are contracts:
-// src/components/inbox/use-reply-suggestion.ts renders distinct copy for the
+// src/contexts/reputation/replies/ui/use-reply-suggestion.ts renders distinct copy for the
 // `language_not_supported`, `not_authorized` and `source_changed` unavailable
 // codes, which means they must arrive as RESOLVED values with their code intact —
 // collapsing any of them into a thrown error silently degrades the UI to the

@@ -16,7 +16,6 @@ import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
 import { googleImportDiscoveryRecords } from '#/shared/db/schema/google-import-discovery.schema'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ImportDiscoveryAuthorization } from '../application/ports/google-import-reference-store.port'
 import {
   createDurableImportReferenceKeys,
@@ -40,9 +39,7 @@ const ISSUED_AT = new Date('2026-08-28T10:00:00.000Z')
 const EXPIRES_AT = new Date('2026-08-28T10:15:00.000Z')
 const NOW = new Date('2026-08-28T10:05:00.000Z')
 
-const keys = createDurableImportReferenceKeys({
-  keys: createVersionedHmacKeyring(`v1:${'41'.repeat(32)}`),
-})
+const keys = createDurableImportReferenceKeys({})
 
 const CONNECTION_SCOPE = invalidationScopeFor('connection', [
   ORGANIZATION_ID,

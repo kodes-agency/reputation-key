@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // The initial Google import's history cutoff against real PostgreSQL.
 //
 // A property imported on the live stack produced 260 review notifications and
@@ -94,17 +95,27 @@ let failObservationOf: string | null = null
 let activeKeyVersion = TEST_KEY_VERSION
 let insertedTestKey = false
 
-const snapshotRepository = createReviewProviderSnapshotRepository(db, () => {
-  const next = snapshotRunIds.shift()
-  if (!next) throw new Error('No snapshot run id left for this test')
-  return next
-})
+const snapshotRepository = createReviewProviderSnapshotRepository(
+  db,
+  () => {
+    const next = snapshotRunIds.shift()
+    if (!next) throw new Error('No snapshot run id left for this test')
+    return next
+  },
+  replyScopeEffects,
+)
 
 const realWriter = createReviewProviderObservationWriter({
-  reviewRepo: createReviewRepository(db, () => observedAt),
+  reviewRepo: createReviewRepository(db, () => observedAt, undefined, replyScopeEffects),
   clock: () => observedAt,
   idGen: () => reviewId(crypto.randomUUID()),
-  commandStore: createAtomicReviewCommandStore(db, () => observedAt),
+  commandStore: createAtomicReviewCommandStore(
+    db,
+    () => observedAt,
+    undefined,
+    undefined,
+    replyScopeEffects,
+  ),
   googleReplyObservationStore: createGoogleReplyObservationStore(db),
   historyCutoffs: snapshotRepository,
 })
@@ -800,7 +811,12 @@ describe('a review the AI source contract refuses (real PostgreSQL)', () => {
     expect(ordinary.byteLength).toBeLessThan(REFUSED_BYTE_LENGTH)
     expect(refused.digest).not.toBe(surrogate.digest)
     // The AI readers deny it; nothing recomputes the refused text.
-    const reviewRepo = createReviewRepository(db, () => observedAt)
+    const reviewRepo = createReviewRepository(
+      db,
+      () => observedAt,
+      undefined,
+      replyScopeEffects,
+    )
     await expect(reviewRepo.readForAi(aiReadOf(refused))).resolves.toEqual({
       status: 'source_too_large',
     })
@@ -845,7 +861,12 @@ describe('a review the AI source contract refuses (real PostgreSQL)', () => {
     expect(editedReadable.sourceRevision).toBe(surrogate.sourceRevision + 1)
     expect(await updatedEventCount()).toBe(2)
     await expect(
-      createReviewRepository(db, () => observedAt).readForAi(aiReadOf(editedReadable)),
+      createReviewRepository(
+        db,
+        () => observedAt,
+        undefined,
+        replyScopeEffects,
+      ).readForAi(aiReadOf(editedReadable)),
     ).resolves.toMatchObject({ status: 'available' })
   })
 })

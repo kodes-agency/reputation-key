@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { Button } from '#/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
-import type { ReplyAutosaveStatus } from './use-reply-autosave'
+import type { ReplyAutosaveStatus } from '#/contexts/reputation/replies/ui/use-reply-autosave'
 
 type Props = Readonly<{
   /** Read for `Try saving again` only; the status itself is printed in the dock's head. */

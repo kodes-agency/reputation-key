@@ -7,7 +7,7 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { PortalDetailPortal } from '#/components/features/portal/portal-detail/portal-detail-types'
-import { PortalGoalResultsLine } from '#/components/goals/portal-goal-results-line'
+import { PortalGoalResultsLine } from '#/contexts/reporting/monthly-goals/ui/portal-goal-results-line'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { portalGoalLineQuery } from '../goals/-portal-goal-queries'

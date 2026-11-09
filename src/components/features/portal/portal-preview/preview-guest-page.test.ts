@@ -1,12 +1,12 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { guestCopyText, loadGuestPortalCopyV2 } from '#/components/features/guest'
+import { guestCopyText, loadGuestPortalCopy } from '#/components/features/guest'
 import { PREVIEW_DRAFT } from './__fixtures__/portal-preview-fixtures'
 import { ARRIVAL_STATE, ratedState } from './portal-preview-states'
 import { PreviewGuestPage } from './preview-guest-page'
 
-const pack = await loadGuestPortalCopyV2('en')
+const pack = await loadGuestPortalCopy('en')
 function englishExperience() {
   const experience = PREVIEW_DRAFT.experiences.en
   if (experience === undefined) throw new Error('the draft fixture has no English page')

@@ -9,6 +9,7 @@ import {
   aiReviewAnalysisAspects,
   merchantAiEnablement,
   reviews,
+  reviewSourceContents,
 } from '#/shared/db/schema'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import { isAspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
@@ -19,7 +20,10 @@ import {
   insertAnalysisMentions,
   readReadyAnalysisV3,
 } from './ai-review-analysis-mentions'
-import { findCurrentAnalysisReviewIds } from './ai-current-analysis-review-ids'
+import {
+  analysisMatchesProcessingProfile,
+  findCurrentAnalysisReviewIds,
+} from './ai-current-analysis-review-ids'
 import { currentness } from './ai-review-analysis-currentness'
 import { raiseUrgentAlert } from './ai-urgent-alert'
 import { analysisNoticeStillCovers } from './ai-analysis-notice-coverage'
@@ -136,12 +140,20 @@ async function readCurrentReviewSource(
       sourceEpoch: reviews.sourceEpoch,
       sourceRevision: reviews.sourceRevision,
       analysisSequence: reviews.analysisSequence,
-      sourceDigest: reviews.aiSourceDigest,
-      sourceByteCount: reviews.aiSourceByteLength,
-      contentExpiresAt: reviews.contentExpiresAt,
+      sourceDigest: reviewSourceContents.aiSourceDigest,
+      sourceByteCount: reviewSourceContents.aiSourceByteLength,
+      contentExpiresAt: reviewSourceContents.contentExpiresAt,
       replyStateRevision: reviews.replyStateRevision,
     })
     .from(reviews)
+    .innerJoin(
+      reviewSourceContents,
+      and(
+        eq(reviewSourceContents.reviewId, reviews.id),
+        eq(reviewSourceContents.organizationId, reviews.organizationId),
+        eq(reviewSourceContents.propertyId, reviews.propertyId),
+      ),
+    )
     .where(
       and(
         eq(reviews.organizationId, input.organizationId),
@@ -150,7 +162,7 @@ async function readCurrentReviewSource(
       ),
     )
     .limit(1)
-    .for('share')
+    .for('share', { of: reviews })
   return source
 }
 
@@ -625,6 +637,7 @@ export const createAiOutputStoreAdapter = (
         const [analysis] = await tx
           .select({
             status: aiReviewAnalyses.status,
+            propertyProfileVersion: aiReviewAnalyses.propertyProfileVersion,
             sentiment: aiReviewAnalyses.sentiment,
             primaryCategory: aiReviewAnalyses.primaryCategory,
             attention: aiReviewAnalyses.attention,
@@ -661,7 +674,10 @@ export const createAiOutputStoreAdapter = (
               eq(aiReviewAnalyses.analysisSequence, input.analysisSequence),
               eq(aiReviewAnalyses.authorizationLineageId, input.authorizationLineageId),
               eq(aiReviewAnalyses.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiReviewAnalyses.propertyProfileVersion, input.propertyProfileVersion),
+              analysisMatchesProcessingProfile(
+                input.organizationId,
+                input.propertyProfileVersion,
+              ),
               gt(aiReviewAnalyses.expiresAt, now),
             ),
           )
@@ -682,7 +698,7 @@ export const createAiOutputStoreAdapter = (
             analysis.operationSourceRevision === input.sourceRevision,
             analysis.operationAnalysisSequence === input.analysisSequence,
             analysis.operationAuthorizationLineageId === input.authorizationLineageId,
-            analysis.operationPropertyProfileVersion === input.propertyProfileVersion,
+            analysis.operationPropertyProfileVersion === analysis.propertyProfileVersion,
             analysisNoticeStillCovers(analysis, authorization),
             analysis.operationSourcePolicyId === authorization.sourcePolicyId,
             analysis.operationRedactionProfileVersion ===

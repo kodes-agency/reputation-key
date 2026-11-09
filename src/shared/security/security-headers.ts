@@ -168,10 +168,10 @@ export function getSecurityHeaders(
     'Content-Security-Policy': [
       "default-src 'none'",
       `script-src ${scriptSource}`,
-      "style-src 'self' 'unsafe-inline' https://api.fontshare.com",
+      "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       `connect-src ${connectSource}`,
-      "font-src 'self' https://cdn.fontshare.com",
+      "font-src 'self'",
       "object-src 'none'",
       "frame-src 'none'",
       "manifest-src 'self'",

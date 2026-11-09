@@ -16,8 +16,8 @@ import {
   handleNotificationGoalMonthlyResultRevised,
   ON_GOAL_MONTHLY_RESULT_CLOSED_CONSUMER,
   ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER,
-  registerGoalNotificationConsumer,
-} from './goal-outbox-consumers'
+} from '../notify/goals.server'
+import { registerGoalNotificationConsumer } from './goal-notice-routes'
 import { withOutboxNotificationDelivery } from './outbox-notification-delivery'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
@@ -550,6 +550,36 @@ describe('canonical Goal monthly-result notification consumer', () => {
       { jobId: `${IDS.event}-${MANAGER}` },
       { jobId: `${IDS.event}-${MANAGER}` },
     ])
+  })
+
+  it('settles through the notice writer alone, without queueing or a separate receipt', async () => {
+    const deps = makeDeps()
+    const write = vi.fn(async () => 'applied' as const)
+    const result = await handleNotificationGoalMonthlyResultClosed(
+      { ...deps, noticeWriter: { write } },
+      event(),
+    )
+    expect(result).toEqual({ status: 'applied' })
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(deps.queue.add).not.toHaveBeenCalled()
+    expect(deps.receipts.insertReceipt).not.toHaveBeenCalled()
+  })
+
+  it('leaves the event unsettled when the notice writer fails, so redelivery retries it', async () => {
+    const deps = makeDeps()
+    const write = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('write rolled back'))
+      .mockResolvedValueOnce('applied')
+    const withWriter = { ...deps, noticeWriter: { write } }
+    await expect(
+      handleNotificationGoalMonthlyResultClosed(withWriter, event()),
+    ).rejects.toThrow('write rolled back')
+    expect(deps.receipts.insertReceipt).not.toHaveBeenCalled()
+    await expect(
+      handleNotificationGoalMonthlyResultClosed(withWriter, event()),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(write).toHaveBeenCalledTimes(2)
   })
 
   it('does not acknowledge when a recipient enqueue fails', async () => {

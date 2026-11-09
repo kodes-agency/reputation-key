@@ -2,7 +2,7 @@ import type { Job } from 'bullmq'
 import { z } from 'zod/v4'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { redriveMetadataSchema } from '#/shared/jobs/failure-quarantine'
-import type { RequestReviewAnalysisResult } from '../../application/use-cases/drain-review-analysis-backlog'
+import type { RequestReviewAnalysisResult } from '../../replay/drain-backlog.server'
 
 /**
  * One review a manager opened, analysed ahead of the backlog on the

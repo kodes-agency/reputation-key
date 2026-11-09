@@ -4,9 +4,16 @@
 
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  RouterContextProvider,
+} from '@tanstack/react-router'
 import type { PublicImmersiveLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import type { GuestResponseActions } from '../guest-response-actions'
+import type { GuestResponseActions } from '#/contexts/guest/page/ui/guest-response-actions'
 import {
   ImmersivePublicPortal,
   type ImmersivePublicPortalProps,
@@ -115,7 +122,19 @@ export function immersivePortalProps(
 export function renderImmersivePortal(
   overrides: Partial<ImmersivePublicPortalProps> = {},
 ): string {
+  const queryClient = new QueryClient()
+  const router = createRouter({
+    routeTree: createRootRoute(),
+    history: createMemoryHistory(),
+  })
   return renderToStaticMarkup(
-    createElement(ImmersivePublicPortal, immersivePortalProps(overrides)),
+    createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(RouterContextProvider, {
+        router,
+        children: createElement(ImmersivePublicPortal, immersivePortalProps(overrides)),
+      }),
+    ),
   ).replace(/<style[\s\S]*?<\/style>/gu, '')
 }

@@ -64,6 +64,7 @@ import {
 import { readPortalLanguageCoverage } from './get-portal-language-coverage'
 import { portalError } from '../../domain/errors'
 import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../../domain/portal-publication-snapshot'
+import { reviewedPublicationDigest } from '../portal-publication-snapshot'
 import type { PortalLookSources } from '../../domain/portal-look'
 import { resolvePortalPublication } from '../../domain/portal-publication-source'
 import type { PortalPublicationSource } from '../../domain/portal-publication-source'
@@ -133,6 +134,8 @@ export type PortalReview = Readonly<{
   publishesAsVersion: number
   /** The live version already says what the draft says and nothing is open. */
   nothingToPublish: boolean
+  /** Identifies the content this review describes; publishing hands it back. Null while nothing can be published. */
+  reviewDigest: string | null
   /**
    * No check is blocked, there is something to publish, and the viewer may
    * publish it (the button the page shows is one the server will accept).
@@ -391,6 +394,7 @@ export const getPortalReview =
             },
       publishesAsVersion: cursor.nextSnapshotVersion,
       nothingToPublish,
+      reviewDigest: reviewedPublicationDigest(workingCopy, destination),
       canPublish:
         checks.canPublish &&
         action !== 'none' &&

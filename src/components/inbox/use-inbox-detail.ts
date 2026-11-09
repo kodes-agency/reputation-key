@@ -8,15 +8,21 @@ import type { Action } from '#/components/hooks/use-action'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import { inboxCachePolicy, type InboxReplyCacheChange } from './inbox-cache-policy'
-import { useReplyPublicationChangeDetection } from './use-reply-publication-change'
-import { useInboxDetailQueries } from './use-inbox-detail-queries'
+import {
+  inboxCachePolicy,
+  type InboxReplyCacheChange,
+} from '#/components/inbox/inbox-cache-policy'
+import { useReplyPublicationChangeDetection } from '#/contexts/reputation/replies/ui/use-reply-publication-change'
+import { useInboxDetailQueries } from '#/contexts/reputation/inbox/ui/use-inbox-detail-queries'
 import {
   createInboxItemStatusObserver,
   type InboxItemStatusObserver,
-} from './inbox-item-status-observer'
-import { useFeedbackHandlingMutations } from './use-feedback-handling-mutations'
-import { useGoogleReviewCheck, type GoogleReviewCheck } from './use-google-review-check'
+} from '#/contexts/reputation/inbox/ui/inbox-item-status-observer'
+import { useFeedbackHandlingMutations } from '#/contexts/reputation/inbox/ui/use-feedback-handling-mutations'
+import {
+  useGoogleReviewCheck,
+  type GoogleReviewCheck,
+} from '#/contexts/reputation/inbox/ui/use-google-review-check'
 import type {
   updateInboxStatusFn,
   escalateInboxItemFn,
@@ -26,8 +32,8 @@ import type {
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
-import type { InboxServerFns } from './types'
-import type { InboxPriorityMenuBox } from './inbox-case-toolbar-props'
+import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxPriorityMenuBox } from '#/contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 import {
   isInboxRevisionConflictResult,
   type InboxItem,

@@ -6,7 +6,7 @@ import {
   findMetricVersionById,
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
-} from '../../domain/metric-registry'
+} from '../../readings/contracts'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import type {
   GoalMonthlyResult,
@@ -17,7 +17,7 @@ import type {
 import {
   createGoalProgramService,
   type GoalActor,
-} from '../../application/use-cases/goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 import { firstFullMonthlyPeriodAtOrAfter } from '../../domain/goal-program'
 import { createGoalProgramRepository } from './goal-program.repository'
 
@@ -230,7 +230,9 @@ describe.sequential('Goal Program repository (integration)', () => {
 
     // The read a page works from also carries the log of the goal's month
     // target changes: empty for a goal whose months kept their target.
-    await expect(repository.get(organizationId, propertyId, programId)).resolves.toEqual({
+    await expect(
+      repository.getHistory(organizationId, propertyId, programId),
+    ).resolves.toEqual({
       ...bundle,
       targetChanges: [],
     })
@@ -276,7 +278,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       }),
     ).resolves.toBe(true)
 
-    const revised = await repository.get(organizationId, propertyId, programId)
+    const revised = await repository.getHistory(organizationId, propertyId, programId)
     expect(revised).toMatchObject({
       program: { currentVersion: 2, status: 'active' },
       version: { id: nextVersion.id, targetValue: 40 },
@@ -368,7 +370,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       }),
     ).resolves.toBe(false)
     await expect(
-      repository.get(organizationId, propertyId, programId),
+      repository.getHistory(organizationId, propertyId, programId),
     ).resolves.toMatchObject({
       program: { currentVersion: 2 },
       version: { id: nextVersion.id },
@@ -404,7 +406,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       }),
     ).resolves.toMatchObject({ status: 'ended' })
 
-    const ended = await repository.get(
+    const ended = await repository.getHistory(
       organizationId,
       targetPropertyId,
       original.program.id,
@@ -458,7 +460,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       }),
     ).resolves.toMatchObject({ status: 'ended' })
 
-    const ended = await repository.get(
+    const ended = await repository.getHistory(
       organizationId,
       targetPropertyId,
       overdue.program.id,
@@ -547,7 +549,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       repository.create({ bundle: thisMonth, auditAction: 'goal.program.created' }),
     ).resolves.toBe('created')
     await expect(
-      repository.get(organizationId, targetPropertyId, thisMonth.program.id),
+      repository.getHistory(organizationId, targetPropertyId, thisMonth.program.id),
     ).resolves.toMatchObject({
       program: { status: 'active' },
       version: { effectiveFrom: january.start, effectiveTo: null },
@@ -622,7 +624,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       repository.create({ bundle: sameMonth, auditAction: 'goal.program.created' }),
     ).resolves.toBe('subject_has_goal')
     await expect(
-      repository.get(organizationId, targetPropertyId, sameMonth.program.id),
+      repository.getHistory(organizationId, targetPropertyId, sameMonth.program.id),
     ).resolves.toBeNull()
 
     // From February the subject is free again.
@@ -676,7 +678,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       }),
     ).resolves.toMatchObject({ status: 'ended' })
 
-    const ended = await repository.get(
+    const ended = await repository.getHistory(
       organizationId,
       targetPropertyId,
       original.program.id,
@@ -763,7 +765,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       { version: 2, target_source: 'own' },
       { version: 3, target_source: null },
     ])
-    const read = await repository.get(
+    const read = await repository.getHistory(
       organizationId,
       targetPropertyId,
       created.program.id,
@@ -818,7 +820,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       { status: 'paused', ended_at: null, ended_by: null },
     ])
     const read = () =>
-      repository.get(organizationId, targetPropertyId, original.program.id)
+      repository.getHistory(organizationId, targetPropertyId, original.program.id)
     // A read names no end for a goal that has not ended.
     expect((await read())?.program).not.toHaveProperty('endedAt')
     expect((await read())?.program).not.toHaveProperty('endedBy')
@@ -881,7 +883,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         check_in_answered_month: '2026-01',
       },
     ])
-    const read = await repository.get(
+    const read = await repository.getHistory(
       organizationId,
       targetPropertyId,
       original.program.id,
@@ -927,7 +929,7 @@ describe.sequential('Goal Program repository (integration)', () => {
     })
     await repository.create({ bundle: original, auditAction: 'goal.program.created' })
 
-    const read = await repository.get(
+    const read = await repository.getHistory(
       organizationId,
       targetPropertyId,
       original.program.id,
@@ -1114,7 +1116,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       })
 
     await expect(revise(revisedFrom(march.start))).resolves.toBe(false)
-    const unchanged = await repository.get(
+    const unchanged = await repository.getHistory(
       organizationId,
       targetPropertyId,
       original.program.id,
@@ -1237,7 +1239,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         }),
       ).resolves.toBe(true)
 
-      const replaced = await repository.get(
+      const replaced = await repository.getHistory(
         organizationId,
         targetPropertyId,
         bundle.program.id,
@@ -1296,7 +1298,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         }),
       ).resolves.toBe(true)
 
-      const replaced = await repository.get(
+      const replaced = await repository.getHistory(
         organizationId,
         targetPropertyId,
         running.program.id,
@@ -1334,7 +1336,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         }),
       ).resolves.toBe(false)
       await expect(
-        repository.get(organizationId, targetPropertyId, running.program.id),
+        repository.getHistory(organizationId, targetPropertyId, running.program.id),
       ).resolves.toMatchObject({
         program: { currentVersion: 1 },
         version: { id: running.version.id, effectiveTo: null },
@@ -1424,7 +1426,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         actorId: 'manager-1',
         at: editedAt,
       })
-      const current = await repository.get(
+      const current = await repository.getHistory(
         organizationId,
         targetPropertyId,
         bundle.program.id,
@@ -1441,7 +1443,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         }),
       ).resolves.toMatchObject({ status: 'active', currentVersion: 2 })
       await expect(
-        repository.get(organizationId, targetPropertyId, bundle.program.id),
+        repository.getHistory(organizationId, targetPropertyId, bundle.program.id),
       ).resolves.toMatchObject({
         program: { status: 'active' },
         version: { id: second.version.id, targetValue: 40 },
@@ -1478,7 +1480,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         }),
       ).resolves.toBeNull()
       await expect(
-        repository.get(organizationId, targetPropertyId, bundle.program.id),
+        repository.getHistory(organizationId, targetPropertyId, bundle.program.id),
       ).resolves.toMatchObject({
         program: { status: 'scheduled', currentVersion: 2 },
         results: [],
@@ -1504,7 +1506,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         }),
       ).resolves.toBe(true)
       await expect(
-        repository.get(organizationId, targetPropertyId, bundle.program.id),
+        repository.getHistory(organizationId, targetPropertyId, bundle.program.id),
       ).resolves.toMatchObject({
         program: {
           status: 'scheduled',
@@ -1523,7 +1525,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         at: editedAt,
       })
       await expect(
-        repository.get(organizationId, targetPropertyId, bundle.program.id),
+        repository.getHistory(organizationId, targetPropertyId, bundle.program.id),
       ).resolves.toMatchObject({
         program: { statusReason: 'metric_source_not_active', currentVersion: 3 },
       })
@@ -1537,7 +1539,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         at: editedAt,
       })
       await expect(
-        repository.get(organizationId, targetPropertyId, bundle.program.id),
+        repository.getHistory(organizationId, targetPropertyId, bundle.program.id),
       ).resolves.toMatchObject({
         program: { statusReason: 'awaiting_first_full_month', currentVersion: 4 },
       })
@@ -1569,7 +1571,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         }),
       ).resolves.toBe(true)
       await expect(
-        repository.get(organizationId, targetPropertyId, running.program.id),
+        repository.getHistory(organizationId, targetPropertyId, running.program.id),
       ).resolves.toMatchObject({
         program: { status: 'active', statusReason: null, currentVersion: 2 },
       })
@@ -1595,7 +1597,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         }),
       ).resolves.toBe(true)
       await expect(
-        repository.get(organizationId, targetPropertyId, running.program.id),
+        repository.getHistory(organizationId, targetPropertyId, running.program.id),
       ).resolves.toMatchObject({
         program: {
           status: 'paused',
@@ -1643,7 +1645,7 @@ describe.sequential('Goal Program repository (integration)', () => {
             }),
           ])
 
-          const settled = await repository.get(
+          const settled = await repository.getHistory(
             organizationId,
             targetPropertyId,
             bundle.program.id,
@@ -1735,7 +1737,7 @@ describe.sequential('Goal Program repository (integration)', () => {
             }),
           ])
 
-          const settled = await repository.get(
+          const settled = await repository.getHistory(
             organizationId,
             targetPropertyId,
             running.program.id,
@@ -1940,7 +1942,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       })
 
       await expect(
-        repository.get(organizationId, targetPropertyId, bundle.program.id),
+        repository.getHistory(organizationId, targetPropertyId, bundle.program.id),
       ).resolves.toEqual({
         ...bundle,
         program: {
@@ -2068,7 +2070,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       ).resolves.toBeNull()
 
       await expect(
-        repository.get(organizationId, targetPropertyId, bundle.program.id),
+        repository.getHistory(organizationId, targetPropertyId, bundle.program.id),
       ).resolves.toMatchObject({
         program: { name: 'Lobby ratings', description: 'Counted at the desk' },
       })
@@ -2157,7 +2159,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         }),
       ).resolves.toBeNull()
       await expect(
-        repository.get(organizationId, targetPropertyId, bundle.program.id),
+        repository.getHistory(organizationId, targetPropertyId, bundle.program.id),
       ).resolves.toMatchObject({
         program: { status: 'scheduled', statusReason: 'awaiting_first_full_month' },
       })

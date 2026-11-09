@@ -5,8 +5,8 @@ import {
   requireAiPropertyReadAccess,
   type AiPropertyAccess,
 } from '../ai-property-read-access'
-import type { AiReviewAnalysisBacklogPort } from '../ports/ai-review-analysis-backlog.port'
-import type { ReviewAnalysisEnrollmentReadiness } from './read-review-analysis-enrollment-readiness'
+import type { AiReviewAnalysisBacklogPort } from '../../replay/contracts'
+import type { ReviewAnalysisEnrollmentReadiness } from '../../replay/get-enrollment-readiness.server'
 
 export type ReviewAnalysisProgress =
   | Readonly<{ status: 'disabled' }>

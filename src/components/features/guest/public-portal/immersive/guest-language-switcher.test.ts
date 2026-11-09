@@ -2,8 +2,8 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { GUEST_LOCALES, type GuestLocale } from '#/shared/domain/guest-locale'
-import { bgV2 } from '../language-packs/bg-v2'
-import { enV2 } from '../language-packs/en-v2'
+import { bgCopy } from '../language-packs/bg'
+import { enCopy } from '../language-packs/en'
 import {
   GuestLanguageSwitcher,
   InertLanguageChip,
@@ -19,7 +19,7 @@ function render(props: Partial<GuestLanguageSwitcherProps> = {}) {
       selectedLocale: 'en',
       token: 'tok_abc',
       accessArtifactId: undefined,
-      copy: enV2.copy,
+      copy: enCopy.copy,
       ...props,
     }),
   )
@@ -30,7 +30,7 @@ const rows = (html: string) => html.match(/<a\b[^>]*>/gu) ?? []
 describe('GuestLanguageSwitcher: the locale-set matrix', () => {
   it('shows no chip and no sheet for a portal with one language', () => {
     expect(render({ locales: ['en'] })).toBe('')
-    expect(render({ locales: ['bg'], selectedLocale: 'bg', copy: bgV2.copy })).toBe('')
+    expect(render({ locales: ['bg'], selectedLocale: 'bg', copy: bgCopy.copy })).toBe('')
     expect(render({ locales: [] })).toBe('')
   })
 
@@ -139,7 +139,7 @@ describe('InertLanguageChip (the admin preview)', () => {
     renderToStaticMarkup(
       createElement(InertLanguageChip, {
         selectedLocale: locale,
-        copy: locale === 'bg' ? bgV2.copy : enV2.copy,
+        copy: locale === 'bg' ? bgCopy.copy : enCopy.copy,
       }),
     )
 
@@ -166,9 +166,9 @@ describe('InertLanguageSheet (the admin preview)', () => {
         options: previewLanguageOptions({
           locales: ['en', 'bg', 'de'],
           selectedLocale: locale,
-          copy: enV2.copy,
+          copy: enCopy.copy,
         }),
-        copy: enV2.copy,
+        copy: enCopy.copy,
         height: 844,
       }),
     )
@@ -176,8 +176,8 @@ describe('InertLanguageSheet (the admin preview)', () => {
   it('draws the sheet a guest opens, with a row for each language and the current one marked', () => {
     const html = sheet()
     expect(html).toContain('ih-sheet__panel')
-    expect(html).toContain(enV2.copy.languageSheetTitle)
-    expect(html).toContain(enV2.copy.languageSheetHint)
+    expect(html).toContain(enCopy.copy.languageSheetTitle)
+    expect(html).toContain(enCopy.copy.languageSheetHint)
     expect(rows(html)).toHaveLength(3)
     expect(html.match(/aria-current="page"/gu)).toHaveLength(1)
     expect(html).toContain('>Deutsch<')

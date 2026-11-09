@@ -21,21 +21,22 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
-import { findMetricVersionById } from '../domain/metric-registry'
+import { findMetricVersionById } from '../readings/contracts'
 import { monthKeyOf } from '../domain/goal-start'
 import { monthlyPortalGoalOf } from '../application/monthly-portal-goal-identity'
 import type { GoalProgramRepository } from '../application/ports/goal-program.repository'
 import {
   createGoalProgramService,
   type GoalActor,
-} from '../application/use-cases/goal-programs'
+} from '../monthly-goals/goal-programs.server'
 import {
   changeMonthlyPortalGoalNow,
   reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
   stopMonthlyPortalGoal,
   type MonthlyPortalGoalChangeDeps,
-} from '../application/use-cases/monthly-portal-goal'
+} from '../monthly-goals/monthly-portal-goal.server'
+import { subjectHolds } from '../monthly-goals/subject-assignments.server'
 import { createGoalProgramRepository } from './repositories/goal-program.repository'
 
 const TIMEZONE = 'UTC'
@@ -410,7 +411,7 @@ describe.sequential('Monthly portal goal change and stop (integration)', () => {
     ).resolves.toMatchObject({ status: 'ended' })
   })
 
-  it('a goal for several subjects, made by an older form, stops (PG-21)', async () => {
+  it('Stop retains every subject and month until the several-subject goal month ends', async () => {
     const propertyId = await propertyFixture()
     const portalIds = [randomUUID(), randomUUID()]
     for (const [index, portalId] of portalIds.entries()) {
@@ -442,8 +443,45 @@ describe.sequential('Monthly portal goal change and stop (integration)', () => {
       actor,
     )
 
+    const before = await stored(propertyId, program.id)
     await expect(
       stopMonthlyPortalGoal(deps, { propertyId, programId: program.id }, actor),
     ).resolves.toMatchObject({ status: 'ended', endedBy: 'elena' })
+
+    const stopped = await stored(propertyId, program.id)
+    expect(stopped.assignments).toHaveLength(2)
+    expect(stopped.assignments).toEqual(
+      expect.arrayContaining(
+        before.assignments.map((assignment) => ({
+          ...assignment,
+          effectiveTo: thisMonth.end,
+        })),
+      ),
+    )
+    expect(stopped.results).toEqual(
+      expect.arrayContaining(
+        before.results.map((result) =>
+          expect.objectContaining({
+            id: result.id,
+            assignmentId: result.assignmentId,
+            periodStart: result.periodStart,
+            periodEnd: result.periodEnd,
+          }),
+        ),
+      ),
+    )
+    expect(subjectHolds([stopped], 'portal_rating_count', clock)).toEqual(
+      expect.arrayContaining(
+        portalIds.map((portalId) =>
+          expect.objectContaining({
+            subject: { kind: 'portal', portalId },
+            programId: program.id,
+            heldUntil: thisMonth.end,
+            goalEnded: true,
+          }),
+        ),
+      ),
+    )
+    expect(subjectHolds([stopped], 'portal_rating_count', thisMonth.end)).toEqual([])
   })
 })

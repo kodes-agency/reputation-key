@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // The life of a code's print codes on real PostgreSQL (ADR 0069 decisions 6 and 7).
 //
 // Issue and replace store both keyed hashes with the new row in one transaction;
@@ -27,7 +28,7 @@ import { createPortalAddressCipher } from './adapters/portal-address-cipher'
 import { createPortalAddressRepository } from './repositories/portal-address.repository'
 import { createPortalRepository } from './repositories/portal.repository'
 import { createPortalTokenRepository } from './repositories/portal-token.repository'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { testPortalTokenCodec } from './testing/portal-token-codec-fixture'
 
 const ORG = organizationId('org-print-lifecycle-000000000001')
@@ -100,7 +101,7 @@ function wire(options: Wiring = {}) {
   const db = getDb()
   const portalRepo = createPortalRepository(db)
   const portalTokenRepo = createPortalTokenRepository(db)
-  const commandStore = createAtomicPortalCommandStore(db)
+  const commandStore = createAtomicPortalCommandStore(db, createPortalRatingGoalGuard())
   const codec = options.codec ?? testPortalTokenCodec()
   const addressCipher = options.keyring === false ? null : cipher
   const reported: PrintCodeProblem[] = []

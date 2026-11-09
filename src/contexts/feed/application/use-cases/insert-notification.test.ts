@@ -7,6 +7,7 @@ import {
 import { buildFakeInsertNotificationDeps } from './test-fixtures'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { Notification, NotificationCategory } from '../../domain/notification-types'
+import { applyCoalescence } from '../../domain/notification-policy'
 import { SETTLED_EMAIL_REASON } from '../../domain/notification-settlement'
 import {
   resolveCategoryPreference,
@@ -57,6 +58,13 @@ function storedRows(rows: Partial<Record<'in_app' | 'email', CategoryPreferenceV
       property: rows[channel] ?? null,
       personalDefault: null,
     })
+}
+
+/** Makes the writer fold the next notice into `existing`, as it does for a waiting row. */
+function absorbInto(deps: InsertNotificationDeps, existing: Notification) {
+  vi.mocked(deps.notificationRepo.insert).mockImplementation(async (notice) =>
+    applyCoalescence(existing, notice.payload, NOW),
+  )
 }
 
 describe('insertNotification', () => {
@@ -231,24 +239,6 @@ describe('insertNotification', () => {
     expect(deps.emailRepo.insert).not.toHaveBeenCalled()
   })
 
-  it('deduplicates only within the concrete property scope', async () => {
-    ;(
-      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
-    ).mockResolvedValue(
-      await insertNotification(buildFakeInsertNotificationDeps())(input),
-    )
-
-    await insertNotification(deps)(input)
-
-    expect(deps.notificationRepo.findUnreadByUserTypeResource).toHaveBeenCalledWith(
-      USER_ID,
-      ORG_ID,
-      PROPERTY_ID,
-      'inbox_note.added',
-      'item-1',
-    )
-  })
-
   // ── ADR 0046 r.2 ────────────────────────────────────────────────────
 
   // Each coalescing test arranges its own "existing unread row" by running the
@@ -263,9 +253,7 @@ describe('insertNotification', () => {
     const existing = (await insertNotification(buildFakeInsertNotificationDeps())(
       input,
     )) as Notification
-    ;(
-      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
-    ).mockResolvedValue(existing)
+    absorbInto(deps, existing)
 
     const result = await insertNotification(deps)({
       ...input,
@@ -277,8 +265,7 @@ describe('insertNotification', () => {
       },
     })
 
-    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
-    expect(deps.notificationRepo.refreshUnread).toHaveBeenCalledOnce()
+    expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
     expect(result).toMatchObject({
       id: existing.id,
       coalescedCount: 2,
@@ -290,21 +277,13 @@ describe('insertNotification', () => {
         occurrences: 2,
       },
     })
-    // The bumped row is what gets persisted, verbatim, against the count the
-    // lookup saw.
-    expect(deps.notificationRepo.refreshUnread).toHaveBeenCalledWith(
-      result,
-      existing.coalescedCount,
-    )
   })
 
   it('re-renders the coalesced copy so a repeat row does not read like a first one', async () => {
     const existing = (await insertNotification(buildFakeInsertNotificationDeps())(
       input,
     )) as Notification
-    ;(
-      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
-    ).mockResolvedValue(existing)
+    absorbInto(deps, existing)
 
     const result = await insertNotification(deps)(input)
 
@@ -315,9 +294,7 @@ describe('insertNotification', () => {
     const existing = (await insertNotification(buildFakeInsertNotificationDeps())(
       input,
     )) as Notification
-    ;(
-      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
-    ).mockResolvedValue(existing)
+    absorbInto(deps, existing)
 
     // The second event's lookup failed, so it carries no property name.
     const result = await insertNotification(deps)({
@@ -339,40 +316,16 @@ describe('insertNotification', () => {
     ;(
       deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
     ).mockImplementation(storedRows({ email: preference('email', true, 'immediate') }))
-    ;(
-      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
-    ).mockResolvedValue(
-      await insertNotification(buildFakeInsertNotificationDeps())(input),
+    absorbInto(
+      deps,
+      (await insertNotification(buildFakeInsertNotificationDeps())(
+        input,
+      )) as Notification,
     )
 
     await insertNotification(deps)(input)
 
     expect(deps.emailRepo.insert).not.toHaveBeenCalled()
-  })
-
-  it('opens a fresh unread row when the row it would bump was read in the meantime', async () => {
-    const existing = (await insertNotification(buildFakeInsertNotificationDeps())(
-      input,
-    )) as Notification
-    ;(
-      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
-    ).mockResolvedValue(existing)
-    // The bump's status guard found the row read or dismissed.
-    ;(deps.notificationRepo.refreshUnread as ReturnType<typeof vi.fn>).mockResolvedValue(
-      false,
-    )
-
-    const result = await insertNotification(deps)({ ...input, eventId: 'event-2' })
-
-    expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
-    expect(deps.notificationRepo.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'unread',
-        eventId: 'event-2',
-        coalescedCount: 1,
-      }),
-    )
-    expect(result).toMatchObject({ status: 'unread', eventId: 'event-2' })
   })
 
   // ── Mandatory repeats (ADR 0046: mandatory notices always go by email) ──
@@ -397,14 +350,11 @@ describe('insertNotification', () => {
     const first = (await insertNotification(buildFakeInsertNotificationDeps())(
       roleChange('identity-role-event-1'),
     )) as Notification
-    ;(
-      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
-    ).mockResolvedValue(first)
+    absorbInto(deps, first)
 
     const result = await insertNotification(deps)(roleChange('identity-role-event-2'))
 
     expect(result).toMatchObject({ id: first.id, coalescedCount: 2 })
-    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
     expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
     expect(deps.emailRepo.insert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -449,9 +399,7 @@ describe('insertNotification', () => {
     const first = (await insertNotification(buildFakeInsertNotificationDeps())(
       roleChange('identity-role-event-1'),
     )) as Notification
-    ;(
-      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
-    ).mockResolvedValue(first)
+    absorbInto(deps, first)
 
     await insertNotification(deps)(roleChange('identity-role-event-1'))
 
@@ -1106,7 +1054,6 @@ describe('insertNotification', () => {
           category: 'low_ratings',
           title: 'Review edited to a low rating at Riverside Hotel',
         })
-        expect(deps.notificationRepo.refreshUnread).not.toHaveBeenCalled()
         // Dismissed, not settled: the review still waits for a reply.
         expect(deps.notificationRepo.updateStatus).toHaveBeenCalledWith(
           waiting.id,
@@ -1130,6 +1077,7 @@ describe('insertNotification', () => {
         vi.mocked(deps.notificationRepo.findUnreadByUserTypeResource).mockResolvedValue(
           waiting,
         )
+        absorbInto(deps, waiting)
         vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
 
         const result = await insertNotification(deps)(edit('edit-2'))

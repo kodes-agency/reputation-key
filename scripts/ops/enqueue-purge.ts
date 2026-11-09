@@ -27,11 +27,11 @@ import { createJobQueue } from '../../src/shared/jobs/queue'
 import { jobEnqueueOptions } from '../../src/shared/jobs/job-policy'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { getDb } from '../../src/shared/db'
-import {
-  GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT,
-  RETENTION_RULES,
-} from '../../src/shared/jobs/retention-sweep.job'
+import { GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT } from '../../src/shared/jobs/retention-sweep.job'
+import { RETENTION_RULES } from '../../src/composition/retention-rules'
+import { SCHEDULED_RETENTION_ACTIVE } from '../../src/shared/db/retention/scheduled-retention-activation'
 import { buildRetentionRuleReport } from '../../src/shared/db/retention/report-retention-rules'
+import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
 import { wireReviewSourceContentLifecycle } from '../../src/contexts/review/build'
 import { collectReviewSourceContentLifecycleReport } from '../../src/contexts/review/application/use-cases/collect-source-content-lifecycle-report'
 import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from '../../src/contexts/review/application/use-cases/run-source-content-lifecycle'
@@ -93,6 +93,7 @@ export async function main(): Promise<void> {
               {
                 target,
                 coverage: 'static_rule_registry',
+                scheduledApplyActive: SCHEDULED_RETENTION_ACTIVE,
                 separatelyInspectedSubjects: [GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT],
                 ...report,
               },
@@ -101,7 +102,9 @@ export async function main(): Promise<void> {
             ),
           )
           io.out(
-            'report is content-free and read-only; re-run with --apply --yes ops:purge to enqueue the bounded apply',
+            SCHEDULED_RETENTION_ACTIVE
+              ? 'report is content-free and read-only; re-run with --apply --yes ops:purge to enqueue the bounded apply'
+              : 'report is content-free and read-only; scheduled retention is inactive pending an owner-approved activation release',
           )
           io.out(
             'Google import lifecycle backlog is no longer reported: the compatibility surface was deleted with its five tables.',
@@ -111,6 +114,7 @@ export async function main(): Promise<void> {
         const runLifecycle = wireReviewSourceContentLifecycle({
           db: getDb(),
           clock: () => new Date(),
+          replyEffects: reputationReplyScopeEffects,
         })
         const report = await collectReviewSourceContentLifecycleReport(runLifecycle, {
           mode: lifecycleMode ?? 'report',
@@ -126,6 +130,13 @@ export async function main(): Promise<void> {
       if (target === 'reviews-shadow') {
         io.err(
           'Shadow inspection is read-only. Use the reviews target for approved expiry apply.',
+        )
+        return 1
+      }
+
+      if (target === 'retention' && !SCHEDULED_RETENTION_ACTIVE) {
+        io.err(
+          'Scheduled retention is inactive; an owner-approved activation release is required before apply.',
         )
         return 1
       }

@@ -1,12 +1,12 @@
 import { useId, type RefObject } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import { GlassSurface } from './glass-surface'
 import { ImmersiveBanner } from './immersive-banner'
 import { RestartIcon } from './immersive-icons'
 
 export type ImmersiveRemovedResponseProps = Readonly<{
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   response: GuestResponseView
   pending: boolean
   /** The last start over did not go through. */
@@ -65,7 +65,7 @@ function StartOver({
   failed,
   onStartOver,
 }: Readonly<{
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   pending: boolean
   failed: boolean
   onStartOver: () => void

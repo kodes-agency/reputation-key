@@ -1,3 +1,4 @@
+import type { GoogleNotificationAccounts } from '../ports/google-notification-accounts.port'
 // Integration context — govern the GBP Pub/Sub notification desired state.
 //
 // This use case deliberately receives an already-governed provider
@@ -15,6 +16,7 @@ import { isGbpApiError } from '../../domain/gbp-api-error'
 import { googleCallError } from '../../domain/google-call-error'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { OrganizationId } from '#/shared/domain/ids'
+import type { OtherNotificationAccountBinding } from '../google-notification-account-usage'
 
 export type NotificationProviderAuthorizationResult =
   | Readonly<{
@@ -44,9 +46,13 @@ export type NotificationProviderAuthorizationResult =
     }>
 
 export type ManageNotificationsDeps = Readonly<{
+  accounts: GoogleNotificationAccounts
+  nowMs: () => number
+  hasOtherActiveAccountBinding: OtherNotificationAccountBinding
   authorizeProviderCall: (
     organizationId: OrganizationId,
     connectionId: string,
+    gbpAccountId?: string,
   ) => Promise<NotificationProviderAuthorizationResult>
   notifications: MyBusinessNotificationsPort
   /** Shared Pub/Sub topic, e.g. `projects/<proj>/topics/gbp-reviews`. Empty = disabled. */
@@ -104,7 +110,8 @@ export type GbpSubscribeResult = Readonly<{
  * `unsubscribed`: every bound account's setting was cleared and read back. The
  * refusal codes mean nothing was sent. `provider_failed`: at least one bound
  * account was not cleared (Google refused, the write could not be confirmed, or
- * no Property could authorize the account).
+ * no Property could authorize the account). An account another connection still
+ * needs is retained and reported as `account_still_bound`, never as cleared.
  */
 export type GbpUnsubscribeOutcome =
   | 'unsubscribed'
@@ -129,10 +136,17 @@ export type GbpUnsubscribeResult = Readonly<{
 }>
 
 /** Lifecycle API returned by the use case. Both methods are best-effort. */
+export type GbpSubscribeScope = Readonly<{
+  gbpAccountId: string
+  reuseVerified?: boolean
+  connectionId?: string
+}>
+
 export type ManageNotificationsApi = Readonly<{
   subscribe: (
     organizationId: OrganizationId,
     connectionId: string,
+    scope?: GbpSubscribeScope,
   ) => Promise<GbpSubscribeResult>
   unsubscribe: (
     organizationId: OrganizationId,
@@ -205,6 +219,7 @@ export const manageNotifications = (
   const subscribe: ManageNotificationsApi['subscribe'] = async (
     organizationId,
     connectionId,
+    scope,
   ) => {
     if (!deps.pubsubTopic) {
       deps.logger.warn(
@@ -216,7 +231,9 @@ export const manageNotifications = (
 
     let authorized: NotificationProviderAuthorizationResult
     try {
-      authorized = await deps.authorizeProviderCall(organizationId, connectionId)
+      authorized = await (scope
+        ? deps.authorizeProviderCall(organizationId, connectionId, scope.gbpAccountId)
+        : deps.authorizeProviderCall(organizationId, connectionId))
     } catch (err) {
       deps.logger.warn(
         { errorName: err instanceof Error ? err.name : 'unknown' },
@@ -226,7 +243,9 @@ export const manageNotifications = (
     }
     if (!authorized.ok) return { outcome: authorized.code, accounts: NO_GBP_ACCOUNTS }
 
-    const targets = distinctTargets(authorized)
+    const targets = distinctTargets(authorized).filter(
+      (target) => !scope || target.gbpAccountId === scope.gbpAccountId,
+    )
     if (targets.length === 0) {
       return { outcome: 'account_unresolved', accounts: NO_GBP_ACCOUNTS }
     }
@@ -240,12 +259,33 @@ export const manageNotifications = (
     for (const target of targets) {
       let result: GbpAccountSubscription
       try {
-        result = await deps.notifications.subscribe({
-          accessToken: target.accessToken,
-          authorization: target.authorization,
-          gbpAccountId: target.gbpAccountId,
-          pubsubTopic: deps.pubsubTopic,
-          notificationTypes: deps.notificationTypes,
+        result = await deps.accounts.withAccount(target.gbpAccountId, async () => {
+          const configuration = JSON.stringify([
+            deps.pubsubTopic,
+            [...deps.notificationTypes].sort(),
+          ])
+          const previous = scope?.reuseVerified
+            ? await deps.accounts.read(target.gbpAccountId)
+            : null
+          if (
+            previous?.configuration === configuration &&
+            previous.verifiedAt !== null &&
+            previous.verifiedAt <= deps.nowMs() &&
+            deps.nowMs() - previous.verifiedAt < 24 * 60 * 60 * 1_000
+          ) {
+            return 'already_subscribed'
+          }
+          await deps.accounts.attempted(target.gbpAccountId)
+          await deps.accounts.invalidate(target.gbpAccountId)
+          const outcome = await deps.notifications.subscribe({
+            accessToken: target.accessToken,
+            authorization: target.authorization,
+            gbpAccountId: target.gbpAccountId,
+            pubsubTopic: deps.pubsubTopic,
+            notificationTypes: deps.notificationTypes,
+          })
+          await deps.accounts.verified(target.gbpAccountId, configuration)
+          return outcome
         })
       } catch (err) {
         const code = gbpNotificationFailureCode(err)
@@ -303,12 +343,28 @@ export const manageNotifications = (
     }
     for (const target of targets) {
       try {
-        await deps.notifications.unsubscribe({
-          accessToken: target.accessToken,
-          authorization: target.authorization,
-          gbpAccountId: target.gbpAccountId,
+        const cleared = await deps.accounts.withAccount(target.gbpAccountId, async () => {
+          // Invalidate before the write: a failed or uncertain clear cannot
+          // leave an import trusting an earlier successful subscription.
+          await deps.accounts.invalidate(target.gbpAccountId)
+          if (
+            await deps.hasOtherActiveAccountBinding({
+              organizationId,
+              connectionId,
+              gbpAccountId: target.gbpAccountId,
+            })
+          )
+            return false
+          await deps.notifications.unsubscribe({
+            accessToken: target.accessToken,
+            authorization: target.authorization,
+            gbpAccountId: target.gbpAccountId,
+          })
+          return true
         })
-        unsubscribed += 1
+        if (cleared) unsubscribed += 1
+        else
+          failureCodes.account_still_bound = (failureCodes.account_still_bound ?? 0) + 1
       } catch (err) {
         const code = gbpNotificationFailureCode(err)
         failureCodes[code] = (failureCodes[code] ?? 0) + 1

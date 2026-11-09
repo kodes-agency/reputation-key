@@ -17,8 +17,10 @@ import {
 import type {
   DeliveryErrorClass,
   EmailQueueStatus,
+  FrozenEmailRequest,
   NotificationEmail,
 } from '../../domain/notification-types'
+import { frozenEmailRequest, readFrozenEmailRequest } from '../email-frozen-request'
 import type {
   NotificationEmailRecipient,
   ProviderDeliveryState,
@@ -59,7 +61,12 @@ const dueForCadence = (cadence: string, now: Date) =>
         eq(notificationEmailQueue.status, 'failed'),
         and(
           eq(notificationEmailQueue.lastErrorClass, 'transient'),
-          sql`${notificationEmailQueue.retryCount} < 5`,
+          // An immediate row retries until its retry horizon retires it; only
+          // the digest budget is a count.
+          or(
+            eq(notificationEmailQueue.cadence, 'immediate'),
+            sql`${notificationEmailQueue.retryCount} < 5`,
+          ),
         ),
       ),
     ),
@@ -218,6 +225,9 @@ export const createNotificationEmailRepository = (
         failedAt: email.failedAt,
         retryCount: email.retryCount,
         recipientAudience: email.recipientAudience ?? null,
+        providerRequest: email.providerRequest
+          ? frozenEmailRequest(email.providerRequest)
+          : null,
         createdAt: email.createdAt,
         updatedAt: email.updatedAt,
       })
@@ -373,21 +383,28 @@ export const createNotificationEmailRepository = (
     return rows.map(emailFromRow)
   },
 
-  markAttemptStarted: async (
+  freezeProviderRequest: async (
     id: string,
     orgId: string,
     propertyId: string | null,
+    request: FrozenEmailRequest,
     startedAt: Date,
-  ): Promise<void> => {
-    await db
+  ): Promise<FrozenEmailRequest | null> => {
+    const rows = await db
       .update(notificationEmailQueue)
-      .set({ attemptedAt: firstAttemptAt(startedAt), updatedAt: startedAt })
+      .set({
+        providerRequest: sql`COALESCE(${notificationEmailQueue.providerRequest}, ${JSON.stringify(frozenEmailRequest(request))}::jsonb)`,
+        attemptedAt: firstAttemptAt(startedAt),
+        updatedAt: startedAt,
+      })
       .where(
         and(
           scope(id, orgId, propertyId),
           inArray(notificationEmailQueue.status, [...SENDABLE]),
         ),
       )
+      .returning({ providerRequest: notificationEmailQueue.providerRequest })
+    return rows[0] ? readFrozenEmailRequest(rows[0].providerRequest) : null
   },
 
   markAccepted: async (
@@ -408,6 +425,7 @@ export const createNotificationEmailRepository = (
         attemptedAt: firstAttemptAt(acceptedAt),
         lastErrorClass: null,
         nextAttemptAt: null,
+        providerRequest: null,
         updatedAt: acceptedAt,
       })
       .where(
@@ -430,6 +448,7 @@ export const createNotificationEmailRepository = (
         providerState: 'accepted',
         acceptedAt,
         sentAt: acceptedAt,
+        providerRequest: null,
         updatedAt: acceptedAt,
       })
       .where(
@@ -476,6 +495,8 @@ export const createNotificationEmailRepository = (
         failedAt,
         attemptedAt: firstAttemptAt(failedAt),
         nextAttemptAt,
+        // A permanent failure closes the row; a transient one is retried verbatim.
+        ...(nextAttemptAt === null ? { providerRequest: null } : {}),
         retryCount: sql`${notificationEmailQueue.retryCount} + 1`,
         updatedAt: failedAt,
       })
@@ -500,6 +521,7 @@ export const createNotificationEmailRepository = (
         status: 'suppressed',
         providerState: 'suppressed',
         suppressionReason: reason,
+        providerRequest: null,
         updatedAt,
       })
       .where(
@@ -568,6 +590,7 @@ export const createNotificationEmailRepository = (
         status: 'cancelled',
         suppressionReason: reason,
         nextAttemptAt: null,
+        providerRequest: null,
         updatedAt,
       })
       .where(
@@ -594,6 +617,7 @@ export const createNotificationEmailRepository = (
         providerState: 'suppressed',
         suppressionReason: reason,
         nextAttemptAt: null,
+        providerRequest: null,
         updatedAt,
       })
       .where(

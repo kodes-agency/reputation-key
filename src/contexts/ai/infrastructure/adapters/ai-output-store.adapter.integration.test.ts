@@ -194,6 +194,65 @@ function requireControl(
   return control
 }
 
+/** Gives seeded Reviews their content rows; they go with their Reviews. */
+async function seedSourceContents(
+  db: ReturnType<typeof getDb>,
+  reviewIds: readonly string[],
+) {
+  await db.execute(sql`
+    INSERT INTO review_source_contents (
+      review_id, organization_id, property_id, platform, external_id,
+      external_location_id, reviewer_name, rating, text, language_code,
+      reviewed_at, first_fetched_at, last_fetched_at, content_expires_at,
+      source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+    )
+    SELECT id, organization_id, property_id, platform, external_id,
+           COALESCE(external_location_id, 'locations/ai-output-store'),
+           reviewer_name, rating, text, language_code, reviewed_at,
+           COALESCE(first_fetched_at, reviewed_at),
+           COALESCE(last_fetched_at, reviewed_at), content_expires_at,
+           source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+    FROM reviews
+    WHERE id IN (${sql.join(
+      reviewIds.map((id) => sql`${id}::uuid`),
+      sql`, `,
+    )})
+  `)
+}
+
+async function readDailyProjection(db: ReturnType<typeof getDb>) {
+  const window = await createAiPropertyAggregateStoreAdapter(db).readWindow({
+    organizationId: ORGANIZATION_ID,
+    propertyId: PROPERTY_ID,
+    sourceEpoch: SOURCE_EPOCH,
+    reviewAnalysisEpoch: 1,
+    propertyProfileVersion: 1,
+    startLocalDate: '2026-09-07',
+    endLocalDate: '2026-09-07',
+  })
+  const day = window?.days[0]
+  return {
+    daily: day && {
+      reviewCount: day.reviewCount,
+      ratingSum: day.ratingSum,
+      positiveCount: day.sentimentCounts.positive,
+      neutralCount: day.sentimentCounts.neutral,
+      negativeCount: day.sentimentCounts.negative,
+      mixedCount: day.sentimentCounts.mixed,
+      urgentCount: day.attentionCounts.urgent,
+      highCount: day.attentionCounts.high,
+      mediumCount: day.attentionCounts.medium,
+      lowCount: day.attentionCounts.low,
+    },
+    aspects:
+      day?.aspectCounts.map((row) => ({
+        aspect: row.aspect,
+        polarity: row.polarity,
+        mentionCount: row.count,
+      })) ?? [],
+  }
+}
+
 describe.sequential('AI output store analysis persistence (real PostgreSQL)', () => {
   const db = getDb()
   const outputs = createAiOutputStoreAdapter(db)
@@ -376,6 +435,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aiSourceDigest: REVIEW_B_SOURCE_DIGEST,
       },
     ])
+    await seedSourceContents(db, [REVIEW_A_ID, REVIEW_B_ID])
     await db.insert(materialReviewRevisions).values([
       {
         reviewId: REVIEW_A_ID,
@@ -908,6 +968,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aiSourceByteLength: SOURCE_BYTE_COUNT,
         aiSourceDigest: REVIEW_A_SOURCE_DIGEST,
       })
+      await seedSourceContents(db, [SECOND_REVIEW_ID])
       const [baseOperation] = await db
         .select()
         .from(aiOperations)
@@ -1213,7 +1274,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     })
   })
 
-  it('projects v2 aspects through per-review and daily aggregate rows', async () => {
+  it('derives v2 aspect and day reads without reviving retired writers', async () => {
     await seedStoredReviewA()
     const aggregates = createAiPropertyAggregateStoreAdapter(db)
     const windowRequest = {
@@ -1268,9 +1329,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       })
       .from(aiPropertyAggregateContributionAspects)
       .where(eq(aiPropertyAggregateContributionAspects.reviewId, REVIEW_A_ID))
-    expect(contributionAspects).toEqual([
-      { aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', intensity: 75 },
-    ])
+    expect(contributionAspects).toEqual([])
     const dailyAspects = await db
       .select({
         aspect: aiPropertyDailyAspectAggregates.aspect,
@@ -1279,9 +1338,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       })
       .from(aiPropertyDailyAspectAggregates)
       .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
-    expect(dailyAspects).toEqual([
-      { aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', mentionCount: 1 },
-    ])
+    expect(dailyAspects).toEqual([])
 
     const window = await aggregates.readWindow(windowRequest)
     expect(window?.coverage).toEqual({
@@ -1425,6 +1482,10 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     })
   })
   it('converges for 20 different reviews applied in shuffled order', async () => {
+    await db
+      .update(reviewAiAnalysisHeads)
+      .set({ headSequence: 40 })
+      .where(eq(reviewAiAnalysisHeads.propertyId, PROPERTY_ID))
     const [baseOperation] = await db
       .select()
       .from(aiOperations)
@@ -1469,6 +1530,10 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aiSourceDigest: REVIEW_A_SOURCE_DIGEST,
       })),
     )
+    await seedSourceContents(
+      db,
+      fixture.map((row) => row.reviewId),
+    )
     await db.insert(materialReviewRevisions).values(
       fixture.map((row) => ({
         reviewId: row.reviewId,
@@ -1484,6 +1549,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     await db.insert(aiOperations).values(
       fixture.map((row) => ({
         ...baseOperation,
+        state: 'succeeded_pending_delivery',
         id: row.operationId,
         idempotencyScope: `analysis:${row.operationId}`,
         idempotencyKey: row.operationId,
@@ -1560,33 +1626,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
     }
     const snapshot = async () => {
-      const [daily] = await db
-        .select({
-          reviewCount: aiPropertyDailyAggregates.reviewCount,
-          ratingSum: aiPropertyDailyAggregates.ratingSum,
-          positiveCount: aiPropertyDailyAggregates.positiveCount,
-          neutralCount: aiPropertyDailyAggregates.neutralCount,
-          negativeCount: aiPropertyDailyAggregates.negativeCount,
-          mixedCount: aiPropertyDailyAggregates.mixedCount,
-          urgentCount: aiPropertyDailyAggregates.urgentCount,
-          highCount: aiPropertyDailyAggregates.highCount,
-          mediumCount: aiPropertyDailyAggregates.mediumCount,
-          lowCount: aiPropertyDailyAggregates.lowCount,
-        })
-        .from(aiPropertyDailyAggregates)
-        .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
-      const aspects = await db
-        .select({
-          aspect: aiPropertyDailyAspectAggregates.aspect,
-          polarity: aiPropertyDailyAspectAggregates.polarity,
-          mentionCount: aiPropertyDailyAspectAggregates.mentionCount,
-        })
-        .from(aiPropertyDailyAspectAggregates)
-        .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
-        .orderBy(
-          aiPropertyDailyAspectAggregates.aspect,
-          aiPropertyDailyAspectAggregates.polarity,
-        )
+      const { daily, aspects } = await readDailyProjection(db)
       const [head] = await db
         .select({
           aggregateRevision: aiPropertyAggregateHeads.aggregateRevision,
@@ -1657,6 +1697,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     await db.insert(aiOperations).values([
       {
         ...baseOperation,
+        state: 'succeeded_pending_delivery',
         id: LATEST_OPERATION_ID,
         idempotencyScope: `analysis:${LATEST_OPERATION_ID}`,
         idempotencyKey: LATEST_OPERATION_ID,
@@ -1665,6 +1706,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       },
       {
         ...baseOperation,
+        state: 'succeeded_pending_delivery',
         id: SUPERSEDED_OPERATION_ID,
         idempotencyScope: `analysis:${SUPERSEDED_OPERATION_ID}`,
         idempotencyKey: SUPERSEDED_OPERATION_ID,
@@ -1772,17 +1814,15 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       calendarProfileVersion: 'property-calendar-v1',
     })
 
-    const [daily] = await db
-      .select({
-        reviewCount: aiPropertyDailyAggregates.reviewCount,
-        ratingSum: aiPropertyDailyAggregates.ratingSum,
-        positiveCount: aiPropertyDailyAggregates.positiveCount,
-        negativeCount: aiPropertyDailyAggregates.negativeCount,
-        urgentCount: aiPropertyDailyAggregates.urgentCount,
-        lowCount: aiPropertyDailyAggregates.lowCount,
-      })
-      .from(aiPropertyDailyAggregates)
-      .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
+    const { daily: projected } = await readDailyProjection(db)
+    const daily = projected && {
+      reviewCount: projected.reviewCount,
+      ratingSum: projected.ratingSum,
+      positiveCount: projected.positiveCount,
+      negativeCount: projected.negativeCount,
+      urgentCount: projected.urgentCount,
+      lowCount: projected.lowCount,
+    }
     expect(daily).toEqual({
       reviewCount: 1,
       ratingSum: 5,
@@ -2000,18 +2040,13 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       )
 
     const dailyTotals = async () => {
-      const [daily] = await db
-        .select({
-          reviewCount: aiPropertyDailyAggregates.reviewCount,
-          ratingSum: aiPropertyDailyAggregates.ratingSum,
-        })
-        .from(aiPropertyDailyAggregates)
-        .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
-      const aspects = await db
-        .select({ mentionCount: aiPropertyDailyAspectAggregates.mentionCount })
-        .from(aiPropertyDailyAspectAggregates)
-        .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
-      return { ...daily, serviceMentions: aspects[0]?.mentionCount ?? 0 }
+      const { daily, aspects } = await readDailyProjection(db)
+      return {
+        reviewCount: daily?.reviewCount,
+        ratingSum: daily?.ratingSum,
+        serviceMentions:
+          aspects.find((row) => row.aspect === 'service')?.mentionCount ?? 0,
+      }
     }
 
     beforeEach(async () => {

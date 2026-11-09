@@ -13,7 +13,7 @@ import {
   METRIC_DEFINITIONS,
   findMetricVersionById,
   type GovernedMetricVersion,
-} from '../../domain/metric-registry'
+} from '../../readings/contracts'
 
 type ExportScalar = string | number | boolean | null
 type ExportRecord = Readonly<Record<string, ExportScalar>>

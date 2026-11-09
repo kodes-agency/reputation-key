@@ -9,7 +9,7 @@ import {
   GoalProgramError,
   type GoalActor,
   type GoalProgramService,
-} from './goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 
 /** The Portals an actor is responsible for at a Property, and their Portal Groups. */
 export type GoalProgramVisibilityPort = (
@@ -68,7 +68,8 @@ export function scopeGoalProgramsForMember<
   })
 }
 
-type GoalProgramReads = Pick<GoalProgramService, 'get' | 'list'>
+type GoalProgramReads = Pick<GoalProgramService, 'get' | 'list'> &
+  Partial<Pick<GoalProgramService, 'history'>>
 
 /**
  * Scope Goal Program reads to what the actor may see. The wrapped reads
@@ -104,6 +105,35 @@ export function withGoalProgramVisibility(
   }
 
   return {
+    ...(reads.history
+      ? {
+          history: async (...args: Parameters<GoalProgramService['history']>) => {
+            const [input, actor] = args
+            const page = await reads.history!(...args)
+            if (canForContext(actor, 'goal.create')) return page
+            const { portalIds, groupIds } = await visibility({
+              actor,
+              propertyId: input.propertyId,
+            })
+            const [visible] = scopeGoalProgramsForMember([page], portalIds, groupIds)
+            if (!visible)
+              return {
+                ...page,
+                assignments: [],
+                results: [],
+                versions: [],
+                targetChanges: [],
+              }
+            const versionIds = new Set(
+              visible.assignments.map((assignment) => assignment.programVersionId),
+            )
+            return {
+              ...visible,
+              versions: page.versions.filter((version) => versionIds.has(version.id)),
+            }
+          },
+        }
+      : {}),
     get: async (input, actor) => {
       const program = await reads.get(input, actor)
       const [visible] = await visibleTo([program], actor, input.propertyId)

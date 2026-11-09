@@ -14,7 +14,7 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../../application/ports/goal-program.repository'
-import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../readings/contracts'
 import { assertPersonalGoalAssignments } from './personal-goal-assignment-guard'
 import { createStaffGoalsReader } from './staff-goals.reader'
 

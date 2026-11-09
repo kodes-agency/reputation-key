@@ -834,6 +834,48 @@
       "when": 1799900001000,
       "tag": "0118_google_import_items_destination_index",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1799900002000,
+      "tag": "0119_google_notification_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1800000001000,
+      "tag": "0120_drop_dormant_google_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1800000002000,
+      "tag": "0121_drop_old_reply_library_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1800000003000,
+      "tag": "0122_notification_email_frozen_request",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1800000004000,
+      "tag": "0123_resend_event_ordering",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1800000005000,
+      "tag": "0124_drop_old_google_import_tables",
+      "breakpoints": true
     }
   ]
 }

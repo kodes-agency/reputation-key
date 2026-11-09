@@ -26,7 +26,7 @@ vi.mock('#/composition', () => ({
       management: {
         resolvePortalManagementScope: mocks.scope,
         getPortal: mocks.read,
-        updatePortal: mocks.write,
+        updatePortalSettings: mocks.write,
       },
     },
   }),
@@ -36,7 +36,7 @@ vi.mock('#/shared/observability/trace', async (importOriginal) => ({
   startRequestSpan: mocks.span,
 }))
 
-import { getPortal, updatePortal } from './portals'
+import { getPortal, updatePortalSettings } from './portals'
 
 const actor = { userId: 'user-1', organizationId: 'org-1', role: 'AccountAdmin' } as const
 const input = { portalId: 'portal-1' }
@@ -51,12 +51,12 @@ describe.each([
     invoke: () => getPortal({ data: input }),
   },
   {
-    name: 'portal.updatePortal',
+    name: 'portal.updatePortalSettings',
     method: 'POST',
     action: 'portal.update',
     capability: 'portal.write',
     effect: mocks.write,
-    invoke: () => updatePortal({ data: input }),
+    invoke: () => updatePortalSettings({ data: input }),
   },
 ])('$name command contract', ({ name, method, action, capability, effect, invoke }) => {
   beforeEach(() => {

@@ -1,5 +1,11 @@
+import {
+  createDraftRevisionFence,
+  replyRevisionOnScreen,
+  type ReplyRevision,
+} from '#/contexts/reputation/replies/contracts'
 import { readDraftStream, type DraftStream } from './reply-draft-stream'
-import { useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+
 // Server import exception per src/components/CONTEXT.md "Server-function boundary" —
 // this hook owns the reply command family (8 commands) plus the template
 // list/load actions. The reply's read-only states render in the thread while the
@@ -59,7 +65,7 @@ export type ReplyActions = Readonly<{
     measurementGenerationId?: string | null,
   ) => Promise<unknown>
   submitReply: (
-    metric?: import('./reply-measurement').BrowserDraftEditMetric,
+    metric?: import('#/contexts/reputation/replies/ui/reply-measurement').BrowserDraftEditMetric,
   ) => Promise<unknown>
   deleteDraft: () => Promise<unknown>
   /**
@@ -90,6 +96,7 @@ type CommandInput = Readonly<{ data: Readonly<{ reviewId: string }> }>
 
 type Input = Readonly<{
   reviewId: string
+  reply?: InboxReplyCacheChange['reply']
   onReplyChanged: (change: InboxReplyCacheChange) => void
 }>
 
@@ -125,6 +132,21 @@ type Input = Readonly<{
 export function useReplyActions(input: Input): ReplyActions {
   const { reviewId, onReplyChanged } = input
   const qc = useQueryClient()
+  const revisionFence = useMemo(() => createDraftRevisionFence(reviewId), [reviewId])
+  useEffect(() => {
+    const revision = replyRevisionOnScreen(input.reply)
+    if (input.reply && input.reply.status !== 'draft') {
+      revisionFence.showReadOnly(revision)
+    } else {
+      revisionFence.beforeWrite(revision)
+    }
+  }, [revisionFence, input.reply])
+  const enqueueReplyWrite = <T extends ReplyRevision>(write: () => Promise<T>) =>
+    revisionFence.enqueue(async () => {
+      const saved = await write()
+      revisionFence.didWrite(saved)
+      return saved
+    })
   const savedRevision = useRef<{
     reviewId: string
     id: string
@@ -136,8 +158,21 @@ export function useReplyActions(input: Input): ReplyActions {
   // (`InboxReplyCacheChange.reviewId`).
   const changed =
     (kind: InboxReplyCacheChange['kind']) =>
-    (reply: InboxReplyCacheChange['reply'], command: CommandInput) =>
+    (reply: InboxReplyCacheChange['reply'], command: CommandInput) => {
+      if (
+        reply &&
+        'stateRevision' in reply &&
+        command.data.reviewId === revisionFence.reviewId
+      ) {
+        revisionFence.didWrite(reply)
+      } else if (
+        kind === 'state_changed' &&
+        command.data.reviewId === revisionFence.reviewId
+      ) {
+        revisionFence.didDelete()
+      }
       onReplyChanged({ kind, reply, reviewId: command.data.reviewId })
+    }
   // Likewise the review a refusal is about: the command's own input.
   const reread = (_error: unknown, command: CommandInput) =>
     inboxCachePolicy.onReplyCommandFailed(qc, command.data.reviewId)
@@ -209,27 +244,24 @@ export function useReplyActions(input: Input): ReplyActions {
 
   return {
     isSaving,
-    saveDraft: async (
-      text,
-      provenanceToken,
-      replyLanguageTag,
-      measurementGenerationId,
-    ) => {
-      const saved = await draft({
-        data: {
-          reviewId,
-          text,
-          measurementGenerationId,
-          ...(replyLanguageTag ? { replyLanguageTag } : {}),
-          ...(provenanceToken ? { provenanceToken } : {}),
-        },
-      })
-      // Measurement bookkeeping only: an unexpected answer must never fail the save.
-      savedRevision.current = saved
-        ? { reviewId, id: saved.id, stateRevision: saved.stateRevision }
-        : null
-      return saved
-    },
+    saveDraft: async (text, provenanceToken, replyLanguageTag, measurementGenerationId) =>
+      enqueueReplyWrite(async () => {
+        const saved = await draft({
+          data: {
+            reviewId,
+            text,
+            expectedReply: revisionFence.beforeWrite(replyRevisionOnScreen(input.reply)),
+            measurementGenerationId,
+            ...(replyLanguageTag ? { replyLanguageTag } : {}),
+            ...(provenanceToken ? { provenanceToken } : {}),
+          },
+        })
+        // Measurement bookkeeping only: an unexpected answer must never fail the save.
+        savedRevision.current = saved
+          ? { reviewId, id: saved.id, stateRevision: saved.stateRevision }
+          : null
+        return saved
+      }),
     measureDraft: (event) => {
       void import('#/contexts/ai/server/draft-measurement')
         .then(({ recordDraftMeasurementFn }) =>
@@ -237,31 +269,43 @@ export function useReplyActions(input: Input): ReplyActions {
         )
         .catch(() => undefined)
     },
-    submitReply: (metric) => {
-      const saved = savedRevision.current
-      const measurement =
-        metric && saved?.reviewId === reviewId
-          ? { ...metric, replyId: saved.id, replyRevision: saved.stateRevision }
-          : undefined
-      return submit({ data: { reviewId, measurement } })
-    },
-    deleteDraft: () => del({ data: { reviewId } }),
-    approve: (expectedReply) => approve({ data: { reviewId, expectedReply } }),
-    reject: (reason) => reject({ data: { reviewId, reason } }),
-    check: () => check({ data: { reviewId } }),
-    retry: () => retry({ data: { reviewId } }),
-    saveEdit: (text) => edit({ data: { reviewId, text } }),
+    submitReply: (metric) =>
+      enqueueReplyWrite(() => {
+        const saved = savedRevision.current
+        const measurement =
+          metric && saved?.reviewId === reviewId
+            ? { ...metric, replyId: saved.id, replyRevision: saved.stateRevision }
+            : undefined
+        return submit({ data: { reviewId, measurement } })
+      }),
+    deleteDraft: () =>
+      revisionFence.enqueue(async () => {
+        const deleted = await del({ data: { reviewId } })
+        revisionFence.didDelete()
+        return deleted
+      }),
+    approve: (expectedReply) =>
+      enqueueReplyWrite(() => approve({ data: { reviewId, expectedReply } })),
+    reject: (reason) => enqueueReplyWrite(() => reject({ data: { reviewId, reason } })),
+    check: () => revisionFence.enqueue(() => check({ data: { reviewId } })),
+    retry: () => enqueueReplyWrite(() => retry({ data: { reviewId } })),
+    saveEdit: (text) => enqueueReplyWrite(() => edit({ data: { reviewId, text } })),
     listTemplates: (targetLanguage) =>
       listTemplates({ data: { reviewId, targetLanguage } }),
     loadTemplate: (templateId, targetLanguage, excludeWordingKeys) =>
-      loadTemplate({
-        data: {
-          reviewId,
-          templateId,
-          targetLanguage,
-          ...(excludeWordingKeys ? { excludeWordingKeys: [...excludeWordingKeys] } : {}),
-        },
-      }),
+      enqueueReplyWrite(() =>
+        loadTemplate({
+          data: {
+            reviewId,
+            templateId,
+            expectedReply: revisionFence.beforeWrite(replyRevisionOnScreen(input.reply)),
+            targetLanguage,
+            ...(excludeWordingKeys
+              ? { excludeWordingKeys: [...excludeWordingKeys] }
+              : {}),
+          },
+        }),
+      ),
     checkDraft: (text: string) => checkDraft({ data: { reviewId, text } }),
   }
 }

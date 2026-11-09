@@ -9,9 +9,9 @@ import {
 import { TONE_FILL, TONE_INK } from '#/components/ui/tone'
 import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
 import { cn } from '#/lib/utils'
-import { GoogleLinkedText } from './google-review-anchor'
-import type { GoogleReviewLink } from './google-review-link'
-import { MESSAGE_PROSE_CLASS } from './guest-message'
+import { GoogleLinkedText } from '../../contexts/reputation/inbox/ui/google-review-anchor'
+import type { GoogleReviewLink } from '../../contexts/reputation/inbox/ui/google-review-link'
+import { MESSAGE_PROSE_CLASS } from '../../contexts/reputation/inbox/ui/guest-message'
 import { INBOX_CHIP_STATIC_CLASS } from './inbox-chip'
 import { personInitials } from './person-initials'
 import { ReplyCheckStatus } from './reply-check-status'
@@ -21,9 +21,12 @@ import {
   type ReplyMessageTone,
   type ReplyMessageView,
 } from './reply-message-view'
-import { useReplyDraftChecks } from './use-reply-draft-checks'
+import { useReplyDraftChecks } from '#/contexts/reputation/replies/ui/use-reply-draft-checks'
 import { resolveReplyView, type ReplyData } from './reply-status-view'
-import { useReplyCheckRun, useReplyFocusReturn } from './use-reply-check-run'
+import {
+  useReplyCheckRun,
+  useReplyFocusReturn,
+} from '#/contexts/reputation/replies/ui/use-reply-check-run'
 import { formatExactTime, formatRelativeTime } from './utils'
 import { useRef, type ReactNode } from 'react'
 

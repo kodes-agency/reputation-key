@@ -19,7 +19,7 @@ import {
 } from './inbox-owner-view'
 // The viewer has ONE definition for the whole pane, in the pure selector module
 // every surface above this control already imports from; see its comment.
-import type { InboxCurrentUser } from './inbox-case-toolbar-props'
+import type { InboxCurrentUser } from '../../contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 
 /**
  * Mirror of `SOURCE_HANDLE_PERMISSION` in

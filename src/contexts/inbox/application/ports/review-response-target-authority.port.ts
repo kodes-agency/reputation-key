@@ -1,4 +1,5 @@
 /** Inbox-owned boundary for Review's current Google target provenance. */
+import type { ReviewOpenTransaction } from './review-open-transaction'
 
 export type ReviewResponseTargetExpectation = Readonly<{
   organizationId: string
@@ -90,14 +91,23 @@ export type ReviewResponseTargetAuthorityResult<T> =
 export type ReviewResponseTargetAuthorityPort = Readonly<{
   withExactCurrent<T>(
     expectation: ReviewResponseTargetExpectation,
-    apply: (permit: CurrentReviewResponseTargetPermit) => Promise<T>,
+    apply: (
+      permit: CurrentReviewResponseTargetPermit,
+      tx?: ReviewOpenTransaction,
+    ) => Promise<T>,
   ): Promise<ReviewResponseTargetAuthorityResult<T>>
   withExactCurrentBatch<T>(
     expectations: readonly ReviewResponseTargetExpectation[],
-    apply: (permits: readonly CurrentReviewResponseTargetPermit[]) => Promise<T>,
+    apply: (
+      permits: readonly CurrentReviewResponseTargetPermit[],
+      tx?: ReviewOpenTransaction,
+    ) => Promise<T>,
   ): Promise<ReviewResponseTargetAuthorityResult<T>>
   withInboxProjection<T>(
     expectation: ReviewInboxProjectionExpectation,
-    apply: (permit: CurrentReviewInboxProjectionPermit) => Promise<T>,
+    apply: (
+      permit: CurrentReviewInboxProjectionPermit,
+      tx?: ReviewOpenTransaction,
+    ) => Promise<T>,
   ): Promise<ReviewResponseTargetAuthorityResult<T>>
 }>

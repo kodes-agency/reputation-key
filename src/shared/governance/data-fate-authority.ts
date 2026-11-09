@@ -286,23 +286,10 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'google-content-control.schema.ts',
-    exportNames: [
-      'authorizationExecutionPermits',
-      'capabilityExecutionControl',
-      'credentialRevokePermits',
-      'googleCredentialSourceOperations',
-      'googleSubjectAuthorityGuards',
-    ],
+    exportNames: ['authorizationExecutionPermits', 'capabilityExecutionControl'],
     owner: 'integration',
     disposition: 'active_authority',
     authority: 'SAFE-04/GGL-01',
-  }),
-  ...rows({
-    schemaFile: 'google-import-v2.schema.ts',
-    exportNames: ['gbpImportRequestItems', 'gbpImportRequests', 'gbpImportSagas'],
-    owner: 'integration',
-    disposition: 'active_authority',
-    authority: 'GGL-01',
   }),
   ...rows({
     schemaFile: 'google-import.schema.ts',
@@ -311,7 +298,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'active_authority',
     authority: 'Integration import checkpoints',
     exitCriteria:
-      'The replacement store is not connected. Before its first writer, wire lifecycle cancellation, isolated restore and whole-import retention; remove the import and all items 30 days after its first terminal completion without renewing that deadline on retry.',
+      'Lifecycle cancellation, isolated restore and whole-import retention run on these tables; remove the import and all items 30 days after its first terminal completion without renewing that deadline on retry.',
   }),
   ...rows({
     schemaFile: 'google-import-discovery.schema.ts',
@@ -716,8 +703,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     schemaFile: 'reply-library.schema.ts',
     exportNames: [
       'organizationReplyVoices',
-      'propertyReplyProfiles',
-      'propertyReplyTemplates',
       'propertyReplyVoices',
       'replyTemplateRevisions',
       'replyTemplates',

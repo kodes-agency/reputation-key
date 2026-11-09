@@ -23,18 +23,21 @@ import type {
 } from './reply-language-options'
 import { ReplySuggestionControls } from './reply-suggestion-controls'
 import { ReplySuggestionPreview } from './reply-suggestion-preview'
-import { useReplyComposer } from './use-reply-composer'
+import { useReplyComposer } from '#/contexts/reputation/replies/ui/use-reply-composer'
 import type {
   LoadedReplyTemplateDraft,
   ReplySuggestionGenerate,
 } from './reply-suggestion-contract'
 import { ReplyDraftCheckAlerts } from './reply-draft-check-alerts'
 
-export type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
+export type {
+  ReplySuggestionResult,
+  ReplyTone,
+} from '#/contexts/reputation/replies/ui/use-reply-suggestion'
 
 export type ReplyComposeProps = Readonly<{
   propertyId: string
-  initialBodyFrame?: import('./reply-autosave-coordinator').ReplyDraftSnapshot['bodyFrame']
+  initialBodyFrame?: import('#/contexts/reputation/replies/ui/reply-autosave-coordinator').ReplyDraftSnapshot['bodyFrame']
   initialText: string
   initialLanguageTag: string | null
   initialMeasurementBaseReplyRevision?: number | null
@@ -52,7 +55,7 @@ export type ReplyComposeProps = Readonly<{
     measurementGenerationId?: string | null,
   ) => Promise<unknown>
   onSubmit: (
-    metric?: import('./reply-measurement').BrowserDraftEditMetric,
+    metric?: import('#/contexts/reputation/replies/ui/reply-measurement').BrowserDraftEditMetric,
   ) => Promise<unknown>
   onDelete?: () => Promise<unknown>
   onMeasure?: (
@@ -354,7 +357,9 @@ export function ReplyCompose(props: ReplyComposeProps) {
             isSubmitting={props.isSaving}
             onRetrySave={state.autosave.retry}
             onSubmit={state.submit}
-            onDelete={props.onDelete}
+            onDelete={
+              props.onDelete ? () => state.deleteDraft(props.onDelete!) : undefined
+            }
           />
         </div>
       </div>

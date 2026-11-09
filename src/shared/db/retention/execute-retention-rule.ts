@@ -36,6 +36,23 @@ type RetentionRuleBase = Readonly<{
   extraWhere?: string
   /** Bound equality predicates for lifecycle purges and tenant scoping. */
   equalsWhere?: ReadonlyArray<Readonly<{ column: string; value: string }>>
+  /**
+   * Rows that reference a deleted row through a restricting foreign key and go
+   * with it. Each batch deletes them and their parents in one transaction, so a
+   * stop between the two leaves no parent without its dependents' removal and no
+   * dependent removed alone. The rule must have a single key column.
+   */
+  dependents?: ReadonlyArray<RetentionDependent>
+}>
+
+export type RetentionDependent = Readonly<{
+  table: string
+  /** Column holding the parent's key. */
+  referenceColumn: string
+  /** Dependent's own key, needed with selfReferenceColumn. */
+  keyColumn: string
+  /** Column by which a dependent points at another dependent; leaves go first. */
+  selfReferenceColumn?: string
 }>
 
 /**
@@ -108,6 +125,85 @@ export async function countRetentionRuleCandidates(
   return Number((result.rows[0] as { count?: number | string } | undefined)?.count ?? 0)
 }
 
+const keyCount = (rule: RetentionRule): number => rule.keyColumns.length
+
+/**
+ * One batch: lock the due parents, delete their dependents (leaves first when
+ * dependents point at each other), then the parents, in one transaction. A
+ * dependent created meanwhile makes the parent delete fail and roll back.
+ */
+async function deleteWithDependents(
+  db: Database,
+  rule: RetentionRule,
+  dependents: ReadonlyArray<RetentionDependent>,
+  candidates: SQL,
+  predicate: SQL,
+): Promise<number> {
+  const keyColumn = sql.identifier(rule.keyColumns[0] ?? '')
+  const table = sql.identifier(rule.table)
+  return db.transaction(async (tx) => {
+    const locked = await tx.execute(sql`${candidates} FOR UPDATE`)
+    const ids = (locked.rows as ReadonlyArray<Record<string, unknown>>).map(
+      (row) => row[rule.keyColumns[0] ?? ''],
+    )
+    if (ids.length === 0) return 0
+    const idList = sql.join(
+      ids.map((id) => sql`${id}`),
+      sql`, `,
+    )
+    for (const dependent of dependents) {
+      const dependentTable = sql.identifier(dependent.table)
+      const reference = sql.identifier(dependent.referenceColumn)
+      if (!dependent.selfReferenceColumn) {
+        await tx.execute(
+          sql`DELETE FROM ${dependentTable} WHERE ${reference} IN (${idList})`,
+        )
+        continue
+      }
+      const key = sql.identifier(dependent.keyColumn)
+      const self = sql.identifier(dependent.selfReferenceColumn)
+      for (;;) {
+        const removed = await tx.execute(
+          sql`DELETE FROM ${dependentTable} AS d WHERE d.${reference} IN (${idList}) AND NOT EXISTS (SELECT 1 FROM ${dependentTable} AS s WHERE s.${self} = d.${key})`,
+        )
+        if ((removed.rowCount ?? 0) === 0) break
+      }
+    }
+    const deleted = await tx.execute(
+      sql`DELETE FROM ${table} WHERE ${keyColumn} IN (${idList}) AND ${predicate} RETURNING ${keyColumn}`,
+    )
+    return deleted.rowCount ?? 0
+  })
+}
+
+function assertDependentsSupported(rule: RetentionRule): void {
+  if (!rule.dependents?.length) return
+  if (rule.operation === 'redact' || keyCount(rule) !== 1) {
+    throw new Error(
+      `Retention rule '${rule.subject}' needs one key column and a delete to remove dependents`,
+    )
+  }
+}
+
+/** One batch of a rule without dependents: a bounded delete or redact. */
+async function runPlainBatch(
+  db: Database,
+  rule: RetentionRule,
+  keys: SQL,
+  candidates: SQL,
+  predicate: SQL,
+): Promise<number> {
+  const table = sql.identifier(rule.table)
+  const statement =
+    rule.operation === 'redact'
+      ? sql`UPDATE ${table} SET ${sql.join(
+          rule.redactColumns.map((column) => sql`${sql.identifier(column)} = NULL`),
+          sql`, `,
+        )} WHERE (${keys}) IN (${candidates}) AND ${predicate} RETURNING ${keys}`
+      : sql`DELETE FROM ${table} WHERE (${keys}) IN (${candidates}) AND ${predicate} RETURNING ${keys}`
+  return (await db.execute(statement)).rowCount ?? 0
+}
+
 export async function executeRetentionRule(
   db: Database,
   rule: RetentionRule,
@@ -121,6 +217,12 @@ export async function executeRetentionRule(
 ): Promise<RetentionExecution> {
   const batchSize = options.batchSize ?? 500
   const maxBatches = options.maxBatches ?? DEFAULT_MAX_BATCHES_PER_RUN
+  if (!Number.isSafeInteger(batchSize) || batchSize < 1) {
+    throw new Error('batchSize must be a positive safe integer')
+  }
+  if (!Number.isSafeInteger(maxBatches) || maxBatches < 1) {
+    throw new Error('maxBatches must be a positive safe integer')
+  }
   const keys = sql.join(
     rule.keyColumns.map((column) => sql.identifier(column)),
     sql`, `,
@@ -135,17 +237,15 @@ export async function executeRetentionRule(
   let rowsRedacted = 0
   let capped = false
 
+  const dependents = rule.dependents ?? []
+  assertDependentsSupported(rule)
+
   for (;;) {
     const candidates = sql`SELECT ${keys} FROM ${table} WHERE ${predicate} ORDER BY ${sql.identifier(orderColumn)} ASC LIMIT ${batchSize}`
-    const statement =
-      rule.operation === 'redact'
-        ? sql`UPDATE ${table} SET ${sql.join(
-            rule.redactColumns.map((column) => sql`${sql.identifier(column)} = NULL`),
-            sql`, `,
-          )} WHERE (${keys}) IN (${candidates}) AND ${predicate} RETURNING ${keys}`
-        : sql`DELETE FROM ${table} WHERE (${keys}) IN (${candidates}) RETURNING ${keys}`
-    const result = await db.execute(statement)
-    const count = result.rowCount ?? 0
+    const count =
+      dependents.length > 0
+        ? await deleteWithDependents(db, rule, dependents, candidates, predicate)
+        : await runPlainBatch(db, rule, keys, candidates, predicate)
     if (count === 0) break
     batches += 1
     if (rule.operation === 'redact') rowsRedacted += count

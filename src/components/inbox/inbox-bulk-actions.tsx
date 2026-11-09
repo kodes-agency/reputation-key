@@ -6,7 +6,7 @@ import { INBOX_BULK_LIMIT, type InboxItem } from '#/contexts/inbox/application/p
 import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import { buildBulkReopenCommands } from './inbox-bulk-policy'
 import { useInboxBulkCommands } from './use-inbox-bulk-commands'
-import { InboxReopenDialog } from './inbox-reopen-dialog'
+import { InboxReopenDialog } from '../../contexts/reputation/inbox/ui/inbox-reopen-dialog'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import { InboxBulkAssignMenu } from './inbox-bulk-assign-menu'
 import type { bulkAssignInboxItemsFn } from '#/contexts/inbox/server/inbox'

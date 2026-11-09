@@ -8,7 +8,7 @@ const ISO_COUNTRY_CODES = new Set(
 )
 export const GOOGLE_IMPORT_COUNTRY_CODES = Object.freeze([...ISO_COUNTRY_CODES].sort())
 
-const OPAQUE_REFERENCE = /^[a-z][a-z0-9_-]{0,31}\.[A-Za-z0-9_-]{43}$/
+const OPAQUE_REFERENCE = /^[A-Za-z0-9_-]{43}$/
 const whitespace = /\s+/gu
 
 function normalizeTenantText(value: string): string {

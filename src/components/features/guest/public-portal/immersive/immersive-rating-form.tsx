@@ -1,7 +1,7 @@
 import { useForm } from '@tanstack/react-form'
 import { submitHandler } from '#/components/forms/form-submit'
 import { guestRatingFormDto } from '#/contexts/guest/application/dto/guest-response-form.dto'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import { ImmersiveBanner } from './immersive-banner'
 import { ImmersiveHoneypot } from './immersive-honeypot'
 import { RatingStars, ratingWord } from './immersive-stars'
@@ -26,7 +26,7 @@ export function ImmersiveRatingForm({
   submitLabel,
   onSubmit,
 }: Readonly<{
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   idPrefix: string
   pending: boolean
   /** The last attempt to save did not reach the server. */

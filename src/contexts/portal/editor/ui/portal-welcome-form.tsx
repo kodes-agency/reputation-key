@@ -6,7 +6,7 @@
 // has no public name yet shows this name there instead.
 
 import { useForm } from '@tanstack/react-form'
-import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
+import { updatePortalSettingsInputSchema } from '#/contexts/portal/application/dto/portal-intents.dto'
 import type { Action } from '#/components/hooks/use-action'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { usePortalFormAutosave } from './use-portal-form-autosave'
@@ -15,7 +15,7 @@ import type {
   UpdatePortalVariables,
 } from '#/components/features/portal/shared/types'
 
-const nameFormSchema = updatePortalInputSchema.pick({ name: true }).required()
+const nameFormSchema = updatePortalSettingsInputSchema.pick({ name: true }).required()
 
 type Props = Readonly<{
   portal: PortalData

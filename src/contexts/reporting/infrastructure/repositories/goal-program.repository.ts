@@ -1,3 +1,4 @@
+import { createGoalProgramCurrentReads } from './goal-program-current-reads'
 import { randomUUID } from 'node:crypto'
 import {
   dueResultsForProgram,
@@ -13,7 +14,6 @@ import {
   goalMonthlyResults,
   goalPrograms,
   goalProgramVersions,
-  goalResultRevisions,
   goalSubjectAssignments,
 } from '#/shared/db/schema/goal.schema'
 import type { Tx } from '#/shared/outbox/commit'
@@ -21,14 +21,13 @@ import type {
   GoalAssignmentConflict,
   GoalProgram,
   GoalProgramBundle,
+  GoalProgramCurrentReads,
   GoalProgramRepository,
 } from '../../application/ports/goal-program.repository'
-import { holdOutlasts } from '../../application/goal-subject-holds'
+import { GOAL_MAINTENANCE_PAGE_SIZE } from '../../application/ports/goal-program.repository'
+import { holdOutlasts } from '../../monthly-goals/subject-assignments.server'
 import { goalSubjectIdentity } from '../../domain/goal-program'
-import {
-  createGoalMonthTargetRepository,
-  listTargetChanges,
-} from './goal-month-target.repository'
+import { createGoalMonthTargetRepository } from './goal-month-target.repository'
 import { createGoalMonthlyResultRepository } from './goal-monthly-result.repository'
 import {
   isOrganizationHeldByLifecycle,
@@ -48,124 +47,63 @@ import {
   versionValues,
 } from './goal-program.rows'
 
-/**
- * PostgreSQL takes at most 65,535 bound values in one statement, and
- * node-postgres writes the count as a 16-bit integer: past it the statement
- * fails ("bind message has N parameter formats but 0 parameters"). Closed
- * months are kept, so the maintenance listing, which loads every scheduled and
- * active program of every tenant, would one day cross it and fail every hour
- * for all of them. Ids are bound in chunks well under the limit.
- */
-const MAX_BOUND_IDS = 10_000
-
-/**
- * Runs `select` for each chunk of `ids`, one after the other, and joins the
- * rows. A row belongs to one id, so it appears in one chunk and a chunk's own
- * order is kept within it.
- */
-async function selectByIds<Row>(
-  ids: readonly string[],
-  select: (chunk: readonly string[]) => Promise<readonly Row[]>,
-): Promise<readonly Row[]> {
-  const rows: Row[] = []
-  for (let start = 0; start < ids.length; start += MAX_BOUND_IDS) {
-    rows.push(...(await select(ids.slice(start, start + MAX_BOUND_IDS))))
-  }
-  return rows
-}
-
+/** Maintenance's globally scheduled parent rows supply the complete scope. */
 async function hydrateBundles(
   db: Pick<Database, 'select'>,
   programs: readonly (typeof goalPrograms.$inferSelect)[],
 ): Promise<readonly GoalProgramBundle[]> {
   if (programs.length === 0) return []
-  const programIds = programs.map((program) => program.id)
-  const [versions, assignments, results] = await Promise.all([
-    selectByIds(programIds, (ids) =>
-      db
-        .select()
-        .from(goalProgramVersions)
-        .where(inArray(goalProgramVersions.programId, [...ids])),
-    ),
-    selectByIds(programIds, (ids) =>
-      db
-        .select()
-        .from(goalSubjectAssignments)
-        .where(inArray(goalSubjectAssignments.programId, [...ids]))
-        .orderBy(asc(goalSubjectAssignments.createdAt), asc(goalSubjectAssignments.id)),
-    ),
-    selectByIds(programIds, (ids) =>
-      db
-        .select()
-        .from(goalMonthlyResults)
-        .where(inArray(goalMonthlyResults.programId, [...ids]))
-        .orderBy(asc(goalMonthlyResults.periodStart), asc(goalMonthlyResults.id)),
-    ),
-  ])
-  const revisions = await selectByIds(
-    results.map((result) => result.id),
-    (ids) =>
-      db
-        .select()
-        .from(goalResultRevisions)
-        .where(inArray(goalResultRevisions.monthlyResultId, [...ids]))
-        .orderBy(
-          asc(goalResultRevisions.monthlyResultId),
-          asc(goalResultRevisions.revision),
-        ),
+  const heads = sql.join(
+    programs.map((program) => sql`(${program.id}::uuid, ${program.currentVersion}::int)`),
+    sql`, `,
   )
-  const correctionByResultId = new Map<string, typeof goalResultRevisions.$inferSelect>()
-  for (const revision of revisions) {
-    correctionByResultId.set(revision.monthlyResultId, revision)
-  }
-
-  return programs.flatMap((programRow) => {
-    const versionRow = versions.find(
-      (version) =>
-        version.programId === programRow.id &&
-        version.version === programRow.currentVersion,
+  const versions = await db
+    .select()
+    .from(goalProgramVersions)
+    .where(
+      sql`(${goalProgramVersions.programId}, ${goalProgramVersions.version}) IN (${heads})`,
     )
-    if (!versionRow) return []
-    return [
-      {
-        program: mapProgram(programRow),
-        version: mapVersion(versionRow),
-        versions: versions
-          .filter((version) => version.programId === programRow.id)
-          .sort((left, right) => left.version - right.version)
-          .map(mapVersion),
-        assignments: assignments
-          .filter((assignment) => assignment.programId === programRow.id)
-          .map(mapAssignment),
-        results: results
-          .filter((result) => result.programId === programRow.id)
-          .map((result) => mapResult(result, correctionByResultId.get(result.id))),
-      },
-    ]
+  if (versions.length === 0) return []
+  const assignments = await db
+    .select()
+    .from(goalSubjectAssignments)
+    .where(
+      inArray(
+        goalSubjectAssignments.programVersionId,
+        versions.map((version) => version.id),
+      ),
+    )
+  const results =
+    assignments.length === 0
+      ? []
+      : await db.select().from(goalMonthlyResults).where(sql`${goalMonthlyResults.id} IN (
+    SELECT latest.id FROM (VALUES ${sql.join(
+      assignments.map((assignment) => sql`(${assignment.id}::uuid)`),
+      sql`, `,
+    )}) AS assignment(id)
+    CROSS JOIN LATERAL (
+      SELECT id FROM goal_monthly_results WHERE assignment_id = assignment.id
+      ORDER BY period_start DESC, id DESC LIMIT 1
+    ) AS latest
+  )`)
+  return programs.flatMap((program) => {
+    const version = versions.find((candidate) => candidate.programId === program.id)
+    return version
+      ? [
+          {
+            program: mapProgram(program),
+            version: mapVersion(version),
+            versions: [mapVersion(version)],
+            assignments: assignments
+              .filter((assignment) => assignment.programId === program.id)
+              .map(mapAssignment),
+            results: results
+              .filter((result) => result.programId === program.id)
+              .map((result) => mapResult(result)),
+          },
+        ]
+      : []
   })
-}
-
-/**
- * The bundles a page or a command reads, each with the log of its months'
- * target changes. The log is read here, for one tenant's Property, and not in
- * the hydration above: that one loads children by parent id alone.
- */
-async function withTargetChanges(
-  db: Database,
-  organizationId: string,
-  propertyId: string,
-  bundles: readonly GoalProgramBundle[],
-): Promise<readonly GoalProgramBundle[]> {
-  const changes = await listTargetChanges(
-    db,
-    organizationId,
-    propertyId,
-    bundles.map((bundle) => bundle.program.id),
-  )
-  return bundles.map((bundle) => ({
-    ...bundle,
-    targetChanges: changes.filter((change) => change.programId === bundle.program.id),
-  }))
 }
 
 /**
@@ -343,7 +281,7 @@ async function endingBoundary(
 export const createGoalProgramRepository = (
   db: Database,
   id: () => string = randomUUID,
-): GoalProgramRepository => {
+): GoalProgramRepository & GoalProgramCurrentReads => {
   /**
    * Runs a status change in a transaction. Ending a Program that finds its
    * version history changed under it throws GoalProgramRevisionConflict; the
@@ -361,7 +299,9 @@ export const createGoalProgramRepository = (
     }
   }
 
+  const currentReads = createGoalProgramCurrentReads(db)
   return {
+    ...currentReads,
     async create(input) {
       const { bundle } = input
       const write = () =>
@@ -413,38 +353,10 @@ export const createGoalProgramRepository = (
       return 'created'
     },
 
-    async get(organizationId, propertyId, programId) {
-      const rows = await db
-        .select()
-        .from(goalPrograms)
-        .where(
-          and(
-            eq(goalPrograms.organizationId, organizationId),
-            eq(goalPrograms.propertyId, propertyId),
-            eq(goalPrograms.id, programId),
-          ),
-        )
-        .limit(1)
-      const bundles = await hydrateBundles(db, rows)
-      return (await withTargetChanges(db, organizationId, propertyId, bundles))[0] ?? null
-    },
+    get: currentReads.getSummary,
+    list: currentReads.listSummaries,
 
-    async list(organizationId, propertyId) {
-      const rows = await db
-        .select()
-        .from(goalPrograms)
-        .where(
-          and(
-            eq(goalPrograms.organizationId, organizationId),
-            eq(goalPrograms.propertyId, propertyId),
-          ),
-        )
-        .orderBy(asc(goalPrograms.name), asc(goalPrograms.id))
-      const bundles = await hydrateBundles(db, rows)
-      return withTargetChanges(db, organizationId, propertyId, bundles)
-    },
-
-    async listOperational() {
+    async listOperational(after) {
       // A closing Organization gets no new Goal work (see the hold's header).
       const rows = await db
         .select()
@@ -453,6 +365,10 @@ export const createGoalProgramRepository = (
           and(
             inArray(goalPrograms.status, ['scheduled', 'active']),
             sql`NOT ${organizationLifecycleHoldsProgram}`,
+            after
+              ? sql`(${goalPrograms.organizationId}, ${goalPrograms.propertyId}, ${goalPrograms.id})
+                  > (${after.organizationId}, ${after.propertyId}::uuid, ${after.id}::uuid)`
+              : undefined,
           ),
         )
         .orderBy(
@@ -460,6 +376,7 @@ export const createGoalProgramRepository = (
           asc(goalPrograms.propertyId),
           asc(goalPrograms.id),
         )
+        .limit(GOAL_MAINTENANCE_PAGE_SIZE)
       return hydrateBundles(db, rows)
     },
 

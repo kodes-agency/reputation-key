@@ -5,7 +5,7 @@
 // in the story canvas — queries below are scoped accordingly.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
-import { InboxDetailSheet } from './inbox-detail-sheet'
+import { InboxDetailSheet } from '#/contexts/reputation/inbox/ui/inbox-detail-sheet'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'

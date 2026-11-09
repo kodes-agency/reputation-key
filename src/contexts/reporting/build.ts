@@ -1,3 +1,5 @@
+import { createPortalRatingGoalGuard } from './infrastructure/portal-rating-goal-guard'
+import { createGoalMetricBatchReader } from './infrastructure/repositories/goal-metric-batch-reader'
 import { findPortalRatingGoalBlock } from './application/running-portal-rating-goal'
 import { createStaffResultsReader } from './infrastructure/repositories/staff-results.reader'
 import { getPortalLinkTaps } from './application/use-cases/get-portal-link-taps'
@@ -31,19 +33,14 @@ import type { MetricPublicApi, PortalRatingGoalReadApi } from './application/pub
 import { createMetricRegistryRepository } from './infrastructure/repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from './infrastructure/repositories/property-local-date'
 import { createGoalMetricSnapshotReader } from './infrastructure/repositories/goal-metric-snapshot'
-import { createAtomicMetricCommandStore } from './infrastructure/metric-command-store'
+import { createAtomicMetricCommandStore } from './readings/metric-command-store.server'
 import { recordMetric, recordMetrics } from './application/use-cases/record-metric'
 import { retractMetrics } from './application/use-cases/retract-metric'
-import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-consumers'
+import { registerGuestMetricConsumers } from './readings/guest-outbox-consumers.server'
 import { queryGoalMetric } from './application/use-cases/query-goal-metric'
 import { createPortalAnalyticsRepository } from './portal-results/portal-analytics.repository.server'
 import { createPortalResultsOverviewRepository } from './infrastructure/repositories/portal-results-overview.repository'
-import { createPortalLifetimeAggregateRepository } from './infrastructure/repositories/portal-lifetime-aggregate.repository'
 import { createGoalMetricCorrectionImpactLookup } from './infrastructure/repositories/goal-metric-correction-impact.lookup'
-import {
-  repairPortalLifetime,
-  type RepairPortalLifetimeInput,
-} from './application/use-cases/repair-portal-lifetime'
 import { createCurrentGoogleReputationSnapshotRepository } from './infrastructure/repositories/current-google-reputation-snapshot.repository'
 import { registerCurrentGoogleReputationConsumer } from './infrastructure/current-google-reputation-outbox-consumers'
 
@@ -54,7 +51,7 @@ import {
   createGoalProgramService,
   type GoalExecutionPolicy,
   type GoalProgramRequestApi,
-} from './application/use-cases/goal-programs'
+} from './monthly-goals/goal-programs.server'
 import { withGoalProgramVisibility } from './application/use-cases/goal-program-visibility'
 import { createGoalsForSubjects } from './application/use-cases/goal-bulk-create'
 import {
@@ -62,11 +59,11 @@ import {
   type PortalGoalRecommendationRequestApi,
 } from './application/use-cases/goal-recommendation-read'
 import type { GoalRecommendationFactsPort } from './application/ports/goal-recommendation-facts.port'
-import { readMonthlyPortalGoalCard } from './application/use-cases/monthly-portal-goal-card'
+import { readMonthlyPortalGoalCard } from './monthly-goals/monthly-portal-goal-card.server'
 import {
   readMonthlyPortalGoalPage,
   type MonthlyPortalGoalRequestApi,
-} from './application/use-cases/monthly-portal-goal-page'
+} from './monthly-goals/monthly-portal-goal-page.server'
 import {
   changeMonthlyPortalGoalNow,
   deferMonthlyPortalGoalPrompt,
@@ -74,7 +71,7 @@ import {
   reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
   stopMonthlyPortalGoal,
-} from './application/use-cases/monthly-portal-goal'
+} from './monthly-goals/monthly-portal-goal.server'
 import {
   addPortalGoal,
   addPortalGoals,
@@ -82,12 +79,12 @@ import {
   type PortalGoalAddRequestApi,
 } from './application/use-cases/portal-goal-add'
 import { readPortalGoalAddOptions } from './application/use-cases/portal-goal-add-options'
-import { readMonthlyPortalGoalLine } from './application/use-cases/monthly-portal-goal-line'
+import { readMonthlyPortalGoalLine } from './monthly-goals/monthly-portal-goal-line.server'
 import { createPortalGoalPromptDeferralStore } from './infrastructure/repositories/portal-goal-prompt-deferrals.repository'
 import {
   readPortalGoalSinglePage,
   type PortalGoalSinglePageRequestApi,
-} from './application/use-cases/portal-goal-single-page'
+} from './monthly-goals/get-portal-goal-page.server'
 import { readGoalRecommendationCounts } from './infrastructure/adapters/goal-recommendation-readings'
 import {
   createGoalProgramProgressReader,
@@ -107,12 +104,12 @@ import {
   createArchivedPropertyRatingGoalEnder,
   createRatingGoalEvaluator,
   createRatingGoalRequestApi,
-} from './application/use-cases/rating-goals'
+} from './rating-goals/rating-goals.server'
 import { registerRatingGoalEvaluationConsumer } from './infrastructure/rating-goal-outbox-consumers'
 import {
   sweepRatingGoals,
   type AuthorizeRatingGoalScope,
-} from './application/use-cases/rating-goal-sweep'
+} from './rating-goals/rating-goal-sweep.server'
 import {
   createRatingGoalEvaluationJobHandler,
   RATING_GOAL_EVALUATION_JOB_NAME,
@@ -185,14 +182,13 @@ export type ReportingContextBuildInput = Readonly<{
 function buildMetricModule(input: ReportingContextBuildInput) {
   const registry = createMetricRegistryRepository()
   const portalAnalytics = createPortalAnalyticsRepository(input.db, input.clock)
-  const portalLifetime = createPortalLifetimeAggregateRepository(input.db, input.clock)
   const goalCorrectionImpacts = createGoalMetricCorrectionImpactLookup(input.db)
   const currentGoogleReputation = createCurrentGoogleReputationSnapshotRepository(
     input.db,
   )
   const commandStore = createAtomicMetricCommandStore(input.db, input.idGen)
   const readGoalMetric = queryGoalMetric({
-    readSnapshot: createGoalMetricSnapshotReader(input.db, input.portalGroupApi),
+    readSnapshot: createGoalMetricSnapshotReader(input.db),
     registry,
     validateSubject: async (orgId, propertyId, subject) => {
       switch (subject.kind) {
@@ -249,8 +245,8 @@ function buildMetricModule(input: ReportingContextBuildInput) {
   return {
     publicApi: {
       queryGoalMetric: readGoalMetric,
+      queryGoalMetrics: createGoalMetricBatchReader(input.db, registry, input.clock),
       portalAnalytics,
-      portalLifetime: Object.freeze({ get: portalLifetime.get }),
       getCurrentOnGoogle: currentGoogleReputation.getCurrentOnGoogle,
       findGoalMetricCorrectionImpacts:
         goalCorrectionImpacts.findGoalMetricCorrectionImpacts,
@@ -267,10 +263,6 @@ function buildMetricModule(input: ReportingContextBuildInput) {
         return governed
       },
     },
-    maintenance: Object.freeze({
-      repairPortalLifetime: (repairInput: RepairPortalLifetimeInput) =>
-        repairPortalLifetime({ lifetime: portalLifetime }, repairInput),
-    }),
     worker: Object.freeze({ registerOutboxConsumers }),
     internal: {
       repos: {} as const,
@@ -279,7 +271,10 @@ function buildMetricModule(input: ReportingContextBuildInput) {
   } as const
 }
 
-function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPublicApi) {
+function buildGoalModule(
+  input: ReportingContextBuildInput,
+  metricApi: ReturnType<typeof buildMetricModule>['publicApi'],
+) {
   const goalProgramRepo = createGoalProgramRepository(input.db, input.idGen)
   const monthlyResultNotificationFacts = createMonthlyResultNotificationFactsLookup(
     input.db,
@@ -400,6 +395,8 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
         readMonthlyPortalGoalPage(
           {
             ...monthlyPortalGoalReads(policy),
+            history: (programId, propertyId, actor) =>
+              readGoalPrograms(policy).get({ programId, propertyId }, actor),
             subjectNames: goalProgramSubjects,
             logger: input.logger,
           },
@@ -485,6 +482,7 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       buildGoalPrograms(policy).changeMonthTarget(...args),
     get: (policy, ...args) => readGoalPrograms(policy).get(...args),
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
+    history: (policy, ...args) => readGoalPrograms(policy).history!(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),
     programProgress: (policy, ...args) => readGoalProgramProgress(policy)(...args),
     listProgress: (policy, ...args) => readGoalListProgress(policy)(...args),
@@ -494,12 +492,13 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
   })
 
   const portalRatingGoalRead: PortalRatingGoalReadApi = {
+    ...createPortalRatingGoalGuard(),
     findPortalRatingGoalBlock: async (
       organizationId: string,
       propertyId: string,
       portalId: string,
     ) => {
-      const programs = await goalProgramRepo.list(organizationId, propertyId)
+      const programs = await goalProgramRepo.listSummaries(organizationId, propertyId)
       return findPortalRatingGoalBlock(programs, portalId, input.clock(), (subject) =>
         input.portalApi.listPortalRatingFacts(
           toOrganizationId(organizationId),
@@ -583,7 +582,6 @@ function buildDashboardModule(
   metricApi: MetricPublicApi,
 ) {
   const portalMetrics = metricApi.portalAnalytics
-  const portalLifetime = metricApi.portalLifetime
   const googleNumbersDeps = {
     properties: createRatingGoalPropertyFactsReader(input.db),
     google: metricApi,
@@ -606,7 +604,6 @@ function buildDashboardModule(
   const getDashboard = getDashboardData({ repo: dashboardRepo, propertyAccess })
   const getPortal = getPortalAnalytics({
     portalMetrics,
-    portalLifetime,
     responseIntegrity: input.guestResponseIntegrity,
     portalVersions: input.portalApi,
     propertyAccess,
@@ -699,7 +696,6 @@ export function buildReportingContext(input: ReportingContextBuildInput) {
       ...ratingGoal.publicApi,
       ...dashboard.publicApi,
     }),
-    maintenance: metric.maintenance,
     worker: Object.freeze({
       registerOutboxConsumers: (
         consumerRegistry: ConsumerRegistry,

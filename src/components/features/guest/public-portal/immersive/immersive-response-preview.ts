@@ -3,7 +3,7 @@ import {
   previewResponseState,
   type GuestPagePreviewState,
 } from '../guest-page-preview-state'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import type { ImmersiveResponseViewProps } from './immersive-response-view'
 
 const noop = () => undefined
@@ -26,7 +26,7 @@ export const PREVIEW_CLOCK = {
 export function immersiveResponseProps(
   state: GuestPagePreviewState,
   options: Readonly<{
-    pack: GuestPortalCopyV2
+    pack: GuestPortalCopy
     displayName: string
     privateFeedbackThreshold?: number
   }>,

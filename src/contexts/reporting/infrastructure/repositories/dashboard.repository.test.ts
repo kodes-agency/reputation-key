@@ -12,7 +12,7 @@ import type { MetricStatsPort } from '../../application/ports/metric-stats.port'
 import { getDb, type Database } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 
 const MS_PER_DAY = 86_400_000
 
@@ -91,6 +91,21 @@ async function seedReview(
         ? new Date(Date.now() + 30 * MS_PER_DAY)
         : overrides.contentExpiresAt,
     ],
+  )
+  // A Review without a content clock holds no content row.
+  await pool.query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, rating, text, reviewed_at, first_fetched_at,
+       last_fetched_at, content_expires_at, source_epoch, source_revision,
+       ai_source_byte_length, ai_source_digest
+     )
+     SELECT id, organization_id, property_id, platform, external_id,
+            external_location_id, rating, text, reviewed_at, reviewed_at,
+            reviewed_at, content_expires_at, source_epoch, source_revision,
+            ai_source_byte_length, ai_source_digest
+     FROM reviews WHERE id = $1 AND content_expires_at IS NOT NULL`,
+    [id],
   )
   return id
 }

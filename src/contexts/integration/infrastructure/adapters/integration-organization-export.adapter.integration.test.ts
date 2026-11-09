@@ -35,7 +35,6 @@ const MARKERS = Object.freeze({
   propertyAddress: 'NEVER_EXPORT_PROVIDER_ADDRESS',
   exchangeCiphertext: 'NEVER_EXPORT_EXCHANGE_CIPHERTEXT',
   permitOperationKey: 'NEVER_EXPORT_PERMIT_OPERATION',
-  revokeTokenHmac: 'NEVER_EXPORT_REVOKE_TOKEN_HMAC',
   cachePayload: 'NEVER_EXPORT_PROVIDER_CACHE',
   credentialBinding: 'ab'.repeat(32),
   replayDigest: 'NeverExportReplayDigest0123456789012345678A',
@@ -47,13 +46,9 @@ type Fixture = Readonly<{
   memberId: string
   propertyId: string
   connectionId: string
-  sagaId: string
-  batchId: string
+  importId: string
   revokeAttemptId: string
   permitId: string
-  guardId: string
-  sourceOperationId: string
-  revokePermitId: string
 }>
 
 const fixtures: Fixture[] = []
@@ -69,13 +64,9 @@ async function seedFixture(): Promise<Fixture> {
     memberId: `integration-export-member-${suffix}`,
     propertyId: randomUUID(),
     connectionId: randomUUID(),
-    sagaId: randomUUID(),
-    batchId: randomUUID(),
+    importId: randomUUID(),
     revokeAttemptId: randomUUID(),
     permitId: randomUUID(),
-    guardId: randomUUID(),
-    sourceOperationId: randomUUID(),
-    revokePermitId: randomUUID(),
   }
   fixtures.push(fixture)
   const createdAt = new Date(Date.now() - 60_000)
@@ -123,73 +114,7 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.propertyId, fixture.organizationId, `export-${suffix}`, createdAt],
   )
 
-  await lease.pool.query(
-    `INSERT INTO gbp_import_sagas (
-       id, organization_id, request_id, initiated_by, total_count, batch_count,
-       wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 2, 1, 'wire_v1', $5, 'semantic_v1', $5, $6, $6)`,
-    [
-      fixture.sagaId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      MARKERS.replayDigest,
-      createdAt,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO gbp_import_requests (
-       id, organization_id, request_id, initiated_by, saga_id, batch_ordinal,
-       status, total_count, processed_count, pending_count, processing_count,
-       imported_count, wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, 0, 'processing', 2, 1, 1, 0, 1,
-               'wire_v1', $6, 'semantic_v1', $6, $7, $7)`,
-    [
-      fixture.batchId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      fixture.sagaId,
-      MARKERS.replayDigest,
-      createdAt,
-    ],
-  )
-  // Per-item rows carry the provider suffixes and the Google review URI; the
-  // export must aggregate them into state counts and drop the handles.
-  for (const status of ['imported', 'pending'] as const) {
-    await lease.pool.query(
-      `INSERT INTO gbp_import_request_items (
-         id, organization_id, import_job_id, connection_id,
-         destination_property_id, provider_account_suffix,
-         provider_location_suffix, google_review_uri,
-         expected_connection_lifecycle_version, expected_connection_access_version,
-         expected_credential_generation, action, update_existing_profile,
-         property_name, property_address, country_code, timezone, status,
-         outcome_code, first_terminal_at, effect_deadline_at, created_at, updated_at
-       ) VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, 1, 1, 1, 'create', true,
-         'Imported Location', $9, 'US', 'UTC', $10, $11, $12, $13, $14, $14
-       )`,
-      [
-        randomUUID(),
-        fixture.organizationId,
-        fixture.batchId,
-        fixture.connectionId,
-        randomUUID(),
-        MARKERS.providerAccountSuffix,
-        MARKERS.providerLocationSuffix,
-        MARKERS.googleReviewUri,
-        MARKERS.propertyAddress,
-        status,
-        status === 'imported' ? 'imported' : null,
-        status === 'imported' ? createdAt : null,
-        new Date(createdAt.getTime() + 86_400_000),
-        createdAt,
-      ],
-    )
-  }
+  await seedImport(fixture)
 
   await lease.pool.query(
     `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
@@ -261,66 +186,87 @@ async function seedFixture(): Promise<Fixture> {
       new Date(createdAt.getTime() + 60_000),
     ],
   )
-  await lease.pool.query(
-    `INSERT INTO google_subject_authority_guards (
-       id, project_client_hmac_key_version, project_client_hmac,
-       subject_hmac_key_version, subject_hmac, state
-     ) VALUES ($1, 'v1', $2, 'v1', $3, 'open')`,
-    [fixture.guardId, `project-${suffix}`, `subject-${suffix}`],
-  )
-  await lease.pool.query(
-    `INSERT INTO google_credential_source_operations (
-       id, guard_id, source_work_permit_id, organization_id, connection_id,
-       sequence, kind, state, expected_lifecycle_version, expected_access_version,
-       expected_credential_generation, operation_deadline_at, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, 1, 'refresh', 'registered', 1, 1, 1, $6, $7, $7)`,
-    [
-      fixture.sourceOperationId,
-      fixture.guardId,
-      fixture.permitId,
-      fixture.organizationId,
-      fixture.connectionId,
-      new Date(Date.now() + 120_000),
-      createdAt,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO credential_revoke_permits (
-       id, guard_id, source_operation_id, state, token_hmac_key_version,
-       token_hmac, cleanup_deadline_at, send_authorization_expires_at,
-       activated_at, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'active', 'v1', $4, $5, $5, $6, $6, $6)`,
-    [
-      fixture.revokePermitId,
-      fixture.guardId,
-      fixture.sourceOperationId,
-      MARKERS.revokeTokenHmac,
-      new Date(createdAt.getTime() + 60_000),
-      createdAt,
-    ],
-  )
   return fixture
 }
 
+// Per-item rows carry the provider suffixes and the Google review URI; the
+// export must aggregate them into state counts and drop the handles.
+async function seedImport(fixture: Fixture): Promise<void> {
+  const importId = fixture.importId
+  const createdAt = new Date(Date.now() - 30_000)
+  await lease.pool.query(
+    `INSERT INTO google_imports (
+       id, organization_id, request_id, initiated_by, total_count,
+       wire_replay_key_version, wire_replay_digest,
+       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, 2, 'wire_v1', $5, 'semantic_v1', $5, $6, $6)`,
+    [
+      importId,
+      fixture.organizationId,
+      randomUUID(),
+      fixture.userId,
+      MARKERS.replayDigest,
+      createdAt,
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO google_import_items (
+       id, organization_id, import_id, connection_id,
+       destination_property_id, provider_account_suffix, provider_location_suffix,
+       google_review_uri, expected_connection_lifecycle_version,
+       expected_connection_access_version, expected_credential_generation,
+       expected_execution_policy_version, expected_actor_role,
+       expected_permission_digest, expected_principal_kind,
+       expected_permission_version, action, update_existing_profile,
+       property_name, property_address, country_code, timezone, status,
+       next_dispatch_at, effect_deadline_at, created_at, updated_at
+     ) VALUES (
+       $1, $2, $3, $4, $5, $6, $7, $8, 1, 1, 1, 'beta-local-2', 'AccountAdmin',
+       repeat('a', 64), 'user', 1, 'create', true, 'Imported Location', $9,
+       'US', 'UTC', 'pending', $10, $11, $10, $10
+     )`,
+    [
+      randomUUID(),
+      fixture.organizationId,
+      importId,
+      fixture.connectionId,
+      randomUUID(),
+      MARKERS.providerAccountSuffix,
+      MARKERS.providerLocationSuffix,
+      MARKERS.googleReviewUri,
+      MARKERS.propertyAddress,
+      createdAt,
+      new Date(createdAt.getTime() + 86_400_000),
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO google_import_items (
+       id, organization_id, import_id, destination_property_id, action,
+       update_existing_profile, property_name, country_code, timezone, status,
+       outcome_code, first_terminal_at, effect_deadline_at, created_at, updated_at
+     ) VALUES (
+       $1, $2, $3, $4, 'create', true, 'Imported Location', 'US', 'UTC',
+       'imported', 'imported', $5, $6, $5, $5
+     )`,
+    [
+      randomUUID(),
+      fixture.organizationId,
+      importId,
+      fixture.propertyId,
+      createdAt,
+      new Date(createdAt.getTime() + 86_400_000),
+    ],
+  )
+}
+
 const ORGANIZATION_SCOPED_TABLES = [
-  'gbp_import_request_items',
-  'gbp_import_requests',
-  'gbp_import_sagas',
+  'google_import_items',
+  'google_imports',
   'properties',
   'google_connections',
 ] as const
 
 async function cleanupFixture(fixture: Fixture): Promise<void> {
-  await lease.pool.query('DELETE FROM credential_revoke_permits WHERE id = $1', [
-    fixture.revokePermitId,
-  ])
-  await lease.pool.query(
-    'DELETE FROM google_credential_source_operations WHERE id = $1',
-    [fixture.sourceOperationId],
-  )
-  await lease.pool.query('DELETE FROM google_subject_authority_guards WHERE id = $1', [
-    fixture.guardId,
-  ])
   await lease.pool.query(
     `DELETE FROM idempotency_receipts
      WHERE scope IN ('google_oauth_exchange', 'google_disconnect_revoke')
@@ -420,10 +366,7 @@ describe.sequential('Integration Organization Export contributor', () => {
           connected_by: fixture.userId,
         },
       ],
-      importSagas: [{ id: fixture.sagaId, total_count: 2, batch_count: 1 }],
-      importBatches: [
-        { id: fixture.batchId, status: 'processing', imported_count: 1, total_count: 2 },
-      ],
+      imports: [{ id: fixture.importId, total_count: 2 }],
       disconnectCleanupAttempts: [
         {
           id: fixture.revokeAttemptId,
@@ -435,7 +378,7 @@ describe.sequential('Integration Organization Export contributor', () => {
     // The item plane arrives as counts by state, never as per-location rows.
     expect(payload.importItemStateCounts).toEqual([
       {
-        import_job_id: fixture.batchId,
+        import_job_id: fixture.importId,
         status: 'imported',
         action: 'create',
         outcome_code: 'imported',
@@ -444,7 +387,7 @@ describe.sequential('Integration Organization Export contributor', () => {
         last_updated_at: expect.any(String),
       },
       {
-        import_job_id: fixture.batchId,
+        import_job_id: fixture.importId,
         status: 'pending',
         action: 'create',
         outcome_code: null,
@@ -568,5 +511,57 @@ describe.sequential('Integration Organization Export contributor', () => {
         asOf: new Date(Date.now() - 16 * 60 * 1000),
       }),
     ).rejects.toThrow(/snapshot window is unavailable/)
+  })
+
+  it('exports an import as status and counts only', async () => {
+    const fixture = await seedFixture()
+    const importId = fixture.importId
+
+    const contribution = await createIntegrationOrganizationExportContributor(
+      db,
+    ).contribute({
+      organizationId: fixture.organizationId,
+      requestId: randomUUID(),
+      asOf: new Date(Date.now() - 1000),
+    })
+
+    const payload = JSON.parse(
+      Buffer.from(
+        contribution.entries.find(({ mediaType }) => mediaType === 'application/json')!
+          .bytes,
+      ).toString('utf8'),
+    ) as {
+      imports: readonly Record<string, unknown>[]
+      importItemStateCounts: readonly Record<string, unknown>[]
+    }
+    expect(payload.imports).toEqual([
+      {
+        id: importId,
+        request_id: expect.any(String),
+        initiated_by: fixture.userId,
+        total_count: 2,
+        first_terminal_at: null,
+        purge_at: null,
+        created_at: expect.any(String),
+        updated_at: expect.any(String),
+      },
+    ])
+    expect(
+      payload.importItemStateCounts
+        .filter((record) => record.import_job_id === importId)
+        .map(({ status, action, outcome_code, item_count }) => ({
+          status,
+          action,
+          outcome_code,
+          item_count,
+        })),
+    ).toEqual([
+      { status: 'imported', action: 'create', outcome_code: 'imported', item_count: 1 },
+      { status: 'pending', action: 'create', outcome_code: null, item_count: 1 },
+    ])
+
+    const archive = archiveText(contribution.entries)
+    expect(archive).toContain(`\nimport,${importId},`)
+    for (const marker of Object.values(MARKERS)) expect(archive).not.toContain(marker)
   })
 })

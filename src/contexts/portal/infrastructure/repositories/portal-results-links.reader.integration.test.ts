@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // The links a Portal's Results read names (real PostgreSQL): the Portal's own, in
 // guest order, each in the Portal's primary language or else its stored label.
 
@@ -9,7 +10,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import { portalCreated } from '../../domain/events'
-import { createAtomicPortalCommandStore } from '../portal-command-store'
+import { createAtomicPortalCommandStore } from '../../publication/portal-command-store.server'
 import { createPortalResultsLinksReader } from './portal-results-links.reader'
 
 const ORG_A = organizationId('org-resultlinks-000-0000-000000000001')
@@ -81,7 +82,10 @@ beforeEach(async () => {
     createdAt: AT,
     updatedAt: AT,
   })
-  await createAtomicPortalCommandStore(getDb()).createPortal({
+  await createAtomicPortalCommandStore(
+    getDb(),
+    createPortalRatingGoalGuard(),
+  ).createPortal({
     organizationId: ORG_A,
     portal,
     initialResponsibleManagerIds: [MANAGER],

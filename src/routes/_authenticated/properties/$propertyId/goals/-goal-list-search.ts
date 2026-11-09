@@ -3,7 +3,7 @@
 // not reopen setup.
 
 import { z } from 'zod/v4'
-import { RATING_GOAL_ARRIVAL } from '#/components/goals/rating-goal-arrival-search'
+import { RATING_GOAL_ARRIVAL } from '#/contexts/reporting/rating-goals/ui/rating-goal-arrival-search'
 
 export const goalListSearchSchema = z.object({
   view: z.enum(['active', 'history']).catch('active').default('active'),

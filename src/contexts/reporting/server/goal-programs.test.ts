@@ -1,6 +1,6 @@
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GoalExecutionPolicy } from '../application/use-cases/goal-programs'
+import type { GoalExecutionPolicy } from '../monthly-goals/goal-programs.server'
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock('#/shared/auth/execution-policy', () => ({
   requireExecutionAllowed: mocks.requireExecutionAllowed,
 }))
 
-import { GoalProgramError } from '../application/use-cases/goal-programs'
+import { GoalProgramError } from '../monthly-goals/goal-programs.server'
 import {
   createGoalProgramSchema,
   getGoalProgressSchema,

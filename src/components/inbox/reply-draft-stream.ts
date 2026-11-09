@@ -2,6 +2,8 @@ import type { ReplyDraftingStreamEvent } from '#/contexts/ai/server/reply-progre
 import type { ReplyLanguageTarget } from './reply-language-options'
 import type { ReplyTone } from './reply-suggestion-contract'
 
+export type { ReplyDraftingStreamEvent }
+
 export type DraftStreamRequest = Readonly<{
   reviewId: string
   tone: ReplyTone

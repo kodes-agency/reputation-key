@@ -54,6 +54,21 @@ async function insertReview(
       now(), ${contentExpiresAt}, now(), now(), 0, 0, 0, 1, ${'0'.repeat(64)}
     )
   `)
+  // A Review with no content clock holds no content row.
+  if (contentExpiresAt == null) return
+  await db.execute(sql`
+    INSERT INTO review_source_contents (
+      review_id, organization_id, property_id, platform, external_id,
+      external_location_id, reviewer_name, rating, text, reviewed_at,
+      first_fetched_at, last_fetched_at, content_expires_at,
+      source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+    )
+    SELECT id, organization_id, property_id, platform, external_id,
+           external_location_id, reviewer_name, rating, text, reviewed_at,
+           first_fetched_at, last_fetched_at, content_expires_at,
+           source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+    FROM reviews WHERE id = ${id}
+  `)
 }
 
 /** Seed the three-state fixture: one servable, one expired, one clock-less. */

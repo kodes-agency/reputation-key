@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // Review & publish (round 4, slice 31) against real PostgreSQL: the change list
 // comes from the page-edit ledger and the pending-change fence a real write
 // leaves behind, read from the instant the newest version was published, and a
@@ -13,7 +14,8 @@ import { userId } from '#/shared/domain/ids'
 import { portalPublicationPublished, portalUpdated } from '../domain/events'
 import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
 import { getPortalReview } from '../application/use-cases/get-portal-review'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { publishPortalChanges } from '../application/use-cases/publish-portal-changes'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { recordPortalContentChange } from './portal-page-edits'
 import { createPortalRepository } from './repositories/portal.repository'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
@@ -74,7 +76,7 @@ beforeEach(() => {
   registerAllEventSchemas()
 })
 
-const store = () => createAtomicPortalCommandStore(getDb())
+const store = () => createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())
 const publicationRepo = () => createPortalPublicationRepository(getDb())
 
 async function snapshotOfDraft(id: string, version: number, at: Date) {
@@ -220,6 +222,40 @@ const takeColours = (accent: string, lookVersion: number) =>
     lookVersion,
   })
 
+const MANAGER_CONTEXT = buildTestAuthContext({
+  organizationId: SCENARIO.organizationId,
+  userId: MANAGER,
+  role: 'AccountAdmin',
+})
+
+let publishedIds = 0
+const publishChanges = (reviewedDigest?: string) =>
+  publishPortalChanges({
+    portalRepo: createPortalRepository(getDb()),
+    commandStore: store(),
+    publicationRepo: publicationRepo(),
+    portalTokenRepo: {
+      findResolvableSummaryForPortal: async () => ({
+        version: 1,
+        issuedAt: SEEDED_AT,
+        gracePeriodEnds: null,
+        hasPublishedAccessArtifact: true,
+        addressKeyVersion: null,
+        issuedBy: null,
+      }),
+    },
+    propertyGoogleReviewDestinationApi: {
+      getGoogleReviewDestination: async () => DESTINATION,
+    },
+    propertyLifecycleApi: { isPropertyActive: async () => true },
+    staffPublicApi: {
+      getAccessiblePropertyIds: async () => null,
+      getAssignedPortals: async () => [],
+    },
+    idGen: () => `6f100000-0000-4000-8000-${String(++publishedIds).padStart(12, '0')}`,
+    clock: () => NOW,
+  })({ portalId: SCENARIO.portalId, reviewedDigest }, MANAGER_CONTEXT)
+
 const review = () =>
   getPortalReview({
     portalRepo: createPortalRepository(getDb()),
@@ -360,6 +396,67 @@ describe.sequential('getPortalReview (real PostgreSQL)', () => {
       changes: [],
     })
   })
+  describe('the digest the review hands out', () => {
+    it('is the digest publishing the same draft computes', async () => {
+      await rewordWelcome('Хотел Рила, обновен', EDITED_AT)
+      const { reviewDigest } = await review()
+
+      const result = await publishChanges(reviewDigest ?? undefined)
+
+      expect(reviewDigest).not.toBeNull()
+      expect(result).toMatchObject({
+        outcome: 'published',
+        version: 2,
+        configurationDigest: reviewDigest,
+      })
+    })
+
+    it('is still the digest publishing computes when the Portal owns its look', async () => {
+      await takeColours('#1D4ED8', 4)
+      await moveAccent('#0F766E', EDITED_AT, [SCENARIO.portalId])
+      const { reviewDigest } = await review()
+
+      const result = await publishChanges(reviewDigest ?? undefined)
+
+      expect(result).toMatchObject({
+        outcome: 'published',
+        configurationDigest: reviewDigest,
+      })
+    })
+
+    it('refuses an edit that landed after the review and leaves the live version alone', async () => {
+      await rewordWelcome('Хотел Рила, обновен', EDITED_AT)
+      const { reviewDigest } = await review()
+      await rewordWelcome(
+        'Хотел Рила, пак обновен',
+        new Date(EDITED_AT.getTime() + 60_000),
+      )
+
+      await expect(publishChanges(reviewDigest ?? undefined)).rejects.toMatchObject({
+        code: 'revision_conflict',
+      })
+
+      const after = await review()
+      expect(after.live?.version).toBe(1)
+      expect(after.publishesAsVersion).toBe(2)
+      expect(after.reviewDigest).not.toBe(reviewDigest)
+    })
+
+    it('publishes the new draft once it is reviewed again', async () => {
+      await rewordWelcome('Хотел Рила, обновен', EDITED_AT)
+      await rewordWelcome(
+        'Хотел Рила, пак обновен',
+        new Date(EDITED_AT.getTime() + 60_000),
+      )
+      const { reviewDigest } = await review()
+
+      await expect(publishChanges(reviewDigest ?? undefined)).resolves.toMatchObject({
+        outcome: 'published',
+        version: 2,
+      })
+    })
+  })
+
   describe("the Property's look and a Portal's own look (ADR 0070)", () => {
     it('lists a Property colour edit for a Portal that follows the Property’s colours', async () => {
       await moveAccent('#0F766E', EDITED_AT, [SCENARIO.portalId])

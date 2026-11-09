@@ -12,7 +12,7 @@
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { MetricKey } from '#/shared/domain/metric-keys'
-import { findMetricVersionById, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { findMetricVersionById, METRIC_VERSION_IDS } from '../../readings/contracts'
 
 export type GoalCountSpec = Readonly<{
   versionId: string

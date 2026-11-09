@@ -1,3 +1,7 @@
+import {
+  requireReplyScopeEffects,
+  type ReplyScopeEffects,
+} from '#/shared/db/reply-scope-effects'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { RecoveryFenceCounts } from '#/shared/db/schema/recovery.schema'
@@ -20,6 +24,7 @@ const ZERO_COUNTS: RecoveryFenceCounts = Object.freeze({
   repliesMadeAmbiguous: 0,
   googleConnectionsFenced: 0,
   googleExecutionPermitsFenced: 0,
+  // Retain stored recovery-count keys when resuming older recovery runs.
   googleSourceOperationsFenced: 0,
   googleRevokePermitsFenced: 0,
   googleImportV2ParentsFenced: 0,
@@ -85,20 +90,16 @@ export async function inspectRecoveryFence(
            OR credential_use_state <> 'none') AS "googleConnectionsFenced",
       (SELECT count(*)::int FROM authorization_execution_permits
         WHERE state IN ('admitted', 'started')) AS "googleExecutionPermitsFenced",
-      (SELECT count(*)::int FROM google_credential_source_operations
-        WHERE state IN ('registered', 'provider_started', 'provider_outcome_ambiguous')) AS "googleSourceOperationsFenced",
-      (SELECT count(*)::int FROM credential_revoke_permits
-        WHERE state IN ('dormant', 'active', 'dispatching')) AS "googleRevokePermitsFenced",
-      (SELECT count(*)::int FROM gbp_import_requests request
-        WHERE request.status IN ('queued', 'processing')
+      (SELECT count(*)::int FROM google_imports parent
+        WHERE parent.first_terminal_at IS NULL
            OR EXISTS (
-             SELECT 1 FROM gbp_import_request_items item
-             WHERE item.organization_id = request.organization_id
-               AND item.import_job_id = request.id
+             SELECT 1 FROM google_import_items item
+             WHERE item.organization_id = parent.organization_id
+               AND item.import_id = parent.id
                AND (item.status IN ('pending', 'processing')
                  OR item.outcome_code = 'temporarily_unavailable')
            )) AS "googleImportV2ParentsFenced",
-      (SELECT count(*)::int FROM gbp_import_request_items
+      (SELECT count(*)::int FROM google_import_items
         WHERE status IN ('pending', 'processing')
            OR outcome_code = 'temporarily_unavailable') AS "googleImportV2ItemsFenced",
       (SELECT count(*)::int FROM ai_operations
@@ -153,7 +154,9 @@ export async function applyRecoveryFence(
     tx: import('#/shared/outbox/commit').Tx,
     now: Date,
   ) => Promise<{ items: number; parents: number }>,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<RecoveryFenceResult> {
+  const replies = requireReplyScopeEffects(replyEffects)
   validateRecoveryFenceInput(input)
   return db.transaction(async (tx) => {
     await tx.execute(
@@ -252,24 +255,7 @@ export async function applyRecoveryFence(
       WHERE state IN ('prepared', 'retryable')
       RETURNING id
     `)
-    const repliesCanceled = await tx.execute(sql`
-      UPDATE replies
-      SET publication_state = 'cancelled',
-          publication_last_error_class = NULL,
-          reconcile_due_at = NULL,
-          updated_at = clock_timestamp()
-      WHERE publication_state IN ('requested', 'authorized')
-      RETURNING id
-    `)
-    const repliesAmbiguous = await tx.execute(sql`
-      UPDATE replies
-      SET publication_state = 'ambiguous',
-          publication_last_error_class = 'ambiguous',
-          reconcile_due_at = clock_timestamp(),
-          updated_at = clock_timestamp()
-      WHERE publication_state = 'sending'
-      RETURNING id
-    `)
+    const replyFence = await replies.fenceReplyPublicationsAfterRestore(tx)
 
     // Restored OAuth tokens may be older than the provider's live generation.
     // No content/reply call is allowed until a fresh OAuth reauthorization.
@@ -293,31 +279,6 @@ export async function applyRecoveryFence(
       WHERE state IN ('admitted', 'started')
       RETURNING id
     `)
-    const googleSources = await tx.execute(sql`
-      UPDATE google_credential_source_operations
-      SET state = 'terminal',
-          terminal_at = clock_timestamp(),
-          outcome_code = 'restore_recovery_fence',
-          updated_at = clock_timestamp()
-      WHERE state IN ('registered', 'provider_started', 'provider_outcome_ambiguous')
-      RETURNING id
-    `)
-    const googleRevokes = await tx.execute(sql`
-      UPDATE credential_revoke_permits
-      SET state = CASE
-            WHEN state = 'dispatching' THEN 'cleanup_ambiguous'::credential_revoke_permit_state
-            ELSE 'confirmed_not_sent'::credential_revoke_permit_state
-          END,
-          token_hmac_key_version = NULL,
-          token_hmac = NULL,
-          send_authorization_expires_at = NULL,
-          terminal_at = clock_timestamp(),
-          outcome_code = 'restore_recovery_fence',
-          updated_at = clock_timestamp()
-      WHERE state IN ('dormant', 'active', 'dispatching')
-      RETURNING id
-    `)
-
     const googleImports = await completeImports(tx, new Date())
 
     // A restore invalidates every in-flight AI operation. Age active
@@ -360,12 +321,12 @@ export async function applyRecoveryFence(
       outboxEventsFenced: outbox.rows.length,
       emailsCanceled: emails.rows.length,
       digestBatchesTerminated: digestBatches.rows.length,
-      repliesCanceled: repliesCanceled.rows.length,
-      repliesMadeAmbiguous: repliesAmbiguous.rows.length,
+      repliesCanceled: replyFence.cancelled,
+      repliesMadeAmbiguous: replyFence.ambiguous,
       googleConnectionsFenced: connections.rows.length,
       googleExecutionPermitsFenced: googlePermits.rows.length,
-      googleSourceOperationsFenced: googleSources.rows.length,
-      googleRevokePermitsFenced: googleRevokes.rows.length,
+      googleSourceOperationsFenced: 0,
+      googleRevokePermitsFenced: 0,
       googleImportV2ParentsFenced: googleImports.parents,
       googleImportV2ItemsFenced: googleImports.items,
       aiIssuedPermitsReleased: aiReservationsReleased,

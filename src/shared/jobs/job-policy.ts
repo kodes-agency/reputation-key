@@ -34,7 +34,7 @@ const BACKOFF_JITTER = 0.5
 /** Fallback when a job has no catalogue row (defensive — readiness prevents it). */
 const DEFAULT_TIMEOUT_MS = 120_000
 const DOMAIN_REDRIVE_ONLY_JOBS: ReadonlySet<string> = new Set([
-  'import-gbp-property-item-v2',
+  'import-gbp-property-item',
 ])
 
 /** The catalogue row for a job name, or undefined. */
