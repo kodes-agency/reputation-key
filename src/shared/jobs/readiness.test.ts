@@ -90,6 +90,11 @@ describe('assertJobReadiness (BQC-3.6)', () => {
       })),
     ).toEqual([
       {
+        jobName: 'import-gbp-property-item-v2',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+      {
         jobName: 'expire-review-provider-source',
         capability: 'none',
         registration: 'quarantined',

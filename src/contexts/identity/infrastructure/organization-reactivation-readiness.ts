@@ -28,7 +28,7 @@ import {
  */
 const REACTIVATION_REQUIRED_SCHEDULES = Object.freeze([
   'advance-organization-lifecycle',
-  'import-gbp-property-item-v2',
+  'import-gbp-property-item',
   'sync-property-reviews',
   'urgent-email',
   'digest-notification',

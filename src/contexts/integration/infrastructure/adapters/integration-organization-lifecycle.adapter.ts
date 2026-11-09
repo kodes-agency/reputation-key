@@ -102,6 +102,8 @@ async function integrationFootprint(
       (SELECT count(*)::int FROM google_connections
         WHERE organization_id = ${organizationId}) AS connections,
       (SELECT count(*)::int FROM gbp_import_requests
+        WHERE organization_id = ${organizationId})
+      + (SELECT count(*)::int FROM google_imports
         WHERE organization_id = ${organizationId}) AS imports
   `)
   const row = result.rows[0] as CountRow | undefined
@@ -236,6 +238,10 @@ const prepareClosing =
     // `wire_replay_digest IS NOT NULL` guard is what makes a second pass a
     // no-op instead of a double bump.
     //
+    // `google_imports` replay digests are NOT NULL, so its parent is fenced by
+    // the deletion fence alone; the zero guard keeps a second pass, and the
+    // lifecycle sweep that bumps the same column, from double counting.
+    //
     // `gbp_import_sagas` has no fenceable column — its replay version/digest
     // pair is NOT NULL by schema, so the saga header can only be voided by
     // deleting the row, which closing must never do. A saga is an aggregate
@@ -252,6 +258,14 @@ const prepareClosing =
         AND wire_replay_digest IS NOT NULL
       RETURNING id
     `)
+    const singleRootImportsFenced = await tx.execute(sql`
+      UPDATE google_imports
+      SET deletion_fence = deletion_fence + 1,
+          updated_at = ${request.occurredAt}
+      WHERE organization_id = ${request.organizationId}
+        AND deletion_fence = 0
+      RETURNING id
+    `)
 
     return {
       outcome: 'complete',
@@ -259,7 +273,7 @@ const prepareClosing =
         fenced.rows.length,
         subscriptionsStopped,
         credentialsRevoked,
-        importsFenced.rows.length,
+        importsFenced.rows.length + singleRootImportsFenced.rows.length,
       ]),
     }
   }
@@ -306,6 +320,9 @@ const verifyPurgeReadiness = async (
             OR status NOT IN ('disconnected', 'failed')
           )) AS live_connections,
       (SELECT count(*)::int FROM gbp_import_request_items
+        WHERE organization_id = ${request.organizationId}
+          AND status IN ('pending', 'processing'))
+      + (SELECT count(*)::int FROM google_import_items
         WHERE organization_id = ${request.organizationId}
           AND status IN ('pending', 'processing')) AS in_flight_import_items,
       (SELECT count(*)::int FROM idempotency_receipts
@@ -354,6 +371,8 @@ const verifyPurgeReadiness = async (
  */
 const PURGE_DELETE_TABLES = Object.freeze([
   // Import work, children before parents.
+  'google_import_items',
+  'google_imports',
   'gbp_import_request_items',
   'gbp_import_requests',
   'gbp_import_sagas',

@@ -52,26 +52,30 @@ readback-only recovery.
 
 A GoogleConnection owns encrypted credentials and the verified Google OIDC
 subject. Discovery normalizes bounded provider pages behind opaque HMAC handles
-for at most 24 hours. A confirmed import creates one durable saga, stable child
-batches of at most 100, and per-location checkpoints. The saga is the
-browser-visible job; child batches are worker checkpoints.
+for at most 24 hours. A confirmed import creates one durable import and
+per-location checkpoints in one transaction. The import is the browser-visible
+job; the checkpoints are what workers claim.
 
-`imports/import-store.server.ts` implements the staged single-root store on
-`google_imports` and `google_import_items`. It commits the root, all checkpoints
-and dispatch together; preserves claim, retry and receipt fences; derives progress
-with grouped item reads; and releases retention facts for every item before the
+`imports/import-store.server.ts` implements the store on `google_imports` and
+`google_import_items`. It commits the import, all checkpoints and the dispatch
+fact together; preserves claim, retry and receipt fences; derives progress with
+grouped item reads; and releases retention facts for every item before the
 whole import cascade in one transaction. Its 30-day clock starts when the whole
 import first becomes terminal and retries never renew it. Query indexes cover
 parent reads, recovery appointments, expiry, retention and lifecycle scopes.
 
-Production commands still use the saga store. The public-command acceptance and
-recovery suites in `src/shared/architecture/google-import-store-*.integration.test.ts`
-run the same cases against both factories, including large selections, receipt
-recovery and retention. The checkpoint suite there proves concurrent completion
-and atomic retention release. Cutover
-must wire lifecycle and isolated restore, drain old work and keep completed history
-in its original store; it does not copy history. The stored enum contracts remain
-shared with the running store.
+Imports completed before the move stay in `gbp_import_requests`,
+`gbp_import_request_items` and `gbp_import_sagas`. Nothing writes those tables
+any more and history was not copied; they wait for their contraction migration.
+The public-command acceptance and recovery suites in
+`src/shared/architecture/google-import-store-*.integration.test.ts` run against
+the store, including large selections, receipt recovery and retention. The
+checkpoint suite there proves concurrent completion and atomic retention
+release. The stored enum contracts keep their `google_import_v2_*` names.
+
+The worker job is `import-gbp-property-item`. Deliveries still queued under
+`import-gbp-property-item-v2` are completed without effect by
+`infrastructure/jobs/retired-import-item.job.ts`.
 
 Each active item has a durable recovery appointment. The minute sweep reserves
 at most 100 due items with `FOR UPDATE SKIP LOCKED` and advances their
@@ -86,13 +90,14 @@ the manager to confirm the Google location again; confirmation creates a new imp
 with a new deadline rather than extending or executing the expired work. Before
 the deadline, Retry preserves the existing revision and replay fences.
 
-`infrastructure/google-import-authorization-snapshot.ts` owns the stored
-authorization columns and reconstructs the frozen vector for item reads.
+`imports/import-claims.server.ts` owns the stored authorization columns and
+reconstructs the frozen vector for item reads.
 
-`infrastructure/google-import-completion.ts` owns every terminal transition,
-including lifecycle and isolated restore. It locks the item before reading the
-Property receipt through Property's transaction-aware API, fixes Review's history
-cutoff before success, scrubs routing state and reduces parent counters in that
+`imports/import-completion.server.ts` owns every terminal transition,
+including lifecycle and isolated restore. It locks the import and then the item
+before reading the Property receipt through Property's transaction-aware API,
+fixes Review's history cutoff before success, scrubs routing state and starts
+the import's retention clock once its last item is terminal, in that
 transaction. Receipt failures leave the recovery appointment intact.
 
 Three independent `property.google_binding.changed` consumers initialize the
@@ -219,15 +224,15 @@ without resending the token.
 ## Invariants
 
 1. Import discovery data is bounded per provider page and by a 24-hour absolute deadline. It is stored behind opaque HMAC handles; normalized rows grow linearly without a fleet-total cap and expired rows are swept.
-2. A confirmed selection has no product-level 100-item cap. One transaction persists the replay-safe saga root, every stable child batch, every item checkpoint, and one identifier-only dispatch fact per child batch.
+2. A confirmed selection has no product-level 100-item cap. One transaction persists the replay-safe import, every item checkpoint, and one identifier-only dispatch fact.
 3. The `integration.google_account.disconnected` fact names the admin who
    disconnected (`userId`, identifier only). It is null when the recovery
    reconciler completes an attempt it cannot attribute, and on facts recorded
    before 2026-09-24. Feed reads it to leave that admin out of the notice it
    sends the other AccountAdmins (ADR 0046).
-4. Browser status, retry, and cancellation address the saga root. Partial child completion remains visible rather than being rewritten as all-or-nothing success.
+4. Browser status, retry, and cancellation address the import. Partial item completion remains visible rather than being rewritten as all-or-nothing success.
 5. Every credential-bearing Google operation executes in this deployment; there is no credential home or routing directory.
-6. Discovery reads Google's output-only `metadata.newReviewUri`, validates it against the approved HTTPS Google-host policy, and hands it to the Property binding effect. It is never manually entered by an administrator. Discovery also reads the location's primary category (`categories.primaryCategory.displayName`); the import item carries it, in the form `normalizeGooglePrimaryCategory` gives it, from the claimed candidate to the Property the effect creates or relinks (`gbp_import_request_items.google_primary_category`, scrubbed with the item's other provider state). It is left out of the replay digests, so a category Google moved between two attempts of one request is not a conflict. The review adapter likewise reads each review's output-only `reviewReplyUrl` and keeps it only as `https://business.google.com/n/{the review's own location}/reviews/{token}` (`normalizeGoogleReviewReplyUrl`); anything else, of any type or length, is null and counted (`reviews_reply_url_refused`, a count and the route, never a value), and never fails the page. The schema stays non-strict. It also reads each reply's output-only `reviewReplyState` and `policyViolation` (Google's moderation of the reply) as `unknown` values, maps them to a closed type in `google-review-reply-moderation.ts` (an undocumented state is `unspecified`, a code that is not an enum word is `UNKNOWN`, the code is kept only when `REJECTED`) and counts them per read (`reviews_reply_moderation`, `reviews_reply_moderation_unknown`: counts only, never a value or reply text). Nothing decides on them yet (Review CONTEXT, Model).
+6. Discovery reads Google's output-only `metadata.newReviewUri`, validates it against the approved HTTPS Google-host policy, and hands it to the Property binding effect. It is never manually entered by an administrator. Discovery also reads the location's primary category (`categories.primaryCategory.displayName`); the import item carries it, in the form `normalizeGooglePrimaryCategory` gives it, from the claimed candidate to the Property the effect creates or relinks (`google_import_items.google_primary_category`, scrubbed with the item's other provider state). It is left out of the replay digests, so a category Google moved between two attempts of one request is not a conflict. The review adapter likewise reads each review's output-only `reviewReplyUrl` and keeps it only as `https://business.google.com/n/{the review's own location}/reviews/{token}` (`normalizeGoogleReviewReplyUrl`); anything else, of any type or length, is null and counted (`reviews_reply_url_refused`, a count and the route, never a value), and never fails the page. The schema stays non-strict. It also reads each reply's output-only `reviewReplyState` and `policyViolation` (Google's moderation of the reply) as `unknown` values, maps them to a closed type in `google-review-reply-moderation.ts` (an undocumented state is `unspecified`, a code that is not an enum word is `UNKNOWN`, the code is kept only when `REJECTED`) and counts them per read (`reviews_reply_moderation`, `reviews_reply_moderation_unknown`: counts only, never a value or reply text). Nothing decides on them yet (Review CONTEXT, Model).
 7. Production credential-bearing Google adapters have no direct-socket escape hatch. OAuth exchange/refresh/revoke, account and location discovery, notifications, and Review fallbacks fail before network access unless a governed executor owns the route; fixed-origin JWKS retrieval is the only current non-credential direct trust read.
 8. `GOOGLE_PROVIDER_ROUTE_POLICIES` in `src/shared/google-provider-control/route-catalogue.ts` is the exhaustive executable authority for every provider route, credential class, fixed production origin, transport, owner, recovery rule, and current repository activation state. A new route cannot compile without an explicit route-policy decision.
 9. The browser can supply only the one-use code and opaque state; it never supplies PKCE verifier or token material to a general server function.
@@ -247,7 +252,7 @@ without resending the token.
 
 Unit tests stay beside OAuth, connection, view-lifecycle, import, Performance,
 provider-route, worker, and public-boundary subjects. PostgreSQL integration tests
-cover exchange preservation, permits, generations, sagas, cancellation, replay,
+cover exchange preservation, permits, generations, imports, cancellation, replay,
 closure, export, and purge. Redis tests cover renewable refresh leadership,
 ownership proof, backoff, and ambiguity denial. Executable inventory tests pin
 every production provider route and forbid direct credential sockets.
