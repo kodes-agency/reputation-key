@@ -111,7 +111,8 @@ export type ResendEventResult = Readonly<{
   /** Further rows suppressed because the recipient is now undeliverable. */
   suppressed: number
   /** Why nothing was applied, when `applied` is false. */
-  reason?: 'ignored_event_type' | 'unknown_message' | 'out_of_order'
+  reason?:
+    'ignored_event_type' | 'unknown_message' | 'out_of_order' | 'duplicate_delivery'
 }>
 
 export type ResendEventDeps = Readonly<{
@@ -140,7 +141,11 @@ async function suppressRecipients(
     if (seen.has(key)) continue
     seen.add(key)
     const address = await deps.userLookup.getEmail(row.userId)
-    if (address) await deps.emailRepo.suppressAddress(address, reason, occurredAt)
+    // An event from before the provider lifted the address, arriving late,
+    // must not refuse it again, neither the address nor its queued rows.
+    if (address && !(await deps.emailRepo.suppressAddress(address, reason, occurredAt))) {
+      continue
+    }
     suppressed += await deps.emailRepo.suppressRecipient(
       row.userId,
       row.organizationId,
@@ -168,13 +173,21 @@ async function applySuppressionListEvent(
     correlationId: providerEventCorrelationId(input.eventId),
   }
   if (input.type === 'suppression.removed') {
-    await deps.emailRepo.forgetAddress(input.address)
+    await deps.emailRepo.forgetAddress(input.address, input.occurredAt)
     deps.logger.info(fields, 'Provider lifted an address suppression; lifted here too')
     return { applied: true, rows: 0, suppressed: 0 }
   }
   // A manual addition, or an origin we do not know, is the provider's own call.
   const reason = LIST_ORIGIN_REASONS[input.origin ?? ''] ?? 'suppressed'
-  await deps.emailRepo.suppressAddress(input.address, reason, input.occurredAt)
+  const recorded = await deps.emailRepo.suppressAddress(
+    input.address,
+    reason,
+    input.occurredAt,
+  )
+  if (!recorded) {
+    deps.logger.info(fields, 'Provider suppression predates a lifting; not recorded')
+    return { applied: false, rows: 0, suppressed: 0, reason: 'out_of_order' }
+  }
   deps.logger.info(fields, 'Provider suppressed an address; recorded here too')
   return { applied: true, rows: 0, suppressed: 0 }
 }
@@ -263,8 +276,31 @@ export async function applyResendEvent(
  * Bind the route-facing handler while the context is assembled. Infrastructure
  * receives its ports inward from the build module and never reaches outward to
  * the global container.
+ *
+ * A delivery the provider repeats (a retry after a slow answer, say) is
+ * acknowledged without being applied again. It is remembered only once applied,
+ * so a delivery that failed halfway is still applied by its retry.
  */
 export const createResendEventHandler =
   (deps: ResendEventDeps) =>
   (input: ResendEventInput): Promise<ResendEventResult> =>
-    trace('notification.handleResendEvent', () => applyResendEvent(deps, input))
+    trace('notification.handleResendEvent', async () => {
+      if (await deps.emailRepo.hasAppliedProviderEvent(input.eventId)) {
+        deps.logger.info(
+          {
+            eventType: input.type,
+            correlationId: providerEventCorrelationId(input.eventId),
+          },
+          'Resend event delivery already applied; acknowledged',
+        )
+        return {
+          applied: false,
+          rows: 0,
+          suppressed: 0,
+          reason: 'duplicate_delivery',
+        } satisfies ResendEventResult
+      }
+      const result = await applyResendEvent(deps, input)
+      await deps.emailRepo.markProviderEventApplied(input.eventId)
+      return result
+    })

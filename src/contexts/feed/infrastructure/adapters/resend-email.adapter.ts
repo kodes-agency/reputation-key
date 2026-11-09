@@ -17,10 +17,10 @@
 //
 // The client is injectable so the adapter is unit-testable without network or a
 // live key. Production callers use the zero-arg form.
-import { Resend } from 'resend'
 import { maskEmail } from '#/shared/observability/pii'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { warnOnceOnSenderMisalignment } from '#/shared/email'
+import { createResendTransport } from '#/shared/email/resend-transport'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   EmailSenderPort,
@@ -101,10 +101,7 @@ class EmailProviderRefusedSender extends Error {
 // No cast: the SDK's declared `send` must stay assignable to the narrowed
 // surface, so a change in what it can answer fails compilation here.
 const buildClient = (config: ResendEmailAdapterConfig): ResendEmailClient =>
-  // RESEND_BASE_URL absent → SDK default (https://api.resend.com).
-  config.baseUrl
-    ? new Resend(config.apiKey, { baseUrl: config.baseUrl })
-    : new Resend(config.apiKey)
+  createResendTransport(config)
 
 export const createResendEmailAdapter = (
   dependencies: ResendEmailAdapterDependencies,

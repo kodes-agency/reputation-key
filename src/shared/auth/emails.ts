@@ -5,10 +5,11 @@
 // tests. This module previously carried a second, byte-identical copy of the
 // `emailShell()` template literal; both copies are gone and there is exactly
 // one layout in the repo.
-import { Resend } from 'resend'
+import type { Resend } from 'resend'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { maskEmail } from '#/shared/observability/pii'
+import { createResendTransport } from '#/shared/email/resend-transport'
 import {
   renderInvitationEmail,
   renderStaffCodeReadyEmail,
@@ -35,11 +36,10 @@ const emailError = createErrorFactory('EmailError')
 export function getResend(): Resend {
   if (!_resend) {
     const env = getEnv()
-    // RESEND_BASE_URL is the optional sandbox seam (see env.ts). Absent → the
-    // SDK's default base URL — byte-identical to the pre-seam construction.
-    _resend = env.RESEND_BASE_URL
-      ? new Resend(env.RESEND_API_KEY, { baseUrl: env.RESEND_BASE_URL })
-      : new Resend(env.RESEND_API_KEY)
+    _resend = createResendTransport({
+      apiKey: env.RESEND_API_KEY,
+      baseUrl: env.RESEND_BASE_URL,
+    })
   }
   return _resend
 }

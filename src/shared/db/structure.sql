@@ -6621,6 +6621,17 @@ CREATE TABLE "public"."notification_email_queue" (
 
 
 --
+-- Name: notification_email_suppression_removals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE "public"."notification_email_suppression_removals" (
+    "address_hash" character varying(64) NOT NULL,
+    "removed_at" timestamp with time zone NOT NULL,
+    CONSTRAINT "notification_email_suppression_removals_address_hash_valid" CHECK ((("address_hash")::"text" ~ '^[a-f0-9]{64}$'::"text"))
+);
+
+
+--
 -- Name: notification_email_suppressions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8429,6 +8440,16 @@ CREATE TABLE "public"."reply_templates" (
 
 
 --
+-- Name: resend_webhook_deliveries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE "public"."resend_webhook_deliveries" (
+    "event_id" character varying(255) NOT NULL,
+    "applied_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+--
 -- Name: retention_runs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10029,6 +10050,14 @@ ALTER TABLE ONLY "public"."notification_email_queue"
 
 
 --
+-- Name: notification_email_suppression_removals notification_email_suppression_removals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."notification_email_suppression_removals"
+    ADD CONSTRAINT "notification_email_suppression_removals_pkey" PRIMARY KEY ("address_hash");
+
+
+--
 -- Name: notification_email_suppressions notification_email_suppressions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10650,6 +10679,14 @@ ALTER TABLE ONLY "public"."reply_template_wordings"
 
 ALTER TABLE ONLY "public"."reply_templates"
     ADD CONSTRAINT "reply_templates_pkey" PRIMARY KEY ("id");
+
+
+--
+-- Name: resend_webhook_deliveries resend_webhook_deliveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."resend_webhook_deliveries"
+    ADD CONSTRAINT "resend_webhook_deliveries_pkey" PRIMARY KEY ("event_id");
 
 
 --
@@ -13573,6 +13610,13 @@ CREATE INDEX "reply_templates_scope_active_idx" ON "public"."reply_templates" US
 --
 
 CREATE UNIQUE INDEX "reply_templates_scope_id_key" ON "public"."reply_templates" USING "btree" ("organization_id", "property_id", "id");
+
+
+--
+-- Name: resend_webhook_deliveries_retention_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "resend_webhook_deliveries_retention_idx" ON "public"."resend_webhook_deliveries" USING "btree" ("applied_at");
 
 
 --

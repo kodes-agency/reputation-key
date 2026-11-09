@@ -10,6 +10,7 @@ import {
 } from '#/shared/db/retention/execute-retention-rule'
 import { closeRetentionRun, openRetentionRun } from '#/shared/db/retention/evidence'
 import { retentionRuleCutoff } from '#/shared/db/retention/retention-cutoff'
+import { RESEND_WEBHOOK_DELIVERY_RETENTION_DAYS } from '#/shared/db/schema/notification.schema'
 import { SCHEDULED_RETENTION_ACTIVE } from '#/shared/db/retention/scheduled-retention-activation'
 import { SETTLED_OUTBOX_EVENTS_WHERE } from '#/shared/outbox/infrastructure/retention.server'
 import { getLogger } from '#/shared/observability/logger'
@@ -278,6 +279,14 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     keyColumns: ['target_kind', 'target_id', 'property_id', 'category'],
     tsColumn: 'created_at',
     olderThanMs: 365 * DAY_MS,
+  },
+  {
+    // Only has to outlast the provider's retry window.
+    subject: 'resend_webhook_deliveries',
+    table: 'resend_webhook_deliveries',
+    keyColumns: ['event_id'],
+    tsColumn: 'applied_at',
+    olderThanMs: RESEND_WEBHOOK_DELIVERY_RETENTION_DAYS * DAY_MS,
   },
   {
     subject: 'recent_activity_replay_facts',
