@@ -33,7 +33,7 @@ const READERS = [
   join(PORTAL_INFRASTRUCTURE, 'repositories', 'portal-publication.repository.ts'),
   join(PORTAL_INFRASTRUCTURE, 'repositories', 'portal-access-artifact.repository.ts'),
   join(PORTAL_PUBLICATION, 'portal-command-store.server.ts'),
-  join(PORTAL_INFRASTRUCTURE, 'portal-token-commands.ts'),
+  join(PORTAL_PUBLICATION, 'portal-token-commands.server.ts'),
   join(PORTAL_INFRASTRUCTURE, 'repositories', 'portal-address.repository.ts'),
 ] as const
 
