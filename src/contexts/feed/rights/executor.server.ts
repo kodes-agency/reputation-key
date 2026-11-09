@@ -94,7 +94,9 @@ const SAMPLE_CATEGORIES: readonly NotificationCategory[] = [
 function scopeOf(request: NotificationRightsRequest): NotificationRightsScope {
   return {
     organizationId: request.organizationId,
-    ...(request.propertyId ? { propertyId: request.propertyId } : {}),
+    ...(request.scope === 'property' && request.propertyId
+      ? { propertyId: request.propertyId }
+      : {}),
   }
 }
 
@@ -111,7 +113,12 @@ function tenantChecked(
     if (row.organizationId !== request.organizationId) {
       throw new Error('Notification rights read returned a row of another Organization')
     }
-    if (propertyBound && request.propertyId && row.propertyId !== request.propertyId) {
+    if (
+      propertyBound &&
+      request.scope === 'property' &&
+      request.propertyId &&
+      row.propertyId !== request.propertyId
+    ) {
       throw new Error('Notification rights read returned a row of another Property')
     }
   }

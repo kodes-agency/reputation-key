@@ -99,13 +99,22 @@ async function runScript(
   store: Store,
   org: string,
   argv: string[],
-  { production = false, tamper }: { production?: boolean; tamper?: boolean } = {},
+  {
+    production = false,
+    environment,
+    tamper,
+  }: {
+    production?: boolean
+    environment?: Readonly<Record<string, string | undefined>>
+    tamper?: boolean
+  } = {},
 ) {
   const enqueued: ManualFinalWarningJob[] = []
   const deleted: string[] = []
   const exports: string[] = []
   const out: string[] = []
   const err: string[] = []
+  const journalWrites: string[] = []
   const basePort = fakePort(store, enqueued, deleted)
   const port: NotificationRightsPort = tamper
     ? { ...basePort, history: async () => store.history }
@@ -125,12 +134,21 @@ async function runScript(
   } as unknown as OperatorContext
   const io: OperatorIO = { out: (l) => out.push(l), err: (l) => err.push(l) }
   const effects: RightsRequestEffects = {
-    production,
+    environment: environment ?? {
+      NODE_ENV: production ? 'production' : 'test',
+      DATABASE_URL: 'postgresql://u:p@localhost/test_rights',
+    },
     readFile: async () => '',
     writeExportFile: async (_path, bytes) => {
       exports.push(Buffer.from(bytes).toString('utf8'))
     },
-    journal: createRightsJournal({ put: async () => {}, alert: () => {} }),
+    journal: createRightsJournal({
+      put: async (key) => {
+        journalWrites.push(key)
+      },
+      alert: () => {},
+    }),
+    subjectRefusal: async () => null,
     executors: (finalWarning) => [
       createNotificationRightsExecutor({
         finalWarning,
@@ -139,7 +157,7 @@ async function runScript(
     ],
   }
   const code = await handleRightsRequest(effects, ctx, parsed.args, io)
-  return { code, out, err, enqueued, deleted, exports }
+  return { code, out, err, enqueued, deleted, exports, journalWrites }
 }
 
 describe('notification: rights through the rights-request handler', () => {
@@ -205,6 +223,7 @@ describe('notification: rights through the rights-request handler', () => {
     ])
     expect(result.code).toBe(0)
     expect(result.deleted).toEqual([])
+    expect(result.journalWrites).toEqual([])
     expect(result.enqueued.map((j) => j.data.userId).sort()).toEqual([
       'admin-a',
       'former-a',
@@ -274,6 +293,68 @@ describe('notification: rights through the rights-request handler', () => {
     ])
     expect(org.deleted).toEqual([`${ORG_B}/*`])
     expect(property.deleted).toEqual([`${ORG_A}/${PROPERTY_A1}`])
+  })
+
+  it.each([
+    [
+      'remote host without NODE_ENV',
+      { DATABASE_URL: 'postgresql://u:p@db.example.invalid/test_rights' },
+    ],
+    [
+      'tunnel to a deployed database',
+      { DATABASE_URL: 'postgresql://u:p@localhost/railway' },
+    ],
+    [
+      'driver host override',
+      { DATABASE_URL: 'postgresql://u:p@localhost/test_rights?host=db.example.invalid' },
+    ],
+    [
+      'Railway shell with a local address',
+      { DATABASE_URL: 'postgresql://u:p@localhost/test_rights', RAILWAY_PROJECT_ID: '' },
+    ],
+    ['missing database address', {}],
+  ])(
+    'refuses apply for %s even with a configured journal',
+    async (_name, environment) => {
+      const result = await runScript(
+        seed(),
+        ORG_A,
+        [
+          'organization',
+          '--apply',
+          '--reason',
+          'closure',
+          '--ticket',
+          'T-1',
+          '--yes',
+          'ops:rights-request',
+          ...VERIFIED,
+          `confirm=ERASE ORGANIZATION ${ORG_A}`,
+        ],
+        { environment },
+      )
+
+      expect(result.code).toBe(1)
+      expect(result.err.join('\n')).toContain('database that is not local')
+      expect(result.journalWrites).toEqual([])
+      expect(result.deleted).toEqual([])
+      expect(result.enqueued).toEqual([])
+    },
+  )
+
+  it('exports every Property for an Organization scope despite a stray Property id', async () => {
+    const result = await runNotificationRights(fakePort(seed(), [], []), {
+      scope: 'organization',
+      mode: 'report',
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A1,
+      batchSize: 50,
+      finalWarning: false,
+    })
+
+    expect(result.exportJson).toContain('A1 review')
+    expect(result.exportJson).toContain('A2 review')
+    expect(result.exportJson).not.toContain('B secret')
   })
 
   it('refuses to send final warnings for a single Property', async () => {

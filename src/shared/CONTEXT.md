@@ -46,6 +46,10 @@ scope. Tenant and session transitions still clear the caches independently.
 
 - `testing/` and `db/testing/` are test-only support, never runtime authorities.
 
+`ops/local-database.ts` is the shared local-only database guard for development
+scripts and the manual rights command. It checks the process environment and
+the PostgreSQL driver's effective host and database name before allowing writes.
+
 Shared-area dependency and production/test fences are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
 
 ## Root contracts

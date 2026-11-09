@@ -275,24 +275,76 @@ describe('runRightsExecutors', () => {
         return { ok: true as const, lines: ['done'] }
       }),
     })
-    const { store, puts } = storeOf({
-      put: async () => {
+    const { store, puts } = storeOf()
+    const recordingPut = store.put
+    const ordered = {
+      ...store,
+      put: async (...args: Parameters<typeof recordingPut>) => {
         order.push('put')
+        return recordingPut(...args)
       },
-    })
+    }
 
     await runRightsExecutors({
       plan: applyPlan(),
       executors: [covering],
       io: h.io,
-      journal: createRightsJournal(store),
+      journal: createRightsJournal(ordered),
       writeExportFile: h.writeExportFile,
     })
 
     expect(order).toEqual(['put', 'apply'])
-    expect(puts).toEqual([])
+    expect(puts).toHaveLength(1)
+    const entry = JSON.parse(puts[0]!.bytes)
+    expect(entry).toMatchObject({
+      context: 'review',
+      subjectClass: 'organization',
+      organizationId: 'org-1',
+      recordedBeforeErasure: true,
+    })
     expect(h.out.filter((line) => line.startsWith('audit: '))).toHaveLength(1)
     expect(h.out[1]).toMatch(/^audit: a applied scope=organization org=org-1 journal=/u)
+    expect(h.out[1]).toContain(`journal=${entry.id}`)
+  })
+
+  it('writes no journal entry for an executor with no journal contexts', async () => {
+    const h = harness()
+    const warning = executor('notification', { journalContexts: [] })
+    const { store, puts } = storeOf()
+
+    const exit = await runRightsExecutors({
+      plan: applyPlan(),
+      executors: [warning],
+      io: h.io,
+      journal: createRightsJournal(store),
+      writeExportFile: h.writeExportFile,
+    })
+
+    expect(exit).toBe(0)
+    expect(warning.apply).toHaveBeenCalledTimes(1)
+    expect(puts).toEqual([])
+  })
+
+  it('refuses before any executor when the subject check refuses', async () => {
+    const h = harness()
+    const covering = executor('a')
+    const { store, puts } = storeOf()
+
+    const exit = await runRightsExecutors({
+      plan: applyPlan(),
+      executors: [covering],
+      io: h.io,
+      journal: createRightsJournal(store),
+      subjectRefusal: async () => 'the Organization does not exist',
+      writeExportFile: h.writeExportFile,
+    })
+
+    expect(exit).toBe(1)
+    expect(h.err).toEqual([
+      'rights-request: the Organization does not exist; nothing was changed',
+    ])
+    expect(covering.apply).not.toHaveBeenCalled()
+    expect(puts).toEqual([])
   })
 
   it('does not call apply, and alerts, when the journal write is rejected', async () => {

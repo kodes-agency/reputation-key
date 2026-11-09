@@ -38,7 +38,9 @@ export function createNotificationRightsExecutor(
     scope: plan.scope as NotificationRightsRun['scope'],
     mode,
     organizationId: plan.organizationId,
-    ...(plan.propertyId ? { propertyId: plan.propertyId } : {}),
+    ...(plan.scope === 'property' && plan.propertyId
+      ? { propertyId: plan.propertyId }
+      : {}),
     batchSize: plan.batchSize,
     finalWarning: deps.finalWarning,
     ...(plan.verificationRef ? { requestRef: plan.verificationRef } : {}),
@@ -46,7 +48,8 @@ export function createNotificationRightsExecutor(
   return Object.freeze({
     name: 'notification',
     scopes: ['access', 'property', 'organization'] as const,
-    journalContexts: ['notification'] as const,
+    // A final warning only queues emails and deletes nothing: no entry to replay.
+    journalContexts: deps.finalWarning ? ([] as const) : (['notification'] as const),
     // The only refusal apply gives before it touches a row; later failures are
     // runtime errors that the runner reports with the executors already applied.
     async preflight(plan) {
