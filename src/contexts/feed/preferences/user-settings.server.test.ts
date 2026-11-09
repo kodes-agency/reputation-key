@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { NotificationUserSettings } from '../domain/notification-types'
-import { createNotificationUserSettings } from './notification-user-settings'
+import { createNotificationUserSettings } from './user-settings.server'
 
 const ORG = organizationId('org-sofia')
 const USER = userId('user-1')

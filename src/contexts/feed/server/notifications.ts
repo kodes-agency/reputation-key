@@ -18,12 +18,12 @@ import { z } from 'zod/v4'
 import { isNotificationError } from '../domain/notification-errors'
 import { NOTIFICATION_LIST_FILTERS } from '../application/notification-list-filter'
 import { createNotificationPage } from '../application/notification-page'
-import { notificationUserSettingsDto } from '../application/dto/notification-user-settings.dto'
 import {
   notificationPreferenceCategory,
   notificationQuietHoursDto,
+  notificationUserSettingsDto,
   updateNotificationPreferenceDto,
-} from '../application/dto/notification-preference.dto'
+} from '../preferences/contracts'
 import {
   dismissAllNotificationsDto,
   markAllNotificationsReadDto,
