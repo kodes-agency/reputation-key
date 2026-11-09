@@ -314,10 +314,11 @@ async function runRights(
   const io: OperatorIO = { out: (l) => out.push(l), err: (l) => err.push(l) }
   const code = await handleRightsRequest(
     {
-      production: false,
+      environment: { DATABASE_URL: getEnv().DATABASE_URL },
       readFile: async () => '',
       writeExportFile: async () => {},
       journal,
+      subjectRefusal: async () => null,
       executors: (finalWarning) => [
         createNotificationRightsExecutor({
           finalWarning,
@@ -645,10 +646,11 @@ describe.sequential('Notification rights reads and purge', () => {
       const io: OperatorIO = { out: (l) => out.push(l), err: (l) => out.push(l) }
       const code = await handleRightsRequest(
         {
-          production: false,
+          environment: { DATABASE_URL: getEnv().DATABASE_URL },
           readFile: async () => '',
           writeExportFile: async () => {},
           journal: createRightsJournal({ put: async () => {}, alert: () => {} }),
+          subjectRefusal: async () => null,
           executors: (finalWarning) => [
             createNotificationRightsExecutor({
               finalWarning,
