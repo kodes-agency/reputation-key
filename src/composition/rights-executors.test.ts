@@ -6,12 +6,14 @@ import { composeRightsExecutors } from './rights-executors'
 const deps = { db: {} as Database, runNotification: vi.fn() }
 
 describe('composeRightsExecutors', () => {
-  it('composes the five context executors in order', () => {
+  it('composes the seven context executors in order', () => {
     expect(composeRightsExecutors(deps, false).map(({ name }) => name)).toEqual([
       'google-integration',
       'review',
       'inbox',
       'reporting',
+      'ai',
+      'activity',
       'notification',
     ])
   })
@@ -40,6 +42,8 @@ describe('composeRightsExecutors', () => {
       'review',
       'inbox',
       'reporting',
+      'ai',
+      'activity',
       'notification',
     ])
   })

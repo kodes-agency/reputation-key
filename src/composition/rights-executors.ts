@@ -3,6 +3,8 @@
 // decides which executors exist for a request and what each one is given.
 
 import type { Database } from '#/shared/db'
+import { createAiRightsExecutor } from '#/contexts/ai/infrastructure/adapters/ai-rights.adapter'
+import { createActivityRightsExecutor } from '#/contexts/feed/infrastructure/adapters/activity-rights.adapter'
 import { createReportingRightsExecutor } from '#/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
 import { createGoogleRightsExecutor } from '#/shared/ops/rights/google-rights-executor'
 import {
@@ -42,6 +44,8 @@ export function composeRightsExecutors(
     }),
     createInboxRightsExecutor({ db: deps.db, now }),
     createReportingRightsExecutor(deps.db, now),
+    createAiRightsExecutor(deps.db, now),
+    createActivityRightsExecutor(deps.db),
     notification,
   ]
 }
