@@ -2,11 +2,11 @@
 // Each span logs timing on success or full error context on failure.
 // Reads parent context from ALS — no parameter threading needed.
 
+import { getLogger } from '#/shared/observability/logger'
 import {
-  getLogger,
   normalizeTelemetryPath,
   sanitizeTelemetryValue,
-} from '#/shared/observability/logger'
+} from '#/shared/observability/telemetry-sanitize'
 import { getRequestContext } from '#/shared/observability/request-context'
 
 export interface Span {

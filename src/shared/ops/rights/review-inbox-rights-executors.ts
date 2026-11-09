@@ -9,8 +9,13 @@
 
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
+import type {
+  BackupErasureLedgerEntry,
+  BackupErasureReplayer,
+} from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
   closeInbox,
+  closeInboxInTx,
   inboxClosureRefusal,
   readInboxRightsExport,
   readInboxRightsReport,
@@ -18,6 +23,7 @@ import {
 } from '#/shared/db/lifecycle/inbox-rights-store'
 import {
   closeReview,
+  closeReviewInTx,
   reviewClosureRefusal,
   type ReviewRightsTarget,
   readReviewRightsExport,
@@ -132,4 +138,52 @@ export function createInboxRightsExecutor(deps: ReviewInboxRightsDeps): RightsEx
       return outcome.ok ? { ok: true, lines: [`deleted=${outcome.deleted}`] } : outcome
     },
   })
+}
+
+const SUBJECT_CLASSES = ['organization', 'property'] as const
+
+/** The Organization, or the Property a journal entry names. */
+function entryTarget(
+  entry: BackupErasureLedgerEntry,
+): ReviewRightsTarget & InboxRightsTarget {
+  if (entry.subjectClass !== 'property') return entry.organizationId
+  if (!entry.propertyId) throw new Error('journal entry has no Property')
+  return { organizationId: entry.organizationId, propertyId: entry.propertyId }
+}
+
+/** Re-erase Review data in a restored cell, one replayer per journaled subject class. */
+export function createReviewRightsReplayers(
+  deps: ReviewRightsDeps,
+): ReadonlyArray<BackupErasureReplayer> {
+  const now = deps.now ?? (() => new Date())
+  return SUBJECT_CLASSES.map((subjectClass) => ({
+    context: 'review' as const,
+    subjectClass,
+    async reErase(tx, entry) {
+      const outcome = await closeReviewInTx(
+        tx,
+        requireReplyScopeEffects(deps.replyEffects),
+        entryTarget(entry),
+        now(),
+      )
+      if (!outcome.ok) throw new Error(outcome.error)
+      return outcome.deleted + outcome.scrubbed
+    },
+  }))
+}
+
+/** Re-erase Inbox data in a restored cell, one replayer per journaled subject class. */
+export function createInboxRightsReplayers(
+  deps: ReviewInboxRightsDeps,
+): ReadonlyArray<BackupErasureReplayer> {
+  const now = deps.now ?? (() => new Date())
+  return SUBJECT_CLASSES.map((subjectClass) => ({
+    context: 'inbox' as const,
+    subjectClass,
+    async reErase(tx, entry) {
+      const outcome = await closeInboxInTx(tx, entryTarget(entry), now())
+      if (!outcome.ok) throw new Error(outcome.error)
+      return outcome.deleted
+    },
+  }))
 }
