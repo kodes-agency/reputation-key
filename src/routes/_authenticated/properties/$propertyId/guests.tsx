@@ -14,8 +14,7 @@ import {
   guestVoiceReasonOf,
   guestVoiceV2PageOf,
   guestVoiceV2RangeOf,
-  guestVoiceV2View,
-} from './-guest-voice-v2'
+} from './-guest-voice-page'
 import { ratingGoalCardQuery } from './goals/-rating-goal-queries'
 import { guestVoiceDetailSearch } from './-guest-voice-search'
 import { guestVoiceDetailTarget, guestVoiceDetailParams } from './-guest-voice-details'
@@ -33,8 +32,7 @@ export const propertyGuestsSearchSchema = z.object({
 })
 
 /**
- * Guest voice, read from the v3 analysis, the only analysis there is since the switch-on
- * (2026-10-30). The answer is the page, or says why there is none to draw yet: AI is off,
+ * Guest voice. The answer is the page, or says why there is none to draw yet: AI is off,
  * or nothing is analysed so far (the page says which).
  */
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/guests')({
@@ -101,7 +99,7 @@ function PropertyGuestsRoute() {
   // the page would sit on its loading frame for good.
   const answer = keptData(reading) ?? undefined
   const v2 = guestVoiceV2PageOf(answer)
-  // 2.0 has no "All time": a bookmark that still says so is the automatic window, on the
+  // Guest voice has no "All time": a bookmark that still says so is the automatic window, on the
   // page and in the address.
   const v2Range = guestVoiceV2RangeOf(range)
   useEffect(() => {
@@ -155,7 +153,8 @@ function PropertyGuestsRoute() {
             range={v2Range}
             onRangeChange={onRangeChange}
             v2={{
-              ...guestVoiceV2View(v2, guestVoiceGoalOf(goalCard.data)),
+              read: v2,
+              ratingGoal: guestVoiceGoalOf(goalCard.data),
               googleNumbers: google.data,
               drawer,
             }}

@@ -145,6 +145,31 @@ export const staffPrepareClosing = async (
 }
 
 /**
+ * Staff-sourced facts that are still unpublished are work in flight: a consumer
+ * has not seen them yet, and purging the aggregate they name would publish a
+ * fact about rows that no longer exist. Recovery-fenced rows are excluded
+ * because they are deliberately never published and would otherwise block the
+ * boundary forever.
+ */
+export const assertStaffOutboxSettled = async (
+  tx: Tx,
+  organizationId: string,
+): Promise<void> => {
+  const pending = await readCount(
+    tx,
+    sql`SELECT count(*)::int AS count
+        FROM outbox_events
+        WHERE organization_id = ${organizationId}
+          AND source_context = 'staff'
+          AND published_at IS NULL
+          AND recovery_fenced_at IS NULL`,
+  )
+  if (pending > 0) {
+    throw new Error('Staff purge readiness blocked: unpublished_staff_outbox_events')
+  }
+}
+
+/**
  * Staff's purge readiness. READ ONLY — it issues no INSERT, UPDATE or DELETE.
  *
  * A blocked readiness is a real answer: the outcome vocabulary is only
@@ -157,23 +182,7 @@ export const staffVerifyPurgeReadiness = async (
   tx: Tx,
   request: OrganizationLifecycleContributionRequest,
 ): Promise<OrganizationLifecyclePhaseOutcome> => {
-  // Staff-sourced facts that are still unpublished are work in flight: a
-  // consumer has not seen them yet, and purging the aggregate they name would
-  // publish a fact about rows that no longer exist. Recovery-fenced rows are
-  // excluded because they are deliberately never published and would otherwise
-  // block the boundary forever.
-  const pending = await readCount(
-    tx,
-    sql`SELECT count(*)::int AS count
-        FROM outbox_events
-        WHERE organization_id = ${request.organizationId}
-          AND source_context = 'staff'
-          AND published_at IS NULL
-          AND recovery_fenced_at IS NULL`,
-  )
-  if (pending > 0) {
-    throw new Error('Staff purge readiness blocked: unpublished_staff_outbox_events')
-  }
+  await assertStaffOutboxSettled(tx, request.organizationId)
 
   const retained = await countRetainedRows(tx, request.organizationId)
   return retained === 0
@@ -198,21 +207,30 @@ export const staffPurge = async (
   tx: Tx,
   request: OrganizationLifecycleContributionRequest,
 ): Promise<OrganizationLifecyclePhaseOutcome> => {
+  const scrubbed = await deleteStaffTenantRows(tx, request.organizationId)
+  return scrubbed === 0
+    ? { outcome: 'no_data', evidenceRef: evidenceRef('purge', 'no_data', 0) }
+    : { outcome: 'complete', evidenceRef: evidenceRef('purge', 'complete', scrubbed) }
+}
+
+/** The purge's deletes, bound to one Organization; returns the rows removed. */
+export const deleteStaffTenantRows = async (
+  tx: Tx,
+  organizationId: string,
+): Promise<number> => {
   let scrubbed = 0
   for (const { table, scope } of STAFF_TENANT_TABLES) {
     scrubbed += await readCount(
       tx,
       sql`WITH deleted AS (
             DELETE FROM ${sql.identifier(table)}
-            WHERE ${scope(request.organizationId)}
+            WHERE ${scope(organizationId)}
             RETURNING 1
           )
           SELECT count(*)::int AS count FROM deleted`,
     )
   }
-  return scrubbed === 0
-    ? { outcome: 'no_data', evidenceRef: evidenceRef('purge', 'no_data', 0) }
-    : { outcome: 'complete', evidenceRef: evidenceRef('purge', 'complete', scrubbed) }
+  return scrubbed
 }
 
 /** The static, reviewable table plan. Exported for the contract tests. */

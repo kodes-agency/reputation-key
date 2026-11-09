@@ -24,6 +24,9 @@ describe('composeRightsExecutors', () => {
       'portal',
       'ai',
       'activity',
+      'identity-grants',
+      'staff',
+      'property',
       'notification',
       'staff-participant',
     ])
@@ -59,6 +62,26 @@ describe('composeRightsExecutors', () => {
       'portal',
       'ai',
       'activity',
+      'staff',
+      'notification',
+    ])
+  })
+
+  it('covers the property scope with every Property erasure executor', () => {
+    const covering = composeRightsExecutors(deps, false)
+      .filter(({ scopes }) => scopes.includes('property'))
+      .map(({ name }) => name)
+    expect(covering).toEqual([
+      'google-integration',
+      'review',
+      'inbox',
+      'guest',
+      'reporting',
+      'portal',
+      'ai',
+      'activity',
+      'identity-grants',
+      'property',
       'notification',
     ])
   })

@@ -5,8 +5,6 @@ import type { TenantScope } from './tenant-scope'
 // Convention: each context/feature exposes a factory whose keys form a hierarchy
 // (parent keys are prefixes of child keys), so `invalidateQueries(parentKey)`
 // refreshes all descendants. See TanStack Query "Query Keys" docs.
-//
-// Populated as features migrate to TanStack Query (inbox pilot first).
 
 export const inboxKeys = {
   all: ['inbox'] as const,
@@ -22,28 +20,11 @@ export const inboxKeys = {
   propertyCountsFor: (queue: string) =>
     [...inboxKeys.counts(), 'by-property', queue] as const,
   lastVisitCount: () => [...inboxKeys.all, 'last-visit-count'] as const,
-  // An item's four reads are SIBLINGS under `all`, keyed by aspect and then by
-  // item — not `item → id → aspect`, which made `notes`, `activity` and
-  // `history` descendants of `detail(id)` and therefore of `details()`.
-  //
-  // Nothing wants that relation: `inbox-cache-policy.ts` write-through patches
-  // a detail after a command and refreshes notes and history BY NAME. What the
-  // nesting did was widen every detail invalidation. The on-demand analysis
-  // poll (`use-on-demand-review-analysis.ts`) invalidates `detail(id)` every
-  // few seconds while it waits for an analysis it requested (at most 90 s),
-  // and under the old shape each tick
-  // refetched that item's mounted notes and Handling History too — neither of
-  // which the analysis changes. The property profile, reply-language and
-  // AI-access settings pages
-  // (`properties/$propertyId/settings/{profile,replies,ai}.tsx`) invalidate
-  // `details()`, but no pane is mounted there, so under the old shape that
-  // only marked cached notes and history stale.
-  // (`activity` was caught by the prefix as well, but nothing observes it.)
-  // The same lesson is written out for `notificationKeys` below; inbox had not
-  // inherited it, and adding `history` in the detail-pane rebuild widened the
-  // blast radius again.
-  //
-  // `details()` still means "every item detail" and now matches ONLY those.
+  // An item's reads are siblings under `all`, keyed by aspect and then by item, so
+  // `details()` matches only item details. Nesting notes, activity and history under
+  // `detail(id)` would make every detail invalidation (the on-demand analysis poll, the
+  // property settings pages) refetch them too. `inbox-cache-policy.ts` refreshes notes
+  // and history by name.
   details: () => [...inboxKeys.all, 'detail'] as const,
   detail: (id: string) => [...inboxKeys.details(), id] as const,
   notes: (id: string) => [...inboxKeys.all, 'notes', id] as const,
