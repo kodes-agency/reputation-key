@@ -28,6 +28,7 @@ async function main(): Promise<void> {
     rightsRequestCommandSpec,
     async (ctx, args, io) => {
       const queue = ctx.container.jobQueue
+      const journal = createRightsJournal(undefined)
       return handleRightsRequest(
         {
           production: getEnv().NODE_ENV === 'production',
@@ -36,11 +37,12 @@ async function main(): Promise<void> {
             await mkdir(dirname(path), { recursive: true })
             await writeFile(path, bytes, { mode: 0o600 })
           },
-          journal: createRightsJournal(undefined),
+          journal,
           executors: (finalWarning) =>
             composeRightsExecutors(
               {
                 db: getDb(),
+                journal,
                 runNotification: (run) =>
                   runNotificationRightsRequest(
                     ctx.container.db,

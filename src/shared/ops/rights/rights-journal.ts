@@ -6,6 +6,7 @@
 
 import { createHash } from 'node:crypto'
 import type { BackupErasureLedgerContext } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import type { ErasureJournalTargetKind } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
   journalBeforeErasure,
   type ErasureJournalEntry,
@@ -13,6 +14,12 @@ import {
 import type { RightsRequestPlan } from './rights-request-command'
 
 export type RightsJournalStore = Parameters<typeof journalBeforeErasure>[1]
+
+/** The rows one journal entry names, so a restore can erase exactly those. */
+export type RightsJournalTargets = Readonly<{
+  kind: ErasureJournalTargetKind
+  ids: ReadonlyArray<string>
+}>
 
 export type RightsJournal = Readonly<{
   /** Why an apply of these contexts cannot be journaled, or null when it can. */
@@ -31,6 +38,13 @@ export type RightsJournal = Readonly<{
     contexts: ReadonlyArray<BackupErasureLedgerContext>,
     erase: () => Promise<T>,
   ) => Promise<T>
+  /** Writes one entry naming the batch's rows, then calls erase. */
+  runBatch: <T>(
+    plan: RightsRequestPlan,
+    context: BackupErasureLedgerContext,
+    targets: RightsJournalTargets,
+    erase: () => Promise<T>,
+  ) => Promise<T>
 }>
 
 const EVIDENCE_REF = 'rights-request:v1'
@@ -47,6 +61,7 @@ function seedOf(
   plan: RightsRequestPlan,
   context: BackupErasureLedgerContext,
   kind: string,
+  targets?: RightsJournalTargets,
 ): string {
   return [
     kind,
@@ -57,26 +72,29 @@ function seedOf(
     plan.subjectRef ?? '',
     plan.verificationRef ?? '',
     plan.receivedAt?.toISOString() ?? '',
+    targets ? `${targets.kind}:${[...targets.ids].sort().join(',')}` : '',
   ].join('|')
 }
 
 export function rightsJournalEntry(
   plan: RightsRequestPlan,
   context: BackupErasureLedgerContext,
+  targets?: RightsJournalTargets,
 ): ErasureJournalEntry | { error: string } {
   const effectiveErasureAt = plan.verifiedAt ?? plan.receivedAt
   if (!effectiveErasureAt)
     return { error: 'received=<iso> is required to journal an apply' }
   const base = {
-    id: derivedUuid(seedOf(plan, context, 'entry')),
+    id: derivedUuid(seedOf(plan, context, 'entry', targets)),
     recordedBeforeErasure: true as const,
     context,
-    closureLineageId: derivedUuid(seedOf(plan, context, 'lineage')),
+    closureLineageId: derivedUuid(seedOf(plan, context, 'lineage', targets)),
     lifecycleRevision: LIFECYCLE_REVISION,
     effectiveErasureAt,
     erasedRowCount: 0,
     evidenceRef: EVIDENCE_REF,
     organizationId: plan.organizationId,
+    ...(targets ? { journalTargets: { kind: targets.kind, ids: targets.ids } } : {}),
   }
   if (plan.scope === 'organization') return { ...base, subjectClass: 'organization' }
   if (plan.scope === 'property') {
@@ -123,6 +141,12 @@ export function createRightsJournal(
         erase,
       )
       return write()
+    },
+    async runBatch(plan, context, targets, erase) {
+      if (!store) throw new Error('no erasure journal store is configured')
+      const entry = rightsJournalEntry(plan, context, targets)
+      if ('error' in entry) throw new Error(entry.error)
+      return journalBeforeErasure(entry, store, erase)
     },
   })
 }

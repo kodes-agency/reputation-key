@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { BACKUP_ERASURE_LEDGER_CONTEXTS } from '#/shared/db/schema/backup-erasure-ledger.schema'
+import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
 import { composeRightsExecutors } from './rights-executors'
 
-const deps = { db: {} as Database, runNotification: vi.fn() }
+const deps = {
+  db: {} as Database,
+  journal: createRightsJournal(undefined),
+  runNotification: vi.fn(),
+}
 
 describe('composeRightsExecutors', () => {
   it('composes the five context executors in order', () => {
@@ -13,6 +18,7 @@ describe('composeRightsExecutors', () => {
       'inbox',
       'reporting',
       'notification',
+      'staff-participant',
     ])
   })
 
@@ -23,7 +29,9 @@ describe('composeRightsExecutors', () => {
   })
 
   it('journals every executor under known lifecycle contexts', () => {
+    // The participant executor journals each batch with the ids it names.
     for (const executor of composeRightsExecutors(deps, false)) {
+      if (executor.name === 'staff-participant') continue
       expect(executor.journalContexts.length).toBeGreaterThan(0)
       for (const context of executor.journalContexts) {
         expect(BACKUP_ERASURE_LEDGER_CONTEXTS).toContain(context)
@@ -42,5 +50,14 @@ describe('composeRightsExecutors', () => {
       'reporting',
       'notification',
     ])
+  })
+})
+
+describe('participant scope', () => {
+  it('is covered by the participant executor alone', () => {
+    const covering = composeRightsExecutors(deps, false)
+      .filter(({ scopes }) => scopes.includes('participant'))
+      .map(({ name }) => name)
+    expect(covering).toEqual(['staff-participant'])
   })
 })

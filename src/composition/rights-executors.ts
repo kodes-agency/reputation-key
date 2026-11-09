@@ -4,6 +4,7 @@
 
 import type { Database } from '#/shared/db'
 import { createReportingRightsExecutor } from '#/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
+import { createStaffParticipantRightsExecutor } from '#/contexts/identity/infrastructure/adapters/staff-participant-rights.adapter'
 import { createGoogleRightsExecutor } from '#/shared/ops/rights/google-rights-executor'
 import {
   createNotificationRightsExecutor,
@@ -14,10 +15,12 @@ import {
   createReviewRightsExecutor,
 } from '#/shared/ops/rights/review-inbox-rights-executors'
 import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
+import type { RightsJournal } from '#/shared/ops/rights/rights-journal'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
 
 export type RightsExecutorsDeps = Readonly<{
   db: Database
+  journal: RightsJournal
   runNotification: NotificationRightsExecutorDeps['run']
   now?: () => Date
 }>
@@ -43,5 +46,6 @@ export function composeRightsExecutors(
     createInboxRightsExecutor({ db: deps.db, now }),
     createReportingRightsExecutor(deps.db, now),
     notification,
+    createStaffParticipantRightsExecutor({ db: deps.db, journal: deps.journal, now }),
   ]
 }
