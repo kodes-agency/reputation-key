@@ -1,11 +1,11 @@
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import { CARD_RUNNING } from '#/components/goals/portal-goal-running.stories.fixtures'
+import { CARD_RUNNING } from '#/contexts/reporting/monthly-goals/ui/portal-goal-running.stories.fixtures'
 import {
   CARD_READY,
   CARD_SCANS_ONLY,
-} from '#/components/goals/portal-goal.stories.fixtures'
+} from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
 import { putOffPortalGoalPrompt } from './-portal-goal-overview'
 import { portalGoalCardQuery } from './-portal-goal-queries'
 

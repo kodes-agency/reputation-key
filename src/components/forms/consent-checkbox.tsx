@@ -95,7 +95,10 @@ export function ConsentCheckbox({
         onCheckedChange={(next) => onCheckedChange(next === true)}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <FieldLabel htmlFor={id} className="min-w-0 wrap-anywhere">
+        <FieldLabel
+          htmlFor={id}
+          className="min-w-0 wrap-anywhere max-md:min-h-(--control-touch)"
+        >
           {children}
         </FieldLabel>
         {hasList ? (

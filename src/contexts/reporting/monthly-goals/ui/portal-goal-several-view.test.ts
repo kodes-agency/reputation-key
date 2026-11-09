@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   SEVERAL_RUNNING,
   SEVERAL_STOPPED,
-} from '#/components/goals/portal-goal-single-page.stories.fixtures'
+} from './portal-goal-single-page.stories.fixtures'
 import { severalGoalWords, severalMonthLine } from './portal-goal-several-view'
 
 const reception = { kind: 'portal', key: 'portal:reception', name: 'Reception' } as const

@@ -270,14 +270,26 @@ export type NotificationEmailRepositoryPort = Readonly<{
    * ourselves (a disabled preference, say) never counts.
    */
   isAddressSuppressed(address: string): Promise<boolean>
-  /** Record that the provider refused this address for good. */
+  /**
+   * Record that the provider refused this address for good, as of `at`. False
+   * when an event that happened before the provider's last lifting of the
+   * address, or before a newer refusal, arrived late and changed nothing.
+   */
   suppressAddress(
     address: string,
     reason: EmailSuppressionReason,
     at: Date,
-  ): Promise<void>
-  /** The provider took this address off its suppression list: mail it again. */
-  forgetAddress(address: string): Promise<void>
+  ): Promise<boolean>
+  /**
+   * The provider took this address off its suppression list: mail it again. A
+   * lifting that happened before a newer refusal leaves that refusal in place;
+   * without `at` the entry and any remembered lifting are dropped.
+   */
+  forgetAddress(address: string, at?: Date): Promise<void>
+  /** Whether this provider delivery was already applied. */
+  hasAppliedProviderEvent(eventId: string): Promise<boolean>
+  /** Remember an applied provider delivery, so a redelivery changes nothing. */
+  markProviderEventApplied(eventId: string): Promise<void>
   /**
    * Keep the optional scope an urgent email's one-click unsubscribe link
    * stands for, before the email is sent, so the link outlives queue

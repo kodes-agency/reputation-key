@@ -13,27 +13,30 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import type { PortalGoalSinglePageView } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
-import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
+import type { PortalGoalCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-card-ready'
 import { PortalGoalAveragePage } from '#/contexts/reporting/monthly-goals/ui/portal-goal-average-page'
 import {
   PortalGoalPage,
   focusPortalGoalPageTitle,
-} from '#/components/goals/portal-goal-page'
+} from '#/contexts/reporting/monthly-goals/ui/portal-goal-page'
 import { PortalGoalSeveralPage } from '#/contexts/reporting/monthly-goals/ui/portal-goal-several-page'
-import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
+import type { PortalGoalSheetCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-sheet'
 import {
   SINGLE_GOAL_WORDS,
   singleGoalTitle,
   singleSubjectWords,
   subjectPlace,
-} from '#/components/goals/portal-goal-single-page-view'
-import type { PortalGoalStopCommands } from '#/components/goals/portal-goal-stop-dialog'
+} from '#/contexts/reporting/monthly-goals/ui/portal-goal-single-page-view'
+import type { PortalGoalStopCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-stop-dialog'
 import {
   markPortalGoalAddedStale,
   portalGoalCommands,
   portalGoalSinglePageQuery,
 } from './-portal-goal-queries'
-import { portalGoalDoorShown, usePortalGoalSheet } from './-portal-goal-sheet-host'
+import {
+  portalGoalDoorShown,
+  usePortalGoalSheet,
+} from '../../../../../contexts/reporting/monthly-goals/ui/portal-goal-sheet-host'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/goals/$goalId',

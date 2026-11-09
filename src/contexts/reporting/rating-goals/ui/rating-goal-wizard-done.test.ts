@@ -14,7 +14,7 @@ import {
 import { describe, expect, it } from 'vitest'
 import type { PortalPublicationState } from '#/contexts/portal/domain/portal-publication'
 import { Dialog } from '#/components/ui/dialog'
-import { PortalGoalSection } from '#/components/goals/portal-goal-section'
+import { PortalGoalSection } from '#/contexts/reporting/monthly-goals/ui/portal-goal-section'
 import { portalNextStepOf } from './rating-goal-portal-step'
 import { PORTAL_GOALS_TITLE_ID, RatingGoalDone } from './rating-goal-wizard-done'
 

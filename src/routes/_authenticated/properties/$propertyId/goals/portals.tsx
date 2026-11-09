@@ -16,17 +16,17 @@ import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/
 import {
   openingOf,
   type PortalGoalAddAddress,
-} from '#/components/goals/portal-goal-add-view'
+} from '#/contexts/reporting/monthly-goals/ui/portal-goal-add-view'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
-import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
-import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
-import type { PortalGoalStopCommands } from '#/components/goals/portal-goal-stop-dialog'
+import type { PortalGoalCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-card-ready'
+import type { PortalGoalSheetCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-sheet'
+import type { PortalGoalStopCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-stop-dialog'
 import {
   PortalGoalPage,
   focusPortalGoalPageTitle,
-} from '#/components/goals/portal-goal-page'
-import { extrasSubjectName } from '#/components/goals/portal-goal-page-view'
-import { PortalGoalExtras } from './-portal-goal-extras'
+} from '#/contexts/reporting/monthly-goals/ui/portal-goal-page'
+import { extrasSubjectName } from '#/contexts/reporting/monthly-goals/ui/portal-goal-page-view'
+import { PortalGoalExtras } from '../../../../../contexts/reporting/monthly-goals/ui/portal-goal-extras'
 import { PortalGoalAddButton, usePortalGoalAdd } from './-portal-goal-add-host'
 import { portalGoalPageSearchSchema } from './-portal-goal-page-search'
 import {
@@ -35,7 +35,10 @@ import {
   portalGoalCommands,
   portalGoalPageQuery,
 } from './-portal-goal-queries'
-import { portalGoalDoorShown, usePortalGoalSheet } from './-portal-goal-sheet-host'
+import {
+  portalGoalDoorShown,
+  usePortalGoalSheet,
+} from '../../../../../contexts/reporting/monthly-goals/ui/portal-goal-sheet-host'
 import { prefilledGoalSubjects } from './-goal-subject-prefill'
 
 const TITLE = 'Monthly portal goal'

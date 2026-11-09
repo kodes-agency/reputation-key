@@ -8,9 +8,9 @@ import { withGoalRefusals } from '#/components/goals/goal-refusal'
 import {
   PORTAL_GOAL_OVERVIEW_TITLE_ID,
   PortalGoalOverview,
-} from '#/components/goals/portal-goal-overview'
-import { overviewPortalGoalView } from '#/components/goals/portal-goal-overview-view'
-import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
+} from '#/contexts/reporting/monthly-goals/ui/portal-goal-overview'
+import { overviewPortalGoalView } from '#/contexts/reporting/monthly-goals/ui/portal-goal-overview-view'
+import type { PortalGoalSheetCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-sheet'
 import {
   actionErrorMessage,
   useActionMutation,
@@ -23,7 +23,7 @@ import {
   portalGoalCardQuery,
   portalGoalCommands,
 } from './-portal-goal-queries'
-import { usePortalGoalSheet } from './-portal-goal-sheet-host'
+import { usePortalGoalSheet } from '../../../../../contexts/reporting/monthly-goals/ui/portal-goal-sheet-host'
 
 const focusTitle = (): void =>
   document.getElementById(PORTAL_GOAL_OVERVIEW_TITLE_ID)?.focus()

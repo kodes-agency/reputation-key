@@ -1,8 +1,8 @@
 import type { PortalGoalSeveralOfPage, PortalGoalSingleSubject } from '../contracts'
 import { goalListSubjectText } from '#/components/goals/goal-assignment-subject-label'
 import { goalLiveView } from '#/components/goals/goal-live-view'
-import { pageBodyLine } from '#/components/goals/portal-goal-page-view'
-import { dayWords } from '#/components/goals/portal-goal-words'
+import { pageBodyLine } from './portal-goal-page-view'
+import { dayWords } from './portal-goal-words'
 
 /** Keep the page's subject order and wording aligned with the Goals list. */
 export function severalGoalWords(

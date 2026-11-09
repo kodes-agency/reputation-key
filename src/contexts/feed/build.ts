@@ -67,10 +67,10 @@ import {
 import { registerBulkAssignmentNotificationConsumer } from './infrastructure/bulk-assignment-outbox-consumers'
 import { registerAssignmentReleaseNotificationConsumer } from './infrastructure/assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
-import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-consumers'
-import { registerAiGuestVoiceSummaryNoticeConsumer } from './infrastructure/ai-guest-voice-summary-notice-consumers'
-import { registerAiUrgentReviewNoticeConsumer } from './infrastructure/ai-urgent-review-notice-consumers'
-import { registerRatingGoalNoticeConsumer } from './infrastructure/rating-goal-notice-consumers'
+import { registerGoalNotificationConsumer } from './infrastructure/goal-notice-routes'
+import { registerAiGuestVoiceSummaryNoticeConsumer } from './infrastructure/goal-notice-routes'
+import { registerAiUrgentReviewNoticeConsumer } from './infrastructure/goal-notice-routes'
+import { registerRatingGoalNoticeConsumer } from './infrastructure/goal-notice-routes'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './infrastructure/notification-settlement-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
@@ -760,37 +760,33 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       receipts: input.outboxRepo,
     })
     registerGoalNotificationConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       monthlyResultFacts: input.monthlyResultFacts,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerRatingGoalNoticeConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     // The one notice an AI finding starts: a review analysis found a review Urgent.
     registerAiUrgentReviewNoticeConsumer(consumerRegistry, {
       ...fanoutReads,
-      queue,
-      receipts: input.outboxRepo,
+      ...notices,
     })
     // The Monday email: a Property's Guest voice in three lines, to the managers who asked.
     registerAiGuestVoiceSummaryNoticeConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       responsibleManagers: input.responsibleManagers,
       activeProperty: fanoutReads.activeProperty,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerPortalNotificationConsumers(consumerRegistry, {
       ...notices,

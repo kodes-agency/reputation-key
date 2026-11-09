@@ -314,8 +314,20 @@ export function createReplyComposerController(initialInput: ReplyComposerInput) 
         () => input.onSubmit(draftEditMetric(draft)),
       )
     },
-    /** Deleting a draft is the server's business; the box and autosave are left as they are. */
-    deleteDraft: <T>(run: () => Promise<T>) => run(),
+    /** After the server deletes the draft the box is emptied; a failed delete changes nothing. */
+    async deleteDraft<T>(run: () => Promise<T>): Promise<T> {
+      const result = await run()
+      coordinator.reset()
+      noteEdit('type')
+      commit({
+        draft: draftInText(state.draft, ''),
+        history: [],
+        adoption: null,
+        hasAiDraft: false,
+        autosave: { status: 'idle', error: null },
+      })
+      return result
+    },
     // The AI assist's calls.
     flushForAi: async (snapshot: ReplyDraftSnapshot) => {
       if (isValidReplyDraft(snapshot) && !isAutoDetecting())

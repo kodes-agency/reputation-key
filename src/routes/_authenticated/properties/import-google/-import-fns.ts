@@ -29,7 +29,7 @@ import {
 import type {
   GoogleImportFns,
   GoogleImportSetupFns,
-} from '#/components/features/integration/google-import-manager/google-import-manager-contract'
+} from '#/contexts/integration/imports/ui/google-import-manager-contract'
 import { getPropertySetupFn } from '#/contexts/reporting/server/property-setup'
 import {
   getReplyLibraryFn,

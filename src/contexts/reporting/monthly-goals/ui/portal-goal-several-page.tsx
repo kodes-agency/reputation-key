@@ -4,14 +4,11 @@ import type { PortalGoalSeveralPageView } from '../contracts'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
-import {
-  PAGE_HEADER_ID,
-  focusPortalGoalPageTitle,
-} from '#/components/goals/portal-goal-page'
-import { usePortalGoalPageActions } from '#/components/goals/portal-goal-page-actions'
-import { goalStateLine } from '#/components/goals/portal-goal-single-page-view'
+import { PAGE_HEADER_ID, focusPortalGoalPageTitle } from './portal-goal-page'
+import { usePortalGoalPageActions } from './portal-goal-page-actions'
+import { goalStateLine } from './portal-goal-single-page-view'
 import { severalGoalWords, severalMonthLine } from './portal-goal-several-view'
-import type { PortalGoalStopCommands } from '#/components/goals/portal-goal-stop-dialog'
+import type { PortalGoalStopCommands } from './portal-goal-stop-dialog'
 
 type Props = Readonly<{
   propertyId: string
