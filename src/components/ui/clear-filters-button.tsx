@@ -3,14 +3,10 @@ import type * as React from 'react'
 import { Button, type ButtonProps } from '#/components/ui/button'
 
 /**
- * What the control says (UI consistency scan: COLL-22). "Clear" meant the search
- * and the filter on the Properties list, only the filters in the Inbox's popover
- * and the filters and the sort in its sheet, under four wordings. One control
- * now clears what narrows a list, the search and the filters, and never the sort
- * (the sort is a view of the list, not a cut of it). It says so: "Clear filters",
- * or "Clear search and filters" while a search is in force. A list that has no
- * filter to clear (All properties, Google import) says only what it takes away,
- * "Clear search", rather than promise a reset that does not exist.
+ * What the control says. It clears what narrows a list, the search and the filters,
+ * and never the sort (a view of the list, not a cut of it): "Clear filters", or
+ * "Clear search and filters" while a search is in force. A list with no filter to
+ * clear says only "Clear search" rather than promise a reset that does not exist.
  */
 export function clearFiltersLabel(searching: boolean, filters = true): string {
   if (!filters) return 'Clear search'

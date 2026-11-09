@@ -1,6 +1,5 @@
-// A field that chooses one of a few named values (UI consistency scan: FORM-03): the
-// shared Select in the shared field frame (label, the control, a line of help, the
-// error). Never a browser <select>, which draws its own popup, height and focus ring.
+// A field that chooses one of a few named values: the shared Select in the shared field
+// frame. Never a browser <select>, which draws its own popup, height and focus ring.
 import type { ReactNode } from 'react'
 import {
   Select,

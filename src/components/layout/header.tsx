@@ -12,8 +12,6 @@ import { ThemeToggle } from '#/components/layout/theme-toggle'
 import { NotificationPanel } from '#/components/features/notification/notification-panel'
 import type { NotificationServerFns } from '#/components/features/notification/types'
 
-// ── Sub-components ───────────────────────────────────────────────────
-
 function LogoLink() {
   return (
     <Button variant="outline" size="sm" className="rounded-full gap-2" asChild>
@@ -42,8 +40,7 @@ function AuthActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {/* `Dashboard` pointed at the fleet page, which was the same list
-              `Properties` already showed (redesign row 3). One entry now. */}
+          {/* Properties is the fleet page; there is no separate Dashboard entry. */}
           <DropdownMenuItem asChild>
             <Link to="/properties">Properties</Link>
           </DropdownMenuItem>
@@ -62,8 +59,6 @@ function AuthActions({
     </div>
   )
 }
-
-// ── Main component ───────────────────────────────────────────────────
 
 export function Header({
   onSignOut,

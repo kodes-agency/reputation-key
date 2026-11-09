@@ -3,11 +3,8 @@ import { useThemeMode } from '#/components/hooks/use-theme-mode'
 import { THEME_MODE_DETAILS, nextThemeMode, themeModeLabel } from './theme-mode-options'
 
 /**
- * The public header's theme button: one icon that steps through the same list
- * the segmented `ThemeModeControl` shows (Light, Dark, System, in that order).
- * The header has no room for a three-segment control on a phone, so this is the
- * compact form of the same choice. It names the current mode and the one a click
- * switches to.
+ * The public header's compact theme button: one icon stepping through the same
+ * list as `ThemeModeControl`. It names the current mode and the one a click switches to.
  */
 export function ThemeToggle() {
   const { mode, setMode } = useThemeMode()

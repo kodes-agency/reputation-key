@@ -20,9 +20,7 @@ type Props = Readonly<{
 }>
 
 /**
- * The list's result count (UI consistency scan: COLL-12): "N of M" beside the
- * toolbar's controls, and the same words in the Inbox's search bar, where it was
- * "N matches".
+ * The list's result count: "N of M" beside the toolbar's controls.
  *
  * It is always mounted, empty while the list is not narrowed, because a live
  * region that appears together with its text is not announced: this way a screen

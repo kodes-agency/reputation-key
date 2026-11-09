@@ -1,10 +1,8 @@
-// A segmented control: a short, always-answered choice drawn as one pill of
-// buttons (preview language, preview version, print side, range). It is a radio
-// group — exactly one option is chosen at any time, the four arrow keys move
-// the choice and focus together (no `orientation`: Radix's radio default keeps
-// Up and Down working for screen-reader users), and Tab enters and leaves the group once — so it
-// wears `role="radiogroup"` with a `role="radio"` per segment, as the round-4
-// boards draw it. Not `Tabs`: nothing here swaps a panel.
+// A segmented control: a short, always-answered choice drawn as one pill of buttons.
+// It is a radio group: exactly one option is chosen, the four arrow keys move choice
+// and focus together (no `orientation`, so Radix keeps Up and Down working for
+// screen-reader users), and Tab enters and leaves the group once. Not `Tabs`:
+// nothing here swaps a panel.
 import type { ReactNode } from 'react'
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
 import { cn } from '#/lib/utils'

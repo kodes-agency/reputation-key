@@ -9,13 +9,11 @@ import { isSurfaceShape, LoadingShapeBody } from './page-state-loading'
 import { FullBleedFrame, PageShell, type PageTier } from './page-shell'
 
 // The one page-level state: a page that is loading, failed, is missing, or is
-// not available to the person. Every route fallback and the router's defaults
-// draw it, so a page keeps its title, breadcrumbs and width on the way in and
-// out of a failure, and a failure looks and reads the same on every page.
+// not available to the person. Every route fallback draws it, so a page keeps its
+// title, breadcrumbs and width through a failure.
 //
-// It is presentational. The route-bound wrappers (`RoutePending`, `RouteError`,
-// `RouteNotFound`) read the page's identity from its route and the guarded error
-// behaviour from `useGuardedRouteError`, then hand the result here.
+// Presentational: the route-bound wrappers (`RoutePending`, `RouteError`,
+// `RouteNotFound`) supply the page's identity and the guarded error behaviour.
 
 /** The one way out of a page that is missing or unavailable. */
 export type PageStateBack = Readonly<{ to: string; label: string }>
@@ -118,15 +116,10 @@ function PageStateBody(props: PageStateProps) {
 }
 
 /**
- * A page that is loading, failed, is missing, or is unavailable to the person,
- * in the frame of the page it stands in for. Use through `RoutePending`,
- * `RouteError` and `RouteNotFound` for a route; use it directly where a page
- * decides for itself.
- *
- * A loading state is the shape of its page: a header with the title and the
- * lines under it, then a body of the page's kind (`loadingShapeOf`). A workspace
- * or Inbox shape is a whole surface, so it draws no `PageShell`, header or gutter
- * of its own around it.
+ * A page that is loading, failed, missing or unavailable, in the frame of the page
+ * it stands in for. Use `RoutePending`, `RouteError` and `RouteNotFound` for a
+ * route. A workspace or Inbox loading shape is a whole surface, so no `PageShell`,
+ * header or gutter is drawn around it.
  */
 export function PageState(props: PageStateProps) {
   const { title, breadcrumbs, tier, fullBleed } = props

@@ -3,16 +3,10 @@ import type * as React from 'react'
 import { cn } from '#/lib/utils'
 
 /**
- * The one row a list's search, filter, sort and count sit in (UI consistency
- * scan: COLL-06, COLL-12). The Properties list and the Portals overview each drew
- * this row by hand and had drifted; the parts that go in it are `SearchField`,
+ * The one row a list's search, filter, sort and count sit in: `SearchField`,
  * `ListFilterMenu`, `ListChoiceMenu`, `ListSortMenu`, `ResultCount` and
- * `ClearFiltersButton` (the last two sit in a `ListToolbarStatus`).
- *
- * It wraps rather than scrolls: a phone shows the search on a line of its own
- * and the menus below it. The Inbox keeps its own compact header (an icon that
- * opens the search, a popover or a sheet for the rest) and composes the same
- * parts inside it.
+ * `ClearFiltersButton` (the last two sit in a `ListToolbarStatus`). It wraps rather
+ * than scrolls: a phone shows the search on its own line and the menus below.
  */
 function ListToolbar({ className, ...props }: React.ComponentProps<'div'>) {
   return (
@@ -25,10 +19,9 @@ function ListToolbar({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 /**
- * What the list kept and the way back from it: the `ResultCount` and the Clear
- * beside it, as one unit. The row wraps, and a ghost Clear that wrapped alone would
- * start a line 16px in from the search field and the chips above it (its own
- * padding). Together they wrap as one, the count at the gutter and Clear after it.
+ * The `ResultCount` and the Clear beside it, as one unit. A ghost Clear that wrapped
+ * alone would start a line 16px in from the search field (its own padding); together
+ * they wrap as one, the count at the gutter and Clear after it.
  */
 function ListToolbarStatus({ className, ...props }: React.ComponentProps<'div'>) {
   return (

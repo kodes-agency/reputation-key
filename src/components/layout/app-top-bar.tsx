@@ -35,10 +35,7 @@ type Props = Readonly<{
   organizationId: string
   notificationFns: NotificationServerFns
   submitBetaFeedback?: SubmitBetaFeedback
-  /**
-   * Whether the shell draws a sidebar for this person on this page. A role with
-   * none has nothing for the trigger to open, so the trigger is not drawn either.
-   */
+  /** Whether the shell draws a sidebar for this person; with none, the trigger is not drawn either. */
   hasSidebar?: boolean
   /** The page is a full-bleed surface: the phone bar is 44 px, as the Inbox grid is. */
   isFullBleed?: boolean
@@ -58,9 +55,8 @@ export function AppTopBar({
 }: Props) {
   const navigate = useNavigate()
   const signOut = useSignOut({ onSignedOut: () => navigate({ to: '/login' }) })
-  // The bar is mounted for as long as the shell is, so it keeps the document in
-  // step with the stored theme, and with the device while the mode is System.
-  // The menu's control mounts only while the menu is open.
+  // Mounted as long as the shell is, so it keeps the document in step with the
+  // stored theme (and the device in System mode); the menu's control mounts only while open.
   useThemeMode()
   // Names the "New updates" hint the account button points at when it shows its dot.
   const updatesHintId = useId()
@@ -74,18 +70,13 @@ export function AppTopBar({
     : 'U'
 
   return (
-    // Below md the inbox bar is 44 px like every other bar on the phone grid;
-    // other pages keep h-13. The controls are 36 px (the bar is a compact
-    // workspace, `data-density`, so Button, IconButton and Input take the 36 px
-    // touch height and not the 44 px one), and the two ghost buttons
-    // at the edges are pulled out by half of (36 - glyph) so the glyph, not the
-    // box, sits on the 16 px gutter: the trigger's 16 px glyph by 10 px, the
-    // account button's 28 px circle by 4 px. Non-inbox phone pages keep the
-    // 52 px bar (h-13) with the same 36 px controls on purpose; only the
-    // full-bleed surfaces (`isFullBleed`: Inbox, Reviews, the workspace) compress
-    // to 44. The sidebar trigger is the person's on every page from md up (the
-    // sidebar is theirs to open or fold, wherever they are), and the progress bar
-    // lies on the bar's lower edge, which is why the header is positioned.
+    // Below md full-bleed surfaces (`isFullBleed`) use a 44 px bar like the phone
+    // grid; other pages keep h-13 (52 px). Controls are 36 px (`data-density`
+    // compact), and the two edge ghost buttons are pulled out by half of
+    // (36 - glyph) so the glyph sits on the 16 px gutter: the trigger's 16 px glyph
+    // by 10 px, the account button's 28 px circle by 4 px. The sidebar trigger shows
+    // on every page from md up. The progress bar lies on the bar's lower edge, which
+    // is why the header is positioned.
     <header
       data-density="compact"
       data-full-bleed={isFullBleed ? 'true' : undefined}
@@ -165,28 +156,18 @@ export function AppTopBar({
   )
 }
 
-/**
- * How long a navigation may take before the bar appears. A page that answers in
- * the blink of an eye never shows it, so a fast click stays calm; one that makes
- * the person wait gets a sign that the click was heard.
- */
+/** How long a navigation may take before the bar appears, so fast clicks stay calm. */
 export const ROUTE_PROGRESS_DELAY_MS = 150
 
-/**
- * Calls `show` once `delayMs` has passed, unless the returned function is called
- * first, so a navigation that finishes inside the delay never flashes the bar.
- */
+/** Calls `show` once `delayMs` has passed, unless the returned cancel runs first. */
 export function showAfterDelay(show: () => void, delayMs: number): () => void {
   const timer = setTimeout(show, delayMs)
   return () => clearTimeout(timer)
 }
 
 /**
- * A 2 px bar on the lower edge of the top bar while the router is loading the next
- * page. The old page stays on screen during that wait, and nothing else says the
- * click was heard.
- *
- * Decoration, so it is hidden from assistive technology. It moves with `transform`
+ * A 2 px bar on the top bar's lower edge while the router loads the next page.
+ * Decoration, so hidden from assistive technology. It moves with `transform`
  * only; under reduced motion it is a still bar.
  */
 function RouteProgress() {

@@ -1,16 +1,14 @@
-// The one way to set an identity image: a person's avatar, an organization's logo
-// (UI consistency scan: FORM-14). The Property look logo keeps its own dialog on purpose:
-// it crops, sets a focal point and checks a light version.
+// The one way to set an identity image: a person's avatar, an organization's logo. The
+// Property look logo keeps its own dialog on purpose: it crops, sets a focal point and
+// checks a light version.
 //
 // The picture, with Upload, or Replace and Remove, as Buttons named for what the image
-// is, and one line of help (the formats and the limit the file is checked against). The
-// setting owns what a refusal says and what it leaves behind: a rejected upload or
-// removal is a toast in the words every action uses, and the picture stays as it was.
-// `onUpload` stores the file and SAVES its address, resolving with the address to show;
-// `onRemove` saves the removal. Neither toasts a failure: the setting does. A success
-// toast ("Avatar updated") is the caller's mutation's.
-//
-// A mutation behind it that passes `errorMessage` as well would tell the person twice.
+// is, and one line of help (the formats and the limit). The setting owns what a
+// refusal says: a rejected upload or removal is a toast in the words every action
+// uses, and the picture stays as it was. `onUpload` stores the file and SAVES its
+// address, resolving with the address to show; `onRemove` saves the removal. Neither
+// toasts a failure: the setting does. A success toast is the caller's mutation's, and a
+// mutation that passes `errorMessage` as well would tell the person twice.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { ImageSettingView } from './image-setting/image-setting-view'
