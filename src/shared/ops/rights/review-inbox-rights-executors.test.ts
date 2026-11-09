@@ -43,9 +43,9 @@ const effects = {} as ReplyScopeEffects
 describe('Review and Inbox rights executors', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('cover access and organization requests only', () => {
+  it('cover access, organization and property requests', () => {
     for (const make of [createReviewRightsExecutor, createInboxRightsExecutor]) {
-      expect(make({ db }).scopes).toEqual(['access', 'organization'])
+      expect(make({ db }).scopes).toEqual(['access', 'organization', 'property'])
     }
   })
 
