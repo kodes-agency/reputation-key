@@ -4,9 +4,13 @@
 // the queue.
 
 import { createHmac } from 'node:crypto'
-import { inArray, sql } from 'drizzle-orm'
+import { and, inArray, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { notificationEmailSuppressions } from '#/shared/db/schema/notification.schema'
+import {
+  notificationEmailSuppressionRemovals,
+  notificationEmailSuppressions,
+  resendWebhookDeliveries,
+} from '#/shared/db/schema/notification.schema'
 import type { EmailSuppressionReason } from '../../application/ports/notification-email-repository.port'
 
 /**
@@ -86,29 +90,83 @@ export const createNotificationEmailSuppressionStore = (
       return true
     },
 
-    /** Idempotent: a repeated event only refreshes the reason and its time. */
+    /**
+     * Idempotent: a repeated event only refreshes the reason and its time. An
+     * event is applied in the order it happened: one before the last
+     * lifting of the address, or older than the refusal already held, changes
+     * nothing and answers false.
+     */
     suppressAddress: async (
       address: string,
       reason: EmailSuppressionReason,
       at: Date,
-    ): Promise<void> => {
-      await db
-        .insert(notificationEmailSuppressions)
-        .values({ addressHash: digestOf(address), reason, createdAt: at, updatedAt: at })
-        .onConflictDoUpdate({
-          target: notificationEmailSuppressions.addressHash,
-          set: { reason: sql`excluded.reason`, updatedAt: sql`excluded.updated_at` },
-        })
+    ): Promise<boolean> => {
+      const stamp = at.toISOString()
+      const result = await db.execute(sql`
+        INSERT INTO notification_email_suppressions (address_hash, reason, created_at, updated_at)
+        SELECT ${digestOf(address)}, ${reason}, ${stamp}::timestamptz, ${stamp}::timestamptz
+        WHERE NOT EXISTS (
+          SELECT 1 FROM notification_email_suppression_removals
+          WHERE address_hash IN (${sql.join(
+            everyDigestOf(address).map((digest) => sql`${digest}`),
+            sql`, `,
+          )})
+          AND removed_at > ${stamp}::timestamptz
+        )
+        ON CONFLICT (address_hash) DO UPDATE
+          SET reason = excluded.reason, updated_at = excluded.updated_at
+          WHERE notification_email_suppressions.updated_at <= excluded.updated_at
+        RETURNING address_hash
+      `)
+      return result.rows.length > 0
     },
 
     /**
      * Idempotent: forgetting an address that is not refused is a no-op. Every
      * key it may be stored under, or a retired copy would refuse it again.
+     * With `at`, only a refusal no newer than the lifting goes, and the
+     * lifting is remembered so a late bounce from before it is not applied.
      */
-    forgetAddress: async (address: string): Promise<void> => {
+    forgetAddress: async (address: string, at?: Date): Promise<void> => {
+      const digests = everyDigestOf(address)
+      if (at === undefined) {
+        await db
+          .delete(notificationEmailSuppressions)
+          .where(inArray(notificationEmailSuppressions.addressHash, digests))
+        await db
+          .delete(notificationEmailSuppressionRemovals)
+          .where(inArray(notificationEmailSuppressionRemovals.addressHash, digests))
+        return
+      }
       await db
         .delete(notificationEmailSuppressions)
-        .where(inArray(notificationEmailSuppressions.addressHash, everyDigestOf(address)))
+        .where(
+          and(
+            inArray(notificationEmailSuppressions.addressHash, digests),
+            lte(notificationEmailSuppressions.updatedAt, at),
+          ),
+        )
+      await db
+        .insert(notificationEmailSuppressionRemovals)
+        .values({ addressHash: digestOf(address), removedAt: at })
+        .onConflictDoUpdate({
+          target: notificationEmailSuppressionRemovals.addressHash,
+          set: {
+            removedAt: sql`greatest(${notificationEmailSuppressionRemovals.removedAt}, excluded.removed_at)`,
+          },
+        })
+    },
+
+    hasAppliedProviderEvent: async (eventId: string): Promise<boolean> => {
+      const [found] = await db
+        .select({ eventId: resendWebhookDeliveries.eventId })
+        .from(resendWebhookDeliveries)
+        .where(inArray(resendWebhookDeliveries.eventId, [eventId]))
+      return found !== undefined
+    },
+
+    markProviderEventApplied: async (eventId: string): Promise<void> => {
+      await db.insert(resendWebhookDeliveries).values({ eventId }).onConflictDoNothing()
     },
   }
 }

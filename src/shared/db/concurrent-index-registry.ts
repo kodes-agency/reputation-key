@@ -188,6 +188,15 @@ export const CONCURRENT_INDEX_REGISTRY: readonly ConcurrentIndexSpec[] = Object.
       ON "notification_email_queue" ("created_at")`,
   },
   {
+    name: 'resend_webhook_deliveries_retention_idx',
+    table: 'resend_webhook_deliveries',
+    columns: ['applied_at'],
+    unique: false,
+    hasPredicate: false,
+    createSql: `CREATE INDEX CONCURRENTLY "resend_webhook_deliveries_retention_idx"
+      ON "resend_webhook_deliveries" ("applied_at")`,
+  },
+  {
     name: 'recent_activity_entries_created_at_idx',
     table: 'recent_activity_entries',
     columns: ['created_at'],

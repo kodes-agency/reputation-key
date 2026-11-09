@@ -28,7 +28,7 @@ function fakeDeps(
     recordProviderState: vi.fn(async () => overrides.moved ?? [movedRow()]),
     findProviderMessageRecipients: vi.fn(async () => overrides.owned ?? []),
     suppressRecipient: vi.fn(async () => overrides.suppressed ?? 3),
-    suppressAddress: vi.fn(async () => {}),
+    suppressAddress: vi.fn(async () => true),
     forgetAddress: vi.fn(async () => {}),
   }
   return {
@@ -312,7 +312,10 @@ describe('resend delivery event handler (ADR 0046 r.6)', () => {
 
       const result = await listEvent(deps, 'suppression.removed', 'bounce')
 
-      expect(deps.emailRepo.forgetAddress).toHaveBeenCalledWith('manager@example.com')
+      expect(deps.emailRepo.forgetAddress).toHaveBeenCalledWith(
+        'manager@example.com',
+        OCCURRED_AT,
+      )
       expect(deps.emailRepo.suppressAddress).not.toHaveBeenCalled()
       expect(result).toEqual({ applied: true, rows: 0, suppressed: 0 })
     })

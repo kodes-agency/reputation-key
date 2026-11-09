@@ -135,10 +135,22 @@ it('refuses to drop a library table holding more than one row, then drops both t
       )
     }
 
-    await migrateJournal(client, 'drizzle')
+    // Apply only the contraction, so later additive migrations cannot change the table set.
+    writeFileSync(
+      join(historyFolder, 'meta/_journal.json'),
+      JSON.stringify({
+        ...history,
+        entries: history.entries.slice(0, contractionIndex + 1),
+      }),
+    )
+    await migrateJournal(client, historyFolder)
     expect(await tables()).toEqual(
       beforeTables.filter((table) => !TABLES.some((removed) => removed === table)),
     )
+    expect(await upgradeCustomerRows(pool)).toEqual(customerBeforeUpgrade)
+    expect(await journal()).toHaveLength(contractionIndex + 1)
+
+    await migrateJournal(client, 'drizzle')
     expect(await upgradeCustomerRows(pool)).toEqual(customerBeforeUpgrade)
     const applied = await journal()
     expect(applied).toHaveLength(history.entries.length)
