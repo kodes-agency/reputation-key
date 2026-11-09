@@ -7,8 +7,8 @@ import { userId } from '#/shared/domain/ids'
 import {
   handleRatingGoalTransitioned,
   ON_RATING_GOAL_TRANSITIONED_CONSUMER,
-  registerRatingGoalNoticeConsumer,
-} from './rating-goal-notice-consumers'
+} from '../notify/goals.server'
+import { registerRatingGoalNoticeConsumer } from './goal-notice-routes'
 
 const IDS = {
   event: '92000000-0000-4000-8000-000000000001',
