@@ -40,7 +40,6 @@ export function useDraftSessionSnapshot(session: ReplyDraftSession | undefined) 
   const store = session ?? idleSession
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 }
-export { BACKGROUND_DRAFT_DWELL_MILLIS } from './reply-draft-session'
 
 export function backgroundDraftTarget(detail: DraftingDetail | null) {
   if (!detail?.replyDraftingAvailable || detail.reply || !detail.reviewText?.trim())
