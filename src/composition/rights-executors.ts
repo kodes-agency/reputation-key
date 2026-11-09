@@ -40,6 +40,8 @@ import {
   createReportingRightsExecutor,
   createReportingRightsReplayers,
 } from '#/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
+import { createStaffParticipantErasureReplayer } from '#/contexts/identity/infrastructure/adapters/staff-participant-erasure-replayer.adapter'
+import { createStaffParticipantRightsExecutor } from '#/contexts/identity/infrastructure/adapters/staff-participant-rights.adapter'
 import {
   createGoogleRightsExecutor,
   createGoogleRightsReplayers,
@@ -55,10 +57,12 @@ import {
   createReviewRightsReplayers,
 } from '#/shared/ops/rights/review-inbox-rights-executors'
 import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
+import type { RightsJournal } from '#/shared/ops/rights/rights-journal'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
 
 export type RightsExecutorsDeps = Readonly<{
   db: Database
+  journal: RightsJournal
   runNotification: NotificationRightsExecutorDeps['run']
   portalObjectStore: Pick<StoragePort, 'deleteObject'>
   /** The named operator for guest-response erasure; absent means that apply is denied. */
@@ -104,6 +108,7 @@ export function composeRightsExecutors(
     createStaffOrganizationRightsExecutor(deps.db),
     createPropertyRightsExecutor(deps.db, now),
     notification,
+    createStaffParticipantRightsExecutor({ db: deps.db, journal: deps.journal, now }),
   ]
 }
 
@@ -130,6 +135,7 @@ export function composeRightsReplayers(
     identityPropertyErasureReplayer,
     staffOrganizationErasureReplayer,
     propertyErasureReplayer,
+    createStaffParticipantErasureReplayer(),
     ...deps.notificationReplayers,
   ]
 }

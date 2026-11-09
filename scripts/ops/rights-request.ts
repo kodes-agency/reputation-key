@@ -31,6 +31,7 @@ async function main(): Promise<void> {
     async (ctx, args, io) => {
       const env = getEnv()
       const queue = ctx.container.jobQueue
+      const journal = createRightsJournal(undefined)
       return handleRightsRequest(
         {
           production: env.NODE_ENV === 'production',
@@ -39,11 +40,12 @@ async function main(): Promise<void> {
             await mkdir(dirname(path), { recursive: true })
             await writeFile(path, bytes, { mode: 0o600 })
           },
-          journal: createRightsJournal(undefined),
+          journal,
           executors: (finalWarning) =>
             composeRightsExecutors(
               {
                 db: getDb(),
+                journal,
                 portalObjectStore: createS3StorageAdapter({
                   accessKey: env.AWS_S3_ACCESS_KEY,
                   secretKey: env.AWS_S3_SECRET_ACCESS_KEY,
