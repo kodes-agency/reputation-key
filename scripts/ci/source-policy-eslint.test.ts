@@ -1,4 +1,5 @@
 import { Linter, type Linter as LinterTypes } from 'eslint'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import tseslint from 'typescript-eslint'
@@ -229,10 +230,23 @@ describe('common ESLint file-length limit', () => {
     ).toEqual([])
   })
 
-  it('retains the existing no-growth exception for an oversized module', () => {
+  const baseline: Record<string, number> = JSON.parse(
+    readFileSync('scripts/ci/file-length.baseline.json', 'utf8'),
+  )
+  it.each(Object.entries(baseline))(
+    'retains the no-growth ceiling for oversized module %s',
+    (filename, ceiling) => {
+      expect(ceiling).toBeGreaterThan(800)
+      expect(lengthMessages(filename, codeLines(ceiling))).toEqual([])
+      expect(lengthMessages(filename, codeLines(ceiling + 1))).toEqual(['max-lines'])
+    },
+  )
+
+  it('uses the common limit after a formerly oversized module shrinks', () => {
     const filename = 'src/shared/events/schema-registrations.ts'
-    expect(lengthMessages(filename, codeLines(1524))).toEqual([])
-    expect(lengthMessages(filename, codeLines(1525))).toEqual(['max-lines'])
+    expect(lengthMessages(filename, codeLines(800))).toEqual([])
+    expect(lengthMessages(filename, codeLines(801))).toEqual(['max-lines'])
+    expect(lengthMessages(filename, codeLines(1524))).toEqual(['max-lines'])
   })
 
   it.each([
