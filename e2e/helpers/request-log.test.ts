@@ -27,7 +27,6 @@ describe('request log font rules', () => {
   it('allows the app font CDNs by default', () => {
     const log = logFor([
       'http://localhost:3001/p/token',
-      'https://api.fontshare.com/v2/css?f[]=satoshi',
       'https://fonts.gstatic.com/s/plusjakarta.woff2',
     ])
     expect(() => log.assertNoExternalHosts(['localhost:3001'])).not.toThrow()
@@ -43,12 +42,7 @@ describe('request log font rules', () => {
   })
 
   it('fails assertNoFontCdnRequests when any font CDN was contacted', () => {
-    for (const host of [
-      'api.fontshare.com',
-      'cdn.fontshare.com',
-      'fonts.googleapis.com',
-      'fonts.gstatic.com',
-    ]) {
+    for (const host of ['fonts.googleapis.com', 'fonts.gstatic.com']) {
       const log = logFor(['http://localhost:3001/p/token', `https://${host}/x`])
       expect(() => log.assertNoFontCdnRequests(), host).toThrow(
         /expected zero font CDN requests/,
@@ -56,12 +50,19 @@ describe('request log font rules', () => {
     }
   })
 
+  it('fails assertNoExternalHosts for a Fontshare request', () => {
+    for (const host of ['api.fontshare.com', 'cdn.fontshare.com']) {
+      const log = logFor(['http://localhost:3001/', `https://${host}/x`])
+      expect(() => log.assertNoExternalHosts(['localhost:3001']), host).toThrow(host)
+    }
+  })
+
   it('reports which font hosts a page contacted', () => {
     const log = logFor([
-      'https://api.fontshare.com/v2/css',
-      'https://api.fontshare.com/v2/css?again',
+      'https://fonts.googleapis.com/css',
+      'https://fonts.googleapis.com/css?again',
       'http://localhost:3001/p/token',
     ])
-    expect(log.fontCdnHostsRequested()).toEqual(['api.fontshare.com'])
+    expect(log.fontCdnHostsRequested()).toEqual(['fonts.googleapis.com'])
   })
 })

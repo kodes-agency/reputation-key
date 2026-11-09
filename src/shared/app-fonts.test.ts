@@ -1,7 +1,7 @@
 // The self-hosted app fonts (Plus Jakarta Sans, JetBrains Mono) are vendored
 // files behind one stylesheet. This keeps the stylesheet and the folder in step:
 // every file it names exists, every family carries its licence, and nothing in
-// it reaches a third-party host. Satoshi is never vendored (see font-sets.ts).
+// it reaches a third-party host.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -41,7 +41,7 @@ describe('the vendored app fonts', () => {
     )
   })
 
-  it('ships no Satoshi file, whose licence forbids redistributing it', () => {
+  it('ships no Satoshi, which the app no longer uses', () => {
     expect(readdirSync(FONT_DIRECTORY).some((name) => /satoshi/i.test(name))).toBe(false)
     expect(blocksOf('Satoshi')).toHaveLength(0)
   })
@@ -56,7 +56,7 @@ describe('the vendored app fonts', () => {
   it('covers each weight in every subset the family ships, each behind a unicode range', () => {
     const wanted: Record<string, { weights: number[]; subsets: string[] }> = {
       'Plus Jakarta Sans': {
-        weights: [500, 600, 700],
+        weights: [400, 500, 600, 700],
         subsets: ['latin', 'latin-ext', 'cyrillic-ext', 'vietnamese'],
       },
       'JetBrains Mono': {
@@ -94,11 +94,7 @@ describe('the vendored app fonts', () => {
   })
 
   it('adjusts a local fallback face to each web font, so text does not jump when it loads', () => {
-    const families = [
-      'Satoshi Fallback',
-      'Plus Jakarta Sans Fallback',
-      'JetBrains Mono Fallback',
-    ]
+    const families = ['Plus Jakarta Sans Fallback', 'JetBrains Mono Fallback']
     for (const family of families) {
       const blocks = blocksOf(family)
       expect(blocks.length, family).toBeGreaterThan(0)

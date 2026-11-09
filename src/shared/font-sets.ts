@@ -1,14 +1,10 @@
 // Which web fonts a page loads.
 //
 // The app (staff and marketing pages, login, /privacy, invites) is set in
-// Satoshi, Plus Jakarta Sans and JetBrains Mono. Plus Jakarta Sans and
-// JetBrains Mono are SIL OFL, so they are served from our own origin
-// (`public/fonts/app/`) in unicode-range subsets. Satoshi is not: its Free Font
-// License allows web use but forbids distributing or uploading the files, and
-// this repository is public, so it stays on Fontshare (`api.fontshare.com` for
-// the stylesheet, `cdn.fontshare.com` for the file) and the head preconnects to
-// both. Every web font has a size-adjusted local fallback face in
-// `app-fonts.css`, so the swap does not move text. The Immersive Hub guest page
+// Plus Jakarta Sans and JetBrains Mono. Both are SIL OFL, so they are served
+// from our own origin (`public/fonts/app/`) in unicode-range subsets, and the
+// app loads nothing from a font CDN. Every web font has a size-adjusted local
+// fallback face in `app-fonts.css`, so the swap does not move text. The Immersive Hub guest page
 // is set in Cormorant Garamond and Ysabeau Office, also from our own origin
 // (`public/fonts/guest/`), so a guest's phone makes no request to a font CDN. A
 // route declares the set it wants through its loader data (`fontSet`); the root
@@ -28,22 +24,12 @@ import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-l
 export type FontSet = 'app' | 'guest'
 
 /**
- * The app stylesheets. Satoshi is the one app face we may not host, and Fontshare
- * serves it at 400, 500 and 700. `app-fonts.css` holds the self-hosted Plus
- * Jakarta Sans and JetBrains Mono `@font-face` rules and the size-adjusted
- * fallback faces of all three families. It sits outside the Vite pipeline, like
- * the guest stylesheet, so the bundle budget does not count it.
+ * The app stylesheets. `app-fonts.css` holds the self-hosted Plus Jakarta Sans
+ * and JetBrains Mono `@font-face` rules and the size-adjusted fallback faces of
+ * both families. It sits outside the Vite pipeline, like the guest stylesheet,
+ * so the bundle budget does not count it.
  */
-export const APP_FONT_STYLESHEETS = Object.freeze([
-  'https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap',
-  '/fonts/app/app-fonts.css',
-] as const)
-
-/** Origins the app set opens early: the Satoshi stylesheet, then its font files. */
-const APP_FONT_PRECONNECTS = Object.freeze([
-  { href: 'https://api.fontshare.com' },
-  { href: 'https://cdn.fontshare.com', crossOrigin: 'anonymous' },
-] as const)
+export const APP_FONT_STYLESHEETS = Object.freeze(['/fonts/app/app-fonts.css'] as const)
 
 /** The guest `@font-face` rules, size-adjusted fallbacks and font tokens. */
 export const GUEST_FONT_STYLESHEET = '/fonts/guest/guest-fonts.css'
@@ -64,11 +50,11 @@ const GUEST_PRELOAD_FILES: Readonly<Record<'Latn' | 'Cyrl', readonly string[]>> 
   })
 
 export type FontLink = Readonly<{
-  rel: 'stylesheet' | 'preload' | 'preconnect'
+  rel: 'stylesheet' | 'preload'
   href: string
   as?: 'font'
   type?: 'font/woff2'
-  /** Font preloads, and the preconnect to the origin that serves fonts, are CORS requests. */
+  /** Font preloads are CORS requests. */
   crossOrigin?: 'anonymous'
 }>
 
@@ -90,7 +76,7 @@ const GUEST_PORTAL_ROUTE_ID = '/p/$token'
  * otherwise the app set. Only `/p/$token` declares one today. A `/p/$token`
  * match with no loader data at all is the unavailable page (bad token,
  * unpublished or suspended Portal, an error): it is set in the guest face, so
- * it takes the guest set rather than the app fonts of a third-party CDN.
+ * it takes the guest set rather than the app fonts.
  */
 export function fontSetOfMatches(
   matches: readonly Readonly<{ routeId?: string; loaderData?: unknown }>[],
@@ -119,13 +105,7 @@ export function fontSetForGuestSurface(surface: 'legacy' | 'immersive'): FontSet
 /** The `<link>` tags a set needs in the document head. */
 export function fontSetLinks(set: FontSet, locale: GuestLocale): readonly FontLink[] {
   if (set === 'app') {
-    return [
-      ...APP_FONT_PRECONNECTS.map((origin): FontLink => ({
-        rel: 'preconnect',
-        ...origin,
-      })),
-      ...APP_FONT_STYLESHEETS.map((href): FontLink => ({ rel: 'stylesheet', href })),
-    ]
+    return APP_FONT_STYLESHEETS.map((href): FontLink => ({ rel: 'stylesheet', href }))
   }
   const script = GUEST_LOCALE_METADATA[locale].script
   return [

@@ -141,9 +141,9 @@ export async function runAxe(page: Page): Promise<readonly AxeViolation[]> {
     const results = await axe.run(document, {
       runOnly: { type: 'tag', values: tags },
       resultTypes: ['violations'],
-      // axe's asset preloader fetches external stylesheets via XHR — the app's
-      // font CSS (api.fontshare.com) denies that cross-origin fetch, and the
-      // resulting CORS console error trips the e2e error gate. Rule evaluation
+      // axe's asset preloader fetches external stylesheets via XHR — a cross-origin
+      // stylesheet that denies that fetch raises a CORS console error that trips
+      // the e2e error gate. Rule evaluation
       // (incl. color-contrast) works from computed styles without preloaded
       // assets, so the preloader is pure noise here.
       preload: false,
