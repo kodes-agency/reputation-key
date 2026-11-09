@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createUrgentEmailJobHandler, type UrgentEmailJobData } from './urgent-email.job'
+import { createSendEmailsHandler, type SendEmailJobData } from './send-emails.server'
 import {
   buildNotification,
   buildNotificationEmail,
   createResendSenderAnswering,
   RESEND_NETWORK_FAILURE,
-} from './test-fixtures'
+} from '../infrastructure/jobs/test-fixtures'
 import {
   BASE_URL,
   entry,
@@ -14,7 +14,7 @@ import {
   NOW,
   ORG,
   PROPERTY,
-} from './urgent-email-job-test-deps'
+} from '../infrastructure/jobs/send-emails-test-deps'
 
 describe('immediate notification email job', () => {
   let deps: ReturnType<typeof fakeDeps>
@@ -24,8 +24,8 @@ describe('immediate notification email job', () => {
   })
 
   const run = () =>
-    createUrgentEmailJobHandler(
-      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    createSendEmailsHandler(
+      deps as unknown as Parameters<typeof createSendEmailsHandler>[0],
     )(job)
 
   const sentPayload = () => deps.emailSender.send.mock.calls[0]![0]
@@ -145,20 +145,21 @@ describe('immediate notification email job', () => {
     expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 
-  it('records that an attempt started before it calls the provider', async () => {
+  it('freezes the request and records the attempt before it calls the provider', async () => {
     // The first attempt starts the provider's 24-hour idempotency window; a
     // worker that dies mid-call must not leave that start unrecorded.
     await run()
 
-    expect(deps.emailRepo.markAttemptStarted).toHaveBeenCalledWith(
+    expect(deps.emailRepo.freezeProviderRequest).toHaveBeenCalledWith(
       entry.id,
       ORG,
       PROPERTY,
+      expect.objectContaining({ to: 'manager@example.com', replyTo: null }),
       NOW,
     )
-    expect(deps.emailRepo.markAttemptStarted.mock.invocationCallOrder[0]!).toBeLessThan(
-      deps.emailSender.send.mock.invocationCallOrder[0]!,
-    )
+    expect(
+      deps.emailRepo.freezeProviderRequest.mock.invocationCallOrder[0]!,
+    ).toBeLessThan(deps.emailSender.send.mock.invocationCallOrder[0]!)
   })
 
   it('suppresses, and never retries, a row first attempted 23 hours ago', async () => {
@@ -222,8 +223,8 @@ describe('immediate notification email job', () => {
     }
 
     await expect(
-      createUrgentEmailJobHandler(
-        wired as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+      createSendEmailsHandler(
+        wired as unknown as Parameters<typeof createSendEmailsHandler>[0],
       )(job),
     ).rejects.toThrow('Transient email provider rejection')
     expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
@@ -361,11 +362,11 @@ describe('immediate notification email job', () => {
         capability: 'notification.send_email',
         policyVersionAtEnqueue: 'test',
         initiator: { kind: 'system', id: 'test' },
-      } as unknown as UrgentEmailJobData,
+      } as unknown as SendEmailJobData,
     }
 
-    await createUrgentEmailJobHandler(
-      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    await createSendEmailsHandler(
+      deps as unknown as Parameters<typeof createSendEmailsHandler>[0],
     )(organizationJob)
 
     expect(deps.resolvePropertyScope).not.toHaveBeenCalled()
@@ -410,8 +411,8 @@ describe('immediate notification email job', () => {
       }),
     )
 
-    await createUrgentEmailJobHandler(
-      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    await createSendEmailsHandler(
+      deps as unknown as Parameters<typeof createSendEmailsHandler>[0],
     )({
       data: {
         notificationEmailId: mandatoryEntry.id as string,
@@ -419,7 +420,7 @@ describe('immediate notification email job', () => {
         capability: 'notification.send_email',
         policyVersionAtEnqueue: 'test',
         initiator: { kind: 'system', id: 'test' },
-      } as unknown as UrgentEmailJobData,
+      } as unknown as SendEmailJobData,
     })
 
     // The copy tells the reader to answer this email; the header has to make
@@ -447,15 +448,15 @@ describe('immediate notification email job', () => {
         resourceId: ORG,
       }),
     )
-    const handler = createUrgentEmailJobHandler(
-      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    const handler = createSendEmailsHandler(
+      deps as unknown as Parameters<typeof createSendEmailsHandler>[0],
     )
     const organizationJob = {
       data: {
         ...job.data,
         propertyId: undefined,
         notificationEmailId: mandatoryEntry.id as string,
-      } as unknown as UrgentEmailJobData,
+      } as unknown as SendEmailJobData,
     }
 
     deps.organizationEmailStop.mockResolvedValue('optional')

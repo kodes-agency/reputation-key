@@ -35,6 +35,14 @@ const STARTED_AT = new Date('2026-09-23T23:00:00.000Z')
 const SETTLED_AT = new Date('2026-09-23T23:00:01.000Z')
 const ACCEPTED_AT = new Date('2026-09-23T23:00:02.000Z')
 const MESSAGE = 'resend-message-accepted-mid-flight'
+const EMAIL_REQUEST = {
+  to: 'manager@example.com',
+  subject: 'Subject',
+  html: '<p>Body</p>',
+  text: 'Body',
+  headers: {},
+  replyTo: null,
+}
 
 describe.sequential('an acceptance that lands on a retired row (real PostgreSQL)', () => {
   let lease: TestLease
@@ -110,7 +118,7 @@ describe.sequential('an acceptance that lands on a retired row (real PostgreSQL)
 
   it('keeps the message id of a send cancelled while the provider call ran', async () => {
     const emails = createNotificationEmailRepository(db)
-    await emails.markAttemptStarted(EMAIL, ORG, PROPERTY, STARTED_AT)
+    await emails.freezeProviderRequest(EMAIL, ORG, PROPERTY, EMAIL_REQUEST, STARTED_AT)
     await settle(emails)
 
     await emails.markAccepted(EMAIL, ORG, PROPERTY, MESSAGE, ACCEPTED_AT)

@@ -40,6 +40,8 @@ const FROZEN_REQUEST = {
   headers: {},
 }
 
+const EMAIL_REQUEST = { ...FROZEN_REQUEST, replyTo: null }
+
 const digestBatchInput = (
   id = BATCH,
 ): Parameters<
@@ -443,14 +445,61 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     expect(held.map((row) => row.status)).toEqual(['pending', 'pending', 'pending'])
   })
 
+  it('keeps the first frozen request, returns it to later callers, and clears it when the row closes', async () => {
+    const repo = createNotificationEmailRepository(db)
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000)
+    const later = { ...EMAIL_REQUEST, subject: 'A later render' }
+
+    const first = await repo.freezeProviderRequest(
+      EMAIL_LATE,
+      ORG,
+      PROPERTY,
+      EMAIL_REQUEST,
+      at(0),
+    )
+    const second = await repo.freezeProviderRequest(
+      EMAIL_LATE,
+      ORG,
+      PROPERTY,
+      later,
+      at(1),
+    )
+
+    expect(first).toEqual(EMAIL_REQUEST)
+    expect(second).toEqual(EMAIL_REQUEST)
+    await expect(repo.findById(EMAIL_LATE, ORG, PROPERTY)).resolves.toMatchObject({
+      providerRequest: EMAIL_REQUEST,
+      attemptedAt: at(0),
+    })
+
+    await repo.markFailed(EMAIL_LATE, ORG, PROPERTY, 'transient', at(3), at(2))
+    await expect(repo.findById(EMAIL_LATE, ORG, PROPERTY)).resolves.toMatchObject({
+      providerRequest: EMAIL_REQUEST,
+    })
+    await repo.markSuppressed(EMAIL_LATE, ORG, PROPERTY, 'preference_disabled', at(4))
+    await expect(repo.findById(EMAIL_LATE, ORG, PROPERTY)).resolves.toMatchObject({
+      status: 'suppressed',
+      providerRequest: null,
+    })
+  })
+
+  it('freezes nothing for a row that can no longer be sent', async () => {
+    const repo = createNotificationEmailRepository(db)
+    await repo.markSuppressed(EMAIL_LATE, ORG, PROPERTY, 'preference_disabled', NOW)
+
+    await expect(
+      repo.freezeProviderRequest(EMAIL_LATE, ORG, PROPERTY, EMAIL_REQUEST, NOW),
+    ).resolves.toBeNull()
+  })
+
   it('keeps the time of the first provider attempt through every later one', async () => {
     // The provider's 24-hour idempotency window opens at the first attempt.
     const repo = createNotificationEmailRepository(db)
     const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000)
 
-    await repo.markAttemptStarted(EMAIL_LATE, ORG, PROPERTY, at(0))
+    await repo.freezeProviderRequest(EMAIL_LATE, ORG, PROPERTY, EMAIL_REQUEST, at(0))
     await repo.markFailed(EMAIL_LATE, ORG, PROPERTY, 'transient', at(2), at(1))
-    await repo.markAttemptStarted(EMAIL_LATE, ORG, PROPERTY, at(2))
+    await repo.freezeProviderRequest(EMAIL_LATE, ORG, PROPERTY, EMAIL_REQUEST, at(2))
     await repo.markAccepted(EMAIL_LATE, ORG, PROPERTY, 'resend-first-attempt', at(3))
 
     await expect(repo.findById(EMAIL_LATE, ORG, PROPERTY)).resolves.toMatchObject({

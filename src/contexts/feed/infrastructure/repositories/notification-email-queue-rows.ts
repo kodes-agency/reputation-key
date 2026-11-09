@@ -11,6 +11,7 @@ import {
   propertyId as toPropertyId,
   userId as toUserId,
 } from '#/shared/domain/ids'
+import { readFrozenEmailRequest } from '../email-frozen-request'
 import type {
   DeliveryErrorClass,
   EmailQueueStatus,
@@ -47,6 +48,7 @@ export const emailFromRow = (row: EmailRow): NotificationEmail => ({
   failedAt: row.failedAt,
   retryCount: row.retryCount,
   recipientAudience: row.recipientAudience ?? null,
+  providerRequest: readFrozenEmailRequest(row.providerRequest),
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })

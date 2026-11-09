@@ -52,6 +52,7 @@ export const createNotificationEmail = (
   return ok({
     ...input,
     recipientAudience: input.recipientAudience ?? null,
+    providerRequest: null,
     status: 'pending',
     providerMessageId: null,
     providerState: null,

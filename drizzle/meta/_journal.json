@@ -855,6 +855,13 @@
       "when": 1800000002000,
       "tag": "0121_drop_old_reply_library_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1800000003000,
+      "tag": "0122_notification_email_frozen_request",
+      "breakpoints": true
     }
   ]
 }

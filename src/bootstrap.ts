@@ -710,7 +710,7 @@ async function registerNotificationJobs(
   // the beta allowlist does not gate, so an account/security notice leaves
   // even for an Organization ordinary product mail is still dark for.
   const { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } =
-    await import('#/contexts/feed/infrastructure/jobs/urgent-email.job')
+    await import('#/contexts/feed/infrastructure/jobs/notification-delivery-processors')
   registerCapabilityGatedJob(
     URGENT_EMAIL_JOB_NAME,
     'notification.send_email',

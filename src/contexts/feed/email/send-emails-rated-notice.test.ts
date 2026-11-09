@@ -6,13 +6,20 @@
 // its email and suppress the mail for good.
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createUrgentEmailJobHandler } from './urgent-email.job'
-import { buildNotification, buildNotificationEmail } from './test-fixtures'
-import { entry, fakeDeps, job, NOW, ORG, PROPERTY } from './urgent-email-job-test-deps'
-import type {
-  NotificationCategory,
-  NotificationType,
-} from '../../domain/notification-types'
+import { createSendEmailsHandler } from './send-emails.server'
+import {
+  buildNotification,
+  buildNotificationEmail,
+} from '../infrastructure/jobs/test-fixtures'
+import {
+  entry,
+  fakeDeps,
+  job,
+  NOW,
+  ORG,
+  PROPERTY,
+} from '../infrastructure/jobs/send-emails-test-deps'
+import type { NotificationCategory, NotificationType } from '../domain/notification-types'
 
 describe('the immediate email of a rated notice', () => {
   let deps: ReturnType<typeof fakeDeps>
@@ -22,8 +29,8 @@ describe('the immediate email of a rated notice', () => {
   })
 
   const run = () =>
-    createUrgentEmailJobHandler(
-      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    createSendEmailsHandler(
+      deps as unknown as Parameters<typeof createSendEmailsHandler>[0],
     )(job)
 
   const filed = (

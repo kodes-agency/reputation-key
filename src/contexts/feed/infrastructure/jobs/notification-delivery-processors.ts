@@ -17,17 +17,21 @@ import { createNotificationOrganizationEmailStopReader } from '../repositories/n
 import {
   createImmediateEmailEnqueue,
   createQuietHoursRelease,
-} from './immediate-email-enqueue'
-import type { ImmediateEmailJobQueue } from './immediate-email-enqueue'
+} from '../../email/send-emails.server'
+import type { ImmediateEmailJobQueue } from '../../email/send-emails.server'
 import {
   createInsertNotificationHandler,
   type InsertNotificationJobData,
 } from './insert-notification.job'
 import {
-  createUrgentEmailJobHandler,
-  type UrgentEmailDeps,
-  type UrgentEmailJobData,
-} from './urgent-email.job'
+  createSendEmailsHandler,
+  type SendEmailsDeps,
+  type SendEmailJobData,
+} from '../../email/send-emails.server'
+export {
+  MANDATORY_EMAIL_JOB_NAME,
+  URGENT_EMAIL_JOB_NAME,
+} from '../../email/send-emails.server'
 import {
   createDigestNotificationJobHandler,
   type DigestDeps,
@@ -39,9 +43,9 @@ export type NotificationDeliveryParts = Readonly<{
   notificationRepo: NotificationRepositoryPort
   emailRepo: NotificationEmailRepositoryPort
   preferenceRepo: NotificationPreferenceRepositoryPort
-  userLookup: UrgentEmailDeps['userLookup']
-  recipientStanding: UrgentEmailDeps['isRecipientEligible']
-  workState: UrgentEmailDeps['workState']
+  userLookup: SendEmailsDeps['userLookup']
+  recipientStanding: SendEmailsDeps['isRecipientEligible']
+  workState: SendEmailsDeps['workState']
   authorizeAudience: Parameters<
     typeof createInsertNotificationHandler
   >[0]['authorizeAudience']
@@ -59,14 +63,14 @@ export type NotificationDeliveryParts = Readonly<{
 export type NotificationDeliveryWorkerInput = Readonly<{
   pool: Pool
   jobQueue: ImmediateEmailJobQueue | undefined
-  emailSender: UrgentEmailDeps['emailSender']
+  emailSender: SendEmailsDeps['emailSender']
   baseUrl: string
   oneClickUnsubscribeUrl: (
     target: OneClickUnsubscribeTarget,
     keyVersion?: string,
   ) => string
   activeOneClickUnsubscribeKeyVersion: DigestDeps['activeOneClickUnsubscribeKeyVersion']
-  authorizeUrgentScope: UrgentEmailDeps['authorizeScope']
+  authorizeUrgentScope: SendEmailsDeps['authorizeScope']
   authorizeDigestScope: DigestDeps['authorizeScope']
   authorizeMandatoryScope: DigestDeps['authorizeMandatoryScope']
 }>
@@ -113,7 +117,7 @@ export const createNotificationDeliveryProcessors = (
       : undefined,
   })
 
-  const urgentEmailHandler = createUrgentEmailJobHandler({
+  const urgentEmailHandler = createSendEmailsHandler({
     emailRepo: parts.emailRepo,
     notifRepo: parts.notificationRepo,
     userLookup: parts.userLookup,
@@ -165,7 +169,7 @@ export const createNotificationDeliveryProcessors = (
       await insertHandler(job as Job<InsertNotificationJobData>)
     },
     email: async (job: Job) => {
-      await urgentEmailHandler(job as Job<UrgentEmailJobData>)
+      await urgentEmailHandler(job as Job<SendEmailJobData>)
     },
     digest: async (job: Job) => {
       await digestHandler(job as Job<void>)

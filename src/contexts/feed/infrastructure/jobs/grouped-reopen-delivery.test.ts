@@ -7,7 +7,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { NotificationWorkDecision } from '../../application/notification-work-state'
-import { createUrgentEmailJobHandler, type UrgentEmailJobData } from './urgent-email.job'
+import {
+  createSendEmailsHandler,
+  type SendEmailJobData,
+} from '../../email/send-emails.server'
 import {
   loadItems,
   type DigestEntryDeps,
@@ -45,7 +48,7 @@ describe('the immediate email of a grouped reopen', () => {
     emailRepo: {
       findById: vi.fn(async () => entry),
       markSuppressed: vi.fn(async () => {}),
-      markAttemptStarted: vi.fn(async () => {}),
+      freezeProviderRequest: vi.fn(async (_id, _org, _prop, request) => request),
       markAccepted: vi.fn(async () => {}),
       recordEmailUnsubscribeScope: vi.fn(async () => {}),
       isAddressSuppressed: vi.fn(async () => false),
@@ -84,14 +87,14 @@ describe('the immediate email of a grouped reopen', () => {
     oneClickUnsubscribeUrl: () => 'https://app.example.com/unsubscribe',
   })
   const run = (built: ReturnType<typeof deps>) =>
-    createUrgentEmailJobHandler(
-      built as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    createSendEmailsHandler(
+      built as unknown as Parameters<typeof createSendEmailsHandler>[0],
     )({
       data: {
         notificationEmailId: entry.id as string,
         organizationId: ORG as string,
         propertyId: PROPERTY as string,
-      } as unknown as UrgentEmailJobData,
+      } as unknown as SendEmailJobData,
     })
 
   it('says how many items still wait when it is sent', async () => {

@@ -6,9 +6,14 @@
 // client's unsubscribe now opens the preferences page instead of acting.
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createUrgentEmailJobHandler } from './urgent-email.job'
-import { buildNotification } from './test-fixtures'
-import { BASE_URL, fakeDeps, job, PROPERTY } from './urgent-email-job-test-deps'
+import { createSendEmailsHandler } from './send-emails.server'
+import { buildNotification } from '../infrastructure/jobs/test-fixtures'
+import {
+  BASE_URL,
+  fakeDeps,
+  job,
+  PROPERTY,
+} from '../infrastructure/jobs/send-emails-test-deps'
 
 describe('the Google reconnect email', () => {
   let deps: ReturnType<typeof fakeDeps>
@@ -29,8 +34,8 @@ describe('the Google reconnect email', () => {
   })
 
   const run = () =>
-    createUrgentEmailJobHandler(
-      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    createSendEmailsHandler(
+      deps as unknown as Parameters<typeof createSendEmailsHandler>[0],
     )(job)
 
   it('offers the preferences page, never a one-click switch for its anchor', async () => {

@@ -62,7 +62,7 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       findDueByProperty: vi.fn(async () => []),
       findDueOrganizationScopes: vi.fn(async () => []),
       findDueByOrganization: vi.fn(async () => []),
-      markAttemptStarted: vi.fn(async () => {}),
+      freezeProviderRequest: vi.fn(async (_id, _org, _prop, request) => request),
       markAccepted: vi.fn(async () => {}),
       cancelQueuedForNotifications: vi.fn(async () => 0),
       markDelayed: vi.fn(async () => {}),

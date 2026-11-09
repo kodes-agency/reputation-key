@@ -226,6 +226,17 @@ export const notificationEmailQueue = pgTable(
     // send time can recheck their standing (Feed CONTEXT.md invariant 4).
     // Null on rows queued before it was stored.
     recipientAudience: jsonb('recipient_audience'),
+    // The rendered request an immediate email was frozen with before its first
+    // attempt, re-sent verbatim under the same key by every retry. Cleared when
+    // the row closes. Null until the first attempt.
+    providerRequest: jsonb('provider_request').$type<{
+      to: string
+      subject: string
+      html: string
+      text: string
+      headers: Record<string, string>
+      replyTo: string | null
+    }>(),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
