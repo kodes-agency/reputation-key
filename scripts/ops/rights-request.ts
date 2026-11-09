@@ -12,19 +12,13 @@
 //   pnpm ops rights-request property replay --operator <id> --org <id> --property <id> \
 //     journal=<file> restore-point=<iso>
 
-import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
+import { composeRightsExecutors } from '../../src/composition/rights-executors'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { createReportingRightsExecutor } from '../../src/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
 import { runNotificationRightsRequest } from '../../src/contexts/feed/application/public-api'
 import { getEnv } from '../../src/shared/config/env'
 import { getDb } from '../../src/shared/db'
-import { createGoogleRightsExecutor } from '../../src/shared/ops/rights/google-rights-executor'
-import { createNotificationRightsExecutor } from '../../src/shared/ops/rights/notification-rights-executor'
-import {
-  createInboxRightsExecutor,
-  createReviewRightsExecutor,
-} from '../../src/shared/ops/rights/review-inbox-rights-executors'
+import { createRightsJournal } from '../../src/shared/ops/rights/rights-journal'
 import { rightsRequestCommandSpec } from '../../src/shared/ops/rights/rights-request-command'
 import { handleRightsRequest } from '../../src/shared/ops/rights/run-rights-request'
 import { runOperatorCommand } from './operator-command'
@@ -42,32 +36,23 @@ async function main(): Promise<void> {
             await mkdir(dirname(path), { recursive: true })
             await writeFile(path, bytes, { mode: 0o600 })
           },
-          executors: (finalWarning) => {
-            const notification = createNotificationRightsExecutor({
+          journal: createRightsJournal(undefined),
+          executors: (finalWarning) =>
+            composeRightsExecutors(
+              {
+                db: getDb(),
+                runNotification: (run) =>
+                  runNotificationRightsRequest(
+                    ctx.container.db,
+                    async (job) => {
+                      if (!queue) throw new Error('The job queue is not configured')
+                      await queue.add(job.name, job.data, { jobId: job.jobId })
+                    },
+                    run,
+                  ),
+              },
               finalWarning,
-              run: (run) =>
-                runNotificationRightsRequest(
-                  ctx.container.db,
-                  async (job) => {
-                    if (!queue) throw new Error('The job queue is not configured')
-                    await queue.add(job.name, job.data, { jobId: job.jobId })
-                  },
-                  run,
-                ),
-            })
-            return finalWarning
-              ? [notification]
-              : [
-                  createGoogleRightsExecutor({ db: getDb() }),
-                  createReviewRightsExecutor({
-                    db: getDb(),
-                    replyEffects: reputationReplyScopeEffects,
-                  }),
-                  createInboxRightsExecutor({ db: getDb() }),
-                  createReportingRightsExecutor(getDb(), () => new Date()),
-                  notification,
-                ]
-          },
+            ),
         },
         ctx,
         args,

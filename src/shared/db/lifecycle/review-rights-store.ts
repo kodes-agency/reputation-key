@@ -413,6 +413,64 @@ export type ReviewClosureOutcome =
 
 class ReviewNotReady extends Error {}
 
+function notReadyMessage(
+  found: ReadonlyArray<Readonly<{ code: string; count: number }>>,
+): string {
+  return `Review is not ready to close (${found.map((b) => `${b.code}=${b.count}`).join(',')})`
+}
+
+class RefusalProbeRolledBack extends Error {}
+
+/**
+ * The reason a closure would be refused, or null. It runs the fence and the
+ * readiness check exactly as closeReview does, then rolls back, so the
+ * answer matches the real run and nothing is left changed.
+ */
+export async function reviewClosureRefusal(
+  db: Database,
+  effects: ReplyScopeEffects,
+  organizationId: string,
+  now: Date,
+): Promise<string | null> {
+  const probe: { refusal: string | null } = { refusal: null }
+  try {
+    await db.transaction(async (tx) => {
+      if (!(await organizationExists(tx, organizationId))) {
+        probe.refusal = 'organization not found'
+      } else {
+        await fence(tx, effects, organizationId, now)
+        const found = await readBlockers(tx, organizationId, now)
+        probe.refusal = found.length > 0 ? notReadyMessage(found) : null
+      }
+      throw new RefusalProbeRolledBack()
+    })
+  } catch (error) {
+    if (!(error instanceof RefusalProbeRolledBack)) throw error
+  }
+  return probe.refusal
+}
+
+/**
+ * The closure itself, inside the caller's transaction: fence, check readiness,
+ * purge. A blocker throws, so the caller's rollback undoes the fence too.
+ */
+export async function closeReviewInTx(
+  tx: Tx,
+  effects: ReplyScopeEffects,
+  organizationId: string,
+  now: Date,
+): Promise<ReviewClosureOutcome> {
+  if (!(await organizationExists(tx, organizationId))) {
+    return { ok: false, error: 'organization not found' }
+  }
+  await fence(tx, effects, organizationId, now)
+  const found = await readBlockers(tx, organizationId, now)
+  if (found.length > 0) {
+    throw new ReviewNotReady(notReadyMessage(found))
+  }
+  return { ok: true, ...(await purge(tx, effects, organizationId, now)) }
+}
+
 /**
  * Fence, check readiness, purge — one transaction. A blocker rolls the fence
  * back too, so a refused closure leaves the Organization exactly as it was.
@@ -424,19 +482,7 @@ export async function closeReview(
   now: Date,
 ): Promise<ReviewClosureOutcome> {
   try {
-    return await db.transaction(async (tx): Promise<ReviewClosureOutcome> => {
-      if (!(await organizationExists(tx, organizationId))) {
-        return { ok: false, error: 'organization not found' }
-      }
-      await fence(tx, effects, organizationId, now)
-      const found = await readBlockers(tx, organizationId, now)
-      if (found.length > 0) {
-        throw new ReviewNotReady(
-          `Review is not ready to close (${found.map((b) => `${b.code}=${b.count}`).join(',')})`,
-        )
-      }
-      return { ok: true, ...(await purge(tx, effects, organizationId, now)) }
-    })
+    return await db.transaction((tx) => closeReviewInTx(tx, effects, organizationId, now))
   } catch (error) {
     if (error instanceof ReviewNotReady) return { ok: false, error: error.message }
     throw error

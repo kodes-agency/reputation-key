@@ -238,16 +238,43 @@ async function deleteTable(tx: Tx, table: string, organization: string): Promise
   return result.rowCount ?? 0
 }
 
-async function purge(
-  tx: Tx,
-  organization: string,
-  at: Date,
-): Promise<RightsPurgeOutcome> {
+/** Every readiness refusal the purge gives, in the order it gives them. */
+async function assertReadyToPurge(tx: Tx, organization: string, at: Date): Promise<void> {
   await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`))
   await assertHeld(tx, organization)
   await fencePrograms(tx, organization, at)
   await assertNoLiveGoalWork(tx, organization)
   await assertPortalFactsSettled(tx, organization, at)
+}
+
+class PurgeProbeRolledBack extends Error {}
+
+/**
+ * The reason a purge would be refused, or null. It runs the same readiness
+ * checks as the purge and then rolls back, so nothing is left changed.
+ */
+async function purgeRefusal(
+  db: Database,
+  organization: string,
+  at: Date,
+): Promise<string | null> {
+  try {
+    await db.transaction(async (tx) => {
+      await assertReadyToPurge(tx, organization, at)
+      throw new PurgeProbeRolledBack()
+    })
+    return null
+  } catch (error) {
+    return error instanceof PurgeProbeRolledBack ? null : errorMessage(error)
+  }
+}
+
+async function purge(
+  tx: Tx,
+  organization: string,
+  at: Date,
+): Promise<RightsPurgeOutcome> {
+  await assertReadyToPurge(tx, organization, at)
 
   await tx.execute(
     sql`ALTER TABLE ${sql.identifier(MONTHLY_RESULT_GUARD.table)}
@@ -278,6 +305,15 @@ export function createReportingRightsExecutor(
   return Object.freeze({
     name: CONTEXT,
     scopes: ['access', 'organization'] as const,
+    journalContexts: ['goal', 'metric', 'dashboard'] as const,
+    async preflight(plan) {
+      if (plan.scope === 'access') return { ok: true }
+      if (plan.scope !== 'organization') {
+        return { ok: false, error: `no ${CONTEXT} purge for ${plan.scope}` }
+      }
+      const refusal = await purgeRefusal(db, plan.organizationId, now())
+      return refusal ? { ok: false, error: refusal } : { ok: true }
+    },
     async report(plan) {
       const files = await readAccess(db, plan.organizationId)
       const manifest = JSON.parse(
