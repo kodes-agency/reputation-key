@@ -1,3 +1,4 @@
+import { Job as BullmqJob } from 'bullmq'
 import { describe, expect, it } from 'vitest'
 import {
   parseOperatorArgs,
@@ -22,6 +23,14 @@ import {
   type NotificationRightsPort,
 } from './executor.server'
 import type { RightsRow, ScopedRightsRow } from './fields'
+
+/** BullMQ's own add-time rule for a custom job id, run without Redis. */
+function assertBullmqAcceptsJobId(jobId: string): void {
+  const queue = { opts: {}, keys: {}, toKey: () => '', name: 'notifications' }
+  const job = new BullmqJob(queue as never, 'probe', {}, { jobId }, jobId)
+  const validator = job as unknown as { validateOptions(json: unknown): void }
+  validator.validateOptions(job.asJSON())
+}
 
 const ORG_A = 'org-a'
 const ORG_B = 'org-b'
@@ -304,5 +313,30 @@ describe('buildManualFinalWarningJobs', () => {
       buildManualFinalWarningJobs(input).map((j) => j.jobId),
     )
     expect(first).toHaveLength(2)
+  })
+
+  it('gives ids BullMQ accepts for a ref that carries colons', () => {
+    const jobs = buildManualFinalWarningJobs({
+      organizationId: ORG_A,
+      requestRef: 'ticket:123',
+      payload: {},
+      accountAdmins: ['admin-a'],
+      formerMembers: [{ userId: 'former-a', removalEventId: 'removal-a' }],
+    })
+    expect(jobs).toHaveLength(2)
+    for (const job of jobs) assertBullmqAcceptsJobId(job.jobId)
+    expect(new Set(jobs.map((j) => j.jobId)).size).toBe(2)
+  })
+
+  it('gives different requests different ids', () => {
+    const ids = (requestRef: string) =>
+      buildManualFinalWarningJobs({
+        organizationId: ORG_A,
+        requestRef,
+        payload: {},
+        accountAdmins: ['admin-a'],
+        formerMembers: [],
+      }).map((j) => j.jobId)
+    expect(ids('ticket:1')).not.toEqual(ids('ticket:2'))
   })
 })
