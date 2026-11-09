@@ -137,7 +137,10 @@ export const FOLLOWS_THE_WINDOW: ReadonlyArray<StoryWidth> = [320, 390]
 export const EVERY_WIDTH: ReadonlyArray<StoryWidth> = [320, 390, 1440]
 
 /** Where an inbox story is defined, as `/index.json` spells `importPath`. */
-export const INBOX_STORY_IMPORT_PREFIX = './src/components/inbox/'
+export const INBOX_STORY_IMPORT_PREFIXES: ReadonlyArray<string> = [
+  './src/components/inbox/',
+  './src/contexts/reputation/inbox/ui/',
+]
 
 const requiresPrimary = (group: Group, name: string): boolean => {
   const declared = group.withPrimary

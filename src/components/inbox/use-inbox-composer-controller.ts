@@ -7,7 +7,7 @@ import type { ComposerMode } from './reply-composer'
 import type { CaretRequest, ReopenState, ReplyEditState } from './composer-policy'
 import { liveEditTarget } from './composer-policy'
 import type { ReplyEditTarget, resolveReplyView } from './reply-status-view'
-import type { ThreadReplyActions } from './inbox-thread'
+import type { ThreadReplyActions } from '../../contexts/reputation/inbox/ui/inbox-thread'
 import type { ReplyActions } from './use-reply-actions'
 
 export type ComposerFocusBox = { current: ((mode: ComposerMode) => void) | null }

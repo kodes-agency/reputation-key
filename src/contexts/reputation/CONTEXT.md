@@ -12,7 +12,12 @@ transitions and the `use-reply-*` hooks, with their tests. `use-reply-actions.ts
 stays in `src/components/inbox`, where the feature-UI import rules and the
 Storybook stubs expect it; the composer components also stay there.
 
-The Inbox page and row primitives remain in `src/components/inbox`. The panel
+`inbox/ui/` also owns the Inbox detail: the panel and sheet, case toolbar,
+conversation thread, notes, history lines, feedback handling, review cause and
+correction, the Google check, and the `use-inbox-detail*` hooks, with their
+tests and stories.
+
+The Inbox page, queue, filter and row primitives remain in `src/components/inbox`. The panel
 receives commands as props and reads browser-safe Inbox types through
 `src/contexts/inbox/application/public-api.ts`. Review and Inbox still own their
 server implementations, wiring and contracts in their existing contexts; see

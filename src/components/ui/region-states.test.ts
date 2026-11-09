@@ -24,7 +24,8 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
   'src/components/ui/chart.tsx': 'a dashed line style in a chart legend',
   'src/contexts/reporting/portal-results/ui/portal-results-trend.tsx':
     'a chart bar marking a partial week, never an empty-state panel',
-  'src/components/inbox/note-message.tsx': 'the dashed edge that marks a private note',
+  'src/contexts/reputation/inbox/ui/note-message.tsx':
+    'the dashed edge that marks a private note',
   'src/components/inbox/composer-mode-row.tsx': 'the private-note dock cue',
   'src/components/inbox/reply-composer.tsx': 'the private-note dock cue',
   'src/components/features/portal/link-tree/linktree-icon-picker.tsx':

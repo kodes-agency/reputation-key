@@ -20,10 +20,10 @@ import {
   HYDRATING_LAYOUT_STORAGE,
   inboxLayoutStorage,
 } from './inbox-page-parts'
-import { InboxDetailSheet } from './inbox-detail-sheet'
+import { InboxDetailSheet } from '../../contexts/reputation/inbox/ui/inbox-detail-sheet'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import { CLEARED_INBOX_LIST_FILTERS } from './inbox-filters'
-import { InboxFeedbackSetup } from './inbox-feedback-setup'
+import { InboxFeedbackSetup } from '../../contexts/reputation/inbox/ui/inbox-feedback-setup'
 import { InboxQueueBar } from './inbox-queue-bar'
 import { InboxQueueRail } from './inbox-queue-rail'
 import { InboxShortcutsDialog } from './inbox-shortcuts-dialog'

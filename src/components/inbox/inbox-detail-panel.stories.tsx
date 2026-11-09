@@ -8,7 +8,7 @@
 // the prop was dropped somewhere between InboxPageV2 and the case toolbar.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import { InboxDetailPanel } from './inbox-detail-panel'
+import { InboxDetailPanel } from '#/contexts/reputation/inbox/ui/inbox-detail-panel'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'

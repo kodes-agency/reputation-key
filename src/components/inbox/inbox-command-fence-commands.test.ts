@@ -20,9 +20,9 @@ import { makeInboxFns } from '../../../.storybook/in-memory/inbox-fns'
 import type { FeedbackHandlingCommandResult } from '#/contexts/inbox/application/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { installInboxCacheHarness, type ListFilters } from './inbox-cache-test-harness'
-import { createInboxItemStatusObserver } from './inbox-item-status-observer'
+import { createInboxItemStatusObserver } from '../../contexts/reputation/inbox/ui/inbox-item-status-observer'
 import type { InboxServerFns } from './types'
-import { useFeedbackHandlingMutations } from './use-feedback-handling-mutations'
+import { useFeedbackHandlingMutations } from '../../contexts/reputation/inbox/ui/use-feedback-handling-mutations'
 import { useInboxDetail, type InboxDetailState } from './use-inbox-detail'
 
 vi.mock('@tanstack/react-router', () => ({
