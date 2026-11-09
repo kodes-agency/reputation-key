@@ -14,10 +14,25 @@ assignment, and governed access artifacts.
 - `application/public-api.ts` exposes the named cross-context server capabilities
   and facts. `application/portal-management-contracts.ts` contains the browser-safe
   management types and pure rules used by screens.
-- RPC calls stay in `server/`; management screens stay in
+- RPC calls stay in `server/`. The editor and Linktree screens, save coordinator
+  and field writers live in `editor/ui/`; the other management screens remain in
   `src/components/features/portal/`. Neither imports the context build at runtime.
 - `build.ts` composes request management separately from worker jobs. Portal and
   Guest retain separate builds.
+- `infrastructure/adapters/portal-rights.adapter.ts` supplies Property and
+  Organization reports and erasure, plus Organization export, to
+  `scripts/ops/rights-request.ts` through `composition/rights-executors.ts`.
+  Composition requires the image store. Images are deleted outside the database
+  transaction before the rows in `PORTAL_PURGE_PLAN`; journal failure blocks both.
+  Production apply remains refused. Restore-command replay is not yet wired;
+  the integration test exercises the shared fence with a test-local replayer.
+
+The editor's coordinator serializes debounced fields and immediate address,
+icon, photo and look actions. New typing retires a superseded queued field save;
+discrete language changes remain ordered commands. Navigation flushes edits made
+during earlier writes. A rejected field save leaves its server baseline unknown
+until a successful write, including when the person returns to the initial value.
+`editor/contracts.ts` names the editor's browser-safe Reporting read projection.
 
 ## Boundaries
 

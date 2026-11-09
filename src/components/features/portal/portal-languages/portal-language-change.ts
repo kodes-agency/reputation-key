@@ -7,7 +7,7 @@
 // ones it had when the menu was used: two quick changes in a row each build on
 // the one before, rather than the second undoing the first or being dropped.
 
-import type { PortalDraftAutosave } from '../portal-editor/portal-draft-autosave'
+import type { PortalDraftAutosave } from '#/contexts/portal/editor/ui/portal-draft-autosave'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import {
   applyLanguageChange,
@@ -35,15 +35,19 @@ export function createPortalLanguageChanger({
   write,
 }: Deps): (change: PortalLanguageChange) => void {
   return (change) => {
-    autosave.schedule(LANGUAGES_KEY, async () => {
-      const next = applyLanguageChange(readCurrent(), change)
-      if (next === null) return 'unchanged'
-      await write({
-        primaryGuestLocale: next.primary,
-        additionalGuestLocales: [...next.additional],
-      })
-      return 'saved'
-    })
+    autosave.schedule(
+      LANGUAGES_KEY,
+      async () => {
+        const next = applyLanguageChange(readCurrent(), change)
+        if (next === null) return 'unchanged'
+        await write({
+          primaryGuestLocale: next.primary,
+          additionalGuestLocales: [...next.additional],
+        })
+        return 'saved'
+      },
+      { replaceQueued: false },
+    )
     // A discrete choice, not typing: write it now rather than after the pause.
     void autosave.flush()
   }

@@ -6,16 +6,21 @@ import { composeRightsExecutors, composeRightsReplayers } from './rights-executo
 import { createNotificationRightsReplayers } from '#/contexts/feed/rights/replayer.server'
 
 const NOTIFICATION_REPLAYERS = createNotificationRightsReplayers()
-const deps = { db: {} as Database, runNotification: vi.fn() }
+const deps = {
+  db: {} as Database,
+  runNotification: vi.fn(),
+  portalObjectStore: { deleteObject: vi.fn() },
+}
 
 describe('composeRightsExecutors', () => {
-  it('composes the context executors in order', () => {
+  it('composes every context executor in order', () => {
     expect(composeRightsExecutors(deps, false).map(({ name }) => name)).toEqual([
       'google-integration',
       'review',
       'inbox',
       'guest',
       'reporting',
+      'portal',
       'ai',
       'activity',
       'identity-grants',
@@ -50,6 +55,7 @@ describe('composeRightsExecutors', () => {
       'inbox',
       'guest',
       'reporting',
+      'portal',
       'ai',
       'activity',
       'staff',
@@ -67,12 +73,21 @@ describe('composeRightsExecutors', () => {
       'inbox',
       'guest',
       'reporting',
+      'portal',
       'ai',
       'activity',
       'identity-grants',
       'property',
       'notification',
     ])
+  })
+
+  it('refuses to silently omit Portal when the image store is missing', () => {
+    const { portalObjectStore: _store, ...withoutStore } = deps
+    expect(() =>
+      // @ts-expect-error A caller without Portal's required effect must fail closed.
+      composeRightsExecutors(withoutStore, false),
+    ).toThrow('Portal image store is required')
   })
 
   it('registers a replayer for every journaled context and erasing scope', () => {

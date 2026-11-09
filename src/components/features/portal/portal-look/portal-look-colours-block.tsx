@@ -25,9 +25,9 @@ import {
   coloursFollowedValue,
   type FollowedColours,
 } from './portal-look-rules'
-import { saveColoursDraft } from './portal-look-save'
+import { saveColoursDraft } from '#/contexts/portal/editor/ui/portal-look-save'
 import type { PortalLookActions, PortalLookTarget } from './portal-look-types'
-import { usePortalLookDraft } from './use-portal-look-draft'
+import { usePortalLookDraft } from '#/contexts/portal/editor/ui/use-portal-look-draft'
 
 const COLOURS_KEY = 'portal-look-colours'
 
@@ -46,6 +46,7 @@ export function PortalLookColoursBlock({ target, view, propertyColours, save }: 
     <PortalLookBlock title="Colours" hint="Checked for readability on every page.">
       <PortalLookGroupSetting
         propertyId={target.propertyId}
+        draftKey={COLOURS_KEY}
         value={coloursFollowedValue(propertyColours)}
         isOwn={view.mode === 'own'}
         inheritLabel="Use the property’s colours"

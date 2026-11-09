@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { useMemo, useState } from 'react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
-import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
+import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import { PortalApprovedDestinationsEditor } from './portal-approved-destinations-editor'
 import { PortalLocalizedContentEditor } from './portal-localized-content-editor'
 import type {

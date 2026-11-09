@@ -56,6 +56,12 @@ export const submitReplyDto = z
 
 export const reviewIdDto = z.object({ reviewId: z.uuid() })
 
+/** Delete names the draft the manager's screen showed, as saves do. */
+export const deleteReplyDto = z.object({
+  reviewId: z.uuid(),
+  expectedReply: replyRevisionSchema.nullable().optional(),
+})
+
 /**
  * Confirm & Publish names the reply it confirms: the reply the manager's
  * screen showed, and its state revision. The two travel together, because a

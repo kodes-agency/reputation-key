@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { harness } from '../portal-editor/portal-draft-autosave-harness'
+import { harness } from '#/contexts/portal/editor/ui/portal-draft-autosave-harness'
 import {
   createPortalLanguageChanger,
   type PortalLanguageWrite,
