@@ -354,7 +354,9 @@ export function ReplyCompose(props: ReplyComposeProps) {
             isSubmitting={props.isSaving}
             onRetrySave={state.autosave.retry}
             onSubmit={state.submit}
-            onDelete={props.onDelete}
+            onDelete={
+              props.onDelete ? () => state.deleteDraft(props.onDelete!) : undefined
+            }
           />
         </div>
       </div>
