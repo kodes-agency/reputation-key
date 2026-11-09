@@ -65,27 +65,17 @@ describe('font set of a guest surface', () => {
 })
 
 describe('font set head links', () => {
-  it('links the Satoshi stylesheet and our own app stylesheet, and no Google font host', () => {
+  it('links only our own app stylesheet, and no third-party font host', () => {
     const links = fontSetLinks('app', 'en')
     expect(links.filter((link) => link.rel === 'stylesheet')).toEqual(
       APP_FONT_STYLESHEETS.map((href) => ({ rel: 'stylesheet', href })),
     )
-    expect(APP_FONT_STYLESHEETS).toEqual([
-      'https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap',
-      '/fonts/app/app-fonts.css',
-    ])
-    expect(links.some((link) => /google|gstatic/.test(link.href))).toBe(false)
+    expect(APP_FONT_STYLESHEETS).toEqual(['/fonts/app/app-fonts.css'])
+    expect(links.some((link) => /^https?:/.test(link.href))).toBe(false)
+    expect(links.every((link) => link.rel === 'stylesheet')).toBe(true)
   })
 
-  it('opens the Fontshare connections first, the font host with CORS', () => {
-    const links = fontSetLinks('app', 'en')
-    expect(links.slice(0, 2)).toEqual([
-      { rel: 'preconnect', href: 'https://api.fontshare.com' },
-      { rel: 'preconnect', href: 'https://cdn.fontshare.com', crossOrigin: 'anonymous' },
-    ])
-  })
-
-  it('preloads no app font: the body face is Satoshi, which we may not host', () => {
+  it('preloads no app font: the fallback faces are size-adjusted', () => {
     expect(fontSetLinks('app', 'en').some((link) => link.rel === 'preload')).toBe(false)
   })
 
@@ -252,7 +242,10 @@ describe('the app stylesheet', () => {
 
   it('follows each web font in the theme stacks with its size-adjusted fallback face', () => {
     const styles = readFileSync(join(ROOT, 'src/styles.css'), 'utf8')
-    expect(styles).toMatch(/--font-sans:\s*'Satoshi',\s*'Satoshi Fallback',/)
+    expect(styles).toMatch(
+      /--font-sans:\s*'Plus Jakarta Sans',\s*'Plus Jakarta Sans Fallback',\s*system-ui,/,
+    )
+    expect(styles).not.toContain('Satoshi')
     expect(styles).toMatch(
       /--font-display:\s*'Plus Jakarta Sans',\s*'Plus Jakarta Sans Fallback',/,
     )

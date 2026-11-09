@@ -248,7 +248,8 @@
   /* Each web font is followed by its size-adjusted local fallback face, defined
      in public/fonts/app/app-fonts.css, so the swap does not move text. */
   --font-sans:
-    'Satoshi', 'Satoshi Fallback', 'Inter', system-ui, -apple-system, sans-serif;
+    'Plus Jakarta Sans', 'Plus Jakarta Sans Fallback', system-ui, -apple-system,
+    sans-serif;
   --font-display: 'Plus Jakarta Sans', 'Plus Jakarta Sans Fallback', var(--font-sans);
   --font-mono:
     'JetBrains Mono', 'JetBrains Mono Fallback', 'Fira Code', ui-monospace, monospace;

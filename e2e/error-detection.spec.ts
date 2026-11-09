@@ -216,7 +216,7 @@ gatedTest.describe('error detection — end-to-end gate proof (injection)', () =
 // The stub used to be routed on the fixture page only, so pages from
 // `browser.newContext()` fetched the real font hosts over the network.
 gatedTest.describe('font hosts are stubbed in every context', () => {
-  const FONT_URL = 'https://api.fontshare.com/v2/css?f[]=satoshi@400&display=swap'
+  const FONT_URL = 'https://fonts.googleapis.com/css2?family=Inter&display=swap'
 
   async function fontResponse(page: Page) {
     const response = await page.goto(FONT_URL)
