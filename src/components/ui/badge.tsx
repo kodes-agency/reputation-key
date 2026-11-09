@@ -5,12 +5,10 @@ import { Slot } from 'radix-ui'
 import { cn } from '#/lib/utils'
 import { TONE_INK, TONE_SURFACE } from './tone'
 
-// The first six variants are looks; the last four are tones, the colour of a
-// state (UI consistency scan: COLL-05). A tone is a tinted pill with its own
-// edge and ink from `tone.ts`; when the badge is a link the EDGE steps under the
-// pointer and the fill stays put, because the ink's contrast was measured on that
-// fill. A domain status should go through StatusBadge, which also draws the
-// tone's icon and keeps the raw status token off the screen.
+// The first six variants are looks; the last four are tones, the colour of a state. A
+// tone is a tinted pill with its own edge and ink from `tone.ts`; when the badge is a
+// link the EDGE steps under the pointer and the fill stays put, because the ink's
+// contrast was measured on that fill. A domain status should go through StatusBadge.
 const badgeVariants = cva(
   'inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3',
   {

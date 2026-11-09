@@ -1,13 +1,9 @@
-// The checkbox of a single framed confirmation (UI consistency scan: FORM-11): a
-// statement the person agrees to or confirms ("I have read this notice and agree...",
-// "I have checked these details", "This property owns this photo..."), or one framed
-// yes that stands for a whole list ("Select all current portals", which is a choice and
-// not an agreement). One frame, so the same sentence looks the same on the settings
-// page, in the setup wizard and in an import: a Field holding the checkbox beside its
-// sentence, what the sentence lists (when it ends in one) under it, a line of help
-// under that and the refusal last. A setting
-// that is simply on or off is a `SettingSwitchRow`, and the rows of a list of things to
-// choose from keep plain `Checkbox` rows.
+// The checkbox of a single framed confirmation: a statement the person agrees to or
+// confirms, or one framed yes that stands for a whole list ("Select all current
+// portals"). One frame, so the same sentence looks the same everywhere: a Field holding
+// the checkbox beside its sentence, what the sentence lists (when it ends in one) under
+// it, a line of help, and the refusal last. A setting that is simply on or off is a
+// `SettingSwitchRow`; the rows of a list to choose from keep plain `Checkbox` rows.
 import type { ReactNode } from 'react'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field'

@@ -3,12 +3,11 @@ import { cn } from '#/lib/utils'
 import type { Tone } from './tone'
 
 /**
- * The solid fill of a bar on the quiet `--muted` track: each tone's text-grade
- * ink, strong enough to read against the track as a graphic (3:1;
- * `progress-bar.test.ts` holds each to it in both themes). `neutral` is the
- * foreground at 70%: a bar that counts, with no verdict. It lives here, not in
- * `tone.ts`, because every Badge and Alert reads that module in first paint and
- * only this lazy component reads the fills.
+ * The solid fill of a bar on the quiet `--muted` track: each tone's text-grade ink,
+ * strong enough to read as a graphic (3:1; `progress-bar.test.ts` holds each to it
+ * in both themes). `neutral` is the foreground at 70%. It lives here, not in
+ * `tone.ts`, because Badge and Alert read that module in first paint and only this
+ * lazy component reads the fills.
  */
 export const TONE_BAR: Readonly<Record<Tone, string>> = {
   positive: 'bg-positive',
@@ -48,14 +47,10 @@ export function progressFraction(value: number, max: number): number {
 }
 
 /**
- * How far a count has got toward a whole: a track and a fill that grows from
- * the left. The fill is a transform (`scaleX`), so it moves on the compositor
- * and a change in it never lays the row out again, and it holds still for a
- * reader who asks for reduced motion.
- *
- * It is a `progressbar` with its value, range and a sentence, because the fill
- * is no use to a screen reader. The words beside it (a figure, "so far") stay
- * the caller's: this draws the bar, not the claim.
+ * A track and a fill that grows from the left. The fill is a `scaleX` transform, so
+ * it stays on the compositor and holds still for reduced motion. It is a
+ * `progressbar` with value, range and a sentence; the words beside it stay the
+ * caller's.
  */
 export function ProgressBar({
   value,

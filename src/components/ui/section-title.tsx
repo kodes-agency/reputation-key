@@ -1,7 +1,5 @@
-// The title of a section of a page that is not a Card (UI consistency scan: FORM-10,
-// FRAME-10): Members and Pending invitations, Data handling and risks, Quiet hours'
-// two parts. A `CardTitle` titles a Card; this titles everything else, at the same
-// scale, so a settings page has two sizes of title and not five.
+// The title of a section of a page that is not a Card. A `CardTitle` titles a Card;
+// this titles everything else, at the same scale.
 //
 // The level is the outline, the size is the scale: an h2 is a section under the page's
 // one h1 (`text-base`, semibold), an h3 is a part of a section (`text-sm`, medium). A

@@ -1,17 +1,14 @@
-// A slider: one value on a scale, chosen by dragging the thumb or with the keys
-// Radix gives it (the arrows a step, Page Up and Page Down ten, Home and End the
-// ends). It is the Radix slider in the app's look: the quiet `--muted` track, the
-// primary fill up to the value, a thumb that wears `focus-ring`, and a control at
-// least a tap target tall below `md`, as every control is.
+// The Radix slider in the app's look: quiet `--muted` track, primary fill, a
+// thumb that wears `focus-ring`, and a control at least a tap target tall below
+// `md`.
 //
 // One thumb, controlled. A slider is not named by its label alone: the value it
 // reads out is the caller's sentence (`valueText`), because "44" says nothing and
 // "4.4, realistic, about 93 reviews" does.
 //
 // `limit` keeps the scale's end on show while the thumb stops short of it: the
-// track runs on to `max` in a hatched stretch that cannot be chosen, and
-// the slider says `limit` is its highest value. The Google rating goal draws 5.0
-// that way, with its reason under that end of the scale.
+// track runs on to `max` in a hatched stretch that cannot be chosen, and the
+// slider says `limit` is its highest value.
 import { Slider as SliderPrimitive } from 'radix-ui'
 import { cn } from '#/lib/utils'
 

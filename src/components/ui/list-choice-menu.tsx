@@ -21,9 +21,8 @@ export function listMenuValueText(
 }
 
 /**
- * The trigger of every list menu: an outline button that reads "Label: value".
- * The label names the dimension and the value the choice in force, so the closed
- * menu already answers "what is this list showing?" (UI consistency scan: COLL-12).
+ * The trigger of every list menu: an outline button that reads "Label: value",
+ * so the closed menu already answers "what is this list showing?".
  */
 export function ListMenuTrigger({
   icon: Icon,

@@ -1,8 +1,6 @@
-// The names of the places the manager sidebar lists, in one place. The sidebar
-// draws its rows from these and a breadcrumb names the same place by the same
-// word (`page-identity`), so a trail never says "Settings" where the sidebar says
-// "Property settings". A label is sentence case, and the destination a trail passes
-// through is the place the person came from.
+// The names of the places the manager sidebar lists. Breadcrumbs (`page-identity`)
+// use the same words, so a trail never says "Settings" where the sidebar says
+// "Property settings". Labels are sentence case.
 
 export const NAV_LABEL = {
   /** The Properties list, the page every Property trail starts at. */

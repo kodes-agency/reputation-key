@@ -1,13 +1,8 @@
-// Whether a pathname is a full-bleed surface: one that owns its whole viewport
-// below the top bar and scrolls its own panes, instead of sitting in the padded
-// page shell. The Inbox, a Property's Reviews and the portal workspace are the
-// three.
-//
-// Two layout routes ask this one question: the authenticated shell (drops the
-// `<main>` gutter and holds the sidebar at the icon rail) and the Property
-// layout (gives the child the full height). Adding a full-bleed surface means
-// editing this file, and nothing else decides. A full-bleed surface that wants
-// the page gutter back for a padded body wraps it in `FullBleedFrame`.
+// Whether a pathname is a full-bleed surface: one that owns its viewport below the
+// top bar and scrolls its own panes (the Inbox, a Property's Reviews, the portal
+// workspace). The authenticated shell (drops the `<main>` gutter, holds the sidebar
+// at the icon rail) and the Property layout (gives the child full height) both ask
+// this; nothing else decides. A padded body inside one wraps in `FullBleedFrame`.
 
 import { isWorkspaceRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
 

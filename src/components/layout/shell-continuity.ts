@@ -1,19 +1,15 @@
 // What the app shell keeps when React replaces it.
 //
-// A refusal, or a Property that is not there, is drawn by the shell route's
-// not-found boundary, and a boundary replaces its route's component: the layout
-// unmounts and the boundary brings a shell of its own. State held in the layout
-// would reset with it, so what a person has set is kept here, outside the tree:
+// The shell route's not-found boundary replaces the layout, so state held in the
+// layout would reset with it. What a person has set is kept here, outside the tree:
 //
 //   - whether the sidebar is open, or a collapsed sidebar opens again;
 //   - the last app page they were on, so "Back to app" in Settings goes back to it;
 //   - which sidebar link has focus, or keyboard focus falls to <body> and the next
 //     Tab starts again from the top of the page.
 //
-// The sidebar choice outlives the tab as well: it is the `sidebar_state` cookie,
-// which the browser store starts from and writes on each toggle, and which the
-// server reads with the request (see `sidebar-cookie`). The server never reads this
-// store; it draws the shell from the loader's copy of the same cookie
+// The sidebar choice also lives in the `sidebar_state` cookie (see `sidebar-cookie`).
+// The server never reads this store; it draws from the loader's copy of the cookie
 // (`useSidebarOpen`'s argument), so the first frame and the hydrated one agree.
 import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import { useRouteContext } from '@tanstack/react-router'
@@ -68,11 +64,7 @@ export const sidebarStore = createSidebarStore(
   rememberInCookie,
 )
 
-/**
- * Whether the sidebar is open, and how to change it; it survives the shell being
- * replaced. `serverOpen` is what the server (and hydration) draws: the loader's
- * reading of the cookie, so the browser's first render answers as the server did.
- */
+/** Whether the sidebar is open, and how to change it. `serverOpen` is what the server and hydration draw. */
 export function useSidebarOpen(
   serverOpen = true,
 ): readonly [boolean, (next: boolean) => void] {
@@ -123,9 +115,8 @@ export function useAppLocationOwner(): string {
 }
 
 /**
- * Notes the page on screen as the one "Back to app" returns to. In the shell, so
- * it follows the rendered page; module memory, so it lasts for the tab and a hard
- * load of Settings (which has no page before it) falls back to the Properties list.
+ * Notes the page on screen as the one "Back to app" returns to. Module memory: it
+ * lasts for the tab, and a hard load of Settings falls back to the Properties list.
  */
 export function useRememberAppLocation(): void {
   const { pathname, search } = useRenderedLocation()
@@ -145,10 +136,9 @@ export function useRememberAppLocation(): void {
 let handoff: Readonly<{ href: string; at: number }> | null = null
 
 /**
- * How long a focus note waits for the next shell. Between a shell that goes and
- * the one that replaces it the router may draw its pending state for a loader's
- * duration, so the next shell is not always in the same commit. A shell that
- * goes for good (signing out) is not followed by one within seconds.
+ * How long a focus note waits for the next shell: the router may draw its pending
+ * state for a loader's duration in between. A shell that goes for good (signing
+ * out) is not followed by one within seconds.
  */
 const HANDOFF_MS = 3000
 
@@ -172,10 +162,7 @@ function restoreFocus(): void {
   }
 }
 
-/**
- * Hands keyboard focus from the shell that unmounts to the one that replaces it:
- * the sidebar link that had it.
- */
+/** Hands keyboard focus to the same sidebar link in the shell that replaces this one. */
 export function useKeepSidebarFocus(): void {
   useLayoutEffect(() => {
     restoreFocus()

@@ -29,9 +29,7 @@ type Props = Readonly<{
   getLastVisitCount: typeof getLastVisitCountFn
 }>
 
-// The section a pathname belongs to. It is asked of the page ON SCREEN (see
-// `rendered-location`), so the links keep naming the old page's section until the
-// new page replaces it.
+// The section a pathname belongs to; asked of the page ON SCREEN (`rendered-location`).
 function sectionForPathname(pathname: string): string {
   if (pathname.startsWith('/settings')) return 'settings'
   if (pathname === '/inbox' || pathname.startsWith('/inbox')) return 'inbox'
@@ -69,8 +67,7 @@ export function ManagerSidebar({
   const allPropertiesPath = organisationViewFor(activeSection)
   const isAllProperties = isOrganisationView(pathname, propertyId)
 
-  // The tile is the app's property context on every page. Inside the Inbox,
-  // switching property keeps you in the Inbox; the rail offers All properties.
+  // Inside the Inbox, switching property keeps you in the Inbox; the rail offers All properties.
   function handlePropertySwitch(newPropertyId: string) {
     if (isInboxSection) {
       selectInboxScope(newPropertyId)
@@ -83,13 +80,9 @@ export function ManagerSidebar({
     })
   }
 
-  // All properties keeps you in the section you are in when that section has a
-  // view over the whole Organization (Inbox, Portals); otherwise it is the
-  // property list. The Inbox goes through its scope hook so queue and filters
-  // survive the move.
+  // The Inbox goes through its scope hook so queue and filters survive the move.
   function handleSelectAllProperties() {
-    // Already looking at the whole Organization: nothing changes, so the open
-    // page keeps its own state instead of being reloaded.
+    // Already over the whole Organization: keep the open page's own state.
     if (isAllProperties) return
     if (isInboxSection) {
       selectInboxScope(null)
@@ -100,12 +93,7 @@ export function ManagerSidebar({
 
   return (
     <Sidebar>
-      {/*
-        BQC-6.8: the app sidebar IS the primary navigation — give it the nav
-        landmark so its links don't fail axe's region rule (all page content
-        must be inside a landmark). flex-col h-full replicates the
-        sidebar-inner layout so rendering is unchanged.
-      */}
+      {/* BQC-6.8: the nav landmark keeps the links inside a landmark for axe's region rule. */}
       <nav aria-label="Primary navigation" className="flex h-full w-full flex-col">
         <SidebarHeader>
           <ManagerPropertySwitcher

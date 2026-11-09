@@ -38,9 +38,7 @@ function InlineAnchor({
 /**
  * A router link set in a sentence or beside a field: accent ink, medium weight,
  * underlined on hover (`underline="always"` for a link that has to read as one
- * without a pointer, such as the agreements under a sign-up form). A link that
- * looks like a button is a `Button` with `asChild`; a link that is only a way
- * out of a card is whatever that card's navigation is.
+ * without a pointer). A link that looks like a button is a `Button` with `asChild`.
  */
 const InlineLink = createLink(InlineAnchor)
 

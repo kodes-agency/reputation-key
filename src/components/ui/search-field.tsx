@@ -30,28 +30,16 @@ type Props = Readonly<{
 }>
 
 /**
- * The one search input of a list (UI consistency scan: COLL-13): `type="search"`,
- * the InputGroup recipe with a Search glyph, the shared length limit (the URL
- * schemas drop a longer search, so the box stops typing there rather than
- * clearing itself on the 101st character), and a clear button that gives the
- * focus back to the field and is a tap target on a phone (44px, 36px in a compact
- * workspace) though the glyph is 12px. It owns no matching: a list matches with
- * `searchMatcher` (`#/components/property/property-search`), which folds case and
- * accents the same way everywhere.
+ * The one search input of a list: `type="search"`, the InputGroup recipe with a Search
+ * glyph, the shared length limit (URL schemas drop a longer search), and a clear
+ * button that refocuses the field and is a tap target on a phone though the glyph is
+ * 12px. It owns no matching: lists match with `searchMatcher`
+ * (`#/components/property/property-search`). The Inbox composes the `bare` variant.
  *
- * Five recipes existed: this one on Properties and Portals, the Inbox's
- * borderless input in a header, Google import's hand-placed icon, and cmdk's own
- * field in a picker (which is a different job and keeps the Command primitive's).
- * The Inbox composes the `bare` variant, so its glyph, input type and limit are
- * these.
- *
- * The lists keep the search in the URL, and a keystroke is a navigation that
- * commits only once the route has loaded. So the field keeps what was typed as a
- * draft and shows it until `value` catches up; without
- * it a slow network put the field back to an older search under the person's
- * fingers and dropped the keys typed meanwhile. Callers change nothing: `value`
- * is still the committed search, and a change to it that the person did not
- * type (Clear all, Back) replaces the draft.
+ * Lists keep the search in the URL and a keystroke is a navigation, committed only
+ * once the route has loaded. The field keeps what was typed as a draft and shows it
+ * until `value` catches up; a change to `value` the person did not type (Clear all,
+ * Back) replaces the draft.
  */
 export function SearchField({
   label,
@@ -138,16 +126,9 @@ export function SearchField({
   )
 }
 
-// What a search field shows while the page it filters is still catching up with
-// what was typed.
-//
-// A list keeps its search in the URL, and a keystroke is a navigation: the new
-// search is committed only after the route has loaded, which on a slow network
-// is long after the next keystroke. A field that shows the committed value then
-// puts the person's text back to what the URL last said, and the next key is
-// typed after the old text ("Bounded" became "d"). So the field keeps what was
-// typed as a draft, and shows it until the committed value has caught up.
-//
+// Draft state: a slow navigation must not put the field back to older text or drop
+// keys typed meanwhile, so the field shows the draft until the committed value
+// has caught up.
 
 export type SearchDraft = Readonly<{
   /** What the field shows: the last thing typed. */

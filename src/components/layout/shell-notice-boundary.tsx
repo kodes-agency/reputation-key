@@ -6,12 +6,9 @@ import { ShellPresence } from './route-page-state'
 import { useRenderedPathname } from './rendered-location'
 
 /**
- * What the app shell route draws for a not-found: the notice, inside a shell.
- *
- * An address no page answers renders inside the route's own layout, so the shell
- * is already there; a not-found a loader threw (a refusal, a missing Property)
- * replaces the layout, so the boundary brings a shell of its own. A full-bleed
- * surface keeps its edge-to-edge frame, so its notice wears the page gutter.
+ * What the app shell route draws for a not-found: the notice, inside a shell. An
+ * unanswered address renders inside the layout; a loader-thrown not-found replaces
+ * it, so the boundary brings its own shell. A full-bleed notice wears the page gutter.
  */
 export function ShellNoticeBoundary({
   data,
