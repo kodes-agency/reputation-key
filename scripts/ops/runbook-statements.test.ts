@@ -58,9 +58,9 @@ describe('what the runbooks tell an operator to do', () => {
         isTable(value) ? [getTableName(value)] : [],
       ),
     )
-    const cited = [...RUNBOOKS.matchAll(/`(google_import_[a-z_]+|google_imports)`/g)].map(
-      (match) => match[1] ?? '',
-    )
+    const cited = [
+      ...RUNBOOKS.matchAll(/`([a-z][a-z0-9_]*_imports?(?:_[a-z0-9_]+)?)`/g),
+    ].map((match) => match[1] ?? '')
 
     expect(cited.length).toBeGreaterThan(0)
     expect(cited.filter((name) => !tables.has(name))).toEqual([])
