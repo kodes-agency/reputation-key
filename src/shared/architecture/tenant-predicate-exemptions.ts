@@ -481,6 +481,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/integration/imports/legacy-import-retention.server.ts',
+    symbol: 'listPurgeCandidates',
+    reason:
+      'The bounded retention sweep lists finished roots of the retired import tables past their fixed purge time across tenants. Deletion checks each selected Organization, root and deletion fence under the root lock.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/integration/imports/import-retention.server.ts',
     symbol: 'listPurgeCandidates',
     reason:
@@ -495,31 +502,10 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/google-import-v2-store.ts',
-    symbol: 'listExpiredItems',
-    reason:
-      'The bounded import lifecycle sweep intentionally lists items past their effect deadline across tenants and returns each with its Organization for the write that follows.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/google-import-v2-store.ts',
-    symbol: 'listPurgeCandidates',
-    reason:
-      'The bounded import purge sweep intentionally lists finished import requests past their purge time across tenants and returns each with its Organization and deletion fence.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/google-import-completion.ts',
-    symbol: 'completeGoogleImportsForRestore',
+    file: 'src/contexts/integration/imports/import-completion.server.ts',
+    symbol: 'completeImportsForRestore',
     reason:
       'The isolated restore recovery fence intentionally inventories active or retryable import checkpoints and unfinished parents across tenants. Each completion and parent reduction checks the selected Organization inside the serialized recovery transaction.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/google-import-dispatch-store.ts',
-    symbol: 'createGoogleImportDueReservation',
-    reason:
-      'The bounded recovery appointment reserves at most 100 due active items across tenants with SKIP LOCKED. Each appointment update and subsequent effect uses the reserved row’s Organization and claim authority.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {

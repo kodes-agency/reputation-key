@@ -1,6 +1,9 @@
 import { createGoogleNotificationRuntime } from './infrastructure/google-notification-runtime'
 import { createGoogleImportV2ClaimReaper } from './application/google-import-v2-claim-reaper'
-import { completeGoogleImportsForRestore } from './infrastructure/google-import-completion'
+import {
+  completeImportsForRestore,
+  type GoogleImportCompletionDeps,
+} from './imports/import-completion.server'
 import { registerGoogleBindingFollowUpConsumers } from './infrastructure/google-binding-follow-up-consumers'
 // Integration context — build function.
 // Wires integration repos, adapters, use cases, and the import queue.
@@ -48,7 +51,7 @@ import {
   prepareGoogleConnectorDeparture,
 } from './application/use-cases'
 import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
-import { createGoogleImportV2Store } from './infrastructure/google-import-v2-store'
+import { createImportStore } from './imports/import-store.server'
 import { createGoogleImportV2Queue } from './infrastructure/google-import-v2-queue'
 import type { GoogleImportV2Store } from './application/ports/google-import-v2-store.port'
 import { createAtomicIntegrationCommandStore } from './infrastructure/integration-command-store'
@@ -434,7 +437,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     activeVersion: 'v1',
     keys: { v1: deps.config.encryptionKey },
   })
-  const googleImportCompletion: Parameters<typeof createGoogleImportV2Store>[2] = {
+  const googleImportCompletion: GoogleImportCompletionDeps = {
     readReceipt: (...args) => {
       if (!deps.propertyBindingApi) throw new Error('Property receipt reader unavailable')
       return deps.propertyBindingApi.readReceipt(...args)
@@ -446,9 +449,11 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       return deps.propertyBindingApi.ensureImportFollowUps(...args)
     },
   }
-  const googleImportV2Store = createGoogleImportV2Store(deps.db, deps.clock, {
-    ...googleImportCompletion,
-  })
+  const googleImportV2Store = createImportStore(
+    deps.db,
+    deps.clock,
+    googleImportCompletion,
+  )
   const googleReviewPushReferences: GoogleReviewPushReferenceStore =
     deps.providerEphemeralStore && deps.googleOpaqueReferenceKeys
       ? createGoogleReviewPushReferenceStore({
@@ -752,7 +757,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         logger: deps.logger,
         idGen: deps.idGen,
         ...(googleImportV2Lifecycle
-          ? { cancelImportSaga: googleImportV2Lifecycle.cancelRequest }
+          ? { cancelImport: googleImportV2Lifecycle.cancelRequest }
           : {}),
       })
     }
@@ -1250,7 +1255,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         clock: deps.clock,
       }),
       completeImportsForRestore: (tx: import('#/shared/outbox/commit').Tx, now: Date) =>
-        completeGoogleImportsForRestore(tx, googleImportCompletion, now),
+        completeImportsForRestore(tx, googleImportCompletion, now),
       processImportItem: useCases.processGoogleImportV2Item,
       sweepImportLifecycle: useCases.sweepGoogleImportV2Lifecycle,
       // The permit sweep's recovery pass, on the stores this build already

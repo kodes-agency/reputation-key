@@ -1,5 +1,5 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-import { completeGoogleImportsForRestore } from '#/contexts/integration/infrastructure/google-import-completion'
+import { completeImportsForRestore } from '#/contexts/integration/imports/import-completion.server'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
 import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
 import { organizationId, propertyId } from '#/shared/domain/ids'
@@ -41,7 +41,7 @@ describe('restore recovery fence (REG-04, integration)', () => {
           transaction: import('#/shared/outbox/commit').Tx,
           now: Date,
         ) =>
-          completeGoogleImportsForRestore(
+          completeImportsForRestore(
             transaction,
             {
               ensureImportFollowUps: createPropertyGoogleBindingStore(
@@ -132,32 +132,35 @@ describe('restore recovery fence (REG-04, integration)', () => {
           )
         `)
         await transaction.execute(sql`
-          INSERT INTO gbp_import_requests (
-            id, organization_id, request_id, initiated_by, status, total_count,
-            processed_count, pending_count, processing_count, created_at, updated_at
+          INSERT INTO google_imports (
+            id, organization_id, request_id, initiated_by, total_count,
+            wire_replay_key_version, wire_replay_digest,
+            semantic_replay_key_version, semantic_replay_digest,
+            created_at, updated_at
           ) VALUES (
             ${IMPORT_V2_PARENT_ID}::uuid, 'org-recovery-proof',
-            ${IMPORT_V2_PARENT_ID}::uuid, ${USER_ID}, 'queued', 2, 0, 2, 0,
+            ${IMPORT_V2_PARENT_ID}::uuid, ${USER_ID}, 2,
+            'v1', ${'A'.repeat(43)}, 'v1', ${'B'.repeat(43)},
             clock_timestamp(), clock_timestamp()
           )
         `)
         await transaction.execute(sql`
           WITH instant AS (SELECT statement_timestamp() AS at)
-          INSERT INTO gbp_import_request_items (
-            id, organization_id, import_job_id, connection_id,
+          INSERT INTO google_import_items (
+            id, organization_id, import_id, connection_id,
             destination_property_id, provider_account_suffix, provider_location_suffix,
             expected_connection_lifecycle_version, expected_connection_access_version,
             expected_credential_generation, expected_execution_policy_version,
             expected_actor_role, expected_permission_digest, expected_principal_kind,
             expected_permission_version, action, update_existing_profile,
-            property_name, country_code, timezone, status, effect_deadline_at,
-            created_at, updated_at
+            property_name, country_code, timezone, status, next_dispatch_at,
+            effect_deadline_at, created_at, updated_at
           )
           SELECT item_id, 'org-recovery-proof', ${IMPORT_V2_PARENT_ID}::uuid,
                  ${GOOGLE_CONNECTION_ID}::uuid, destination_id,
                  'recovery-account', location_suffix, 1, 1, 1, 'beta-local-2',
                  'AccountAdmin', repeat('a', 64), 'user', 1, 'create', true,
-                 property_name, 'US', 'UTC', 'pending',
+                 property_name, 'US', 'UTC', 'pending', instant.at,
                  instant.at + interval '24 hours', instant.at, instant.at
           FROM instant
           CROSS JOIN (VALUES
@@ -280,15 +283,15 @@ describe('restore recovery fence (REG-04, integration)', () => {
             (SELECT count(*)::int FROM verification WHERE id = ${VERIFICATION_ID}) AS verifications,
             (SELECT status FROM invitation WHERE id = ${INVITATION_ID}) AS invitation,
             (SELECT state FROM notification_digest_batches WHERE id = ${DIGEST_ID}::uuid) AS digest,
-            (SELECT status FROM gbp_import_requests WHERE id = ${IMPORT_V2_PARENT_ID}::uuid) AS v2_parent,
-            (SELECT status FROM gbp_import_request_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_item,
-            (SELECT outcome_code FROM gbp_import_request_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_outcome,
-            (SELECT status FROM gbp_import_request_items WHERE id = ${IMPORT_V2_COMMITTED_ITEM_ID}::uuid) AS v2_committed_item,
-            (SELECT outcome_code FROM gbp_import_request_items WHERE id = ${IMPORT_V2_COMMITTED_ITEM_ID}::uuid) AS v2_committed_outcome,
-            (SELECT destination_property_id FROM gbp_import_request_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_destination,
-            (SELECT destination_property_id FROM gbp_import_request_items WHERE id = ${IMPORT_V2_COMMITTED_ITEM_ID}::uuid) AS v2_committed_destination,
-            (SELECT count(*)::int FROM gbp_import_request_items
-              WHERE import_job_id = ${IMPORT_V2_PARENT_ID}::uuid
+            (SELECT first_terminal_at IS NOT NULL AND purge_at IS NOT NULL FROM google_imports WHERE id = ${IMPORT_V2_PARENT_ID}::uuid) AS v2_parent_retention_started,
+            (SELECT status FROM google_import_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_item,
+            (SELECT outcome_code FROM google_import_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_outcome,
+            (SELECT status FROM google_import_items WHERE id = ${IMPORT_V2_COMMITTED_ITEM_ID}::uuid) AS v2_committed_item,
+            (SELECT outcome_code FROM google_import_items WHERE id = ${IMPORT_V2_COMMITTED_ITEM_ID}::uuid) AS v2_committed_outcome,
+            (SELECT destination_property_id FROM google_import_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_destination,
+            (SELECT destination_property_id FROM google_import_items WHERE id = ${IMPORT_V2_COMMITTED_ITEM_ID}::uuid) AS v2_committed_destination,
+            (SELECT count(*)::int FROM google_import_items
+              WHERE import_id = ${IMPORT_V2_PARENT_ID}::uuid
                 AND (connection_id IS NOT NULL OR existing_property_id IS NOT NULL
                   OR provider_account_suffix IS NOT NULL OR provider_location_suffix IS NOT NULL
                   OR google_review_uri IS NOT NULL OR google_primary_category IS NOT NULL
@@ -307,7 +310,7 @@ describe('restore recovery fence (REG-04, integration)', () => {
           verifications: 0,
           invitation: 'canceled',
           digest: 'terminal',
-          v2_parent: 'completed_with_issues',
+          v2_parent_retention_started: true,
           v2_cancelled_item: 'cancelled',
           v2_cancelled_outcome: 'authorization_changed',
           v2_committed_item: 'imported',

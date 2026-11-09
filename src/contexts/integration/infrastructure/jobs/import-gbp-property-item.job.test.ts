@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Job } from 'bullmq'
 import type { GoogleImportV2ItemJobData } from '../../application/ports/gbp-queue.port'
-import { createGoogleImportV2ItemJobHandler } from './import-gbp-property-item-v2.job'
+import { createGoogleImportV2ItemJobHandler } from './import-gbp-property-item.job'
 
 const DATA: GoogleImportV2ItemJobData = {
   jobId:

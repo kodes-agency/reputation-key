@@ -257,7 +257,78 @@ async function seedFixture(): Promise<Fixture> {
   return fixture
 }
 
+async function seedSingleRootImport(fixture: Fixture): Promise<string> {
+  const importId = randomUUID()
+  const createdAt = new Date(Date.now() - 30_000)
+  await lease.pool.query(
+    `INSERT INTO google_imports (
+       id, organization_id, request_id, initiated_by, total_count,
+       wire_replay_key_version, wire_replay_digest,
+       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, 2, 'wire_v1', $5, 'semantic_v1', $5, $6, $6)`,
+    [
+      importId,
+      fixture.organizationId,
+      randomUUID(),
+      fixture.userId,
+      MARKERS.replayDigest,
+      createdAt,
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO google_import_items (
+       id, organization_id, import_id, connection_id,
+       destination_property_id, provider_account_suffix, provider_location_suffix,
+       google_review_uri, expected_connection_lifecycle_version,
+       expected_connection_access_version, expected_credential_generation,
+       expected_execution_policy_version, expected_actor_role,
+       expected_permission_digest, expected_principal_kind,
+       expected_permission_version, action, update_existing_profile,
+       property_name, property_address, country_code, timezone, status,
+       next_dispatch_at, effect_deadline_at, created_at, updated_at
+     ) VALUES (
+       $1, $2, $3, $4, $5, $6, $7, $8, 1, 1, 1, 'beta-local-2', 'AccountAdmin',
+       repeat('a', 64), 'user', 1, 'create', true, 'Imported Location', $9,
+       'US', 'UTC', 'pending', $10, $11, $10, $10
+     )`,
+    [
+      randomUUID(),
+      fixture.organizationId,
+      importId,
+      fixture.connectionId,
+      randomUUID(),
+      MARKERS.providerAccountSuffix,
+      MARKERS.providerLocationSuffix,
+      MARKERS.googleReviewUri,
+      MARKERS.propertyAddress,
+      createdAt,
+      new Date(createdAt.getTime() + 86_400_000),
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO google_import_items (
+       id, organization_id, import_id, destination_property_id, action,
+       update_existing_profile, property_name, country_code, timezone, status,
+       outcome_code, first_terminal_at, effect_deadline_at, created_at, updated_at
+     ) VALUES (
+       $1, $2, $3, $4, 'create', true, 'Imported Location', 'US', 'UTC',
+       'imported', 'imported', $5, $6, $5, $5
+     )`,
+    [
+      randomUUID(),
+      fixture.organizationId,
+      importId,
+      fixture.propertyId,
+      createdAt,
+      new Date(createdAt.getTime() + 86_400_000),
+    ],
+  )
+  return importId
+}
+
 const ORGANIZATION_SCOPED_TABLES = [
+  'google_import_items',
+  'google_imports',
   'gbp_import_request_items',
   'gbp_import_requests',
   'gbp_import_sagas',
@@ -513,5 +584,57 @@ describe.sequential('Integration Organization Export contributor', () => {
         asOf: new Date(Date.now() - 16 * 60 * 1000),
       }),
     ).rejects.toThrow(/snapshot window is unavailable/)
+  })
+
+  it('exports an import made on the single-root store as status and counts only', async () => {
+    const fixture = await seedFixture()
+    const importId = await seedSingleRootImport(fixture)
+
+    const contribution = await createIntegrationOrganizationExportContributor(
+      db,
+    ).contribute({
+      organizationId: fixture.organizationId,
+      requestId: randomUUID(),
+      asOf: new Date(Date.now() - 1000),
+    })
+
+    const payload = JSON.parse(
+      Buffer.from(
+        contribution.entries.find(({ mediaType }) => mediaType === 'application/json')!
+          .bytes,
+      ).toString('utf8'),
+    ) as {
+      imports: readonly Record<string, unknown>[]
+      importItemStateCounts: readonly Record<string, unknown>[]
+    }
+    expect(payload.imports).toEqual([
+      {
+        id: importId,
+        request_id: expect.any(String),
+        initiated_by: fixture.userId,
+        total_count: 2,
+        first_terminal_at: null,
+        purge_at: null,
+        created_at: expect.any(String),
+        updated_at: expect.any(String),
+      },
+    ])
+    expect(
+      payload.importItemStateCounts
+        .filter((record) => record.import_job_id === importId)
+        .map(({ status, action, outcome_code, item_count }) => ({
+          status,
+          action,
+          outcome_code,
+          item_count,
+        })),
+    ).toEqual([
+      { status: 'imported', action: 'create', outcome_code: 'imported', item_count: 1 },
+      { status: 'pending', action: 'create', outcome_code: null, item_count: 1 },
+    ])
+
+    const archive = archiveText(contribution.entries)
+    expect(archive).toContain(`\nimport,${importId},`)
+    for (const marker of Object.values(MARKERS)) expect(archive).not.toContain(marker)
   })
 })

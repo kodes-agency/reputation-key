@@ -121,7 +121,7 @@ function reviewContext(jobQueue: Queue) {
 const receipts = { insertReceipt: async () => undefined } as unknown as OutboxRepository
 
 const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
-  'import-gbp-property-item-v2': producer(async (queue) => {
+  'import-gbp-property-item': producer(async (queue) => {
     await createGoogleImportV2Queue(queue).addImportItemJobs([
       {
         jobId: `google-import-item-${ID(2)}`,
