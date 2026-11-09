@@ -20,6 +20,7 @@ import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { capabilityExecutionControl } from '#/shared/db/schema/google-content-control.schema'
 import { googleImports, googleImportItems } from '#/shared/db/schema/google-import.schema'
+import { workItems } from '#/shared/db/schema/work-items.schema'
 import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 import {
   createGoogleImportAcceptanceFixture,
@@ -241,6 +242,7 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
       async cleanup() {
         await runtime.close()
         keys.dispose()
+        await db.delete(workItems).where(eq(workItems.organizationId, orgId))
         await db.delete(googleImports).where(eq(googleImports.organizationId, orgId))
         await db
           .delete(propertyPortalBrandContents)

@@ -50,6 +50,7 @@ import {
 import { portalPageEdits } from '#/shared/db/schema/portal-publication.schema'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { googleImports } from '#/shared/db/schema/google-import.schema'
+import { workItems } from '#/shared/db/schema/work-items.schema'
 describe('public Google imports against the import store (PostgreSQL, fake transport)', () => {
   type Fixture = Awaited<ReturnType<typeof createFixture>>
   type Delivery = ReturnType<Fixture['deliveries']>[number]
@@ -262,6 +263,7 @@ describe('public Google imports against the import store (PostgreSQL, fake trans
       async cleanup() {
         await runtime.close()
         keys.dispose()
+        await db.delete(workItems).where(eq(workItems.organizationId, orgId))
         await db.delete(googleImports).where(eq(googleImports.organizationId, orgId))
         await db
           .delete(propertyPortalBrandContents)

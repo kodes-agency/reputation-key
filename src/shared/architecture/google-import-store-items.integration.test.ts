@@ -10,6 +10,7 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
+import { workItems } from '#/shared/db/schema/work-items.schema'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
@@ -114,6 +115,7 @@ describe('Google import item behaviour on the import store (real PostgreSQL)', (
   }
   const resetStorage = async () => {
     await clearRetryReceipts()
+    await db.delete(workItems).where(eq(workItems.organizationId, ORG_ID))
     await db.delete(googleImports).where(eq(googleImports.organizationId, ORG_ID))
     await db.delete(properties).where(eq(properties.organizationId, ORG_ID))
     await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG_ID))
