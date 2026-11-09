@@ -5,23 +5,16 @@
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { composeRightsReplayers } from '#/composition/rights-executors'
 import {
   createIdentityPropertyRightsExecutor,
   createStaffOrganizationRightsExecutor,
-  identityPropertyErasureReplayer,
-  staffOrganizationErasureReplayer,
 } from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
 import { STAFF_LIFECYCLE_TABLES } from '#/contexts/identity/infrastructure/adapters/staff-organization-lifecycle.adapter'
-import {
-  createPropertyRightsExecutor,
-  propertyErasureReplayer,
-} from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
+import { createPropertyRightsExecutor } from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
-import {
-  applyRestoreResurrectionFence,
-  type BackupErasureReplayer,
-} from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -418,15 +411,11 @@ describe.sequential('Property and Staff rights executors', () => {
       await restoreProperty(restoreSet)
       expect(await propertyRows(asked, asked.propertyA)).toBe(before.a)
 
-      const replayers: BackupErasureReplayer[] = [
-        propertyErasureReplayer,
-        identityPropertyErasureReplayer,
-        {
-          context: 'integration',
-          subjectClass: 'property',
-          reErase: async () => 0,
-        },
-      ]
+      const replayers = composeRightsReplayers({
+        db,
+        now: () => NOW,
+        notificationReplayers: [],
+      })
       const fence = await db.transaction((tx) =>
         applyRestoreResurrectionFence(tx, {
           entries,
@@ -636,7 +625,11 @@ describe.sequential('Property and Staff rights executors', () => {
         applyRestoreResurrectionFence(tx, {
           entries,
           restorePointAt: RESTORE_POINT,
-          replayers: [staffOrganizationErasureReplayer],
+          replayers: composeRightsReplayers({
+            db,
+            now: () => NOW,
+            notificationReplayers: [],
+          }),
         }),
       )
 
