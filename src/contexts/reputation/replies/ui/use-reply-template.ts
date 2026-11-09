@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
-import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from './reply-suggestion-contract'
-import type { ReplyLanguageTarget } from './reply-language-options'
-import type { LoadedReplyTemplateDraft } from './reply-suggestion-contract'
+import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from '#/components/inbox/reply-suggestion-contract'
+import type { ReplyLanguageTarget } from '#/components/inbox/reply-language-options'
+import type { LoadedReplyTemplateDraft } from '#/components/inbox/reply-suggestion-contract'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
 import type { ReplyAssistScope } from './use-reply-suggestion'
 

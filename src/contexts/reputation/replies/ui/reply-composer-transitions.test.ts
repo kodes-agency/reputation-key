@@ -7,7 +7,7 @@ import {
   submitAfterSave,
   type ReplyComposerSnapshot,
 } from './reply-composer-transitions'
-import { AUTO_DETECT_REVIEW_LANGUAGE } from './reply-language-options'
+import { AUTO_DETECT_REVIEW_LANGUAGE } from '#/components/inbox/reply-language-options'
 
 const detectable = {
   propertyLanguage: 'bg-Cyrl',

@@ -13,7 +13,7 @@ import {
   replyDraftOriginParts,
   type ReplyDraftOriginParts,
 } from './reply-draft-origin-view'
-import type { ReplyLanguageChoices } from './use-reply-composer'
+import type { ReplyLanguageChoices } from '#/contexts/reputation/replies/ui/use-reply-composer'
 import { Button } from '#/components/ui/button'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 

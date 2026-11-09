@@ -1,4 +1,4 @@
-import { ReplyDraftSessionProvider } from './reply-draft-session-context'
+import { ReplyDraftSessionProvider } from '#/contexts/reputation/replies/ui/reply-draft-session-context'
 import { useState } from 'react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { InboxCaseToolbar } from './inbox-case-toolbar'
@@ -7,7 +7,10 @@ import { InboxReopenDialog } from './inbox-reopen-dialog'
 import { offeredModes } from './composer-policy'
 import { resolveReplyView } from './reply-status-view'
 import { useReplyActions } from './use-reply-actions'
-import { ReplyConfirmationHold, useHeldReplyDetail } from './use-reply-confirmation-hold'
+import {
+  ReplyConfirmationHold,
+  useHeldReplyDetail,
+} from '#/contexts/reputation/replies/ui/use-reply-confirmation-hold'
 import { useOnDemandReviewAnalysis } from './use-on-demand-review-analysis'
 import {
   useInboxComposerController,

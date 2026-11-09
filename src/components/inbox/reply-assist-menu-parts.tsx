@@ -8,7 +8,7 @@ import {
   type ReplyLanguageMenuEntry,
 } from './reply-assist-language'
 import type { ReviewLanguageReadiness } from './reply-language-options'
-import type { ReplyLanguageChoices } from './use-reply-composer'
+import type { ReplyLanguageChoices } from '#/contexts/reputation/replies/ui/use-reply-composer'
 
 /*
  * The pieces `reply-ai-menu.tsx` and `reply-template-menu.tsx` draw.

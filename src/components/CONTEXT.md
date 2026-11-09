@@ -615,7 +615,7 @@ Four rules keep a cached page in step with the server it sends commands to.
   drawn inside what it asks about therefore keeps the page as it was while it
   is open, and stays a confirmation: the Inbox pane shows the detail a reply
   confirmation was opened on until the dialog closes, when it shows the detail
-  as read (`inbox/use-reply-confirmation-hold.ts`). The cache is re-read at
+  as read (`src/contexts/reputation/replies/ui/use-reply-confirmation-hold.ts`). The cache is re-read at
   once either way.
 - **A draft kept across a refetch keeps the revision it was started from.** Save
   it with that revision, never the refetched one: the fence exists so a change

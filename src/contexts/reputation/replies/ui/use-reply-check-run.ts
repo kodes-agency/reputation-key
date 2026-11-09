@@ -4,7 +4,7 @@ import {
   replyCheckFeedback,
   replyCheckLineKey,
   type ReplyCheckLineSubject,
-} from './reply-check-feedback'
+} from '#/components/inbox/reply-check-feedback'
 
 /**
  * A status sentence, the reply state (`replyCheckLineKey`) it describes, and

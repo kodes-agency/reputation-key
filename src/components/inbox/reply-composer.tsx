@@ -35,7 +35,7 @@ import {
 } from './composer-mode-row'
 import type { ComposerMode } from './composer-mode-row'
 import type { ReplyEditTarget } from './reply-status-view'
-import type { ReplyAutosaveStatus } from './use-reply-autosave'
+import type { ReplyAutosaveStatus } from '#/contexts/reputation/replies/ui/use-reply-autosave'
 import type { ReactNode } from 'react'
 
 export type { ComposerMode } from './composer-mode-row'

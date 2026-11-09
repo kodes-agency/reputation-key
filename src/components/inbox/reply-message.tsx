@@ -21,9 +21,12 @@ import {
   type ReplyMessageTone,
   type ReplyMessageView,
 } from './reply-message-view'
-import { useReplyDraftChecks } from './use-reply-draft-checks'
+import { useReplyDraftChecks } from '#/contexts/reputation/replies/ui/use-reply-draft-checks'
 import { resolveReplyView, type ReplyData } from './reply-status-view'
-import { useReplyCheckRun, useReplyFocusReturn } from './use-reply-check-run'
+import {
+  useReplyCheckRun,
+  useReplyFocusReturn,
+} from '#/contexts/reputation/replies/ui/use-reply-check-run'
 import { formatExactTime, formatRelativeTime } from './utils'
 import { useRef, type ReactNode } from 'react'
 

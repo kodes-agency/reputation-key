@@ -27,7 +27,7 @@ export type BrowserDraftEditMetric = Readonly<{
 
 import type { DraftMeasurementEvent } from '#/shared/domain/draft-measurement'
 import type { ReplyDraftSnapshot } from './reply-autosave-coordinator'
-import type { ReplySuggestionResult } from './reply-suggestion-contract'
+import type { ReplySuggestionResult } from '#/components/inbox/reply-suggestion-contract'
 
 type Identity = Omit<DraftMeasurementEvent, 'event'>
 type Emit = ((event: DraftMeasurementEvent) => void) | undefined

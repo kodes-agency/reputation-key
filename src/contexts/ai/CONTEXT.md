@@ -1177,8 +1177,8 @@ Other map-10 base references: the adoption columns in `ai.schema.ts` are now
 271–276 (the map's 263–269 is stale), with their CHECK at 375; Reply AI fields
 start at `review.schema.ts:836`, authorship CHECK at 919, and the provenance CHECK
 is delegated at 932 to `reply-ai-provenance-check.ts:26`. Browser dismiss/adopt
-start at `use-reply-suggestion.ts:251/256`, composer adoption/Undo/submit at
-`use-reply-composer.ts:185/237/294`, and save/submit callbacks at
+start at `replies/ui/use-reply-suggestion.ts:251/256`, composer adoption/Undo/submit at
+`replies/ui/use-reply-composer.ts:185/237/294`, and save/submit callbacks at
 `use-reply-actions.ts:199/214`. The first-save clearing rule remains
 `reply-ai-text.ts:65` and the write guard at `../reputation/replies/store.server.ts`.
 

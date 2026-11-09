@@ -11,6 +11,7 @@ import type { Tx } from '#/shared/outbox/commit'
 
 export type { GoogleReview, Reply, StarRating } from '../domain/types'
 export type { ReplyModeration } from '../domain/reply-moderation'
+export type { ReplyDraftCheckDto } from './dto/reply-library.dto'
 
 export { unfilledReplySlotsMessage } from '../domain/rules'
 

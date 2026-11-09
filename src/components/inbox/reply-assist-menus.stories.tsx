@@ -33,7 +33,7 @@ import {
   targetForReplyLanguage,
 } from './reply-language-options'
 import { ReplySuggestionControls } from './reply-suggestion-controls'
-import type { ReplyLanguageChoices } from './use-reply-composer'
+import type { ReplyLanguageChoices } from '#/contexts/reputation/replies/ui/use-reply-composer'
 
 const PANE_WIDTH_PX = 720
 const PHONE_WIDTH_PX = 390

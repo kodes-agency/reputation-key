@@ -37,7 +37,7 @@ import { Button } from '#/components/ui/button'
 import { Kbd } from '#/components/ui/kbd'
 import { TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { cn } from '#/lib/utils'
-import type { ReplyAutosaveStatus } from './use-reply-autosave'
+import type { ReplyAutosaveStatus } from '#/contexts/reputation/replies/ui/use-reply-autosave'
 import type { ReactNode } from 'react'
 
 /**

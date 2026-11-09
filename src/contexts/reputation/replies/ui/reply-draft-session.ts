@@ -1,10 +1,13 @@
-import type { ReplyDraftingStreamEvent } from '#/contexts/ai/server/reply-progress-stream.server'
+import type { ReplyDraftingStreamEvent } from '#/components/inbox/reply-draft-stream'
 import type {
   PendingReplyRequest,
   ReplySuggestionGenerate,
   ReplySuggestionResult,
-} from './reply-suggestion-contract'
-import type { DraftStream, DraftStreamRequest } from './reply-draft-stream'
+} from '#/components/inbox/reply-suggestion-contract'
+import type {
+  DraftStream,
+  DraftStreamRequest,
+} from '#/components/inbox/reply-draft-stream'
 
 export type DraftSessionSnapshot = Readonly<{
   reviewTextDigest: string | null

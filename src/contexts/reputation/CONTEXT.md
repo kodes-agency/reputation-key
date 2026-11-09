@@ -6,6 +6,12 @@
 content choice, pagination and selectable rows. Its Storybook states live beside
 it in `inbox-list.stories.tsx`; their titles and state names remain stable.
 
+`replies/ui/` owns the browser reply composer: its controller, the autosave
+coordinator, the draft session and its context, edit measurement, composer
+transitions and the `use-reply-*` hooks, with their tests. `use-reply-actions.ts`
+stays in `src/components/inbox`, where the feature-UI import rules and the
+Storybook stubs expect it; the composer components also stay there.
+
 The Inbox page and row primitives remain in `src/components/inbox`. The panel
 receives commands as props and reads browser-safe Inbox types through
 `src/contexts/inbox/application/public-api.ts`. Review and Inbox still own their
