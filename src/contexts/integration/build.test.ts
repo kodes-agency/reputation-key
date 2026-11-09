@@ -163,8 +163,11 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
   })
 
   it('routes Review reads and reply publication through their distinct system authorities', () => {
-    const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
-    const start = source.indexOf('const googleReviewSyncAuthorizer =')
+    const source = readFileSync(
+      new URL('./review-sync/google-review-sync-runtime.server.ts', import.meta.url),
+      'utf8',
+    )
+    const start = source.indexOf('const reviewSyncAuthorizer =')
     const end = source.indexOf('const googleReviewApi:', start)
     expect(start).toBeGreaterThanOrEqual(0)
     expect(end).toBeGreaterThan(start)
@@ -184,7 +187,7 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
   it('routes notification account lookup and desired-state writes through the governed executor', () => {
     const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
     const start = source.indexOf('const googleNotificationProviderExecutor =')
-    const end = source.indexOf('let googleImportDiscovery:', start)
+    const end = source.indexOf('const googleImportRuntime =', start)
     expect(start).toBeGreaterThanOrEqual(0)
     expect(end).toBeGreaterThan(start)
     const notificationWiring = source.slice(start, end)
@@ -208,7 +211,12 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
       ),
       'utf8',
     )
-    expect(source).toContain('createGoogleNotificationProviderAuthorizer({')
+    expect(
+      readFileSync(
+        new URL('./review-sync/google-review-sync-runtime.server.ts', import.meta.url),
+        'utf8',
+      ),
+    ).toContain('createGoogleNotificationProviderAuthorizer({')
     expect(authorizer).toContain('const targetedAccounts = new Set<string>()')
     expect(authorizer).toContain('gbpAccountId: binding.accountId')
     expect(authorizer).not.toContain('listAccounts')
