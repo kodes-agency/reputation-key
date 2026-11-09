@@ -377,7 +377,8 @@ on since 2026-09-06, when a direct push was shown to fail with
 must stay linear, and `main` cannot be
 force-pushed or deleted. `ci` and `image` are `always()` aggregates that fail
 on any failed, cancelled or skipped dependency. `ci` gathers `lint`, `typecheck`,
-`unit`, `integration`, `probes` and `browser`; `image` gathers `image-build` and
+`unit`, `integration`, `probes`, `browser`, `populated-upgrade` and
+`guest-quality`; `image` gathers `image-build` and
 `image-scan`. The remaining required contexts are `ci`, `image`, `secrets`,
 `audit` and `Analyze (javascript-typescript)`, with strict mode kept on. `audit`
 is the Fallow workflow job, and `Analyze (javascript-typescript)` is CodeQL.
@@ -395,6 +396,10 @@ writing the map. Dispatch writes a distinct verification map and never tags a
 commit; pull requests never publish. Production maps name `image` as their
 producer for rerun checks; historical maps without that discriminator still
 validate against the original image jobs for rollback.
+`guest-quality` (guest page geometry, reduced motion, LCP and CLS) decides from
+the changed paths in `scripts/ci/guest-quality-scope.sh` and succeeds at once
+when no guest path changed, so a pull request never waits on it; a manual run
+always runs the checks.
 Firefox, WebKit and the iOS viewport run weekly
 in `browser-matrix.yml` instead of on every pull request.
 
