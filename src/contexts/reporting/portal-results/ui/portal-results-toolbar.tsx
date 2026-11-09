@@ -15,7 +15,7 @@ type Props = Readonly<{
   /** The window in local days; null for All Time. */
   localDays: PortalAnalyticsData['localDays']
   timezone: string
-  asOf: Date
+  retentionActive?: boolean
 }>
 
 export function PortalResultsToolbar({
@@ -23,7 +23,7 @@ export function PortalResultsToolbar({
   onTimeRangeChange,
   localDays,
   timezone,
-  asOf,
+  retentionActive,
 }: Props) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
@@ -32,12 +32,14 @@ export function PortalResultsToolbar({
           value={timeRange}
           onValueChange={onTimeRangeChange}
           options={PORTAL_RESULTS_RANGES.map((range) =>
-            range.value === 'all' ? { ...range, label: allTimeLabel(asOf) } : range,
+            range.value === 'all'
+              ? { ...range, label: allTimeLabel(retentionActive) }
+              : range,
           )}
         />
         <p className="text-sm text-muted-foreground">
           {localDays === null
-            ? `${allTimeLabel(asOf) === 'All time' ? 'Every reading so far' : 'Readings from the last 24 months'}, ${zoneTimeLabel(timezone)}`
+            ? `${allTimeLabel(retentionActive) === 'All time' ? 'Every reading so far' : 'Readings from the last 24 months'}, ${zoneTimeLabel(timezone)}`
             : windowCaption(localDays, timezone)}
         </p>
       </div>

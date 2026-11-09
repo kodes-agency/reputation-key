@@ -23,8 +23,9 @@ import type { Database } from '#/shared/db'
  *      superseded observation copies past their clock, and the one-off
  *      operator prune of repeated observations
  *      (review_source_observations.repeats).
+ *  11: + metric_readings.expired, the 24-month metric reading retention rule.
  */
-const RETENTION_POLICY_VERSION = 10
+const RETENTION_POLICY_VERSION = 11
 
 export async function openRetentionRun(
   db: Database,

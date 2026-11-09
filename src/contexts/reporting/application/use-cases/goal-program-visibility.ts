@@ -109,12 +109,26 @@ export function withGoalProgramVisibility(
       ? {
           history: async (...args: Parameters<GoalProgramService['history']>) => {
             const [input, actor] = args
-            const page = await reads.history!(...args)
-            if (canForContext(actor, 'goal.create')) return page
+            if (canForContext(actor, 'goal.create')) return reads.history!(...args)
+            const program = await reads.get(input, actor)
             const { portalIds, groupIds } = await visibility({
               actor,
               propertyId: input.propertyId,
             })
+            const [visibleProgram] = scopeGoalProgramsForMember(
+              [program],
+              portalIds,
+              groupIds,
+            )
+            if (!visibleProgram) throw new GoalProgramError('not_found')
+            // Scope the database page before its limit and continuation are chosen.
+            const page = await reads.history!(
+              {
+                ...input,
+                subjects: visibleProgram.assignments.map(({ subject }) => subject),
+              },
+              actor,
+            )
             const [visible] = scopeGoalProgramsForMember([page], portalIds, groupIds)
             if (!visible)
               return {
@@ -123,6 +137,8 @@ export function withGoalProgramVisibility(
                 results: [],
                 versions: [],
                 targetChanges: [],
+                targetProvenance: {},
+                next: null,
               }
             const versionIds = new Set(
               visible.assignments.map((assignment) => assignment.programVersionId),
@@ -130,6 +146,15 @@ export function withGoalProgramVisibility(
             return {
               ...visible,
               versions: page.versions.filter((version) => versionIds.has(version.id)),
+              ...(page.targetProvenance
+                ? {
+                    targetProvenance: Object.fromEntries(
+                      Object.entries(page.targetProvenance).filter(([id]) =>
+                        versionIds.has(id),
+                      ),
+                    ),
+                  }
+                : {}),
             }
           },
         }

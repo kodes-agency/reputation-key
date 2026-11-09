@@ -21,6 +21,7 @@ import {
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { findMetricVersionById, METRIC_VERSION_IDS } from '../readings/contracts'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
+import { withGoalProgramVisibility } from '../application/use-cases/goal-program-visibility'
 import { createGoalProgramRepository } from '../infrastructure/repositories/goal-program.repository'
 import { readGoalMetricSourceHead } from '../infrastructure/repositories/goal-metric-source-head'
 import { seedLockedMonthTarget } from '../infrastructure/testing/goal-month-target-seed'
@@ -1542,6 +1543,71 @@ describe('canonical Goal Program service', () => {
         effectiveTo: created.results[0]?.periodEnd,
       })),
       results: created.results.map(({ id }) => ({ id })),
+    })
+  })
+
+  describe('history for a Member scoped to some Portals', () => {
+    const member: GoalActor = { ...actor, userId: 'member-1', role: 'Member' }
+
+    async function revisedProgram() {
+      const { service } = setup()
+      const created = await service.create(
+        {
+          propertyId: PROPERTY_ID,
+          name: 'March ratings',
+          metric: 'portal_rating_count',
+          targetValue: 20,
+          subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
+        },
+        actor,
+      )
+      const revised = await service.revise(
+        {
+          propertyId: PROPERTY_ID,
+          programId: created.program.id,
+          metric: 'portal_rating_count',
+          targetValue: 30,
+          subjects: [{ kind: 'portal', portalId: portalUuid(2) }],
+          reason: 'Move the goal to the second Portal',
+        },
+        actor,
+      )
+      return { service, created, revised }
+    }
+
+    it('shows provenance only for versions of subjects the Member can see', async () => {
+      const { service, created, revised } = await revisedProgram()
+      const scoped = withGoalProgramVisibility(service, async () => ({
+        portalIds: [portalUuid(1)],
+        groupIds: [],
+      }))
+
+      const page = await scoped.history!(
+        { propertyId: PROPERTY_ID, programId: created.program.id },
+        member,
+      )
+
+      expect(page.assignments.map(({ subject }) => subject)).toEqual([
+        { kind: 'portal', portalId: portalUuid(1) },
+      ])
+      expect(page.versions.map(({ id }) => id)).not.toContain(revised.version.id)
+      expect(Object.keys(page.targetProvenance ?? {})).not.toContain(revised.version.id)
+    })
+
+    it('answers not found for a Program with no visible subject, as get does', async () => {
+      const { service, created } = await revisedProgram()
+      const scoped = withGoalProgramVisibility(service, async () => ({
+        portalIds: [portalUuid(3)],
+        groupIds: [],
+      }))
+      const input = { propertyId: PROPERTY_ID, programId: created.program.id }
+
+      await expect(scoped.get(input, member)).rejects.toMatchObject({
+        code: 'not_found',
+      })
+      await expect(scoped.history!(input, member)).rejects.toMatchObject({
+        code: 'not_found',
+      })
     })
   })
 
