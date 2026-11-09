@@ -17,6 +17,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
+import { lockGoogleConnectionBindingAuthority } from '#/shared/db/google-connection-binding-authority'
+import { createImportClaims } from '../../imports/import-claims.server'
+import {
+  CREATED_AT,
+  MARKERS,
+  seedIntegrationLifecycleFixture,
+  type Fixture,
+} from './integration-organization-lifecycle.test-fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import type { GoogleOrganizationClosureProviderPort } from '../../application/ports/google-organization-closure.port'
@@ -49,31 +57,11 @@ const PURGED_TABLES = OWNED_TABLES.filter(
   (table) => !RETAINED_TABLES.includes(table as (typeof RETAINED_TABLES)[number]),
 )
 
-/** Tenant markers that must be gone (or never emitted) after each phase. */
-const MARKERS = Object.freeze({
-  accessToken: 'CLOSURE_ACCESS_TOKEN',
-  refreshToken: 'CLOSURE_REFRESH_TOKEN',
-  googleSubject: 'CLOSURE_GOOGLE_SUBJECT',
-  // The schema pins replay digests to exactly 43 URL-safe base64 characters.
-  replayDigest: `ClosureReplayDigest${'0'.repeat(24)}`,
-})
-
-type Fixture = Readonly<{
-  organizationId: string
-  userId: string
-  memberId: string
-  propertyId: string
-  connectionId: string
-  importId: string
-  permitId: string
-}>
-
 const fixtures: Fixture[] = []
 const bareOrganizations = new Set<string>()
 let lease: TestLease
 let db: Database
 
-const CREATED_AT = new Date('2026-08-01T00:00:00.000Z')
 const RECOVERABLE_UNTIL = new Date('2026-09-28T00:00:00.000Z')
 const OCCURRED_AT = new Date('2026-08-28T00:00:00.000Z')
 
@@ -112,68 +100,6 @@ async function seedBareOrganization(): Promise<string> {
   return organizationId
 }
 
-async function seedSingleRootImport(fixture: Fixture): Promise<void> {
-  await lease.pool.query(
-    `INSERT INTO google_imports (
-       id, organization_id, request_id, initiated_by, total_count,
-       wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 2, 'wire_v1', $5, 'semantic_v1', $5, $6, $6)`,
-    [
-      fixture.importId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      MARKERS.replayDigest,
-      CREATED_AT,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO google_import_items (
-       id, organization_id, import_id, connection_id,
-       destination_property_id, provider_account_suffix, provider_location_suffix,
-       expected_connection_lifecycle_version, expected_connection_access_version,
-       expected_credential_generation, expected_execution_policy_version,
-       expected_actor_role, expected_permission_digest, expected_principal_kind,
-       expected_permission_version, action, update_existing_profile,
-       property_name, country_code, timezone, status, next_dispatch_at,
-       effect_deadline_at, created_at, updated_at
-     ) VALUES (
-       $1, $2, $3, $4, $5, 'account-suffix', 'location-suffix', 1, 1, 1,
-       'beta-local-2', 'AccountAdmin', repeat('a', 64), 'user', 1,
-       'create', true, 'Imported Location', 'US', 'UTC', 'pending', $6,
-       $7, $6, $6
-     )`,
-    [
-      randomUUID(),
-      fixture.organizationId,
-      fixture.importId,
-      fixture.connectionId,
-      randomUUID(),
-      CREATED_AT,
-      new Date(CREATED_AT.getTime() + 86_400_000),
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO google_import_items (
-       id, organization_id, import_id, destination_property_id, action,
-       update_existing_profile, property_name, country_code, timezone, status,
-       outcome_code, first_terminal_at, effect_deadline_at, created_at, updated_at
-     ) VALUES (
-       $1, $2, $3, $4, 'create', true, 'Imported Location', 'US', 'UTC',
-       'imported', 'imported', $5, $6, $5, $5
-     )`,
-    [
-      randomUUID(),
-      fixture.organizationId,
-      fixture.importId,
-      fixture.propertyId,
-      CREATED_AT,
-      new Date(CREATED_AT.getTime() + 86_400_000),
-    ],
-  )
-}
-
 /** The pending item reaches a terminal state the way the expiry sweep leaves it. */
 async function cancelPendingSingleRootItems(organizationId: string): Promise<void> {
   await lease.pool.query(
@@ -194,122 +120,8 @@ async function cancelPendingSingleRootItems(organizationId: string): Promise<voi
 }
 
 async function seedFixture(): Promise<Fixture> {
-  const suffix = randomUUID()
-  const fixture: Fixture = {
-    organizationId: `integration-lifecycle-org-${suffix}`,
-    userId: `integration-lifecycle-user-${suffix}`,
-    memberId: `integration-lifecycle-member-${suffix}`,
-    propertyId: randomUUID(),
-    connectionId: randomUUID(),
-    importId: randomUUID(),
-    permitId: randomUUID(),
-  }
+  const fixture = await seedIntegrationLifecycleFixture(lease.pool)
   fixtures.push(fixture)
-
-  await lease.pool.query(
-    `INSERT INTO organization (id, name, slug, "createdAt")
-     VALUES ($1, 'Integration lifecycle fixture', $1, $2)`,
-    [fixture.organizationId, CREATED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-     VALUES ($1, 'Closure Manager', $2, true, $3, $3)`,
-    [fixture.userId, `${suffix}@example.test`, CREATED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
-     VALUES ($1, $2, $3, 'owner', $4)`,
-    [fixture.memberId, fixture.userId, fixture.organizationId, CREATED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       credential_authorized_by, credential_authorized_at, visibility, status,
-       credential_use_state, last_successful_sync_at, status_reason, status_changed_at,
-       created_at, updated_at
-     ) VALUES (
-       $1, $2, $3, $4, $5, $6, ARRAY['https://www.googleapis.com/auth/business.manage'],
-       $7, $7, $8, 'organization', 'active', 'active', $8,
-       'connected', $8, $8, $8
-     )`,
-    [
-      fixture.connectionId,
-      fixture.organizationId,
-      `${MARKERS.googleSubject}-${suffix}`,
-      MARKERS.accessToken,
-      MARKERS.refreshToken,
-      new Date(CREATED_AT.getTime() + 3_600_000),
-      fixture.userId,
-      CREATED_AT,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
-     VALUES ($1, $2, 'Closure Property', $3, 'UTC', $4, $4)`,
-    [fixture.propertyId, fixture.organizationId, `closure-${suffix}`, CREATED_AT],
-  )
-  await seedSingleRootImport(fixture)
-  await lease.pool.query(
-    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
-     VALUES ('google_disconnect_revoke', $1, jsonb_build_object(
-       'id', $1::text,
-       'organizationId', $2::text,
-       'connectionId', $3::text,
-       'initiatorUserId', $4::text,
-       'state', 'confirmed_revoked',
-       'expectedLifecycleVersion', 1,
-       'expectedAccessVersion', 1,
-       'expectedCredentialGeneration', 1,
-       'credentialBinding', NULL,
-       'cleanupDeadlineAt', $5::timestamptz,
-       'activatedAt', $6::timestamptz,
-       'terminalAt', $6::timestamptz,
-       'outcomeCode', 'google_revoke_confirmed',
-       'updatedAt', $6::timestamptz
-     ), $6)`,
-    [
-      randomUUID(),
-      fixture.organizationId,
-      fixture.connectionId,
-      fixture.userId,
-      new Date(CREATED_AT.getTime() + 30_000),
-      CREATED_AT,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
-     VALUES ('google_oauth_exchange', $1, jsonb_build_object(
-       'id', $1::text,
-       'organizationId', $2::text,
-       'initiatorUserId', $3::text,
-       'connectionId', $4::text,
-       'state', 'completed',
-       'terminalAt', $5::timestamptz,
-       'outcomeCode', 'connected',
-       'updatedAt', $5::timestamptz
-     ), $5)`,
-    [randomUUID(), fixture.organizationId, fixture.userId, randomUUID(), CREATED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO authorization_execution_permits (
-       id, capability, organization_id, connection_id, initiator_user_id,
-       operation_key, route_key, route_catalog_version, quota_policy_id,
-       authorization_vector, state, admitted_at, start_deadline_at,
-       started_at, operation_deadline_at, completed_at, correlation_id, created_at
-     ) VALUES ($1, 'property.import_gbp_v2', $2, $3, $4, 'operation', 'route',
-               'v1', 'quota', '{}'::jsonb, 'completed', $5, $6, $6, $7, $7,
-               'correlation', $5)`,
-    [
-      fixture.permitId,
-      fixture.organizationId,
-      fixture.connectionId,
-      fixture.userId,
-      CREATED_AT,
-      new Date(CREATED_AT.getTime() + 60_000),
-      new Date(CREATED_AT.getTime() + 120_000),
-    ],
-  )
   return fixture
 }
 
@@ -827,5 +639,104 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
     expect(counts.google_imports).toBe(0)
     expect(counts.google_import_items).toBe(0)
     expect(await tableSnapshot(neighbour.organizationId)).toEqual(neighbourBefore)
+  })
+  it('closes an Organization while an import item effect is running, without waiting out the lock timeout', async () => {
+    const fixture = await seedFixture()
+    const lineage = randomUUID()
+    await advanceAuthorityTo(fixture.organizationId, lineage, 'closure_requested')
+    const claimFence = randomUUID()
+    const now = new Date(CREATED_AT.getTime() + 3_600_000)
+    const item = await lease.pool.query(
+      `UPDATE google_import_items
+       SET status = 'processing', highest_attempt_for_revision = 1,
+           claim_fence = $2, claim_lease_expires_at = $3
+       WHERE organization_id = $1 AND status = 'pending'
+       RETURNING id, retry_revision, dispatch_epoch`,
+      [fixture.organizationId, claimFence, new Date(now.getTime() + 3_600_000)],
+    )
+    const itemRow = item.rows[0] as {
+      id: string
+      retry_revision: number
+      dispatch_epoch: number
+    }
+
+    // Several clients are in play at once: the effect's item lock, its
+    // connection lock, and the closure.
+    const wide = await acquireTestLease(getEnv().DATABASE_URL, 6)
+    try {
+      const clients = await Promise.all(
+        Array.from({ length: 6 }, () => wide.pool.connect()),
+      )
+      try {
+        await Promise.all(
+          clients.map((client) => client.query("SET lock_timeout = '2s'")),
+        )
+      } finally {
+        for (const client of clients) client.release()
+      }
+      const wideDb = drizzle(wide.pool) as Database
+      let shareHeld!: () => void
+      const shareIsHeld = new Promise<void>((resolve) => (shareHeld = resolve))
+      let releaseEffect!: () => void
+      const effectMayProceed = new Promise<void>((resolve) => (releaseEffect = resolve))
+
+      const effectRun = createImportClaims(wideDb).runClaimedEffect(
+        {
+          organizationId: fixture.organizationId,
+          itemId: itemRow.id,
+          retryRevision: itemRow.retry_revision,
+          attemptOrdinal: 1,
+          dispatchEpoch: itemRow.dispatch_epoch,
+          claimFence,
+          now,
+        },
+        () =>
+          wideDb.transaction(async (tx) => {
+            const bound = await lockGoogleConnectionBindingAuthority(tx, {
+              organizationId: fixture.organizationId,
+              connectionId: fixture.connectionId,
+            })
+            shareHeld()
+            await effectMayProceed
+            return bound
+          }),
+      )
+      await shareIsHeld
+
+      const contributor = createIntegrationOrganizationLifecycleContributor({
+        db: wideDb,
+        provider: recordingProvider(),
+      })
+      const startedAt = Date.now()
+      const closing = contributor.prepareClosing(
+        contributionRequest(
+          fixture.organizationId,
+          lineage,
+          revisionFor('closure_requested'),
+        ),
+      )
+
+      try {
+        // The closure queues on the connection the effect still holds; it does
+        // not wait on the import root.
+        await vi.waitFor(async () => {
+          const blocked = await lease.pool.query(
+            `SELECT 1 FROM pg_stat_activity
+             WHERE datname = current_database() AND wait_event_type = 'Lock'
+               AND query ILIKE '%google_connections%'`,
+          )
+          expect(blocked.rows.length).toBeGreaterThan(0)
+        })
+      } finally {
+        releaseEffect()
+      }
+
+      const [effect, outcome] = await Promise.all([effectRun, closing])
+      expect(effect).toEqual({ kind: 'executed', value: true })
+      expect(outcome.outcome).toBe('complete')
+      expect(Date.now() - startedAt).toBeLessThan(5_000)
+    } finally {
+      await wide.release()
+    }
   })
 })

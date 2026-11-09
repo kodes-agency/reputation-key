@@ -172,8 +172,10 @@ export function createImportClaims(
 
     runClaimedEffect: async (input, effect) =>
       db.transaction(async (tx) => {
-        const parent = await lockItemParent(tx, input.organizationId, input.itemId)
-        if (!parent) return { kind: 'lost' } as const
+        // Only the item row is held across the effect, never the import root:
+        // sibling items and organization closure take the root first and must
+        // not queue behind a provider call. A closure still waits for the
+        // effect through the connection lock the effect takes inside.
         const [row] = await tx
           .select({
             status: googleImportItems.status,

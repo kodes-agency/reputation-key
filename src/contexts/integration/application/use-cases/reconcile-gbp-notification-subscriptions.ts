@@ -126,6 +126,28 @@ const unsettled = (
     .filter(([outcome]) => !SETTLED_OUTCOMES.has(outcome))
     .reduce((sum, [, count]) => sum + count, 0)
 
+const subscriptionSucceeded = (report: GbpSubscribeBackfillReport): boolean =>
+  report.accounts.failed === 0 &&
+  report.accounts.subscribed + report.accounts.alreadySubscribed > 0
+
+type AccountReconciliation = Readonly<{
+  report: GbpSubscribeBackfillReport
+  retry: boolean
+}>
+
+const accountReconciliation = (
+  previous: AccountReconciliation | undefined,
+  report: GbpSubscribeBackfillReport,
+): AccountReconciliation => ({
+  report,
+  // A later refusal must not hide an earlier transient failure. Success from
+  // any Organization clears that account's retry requirement.
+  retry:
+    !subscriptionSucceeded(report) &&
+    ((previous?.retry ?? false) ||
+      Object.keys(report.accounts.failureCodes).some(isTransientFailure)),
+})
+
 export const createGbpNotificationReconciliation = (
   deps: Readonly<{
     /** False when GBP_PUBSUB_TOPIC is empty. */
@@ -149,7 +171,9 @@ export const createGbpNotificationReconciliation = (
     const startedOrganizations = new Set<OrganizationId>()
     const settledAccounts = new Set<string>()
     const policy = new Map<OrganizationId, boolean>()
-    const reports: GbpSubscribeBackfillReport[] = []
+    // Keep one final report per account; a healthy Organization can replace
+    // an earlier refusal from another Organization sharing it.
+    const accountReports = new Map<string, AccountReconciliation>()
     let organizationsDenied = 0
     let organizationsFailed = 0
     for (const candidate of candidates) {
@@ -166,18 +190,22 @@ export const createGbpNotificationReconciliation = (
         // the front of every bounded run. This survives worker restarts.
         await deps.recordAttempt(candidate.gbpAccountId)
         if (!policy.get(organization)) continue
-        settledAccounts.add(candidate.gbpAccountId)
-        reports.push(
-          await deps.backfill.apply(organization, {
-            connectionId: candidate.connectionId,
-            gbpAccountId: candidate.gbpAccountId,
-          }),
+        const applied = await deps.backfill.apply(organization, {
+          connectionId: candidate.connectionId,
+          gbpAccountId: candidate.gbpAccountId,
+        })
+        accountReports.set(
+          candidate.gbpAccountId,
+          accountReconciliation(accountReports.get(candidate.gbpAccountId), applied),
         )
+        if (subscriptionSucceeded(applied)) settledAccounts.add(candidate.gbpAccountId)
       } catch {
         organizationsFailed += 1
       }
     }
 
+    const results = [...accountReports.values()]
+    const reports = results.map((result) => result.report)
     const connectionOutcomes = mergeCounts(reports)
     const accounts = sumGbpAccountTallies([
       NO_GBP_ACCOUNTS,
@@ -194,9 +222,7 @@ export const createGbpNotificationReconciliation = (
       connectionOutcomes,
       unsettledConnections: unsettled(connectionOutcomes),
       accounts,
-      retry:
-        organizationsFailed > 0 ||
-        Object.keys(accounts.failureCodes).some(isTransientFailure),
+      retry: organizationsFailed > 0 || results.some((result) => result.retry),
     }
   }
 }
