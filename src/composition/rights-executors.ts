@@ -4,19 +4,32 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '#/shared/db'
+import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import {
+  createGuestBackupErasureReplayer,
+  createGuestPropertyErasureReplayer,
+} from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
 import {
   createGuestRightsExecutor,
   type GuestRightsExecutorDeps,
 } from '#/contexts/guest/infrastructure/adapters/guest-rights.adapter'
-import { createReportingRightsExecutor } from '#/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
-import { createGoogleRightsExecutor } from '#/shared/ops/rights/google-rights-executor'
+import {
+  createReportingRightsExecutor,
+  createReportingRightsReplayers,
+} from '#/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
+import {
+  createGoogleRightsExecutor,
+  createGoogleRightsReplayers,
+} from '#/shared/ops/rights/google-rights-executor'
 import {
   createNotificationRightsExecutor,
   type NotificationRightsExecutorDeps,
 } from '#/shared/ops/rights/notification-rights-executor'
 import {
   createInboxRightsExecutor,
+  createInboxRightsReplayers,
   createReviewRightsExecutor,
+  createReviewRightsReplayers,
 } from '#/shared/ops/rights/review-inbox-rights-executors'
 import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
@@ -56,5 +69,26 @@ export function composeRightsExecutors(
     }),
     createReportingRightsExecutor(deps.db, now),
     notification,
+  ]
+}
+
+/** One replayer per journaled (context, subject class), for restore replay. */
+export function composeRightsReplayers(
+  deps: Pick<RightsExecutorsDeps, 'db' | 'now'> &
+    Readonly<{ notificationReplayers: ReadonlyArray<BackupErasureReplayer> }>,
+): ReadonlyArray<BackupErasureReplayer> {
+  const now = deps.now ?? (() => new Date())
+  return [
+    ...createGoogleRightsReplayers(now),
+    ...createReviewRightsReplayers({
+      db: deps.db,
+      now,
+      replyEffects: reputationReplyScopeEffects,
+    }),
+    ...createInboxRightsReplayers({ db: deps.db, now }),
+    createGuestBackupErasureReplayer(),
+    createGuestPropertyErasureReplayer(),
+    ...createReportingRightsReplayers(now),
+    ...deps.notificationReplayers,
   ]
 }
