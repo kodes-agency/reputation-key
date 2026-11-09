@@ -4248,18 +4248,6 @@
     "checks": ["overflow"]
   },
   {
-    "storyId": "inbox-detail-google-check--call-fails",
-    "state": "Call Fails",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-detail-google-check--call-fails",
-    "state": "Call Fails",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "inbox-detail-google-check--google-unavailable",
     "state": "Google Unavailable",
     "width": 320,

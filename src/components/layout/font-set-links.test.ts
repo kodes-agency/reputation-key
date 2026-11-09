@@ -11,13 +11,11 @@ function render(fontSet: 'app' | 'guest', locale: 'en' | 'bg'): string {
 }
 
 describe('FontSetLinks', () => {
-  it('links the Satoshi and app stylesheets, preconnecting to Fontshare, and nothing from Google', () => {
+  it('links only our own app stylesheet, with no preconnect and nothing third-party', () => {
     const html = render('app', 'en')
-    expect(html).toContain('<link rel="preconnect" href="https://api.fontshare.com"/>')
-    expect(html).toContain(
-      '<link rel="preconnect" href="https://cdn.fontshare.com" crossorigin="anonymous"/>',
-    )
-    expect(html).toContain('href="https://api.fontshare.com/v2/css?')
+    expect(html).not.toContain('https://')
+    expect(html).not.toContain('preconnect')
+    expect(html).not.toContain('fontshare')
     expect(html).toContain('rel="stylesheet" href="/fonts/app/app-fonts.css"')
     expect(html).not.toContain('google')
     expect(html).not.toContain('gstatic')
