@@ -6,24 +6,18 @@
 // Deleting the row would cascade parts of that evidence away and would make the
 // erase unprovable — the opposite of what an irreversible operation needs.
 //
-// What Property DOES erase is the name, the slug and the address, and its
-// Responsible Manager rows.
+// What Property DOES erase is the name, the slug, the address, the archive note,
+// the Google binding and its Responsible Manager rows. The tombstone keeps the
+// Property id, its Organization, the erase date and the reason
+// `erased on request`; nothing in it names a person.
 //
-// What the tombstone STILL KEEPS, and an owner decision has to settle before
-// this path is armed (docs/operations/backup-and-lifecycle.md §9):
-//
-//   - the archive note (`lifecycle_reason`): 3 to 500 characters of free text
-//     an AccountAdmin typed, so it can name a person;
-//   - the Google binding: the account and location suffixes, the Organization
-//     connection reference, the binding state (still `active` if the Property
-//     was never disconnected) and the review URI with its pin.
-//
-// The location suffix has a second effect. Its unique index is per
-// Organization and leaves out only rows with `deleted_at` set, which a
-// tombstone never has, so the same Google location cannot be imported into
-// that Organization again: `createBoundProperty` answers
-// `location_already_bound`. `scrubProviderIdentity` on the binding store clears
-// exactly these binding columns and has no caller yet.
+// The Google binding goes in the same statement, so the account and location
+// suffixes, the connection reference, the review URI and its pin are gone and
+// the location's unique index frees the location: a later reconnect creates a
+// fresh Property. The source epoch moves, which fences late sync writes that
+// were prepared against the old binding. The Google connection itself and the
+// Property's import items belong to the Google executor and are not touched here
+// (docs/operations/backup-and-lifecycle.md §9).
 
 import { sql } from 'drizzle-orm'
 import type {
@@ -32,6 +26,9 @@ import type {
   PropertyEraseScope,
 } from '../../application/ports/property-erase-contributor.port'
 import type { Tx } from '#/shared/outbox/commit'
+
+/** The note an erased Property's tombstone carries. */
+export const ERASED_ON_REQUEST = 'erased on request'
 
 export const createPropertyPropertyEraseContributor = (): PropertyEraseContributor => ({
   context: 'property',
@@ -67,15 +64,34 @@ export const createPropertyPropertyEraseContributor = (): PropertyEraseContribut
         AND organization_id = ${scope.organizationId}
       RETURNING id
     `)
-    // The row survives as a tombstone; its name, slug and address do not (the
-    // header lists what it still keeps). The slug is derived from the id rather
-    // than nulled because it is NOT NULL and unique, and one shared placeholder
-    // would collide across erased Properties.
+    // The row survives as a tombstone; its name, slug, address, archive note and
+    // Google binding do not (the header lists what stays). The slug is derived
+    // from the id rather than nulled because it is NOT NULL and unique, and one
+    // shared placeholder would collide across erased Properties.
     const scrubbed = await tx.execute(sql`
       UPDATE properties
       SET name = 'erased-property',
           slug = 'erased-' || id::text,
           address = NULL,
+          lifecycle_reason = ${ERASED_ON_REQUEST},
+          lifecycle_initiated_by = NULL,
+          purge_scheduled_for = NULL,
+          google_connection_id = NULL,
+          gbp_account_id = NULL,
+          gbp_location_id = NULL,
+          google_binding_state = 'unbound',
+          google_review_uri = NULL,
+          google_review_destination_state = 'unavailable',
+          google_review_destination_retrieved_at = NULL,
+          google_review_destination_source_epoch = NULL,
+          google_review_destination_profile_version = NULL,
+          google_primary_category = NULL,
+          google_primary_category_updated_at = NULL,
+          google_primary_category_refresh_event_id = NULL,
+          profile_source = 'legacy',
+          profile_confirmed_at = NULL,
+          profile_confirmed_by = NULL,
+          source_epoch = source_epoch + 1,
           updated_at = now()
       WHERE id = ${scope.propertyId}::uuid
         AND organization_id = ${scope.organizationId}

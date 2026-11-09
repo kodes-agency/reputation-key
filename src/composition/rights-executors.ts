@@ -18,6 +18,16 @@ import {
   createGuestPropertyErasureReplayer,
 } from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
 import {
+  createIdentityPropertyRightsExecutor,
+  createStaffOrganizationRightsExecutor,
+  identityPropertyErasureReplayer,
+  staffOrganizationErasureReplayer,
+} from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
+import {
+  createPropertyRightsExecutor,
+  propertyErasureReplayer,
+} from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
+import {
   createGuestRightsExecutor,
   type GuestRightsExecutorDeps,
 } from '#/contexts/guest/infrastructure/adapters/guest-rights.adapter'
@@ -90,6 +100,9 @@ export function composeRightsExecutors(
     }),
     createAiRightsExecutor(deps.db, now),
     createActivityRightsExecutor(deps.db),
+    createIdentityPropertyRightsExecutor(deps.db),
+    createStaffOrganizationRightsExecutor(deps.db),
+    createPropertyRightsExecutor(deps.db, now),
     notification,
   ]
 }
@@ -114,6 +127,9 @@ export function composeRightsReplayers(
     ...createPortalErasureReplayers(),
     ...createAiErasureReplayers(now),
     ...createActivityErasureReplayers(),
+    identityPropertyErasureReplayer,
+    staffOrganizationErasureReplayer,
+    propertyErasureReplayer,
     ...deps.notificationReplayers,
   ]
 }
