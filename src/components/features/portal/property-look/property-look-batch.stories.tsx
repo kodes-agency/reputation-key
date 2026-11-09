@@ -204,7 +204,13 @@ export const RowsSayWhatThePublishCarries: Story = {
     )
     await waitFor(() =>
       expect(args.publishPortals).toHaveBeenCalledWith({
-        data: { portalIds: ['p-reception', 'p-pool', 'p-rooms'] },
+        data: {
+          portals: [
+            { portalId: 'p-reception', reviewedDigest: 'reviewed-digest' },
+            { portalId: 'p-pool', reviewedDigest: 'reviewed-digest' },
+            { portalId: 'p-rooms', reviewedDigest: 'reviewed-digest' },
+          ],
+        },
       }),
     )
   },
@@ -252,7 +258,13 @@ export const OwnersAndFollowersInOneReview: Story = {
     )
     await waitFor(() =>
       expect(args.publishPortals).toHaveBeenCalledWith({
-        data: { portalIds: ['p-reception', 'p-pool', 'p-rooms'] },
+        data: {
+          portals: [
+            { portalId: 'p-reception', reviewedDigest: 'reviewed-digest' },
+            { portalId: 'p-pool', reviewedDigest: 'reviewed-digest' },
+            { portalId: 'p-rooms', reviewedDigest: 'reviewed-digest' },
+          ],
+        },
       }),
     )
   },
@@ -293,7 +305,12 @@ export const PublishesTheTickedPortals: Story = {
     )
     await expect(args.publishPortals).toHaveBeenCalledTimes(1)
     await expect(args.publishPortals).toHaveBeenCalledWith({
-      data: { portalIds: ['p-reception', 'p-rooms'] },
+      data: {
+        portals: [
+          { portalId: 'p-reception', reviewedDigest: 'reviewed-digest' },
+          { portalId: 'p-rooms', reviewedDigest: 'reviewed-digest' },
+        ],
+      },
     })
     const outcomes = within(within(dialog).getByRole('list', { name: /What happened/ }))
     await expect(outcomes.getAllByText('Published as version 4')).toHaveLength(2)
@@ -335,7 +352,7 @@ export const AFailedPortalDoesNotStopTheRest: Story = {
     await waitFor(() => expect(args.publishPortals).toHaveBeenCalledTimes(2), WAIT)
     // Only the portal that failed is sent again.
     await expect(args.publishPortals).toHaveBeenLastCalledWith({
-      data: { portalIds: ['p-pool'] },
+      data: { portals: [{ portalId: 'p-pool', reviewedDigest: 'reviewed-digest' }] },
     })
     // Its new answer replaces the old one: three published, the retried portal listed once.
     await waitFor(

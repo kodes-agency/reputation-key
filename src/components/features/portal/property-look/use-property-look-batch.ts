@@ -35,7 +35,7 @@ export type PortalReviewReader = (args: {
 
 /** `publishPortalsChanges`, as a route hands it in. */
 export type PublishPortalsAction = Action<
-  { data: { portalIds: string[] } },
+  { data: { portals: { portalId: string; reviewedDigest: string }[] } },
   PublishPortalsChangesResult
 >
 
@@ -131,6 +131,19 @@ export function usePropertyLookBatch({
       return next
     })
 
+  /** The digest each ready portal was reviewed at: a publish is held to it. */
+  const reviewedDigestOf = useMemo(
+    () =>
+      new Map(
+        (rows ?? []).flatMap((item) =>
+          item.entry.kind === 'ready'
+            ? [[item.row.portalId, item.entry.reviewDigest] as const]
+            : [],
+        ),
+      ),
+    [rows],
+  )
+
   const send = async (
     sending: readonly string[],
     before: RunRecord<Outcome>,
@@ -139,7 +152,15 @@ export function usePropertyLookBatch({
     setRun({ status: 'publishing', sending, previous })
     const result = await publishInBatches(
       sending,
-      (batch) => publishPortals({ data: { portalIds: [...batch] } }),
+      (batch) =>
+        publishPortals({
+          data: {
+            portals: batch.map((portalId) => ({
+              portalId,
+              reviewedDigest: reviewedDigestOf.get(portalId) ?? '',
+            })),
+          },
+        }),
       PUBLISH_BATCH_SIZE,
     )
     setRun({ status: 'done', ...mergeRun(before, sending, result, order) })
