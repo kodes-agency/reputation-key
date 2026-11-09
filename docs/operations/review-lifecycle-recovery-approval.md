@@ -45,6 +45,7 @@ authority count is zero. Preserve its printed recovery run and generation for
 cutover. Follow [backup and lifecycle](backup-and-lifecycle.md)
 for the remaining checks and serving procedure.
 
-Erasure replay is **not wired**. This command does not re-apply or verify
-post-restore-point erasures. Reconcile those before cutover; a successful data
-restore rehearsal alone does not prove erasure replay.
+Pass the local erasure journal export as `journal=<file>`. The command decodes
+it before any work (an altered or malformed file refuses the run), and apply
+re-applies the post-restore-point erasures through the resurrection fence,
+failing unless every one is gone again. Apply without a journal refuses.

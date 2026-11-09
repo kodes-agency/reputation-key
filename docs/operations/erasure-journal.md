@@ -2,9 +2,9 @@
 
 The journal is built but inactive. No customer or guest erasure path writes it
 in this release. Existing lifecycle receipts and withdrawal safeguards remain.
-The restore verifier still reports that erasure replay is not wired. These
-primitives and unit tests do not establish command-level restore proof or live
-erasure evidence.
+The restore verifier replays a local journal export (`journal=<file>`) through
+the resurrection fence. No erasure path writes the journal yet, so there is no
+live erasure evidence.
 
 ## Bucket evidence
 
