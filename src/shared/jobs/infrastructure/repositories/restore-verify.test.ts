@@ -19,7 +19,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 //   3. RESTORE_MODE not isolated in the command env — the action REFUSES
 //      before any work (exit 1, nothing purged);
 //   4. a Redis, queue or bucket setting in the command env — the action
-//      REFUSES before any work, and a dry run says erasure replay is not wired.
+//      REFUSES before any work, and a dry run plans the journal replay.
 //
 // The policy boot below is the exact wiring scripts/ops/operator-command.ts
 // runs — replicated rather than imported because the shim lives outside
@@ -31,6 +31,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
+import { encodeErasureJournalExport } from '#/shared/db/lifecycle/erasure-journal.server'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
@@ -53,7 +54,6 @@ import {
 } from '#/shared/ops/operator-command'
 import {
   RESTORE_VERIFY_PURGE_SUBJECT,
-  RESTORE_VERIFY_REPLAY_NOTICE,
   RESTORE_VERIFY_SPEC,
   runRestoreVerifyAction,
   type RestoreVerifyDeps,
@@ -143,6 +143,14 @@ function realDeps(env: RestoreVerifyDeps['env']): RestoreVerifyDeps {
     env,
     confirmation: 'closed-beta-v2',
     clock: () => new Date(),
+    // The replay itself is proved in src/shared/ops/restore-verify-replay.integration.test.ts.
+    erasureReplay: {
+      journalFile: '/secure/erasure-journal.json',
+      readFile: async () => encodeErasureJournalExport([], new Date()),
+      apply: async () => {
+        throw new Error('not reached: the Review authority refuses first')
+      },
+    },
     reviewLifecycle: {
       kind: 'inspection_only',
       reason: 'environment_confirmation_required',
@@ -328,7 +336,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     )
     expect((dryRun.rows[0] as { c: number }).c).toBe(1)
     expect(io.outLines.join('\n')).toMatch(/expired-content row\(s\) eligible/)
-    expect(io.outLines.join('\n')).toContain(RESTORE_VERIFY_REPLAY_NOTICE)
+    expect(io.outLines.join('\n')).toContain('erasure replay plan: entries=0')
   })
 
   it('refuses before any work when RESTORE_MODE is not isolated', async () => {

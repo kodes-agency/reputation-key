@@ -31,7 +31,8 @@ Primary areas:
   without changing the receipt's evidence or resetting its durable checkpoint.
   Expiry is checked again after fencing before the receipt can complete.
   `recovery_runs` retains the fence and cutover generation. Erasure
-  replay is a separate prerequisite and is not wired into this command.
+  replay runs from the local journal export (`journal=<file>`) before the
+  receipt completes.
   `release/railway-service-settings.ts` defines web and worker settings; image
   promotion checks deployed manifests and replica counts against that contract.
 

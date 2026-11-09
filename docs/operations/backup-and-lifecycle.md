@@ -554,12 +554,10 @@ helper in `src/shared/db/lifecycle/backup-erasure-ledger.ts` exist, but no
 production caller records erasures through that helper. This is not an active
 erasure journal.
 
-The retained `applyRestoreResurrectionFence` helper can classify and replay
-ledger entries, but nothing calls it. Neither
-`src/shared/db/recovery/postgres-recovery-fence.ts` nor `ops:restore-verify`
-runs it; the latter prints `NOT WIRED: erasure replay`. Only the Guest
-organization-scoped replayer exists (`createGuestBackupErasureReplayer`),
-and it has no caller either.
+`ops:restore-verify` feeds a local journal export (`journal=<file>`) to
+`applyRestoreResurrectionFence` with the replayers composed by
+`composeRightsReplayers`, and fails unless every entry is re-applied. An altered
+export is refused before any work.
 
 A restore does not automatically re-apply erasures made after its restore point,
 and no active journal establishes a complete list of those erasures. Identify
