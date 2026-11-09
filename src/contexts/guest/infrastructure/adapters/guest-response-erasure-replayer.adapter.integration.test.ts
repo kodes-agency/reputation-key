@@ -28,6 +28,7 @@ const db = getDb()
 const ROLLBACK = new Error('rollback guest response erasure replay proof')
 const ERASED_AT = new Date('2026-11-08T12:00:00.000Z')
 const PRIVATE_TEXT = 'NEVER_SURVIVE_REPLAY_FEEDBACK_BODY'
+const CONTACT_CIPHERTEXT = 'NEVER_SURVIVE_REPLAY_CONTACT_CIPHERTEXT'
 
 type Cell = Readonly<{
   organizationId: string
@@ -66,6 +67,73 @@ async function seedResponse(
       clock_timestamp() + interval '88 days', clock_timestamp()
     )
   `)
+}
+
+/** A Contact Request with an encrypted contact and one reveal audit for the response. */
+async function seedContact(
+  tx: Tx,
+  cell: Pick<Cell, 'organizationId' | 'propertyId' | 'portalId'>,
+  responseId: string,
+  version: number,
+): Promise<void> {
+  const snapshotId = randomUUID()
+  const contactRequestId = randomUUID()
+  const digest = 'a'.repeat(64)
+  await tx.execute(sql`
+    INSERT INTO portal_publication_snapshots (
+      id, organization_id, property_id, portal_id, version, configuration_digest,
+      configuration, guest_locale, language_pack_version, private_feedback_threshold,
+      contact_request_enabled, contact_notice_id, contact_notice_version,
+      contact_notice_digest, contact_notice_locale, destination_uri,
+      destination_retrieved_at, destination_source_epoch,
+      destination_profile_version, created_by, created_at
+    ) VALUES (
+      ${snapshotId}::uuid, ${cell.organizationId}, ${cell.propertyId}::uuid,
+      ${cell.portalId}::uuid, ${version}, ${digest}, '{}'::jsonb, 'en', 'guest-ui-en-v1', 3,
+      true, 'guest-contact-notice', 'v1', ${digest}, 'en',
+      'https://example.test/review', clock_timestamp(), 0, 1,
+      'replay-proof-actor', clock_timestamp()
+    )
+  `)
+  await tx.execute(sql`
+    INSERT INTO guest_contact_requests (
+      id, organization_id, property_id, portal_id, response_id,
+      publication_snapshot_id, publication_version, publication_digest,
+      contact_request_enabled, notice_id, notice_version, notice_digest,
+      notice_locale, retention_policy_version, purpose, consent_granted,
+      encrypted_contact, encryption_key_id, status, submitted_at, expires_at,
+      created_at, updated_at
+    ) VALUES (
+      ${contactRequestId}::uuid, ${cell.organizationId}, ${cell.propertyId}::uuid,
+      ${cell.portalId}::uuid, ${responseId}::uuid, ${snapshotId}::uuid, ${version},
+      ${digest}, true, 'guest-contact-notice', 'v1', ${digest}, 'en',
+      'guest-contact-retention-30d-v1', 'manager_follow_up', true,
+      ${CONTACT_CIPHERTEXT}, 'guest-contact-v1', 'active', now(),
+      now() + interval '720 hours', now(), now()
+    )
+  `)
+  await tx.execute(sql`
+    INSERT INTO guest_contact_request_reveal_audits (
+      id, contact_request_id, organization_id, property_id, portal_id, actor_id,
+      access_purpose, authority_basis, revealed_at, created_at
+    ) VALUES (
+      gen_random_uuid(), ${contactRequestId}::uuid, ${cell.organizationId},
+      ${cell.propertyId}::uuid, ${cell.portalId}::uuid, 'replay-proof-actor',
+      'respond_to_contact_request', 'account_admin', clock_timestamp(), clock_timestamp()
+    )
+  `)
+}
+
+async function contactRows(tx: Tx, organizationId: string): Promise<[number, number]> {
+  const result = await tx.execute(sql`
+    SELECT
+      (SELECT COUNT(*)::int FROM guest_contact_requests
+        WHERE organization_id = ${organizationId}) AS requests,
+      (SELECT COUNT(*)::int FROM guest_contact_request_reveal_audits
+        WHERE organization_id = ${organizationId}) AS audits
+  `)
+  const row = result.rows[0] as { requests: number; audits: number }
+  return [row.requests, row.audits]
 }
 
 async function seedCell(tx: Tx): Promise<Cell> {
@@ -195,6 +263,22 @@ describe('guest response erasure replayers (real PostgreSQL)', () => {
     })
   })
 
+  it('re-erases the linked contact request and its reveal audits', async () => {
+    await inRolledBackTransaction(async (tx, cell) => {
+      await seedContact(tx, cell, cell.responseId, 1)
+      await seedContact(tx, cell, cell.otherResponseId, 2)
+
+      const count = await createGuestResponseErasureReplayer().reErase(
+        tx,
+        entryFor(cell, 'guest_response'),
+      )
+
+      expect(count).toBe(3)
+      // Only the contact of the erased response goes; the other response keeps its own.
+      expect(await contactRows(tx, cell.organizationId)).toEqual([1, 1])
+    })
+  })
+
   it('does not reach a response whose id is journaled under another Organization', async () => {
     await inRolledBackTransaction(async (tx, cell) => {
       const otherCell = await seedCell(tx)
@@ -303,6 +387,48 @@ describe('operator erasure commit (real PostgreSQL)', () => {
 
       // Already erased: a second erase conflicts rather than rewriting.
       await expect(store.commitErased(response, [])).resolves.toBe('conflict')
+    })
+  })
+
+  it('deletes the linked contact request and its reveal audits with the response', async () => {
+    await inRolledBackTransaction(async (tx, cell) => {
+      await seedContact(tx, cell, cell.responseId, 1)
+      await seedContact(tx, cell, cell.otherResponseId, 2)
+      const store = createAtomicGuestResponseCommandStore(
+        tx as unknown as Database,
+        () => ERASED_AT,
+        {
+          put: vi.fn().mockResolvedValue(undefined),
+          alert: vi.fn(),
+          idGen: () => randomUUID(),
+        },
+      )
+      const current = await tx.execute(sql`
+        SELECT rating_source_event_id AS "ratingSourceEventId",
+               feedback_source_event_id AS "feedbackSourceEventId"
+        FROM guest_responses WHERE id = ${cell.responseId}::uuid
+      `)
+      const sources = current.rows[0] as {
+        ratingSourceEventId: string
+        feedbackSourceEventId: string
+      }
+      const response = {
+        id: guestResponseId(cell.responseId),
+        organizationId: toOrganizationId(cell.organizationId),
+        propertyId: toPropertyId(cell.propertyId),
+        portalId: toPortalId(cell.portalId),
+        sessionId: guestSessionId(randomUUID()),
+        status: 'deleted',
+        correctionCount: 0,
+        staffAttribution: null,
+        ratingSourceEventId: sources.ratingSourceEventId,
+        feedbackSourceEventId: sources.feedbackSourceEventId,
+        deletedAt: ERASED_AT,
+      } as unknown as GuestResponse
+
+      await expect(store.commitErased(response, [])).resolves.toBe('applied')
+
+      expect(await contactRows(tx, cell.organizationId)).toEqual([1, 1])
     })
   })
 })
