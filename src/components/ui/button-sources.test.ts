@@ -94,7 +94,7 @@ describe('the touch token is the primitives', () => {
       'the row is the primitive that makes a Switch a tap target below md: the control itself is 18px tall',
     'src/components/goals/goal-setup-parts.tsx':
       'the explanations of a goal setup open from ExplainTrigger, a text trigger, not a Button; GOAL_SETUP_LINK gives it the token below md like the inbox scope line',
-    'src/components/features/portal/link-tree/linktree-icon-picker.tsx':
+    'src/contexts/portal/editor/ui/link-tree/linktree-icon-picker.tsx':
       'the icon choices are radio items in a grid, not Buttons; each sizes its own box from the token below md',
   }
 

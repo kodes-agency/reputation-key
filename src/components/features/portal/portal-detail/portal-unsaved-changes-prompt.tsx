@@ -22,7 +22,7 @@
 
 import { useCallback, useState } from 'react'
 import { useBlocker } from '@tanstack/react-router'
-import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
+import { usePortalDraftAutosave } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import { Button } from '#/components/ui/button'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { describeUnsaved, type UnsavedSummary } from './portal-unsaved-parts'

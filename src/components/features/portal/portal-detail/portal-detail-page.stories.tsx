@@ -11,13 +11,13 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import { PortalDetailPage } from './portal-detail-page'
-import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
+import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import type {
   getPortalAnalyticsFn,
   PortalAnalyticsData,
 } from '#/contexts/reporting/server/portal-analytics'
 import type { Action } from '#/components/hooks/use-action'
-import type { LinkTreeLink } from '../link-tree/link-tree-types'
+import type { LinkTreeLink } from '#/contexts/portal/editor/ui/link-tree/link-tree-types'
 import type {
   CompleteReviewResult,
   CompleteReviewVariables,

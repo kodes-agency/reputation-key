@@ -45,11 +45,10 @@ function check(
 }
 
 describe('component/server boundary checker', () => {
-  it('lets the two documented hooks value-import their server functions', () => {
+  it('lets the documented Inbox hook value-import its server functions', () => {
     const result = check(
       componentsTree({
         'inbox/use-reply-actions.ts': VALUE_IMPORT,
-        'features/portal/link-tree/use-linktree-mutations.ts': VALUE_IMPORT,
       }),
     )
 
@@ -58,23 +57,21 @@ describe('component/server boundary checker', () => {
   })
 
   // R1D-02: the exception is one file, not the directory it lives in.
-  it('refuses a value import in a new file beside the Linktree hook', () => {
+  it('refuses a value import in a new file beside the Inbox hook', () => {
     const result = check(
       componentsTree({
-        'features/portal/link-tree/use-linktree-mutations.ts': VALUE_IMPORT,
-        'features/portal/link-tree/link-foo.tsx': VALUE_IMPORT,
+        'inbox/use-reply-actions.ts': VALUE_IMPORT,
+        'inbox/reply-foo.tsx': VALUE_IMPORT,
       }),
     )
 
-    expect(result.output).toContain('features/portal/link-tree/link-foo.tsx')
-    expect(result.output).not.toContain('use-linktree-mutations.ts')
+    expect(result.output).toContain('inbox/reply-foo.tsx')
+    expect(result.output).not.toContain('use-reply-actions.ts')
     expect(result.status).toBe(1)
   })
 
   it('allows a type-only server import anywhere', () => {
-    const result = check(
-      componentsTree({ 'features/portal/link-tree/link-foo.tsx': TYPE_IMPORT }),
-    )
+    const result = check(componentsTree({ 'inbox/reply-foo.tsx': TYPE_IMPORT }))
 
     expect(result.output).toContain('No component/server boundary violations')
     expect(result.status).toBe(0)

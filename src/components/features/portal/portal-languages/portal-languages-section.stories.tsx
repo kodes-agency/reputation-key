@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalLanguageCoverage } from '#/contexts/portal/application/portal-management-contracts'
-import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
+import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import type { UpdatePortalVariables } from '../shared/types'
 import { PortalLanguagesSection } from './portal-languages-section'
 import {

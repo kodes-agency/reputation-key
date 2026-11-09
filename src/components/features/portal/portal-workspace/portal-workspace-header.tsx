@@ -29,7 +29,7 @@ import { InlineLink } from '#/components/ui/inline-link'
 import { cn } from '#/lib/utils'
 import type { ReactNode } from 'react'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
-import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
+import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import type { WorkspaceBackTarget } from './portal-workspace-origin'
 import type { WorkspaceStatusProblem } from './portal-workspace-status'
 

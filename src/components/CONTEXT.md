@@ -549,6 +549,11 @@ feature without the same mutation density.
 
 Component/server value-import rules and their allowlist are enforced by `scripts/check-component-boundaries.mjs`; database and context-layer boundaries are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
 
+Portal editor and Linktree components live in `src/contexts/portal/editor/ui/`.
+Their mutation hook uses the same-context RPC boundary enforced by ESLint; it
+does not need a component-tree allowlist entry. Shared UI source guards and
+Storybook discover the feature folder alongside `src/components/`.
+
 ## Forms
 
 Use TanStack Form, Zod v4 DTO schemas, and shadcn fields. The owning context's

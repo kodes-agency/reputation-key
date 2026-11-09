@@ -59,7 +59,7 @@ describe('an autosaved form', () => {
   it('leaves failures to the editor header, except the private-rating switch’s inline refusal', () => {
     // ADR 0044, 2026-11-02: the running-rating-goal refusal belongs beside the switch.
     expect(offendersOf(bannersAndAutosaves)).toEqual([
-      'src/components/features/portal/portal-editor/portal-private-note-form.tsx',
+      'src/contexts/portal/editor/ui/portal-private-note-form.tsx',
     ])
   })
 

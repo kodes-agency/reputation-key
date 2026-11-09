@@ -121,7 +121,7 @@ describe('a field is drawn by the shared anatomy', () => {
       !file.path.startsWith('src/components/forms/') &&
       !file.path.startsWith('src/components/ui/')
     const REBUILD_ALLOWED: Readonly<Record<string, string>> = {
-      'src/components/features/portal/link-tree/linktree-title-form.tsx':
+      'src/contexts/portal/editor/ui/link-tree/linktree-title-form.tsx':
         'the Portal editor’s label-left row, a deliberate layout',
     }
 

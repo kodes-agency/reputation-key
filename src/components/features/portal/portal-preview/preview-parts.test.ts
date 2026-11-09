@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PORTAL_EDITOR_SECTIONS } from '../portal-editor/portal-editor-sections'
+import { PORTAL_EDITOR_SECTIONS } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import { previewStateOptions } from './portal-preview-states'
 import {
   PREVIEW_PART_SECTIONS,

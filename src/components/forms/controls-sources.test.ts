@@ -161,7 +161,7 @@ describe('"how low a rating" is a RatingThresholdField', () => {
 
     expect(users).toEqual(
       expect.arrayContaining([
-        'src/components/features/portal/portal-editor/portal-private-note-form.tsx',
+        'src/contexts/portal/editor/ui/portal-private-note-form.tsx',
         'src/components/features/settings/notifications-low-ratings-controls.tsx',
         'src/components/features/organization/response-target-settings-card.tsx',
       ]),

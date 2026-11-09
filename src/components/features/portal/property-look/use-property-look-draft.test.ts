@@ -9,7 +9,7 @@
 
 import { act, createElement } from 'react'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
+import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import type { PropertyLookProfile } from './property-look-types'
 import type { PropertyLookSaves } from './use-property-look-draft'
 

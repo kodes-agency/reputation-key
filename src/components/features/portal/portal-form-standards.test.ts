@@ -60,17 +60,14 @@ const movedServerSchemaNames = [
 
 describe('Portal form and command DTO architecture standards', () => {
   it('keeps an exhaustive inventory of Portal form roots on TanStack Form and DTOs', () => {
-    const formFiles = productionTsxFiles(PORTAL_ROOT)
+    const formFiles = [
+      ...productionTsxFiles(PORTAL_ROOT),
+      ...productionTsxFiles('src/contexts/portal/editor/ui'),
+    ]
       .filter((path) => FORM_ROOT.test(readFileSync(resolve(WORKSPACE, path), 'utf8')))
       .sort()
 
     expect(formFiles).toEqual([
-      'src/components/features/portal/link-tree/link-add-form.tsx',
-      'src/components/features/portal/link-tree/link-address-form.tsx',
-      'src/components/features/portal/link-tree/link-texts-form.tsx',
-      'src/components/features/portal/link-tree/linktree-title-form.tsx',
-      'src/components/features/portal/portal-editor/portal-private-note-form.tsx',
-      'src/components/features/portal/portal-editor/portal-welcome-form.tsx',
       'src/components/features/portal/portal-group/portal-group-add-form.tsx',
       'src/components/features/portal/portal-group/portal-group-create-form.tsx',
       'src/components/features/portal/portal-group/portal-group-rename-form.tsx',
@@ -78,6 +75,12 @@ describe('Portal form and command DTO architecture standards', () => {
       'src/components/features/portal/portal-settings/portal-approved-destination-request-form.tsx',
       'src/components/features/portal/portal-settings/portal-localized-override-form.tsx',
       'src/components/features/portal/portal-settings/portal-property-content-form.tsx',
+      'src/contexts/portal/editor/ui/link-tree/link-add-form.tsx',
+      'src/contexts/portal/editor/ui/link-tree/link-address-form.tsx',
+      'src/contexts/portal/editor/ui/link-tree/link-texts-form.tsx',
+      'src/contexts/portal/editor/ui/link-tree/linktree-title-form.tsx',
+      'src/contexts/portal/editor/ui/portal-private-note-form.tsx',
+      'src/contexts/portal/editor/ui/portal-welcome-form.tsx',
     ])
 
     const violations = formFiles.flatMap((path) =>

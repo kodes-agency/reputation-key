@@ -7,7 +7,7 @@
 import type { ReactNode } from 'react'
 import type { Action } from '#/components/hooks/use-action'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { LinkTreeLink } from '../link-tree/link-tree-types'
+import type { LinkTreeLink } from '#/contexts/portal/editor/ui/link-tree/link-tree-types'
 import type {
   IssuedPortalLink,
   RotatePortalLinkInput,
@@ -40,7 +40,7 @@ import type {
   PortalPrintKitReader,
   PortalPrintKitResources,
 } from '../portal-share/portal-print-kit-types'
-import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
+import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import type { PortalLookActions } from '../portal-look/portal-look-types'
 import type { PortalGroupView } from '../portal-group/portal-group-types'
 import type { GoogleReviewDestinationStatus } from '../portal-settings/google-review-destination-status'

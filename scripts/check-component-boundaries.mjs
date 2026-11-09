@@ -27,12 +27,7 @@ const componentsDir = process.argv[2]
 // never a directory: the exception belongs to the hook that owns five or more
 // related mutations, and a file added beside it gets no exemption with it.
 // - inbox/use-reply-actions.ts: 10 server functions (8 reply commands + 2 template reads) (documented under src/components/CONTEXT.md "Server-function boundary").
-// - features/portal/link-tree/use-linktree-mutations.ts: the Linktree section's writes
-//   (create, update, delete, re-order, save texts, save settings; documented).
-const ALLOWLIST = new Set([
-  'inbox/use-reply-actions.ts',
-  'features/portal/link-tree/use-linktree-mutations.ts',
-])
+const ALLOWLIST = new Set(['inbox/use-reply-actions.ts'])
 
 function isAllowlisted(rel) {
   return ALLOWLIST.has(rel.split('\\').join('/'))
