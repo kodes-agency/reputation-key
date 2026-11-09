@@ -15,6 +15,7 @@
  * change to the permit reach Inbox without either side deciding to accept it.
  * They are expected to drift: the two comments about `rating` already do.
  */
+import type { ReviewOpenTransaction } from './review-open-transaction'
 
 // The fence Inbox asks Review to hold, named on Inbox's side (ADR 0008).
 // fallow-ignore-next-line code-duplication
@@ -76,6 +77,9 @@ export type ReplyObservationAuthorityResult<T> =
 export type ReplyObservationAuthorityPort = Readonly<{
   withExactCurrent<T>(
     expectation: ReplyObservationExpectation,
-    apply: (permit: CurrentReplyObservationPermit) => Promise<T>,
+    apply: (
+      permit: CurrentReplyObservationPermit,
+      tx?: ReviewOpenTransaction,
+    ) => Promise<T>,
   ): Promise<ReplyObservationAuthorityResult<T>>
 }>

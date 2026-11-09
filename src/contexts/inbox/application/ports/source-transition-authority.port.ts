@@ -6,6 +6,7 @@
  * receipt. This prevents a delayed transition from closing an Inbox item
  * after the same stable Review has already been re-observed as active.
  */
+import type { ReviewOpenTransaction } from './review-open-transaction'
 
 export type SourceTransitionExpectation = Readonly<{
   organizationId: string
@@ -29,6 +30,9 @@ export type SourceTransitionAuthorityResult<T> =
 export type SourceTransitionAuthorityPort = Readonly<{
   withExactCurrent<T>(
     expectation: SourceTransitionExpectation,
-    apply: (permit: CurrentSourceTransitionPermit) => Promise<T>,
+    apply: (
+      permit: CurrentSourceTransitionPermit,
+      tx?: ReviewOpenTransaction,
+    ) => Promise<T>,
   ): Promise<SourceTransitionAuthorityResult<T>>
 }>
