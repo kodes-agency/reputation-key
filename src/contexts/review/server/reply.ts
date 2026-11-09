@@ -4,7 +4,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { reviewId } from '#/shared/domain/ids'
-import { reviewIdDto, rejectReplyDto } from './reply-read'
+import { reviewIdDto, rejectReplyDto, deleteReplyDto } from './reply-read'
 import { runReplyCommand } from './reply-command'
 
 // ── rejectReply ──────────────────────────────────────────────────────
@@ -25,12 +25,15 @@ export const rejectReplyFn = createServerFn({ method: 'POST' })
 // ── deleteReply ──────────────────────────────────────────────────────
 
 export const deleteReplyFn = createServerFn({ method: 'POST' })
-  .validator(reviewIdDto)
+  .validator(deleteReplyDto)
   .handler(
     tracedHandler(
       async ({ data }) =>
         runReplyCommand(async (reply, ctx) => {
-          await reply.delete({ reviewId: reviewId(data.reviewId) }, ctx)
+          await reply.delete(
+            { reviewId: reviewId(data.reviewId), expectedReply: data.expectedReply },
+            ctx,
+          )
           return { success: true }
         }),
       'POST',

@@ -337,6 +337,18 @@ describe('a saved draft deleted while the composer stays open', () => {
     expect(controller.getSnapshot().draft.text).toBe('')
   })
 
+  it('sends the revision the screen holds with the delete', async () => {
+    const { controller, actions } = openComposer()
+    controller.typeText('Thanks for the kind words.')
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
+
+    await controller.deleteDraft(actions.deleteDraft)
+
+    expect(replyServer.deleteReplyFn).toHaveBeenCalledWith({
+      data: { reviewId: REVIEW_ID, expectedReply: { id: 'reply-1', stateRevision: 2 } },
+    })
+  })
+
   it('leaves the box and autosave alone when the delete fails', async () => {
     const { controller, actions } = openComposer()
     controller.typeText('Thanks for the kind words.')
@@ -365,6 +377,54 @@ describe('a saved draft deleted while the composer stays open', () => {
 
     expect(savedTexts()).toEqual(['Thanks for the kind words.'])
     expect(controller.getSnapshot().autosave.status).toBe('saved')
+  })
+
+  it('sends no held edit after the delete when a save was in flight', async () => {
+    const { controller, actions } = openComposer()
+    const order: string[] = []
+    let releaseFirstSave: () => void = () => undefined
+    let revision = 1
+    replyServer.draftReplyFn.mockImplementation(
+      async ({ data }: { data: { text: string } }) => {
+        order.push(`save:${data.text}`)
+        if (order.length === 1)
+          await new Promise<void>((resolve) => {
+            releaseFirstSave = resolve
+          })
+        return { ...savedReply, text: data.text, stateRevision: ++revision }
+      },
+    )
+    replyServer.deleteReplyFn.mockImplementation(async () => {
+      order.push('delete')
+    })
+    controller.typeText('Thanks for the kind words.')
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
+    controller.typeText('Thanks for the kind words, truly.')
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
+
+    const deleting = controller.deleteDraft(actions.deleteDraft)
+    releaseFirstSave()
+    await deleting
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS * 2)
+
+    expect(order).toEqual(['save:Thanks for the kind words.', 'delete'])
+    expect(controller.getSnapshot().draft.text).toBe('')
+  })
+
+  it('writes the held edit again when the delete fails', async () => {
+    const { controller, actions } = openComposer()
+    controller.typeText('Thanks for the kind words.')
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
+    controller.typeText('Thanks for the kind words, truly.')
+    replyServer.deleteReplyFn.mockRejectedValueOnce(new Error('delete failed'))
+    replyServer.draftReplyFn.mockClear()
+
+    await expect(controller.deleteDraft(actions.deleteDraft)).rejects.toThrow(
+      'delete failed',
+    )
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
+
+    expect(savedTexts()).toEqual(['Thanks for the kind words, truly.'])
   })
 
   it('saves further typing as a new draft', async () => {
