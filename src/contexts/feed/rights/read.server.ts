@@ -1,4 +1,4 @@
-import { and, asc, eq, sql, type SQL } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   notificationPreferences,
@@ -83,6 +83,7 @@ export async function getNotificationPreferences(
     .where(
       and(
         eq(notificationPreferences.organizationId, scope.organizationId),
+        isNotNull(notificationPreferences.propertyId),
         propertyPredicate(notificationPreferences.propertyId, scope),
       ),
     )

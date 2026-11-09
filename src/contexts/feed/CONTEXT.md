@@ -258,6 +258,11 @@ the person's category default, then the versioned default — and hide a
 Property notice that resolves off. Mandatory, urgent_operational and
 Organization notices are never hidden.
 
+The person's category default is a preference row with no Property; settings
+saves also write the earlier `notification_category_defaults` table, which is
+read too: the newer answer wins, so a default not yet copied, or saved by a
+release that wrote only that table, is found (`pnpm ops copy-notification-defaults`).
+
 Settings controls and their serialized save hook live in
 `src/components/features/settings/notification-*.{ts,tsx}` and
 `use-notification-preference-saves.ts`. Saves, two-channel defaults and
