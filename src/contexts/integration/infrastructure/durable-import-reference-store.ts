@@ -23,7 +23,6 @@ import { createDurableImportReferenceReader } from './durable-import-reference-r
 export const createDurableGoogleImportReferenceStore = (
   deps: Readonly<{
     db: Database
-    handleKeys: VersionedHmacKeyring
     leasePrincipalKeys: VersionedHmacKeyring
     leases: ProviderAuthorizationLeaseService
     clock: () => Date
@@ -31,7 +30,6 @@ export const createDurableGoogleImportReferenceStore = (
   }>,
 ): GoogleImportReferenceStore => {
   const keys = createDurableImportReferenceKeys({
-    keys: deps.handleKeys,
     ...(deps.random ? { random: deps.random } : {}),
   })
   const reader = createDurableImportReferenceReader({

@@ -54,8 +54,8 @@ const semantic = (locationId: string, name: string) => ({
 
 describe('Google import replay encoding', () => {
   it('is order-independent for item sets while preserving every wire field', () => {
-    const first = wire(`v1.${'A'.repeat(43)}`, 'Alpha')
-    const second = wire(`v1.${'B'.repeat(43)}`, 'Beta')
+    const first = wire('A'.repeat(43), 'Alpha')
+    const second = wire('B'.repeat(43), 'Beta')
     const forward = { ...first, items: [first.items[0]!, second.items[0]!] }
     const reverse = { ...first, items: [second.items[0]!, first.items[0]!] }
 
@@ -71,8 +71,8 @@ describe('Google import replay encoding', () => {
   })
 
   it('separates wire identity from semantic identity', () => {
-    const firstWire = wire(`v1.${'A'.repeat(43)}`, 'Alpha')
-    const nextWire = wire(`v2.${'B'.repeat(43)}`, 'Alpha')
+    const firstWire = wire('A'.repeat(43), 'Alpha')
+    const nextWire = wire('B'.repeat(43), 'Alpha')
     const firstSemantic = semantic('location-1', 'Alpha')
 
     expect(canonicalizeGoogleImportWireRequest(firstWire)).not.toBe(
@@ -96,7 +96,7 @@ describe('Google import replay encoding', () => {
 
   it('domain-separates tenant, user, request, and digest kind', () => {
     const replay = createGoogleImportReplayDigests(keys)
-    const input = wire(`v1.${'A'.repeat(43)}`, 'Alpha')
+    const input = wire('A'.repeat(43), 'Alpha')
     const scope = {
       organizationId: 'org-1',
       userId: 'user-1',
@@ -151,7 +151,7 @@ describe('Google import replay encoding', () => {
       createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
     )
     const rotated = createGoogleImportReplayDigests(keys)
-    const input = wire(`v1.${'A'.repeat(43)}`, 'Alpha')
+    const input = wire('A'.repeat(43), 'Alpha')
     const scope = {
       organizationId: 'org-1',
       userId: 'user-1',

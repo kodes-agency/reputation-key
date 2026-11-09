@@ -86,7 +86,7 @@ import { startPropertyImportV2 } from './gbp-import'
 
 const REQUEST_ID = '00000000-0000-4000-8000-000000000001'
 const IMPORT_JOB_ID = '00000000-0000-4000-8000-000000000002'
-const CANDIDATE_REF = `v1.${'A'.repeat(43)}`
+const CANDIDATE_REF = 'A'.repeat(43)
 const ACTOR = {
   organizationId: '00000000-0000-4000-8000-000000000003',
   userId: 'user-1',

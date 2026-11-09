@@ -61,10 +61,9 @@ export const createDurableImportReferenceReader = (
           ? { ok: false, code: 'binding_mismatch' }
           : { ok: false, code: 'not_found' }
       }
-      const keyVersion = input.handle.split('.', 1)[0]
       const now = deps.clock()
       if (
-        loaded.record.keyVersion !== keyVersion ||
+        loaded.record.keyVersion !== deps.keys.keyVersion ||
         loaded.record.issuedAt.getTime() > now.getTime() + MAX_CLOCK_SKEW_MS
       ) {
         return { ok: false, code: 'malformed' }
