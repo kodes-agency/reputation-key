@@ -12,10 +12,14 @@ import {
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  deliverNotices,
+  findAccountAdminRecipients,
+  type NoticeDeliveryDeps,
+} from '../notify/consumers.server'
 
 export const ON_GOOGLE_REAUTHORIZATION_REQUIRED_CONSUMER =
   'notification.on-google-reauthorization-required' as const
@@ -30,13 +34,12 @@ export type GoogleConnectionPropertyLookup = Readonly<{
   ) => Promise<string | null>
 }>
 
-export type IntegrationNotificationConsumerDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  userLookup: UserLookupPort
-  googleConnectionProperties: GoogleConnectionPropertyLookup
-  logger: LoggerPort
-  receipts: Pick<OutboxRepository, 'insertReceipt'>
-}>
+export type IntegrationNotificationConsumerDeps = NoticeDeliveryDeps &
+  Readonly<{
+    userLookup: UserLookupPort
+    googleConnectionProperties: GoogleConnectionPropertyLookup
+    logger: LoggerPort
+  }>
 
 type Payload = Readonly<{
   connectionId: string
@@ -76,7 +79,7 @@ function parse(event: ConsumerEvent): IntegrationGoogleAccountReauthorizationReq
 export async function handleNotificationGoogleReauthorizationRequired(
   deps: IntegrationNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' }>> {
+): Promise<ConsumerResult> {
   const fact = parse(event)
   const anchorPropertyId =
     await deps.googleConnectionProperties.findGoogleNotificationAnchor(
@@ -89,41 +92,27 @@ export async function handleNotificationGoogleReauthorizationRequired(
       'Google reauthorization notification has no active Property; notifying in-app only',
     )
   }
-  const recipients = await deps.userLookup.findByRole(fact.organizationId, 'AccountAdmin')
-  if (recipients.length === 0) {
-    deps.logger.warn(
-      { correlationId: fact.correlationId ?? undefined },
-      'Google reauthorization notification has no AccountAdmin recipients',
-    )
-  } else {
-    await Promise.all(
-      recipients.map((recipientId) =>
-        deps.queue.add(
-          INSERT_NOTIFICATION_JOB_NAME,
-          {
-            userId: recipientId,
-            organizationId: fact.organizationId,
-            propertyId: anchorPropertyId ? propertyId(anchorPropertyId) : null,
-            type: 'integration.reauthorization_required',
-            resourceType: 'integration',
-            resourceId: fact.connectionId,
-            eventId: fact.eventId,
-            payload: { reauthorizationCause: fact.cause },
-            audience: anchorPropertyId
-              ? { kind: 'account_admin' }
-              : { kind: 'organization_account_admin' },
-          },
-          { jobId: `${fact.eventId}-${recipientId}` },
-        ),
-      ),
-    )
-  }
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  const recipients = await findAccountAdminRecipients(deps, fact.organizationId, {
+    context: { correlationId: fact.correlationId ?? undefined },
+    message: 'Google reauthorization notification has no AccountAdmin recipients',
+  })
+  return deliverNotices(
+    deps,
+    event,
     ON_GOOGLE_REAUTHORIZATION_REQUIRED_CONSUMER,
-    'applied',
+    recipients.map((recipientId) => ({
+      userId: recipientId,
+      organizationId: fact.organizationId,
+      propertyId: anchorPropertyId ? propertyId(anchorPropertyId) : null,
+      type: 'integration.reauthorization_required',
+      resourceType: 'integration',
+      resourceId: fact.connectionId,
+      payload: { reauthorizationCause: fact.cause },
+      audience: anchorPropertyId
+        ? { kind: 'account_admin' }
+        : { kind: 'organization_account_admin' },
+    })),
   )
-  return { status: 'applied' }
 }
 
 type DisconnectedPayload = Readonly<{
@@ -175,42 +164,28 @@ function parseDisconnected(event: ConsumerEvent): IntegrationGoogleAccountDiscon
 export async function handleNotificationGoogleAccountDisconnected(
   deps: IntegrationNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' }>> {
+): Promise<ConsumerResult> {
   const fact = parseDisconnected(event)
-  const admins = await deps.userLookup.findByRole(fact.organizationId, 'AccountAdmin')
-  const recipients = admins.filter((adminId) => adminId !== fact.userId)
-  if (recipients.length === 0) {
-    deps.logger.warn(
-      { correlationId: fact.correlationId ?? undefined },
-      'Google disconnect notification has no other AccountAdmin recipients',
-    )
-  } else {
-    await Promise.all(
-      recipients.map((recipientId) =>
-        deps.queue.add(
-          INSERT_NOTIFICATION_JOB_NAME,
-          {
-            userId: recipientId,
-            organizationId: fact.organizationId,
-            propertyId: null,
-            type: 'integration.google_disconnected',
-            resourceType: 'integration',
-            resourceId: fact.connectionId,
-            eventId: fact.eventId,
-            payload: {},
-            audience: { kind: 'organization_account_admin' },
-          },
-          { jobId: `${fact.eventId}-${recipientId}` },
-        ),
-      ),
-    )
-  }
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  const recipients = await findAccountAdminRecipients(deps, fact.organizationId, {
+    context: { correlationId: fact.correlationId ?? undefined },
+    message: 'Google disconnect notification has no other AccountAdmin recipients',
+    except: fact.userId,
+  })
+  return deliverNotices(
+    deps,
+    event,
     ON_GOOGLE_ACCOUNT_DISCONNECTED_CONSUMER,
-    'applied',
+    recipients.map((recipientId) => ({
+      userId: recipientId,
+      organizationId: fact.organizationId,
+      propertyId: null,
+      type: 'integration.google_disconnected',
+      resourceType: 'integration',
+      resourceId: fact.connectionId,
+      payload: {},
+      audience: { kind: 'organization_account_admin' },
+    })),
   )
-  return { status: 'applied' }
 }
 
 export function registerIntegrationNotificationConsumers(

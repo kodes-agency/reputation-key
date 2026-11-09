@@ -1,13 +1,18 @@
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { organizationId, unbrand, userId, type OrganizationId } from '#/shared/domain/ids'
+import { organizationId, userId, type OrganizationId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationType } from '../domain/notification-types'
 import type { NotificationMemberRole } from '../domain/notification-payload'
 import type { OrganizationAccountNotificationEventType } from '../application/ports/organization-account-notification-authority.port'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  deliverNotices,
+  findAccountAdminRecipients,
+  type Notice,
+  type NoticeDeliveryDeps,
+} from '../notify/consumers.server'
 import {
   buildOrganizationPayload,
   type OrganizationPayloadDeps,
@@ -52,7 +57,6 @@ export const ORGANIZATION_PURGE_PENDING_CONSUMER =
 
 export type OrganizationPurgePendingNotificationDeps = OrganizationPayloadDeps &
   Readonly<{
-    queue: NotificationJobEnqueuePort
     userLookup: UserLookupPort
     logger: LoggerPort
   }>
@@ -65,49 +69,34 @@ export type OrganizationPurgePendingFact = Readonly<{
   correlationId: string | null
 }>
 
-async function enqueueOrganizationPurgePendingNotifications(
+async function organizationPurgePendingNotices(
   deps: OrganizationPurgePendingNotificationDeps,
   fact: OrganizationPurgePendingFact,
-): Promise<void> {
-  const recipients = await deps.userLookup.findByRole(fact.organizationId, 'AccountAdmin')
-  if (recipients.length === 0) {
-    deps.logger.warn(
-      {
-        closureLineageId: fact.closureLineageId,
-        correlationId: fact.correlationId ?? undefined,
-      },
-      'Purge Pending notification has no AccountAdmin recipient',
-    )
-    return
-  }
+): Promise<ReadonlyArray<Notice>> {
+  const recipients = await findAccountAdminRecipients(deps, fact.organizationId, {
+    context: {
+      closureLineageId: fact.closureLineageId,
+      correlationId: fact.correlationId ?? undefined,
+    },
+    message: 'Purge Pending notification has no AccountAdmin recipient',
+  })
+  if (recipients.length === 0) return []
   // The last notice before an irreversible erasure is often read out of
   // context, in a mail inbox, so it names the Organization.
   const payload = await buildOrganizationPayload(deps, fact.organizationId)
-  await Promise.all(
-    recipients.map((recipientId) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipientId,
-          organizationId: fact.organizationId,
-          propertyId: null,
-          type: 'account.organization_purge_pending',
-          resourceType: 'organization',
-          resourceId: fact.organizationId as string,
-          eventId: fact.eventId,
-          payload,
-          audience: { kind: 'account_admin' },
-        },
-        { jobId: `${fact.eventId}-${recipientId}` },
-      ),
-    ),
-  )
+  return recipients.map((recipientId) => ({
+    userId: recipientId,
+    organizationId: fact.organizationId,
+    propertyId: null,
+    type: 'account.organization_purge_pending',
+    resourceType: 'organization',
+    resourceId: fact.organizationId as string,
+    payload,
+    audience: { kind: 'account_admin' },
+  }))
 }
 
-export type IdentityAccountNotificationConsumerDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  receipts: Pick<OutboxRepository, 'insertReceipt'>
-}>
+export type IdentityAccountNotificationConsumerDeps = NoticeDeliveryDeps
 
 /** The account routes also name the Organization in what they queue. */
 export type IdentityAccountNotificationRouteDeps =
@@ -166,7 +155,7 @@ const routeFacts = (
 export async function handleIdentityAccountNotificationEvent(
   deps: IdentityAccountNotificationRouteDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' }>> {
+): Promise<ConsumerResult> {
   const route = routeFor(event.eventType)
   if (!route) throw new Error(`Unsupported Identity account event: ${event.eventType}`)
   if (event.propertyId !== null || event.sourceContext !== 'identity') {
@@ -180,15 +169,13 @@ export async function handleIdentityAccountNotificationEvent(
     organizationId: organization,
     payload: event.payload,
   })
-  const recipientId = unbrand(recipient)
   // The Organization's name on every route, so the copy can say where.
   const payload = {
     ...(await buildOrganizationPayload(deps, organization)),
     ...routeFacts(route.notificationType, event),
   }
 
-  await deps.queue.add(
-    INSERT_NOTIFICATION_JOB_NAME,
+  return deliverNotices(deps, event, route.consumerName, [
     {
       userId: recipient,
       organizationId: organization,
@@ -196,7 +183,6 @@ export async function handleIdentityAccountNotificationEvent(
       type: route.notificationType,
       resourceType: 'organization',
       resourceId: event.organizationId,
-      eventId: event.eventId,
       ...(Object.keys(payload).length > 0 ? { payload } : {}),
       audience: {
         kind: 'affected_organization_user',
@@ -204,10 +190,7 @@ export async function handleIdentityAccountNotificationEvent(
         eventType: route.eventType,
       },
     },
-    { jobId: `${event.eventId}-${recipientId}` },
-  )
-  await deps.receipts.insertReceipt(event.eventId, route.consumerName, 'applied')
-  return { status: 'applied' }
+  ])
 }
 
 type LifecyclePayload = Readonly<{
@@ -228,7 +211,7 @@ export async function handleOrganizationPurgePendingNotice(
   deps: IdentityAccountNotificationConsumerDeps &
     OrganizationPurgePendingNotificationDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<ConsumerResult> {
   if (event.propertyId !== null || event.sourceContext !== 'identity') {
     throw new Error('Organization lifecycle envelope attribution mismatch')
   }
@@ -241,26 +224,22 @@ export async function handleOrganizationPurgePendingNotice(
     throw new Error('Organization lifecycle envelope attribution mismatch')
   }
   if (payload.state !== 'purge_pending') {
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      ORGANIZATION_PURGE_PENDING_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
+    return deliverNotices(deps, event, ORGANIZATION_PURGE_PENDING_CONSUMER, [], {
+      status: 'obsolete',
+    })
   }
-  await enqueueOrganizationPurgePendingNotifications(deps, {
-    eventId: event.eventId,
-    organizationId: organizationId(event.organizationId),
-    closureLineageId: payload.closureLineageId,
-    revision: payload.revision,
-    correlationId: event.correlationId ?? null,
-  })
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  return deliverNotices(
+    deps,
+    event,
     ORGANIZATION_PURGE_PENDING_CONSUMER,
-    'applied',
+    await organizationPurgePendingNotices(deps, {
+      eventId: event.eventId,
+      organizationId: organizationId(event.organizationId),
+      closureLineageId: payload.closureLineageId,
+      revision: payload.revision,
+      correlationId: event.correlationId ?? null,
+    }),
   )
-  return { status: 'applied' }
 }
 
 export function registerOrganizationPurgePendingNoticeConsumer(
@@ -297,7 +276,7 @@ type BetaFeedbackOutcomePayload = Readonly<{
 export async function handleBetaFeedbackOutcomeEvent(
   deps: IdentityAccountNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' }>> {
+): Promise<ConsumerResult> {
   if (event.propertyId !== null || event.sourceContext !== 'identity') {
     throw new Error('Beta feedback outcome envelope attribution mismatch')
   }
@@ -310,8 +289,7 @@ export async function handleBetaFeedbackOutcomeEvent(
     throw new Error('Beta feedback outcome envelope attribution mismatch')
   }
 
-  await deps.queue.add(
-    INSERT_NOTIFICATION_JOB_NAME,
+  return deliverNotices(deps, event, BETA_FEEDBACK_OUTCOME_CONSUMER, [
     {
       userId: userId(payload.userId),
       organizationId: organizationId(event.organizationId),
@@ -319,7 +297,6 @@ export async function handleBetaFeedbackOutcomeEvent(
       type: 'beta_feedback.outcome',
       resourceType: 'beta_feedback_report',
       resourceId: payload.reference,
-      eventId: event.eventId,
       payload: { reportOutcome: payload.outcome },
       audience: {
         kind: 'affected_organization_user',
@@ -327,14 +304,7 @@ export async function handleBetaFeedbackOutcomeEvent(
         eventType: 'identity.beta_feedback.outcome_reached',
       },
     },
-    { jobId: `${event.eventId}-${payload.userId}` },
-  )
-  await deps.receipts.insertReceipt(
-    event.eventId,
-    BETA_FEEDBACK_OUTCOME_CONSUMER,
-    'applied',
-  )
-  return { status: 'applied' }
+  ])
 }
 
 export function registerIdentityAccountNotificationConsumers(

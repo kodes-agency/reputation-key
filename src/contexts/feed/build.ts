@@ -130,6 +130,7 @@ import {
   withDeliveryRepairJobs,
 } from './infrastructure/outbox-notification-delivery'
 import type { NotificationJobEnqueuePort } from './infrastructure/inbox-notification-fanout'
+import { createNoticeWriter, type NoticeWriter } from './notify/consumers.server'
 import { createNotificationDeliverySettlement } from './infrastructure/repositories/notification-delivery-settlement.repository'
 import { createNotificationDeliveryLagRepository } from './infrastructure/repositories/notification-delivery-lag.repository'
 import { NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS } from './infrastructure/repositories/health-read-timeout'
@@ -437,6 +438,20 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     enqueueImmediateEmail,
   })
 
+  // The account, integration, Portal and Property routes write their notices
+  // in the transaction that claims their receipt.
+  const noticeWriter = createNoticeWriter({
+    db: input.db,
+    clock: input.clock,
+    idGen: () => notificationId(input.idGen()),
+    emailIdGen: () => notificationEmailId(input.idGen()),
+    logger: input.logger,
+    ratingForRouting,
+    enqueueImmediateEmail,
+    authorizeAudience,
+    workState,
+  })
+
   const publicApi = {
     /**
      * Why the caller has no workspace, when the answer is "it was taken away".
@@ -667,22 +682,22 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const registerNotificationRoutes = (
     consumerRegistry: ConsumerRegistry,
     queue: NotificationJobEnqueuePort,
+    noticeWriter?: NoticeWriter,
   ) => {
+    const notices = { queue, noticeWriter, receipts: input.outboxRepo }
     registerIdentityAccountNotificationConsumers(consumerRegistry, {
-      queue,
+      ...notices,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     // LIF-01 program bullet 5 — the mandatory final notice at Purge Pending.
     // Registering it does NOT arm the lifecycle: the transition that produces
     // the fact is still driven by a quarantined schedule.
     registerOrganizationPurgePendingNoticeConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerNotificationConsumers(consumerRegistry, {
       ...fanoutReads,
@@ -778,11 +793,10 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       receipts: input.outboxRepo,
     })
     registerPortalNotificationConsumers(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerPortalDestinationNotificationConsumer(consumerRegistry, {
       queue,
@@ -801,18 +815,16 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       receipts: input.outboxRepo,
     })
     registerPropertyNotificationConsumers(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerIntegrationNotificationConsumers(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       googleConnectionProperties: input.googleConnectionProperties,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerReviewImportNotificationConsumers(consumerRegistry, {
       queue,
@@ -834,7 +846,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
    */
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     if (!notificationDeliveryQueue) return
-    registerNotificationRoutes(consumerRegistry, notificationDeliveryQueue)
+    registerNotificationRoutes(consumerRegistry, notificationDeliveryQueue, noticeWriter)
     // Executable readiness contract: compare the beta trigger/recipient
     // matrix with the consumers that are actually present in this worker.
     // ARC-03-T7: read the registry this container just registered into — a

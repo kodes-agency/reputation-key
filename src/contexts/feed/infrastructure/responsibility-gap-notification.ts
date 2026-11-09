@@ -7,8 +7,8 @@
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import type { Notice } from '../notify/consumers.server'
+import { findAccountAdminRecipients } from '../notify/consumers.server'
 import {
   buildPropertyPayload,
   type PropertyPayloadDeps,
@@ -16,7 +16,6 @@ import {
 
 export type ResponsibilityGapNoticeDeps = PropertyPayloadDeps &
   Readonly<{
-    queue: NotificationJobEnqueuePort
     userLookup: Pick<UserLookupPort, 'findByRole'>
     logger: LoggerPort
   }>
@@ -46,45 +45,31 @@ const GAP_NOTICES = {
   },
 } as const
 
-/** Queue one notice per AccountAdmin for a Portal or Property left unstaffed. */
-export async function enqueueResponsibilityGapNotification(
+/** One notice per AccountAdmin for a Portal or Property left unstaffed. */
+export async function responsibilityGapNotices(
   deps: ResponsibilityGapNoticeDeps,
   fact: ResponsibilityGapFact,
   scope: ResponsibilityGapScope,
-): Promise<void> {
+): Promise<ReadonlyArray<Notice>> {
   const notice = GAP_NOTICES[scope.kind]
-  const admins = await deps.userLookup.findByRole(fact.organizationId, 'AccountAdmin')
   // Removing a manager who owned ten Properties sent the removing admin ten
   // identical urgent emails about work they had just caused (I17).
-  const recipients = admins.filter(
-    (recipient) => recipient !== (fact.actorUserId ?? null),
-  )
-  if (recipients.length === 0) {
-    deps.logger.warn(
-      { correlationId: fact.correlationId ?? undefined },
-      notice.noRecipients,
-    )
-    return
-  }
+  const recipients = await findAccountAdminRecipients(deps, fact.organizationId, {
+    context: { correlationId: fact.correlationId ?? undefined },
+    message: notice.noRecipients,
+    except: fact.actorUserId,
+  })
+  if (recipients.length === 0) return []
   const where = await buildPropertyPayload(deps, fact.organizationId, fact.propertyId)
-  await Promise.all(
-    recipients.map((recipientId) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipientId,
-          organizationId: fact.organizationId,
-          propertyId: fact.propertyId,
-          type: notice.type,
-          resourceType: scope.kind,
-          resourceId: scope.kind === 'portal' ? scope.portalId : scope.propertyId,
-          eventId: fact.eventId,
-          payload: where,
-          // Rechecked on delivery: a manager chosen meanwhile retires it.
-          audience: { kind: 'responsibility_gap', scope },
-        },
-        { jobId: `${fact.eventId}-${recipientId}` },
-      ),
-    ),
-  )
+  return recipients.map((recipientId) => ({
+    userId: recipientId,
+    organizationId: fact.organizationId,
+    propertyId: fact.propertyId,
+    type: notice.type,
+    resourceType: scope.kind,
+    resourceId: scope.kind === 'portal' ? scope.portalId : scope.propertyId,
+    payload: where,
+    // Rechecked on delivery: a manager chosen meanwhile retires it.
+    audience: { kind: 'responsibility_gap', scope },
+  }))
 }
