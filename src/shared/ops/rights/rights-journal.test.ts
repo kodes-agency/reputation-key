@@ -58,4 +58,28 @@ describe('rights journal', () => {
       error: expect.stringContaining('subject-ref'),
     })
   })
+
+  it('journals a guest response with its id as the target and a derived subject', () => {
+    const responseId = '22222222-2222-4222-8222-222222222222'
+    const entry = rightsJournalEntry(
+      { ...plan, scope: 'guest-response', responseId },
+      'guest',
+    )
+
+    expect(entry).toMatchObject({
+      subjectClass: 'privacy_subject',
+      propertyId: plan.propertyId,
+      journalTargets: { kind: 'guest_response', ids: [responseId] },
+      subjectRef: expect.stringMatching(/^[0-9a-f]{64}$/u),
+    })
+    expect(
+      rightsJournalEntry(
+        { ...plan, scope: 'guest-response', propertyId: undefined },
+        'guest',
+      ),
+    ).toEqual({ error: expect.stringContaining('--property') })
+    expect(rightsJournalEntry({ ...plan, scope: 'guest-response' }, 'guest')).toEqual({
+      error: expect.stringContaining('response='),
+    })
+  })
 })
