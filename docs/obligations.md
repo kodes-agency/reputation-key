@@ -97,7 +97,7 @@ The current notice wording follows these code paths:
 - The category is AI context as well as a vocabulary selector
   (`src/shared/review-vocabulary-hints.ts`,
   `resolveReviewPropertyContext`), and is displayed during Google import
-  (`src/components/features/integration/google-import-manager/google-import-candidate-list.tsx`). It is excepted from AI-result cleanup.
+  (`src/contexts/integration/imports/ui/google-import-candidate-list.tsx`). It is excepted from AI-result cleanup.
 - Reporting can retain legacy per-review star values awaiting removal
   (`src/shared/db/schema/metric.schema.ts`). Operational Action History has no
   active deletion rule (`src/contexts/feed/application/use-cases/operational-action-history-lifecycle.ts`,
