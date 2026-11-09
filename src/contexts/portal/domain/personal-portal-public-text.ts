@@ -1,4 +1,5 @@
 import type { Portal } from './types'
+import type { PortalLookSources } from './portal-look'
 import { portalError } from './errors'
 
 const commonWords = new Set([
@@ -55,6 +56,25 @@ const wordingKeys = new Set([
   'headline',
   'subline',
 ])
+
+/**
+ * The Property's brand is public already, so only a wordmark the Portal wrote
+ * itself is the Portal's wording. A value whose look follows the Property loses
+ * its wordmark before the check.
+ */
+export function withoutInheritedBrand(
+  value: unknown,
+  identity: PortalLookSources['identity'],
+): unknown {
+  if (identity === 'portal' || !value || typeof value !== 'object') return value
+  const record = value as Record<string, unknown>
+  const entries = Object.entries(record).map(([key, child]) =>
+    (key === 'look' || key === 'brandProfile') && child && typeof child === 'object'
+      ? [key, { ...child, wordmark: null }]
+      : [key, child],
+  )
+  return Object.fromEntries(entries)
+}
 
 /** Names remain manager labels even when wording is entered by hand. */
 export function assertPersonalPortalPublicText(
