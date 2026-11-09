@@ -481,13 +481,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/imports/legacy-import-retention.server.ts',
-    symbol: 'listPurgeCandidates',
-    reason:
-      'The bounded retention sweep lists finished roots of the retired import tables past their fixed purge time across tenants. Deletion checks each selected Organization, root and deletion fence under the root lock.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/integration/imports/import-retention.server.ts',
     symbol: 'listPurgeCandidates',
     reason:
