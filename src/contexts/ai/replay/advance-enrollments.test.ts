@@ -202,6 +202,30 @@ describe('advance Review Analysis first-enablement enrollment', () => {
     expect(test.reconcile).not.toHaveBeenCalled()
   })
 
+  it('advances enrollments and reopens abandoned analyses when the profile rebuild throws', async () => {
+    const rebuildProfiles = vi.fn(async () => {
+      throw new Error('rebuild failed')
+    })
+    const test = harness({
+      rebuildProfiles,
+      reopened: { reopened: 2, leftUnanalysed: 1 },
+    })
+
+    await expect(test.advance.sweep()).resolves.toMatchObject({
+      enrollmentsVisited: 1,
+      replaysStarted: 1,
+      analysesReopened: 2,
+      analysesLeftUnanalysed: 1,
+    })
+    expect(rebuildProfiles).toHaveBeenCalledOnce()
+    expect(test.reconcile).toHaveBeenCalledOnce()
+    expect(test.reopenAbandoned).toHaveBeenCalledOnce()
+    expect(test.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      'AI profile rebuild failed',
+    )
+  })
+
   it('keeps enrollment queued while live provider execution is dark', async () => {
     const test = harness({ controlsEnabled: false })
 
