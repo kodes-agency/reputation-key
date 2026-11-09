@@ -8,8 +8,8 @@ import {
   getPropertyImportStatusInputSchema,
 } from './google-import-v2.dto'
 
-const CANDIDATE_A = `v1.${'A'.repeat(43)}`
-const CANDIDATE_B = `v1.${'B'.repeat(43)}`
+const CANDIDATE_A = 'A'.repeat(43)
+const CANDIDATE_B = 'B'.repeat(43)
 
 function createRequest() {
   return {
@@ -243,7 +243,7 @@ describe('Google import v2 DTOs', () => {
   it('accepts a no-cap parent selection larger than one worker batch', () => {
     const items = Array.from({ length: 250 }, (_, index) => ({
       ...createRequest().items[0],
-      candidateRef: `v1.${index.toString(36).padStart(43, '0')}`,
+      candidateRef: index.toString(36).padStart(43, '0'),
     }))
     expect(
       startPropertyImportInputSchema.safeParse({ ...createRequest(), items }).success,

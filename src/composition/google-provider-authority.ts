@@ -360,7 +360,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
     (googleOpaqueReferenceKeys && providerAuthorizationLeases
       ? createDurableGoogleImportReferenceStore({
           db,
-          handleKeys: googleOpaqueReferenceKeys,
           leasePrincipalKeys: googleOpaqueReferenceKeys,
           leases: providerAuthorizationLeases,
           clock,

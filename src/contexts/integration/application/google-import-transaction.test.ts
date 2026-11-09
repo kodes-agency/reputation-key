@@ -34,9 +34,9 @@ const REQUEST_ID = '00000000-0000-4000-8000-000000000005'
 const JOB_ID = '00000000-0000-4000-8000-000000000006'
 const ITEM_ID = '00000000-0000-4000-8000-000000000010'
 const RETRY_REQUEST_ID = '00000000-0000-4000-8000-000000000011'
-const REF_A = `v1.${'A'.repeat(43)}`
-const REF_B = `v1.${'B'.repeat(43)}`
-const REF_C = `v1.${'C'.repeat(43)}`
+const REF_A = 'A'.repeat(43)
+const REF_B = 'B'.repeat(43)
+const REF_C = 'C'.repeat(43)
 const NOW = new Date('2026-08-12T10:00:00.000Z')
 
 const actor: AuthContext = {
@@ -319,9 +319,8 @@ describe('Google import transaction', () => {
   })
 
   it('claims in groups of 100 and persists every location in one import', async () => {
-    const candidateRefs = Array.from(
-      { length: 205 },
-      (_, index) => `v1.${index.toString(36).padStart(43, '0')}`,
+    const candidateRefs = Array.from({ length: 205 }, (_, index) =>
+      index.toString(36).padStart(43, '0'),
     )
     const fixture = setup(candidateRefs)
 
