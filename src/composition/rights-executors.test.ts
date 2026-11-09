@@ -9,11 +9,12 @@ const NOTIFICATION_REPLAYERS = createNotificationRightsReplayers()
 const deps = { db: {} as Database, runNotification: vi.fn() }
 
 describe('composeRightsExecutors', () => {
-  it('composes the five context executors in order', () => {
+  it('composes the six context executors in order', () => {
     expect(composeRightsExecutors(deps, false).map(({ name }) => name)).toEqual([
       'google-integration',
       'review',
       'inbox',
+      'guest',
       'reporting',
       'notification',
     ])
@@ -42,6 +43,7 @@ describe('composeRightsExecutors', () => {
       'google-integration',
       'review',
       'inbox',
+      'guest',
       'reporting',
       'notification',
     ])

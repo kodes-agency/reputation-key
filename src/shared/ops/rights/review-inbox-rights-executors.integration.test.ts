@@ -24,9 +24,9 @@ import {
   INBOX_RIGHTS_EXPORT_PATH,
   REVIEW_RIGHTS_EXPORT_PATH,
   createInboxRightsExecutor,
-  createInboxRightsReplayer,
+  createInboxRightsReplayers,
   createReviewRightsExecutor,
-  createReviewRightsReplayer,
+  createReviewRightsReplayers,
 } from './review-inbox-rights-executors'
 
 const AT = new Date('2026-08-26T10:00:00.000Z')
@@ -729,12 +729,12 @@ describe.sequential(
             entries,
             restorePointAt: new Date(NOW.getTime() - 60_000),
             replayers: [
-              createReviewRightsReplayer({
+              ...createReviewRightsReplayers({
                 db,
                 now: () => NOW,
                 replyEffects: reputationReplyScopeEffects,
               }),
-              createInboxRightsReplayer({ db, now: () => NOW }),
+              ...createInboxRightsReplayers({ db, now: () => NOW }),
             ],
           }),
         )

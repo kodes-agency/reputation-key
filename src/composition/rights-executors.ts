@@ -2,8 +2,17 @@
 // script supplies effects it owns (the database, the job queue); this module
 // decides which executors exist for a request and what each one is given.
 
+import { randomUUID } from 'node:crypto'
 import type { Database } from '#/shared/db'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import {
+  createGuestBackupErasureReplayer,
+  createGuestPropertyErasureReplayer,
+} from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
+import {
+  createGuestRightsExecutor,
+  type GuestRightsExecutorDeps,
+} from '#/contexts/guest/infrastructure/adapters/guest-rights.adapter'
 import {
   createReportingRightsExecutor,
   createReportingRightsReplayers,
@@ -18,9 +27,9 @@ import {
 } from '#/shared/ops/rights/notification-rights-executor'
 import {
   createInboxRightsExecutor,
-  createInboxRightsReplayer,
+  createInboxRightsReplayers,
   createReviewRightsExecutor,
-  createReviewRightsReplayer,
+  createReviewRightsReplayers,
 } from '#/shared/ops/rights/review-inbox-rights-executors'
 import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
@@ -28,6 +37,8 @@ import { reputationReplyScopeEffects } from './reply-scope-effects'
 export type RightsExecutorsDeps = Readonly<{
   db: Database
   runNotification: NotificationRightsExecutorDeps['run']
+  /** The named operator for guest-response erasure; absent means that apply is denied. */
+  operator?: GuestRightsExecutorDeps['operator']
   now?: () => Date
 }>
 
@@ -50,6 +61,12 @@ export function composeRightsExecutors(
       replyEffects: reputationReplyScopeEffects,
     }),
     createInboxRightsExecutor({ db: deps.db, now }),
+    createGuestRightsExecutor({
+      db: deps.db,
+      now,
+      idGen: randomUUID,
+      operator: deps.operator,
+    }),
     createReportingRightsExecutor(deps.db, now),
     notification,
   ]
@@ -63,12 +80,14 @@ export function composeRightsReplayers(
   const now = deps.now ?? (() => new Date())
   return [
     ...createGoogleRightsReplayers(now),
-    createReviewRightsReplayer({
+    ...createReviewRightsReplayers({
       db: deps.db,
       now,
       replyEffects: reputationReplyScopeEffects,
     }),
-    createInboxRightsReplayer({ db: deps.db, now }),
+    ...createInboxRightsReplayers({ db: deps.db, now }),
+    createGuestBackupErasureReplayer(),
+    createGuestPropertyErasureReplayer(),
     ...createReportingRightsReplayers(now),
     ...deps.notificationReplayers,
   ]
