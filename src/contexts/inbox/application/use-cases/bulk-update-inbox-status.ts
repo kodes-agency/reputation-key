@@ -4,6 +4,7 @@
 // Each candidate is checked against its owning source permission; escalation
 // remains orthogonal and is handled separately.
 
+import { lentTransactionArgs } from '../ports/review-open-transaction'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import { reviewId, type InboxItemId } from '#/shared/domain/ids'
@@ -249,7 +250,7 @@ export const bulkUpdateInboxStatus =
             sourceEpoch: source.sourceEpoch,
           }
         }),
-        (permits) => {
+        (permits, reviewTx) => {
           const byItemId = new Map(
             permits.map((permit) => {
               const item = reviewItems.find(
@@ -275,6 +276,7 @@ export const bulkUpdateInboxStatus =
             events,
             governance,
             byItemId,
+            ...lentTransactionArgs(reviewTx),
           )
         },
       )
