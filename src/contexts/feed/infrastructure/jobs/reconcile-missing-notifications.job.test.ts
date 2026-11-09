@@ -51,7 +51,7 @@ import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../../application/beta-notific
 import { createNotificationConsumerDeps } from '../notification-consumer-test-fixtures'
 import { registerNotificationConsumers } from '../notification-outbox-consumers'
 import { registerIdentityAccountNotificationConsumers } from '../identity-account-outbox-consumers'
-import { registerGoalNotificationConsumer } from '../goal-outbox-consumers'
+import { registerGoalNotificationConsumer } from '../goal-notice-routes'
 import { registerIntegrationNotificationConsumers } from '../integration-outbox-consumers'
 import {
   parseOutboxNotificationDelivery,
