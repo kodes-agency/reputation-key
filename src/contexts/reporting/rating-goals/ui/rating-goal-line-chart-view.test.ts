@@ -5,6 +5,7 @@
 // the words beside the points in `rating-goal-line-chart-words.test.ts`.
 import { describe, expect, it } from 'vitest'
 import type { RatingGoalChartPoint } from '#/contexts/reporting/rating-goals/contracts'
+import { chosenIndex } from '#/components/hooks/use-bar-selection'
 import { lineChartModel, type LineChartModel } from './rating-goal-line-chart-view'
 import {
   DETAIL_GOOGLE_SOURCE,
@@ -295,5 +296,37 @@ describe('the sentence for a screen reader', () => {
       'Google showed 3.9 when you set the goal and shows 4.0 today. RepKey doesn’t hold every review yet, so this follows Google’s own number. 4.1 in about 3 weeks.',
     )
     expect(model(DETAIL_HARBORLINE).sentence).not.toContain('RepKey')
+  })
+})
+
+describe('choosing a point with the pointer', () => {
+  it('reads the pointer against the box the line spans, so each point is chosen where it is drawn', () => {
+    const { stops, pastWidth } = model(DETAIL_HARBORLINE)
+    const centers = stops.map((stop) => stop.x / pastWidth)
+
+    expect(Math.max(...centers)).toBeLessThanOrEqual(1)
+    stops.forEach((stop, index) => {
+      expect(chosenIndex(stop.x / pastWidth, stops.length, centers)).toBe(index)
+    })
+  })
+
+  it('chooses the nearest point when the weeks are unevenly spaced, not an equal share of the width', () => {
+    const drawn = model(
+      withChart({
+        history: line([
+          [-60, 3900],
+          [-58, 3950],
+          [-56, 4000],
+          [0, 4100],
+        ]),
+      }),
+    )
+    const centers = drawn.stops.map((stop) => stop.x / drawn.pastWidth)
+    const between = (centers[2]! + centers[3]!) / 2
+
+    expect(chosenIndex(centers[2]! + 0.01, 4, centers)).toBe(2)
+    expect(chosenIndex(between + 0.01, 4, centers)).toBe(3)
+    // Equal shares of four points would give the second point at 0.4.
+    expect(chosenIndex(0.4, 4, centers)).not.toBe(chosenIndex(0.4, 4))
   })
 })

@@ -1,10 +1,11 @@
 // The results matrix remains the authority for every figure. Keep finality and target
 // provenance available on each month's row.
 
-import type {
-  GoalMetric,
-  GoalResultsMatrix,
-  GoalResultsMatrixRow,
+import {
+  goalSubjectIdentity,
+  type GoalMetric,
+  type GoalResultsMatrix,
+  type GoalResultsMatrixRow,
 } from '#/contexts/reporting/application/public-api'
 import { formatDate, formatMonthYear, formatNumber, formatShortDate } from '#/lib/format'
 import type { GoalColumn } from './goal-columns-view'
@@ -179,8 +180,9 @@ export function resultGoals(
   const goals = new Map<string, Dated[]>()
   for (const month of matrix.months) {
     for (const row of month.rows) {
-      // By name and subject: a goal stopped and set again reads as the one goal.
-      const key = `${row.targetProvenance.programName}|${row.scope}|${row.subjectName}`
+      // By name and subject: a goal stopped and set again reads as the one goal, and two
+      // subjects that share a name stay two.
+      const key = `${row.targetProvenance.programName}|${goalSubjectIdentity(row.subject)}`
       const dated = {
         row,
         start: month.periodStart,
