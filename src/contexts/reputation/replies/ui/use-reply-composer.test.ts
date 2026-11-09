@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AUTO_DETECT_REVIEW_LANGUAGE } from './reply-language-options'
+import { AUTO_DETECT_REVIEW_LANGUAGE } from '#/components/inbox/reply-language-options'
 import { assistTargetFor, draftInLanguage } from './use-reply-composer'
 
 const detectable = {

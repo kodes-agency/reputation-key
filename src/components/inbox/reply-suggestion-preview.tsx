@@ -1,4 +1,4 @@
-import type { DraftSessionSnapshot } from './reply-draft-session'
+import type { DraftSessionSnapshot } from '#/contexts/reputation/replies/ui/reply-draft-session'
 import { framedReplyParts } from '#/shared/domain/reply-frame'
 import { ShieldCheck, Sparkles } from 'lucide-react'
 import { Button } from '#/components/ui/button'

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ReplyDraftCheckDto } from '#/contexts/review/application/dto/reply-library.dto'
+import type { ReplyDraftCheckDto } from '#/contexts/review/application/public-api'
 
 export type CheckReplyDraft = (text: string) => Promise<ReplyDraftCheckDto>
 

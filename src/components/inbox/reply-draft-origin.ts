@@ -1,4 +1,4 @@
-import type { LoadedReplyTemplate } from './use-reply-template'
+import type { LoadedReplyTemplate } from '#/contexts/reputation/replies/ui/use-reply-template'
 
 /**
  * What the composer's current draft was produced from — row 18's result tag.

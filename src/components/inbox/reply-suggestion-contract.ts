@@ -12,7 +12,7 @@ import type {
   ReplyLanguageTarget,
   ReviewLanguageReadiness,
 } from './reply-language-options'
-import type { ReplyDraftSnapshot } from './use-reply-autosave'
+import type { ReplyDraftSnapshot } from '#/contexts/reputation/replies/ui/use-reply-autosave'
 
 export type ReplyTone = GenerateReplySuggestionInput['tone']
 export type ReplySuggestionResult = GenerateReplySuggestionResult
@@ -76,7 +76,7 @@ export type ReplyComposerInput = Readonly<{
     measurementGenerationId?: string | null,
   ) => Promise<unknown>
   onSubmit: (
-    metric?: import('./reply-measurement').BrowserDraftEditMetric,
+    metric?: import('#/contexts/reputation/replies/ui/reply-measurement').BrowserDraftEditMetric,
   ) => Promise<unknown>
   onMeasure?: (
     event: import('#/shared/domain/draft-measurement').DraftMeasurementEvent,

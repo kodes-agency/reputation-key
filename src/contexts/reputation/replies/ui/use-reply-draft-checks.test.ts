@@ -9,7 +9,7 @@ import {
   it,
   vi,
 } from 'vitest'
-import type { ReplyDraftCheckDto } from '#/contexts/review/application/dto/reply-library.dto'
+import type { ReplyDraftCheckDto } from '#/contexts/review/application/public-api'
 import type { CheckReplyDraft } from './use-reply-draft-checks'
 
 const CLEAR: ReplyDraftCheckDto = {

@@ -39,7 +39,10 @@ import { ReviewReplyPublishedEditor } from './reply-editor-views'
 import { REPLY_CHIP_WORDS } from './reply-state-copy'
 import { resolveReplyView, type ReplyData } from './reply-status-view'
 import { useReplyActions } from './use-reply-actions'
-import { ReplyConfirmationHold, useHeldReplyDetail } from './use-reply-confirmation-hold'
+import {
+  ReplyConfirmationHold,
+  useHeldReplyDetail,
+} from '#/contexts/reputation/replies/ui/use-reply-confirmation-hold'
 
 type Reply = Exclude<NonNullable<ReplyData>, { kind: 'google_observation' }>
 

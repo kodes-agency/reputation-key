@@ -4,8 +4,8 @@ import {
   scheduleBackgroundDraft,
   draftReviewTextDigest,
 } from './reply-draft-session'
-import type { DraftStream } from './reply-draft-stream'
-import type { ReplyDraftingStreamEvent } from '#/contexts/ai/server/reply-progress-stream.server'
+import type { DraftStream } from '#/components/inbox/reply-draft-stream'
+import type { ReplyDraftingStreamEvent } from '#/components/inbox/reply-draft-stream'
 
 const options = {
   tone: 'professional',

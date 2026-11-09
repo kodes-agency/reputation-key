@@ -1,7 +1,10 @@
 import { createElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createReplyDraftSession, isDraftWaiting } from './reply-draft-session'
+import {
+  createReplyDraftSession,
+  isDraftWaiting,
+} from '#/contexts/reputation/replies/ui/reply-draft-session'
 import { ReplyDraftWaiting, draftStepText } from './reply-draft-waiting'
 import { Skeleton } from '#/components/ui/skeleton'
 describe('waiting card', () => {

@@ -9,7 +9,7 @@ import { HTTP_STATUS } from '#/shared/http/status'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { inboxCachePolicy, type InboxReplyCacheChange } from './inbox-cache-policy'
-import { useReplyPublicationChangeDetection } from './use-reply-publication-change'
+import { useReplyPublicationChangeDetection } from '#/contexts/reputation/replies/ui/use-reply-publication-change'
 import { useInboxDetailQueries } from './use-inbox-detail-queries'
 import {
   createInboxItemStatusObserver,

@@ -2,7 +2,7 @@ import './reply-draft-waiting.css'
 import { Sparkles } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
-import type { DraftSessionSnapshot } from './reply-draft-session'
+import type { DraftSessionSnapshot } from '#/contexts/reputation/replies/ui/reply-draft-session'
 
 const STEPS = {
   reading: 'Reading the review…',
