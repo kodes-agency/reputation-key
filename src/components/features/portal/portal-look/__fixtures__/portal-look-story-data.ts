@@ -15,11 +15,11 @@ import {
   type PortalLookView,
   type PropertyLookMedia,
 } from '#/contexts/portal/application/portal-management-contracts'
-import type { PortalEditorResources } from '../../portal-editor/portal-editor-types'
+import type { PortalEditorResources } from '#/contexts/portal/editor/ui/portal-editor-types'
 import {
   action,
   makeResources,
-} from '../../portal-editor/__fixtures__/portal-editor-fixtures'
+} from '#/contexts/portal/editor/ui/__fixtures__/portal-editor-fixtures'
 import { PREVIEW_STORY_PHOTO } from '../../portal-preview/__fixtures__/portal-preview-fixtures'
 import type { PortalLookActions } from '../portal-look-types'
 

@@ -14,7 +14,7 @@ import type { PortalPublicationState } from '../shared/types'
 import {
   isPortalEditorSection,
   type PortalEditorSection,
-} from '../portal-editor/portal-editor-sections'
+} from '#/contexts/portal/editor/ui/portal-editor-sections'
 
 export const PORTAL_DETAIL_TABS = ['page', 'share', 'results', 'history'] as const
 export type PortalDetailTab = (typeof PORTAL_DETAIL_TABS)[number]

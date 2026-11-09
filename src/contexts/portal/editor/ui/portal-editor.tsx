@@ -1,0 +1,123 @@
+// The Page tab: the section list, the active section and the live preview. The
+// list is a column beside the other two once the space the editor has is wide
+// enough for three (a container width, so an open sidebar counts), and a row
+// above them until then; the form and its preview sit side by side from `lg`,
+// and stack below it. Which section is showing comes from the route's
+// `?section=`, and every save goes through the portal's autosave coordinator.
+
+import { useNavigate } from '@tanstack/react-router'
+import { useCallback, useRef, useState } from 'react'
+import { SectionNavLayout } from '#/components/ui/section-nav-layout'
+import { usePortalEditAccess } from '#/components/features/portal/portal-detail/use-portal-edit-access'
+import {
+  PortalLookPreviewProvider,
+  type SetBrandPatch,
+} from '#/components/features/portal/portal-look/portal-look-preview-context'
+import {
+  withBrandPatch,
+  type BrandPatches,
+} from '#/components/features/portal/portal-look/portal-look-preview-patch'
+import { PortalPreviewPane } from '#/components/features/portal/portal-preview/portal-preview-pane'
+import type { PreviewPartSection } from '#/components/features/portal/portal-preview/preview-parts'
+import { PortalEditorNav } from './portal-editor-nav'
+import { PortalEditorSectionPanel } from './portal-editor-section-panel'
+import {
+  availablePortalEditorSections,
+  resolvePortalEditorSection,
+  type PortalEditorSection,
+} from './portal-editor-sections'
+import {
+  findPortalGroup,
+  portalEditorSummaryInput,
+  summarizePortalEditorSections,
+} from './portal-editor-summary'
+import type { PortalEditorResources } from './portal-editor-types'
+import { revealEditorSection } from './reveal-editor-section'
+
+type Props = Readonly<{
+  resources: PortalEditorResources
+  /** The section the URL asks for; the editor falls back when it is not offered. */
+  requestedSection: PortalEditorSection | undefined
+}>
+
+export function PortalEditor({ resources, requestedSection }: Props) {
+  const navigate = useNavigate()
+  const panel = useRef<HTMLDivElement>(null)
+  const { portal, propertyId, portalGroups } = resources
+  const group = portalGroups ? findPortalGroup(portalGroups, portal.id) : null
+  const hasResponsible =
+    resources.responsibleManagers !== undefined &&
+    resources.responsibleManagerMembers !== undefined &&
+    resources.updateResponsibleManagersMutation !== undefined
+  const available = availablePortalEditorSections({
+    group: portalGroups !== undefined,
+    responsible: hasResponsible,
+  })
+  const section = resolvePortalEditorSection(requestedSection, available)
+  const summaries = summarizePortalEditorSections(
+    portalEditorSummaryInput(resources, group?.name ?? null),
+  )
+  // One answer for every section: the role, the organisation's `portal.write`
+  // capability (the server refuses every write without it) and an archived
+  // portal, which is retained exactly as it was. The workspace says why under
+  // its header (`PortalReadOnlyNotice`).
+  const { canEdit } = usePortalEditAccess(portal.publicationState)
+  // Look edits the phone shows before the draft is read again (the Look section sets them).
+  const [brandPatches, setBrandPatches] = useState<BrandPatches>({})
+  const setBrandPatch = useCallback<SetBrandPatch>(
+    (key, patch) => setBrandPatches((current) => withBrandPatch(current, key, patch)),
+    [],
+  )
+  // A click on a part of the preview opens its section, as its link in the list
+  // does, and brings that section into view: in a narrow editor the preview
+  // sits under the form, far from where the section opens.
+  const openSection = (next: PreviewPartSection) =>
+    void navigate({
+      to: '/properties/$propertyId/portals/$portalId',
+      params: { propertyId, portalId: portal.id },
+      search: { tab: 'page', section: next },
+    }).then(() => revealEditorSection(panel.current))
+
+  return (
+    // The form and its preview sit side by side once the editor is 56rem wide,
+    // so an edit is seen as it is typed; the section list joins them as a column
+    // only where it is 80rem wide, room for three. These are container widths,
+    // not the window's: the app sidebar takes 256 px of a 1440 px window when it
+    // is open, and a viewport breakpoint cannot see that.
+    <SectionNavLayout frame="rail">
+      <PortalEditorNav
+        propertyId={propertyId}
+        portalId={portal.id}
+        active={section}
+        available={available}
+        summaries={summaries}
+        canEdit={canEdit}
+      />
+      <div className="flex min-w-0 flex-1 flex-col @4xl:flex-row">
+        <div className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-8">
+          <div ref={panel} className="mx-auto max-w-2xl space-y-6">
+            <PortalLookPreviewProvider setBrandPatch={setBrandPatch}>
+              <PortalEditorSectionPanel
+                section={section}
+                group={group}
+                resources={resources}
+                canEdit={canEdit}
+              />
+            </PortalLookPreviewProvider>
+          </div>
+        </div>
+        <aside
+          aria-label="Live preview"
+          className="border-t bg-muted/20 px-4 py-5 md:px-8 @4xl:sticky @4xl:top-0 @4xl:max-h-dvh @4xl:w-[26rem] @4xl:shrink-0 @4xl:self-start @4xl:overflow-y-auto @4xl:border-t-0 @4xl:border-l @4xl:px-6 @6xl:w-[30rem]"
+        >
+          <PortalPreviewPane
+            portalId={portal.id}
+            getPortalPreview={resources.getPortalPreview}
+            selection={{ active: section, onSelect: openSection, canEdit }}
+            brandPatches={brandPatches}
+          />
+        </aside>
+      </div>
+    </SectionNavLayout>
+  )
+}

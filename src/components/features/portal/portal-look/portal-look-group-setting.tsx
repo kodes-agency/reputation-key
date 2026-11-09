@@ -5,10 +5,11 @@
 import type { ReactNode } from 'react'
 import { InheritedSetting } from '#/components/forms/inherited-setting'
 import { PropertyLookLink } from './portal-look-property-link'
-import { usePortalLookSwitch } from './use-portal-look-draft'
+import { usePortalLookSwitch } from '#/contexts/portal/editor/ui/use-portal-look-draft'
 
 type Props = Readonly<{
   propertyId: string
+  draftKey: string
   /** What the property has, in words: "accent #B8860B, automatic background". */
   value: ReactNode
   /** The portal has a value of its own. */
@@ -21,6 +22,7 @@ type Props = Readonly<{
 
 export function PortalLookGroupSetting({
   propertyId,
+  draftKey,
   value,
   isOwn,
   inheritLabel,
@@ -37,8 +39,8 @@ export function PortalLookGroupSetting({
       pending={isPending}
       inheritLabel={inheritLabel}
       overrideLabel={overrideLabel}
-      onInherit={() => void run(() => onSwitch('inherit'))}
-      onOverride={() => void run(() => onSwitch('own'))}
+      onInherit={() => void run(() => onSwitch('inherit'), { replaces: [draftKey] })}
+      onOverride={() => void run(() => onSwitch('own'), { replaces: [draftKey] })}
     />
   )
 }

@@ -32,7 +32,7 @@ import {
 import {
   PORTAL_EDITOR_SECTION_LABELS,
   type PortalEditorSection,
-} from '../portal-editor/portal-editor-sections'
+} from '#/contexts/portal/editor/ui/portal-editor-sections'
 
 /** Where a blocked check is put right: a section of the Page tab, or the Share tab. */
 export type ReviewFixTarget =
