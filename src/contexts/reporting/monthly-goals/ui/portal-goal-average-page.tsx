@@ -9,30 +9,23 @@ import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { GoalDetailLayout, GoalTiles } from '#/components/goals/goal-detail-layout'
-import type { PortalGoalAverageChangeCommands } from '#/components/goals/portal-goal-average-change-sheet'
-import { PortalGoalChanges } from '#/components/goals/portal-goal-changes'
-import { PortalGoalMonthStrip } from '#/components/goals/portal-goal-month-strip'
-import {
-  PAGE_HEADER_ID,
-  focusPortalGoalPageTitle,
-} from '#/components/goals/portal-goal-page'
-import { usePortalGoalPageActions } from '#/components/goals/portal-goal-page-actions'
-import {
-  TILES_LABEL,
-  TILES_TITLE,
-  stripChips,
-} from '#/components/goals/portal-goal-page-view'
+import type { PortalGoalAverageChangeCommands } from './portal-goal-average-change-sheet'
+import { PortalGoalChanges } from './portal-goal-changes'
+import { PortalGoalMonthStrip } from './portal-goal-month-strip'
+import { PAGE_HEADER_ID, focusPortalGoalPageTitle } from './portal-goal-page'
+import { usePortalGoalPageActions } from './portal-goal-page-actions'
+import { TILES_LABEL, TILES_TITLE, stripChips } from './portal-goal-page-view'
 import {
   averageGoalLine,
   averageTiles,
   goalStateLine,
   singleGoalTitle,
-} from '#/components/goals/portal-goal-single-page-view'
-import type { PortalGoalStopCommands } from '#/components/goals/portal-goal-stop-dialog'
+} from './portal-goal-single-page-view'
+import type { PortalGoalStopCommands } from './portal-goal-stop-dialog'
 
 type AverageView = Extract<PortalGoalSinglePageView, Readonly<{ kind: 'average' }>>
 
-const loadSheet = () => import('#/components/goals/portal-goal-average-change-sheet')
+const loadSheet = () => import('./portal-goal-average-change-sheet')
 const AverageChangeSheet = lazy(() =>
   loadSheet().then((module) => ({ default: module.PortalGoalAverageChangeSheet })),
 )
