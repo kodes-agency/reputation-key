@@ -434,6 +434,29 @@ export async function closeGoogleIntegration(
   })
 }
 
+/**
+ * The closure scrub for a restored cell. A restore brings back connections that
+ * still hold credentials; the journaled closure already ran with none live, so
+ * those grants were revoked before the erasure and the scrub needs no readiness
+ * check. Idempotent: rows that are already scrubbed are not counted again.
+ */
+export async function scrubRestoredGoogleIntegrationInTx(
+  tx: Tx,
+  organizationId: string,
+  now: Date,
+): Promise<GoogleClosureOutcome> {
+  if (!(await organizationExists(tx, organizationId))) {
+    return { ok: true, deleted: 0, scrubbed: 0 }
+  }
+  await tx.execute(sql`
+    SELECT id FROM google_connections
+    WHERE organization_id = ${organizationId}
+    ORDER BY id
+    FOR UPDATE
+  `)
+  return { ok: true, ...(await purge(tx, organizationId, now)) }
+}
+
 /** Counts and blocker codes only, for one Property's import items. */
 export async function readGoogleRightsPropertyReport(
   db: Database,

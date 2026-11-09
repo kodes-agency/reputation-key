@@ -9,6 +9,10 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type {
+  BackupErasureLedgerContext,
+  BackupErasureReplayer,
+} from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type { Tx } from '#/shared/outbox/commit'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type {
@@ -305,7 +309,7 @@ export function createReportingRightsExecutor(
   return Object.freeze({
     name: CONTEXT,
     scopes: ['access', 'organization'] as const,
-    journalContexts: ['goal', 'metric', 'dashboard'] as const,
+    journalContexts: REPORTING_JOURNAL_CONTEXTS,
     async preflight(plan) {
       if (plan.scope === 'access') return { ok: true }
       if (plan.scope !== 'organization') {
@@ -344,6 +348,26 @@ export function createReportingRightsExecutor(
       }
     },
   })
+}
+
+const REPORTING_JOURNAL_CONTEXTS = [
+  'goal',
+  'metric',
+  'dashboard',
+] as const satisfies ReadonlyArray<BackupErasureLedgerContext>
+
+/** Re-purge an Organization's Reporting rows in a restored cell, once per journal context. */
+export function createReportingRightsReplayers(
+  now: () => Date,
+): ReadonlyArray<BackupErasureReplayer> {
+  return REPORTING_JOURNAL_CONTEXTS.map((context) => ({
+    context,
+    subjectClass: 'organization' as const,
+    async reErase(tx: Tx, entry) {
+      const outcome = await purge(tx, entry.organizationId, now())
+      return Object.values(outcome.deleted).reduce((sum, n) => sum + n, 0)
+    },
+  }))
 }
 
 /** Exported so tests can exercise the purge body against a recording transaction. */

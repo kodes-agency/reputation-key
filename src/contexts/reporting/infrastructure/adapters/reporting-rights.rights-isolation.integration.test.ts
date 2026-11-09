@@ -11,7 +11,6 @@ import type { Database } from '#/shared/db'
 import {
   applyRestoreResurrectionFence,
   type BackupErasureLedgerContext,
-  type BackupErasureReplayer,
 } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
   decodeErasureJournalEntry,
@@ -28,7 +27,7 @@ import { seedGoalMonth } from '../testing/goal-running-month-seed'
 import { REPORTING_PURGE_ORDER } from './reporting-rights-plan'
 import {
   createReportingRightsExecutor,
-  reportingPurgeInTransaction,
+  createReportingRightsReplayers,
 } from './reporting-rights.adapter'
 
 const AT = new Date('2026-08-01T00:00:00.000Z')
@@ -240,18 +239,6 @@ function recordingStore() {
   return { store, entries: () => [...written.values()].map(decodeErasureJournalEntry) }
 }
 
-/** Re-erases through the production purge body, inside the fence's transaction. */
-function reportingReplayer(context: BackupErasureLedgerContext): BackupErasureReplayer {
-  return {
-    context,
-    subjectClass: 'organization',
-    async reErase(tx, entry) {
-      const outcome = await reportingPurgeInTransaction(tx, entry.organizationId, AT)
-      return Object.values(outcome.deleted).reduce((sum, n) => sum + n, 0)
-    },
-  }
-}
-
 async function seedTracked(properties: number): Promise<Seeded> {
   const seeded = await seedOrganization(poolQuery, properties)
   organizations.add(seeded.organizationId)
@@ -356,7 +343,7 @@ describe('reporting rights isolation', () => {
       applyRestoreResurrectionFence(tx, {
         entries: journal,
         restorePointAt: new Date('2026-07-01T00:00:00.000Z'),
-        replayers: JOURNAL_CONTEXTS.map(reportingReplayer),
+        replayers: createReportingRightsReplayers(() => AT),
       }),
     )
 

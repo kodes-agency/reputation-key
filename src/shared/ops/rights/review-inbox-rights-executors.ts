@@ -8,14 +8,17 @@
 
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
+import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
   closeInbox,
+  closeInboxInTx,
   inboxClosureRefusal,
   readInboxRightsExport,
   readInboxRightsReport,
 } from '#/shared/db/lifecycle/inbox-rights-store'
 import {
   closeReview,
+  closeReviewInTx,
   reviewClosureRefusal,
   readReviewRightsExport,
   readReviewRightsReport,
@@ -103,4 +106,41 @@ export function createInboxRightsExecutor(deps: ReviewInboxRightsDeps): RightsEx
       return outcome.ok ? { ok: true, lines: [`deleted=${outcome.deleted}`] } : outcome
     },
   })
+}
+
+/** Re-erase an Organization's Review data in a restored cell. */
+export function createReviewRightsReplayer(
+  deps: ReviewRightsDeps,
+): BackupErasureReplayer {
+  const now = deps.now ?? (() => new Date())
+  return {
+    context: 'review',
+    subjectClass: 'organization',
+    async reErase(tx, entry) {
+      const outcome = await closeReviewInTx(
+        tx,
+        requireReplyScopeEffects(deps.replyEffects),
+        entry.organizationId,
+        now(),
+      )
+      if (!outcome.ok) throw new Error(outcome.error)
+      return outcome.deleted + outcome.scrubbed
+    },
+  }
+}
+
+/** Re-erase an Organization's Inbox data in a restored cell. */
+export function createInboxRightsReplayer(
+  deps: ReviewInboxRightsDeps,
+): BackupErasureReplayer {
+  const now = deps.now ?? (() => new Date())
+  return {
+    context: 'inbox',
+    subjectClass: 'organization',
+    async reErase(tx, entry) {
+      const outcome = await closeInboxInTx(tx, entry.organizationId, now())
+      if (!outcome.ok) throw new Error(outcome.error)
+      return outcome.deleted
+    },
+  }
 }

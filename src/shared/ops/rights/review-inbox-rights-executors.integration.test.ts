@@ -14,8 +14,6 @@ import {
   decodeErasureJournalEntry,
   erasureJournalKey,
 } from '#/shared/db/lifecycle/erasure-journal.server'
-import { closeInboxInTx } from '#/shared/db/lifecycle/inbox-rights-store'
-import { closeReviewInTx } from '#/shared/db/lifecycle/review-rights-store'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { parseOperatorArgs, type OperatorContext } from '../operator-command'
@@ -26,7 +24,9 @@ import {
   INBOX_RIGHTS_EXPORT_PATH,
   REVIEW_RIGHTS_EXPORT_PATH,
   createInboxRightsExecutor,
+  createInboxRightsReplayer,
   createReviewRightsExecutor,
+  createReviewRightsReplayer,
 } from './review-inbox-rights-executors'
 
 const AT = new Date('2026-08-26T10:00:00.000Z')
@@ -729,29 +729,12 @@ describe.sequential(
             entries,
             restorePointAt: new Date(NOW.getTime() - 60_000),
             replayers: [
-              {
-                context: 'review',
-                subjectClass: 'organization',
-                reErase: async (tx, entry) => {
-                  const outcome = await closeReviewInTx(
-                    tx,
-                    reputationReplyScopeEffects,
-                    entry.organizationId,
-                    NOW,
-                  )
-                  if (!outcome.ok) throw new Error(outcome.error)
-                  return outcome.deleted + outcome.scrubbed
-                },
-              },
-              {
-                context: 'inbox',
-                subjectClass: 'organization',
-                reErase: async (tx, entry) => {
-                  const outcome = await closeInboxInTx(tx, entry.organizationId, NOW)
-                  if (!outcome.ok) throw new Error(outcome.error)
-                  return outcome.deleted
-                },
-              },
+              createReviewRightsReplayer({
+                db,
+                now: () => NOW,
+                replyEffects: reputationReplyScopeEffects,
+              }),
+              createInboxRightsReplayer({ db, now: () => NOW }),
             ],
           }),
         )
