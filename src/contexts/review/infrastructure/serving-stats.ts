@@ -36,6 +36,7 @@ import {
   googleReplyObservations,
   properties,
   reviews,
+  reviewSourceContents,
   replies,
 } from '#/shared/db/schema'
 import { and, count, avg, eq, gte, gt, lt, desc, isNotNull, sql } from 'drizzle-orm'
@@ -352,7 +353,7 @@ export const createServingStats = (deps: {
         .select({
           id: reviews.id,
           rating: reviews.rating,
-          text: reviews.text,
+          text: reviewSourceContents.text,
           reviewedAt: reviews.reviewedAt,
           replyStatus: sql<string>`
             COALESCE(
@@ -381,6 +382,14 @@ export const createServingStats = (deps: {
           `.as('reply_status'),
         })
         .from(reviews)
+        .innerJoin(
+          reviewSourceContents,
+          and(
+            eq(reviewSourceContents.reviewId, reviews.id),
+            eq(reviewSourceContents.organizationId, reviews.organizationId),
+            eq(reviewSourceContents.propertyId, reviews.propertyId),
+          ),
+        )
         .where(servingRecentWhere(organizationId, propertyId, deps.clock()))
         .orderBy(desc(reviews.reviewedAt))
         .limit(limit)

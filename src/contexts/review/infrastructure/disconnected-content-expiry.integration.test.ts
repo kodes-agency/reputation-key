@@ -23,6 +23,9 @@ import {
 } from '../application/use-cases/run-source-content-lifecycle'
 import { reviewCreated } from '../domain/events'
 import { createAtomicReviewCommandStore } from './review-command-store'
+import { createEligibleReads } from '../application/eligible-reads'
+import { createServingStats } from './serving-stats'
+import { createReviewRepository } from './repositories/review.repository'
 import { createGoogleReplyObservationStore } from './google-reply-observation-store'
 import { createReviewSourceContentLifecycleStore } from './repositories/source-content-lifecycle-store.repository'
 
@@ -225,6 +228,35 @@ async function retainedContent() {
   return result.rows
 }
 
+/** Every read that serves the review's words, as the pages and AI paths make them. */
+async function servingReads(at: Date) {
+  const db = getDb()
+  const repo = createReviewRepository(db, () => at, undefined, replyScopeEffects)
+  const eligible = createEligibleReads({ reviewRepo: repo, clock: () => at })
+  const stats = createServingStats({ db, clock: () => at })
+  const window = [
+    new Date('2026-07-01T00:00:00Z'),
+    new Date('2026-12-01T00:00:00Z'),
+  ] as const
+  return {
+    byId: await repo.findById(REVIEW, ORG),
+    byIds: await repo.findByIds([REVIEW], ORG),
+    byProperty: await repo.findByPropertyId(PROPERTY, ORG),
+    byOrganization: await repo.findByOrganizationId(ORG),
+    byExternalId: await repo.findByExternalId(
+      'google',
+      'disconnected-content-review',
+      ORG,
+    ),
+    search: await repo.findIdsByContentFilter(ORG, { textQuery: 'Retained' }, at),
+    snippet: await eligible.getReviewSnippetById(REVIEW, ORG),
+    snippets: (await eligible.getReviewSnippetsByIds([REVIEW], ORG)).size,
+    rating: await eligible.getEligibleRatingById(REVIEW, ORG),
+    recent: await stats.getRecentReviews(ORG, PROPERTY, 5),
+    period: await stats.getPeriodStats(ORG, PROPERTY, ...window),
+  }
+}
+
 describe('disconnected Google content expiry', () => {
   it.each(['disconnect', 'provider_revoked'] as const)(
     '%s retains every content clock until the existing deadline, then erases once',
@@ -243,7 +275,13 @@ describe('disconnected Google content expiry', () => {
         }
       }
       await stop()
-      fixture.setTime(new Date(DEADLINE.getTime() - 1))
+      const beforeDeadline = new Date(DEADLINE.getTime() - 1)
+      const served = await servingReads(beforeDeadline)
+      expect(served.byId?.text).toBe('Retained provider review')
+      expect(served.search).toEqual([REVIEW])
+      expect(served.recent.map((row) => row.text)).toEqual(['Retained provider review'])
+      expect(served.period.count).toBe(1)
+      fixture.setTime(beforeDeadline)
       await stop()
       expect(await retainedContent()).toEqual(original)
       await expect(fixture.expire()).resolves.toMatchObject({
@@ -280,6 +318,20 @@ describe('disconnected Google content expiry', () => {
       })
       await expect(fixture.expire()).resolves.toMatchObject({
         apply: { enabled: true, rowsRedacted: 0 },
+      })
+      const after = await servingReads(DEADLINE)
+      expect(after).toMatchObject({
+        byId: null,
+        byIds: [],
+        byProperty: [],
+        byOrganization: [],
+        byExternalId: null,
+        search: [],
+        snippet: { status: 'not_found' },
+        snippets: 0,
+        rating: null,
+        recent: [],
+        period: { count: 0 },
       })
       const proof = await getPool().query(
         `SELECT r.source_content_state, r.text, r.content_expires_at,

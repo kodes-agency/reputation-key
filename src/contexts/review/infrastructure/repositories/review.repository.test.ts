@@ -181,10 +181,38 @@ function makeReview(
     analysisSequence: 0,
     aiSourceByteLength: 1,
     aiSourceDigest: '0'.repeat(64),
+    firstFetchedAt: now,
+    lastFetchedAt: now,
+    contentExpiresAt: new Date(now.getTime() + 25 * 24 * 60 * 60 * 1000),
     createdAt: now,
     updatedAt: now,
     ...rest,
   } as Review
+}
+
+/**
+ * Gives every active Review of an Organization that holds a content clock its
+ * content row, the way the sync writes it. The rows go with their Reviews.
+ */
+async function seedSourceContents(organizationId: string) {
+  await pool.query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, reviewer_name, rating, text, reviewed_at,
+       first_fetched_at, last_fetched_at, content_expires_at, source_epoch,
+       source_revision, ai_source_byte_length, ai_source_digest
+     )
+     SELECT id, organization_id, property_id, platform, external_id,
+            external_location_id, reviewer_name, rating, text, reviewed_at,
+            first_fetched_at, COALESCE(last_fetched_at, reviewed_at),
+            content_expires_at, source_epoch, source_revision,
+            ai_source_byte_length, ai_source_digest
+     FROM reviews
+     WHERE organization_id = $1 AND source_content_state = 'active'
+       AND content_expires_at IS NOT NULL
+     ON CONFLICT (review_id) DO NOTHING`,
+    [organizationId],
+  )
 }
 
 /** `count` live Reviews of one Property, newest first by their review date. */
@@ -203,6 +231,7 @@ async function seedBulkReviews(count: number) {
      FROM generate_series(1, $3::int) AS n`,
     [ORG_A, PROP_A, count],
   )
+  await seedSourceContents(ORG_A)
 }
 
 describe.sequential('reviewRepository (integration)', () => {
@@ -579,6 +608,7 @@ describe.sequential('reviewRepository (integration)', () => {
          FROM generate_series(1, 1001) AS series`,
         [ORG_A, PROP_A, GOOGLE_LOCATION_PRIMARY_RESOURCE],
       )
+      await seedSourceContents(ORG_A)
 
       const ids = await createReviewRepository(
         getDb(),

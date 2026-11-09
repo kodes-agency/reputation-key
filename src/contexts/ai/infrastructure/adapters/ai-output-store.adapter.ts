@@ -9,6 +9,7 @@ import {
   aiReviewAnalysisAspects,
   merchantAiEnablement,
   reviews,
+  reviewSourceContents,
 } from '#/shared/db/schema'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import { isAspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
@@ -139,12 +140,20 @@ async function readCurrentReviewSource(
       sourceEpoch: reviews.sourceEpoch,
       sourceRevision: reviews.sourceRevision,
       analysisSequence: reviews.analysisSequence,
-      sourceDigest: reviews.aiSourceDigest,
-      sourceByteCount: reviews.aiSourceByteLength,
-      contentExpiresAt: reviews.contentExpiresAt,
+      sourceDigest: reviewSourceContents.aiSourceDigest,
+      sourceByteCount: reviewSourceContents.aiSourceByteLength,
+      contentExpiresAt: reviewSourceContents.contentExpiresAt,
       replyStateRevision: reviews.replyStateRevision,
     })
     .from(reviews)
+    .innerJoin(
+      reviewSourceContents,
+      and(
+        eq(reviewSourceContents.reviewId, reviews.id),
+        eq(reviewSourceContents.organizationId, reviews.organizationId),
+        eq(reviewSourceContents.propertyId, reviews.propertyId),
+      ),
+    )
     .where(
       and(
         eq(reviews.organizationId, input.organizationId),
@@ -153,7 +162,7 @@ async function readCurrentReviewSource(
       ),
     )
     .limit(1)
-    .for('share')
+    .for('share', { of: reviews })
   return source
 }
 

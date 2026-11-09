@@ -2,6 +2,7 @@
 // Per architecture: pure functions, the only place where both row and domain shapes are known.
 
 import type { reviews } from '#/shared/db/schema/review.schema'
+import type { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import type { Review } from '../../domain/types'
 import {
   unbrand,
@@ -14,6 +15,7 @@ import { reviewError } from '../../domain/errors'
 
 type ReviewRow = typeof reviews.$inferSelect
 type ReviewInsertRow = typeof reviews.$inferInsert
+type ReviewContentRow = typeof reviewSourceContents.$inferSelect
 
 const VALID_PLATFORMS = new Set<string>(['google'])
 const VALID_RATINGS = new Set<number>([1, 2, 3, 4, 5])
@@ -84,6 +86,36 @@ export const reviewFromRow = (row: ReviewRow): Review => {
     updatedAt: row.updatedAt,
   }
 }
+
+/**
+ * A Review whose provider content comes from its erasable content row. The
+ * Review row supplies identity, the tombstone state and the fences
+ * (epoch, revision, analysis sequence); the content row supplies everything the
+ * provider sent and the fetch clocks.
+ */
+export const reviewFromRows = (row: ReviewRow, content: ReviewContentRow): Review =>
+  reviewFromRow({
+    ...row,
+    externalId: content.externalId,
+    externalLocationId: content.externalLocationId,
+    googleConnectionId: content.googleConnectionId,
+    reviewerName: content.reviewerName,
+    reviewerProfilePhotoUrl: content.reviewerProfilePhotoUrl,
+    googleReviewUrl: content.googleReviewUrl,
+    rating: content.rating,
+    text: content.text,
+    translatedText: content.translatedText,
+    languageCode: content.languageCode,
+    reviewedAt: content.reviewedAt,
+    sourceCreatedAt: content.sourceCreatedAt,
+    sourceUpdatedAt: content.sourceUpdatedAt,
+    firstFetchedAt: content.firstFetchedAt,
+    lastFetchedAt: content.lastFetchedAt,
+    contentExpiresAt: content.contentExpiresAt,
+    contentHash: content.contentHash,
+    aiSourceByteLength: content.aiSourceByteLength,
+    aiSourceDigest: content.aiSourceDigest,
+  })
 
 export const reviewToRow = (
   review: Omit<Review, 'createdAt' | 'updatedAt'>,

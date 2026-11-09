@@ -41,12 +41,13 @@ import {
 import type { SQL } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
 import { reviews, reviewProviderSubjects } from '#/shared/db/schema/review.schema'
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { Review, ReviewPlatform, StarRating } from '../../domain/types'
 import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
+import { reviewFromRow, reviewFromRows, reviewToRow } from '../mappers/review.mapper'
 import { reviewError } from '../../domain/errors'
 import { escapeLikePattern } from '#/shared/db/like-pattern'
 import { trace } from '#/shared/observability/trace'
@@ -102,6 +103,28 @@ const holdsContent = eq(reviews.sourceContentState, 'active')
 const liveIn = (orgId: OrganizationId) =>
   and(eq(reviews.organizationId, orgId), holdsContent)
 
+/**
+ * A Review row with its provider content row. The inner join is the reading
+ * rule: a Review without a content row holds no content to read.
+ */
+const reviewsWithContent = (db: Database) =>
+  db
+    .select({ review: reviews, content: reviewSourceContents })
+    .from(reviews)
+    .innerJoin(
+      reviewSourceContents,
+      and(
+        eq(reviewSourceContents.reviewId, reviews.id),
+        eq(reviewSourceContents.organizationId, reviews.organizationId),
+        eq(reviewSourceContents.propertyId, reviews.propertyId),
+      ),
+    )
+
+type ReviewWithContentRow = Awaited<ReturnType<typeof reviewsWithContent>>[number]
+
+const reviewFromJoin = (row: ReviewWithContentRow): Review =>
+  reviewFromRows(row.review, row.content)
+
 type ClockCursor = Readonly<{ contentExpiresAt: Date; id: string }> | null
 
 /**
@@ -145,12 +168,10 @@ export const createReviewRepository = (
 ): ReviewRepository => ({
   findById: async (id: ReviewId, organizationId: OrganizationId) => {
     return trace('review.findById', async () => {
-      const rows = await db
-        .select()
-        .from(reviews)
+      const rows = await reviewsWithContent(db)
         .where(and(eq(reviews.id, id), liveIn(organizationId)))
         .limit(1)
-      return rows[0] ? reviewFromRow(rows[0]) : null
+      return rows[0] ? reviewFromJoin(rows[0]) : null
     })
   },
 
@@ -518,11 +539,10 @@ export const createReviewRepository = (
   findByIds: async (ids: ReadonlyArray<ReviewId>, organizationId: OrganizationId) => {
     return trace('review.findByIds', async () => {
       if (ids.length === 0) return []
-      const rows = await db
-        .select()
-        .from(reviews)
-        .where(and(inArray(reviews.id, [...ids]), liveIn(organizationId)))
-      return rows.map((r) => reviewFromRow(r))
+      const rows = await reviewsWithContent(db).where(
+        and(inArray(reviews.id, [...ids]), liveIn(organizationId)),
+      )
+      return rows.map(reviewFromJoin)
     })
   },
 
@@ -532,9 +552,7 @@ export const createReviewRepository = (
     organizationId: OrganizationId,
   ) => {
     return trace('review.findByExternalId', async () => {
-      const rows = await db
-        .select()
-        .from(reviews)
+      const rows = await reviewsWithContent(db)
         .where(
           and(
             eq(reviews.platform, platform),
@@ -543,7 +561,7 @@ export const createReviewRepository = (
           ),
         )
         .limit(1)
-      return rows[0] ? reviewFromRow(rows[0]) : null
+      return rows[0] ? reviewFromJoin(rows[0]) : null
     })
   },
 
@@ -718,9 +736,7 @@ export const createReviewRepository = (
 
   findByPropertyId: async (propertyId, organizationId, options) => {
     return trace('review.findByPropertyId', async () => {
-      const query = db
-        .select()
-        .from(reviews)
+      const query = reviewsWithContent(db)
         .where(and(eq(reviews.propertyId, propertyId), liveIn(organizationId)))
         .orderBy(desc(reviews.reviewedAt), asc(reviews.id))
 
@@ -731,27 +747,23 @@ export const createReviewRepository = (
       const rows = await (options?.limit === undefined
         ? query
         : query.limit(options.limit))
-      return rows.map(reviewFromRow)
+      return rows.map(reviewFromJoin)
     })
   },
 
   findByOrganizationId: async (orgId: OrganizationId) => {
     return trace('review.findByOrganizationId', async () => {
       // Every live Review of the Organization, in id order (see findByPropertyId).
-      const rows = await db
-        .select()
-        .from(reviews)
+      const rows = await reviewsWithContent(db)
         .where(liveIn(orgId))
         .orderBy(asc(reviews.id))
-      return rows.map(reviewFromRow)
+      return rows.map(reviewFromJoin)
     })
   },
 
   findByConnection: async (organizationId, connectionId, cursor, limit) => {
     return trace('review.findByConnection', async () => {
-      const rows = await db
-        .select()
-        .from(reviews)
+      const rows = await reviewsWithContent(db)
         .where(
           and(
             eq(reviews.organizationId, organizationId),
@@ -761,7 +773,7 @@ export const createReviewRepository = (
         )
         .orderBy(asc(reviews.id))
         .limit(limit)
-      return rows.map(reviewFromRow)
+      return rows.map(reviewFromJoin)
     })
   },
 
@@ -775,22 +787,26 @@ export const createReviewRepository = (
    */
   findIdsByContentFilter: async (orgId, filter, now) => {
     return trace('review.findIdsByContentFilter', async () => {
-      const conditions = [
-        liveIn(orgId),
-        isNotNull(reviews.contentExpiresAt),
-        gt(reviews.contentExpiresAt, now),
-      ]
+      const conditions = [liveIn(orgId), gt(reviewSourceContents.contentExpiresAt, now)]
       if (filter.ratingMin !== undefined)
-        conditions.push(gte(reviews.rating, filter.ratingMin))
+        conditions.push(gte(reviewSourceContents.rating, filter.ratingMin))
       if (filter.ratingMax !== undefined)
-        conditions.push(lte(reviews.rating, filter.ratingMax))
+        conditions.push(lte(reviewSourceContents.rating, filter.ratingMax))
       if (filter.textQuery) {
         const escaped = escapeLikePattern(filter.textQuery)
-        conditions.push(sql`${reviews.text} ilike ${'%' + escaped + '%'}`)
+        conditions.push(sql`${reviewSourceContents.text} ilike ${'%' + escaped + '%'}`)
       }
       const rows = await db
         .select({ id: reviews.id })
         .from(reviews)
+        .innerJoin(
+          reviewSourceContents,
+          and(
+            eq(reviewSourceContents.reviewId, reviews.id),
+            eq(reviewSourceContents.organizationId, reviews.organizationId),
+            eq(reviewSourceContents.propertyId, reviews.propertyId),
+          ),
+        )
         .where(and(...conditions))
       return rows.map((r) => r.id as string)
     })
