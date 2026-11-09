@@ -13,7 +13,9 @@ export const UTC_TIMESTAMP_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
  * at or after its start sequence; the analysis, the review and the processing
  * profile must agree on source epoch, revision and sequence; the source content
  * must not have expired; the profile must be active; and the derivative's own
- * retention must not have lapsed.
+ * retention must not have lapsed. An analysis recorded on an older profile is
+ * served while the rebuilt contribution for its exact sequence sits on the
+ * current one, the same predicate the product serves it by.
  */
 export function reviewAnalysisServingFence(organizationId: string, asOfIso: string): SQL {
   return sql`FROM ai_review_analyses AS analysis
@@ -35,7 +37,21 @@ export function reviewAnalysisServingFence(organizationId: string, asOfIso: stri
               AND analysis.source_epoch = merchant.authorized_source_epoch
               AND analysis.analysis_sequence >= merchant.analysis_start_sequence
               AND profile.lifecycle_state = 'active'
-              AND profile.profile_version = analysis.property_profile_version
+              AND (
+                profile.profile_version = analysis.property_profile_version
+                OR EXISTS (
+                  SELECT 1 FROM ai_property_aggregate_contributions AS projection
+                  WHERE projection.organization_id = analysis.organization_id
+                    AND projection.property_id = analysis.property_id
+                    AND projection.review_id = analysis.review_id
+                    AND projection.source_epoch = analysis.source_epoch
+                    AND projection.source_revision = analysis.source_revision
+                    AND projection.analysis_sequence = analysis.analysis_sequence
+                    AND projection.review_analysis_epoch = analysis.review_analysis_epoch
+                    AND projection.status = analysis.status
+                    AND projection.property_profile_version = profile.profile_version
+                )
+              )
               AND profile.source_epoch = analysis.source_epoch
               AND review.source_epoch = analysis.source_epoch
               AND review.source_revision = analysis.source_revision

@@ -3,6 +3,7 @@ import type { Database, Tx } from '#/shared/db'
 import { aiPropertyAggregateHeads } from '#/shared/db/schema'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GuestVoiceFactsScope } from '../../application/ports/ai-guest-voice-facts.port'
+import { lockAggregateHead } from './ai-property-aggregate-head'
 import { lockReviewAnalysisPropertyFence } from './review-analysis-property-fence'
 
 // Contributions are keyed by source sequence, independently of the processing
@@ -83,27 +84,53 @@ async function currentProfile(tx: Tx, scope: GuestVoiceFactsScope) {
 }
 
 // The worker enumerates identifiers only; rebuilding rechecks each tenant's authority.
+// Properties are found from the processing profile and the authorization, not from
+// the heads: a Property that rolled before heads were created at rollover has none
+// for its current profile, and rebuilding creates it.
 async function listPendingProfileRebuilds(db: Database, propertyLimit: number) {
-  return db.execute<GuestVoiceFactsScope>(sql`
-      SELECT head.organization_id AS "organizationId", head.property_id AS "propertyId",
-        head.source_epoch AS "sourceEpoch", head.review_analysis_epoch AS "reviewAnalysisEpoch",
-        head.property_profile_version AS "propertyProfileVersion"
-      FROM ai_property_aggregate_heads AS head
-      INNER JOIN ai_property_processing_profiles AS profile
-        ON profile.organization_id = head.organization_id AND profile.property_id = head.property_id
-       AND profile.source_epoch = head.source_epoch AND profile.profile_version = head.property_profile_version
-      WHERE EXISTS (
-        SELECT 1 FROM ai_property_aggregate_heads AS older
-        WHERE older.organization_id = head.organization_id AND older.property_id = head.property_id
-          AND older.source_epoch = head.source_epoch AND older.review_analysis_epoch = head.review_analysis_epoch
-          AND older.property_profile_version < head.property_profile_version
-      ) AND head.settled_analysis_count < (
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL statement_timeout = '5s'`)
+    return tx.execute<GuestVoiceFactsScope>(sql`
+      SELECT profile.organization_id AS "organizationId", profile.property_id AS "propertyId",
+        profile.source_epoch AS "sourceEpoch", enablement.review_analysis_epoch AS "reviewAnalysisEpoch",
+        profile.profile_version AS "propertyProfileVersion"
+      FROM ai_property_processing_profiles AS profile
+      INNER JOIN merchant_ai_enablement AS enablement
+        ON enablement.organization_id = profile.organization_id
+       AND enablement.property_id = profile.property_id
+       AND enablement.state = 'enabled'
+       AND enablement.authorized_source_epoch = profile.source_epoch
+       AND enablement.capabilities @> ARRAY['review_analysis']::text[]
+      LEFT JOIN ai_property_aggregate_heads AS head
+        ON head.organization_id = profile.organization_id AND head.property_id = profile.property_id
+       AND head.source_epoch = profile.source_epoch
+       AND head.review_analysis_epoch = enablement.review_analysis_epoch
+       AND head.property_profile_version = profile.profile_version
+      WHERE profile.lifecycle_state = 'active'
+      AND (
+        EXISTS (
+          SELECT 1 FROM ai_property_aggregate_heads AS older
+          WHERE older.organization_id = profile.organization_id AND older.property_id = profile.property_id
+            AND older.source_epoch = profile.source_epoch
+            AND older.review_analysis_epoch = enablement.review_analysis_epoch
+            AND older.property_profile_version < profile.profile_version
+        ) OR EXISTS (
+          SELECT 1 FROM ai_property_aggregate_contributions AS older
+          WHERE older.organization_id = profile.organization_id AND older.property_id = profile.property_id
+            AND older.source_epoch = profile.source_epoch
+            AND older.review_analysis_epoch = enablement.review_analysis_epoch
+            AND older.property_profile_version < profile.profile_version
+        )
+      ) AND COALESCE(head.settled_analysis_count, 0) < (
         SELECT count(*) FROM ai_property_aggregate_settlements AS settlement
-        WHERE settlement.organization_id = head.organization_id AND settlement.property_id = head.property_id
-          AND settlement.source_epoch = head.source_epoch AND settlement.review_analysis_epoch = head.review_analysis_epoch
+        WHERE settlement.organization_id = profile.organization_id AND settlement.property_id = profile.property_id
+          AND settlement.source_epoch = profile.source_epoch
+          AND settlement.review_analysis_epoch = enablement.review_analysis_epoch
       )
-      ORDER BY head.updated_at, head.property_id LIMIT ${propertyLimit}
+      ORDER BY COALESCE(head.updated_at, '-infinity'::timestamptz), profile.property_id
+      LIMIT ${propertyLimit}
     `)
+  })
 }
 
 export function createAiProfileRebuild(db: Database, logger?: Pick<LoggerPort, 'warn'>) {
@@ -123,12 +150,7 @@ export function createAiProfileRebuild(db: Database, logger?: Pick<LoggerPort, '
       )
       const profile = await currentProfile(tx, scope)
       if (!profile) return false
-      const [head] = await tx
-        .select()
-        .from(aiPropertyAggregateHeads)
-        .where(headKey(scope))
-        .for('update')
-      if (!head) return false
+      const head = await lockAggregateHead(tx, { ...scope, analysisSequence: 0 })
       const moved = await tx.execute(sql`
         WITH batch AS (
           SELECT contribution.organization_id, contribution.property_id,
