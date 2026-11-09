@@ -9,6 +9,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
+import {
+  applyRestoreResurrectionFence,
+  type BackupErasureReplayer,
+} from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
+import { eraseGoogleIntegrationForPropertyInTx } from '#/shared/db/lifecycle/google-rights-store'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { parseOperatorArgs, type OperatorContext } from '../operator-command'
@@ -17,6 +23,7 @@ import {
   createGoogleRightsExecutor,
 } from './google-rights-executor'
 import { runRightsExecutors } from './rights-executor'
+import { createRightsJournal, type RightsJournalStore } from './rights-journal'
 import { planRightsRequest, rightsRequestCommandSpec } from './rights-request-command'
 
 const CREATED_AT = new Date('2026-08-01T00:00:00.000Z')
@@ -303,7 +310,10 @@ async function rowCount(table: string, organizationId: string): Promise<number> 
 }
 
 /** What scripts/ops/rights-request.ts does after the operator harness. */
-async function runScript(argv: string[], options: { production?: boolean } = {}) {
+async function runScript(
+  argv: string[],
+  options: { production?: boolean; journalStore?: RightsJournalStore } = {},
+) {
   const parsed = parseOperatorArgs(
     ['--operator', 'op', ...argv],
     rightsRequestCommandSpec,
@@ -327,6 +337,9 @@ async function runScript(argv: string[], options: { production?: boolean } = {})
   const exit = await runRightsExecutors({
     plan: planned.plan,
     executors: [createGoogleRightsExecutor({ db, now: () => NOW })],
+    journal: createRightsJournal(
+      options.journalStore ?? { put: async () => {}, alert: () => {} },
+    ),
     io: { out: (line) => out.push(line), err: (line) => err.push(line) },
     writeExportFile: async (path, bytes) => {
       files.set(path, Buffer.from(bytes).toString('utf8'))
@@ -587,5 +600,279 @@ describe.sequential('Google rights executor through the rights-request command',
     expect(result.exit).not.toBe(0)
     expect(result.err.join('\n')).toContain('in_flight_import_items=1')
     expect(await snapshot(asked.organizationId)).toBe(before)
+  })
+
+  describe('Property A, Property B and a second Organization', () => {
+    type Tenant = Readonly<{ fixture: Fixture }>
+
+    async function seedTenant(live: boolean): Promise<Tenant> {
+      const fixture = await seed({ live })
+      await seedSoloImports(fixture, fixture.propertyId)
+      await seedSoloImports(fixture, fixture.siblingPropertyId)
+      return { fixture }
+    }
+
+    /** B's import items with the imports they hang on. */
+    async function propertySnapshot(fixture: Fixture, propertyId: string) {
+      const parts: string[] = []
+      const queries: ReadonlyArray<readonly [string, string]> = [
+        [
+          'google_import_items',
+          `SELECT to_jsonb(t.*)::text AS row FROM google_import_items AS t
+           WHERE t.organization_id = $1 AND t.destination_property_id = $2`,
+        ],
+        [
+          'google_imports',
+          `SELECT to_jsonb(p.*)::text AS row FROM google_imports AS p
+           WHERE p.organization_id = $1 AND p.id IN (
+             SELECT import_id FROM google_import_items
+             WHERE organization_id = $1 AND destination_property_id = $2)`,
+        ],
+      ]
+      for (const [label, query] of queries) {
+        const result = await lease.pool.query(query, [fixture.organizationId, propertyId])
+        const rows = result.rows.map((row) => String(row.row)).sort()
+        parts.push(`${label}:${rows.join('|')}`)
+      }
+      return parts.join('\n')
+    }
+
+    /** The connection, permits and receipts a Property erase never touches. */
+    async function controlSnapshot(fixture: Fixture): Promise<string> {
+      const parts: string[] = []
+      for (const table of ['google_connections', 'authorization_execution_permits']) {
+        const result = await lease.pool.query(
+          `SELECT to_jsonb(t.*)::text AS row FROM ${table} AS t
+           WHERE organization_id = $1 ORDER BY 1`,
+          [fixture.organizationId],
+        )
+        parts.push(`${table}:${result.rows.map((row) => String(row.row)).join('|')}`)
+      }
+      return parts.join('\n')
+    }
+
+    async function everything(tenant: Tenant) {
+      const { fixture } = tenant
+      return {
+        whole: await snapshot(fixture.organizationId),
+        b: await propertySnapshot(fixture, fixture.siblingPropertyId),
+        control: await controlSnapshot(fixture),
+      }
+    }
+
+    function propertyApplyArgs(fixture: Fixture): string[] {
+      return [
+        'property',
+        '--org',
+        fixture.organizationId,
+        '--property',
+        fixture.propertyId,
+        ...VERIFIED,
+        '--reason',
+        'erasure request',
+        '--ticket',
+        'T-4',
+        `confirm=ERASE PROPERTY ${fixture.propertyId}`,
+        '--apply',
+        '--yes',
+        'ops:rights-request',
+      ]
+    }
+
+    function journalStore(): {
+      store: RightsJournalStore
+      puts: Map<string, string>
+      alerts: unknown[]
+    } {
+      const puts = new Map<string, string>()
+      const alerts: unknown[] = []
+      return {
+        puts,
+        alerts,
+        store: {
+          put: async (key, bytes) => {
+            puts.set(key, bytes)
+          },
+          alert: (input) => {
+            alerts.push(input)
+          },
+        },
+      }
+    }
+
+    /** Puts a restore back: every captured row, parents first, existing rows kept. */
+    async function restoreRows(
+      captured: ReadonlyArray<readonly [string, ReadonlyArray<unknown>]>,
+    ): Promise<void> {
+      for (const [table, rows] of captured) {
+        if (rows.length === 0) continue
+        await lease.pool.query(
+          `INSERT INTO ${table}
+           SELECT * FROM jsonb_populate_recordset(NULL::${table}, $1::jsonb)
+           ON CONFLICT (id) DO NOTHING`,
+          [JSON.stringify(rows)],
+        )
+      }
+    }
+
+    async function captureRows(fixture: Fixture) {
+      const captured: Array<readonly [string, ReadonlyArray<unknown>]> = []
+      for (const table of ['google_imports', 'google_import_items']) {
+        const result = await lease.pool.query(
+          `SELECT to_jsonb(t.*) AS row FROM ${table} AS t WHERE organization_id = $1`,
+          [fixture.organizationId],
+        )
+        captured.push([table, result.rows.map((row) => row.row as unknown)])
+      }
+      return captured
+    }
+
+    const propertyItems = async (fixture: Fixture, propertyId: string) =>
+      (await propertySnapshot(fixture, propertyId)).split('\n').filter((line) => {
+        const [, rows = ''] = line.split(/:(.*)/su)
+        return rows.length > 0
+      }).length
+
+    const googleReplayer: BackupErasureReplayer = {
+      context: 'integration',
+      subjectClass: 'property',
+      async reErase(tx, entry) {
+        if (!entry.propertyId) throw new Error('journal entry has no Property')
+        const outcome = await eraseGoogleIntegrationForPropertyInTx(
+          tx,
+          entry.organizationId,
+          entry.propertyId,
+        )
+        if (!outcome.ok) throw new Error(outcome.error)
+        return outcome.deleted
+      },
+    }
+
+    it('reports the counts of each Property and each Organization', async () => {
+      const asked = await seedTenant(false)
+      const other = await seedTenant(false)
+
+      for (const { fixture } of [asked, other]) {
+        for (const propertyId of [fixture.propertyId, fixture.siblingPropertyId]) {
+          const report = await runScript([
+            'property',
+            '--org',
+            fixture.organizationId,
+            '--property',
+            propertyId,
+          ])
+          expect(report.exit).toBe(0)
+          expect(report.out).toContain('google-integration: import_items=2')
+          expect(report.out).toContain('google-integration: erasure blockers: none')
+        }
+        const org = await runScript(['organization', '--org', fixture.organizationId])
+        expect(org.out).toContain('google-integration: connections=1 imports=3')
+        expect(org.out).toContain('google-integration: closure blockers: none')
+      }
+    })
+
+    it('erases A, leaves B and the other Organization byte-identical, and replays a restore', async () => {
+      const asked = await seedTenant(false)
+      const other = await seedTenant(false)
+      const { fixture } = asked
+      const before = await everything(asked)
+      const otherBefore = await snapshot(other.fixture.organizationId)
+      const restoreSet = await captureRows(fixture)
+      const journal = journalStore()
+
+      const result = await runScript(propertyApplyArgs(fixture), {
+        journalStore: journal.store,
+      })
+
+      expect(result.exit).toBe(0)
+      expect(await propertyItems(fixture, fixture.propertyId)).toBe(0)
+      const after = await everything(asked)
+      expect(after.b).toBe(before.b)
+      expect(after.control).toBe(before.control)
+      expect(after.whole).not.toBe(before.whole)
+      expect(await snapshot(other.fixture.organizationId)).toBe(otherBefore)
+
+      const entries = [...journal.puts.values()].map(decodeErasureJournalEntry)
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({
+        context: 'integration',
+        subjectClass: 'property',
+        propertyId: fixture.propertyId,
+      })
+
+      await restoreRows(restoreSet)
+      expect(await snapshot(fixture.organizationId)).toBe(before.whole)
+      expect(await propertyItems(fixture, fixture.propertyId)).toBeGreaterThan(0)
+
+      const fence = await db.transaction((tx) =>
+        applyRestoreResurrectionFence(tx, {
+          entries,
+          restorePointAt: new Date(NOW.getTime() - 86_400_000),
+          replayers: [googleReplayer],
+        }),
+      )
+
+      expect(fence.verified).toBe(true)
+      expect(fence.counts.ledgerEntriesReapplied).toBe(1)
+      expect(fence.counts.ledgerRowsReErased).toBeGreaterThan(0)
+      expect(await propertyItems(fixture, fixture.propertyId)).toBe(0)
+      const replayed = await everything(asked)
+      expect(replayed.whole).toBe(after.whole)
+      expect(replayed.b).toBe(before.b)
+      expect(replayed.control).toBe(before.control)
+      expect(await snapshot(other.fixture.organizationId)).toBe(otherBefore)
+    })
+
+    it('changes nothing and raises the alert when the journal write is rejected', async () => {
+      const asked = await seedTenant(false)
+      const other = await seedTenant(false)
+      const before = [
+        await snapshot(asked.fixture.organizationId),
+        await snapshot(other.fixture.organizationId),
+      ]
+      const alerts: unknown[] = []
+
+      const result = await runScript(propertyApplyArgs(asked.fixture), {
+        journalStore: {
+          put: async () => {
+            throw new Error('bucket unavailable')
+          },
+          alert: (input) => {
+            alerts.push(input)
+          },
+        },
+      })
+
+      expect(result.exit).not.toBe(0)
+      expect(alerts).toHaveLength(1)
+      expect(result.err.join('\n')).toContain('Erasure journal write failed')
+      expect([
+        await snapshot(asked.fixture.organizationId),
+        await snapshot(other.fixture.organizationId),
+      ]).toEqual(before)
+    })
+
+    it('refuses an Organization closure with a live connection and leaves both Organizations unchanged', async () => {
+      const asked = await seedTenant(true)
+      const other = await seedTenant(false)
+      const journal = journalStore()
+      const before = [
+        await snapshot(asked.fixture.organizationId),
+        await snapshot(other.fixture.organizationId),
+      ]
+
+      const result = await runScript(apply(asked.fixture.organizationId), {
+        journalStore: journal.store,
+      })
+
+      expect(result.exit).toBe(1)
+      expect(result.err.join('\n')).toContain('live_connections=1')
+      expect(result.err.join('\n')).toContain('nothing was changed')
+      expect(journal.puts.size).toBe(0)
+      expect([
+        await snapshot(asked.fixture.organizationId),
+        await snapshot(other.fixture.organizationId),
+      ]).toEqual(before)
+    })
   })
 })

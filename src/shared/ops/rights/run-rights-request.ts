@@ -4,6 +4,7 @@
 import { decodeErasureJournalExport } from '#/shared/db/lifecycle/erasure-journal.server'
 import type { OperatorArgs, OperatorContext, OperatorIO } from '../operator-command'
 import { runRightsExecutors, type RightsExecutor } from './rights-executor'
+import type { RightsJournal } from './rights-journal'
 import {
   describeRightsReport,
   planRightsReplay,
@@ -18,6 +19,7 @@ export type RightsRequestEffects = Readonly<{
   readFile: (path: string) => Promise<string>
   writeExportFile: (path: string, bytes: Uint8Array) => Promise<void>
   /** Executors for the request; a final warning runs the notification one alone. */
+  journal: RightsJournal
   executors: (finalWarning: boolean) => ReadonlyArray<RightsExecutor>
 }>
 
@@ -45,6 +47,7 @@ export async function handleRightsRequest(
   return runRightsExecutors({
     plan,
     io,
+    journal: effects.journal,
     executors: effects.executors(args.positionals.includes(FINAL_WARNING_TOKEN)),
     writeExportFile: effects.writeExportFile,
   })

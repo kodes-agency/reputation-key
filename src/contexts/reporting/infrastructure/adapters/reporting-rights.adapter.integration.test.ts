@@ -10,6 +10,7 @@ import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import type { RightsRequestPlan } from '#/shared/ops/rights/rights-request-command'
 import { runRightsExecutors } from '#/shared/ops/rights/rights-executor'
+import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { REPORTING_PURGE_ORDER } from './reporting-rights-plan'
@@ -137,6 +138,7 @@ function run(
   const exitCode = runRightsExecutors({
     plan: rightsPlan,
     executors: [createReportingRightsExecutor(db, () => AT)],
+    journal: createRightsJournal({ put: async () => {}, alert: () => {} }),
     io: { out: (line) => out.push(line), err: (line) => err.push(line) },
     writeExportFile: write,
   })
@@ -149,6 +151,7 @@ function plan(organizationId: string, exportDir?: string): RightsRequestPlan {
     mode: 'apply',
     organizationId,
     batchSize: 50,
+    receivedAt: AT,
     ...(exportDir ? { exportDir } : {}),
   }
 }
