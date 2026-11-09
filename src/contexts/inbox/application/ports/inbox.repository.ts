@@ -1,6 +1,7 @@
 // Inbox context — inbox repository port
 // Per architecture: "Repository ports for all data access."
 
+import type { Tx } from '#/shared/outbox/commit'
 import type {
   InboxItem,
   InboxItemDetail,
@@ -90,6 +91,7 @@ export type InboxRepository = Readonly<{
     sourceType: SourceType,
     sourceId: string,
     orgId: OrganizationId,
+    tx?: Tx,
   ): Promise<InboxItem | null>
   /**
    * Active Review Inbox Item ids at one Property, keyed by Review id. An
