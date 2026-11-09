@@ -9,13 +9,16 @@ const NOTIFICATION_REPLAYERS = createNotificationRightsReplayers()
 const deps = { db: {} as Database, runNotification: vi.fn() }
 
 describe('composeRightsExecutors', () => {
-  it('composes the six context executors in order', () => {
+  it('composes the context executors in order', () => {
     expect(composeRightsExecutors(deps, false).map(({ name }) => name)).toEqual([
       'google-integration',
       'review',
       'inbox',
       'guest',
       'reporting',
+      'identity-grants',
+      'staff',
+      'property',
       'notification',
     ])
   })
@@ -45,6 +48,23 @@ describe('composeRightsExecutors', () => {
       'inbox',
       'guest',
       'reporting',
+      'staff',
+      'notification',
+    ])
+  })
+
+  it('covers the property scope with every Property erasure executor', () => {
+    const covering = composeRightsExecutors(deps, false)
+      .filter(({ scopes }) => scopes.includes('property'))
+      .map(({ name }) => name)
+    expect(covering).toEqual([
+      'google-integration',
+      'review',
+      'inbox',
+      'guest',
+      'reporting',
+      'identity-grants',
+      'property',
       'notification',
     ])
   })

@@ -10,6 +10,11 @@ import {
   createGuestPropertyErasureReplayer,
 } from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
 import {
+  createIdentityPropertyRightsExecutor,
+  createStaffOrganizationRightsExecutor,
+} from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
+import { createPropertyRightsExecutor } from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
+import {
   createGuestRightsExecutor,
   type GuestRightsExecutorDeps,
 } from '#/contexts/guest/infrastructure/adapters/guest-rights.adapter'
@@ -68,6 +73,9 @@ export function composeRightsExecutors(
       operator: deps.operator,
     }),
     createReportingRightsExecutor(deps.db, now),
+    createIdentityPropertyRightsExecutor(deps.db),
+    createStaffOrganizationRightsExecutor(deps.db),
+    createPropertyRightsExecutor(deps.db, now),
     notification,
   ]
 }
