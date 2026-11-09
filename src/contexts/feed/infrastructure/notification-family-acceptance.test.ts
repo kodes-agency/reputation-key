@@ -30,7 +30,7 @@ import {
   createNotificationCategoryDefault,
   createNotificationPreference,
 } from '../domain/constructors-preference'
-import { updateNotificationPreferenceDto } from '../application/dto/notification-preference.dto'
+import { updateNotificationPreferenceDto } from '../preferences/contracts'
 import { resolveCategoryPreference } from '../domain/notification-preference-resolution'
 import type { NotificationCategory, NotificationType } from '../domain/notification-types'
 import type { InsertNotificationJobData } from './jobs/insert-notification.job'

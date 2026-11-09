@@ -35,6 +35,14 @@ own source review, inbox, property, portal, identity, or goal state.
   and a bulk reopen's cycles through `GroupedReopenStorePort`, which reads that
   one fact's outbox payload by id.
 
+## Preferences
+
+`preferences/` is a feature folder. `contracts.ts` holds the browser-safe
+request shapes (preference, quiet hours, formatting) that the settings screens
+and the server functions share; `mute-category.server.ts` and
+`user-settings.server.ts` are server-only and are built in `build.ts`. Browser
+code and stories import `contracts.ts` only.
+
 ## Audit storage
 
 `audit/` contains the server-only content-free audit contract, shared fact mapping,

@@ -25,7 +25,7 @@ import {
   type NotificationFormattingValues,
   type NotificationLocale,
   type NotificationUserSettingsInput,
-} from '#/contexts/feed/application/dto/notification-user-settings.dto'
+} from '#/contexts/feed/preferences/contracts'
 
 export type NotificationSettingsUpdate = Readonly<{
   data: NotificationUserSettingsInput

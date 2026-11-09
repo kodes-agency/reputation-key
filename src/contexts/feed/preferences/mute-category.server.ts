@@ -4,13 +4,13 @@ import type {
   PropertyId,
   UserId,
 } from '#/shared/domain/ids'
-import { createNotificationPreference } from '../../domain/constructors-preference'
-import { getDefaultCadence, getDefaultMaxRating } from '../../domain/notification-policy'
+import { createNotificationPreference } from '../domain/constructors-preference'
+import { getDefaultCadence, getDefaultMaxRating } from '../domain/notification-policy'
 import type {
   NotificationCategory,
   NotificationChannel,
   NotificationPreference,
-} from '../../domain/notification-types'
+} from '../domain/notification-types'
 
 type Input = Readonly<{
   userId: UserId
