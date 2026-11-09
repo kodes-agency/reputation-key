@@ -3,23 +3,26 @@
 
 import { decodeErasureJournalExport } from '#/shared/db/lifecycle/erasure-journal.server'
 import type { OperatorArgs, OperatorContext, OperatorIO } from '../operator-command'
+import { isLocalOnlyDatabase } from '../local-database'
 import { runRightsExecutors, type RightsExecutor } from './rights-executor'
 import type { RightsJournal } from './rights-journal'
 import {
   describeRightsReport,
   planRightsReplay,
   planRightsRequest,
+  type RightsRequestPlan,
   RIGHTS_REQUEST_COMMAND,
 } from './rights-request-command'
 
 export const FINAL_WARNING_TOKEN = 'final-warning'
 
 export type RightsRequestEffects = Readonly<{
-  production: boolean
+  environment: Readonly<Record<string, string | undefined>>
   readFile: (path: string) => Promise<string>
   writeExportFile: (path: string, bytes: Uint8Array) => Promise<void>
-  /** Executors for the request; a final warning runs the notification one alone. */
   journal: RightsJournal
+  subjectRefusal: (plan: RightsRequestPlan) => Promise<string | null>
+  /** Executors for the request; a final warning runs the notification one alone. */
   executors: (finalWarning: boolean) => ReadonlyArray<RightsExecutor>
 }>
 
@@ -29,7 +32,9 @@ export async function handleRightsRequest(
   args: OperatorArgs,
   io: OperatorIO,
 ): Promise<number> {
-  const planned = planRightsRequest(ctx, args, { production: effects.production })
+  const planned = planRightsRequest(ctx, args, {
+    production: !isLocalOnlyDatabase(effects.environment),
+  })
   if (!planned.ok) {
     io.err(`${RIGHTS_REQUEST_COMMAND}: ${planned.error}`)
     return 1
@@ -48,6 +53,7 @@ export async function handleRightsRequest(
     plan,
     io,
     journal: effects.journal,
+    subjectRefusal: effects.subjectRefusal,
     executors: effects.executors(args.positionals.includes(FINAL_WARNING_TOKEN)),
     writeExportFile: effects.writeExportFile,
   })

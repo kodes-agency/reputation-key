@@ -500,9 +500,8 @@ describe.sequential('Google rights executor through the rights-request command',
     expect(await snapshot(asked.organizationId)).toBe(before)
   })
 
-  it("exports one Property's import items without provider identifiers", async () => {
+  it('refuses --property on an access request and writes nothing', async () => {
     const asked = await seed({ live: false })
-    await seedSoloImports(asked, asked.propertyId)
 
     const result = await runScript([
       'access',
@@ -513,23 +512,9 @@ describe.sequential('Google rights executor through the rights-request command',
       'out=/export',
     ])
 
-    expect(result.exit).toBe(0)
-    const file = result.files.get(`/export/${GOOGLE_RIGHTS_EXPORT_PATH}`)
-    expect(file).toBeDefined()
-    const payload = JSON.parse(file ?? '{}')
-    expect(payload.propertyId).toBe(asked.propertyId)
-    const total = payload.importItems.reduce(
-      (sum: number, row: { item_count: number }) => sum + row.item_count,
-      0,
-    )
-    expect(total).toBe(2)
-    expect(
-      payload.importItems.some(
-        (row: { import_job_id: string }) => row.import_job_id === asked.importId,
-      ),
-    ).toBe(true)
-    expect(file).not.toContain(asked.siblingPropertyId)
-    for (const secret of Object.values(MARKERS)) expect(file).not.toContain(secret)
+    expect(result.exit).toBe(1)
+    expect(result.err.join('\n')).toContain('--property is not accepted for access')
+    expect(result.files.size).toBe(0)
   })
 
   it("erases one Property's import items and prunes emptied parents", async () => {

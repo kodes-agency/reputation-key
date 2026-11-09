@@ -2,9 +2,11 @@
 // Property and Organization erasure).
 //
 // Report is the default. Replay lists which journaled erasures a restore to a
-// given point undid. Apply is refused in production; outside production it
-// validates identity and typed confirmation, then runs the executors composed
-// for the scope (below). The contract and its tests live in
+// given point undid. Apply is refused unless the database is local, and until
+// an erasure journal store is configured it is refused everywhere (a final
+// warning, which deletes nothing, needs no journal). Otherwise it validates
+// identity and typed confirmation, then runs the executors composed for the
+// scope (below). The contract and its tests live in
 // src/shared/ops/rights/rights-request-command.ts — scripts/ sits outside the
 // unit test project, so this file is wiring only.
 //
@@ -20,6 +22,7 @@ import { createS3StorageAdapter } from '../../src/contexts/portal/infrastructure
 import { getEnv } from '../../src/shared/config/env'
 import { parseOperatorIdentities } from '../../src/shared/auth/execution-policy'
 import { getDb } from '../../src/shared/db'
+import { rightsSubjectRefusal } from '../../src/shared/db/lifecycle/rights-subject-store'
 import { createRightsJournal } from '../../src/shared/ops/rights/rights-journal'
 import { rightsRequestCommandSpec } from '../../src/shared/ops/rights/rights-request-command'
 import { handleRightsRequest } from '../../src/shared/ops/rights/run-rights-request'
@@ -34,13 +37,14 @@ async function main(): Promise<void> {
       const journal = createRightsJournal(undefined)
       return handleRightsRequest(
         {
-          production: env.NODE_ENV === 'production',
+          environment: process.env,
           readFile: (path) => readFile(path, 'utf8'),
           writeExportFile: async (path, bytes) => {
             await mkdir(dirname(path), { recursive: true })
             await writeFile(path, bytes, { mode: 0o600 })
           },
           journal,
+          subjectRefusal: (plan) => rightsSubjectRefusal(getDb(), plan),
           executors: (finalWarning) =>
             composeRightsExecutors(
               {
