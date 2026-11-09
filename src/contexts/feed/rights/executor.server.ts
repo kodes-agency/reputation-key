@@ -28,7 +28,11 @@ import {
 } from './read.server'
 import type { NotificationRightsScope } from './read.server'
 import type { RightsRow, ScopedRightsRow } from './fields'
-import { purgeNotificationRightsData, type NotificationPurgeCounts } from './purge.server'
+import {
+  countNotificationRightsData,
+  purgeNotificationRightsData,
+  type NotificationPurgeCounts,
+} from './purge.server'
 
 export type ManualFinalWarningJob = Readonly<{
   name: typeof INSERT_NOTIFICATION_JOB_NAME
@@ -58,6 +62,7 @@ export type NotificationRightsPort = Readonly<{
   userSettings: (scope: NotificationRightsScope) => Promise<readonly ScopedRightsRow[]>
   formerMembers: (organizationId: string) => Promise<readonly ScopedRightsRow[]>
   accountAdmins: (organizationId: string) => Promise<readonly string[]>
+  rowCounts: (scope: NotificationRightsScope) => Promise<NotificationPurgeCounts>
   emailStop: (organizationId: string) => Promise<OrganizationEmailStop>
   /** The Organization's name, so the notice can say which one it is about. */
   organizationPayload: (organizationId: string) => Promise<NotificationPayload>
@@ -202,6 +207,14 @@ async function report(
       held.includes('mandatory') ? 'held' : 'still sent'
     })`,
   ]
+  if (request.scope !== 'access') {
+    const held = await port.rowCounts(scopeOf(request))
+    lines.push(
+      `rows held: ${Object.entries(held)
+        .map(([table, rows]) => `${table}=${rows}`)
+        .join(' ')}`,
+    )
+  }
   if (request.scope !== 'property') {
     const [admins, former] = await Promise.all([
       port.accountAdmins(request.organizationId),
@@ -300,6 +313,7 @@ export function createNotificationRightsPort(
     emailStop: createNotificationOrganizationEmailStopReader(db),
     organizationPayload: (organizationId) =>
       buildOrganizationPayload(names, brandOrganization(organizationId)),
+    rowCounts: (scope) => countNotificationRightsData(db, scope),
     purge: (scope, batchSize) => purgeNotificationRightsData(db, scope, batchSize),
     enqueue,
   }

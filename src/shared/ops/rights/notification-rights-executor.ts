@@ -5,7 +5,7 @@
 
 import type { RightsExecutor } from './rights-executor'
 
-export const NOTIFICATION_RIGHTS_EXPORT_PATH = 'notification/notification-rights.json'
+const NOTIFICATION_RIGHTS_EXPORT_PATH = 'notification/notification-rights.json'
 
 export type NotificationRightsRun = Readonly<{
   scope: 'access' | 'property' | 'organization'
@@ -26,6 +26,8 @@ export type NotificationRightsExecutorDeps = Readonly<{
   run: (run: NotificationRightsRun) => Promise<NotificationRightsOutcome>
   /** Apply on an Organization queues final warnings instead of purging. */
   finalWarning: boolean
+  /** The tables a purge deletes from, per scope. */
+  tables: RightsExecutor['tables']
 }>
 
 export function createNotificationRightsExecutor(
@@ -46,6 +48,7 @@ export function createNotificationRightsExecutor(
   return Object.freeze({
     name: 'notification',
     scopes: ['access', 'property', 'organization'] as const,
+    tables: deps.finalWarning ? {} : deps.tables,
     journalContexts: ['notification'] as const,
     // The only refusal apply gives before it touches a row; later failures are
     // runtime errors that the runner reports with the executors already applied.

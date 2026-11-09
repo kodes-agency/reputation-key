@@ -30,6 +30,7 @@ import { createGuestResponseRepository } from '../repositories/guest-response.re
 import { createGuestOrganizationExportContributor } from './guest-organization-export.adapter'
 import {
   drizzleGuestLifecycleWorkbench,
+  GUEST_PURGE_PLAN,
   GUEST_PURGE_READINESS_BLOCKED,
 } from './guest-organization-lifecycle.adapter'
 import { createGuestPropertyEraseContributor } from './guest-property-erase.adapter'
@@ -39,6 +40,23 @@ import {
 } from './guest-property-legacy-rows'
 
 const CONTEXT = 'guest'
+
+/** One response erases itself and the rows that go with it by cascade. */
+const GUEST_RESPONSE_TABLES = Object.freeze([
+  'guest_responses',
+  'guest_contact_requests',
+  'guest_contact_request_reveal_audits',
+  'guest_response_experience_snapshots',
+  'guest_response_integrity_decisions',
+  'guest_response_private_feedback',
+  'guest_response_session_bindings',
+])
+
+const GUEST_RIGHTS_TABLES = Object.freeze({
+  'guest-response': GUEST_RESPONSE_TABLES,
+  property: GUEST_PURGE_PLAN,
+  organization: GUEST_PURGE_PLAN,
+})
 
 export type GuestRightsExecutorDeps = Readonly<{
   db: Database
@@ -150,6 +168,7 @@ export function createGuestRightsExecutor(deps: GuestRightsExecutorDeps): Rights
   return Object.freeze({
     name: CONTEXT,
     scopes: ['access', 'guest-response', 'property', 'organization'] as const,
+    tables: GUEST_RIGHTS_TABLES,
     journalContexts: ['guest'] as const,
     async preflight(plan) {
       let refusal: string | null = null

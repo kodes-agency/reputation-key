@@ -1,3 +1,4 @@
+import { NOTIFICATION_RIGHTS_TABLES } from '../domain/notification-rights-tables'
 import { describe, expect, it } from 'vitest'
 import {
   parseOperatorArgs,
@@ -84,6 +85,9 @@ function fakePort(store: Store, enqueued: ManualFinalWarningJob[], deleted: stri
     accountAdmins: async (org) => store.admins[org] ?? [],
     emailStop: async (org) => store.stop[org] ?? 'none',
     organizationPayload: async (org) => ({ organizationName: `Name of ${org}` }),
+    rowCounts: async (s) => ({
+      notifications: inScope(store.history, s.organizationId, s.propertyId).length,
+    }),
     purge: async (s) => {
       deleted.push(`${s.organizationId}/${s.propertyId ?? '*'}`)
       return { notifications: 1 }
@@ -134,6 +138,7 @@ async function runScript(
     executors: (finalWarning) => [
       createNotificationRightsExecutor({
         finalWarning,
+        tables: NOTIFICATION_RIGHTS_TABLES,
         run: (run) => runNotificationRights(port, run),
       }),
     ],

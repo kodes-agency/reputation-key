@@ -12,6 +12,7 @@
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { assertOrganizationHeld } from '#/shared/db/lifecycle/assert-organization-held'
 import type { Tx } from '#/shared/outbox/commit'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type {
@@ -89,18 +90,6 @@ async function listObjectKeys(
   return (result.rows as Array<{ object_key: string }>).map((row) => row.object_key)
 }
 
-async function assertHeld(tx: Tx, organization: string): Promise<void> {
-  const result = await tx.execute(sql`
-    SELECT state FROM organization_lifecycle_authority
-    WHERE organization_id = ${organization}
-  `)
-  const state = (result.rows[0] as { state?: string } | undefined)?.state
-  if (state === undefined) throw new Error('Organization has no lifecycle record')
-  if (state === 'active') {
-    throw new Error('Organization is still active; suspend it before a purge')
-  }
-}
-
 async function assertNothingLive(tx: Tx, organization: string): Promise<void> {
   const result = await tx.execute(sql`
     SELECT count(*) AS live FROM portal_publication_activations
@@ -115,7 +104,7 @@ async function assertNothingLive(tx: Tx, organization: string): Promise<void> {
  * The deletes of one scope, innermost first. Exported so a restore replay can
  * run it inside its own transaction; the objects are not touched there.
  */
-export async function erasePortalScopeInTx(
+async function erasePortalScopeInTx(
   tx: Tx,
   scope: PortalRightsScope,
 ): Promise<PortalErasureOutcome> {
@@ -133,7 +122,7 @@ export async function erasePortalScopeInTx(
 
 async function assertReady(tx: Tx, scope: PortalRightsScope): Promise<void> {
   if (scope.propertyId) return
-  await assertHeld(tx, scope.organizationId)
+  await assertOrganizationHeld(tx, scope.organizationId)
   await assertNothingLive(tx, scope.organizationId)
 }
 
@@ -194,6 +183,7 @@ export function createPortalRightsExecutor(
   return Object.freeze({
     name: CONTEXT,
     scopes: ['organization', 'property'] as const,
+    tables: { organization: PORTAL_PURGE_PLAN, property: PORTAL_PURGE_PLAN },
     journalContexts: ['portal'] as const,
     async preflight(plan) {
       if (plan.scope === 'property' && !plan.propertyId) {

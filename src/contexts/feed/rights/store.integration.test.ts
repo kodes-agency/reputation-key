@@ -1,3 +1,4 @@
+import { NOTIFICATION_RIGHTS_TABLES } from '../domain/notification-rights-tables'
 import { randomUUID } from 'node:crypto'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -321,6 +322,7 @@ async function runRights(
       executors: (finalWarning) => [
         createNotificationRightsExecutor({
           finalWarning,
+          tables: NOTIFICATION_RIGHTS_TABLES,
           run: (request) =>
             runNotificationRights(
               createNotificationRightsPort(db, async (job) => {
@@ -476,6 +478,9 @@ describe.sequential('Notification rights reads and purge', () => {
       1,
     )
 
+    expect(Object.keys(deleted).sort()).toEqual(
+      [...NOTIFICATION_RIGHTS_TABLES.property].sort(),
+    )
     expect(deleted).toEqual({
       notification_digest_batch_members: 1,
       notification_email_queue: 1,
@@ -516,6 +521,9 @@ describe.sequential('Notification rights reads and purge', () => {
     )
 
     expect(deleted).toEqual(BEFORE)
+    expect(Object.keys(deleted).sort()).toEqual(
+      [...NOTIFICATION_RIGHTS_TABLES.organization].sort(),
+    )
     expect(Object.values(await countsOf(a.organizationId)).every((n) => n === 0)).toBe(
       true,
     )
@@ -523,6 +531,94 @@ describe.sequential('Notification rights reads and purge', () => {
     expect(
       await purgeNotificationRightsData(db, { organizationId: a.organizationId }, 1),
     ).toEqual(Object.fromEntries(Object.keys(BEFORE).map((t) => [t, 0])))
+  })
+
+  const heldRows = async (
+    organizationId: string,
+    propertyId?: string,
+  ): Promise<Record<string, number>> => {
+    const port = createNotificationRightsPort(db, async () => {})
+    const result = await runNotificationRights(port, {
+      scope: propertyId ? 'property' : 'organization',
+      mode: 'report',
+      organizationId,
+      ...(propertyId ? { propertyId } : {}),
+      batchSize: 50,
+    })
+    const line = result.lines.find((entry) => entry.startsWith('rows held: '))
+    return Object.fromEntries(
+      (line ?? '')
+        .slice('rows held: '.length)
+        .split(' ')
+        .map((pair) => {
+          const [table = '', rows = ''] = pair.split('=')
+          return [table, Number(rows)]
+        }),
+    )
+  }
+
+  const removed = (before: Record<string, number>, after: Record<string, number>) =>
+    Object.fromEntries(
+      Object.keys(before).map((table) => [
+        table,
+        (before[table] ?? 0) - (after[table] ?? 0),
+      ]),
+    )
+
+  it('reports the rows a Property purge removes, per table, and not its sibling or another tenant', async () => {
+    const a = await seedTenant()
+    const b = await seedTenant()
+    const reported = await heldRows(a.organizationId, a.propertyId)
+    const sibling = await heldRows(a.organizationId, a.otherPropertyId)
+    const otherTenant = await heldRows(b.organizationId, b.propertyId)
+    const before = await countsOf(a.organizationId)
+
+    await purgeNotificationRightsData(
+      db,
+      { organizationId: a.organizationId, propertyId: a.propertyId },
+      50,
+    )
+
+    const after = await countsOf(a.organizationId)
+    const actual = removed(before, after)
+    expect(reported).toEqual(
+      Object.fromEntries(
+        NOTIFICATION_RIGHTS_TABLES.property.map((table) => [table, actual[table]]),
+      ),
+    )
+    expect(reported).toEqual({
+      notification_digest_batch_members: 1,
+      notification_email_queue: 1,
+      notifications: 1,
+      notification_preferences: 1,
+      notification_property_delivery_windows: 1,
+      notification_unsubscribe_scopes: 1,
+    })
+    expect(Object.values(actual).reduce((sum, n) => sum + n, 0)).toBe(
+      Object.values(reported).reduce((sum, n) => sum + n, 0),
+    )
+    expect(sibling).toEqual(reported)
+    expect(await heldRows(a.organizationId, a.otherPropertyId)).toEqual(sibling)
+    expect(await heldRows(b.organizationId, b.propertyId)).toEqual(otherTenant)
+  })
+
+  it('reports the rows an Organization purge removes, per table, and not another tenant', async () => {
+    const a = await seedTenant()
+    const b = await seedTenant()
+    const reported = await heldRows(a.organizationId)
+    const otherTenant = await heldRows(b.organizationId)
+    const before = await countsOf(a.organizationId)
+
+    await purgeNotificationRightsData(db, { organizationId: a.organizationId }, 50)
+
+    const actual = removed(before, await countsOf(a.organizationId))
+    expect(reported).toEqual(actual)
+    expect(reported).toEqual(BEFORE)
+    expect(otherTenant).toEqual(BEFORE)
+    expect(await heldRows(b.organizationId)).toEqual(otherTenant)
+    expect(await heldRows(a.organizationId)).toEqual(
+      Object.fromEntries(Object.keys(BEFORE).map((table) => [table, 0])),
+    )
   })
 
   const authorizer = (adminIds: readonly string[]) =>
@@ -643,6 +739,7 @@ describe.sequential('Notification rights reads and purge', () => {
           executors: (finalWarning) => [
             createNotificationRightsExecutor({
               finalWarning,
+              tables: NOTIFICATION_RIGHTS_TABLES,
               run: (request) =>
                 runNotificationRights(
                   createNotificationRightsPort(db, async (job) => {

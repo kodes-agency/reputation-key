@@ -10,6 +10,7 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { assertOrganizationHeld } from '#/shared/db/lifecycle/assert-organization-held'
 import type { Tx } from '#/shared/outbox/commit'
 import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
 import {
@@ -33,18 +34,6 @@ function total(counts: ActivityLifecycleProjectionCounts): number {
   return counts.entries + counts.replayFacts + counts.actorLabelRedactions
 }
 
-async function assertHeld(tx: Tx, organization: string): Promise<void> {
-  const result = await tx.execute(sql`
-    SELECT state FROM organization_lifecycle_authority
-    WHERE organization_id = ${organization}
-  `)
-  const state = (result.rows[0] as { state?: string } | undefined)?.state
-  if (state === undefined) throw new Error('Organization has no lifecycle record')
-  if (state === 'active') {
-    throw new Error('Organization is still active; suspend it before a purge')
-  }
-}
-
 async function assertNoLegalHold(tx: Tx, organization: string): Promise<void> {
   const result = await tx.execute(sql`
     SELECT count(*)::int AS n FROM operational_action_history_legal_holds
@@ -63,7 +52,7 @@ async function assertReady(
   organization: string,
   property: string | null,
 ): Promise<void> {
-  if (property === null) await assertHeld(tx, organization)
+  if (property === null) await assertOrganizationHeld(tx, organization)
   await assertNoLegalHold(tx, organization)
 }
 
@@ -108,7 +97,7 @@ async function erasePropertyRows(
 }
 
 /** Exported so replayers and tests run the erasure body inside their own transaction. */
-export async function activityRightsEraseInTransaction(
+async function activityRightsEraseInTransaction(
   tx: Tx,
   organization: string,
   property: string | null,
@@ -173,6 +162,14 @@ export function createActivityRightsExecutor(db: Database): RightsExecutor {
   return Object.freeze({
     name: CONTEXT,
     scopes: ['property', 'organization'] as const,
+    tables: {
+      organization: [
+        'recent_activity_entries',
+        'recent_activity_replay_facts',
+        'recent_activity_actor_label_redactions',
+      ],
+      property: ['recent_activity_entries', 'recent_activity_replay_facts'],
+    },
     journalContexts: [CONTEXT] as const,
     async preflight(plan) {
       if (plan.scope !== 'organization' && plan.scope !== 'property') {
