@@ -3,6 +3,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   useMemo,
   useSyncExternalStore,
   type ReactNode,
@@ -11,8 +12,11 @@ import {
   createReplyDraftSession,
   scheduleBackgroundDraft,
   draftReviewTextDigest,
+  type DraftSessionOptions,
+  type DraftSessionSnapshot,
   type ReplyDraftSession,
 } from './reply-draft-session'
+import type { ReplySuggestionResult } from './reply-suggestion-contract'
 import type { DraftStream } from './reply-draft-stream'
 import { streamReplyDraft } from './use-reply-actions'
 import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply-drafting-v2-schema'
@@ -39,6 +43,51 @@ export const useReplyDraftSession = () => useContext(DraftSessionContext)
 export function useDraftSessionSnapshot(session: ReplyDraftSession | undefined) {
   const store = session ?? idleSession
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
+}
+
+/**
+ * Reads a detail-owned draft back when its editor mounts again, without
+ * another generation, and follows the session afterwards only when its result,
+ * visibility or options change. A session that was dismissed elsewhere retires
+ * what the composer still shows.
+ */
+export function useRestoreDraftSession({
+  session,
+  state,
+  isBusy,
+  restore,
+  retire,
+}: Readonly<{
+  session: ReplyDraftSession | undefined
+  state: DraftSessionSnapshot
+  isBusy: boolean
+  retire: () => void
+  restore: (
+    result: Extract<ReplySuggestionResult, { status: 'ready' | 'fallback' }>,
+    options: DraftSessionOptions,
+  ) => void
+}>) {
+  const restored = useRef<ReplySuggestionResult | null>(null)
+  const latest = useRef({ restore, retire })
+  useEffect(() => {
+    latest.current = { restore, retire }
+  })
+  const { visible, result, options } = state
+  useEffect(() => {
+    if (!session) return
+    if (!visible) {
+      if (isBusy) latest.current.retire()
+      return
+    }
+    if (!result || isBusy || restored.current === result) return
+    restored.current = result
+    if (result.status === 'ready' && result.expiresAtEpochMillis <= Date.now()) {
+      session.dismiss()
+      return
+    }
+    if ((result.status === 'ready' || result.status === 'fallback') && options)
+      latest.current.restore(result, options)
+  }, [session, visible, result, options, isBusy])
 }
 
 export function backgroundDraftTarget(detail: DraftingDetail | null) {
