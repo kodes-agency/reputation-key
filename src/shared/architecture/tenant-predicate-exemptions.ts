@@ -425,6 +425,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'TENANT-CORRELATED',
   },
   {
+    file: 'src/contexts/feed/notify/write.server.ts',
+    symbol: 'writeNotification',
+    reason:
+      'The waiting slot is unique per user, type and resource, an index that carries no Organization, so the locked read finds the one row that index guards; the row it merges into and the one it inserts both take their Organization from the notification being written.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/feed/infrastructure/repositories/one-click-unsubscribe.repository.ts',
     symbol: 'apply',
     reason:

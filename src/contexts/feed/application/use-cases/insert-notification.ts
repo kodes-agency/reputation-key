@@ -21,11 +21,7 @@ import type {
   NotificationCategory,
 } from '../../domain/notification-types'
 import { isOrganizationScopedNotice } from '../../domain/notification-delivery-policy'
-import {
-  applyCoalescence,
-  getDefaultCadence,
-  getDefaultEnabled,
-} from '../../domain/notification-policy'
+import { getDefaultCadence, getDefaultEnabled } from '../../domain/notification-policy'
 import type { NotificationAudience } from '../notification-audience'
 import type { NotificationOrganizationEmailStopPort } from '../ports/notification-organization-email-stop.port'
 import {
@@ -474,24 +470,18 @@ const withLowRatingFlag = (
 // ── Coalescence ─────────────────────────────────────────────────────
 
 /**
- * ADR 0046 r.2: at most one UNREAD row per (user, type, resource). A repeat
- * event ABSORBS into that row — count bumped, latest arrival stamped, payload
- * merged newest-wins, copy re-rendered from the merged facts (so a row of
- * three notes now reads "…3 notes added"). No second email: the original
- * queue entry still stands for the same resource — except for a mandatory
- * notice, which is mailed once per event (`isMandatoryRepeat`). A settled row
- * is not absorbed into: its work is done and its email sent or cancelled, so
- * a repeat is a new request and gets a row and an email of its own.
- *
- * Resolves to the row the event folded into, or null when it gets its own.
+ * A rated repeat whose rating moved it across the reader's threshold (an edit
+ * down to one star, or back up) says something the waiting row does not, under
+ * another category: it replaces that row rather than folding into it, so the
+ * row's category, copy and flag stay one decision. The waiting row is retired
+ * here; the writer then opens the new one.
  */
-const foldIntoWaitingRow = async (
+const retireWaitingRowOfAnotherCategory = async (
   deps: InsertNotificationDeps,
   input: InsertNotificationInput,
   notification: DomainNotification,
-  channels: Channels,
-  audience: NotificationAudience | null,
-): Promise<DomainNotification | null> => {
+): Promise<void> => {
+  if (!RATED_NOTIFICATION_TYPES.has(input.type)) return
   const existing = await deps.notificationRepo.findUnreadByUserTypeResource(
     input.userId,
     input.organizationId,
@@ -499,28 +489,31 @@ const foldIntoWaitingRow = async (
     input.type,
     input.resourceId,
   )
-  if (existing === null) return null
-  // A rated repeat whose rating moved it across the reader's threshold (an
-  // edit down to one star, or back up) says something the waiting row does
-  // not, under another category: it replaces that row rather than folding
-  // into it, so the row's category, copy and flag stay one decision.
-  if (
-    RATED_NOTIFICATION_TYPES.has(input.type) &&
-    existing.category !== notification.category
-  ) {
+  if (existing !== null && existing.category !== notification.category) {
     await retireReplacedRow(deps, existing)
-    return null
   }
-  const coalesced = applyCoalescence(existing, notification.payload, deps.clock())
-  // The bump only lands on a row that is still waiting and still at the count
-  // the lookup saw. When a read, dismiss or settlement committed after the
-  // lookup, the event is not the user's old news; when another event bumped the
-  // row, writing this sum would drop that event. Either way it falls through to
-  // a fresh unread row, whose upsert re-coalesces atomically if yet another
-  // waiting row appeared meanwhile.
-  if (!(await deps.notificationRepo.refreshUnread(coalesced, existing.coalescedCount))) {
-    return null
-  }
+}
+
+/**
+ * ADR 0046 r.2: at most one UNREAD row per (user, type, resource). A repeat
+ * event ABSORBS into that row, which the writer merges under a lock — count
+ * bumped, latest arrival stamped, payload merged newest-wins, copy re-rendered
+ * from the merged facts (so a row of three notes now reads "…3 notes added").
+ * No second email: the original queue entry still stands for the same
+ * resource — except for a mandatory notice, which is mailed once per event
+ * (`isMandatoryRepeat`). A settled row is not absorbed into: its work is done
+ * and its email sent or cancelled, so a repeat is a new request and gets a row
+ * and an email of its own.
+ *
+ * Runs for an event that was absorbed (the written row is not the one built).
+ */
+const afterFoldIntoWaitingRow = async (
+  deps: InsertNotificationDeps,
+  input: InsertNotificationInput,
+  coalesced: DomainNotification,
+  channels: Channels,
+  audience: NotificationAudience | null,
+): Promise<void> => {
   const mailsRepeat = channels.emailEnabled && isMandatoryRepeat(coalesced, input)
   if (mailsRepeat) {
     await enqueueEmailEntry(
@@ -543,7 +536,6 @@ const foldIntoWaitingRow = async (
     },
     input.eventId,
   )
-  return coalesced
 }
 
 // ── Use case ────────────────────────────────────────────────────────
@@ -580,27 +572,22 @@ export const insertNotification =
       return null
     }
 
-    // 2b. A repeat folds into the reader's waiting row (`foldIntoWaitingRow`).
-    // In-app only — an email-only recipient has no unread row to absorb into,
-    // and their anchor is stored read (step 3) so the database cannot absorb
-    // into it either.
+    // 2b. A rated repeat that changed category replaces the waiting row
+    // (`retireWaitingRowOfAnotherCategory`). In-app only: an email-only
+    // recipient has no unread row, and their anchor is stored read (step 3).
     if (channels.inAppEnabled) {
-      const folded = await foldIntoWaitingRow(
-        deps,
-        input,
-        result.value,
-        channels,
-        audience,
-      )
-      if (folded) return folded
+      await retireWaitingRowOfAnotherCategory(deps, input, result.value)
     }
 
-    // 3. Persist the notification row (in-app anchor + email FK). The upsert
-    // can still fold this event into an unread row that raced past the lookup;
-    // `emailKeyFor` then treats it as the repeat it is.
+    // 3. Write the notification row (in-app anchor + email FK). The writer
+    // folds a repeat into the reader's waiting row (`afterFoldIntoWaitingRow`).
     const inserted = await deps.notificationRepo.insert(
       channels.inAppEnabled ? result.value : asEmailOnlyAnchor(result.value),
     )
+    if (channels.inAppEnabled && inserted.coalescedCount > result.value.coalescedCount) {
+      await afterFoldIntoWaitingRow(deps, input, inserted, channels, audience)
+      return inserted
+    }
 
     // 4. Enqueue the email-queue entry when the email channel is on
     if (channels.emailEnabled) {

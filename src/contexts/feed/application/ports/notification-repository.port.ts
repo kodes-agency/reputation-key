@@ -50,10 +50,11 @@ export type NotificationFeedScope = Omit<NotificationFeedQuery, 'filter' | 'limi
 
 export type NotificationRepositoryPort = Readonly<{
   /**
-   * Insert the unread row. Conflicts resolve on the ADR 0046 r.2 partial
-   * unique key (user, type, resource) over rows still waiting — unread and
-   * unsettled — so the row's rendered copy and payload win, and a settled row
-   * is never revived.
+   * Write the notification through the one coalescing writer: a notice that
+   * lands on a row still waiting on the same (user, type, resource) is merged
+   * into it under a row lock (ADR 0046 r.2) and that row is returned, so a
+   * higher `coalescedCount` than the notice's own means it was absorbed. A settled row is never
+   * revived.
    */
   insert(notification: Notification): Promise<Notification>
 
@@ -185,19 +186,6 @@ export type NotificationRepositoryPort = Readonly<{
     type: NotificationType,
     resourceId: string,
   ): Promise<Notification | null>
-
-  /**
-   * Persist an ADR 0046 r.2 coalescing bump: the already-coalesced entity
-   * (title/body/payload/count/latest/updatedAt) produced by
-   * `applyCoalescence`. Scoped to the owning user + org so a bump can never
-   * cross a tenant, to a row that is still unread, and to the count the lookup
-   * saw (`seenCount`): the entity holds that count plus one, so a bump another
-   * event landed in the meantime must not be overwritten with a stale sum.
-   * Returns false — and writes nothing — when the row was read, dismissed or
-   * bumped after it was looked up; the caller then owes the event a fresh
-   * unread row, which the insert folds into the waiting one atomically.
-   */
-  refreshUnread(notification: Notification, seenCount: number): Promise<boolean>
 
   /**
    * Flip a read row back to unread. Returns null — never throws — when the
