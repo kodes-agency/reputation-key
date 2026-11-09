@@ -188,6 +188,72 @@ describe('Google in-process admission handle', () => {
     expect(test.calls).toEqual([])
   })
 
+  it('refuses a permit that expires at the very instant of admission', async () => {
+    const justLive = fixture({ permit: { ...permit, expiresAtMs: 1_001 } })
+    await expect(justLive.start()).resolves.toMatchObject({ ok: true })
+
+    const justExpired = fixture({ permit: { ...permit, expiresAtMs: 1_000 } })
+    await expect(justExpired.start()).resolves.toMatchObject({
+      ok: false,
+      code: 'permit_expired',
+    })
+  })
+
+  it.each([
+    ['organization', { organizationId: 'organization-2' }],
+    ['connection', { connectionId: 'connection-2' }],
+    ['initiating user', { initiatorUserId: 'user-2' }],
+  ] as const)(
+    'charges in-flight and quota to the permit own %s, never to a caller-supplied scope',
+    async (_label, scope) => {
+      const scoped = { ...permit, quotaKey: { ...permit.quotaKey, ...scope } }
+      const test = fixture({ permit: scoped })
+
+      await expect(test.start()).resolves.toMatchObject({ ok: true })
+      expect(test.acquireQuota).toHaveBeenCalledWith(scoped.quotaKey, 1, 10_000)
+      expect(test.acquireInFlight).toHaveBeenCalledWith(
+        { ...scoped.quotaKey, requestClass: admission.requestClass },
+        10_000,
+      )
+    },
+  )
+
+  it('treats a permit whose quota credential fingerprint is not its own as unknown', async () => {
+    const test = fixture({
+      permit: {
+        ...permit,
+        quotaKey: { ...permit.quotaKey, credentialFingerprint: 'f'.repeat(64) },
+      },
+    })
+
+    await expect(test.start()).resolves.toEqual({
+      ok: false,
+      code: 'permit_unknown',
+      retryAfterMs: 0,
+    })
+    expect(test.calls).toEqual([])
+  })
+
+  it('treats a missing permit as unknown without touching shared capacity', async () => {
+    const test = fixture()
+    const unknown = createGoogleExecutionAdmissionService({
+      nowMs: () => 1_000,
+      authority: {
+        load: async () => null,
+        start: test.startPermit,
+        failStarted: test.failStarted,
+        complete: test.complete,
+      },
+      quotaForPolicy: () => ({ acquire: test.acquireQuota }),
+      inFlightForPolicy: () => ({ acquire: test.acquireInFlight, release: test.release }),
+    })
+
+    await expect(
+      unknown.start({ permitId: 'permit-other-tenant', admission, deadlineMs: 10_000 }),
+    ).resolves.toEqual({ ok: false, code: 'permit_unknown', retryAfterMs: 0 })
+    expect(test.calls).toEqual([])
+  })
+
   it('rejects an expired permit before acquiring shared capacity', async () => {
     const test = fixture({ permit: { ...permit, expiresAtMs: 1_000 } })
 
