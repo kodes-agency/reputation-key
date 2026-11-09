@@ -379,6 +379,35 @@ export async function deleteOrganizationPublicationAttempts(
   return result.rowCount ?? 0
 }
 
+export async function releasePropertyAttemptConfirmations(
+  tx: Tx,
+  request: Readonly<{ organizationId: string; propertyId: string; occurredAt: Date }>,
+): Promise<number> {
+  const result = await tx.execute(
+    sql`UPDATE reply_publication_attempts
+        SET outcome = 'superseded',
+            confirmed_observation_revision = NULL,
+            updated_at = GREATEST(updated_at, ${request.occurredAt}::timestamptz)
+        WHERE organization_id = ${request.organizationId}
+          AND property_id = ${request.propertyId}
+          AND confirmed_observation_revision IS NOT NULL`,
+  )
+  return result.rowCount ?? 0
+}
+
+/** Property purge, last step: the Property's attempt rows. */
+export async function deletePropertyPublicationAttempts(
+  tx: Tx,
+  request: Readonly<{ organizationId: string; propertyId: string }>,
+): Promise<number> {
+  const result = await tx.execute(
+    sql`DELETE FROM reply_publication_attempts
+        WHERE organization_id = ${request.organizationId}
+          AND property_id = ${request.propertyId}`,
+  )
+  return result.rowCount ?? 0
+}
+
 /** Records the authorization a manager gave to publish one exact reply text. */
 export async function insertPublicationAuthorization(
   tx: Tx,

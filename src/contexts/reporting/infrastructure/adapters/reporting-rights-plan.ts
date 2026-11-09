@@ -325,3 +325,8 @@ export const MONTHLY_RESULT_GUARD = Object.freeze({
   table: 'goal_monthly_results',
   trigger: 'goal_monthly_results_guard',
 } as const)
+
+/** Tables with no Property column: a Property request leaves them alone. */
+export const REPORTING_ORGANIZATION_ONLY_TABLES: readonly string[] = Object.freeze([
+  'setup_checklist_milestones',
+])
