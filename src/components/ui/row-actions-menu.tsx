@@ -1,18 +1,12 @@
-// The "more actions" menu of one row, card or block (UI consistency scan: COLL-02,
-// ACT-06). Extracted from the Portal and Property kebabs, which were built per
-// screen with a different size, ink, name and item recipe each.
+// The "more actions" menu of one row, card or block.
 //
-// - The trigger is an `IconButton`: ghost, the three-dots glyph, touch-sized from
-//   the Button's own sizes (never a per-file class), named "More actions for
-//   {name}" and with no tooltip, because the menu it opens says what it is.
-// - An item is a `RowActionsItem`: `destructive` for an action the person cannot
-//   take back (the same rule as `ConfirmationDialog`'s `tone`), and `opensDialog`
-//   for one that asks for more before it acts, which ends its label in an ellipsis.
-//   A link item (`asChild`) writes its own label, so it spells its own ellipsis.
-// - Link ink is not a concern here: `styles.css` leaves `dropdown-menu-item` to
-//   the menu primitive, so no item pins a colour.
+// - The trigger is a ghost `IconButton` named "More actions for {name}" with no
+//   tooltip, because the menu it opens says what it is.
+// - `destructive` marks an action the person cannot take back; `opensDialog` one
+//   that asks for more first, which ends its label in an ellipsis. A link item
+//   (`asChild`) spells its own ellipsis.
 //
-// A dialog an item opens is held by the caller, outside the menu: a dialog mounted
+// A dialog an item opens is held by the caller, outside the menu: one mounted
 // inside a menu item closes with the menu.
 import type { ComponentProps, ReactNode } from 'react'
 import { Ellipsis, type LucideIcon } from 'lucide-react'

@@ -2,16 +2,13 @@
 //
 //   staticData: { page: { title: 'People', tier: 'dashboard', under: 'property' } }
 //
-// That one declaration gives the page its tab title ("People | Reputation Key")
-// and gives every fallback for it (pending, failed, missing, unavailable) the
-// title, breadcrumbs and tier the loaded page has, so a page does not lose its
-// name or change width while it loads. `PageState` prints it; `RoutePending`,
-// `RouteError` and `RouteNotFound` read it from the route.
+// That one declaration gives the page its tab title and gives every fallback
+// (pending, failed, missing, unavailable) the title, breadcrumbs and tier the
+// loaded page has, so a page does not lose its name or change width while it loads.
 //
-// Only a route that draws a page header declares a page. A layout that draws
-// none (the Property layout) borrows the page below it for its fallbacks; a route
-// inside a page that already has a header (a Property settings section) declares
-// nothing and its fallbacks print no second header.
+// Only a route that draws a page header declares a page. A layout with no header
+// borrows the page below it; a route inside a page that already has a header
+// declares nothing, so its fallbacks print no second header.
 //
 // Kept free of React so the rules are unit-tested without a router.
 import { NAV_LABEL } from './nav-labels'
@@ -105,10 +102,7 @@ export function deepestPage(matches: readonly PageMatch[]): PageIdentity | undef
   return undefined
 }
 
-/**
- * The head of an authenticated route: the tab is titled after the deepest page
- * in the chain. A route that names no page leaves the root title alone.
- */
+/** Tab title from the deepest page in the chain; a route naming no page leaves the root title. */
 export function pageHead(matches: readonly PageMatch[]): {
   meta?: Array<{ title: string }>
 } {
@@ -190,12 +184,9 @@ function parentCrumbs(under: PageTrail, where: PageWhere): readonly Crumb[] {
 }
 
 /**
- * The breadcrumbs of a page: the places above it, each a link, then the page itself.
- * This is the one place a trail is spelled, so the Property crumb links on every page
- * below a Property, a loaded page and its fallback draw the same trail, and a
- * place is named as the sidebar names it (`NAV_LABEL`). A loaded page calls it with
- * what it knows (`where`) and its own name (`current`: its title, the shorter name
- * the sidebar gives it, or the entity it shows).
+ * The breadcrumbs of a page: the places above it, each a link, then `current`.
+ * The one place a trail is spelled, so a loaded page and its fallback draw the
+ * same trail and places are named as the sidebar names them (`NAV_LABEL`).
  */
 export function trailCrumbs(
   under: PageTrail,
@@ -205,11 +196,7 @@ export function trailCrumbs(
   return [...parentCrumbs(under, where), { label: current }]
 }
 
-/**
- * The breadcrumbs of a page that names itself in `staticData.page`: its parents, then
- * itself. A page at the top of the app has none. `where` is what the route's address
- * and the cache know; the Property crumb is generic until the Property is loaded.
- */
+/** Breadcrumbs of a page declared in `staticData.page`; the Property crumb is generic until the Property loads. */
 export function resolveCrumbs(
   identity: PageIdentity,
   where: PageWhere,

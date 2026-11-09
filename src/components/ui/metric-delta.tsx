@@ -41,18 +41,12 @@ const DIRECTION_STYLE = {
 } as const
 
 /**
- * A period-over-period change: an arrow, the size, the baseline, and the
- * direction in words. The ink is the text-grade direction pair
- * (`--positive` / `--negative`), which clears 4.5:1 at body sizes and is never
- * the only carrier of meaning: the arrow and the screen-reader word say the same.
- *
- * The words, not the arrow, give the box its baseline (`items-baseline`; the
- * arrow centres itself), so a change set inside a sentence sits on the
- * sentence's baseline instead of riding about 2px above it on the arrow's
- * bottom edge.
- *
- * Callers own the cases around it (no comparable period yet, too few ratings to
- * compare): this draws a change that exists.
+ * A period-over-period change: an arrow, the size, the baseline, and the direction
+ * in words. The ink is the text-grade direction pair (`--positive` / `--negative`)
+ * and never the only carrier of meaning: the arrow and the screen-reader word say
+ * the same. The words give the box its baseline (`items-baseline`), so a change
+ * inside a sentence sits on the sentence's baseline. Callers own the cases around
+ * it (no comparable period, too few ratings).
  */
 export function MetricDelta({
   value,

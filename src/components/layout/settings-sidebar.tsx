@@ -34,8 +34,7 @@ type NavItem = Readonly<{
   href: string
 }>
 
-// The Settings page ON SCREEN (see `rendered-location`), so the row that is
-// marked is the page the person is reading until the new one replaces it.
+// The Settings page ON SCREEN (`rendered-location`).
 function useActiveSettingsSection(): string {
   const pathname = useRenderedPathname()
   return pathname.match(/\/settings\/([^/]+)/)?.[1] ?? 'profile'
@@ -46,15 +45,11 @@ export function SettingsSidebar() {
   const { can, role } = usePermissions()
   const isManager = hasRole(role, 'PropertyManager')
   const owner = useAppLocationOwner()
-  // Back to the page the person came from, in this tab; with none (Settings was
-  // the first page loaded, or the person or organization changed since) the
-  // Properties list for a manager, and Home otherwise.
+  // Back to the last app page in this tab; with none, the Properties list for a manager, else Home.
   const back = appLocationStore.get(owner)
 
-  // Two scopes, labelled, because nothing else says which rows a page
-  // changes: "You" is the signed-in account (notification rows included — they
-  // belong to the user, filtered by property), "Organization" is shared by
-  // every member. Property configuration is not here: it lives on the property.
+  // Two labelled scopes: "You" is the signed-in account (notification rows
+  // included), "Organization" is shared by every member.
   const groups: ReadonlyArray<
     Readonly<{ label: string; items: ReadonlyArray<NavItem> }>
   > = [

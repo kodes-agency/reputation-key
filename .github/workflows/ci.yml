@@ -1247,17 +1247,8 @@ jobs:
           retention-days: 7
 
   ci:
-    needs:
-      [
-        lint,
-        typecheck,
-        unit,
-        integration,
-        probes,
-        browser,
-        populated-upgrade,
-        guest-quality,
-      ]
+    # prettier-ignore
+    needs: [lint, typecheck, unit, integration, probes, browser, populated-upgrade, guest-quality]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5 # longest green run ~1 min

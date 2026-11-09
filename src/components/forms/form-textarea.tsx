@@ -1,8 +1,3 @@
-/**
- * Reusable textarea field for forms — mirrors FormTextField for multiline fields.
- * Wraps TanStack Form's form.Field with shadcn's Field components.
- */
-
 import type { ReactNode } from 'react'
 import { Textarea } from '#/components/ui/textarea'
 import { describedByOf, FormFieldFrame } from './form-field-frame'
@@ -31,12 +26,7 @@ type Props = Readonly<{
   /** Shown at full contrast, never edited (a viewer's copy of a value). */
   readOnly?: boolean
   maxLength?: number
-  /**
-   * Merged onto the label and the textarea (`cn` in each primitive). Optional,
-   * and absent by default, so every form that does not pass them renders
-   * exactly as before. The inbox note form passes both to sit inside the
-   * composer's dock as a borderless text row (`composer-dock-rows.ts`).
-   */
+  /** Merged onto the label and the textarea; the inbox note form uses them for a borderless dock row (`composer-dock-rows.ts`). */
   labelClassName?: string
   textareaClassName?: string
   /** The person may leave it empty: the label says "Optional". */

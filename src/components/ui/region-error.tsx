@@ -5,14 +5,12 @@ import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
 
 // A region of a page (a list, a strip, a card, a rail, a preview) that could
-// not be read. It says what failed and always offers the same recovery, "Try
-// again", wired to the region's own refetch (`useReadRetry`: in a tab whose code
-// is older than the server's, a reload instead). Page-level failures (a route that
-// could not load) are PageState's; a failed *action* (a save, a publish) is the
-// form's banner or a toast.
+// not be read. It says what failed and always offers "Try again", wired to the
+// region's own refetch (`useReadRetry`). Page-level failures are PageState's; a
+// failed *action* is the form's banner or a toast.
 //
-// Copy: "The goal couldn’t be loaded." One sentence naming the thing, past
-// tense, curly apostrophe. Never "Retry", "Check again" or "Please try again".
+// Copy: one sentence naming the thing, past tense, curly apostrophe
+// ("The goal couldn’t be loaded."). Never "Retry" or "Please try again".
 
 type RetryButtonProps = Readonly<{
   onRetry: () => void

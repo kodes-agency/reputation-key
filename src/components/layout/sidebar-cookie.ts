@@ -1,20 +1,15 @@
 // The person's choice of sidebar, as a cookie.
 //
-// The server reads it with the request so the first paint is already the width
-// the person chose (a hard load of a page with the sidebar collapsed draws the
-// icon rail, not 256 px that then snap shut). The browser writes it each time the
-// person toggles. It holds `true` (open) or `false` (collapsed); anything else,
-// or no cookie, means the default, which is open.
+// The server reads it so the first paint is already the chosen width (no 256 px
+// sidebar snapping shut). The browser writes it on each toggle. It holds `true`
+// (open) or `false` (collapsed); anything else, or no cookie, means open.
 
 const SIDEBAR_COOKIE = 'sidebar_state'
 
 /** A year: a choice about how the app looks is not something to ask again weekly. */
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 
-/**
- * The open state a `Cookie` header (or `document.cookie`) carries, or `null` when
- * it carries none or one that is not exactly `true` or `false`.
- */
+/** The open state a cookie string carries, or `null` when absent or not exactly `true`/`false`. */
 export function sidebarOpenFromCookie(header: string | null | undefined): boolean | null {
   if (!header) return null
   const value = header

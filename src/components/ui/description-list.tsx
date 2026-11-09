@@ -1,13 +1,12 @@
-// Read-only label/value rows (UI consistency scan: COLL-23). `ui/fact` is the
-// toolbar fact (text in a ButtonGroup), not this; a figure with a caption is a
-// `MetricStrip`.
+// Read-only label/value rows. `ui/fact` is the toolbar fact (text in a
+// ButtonGroup), not this; a figure with a caption is a `MetricStrip`.
 //
-// Each item is a term and its value in one `div`, which a `dl` allows. From `sm` the
-// term has a column of its own (`termWidth`: 8rem, or 10rem for longer terms); on a
-// phone it sits above the value. A list that sits among form fields (a read-only
-// email, an address that comes from Google) is `stacked`: the term over the value at
-// every width, the way a field's label sits over its control. The term is muted and
-// the value is the text's own ink, so what is asked and what is answered read apart.
+// Each item is a term and its value in one `div`, which a `dl` allows. From `sm`
+// the term has a column of its own (`termWidth`: 8rem, or 10rem for longer
+// terms); on a phone it sits above the value. A list among form fields is
+// `stacked`: the term over the value at every width, like a field's label. The
+// term is muted and the value is the text's own ink, so what is asked and what
+// is answered read apart.
 // A `note` is a quiet line under the value, for where it came from ("From Google").
 import { createContext, use, type ReactNode } from 'react'
 import { cn } from '#/lib/utils'

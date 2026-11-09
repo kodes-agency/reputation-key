@@ -1,6 +1,4 @@
-// Shared auth UI components — eliminates duplication across login/join/reset pages.
-// AuthCard and AuthFooterLink are identity-specific layout components.
-// For error display, use FormErrorBanner from components/forms/ directly.
+// Shared layout for the login/join/reset pages. For errors use FormErrorBanner (components/forms/).
 
 import {
   Card,

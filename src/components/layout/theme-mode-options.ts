@@ -1,7 +1,5 @@
-// The theme choices, listed once. Light, Dark, System is the order everywhere:
-// the segmented control (Preferences, the account menu) draws them left to
-// right in it, and the public header's compact button steps through it. The
-// stored mode for "follow the device" is `auto`; people see it as System.
+// The theme choices, listed once, in order Light, Dark, System (control and compact
+// button). The stored mode for "follow the device" is `auto`; people see it as System.
 
 import { Monitor, Moon, Sun, type LucideIcon } from 'lucide-react'
 import type { ThemeMode } from '#/components/hooks/use-theme-mode'

@@ -1,13 +1,8 @@
 @import 'tailwindcss';
-/* Scan what the web image builds from, and nothing else. Tailwind v4 reads
-   every file under the Vite root for class candidates, so a class named in a
-   plan document or an e2e selector became a real rule in this stylesheet. The
-   image never saw those rules: its build stage copies the tree through
-   .dockerignore, which keeps these folders out (docs/legal stays in the image,
-   and holds no class names). CI's bundle budget builds the full checkout, so
-   it charged first paint for bytes that never ship — on 2026-09-18, 65 B gzip
-   from one review record alone, against a closure with 9 B of headroom.
-   Keep this list in step with .dockerignore. */
+/* Scan what the web image builds from, and nothing else. Tailwind v4 reads every
+   file under the Vite root, so class names in docs or e2e selectors became rules
+   that never ship (the image build drops these folders via .dockerignore) but
+   were charged to the first-paint bundle budget. Keep in step with .dockerignore. */
 @source not '../docs';
 @source not '../review';
 @source not '../e2e';
@@ -35,7 +30,7 @@
   --border-strong: oklch(0.78 0.008 270);
   /* The ring around a chosen segment and other control edges that must read as a
      shape (WCAG 1.4.11, 3:1): 3.3:1 on --muted, 3.6:1 on --card. --border-strong
-     is a divider and is too light for that. The round-4 boards draw it #85878d. */
+     is a divider and is too light for that. */
   --border-control: oklch(0.62 0.008 270);
 
   /* Text tokens */
@@ -54,20 +49,15 @@
   --destructive-muted: oklch(0.95 0.03 25);
   --success: oklch(0.55 0.15 155);
   --success-muted: oklch(0.95 0.03 155);
-  /* Text-grade direction pair (dashboard redesign row 10). Distinct from
-     --success/--destructive, which are fill-grade: at 14 px --success reaches
-     only 4.17:1 on --surface and 4.45:1 even on white, so the first text that
-     used it failed axe's color-contrast rule. These clear 4.5:1 on background,
-     surface and muted/30. Always paired with a sign or arrow, never alone. */
+  /* Text-grade direction pair. Distinct from --success/--destructive, which are
+     fill-grade: at 14 px --success reaches only 4.17:1 on --surface (axe
+     color-contrast fails). These clear 4.5:1 on background, surface and muted/30.
+     Always paired with a sign or arrow, never alone. */
   --positive: oklch(0.5 0.15 155);
   --negative: oklch(0.54 0.22 25);
-  /* Warning / private amber (inbox detail v2.1, docs/plan/inbox-detail-v2.md
-     rows 12 and 19). The app shipped no amber token, so every warning borrowed
-     raw Tailwind `amber-*` (`attention-band.tsx`, the case toolbar, the reply
-     chip) and each picked its own shade. One family now, four roles:
-     --warn is TEXT-grade ink, --warn-muted the surface it sits on, --warn-line
-     the hairline that draws that surface's edge, --warn-track the note
-     segment's track in the composer.
+  /* Warning / private amber, one family with four roles: --warn is TEXT-grade
+     ink, --warn-muted the surface it sits on, --warn-line the hairline that draws
+     that surface's edge, --warn-track the note segment's track in the composer.
 
      Neither the surface nor its edge is a boundary anyone can rely on. PR 3's
      review read them back composited over the phone sheet: the surface is
@@ -90,14 +80,9 @@
   --warn-line: oklch(0.78 0.13 82 / 0.6);
   --warn-track: oklch(0.8 0.12 82 / 0.22);
   /* Rating gold — the filled star. A RATING is not a warning, so it is its own
-     token rather than a fourth role on --warn, but it is a token for the same
-     reason the amber family became one: `star-rating.tsx` and
-     `inbox-detail-helpers.tsx` both hard-coded raw `amber-400`, which is a
-     fixed value in both themes and so never inverted. Measured filled-vs-empty
-     against the light surfaces it draws on, the raw value was 1.13:1; this is
-     darkened to carry on white while staying recognisably gold. The glyphs stay
-     aria-hidden beside a printed number, so the ratio is legibility, not a
-     contrast gate. */
+     token. Darkened to carry on white (filled-vs-empty) while staying gold. The
+     glyphs stay aria-hidden beside a printed number, so the ratio is legibility,
+     not a contrast gate. */
   --rating: oklch(0.72 0.15 75);
   --ring: oklch(0.58 0.16 290);
   --radius: 0.375rem;
@@ -131,9 +116,7 @@
   --sidebar-accent-foreground: oklch(0.18 0.008 270);
   --sidebar-border: oklch(0.9 0.006 270);
   --sidebar-ring: oklch(0.58 0.16 290);
-  /* The text ON a --destructive fill, not red text. It was the fill's own value
-     (oklch(0.58 0.22 25)), so every label painted with it vanished into the
-     button. Near-white reads 4.78:1 on the fill. */
+  /* The text ON a --destructive fill, not red text. Near-white reads 4.78:1 on the fill. */
   --destructive-foreground: oklch(1 0.003 270);
   /* The height of a control (Button, Input, Select) below `md`: a 44px tap
      target. A dense workspace sets data-density="compact" on its container and
@@ -147,11 +130,9 @@
   }
 }
 
-/* Padded pages keep document scroll, and every page of the shell reserves its
-   gutter, full-bleed surfaces included. With classic scrollbars (Windows, Linux)
-   a gutter on padded pages alone made the content 15 px narrower there than on
-   the Inbox, so it changed width on every crossing; reserved on both, the shell
-   is one width whatever page it holds, scrolling or not. A dialog's scroll lock
+/* Every page of the shell reserves the scrollbar gutter, full-bleed surfaces
+   included: with classic scrollbars a gutter on padded pages alone made content
+   15 px narrower than on the Inbox. A dialog's scroll lock
    (react-remove-scroll-bar) would otherwise add the same width again. */
 :root:has([data-frame]) {
   scrollbar-gutter: stable;
@@ -238,9 +219,9 @@
   --sidebar-accent-foreground: oklch(0.93 0.008 270);
   --sidebar-border: oklch(0.28 0.012 270);
   --sidebar-ring: oklch(0.52 0.16 290);
-  /* Dark ink on the lifted dark --destructive (5.6:1). The near-white this was
-     reached only 2.9:1 on a full-strength fill; the Button variant instead
-     draws the fill at 60% with white text and does not read this token. */
+  /* Dark ink on the lifted dark --destructive (5.6:1); near-white reached only
+     2.9:1. The Button variant draws the fill at 60% with white text and does not
+     read this token. */
   --destructive-foreground: oklch(0.13 0.008 270);
 }
 
@@ -272,18 +253,12 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
-  /* The direction pair as utilities (dashboard redesign row 10). `--success`
-     existed but was never mapped, so "rating went up" had no colour while
-     "went down" had the destructive red. These point at the text-grade values,
-     not the fill-grade ones. */
+  /* The direction pair as utilities; these point at the text-grade values, not the fill-grade ones. */
   --color-positive: var(--positive);
   --color-positive-muted: var(--success-muted);
   --color-negative: var(--negative);
   --color-negative-muted: var(--destructive-muted);
-  /* The amber family as utilities — `text-warn`, `bg-warn-muted`,
-     `border-warn-line`, `bg-warn-track`. Added with its first consumer, the
-     internal note (plan v2.1 PR 3); the composer's note mode (PR 4) reuses
-     these and adds none of its own. */
+  /* The amber family as utilities: `text-warn`, `bg-warn-muted`, `border-warn-line`, `bg-warn-track`. */
   --color-warn: var(--warn);
   --color-warn-muted: var(--warn-muted);
   --color-warn-line: var(--warn-line);
@@ -420,13 +395,9 @@ pre code {
   font-family: var(--font-display);
 }
 
-/* BQC-6.8 / B2.5 — reduced motion. The animation surface is entirely CSS
-   (tw-animate-css classes + transitions; no JS animation library), so one
-   global media query covers the whole app: zero out animation/transition
-   durations and disable smooth scrolling when the user requests reduced
-   motion. The B-classified use-reduced-motion.ts hook was removed in BQC-6.8 —
-   it had no consumer, and a React hook cannot cover CSS-driven motion anyway
-   (its REDUCED_MOTION_CSS content is folded in below). */
+/* BQC-6.8 / B2.5 — reduced motion. Animation is entirely CSS (no JS animation
+   library), so one global media query zeroes durations and disables smooth
+   scrolling for the whole app. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

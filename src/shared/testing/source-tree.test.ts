@@ -55,7 +55,7 @@ describe('readUiSources', () => {
         (file) => file.path === 'src/components/forms/setting-switch-row.tsx',
       )
 
-    expect(find()?.text).not.toContain('UI consistency scan')
-    expect(find('kept')?.text).toContain('UI consistency scan')
+    expect(find()?.text).not.toContain('A boolean setting')
+    expect(find('kept')?.text).toContain('A boolean setting')
   })
 })

@@ -1,15 +1,10 @@
 // Sidebar nav row markup used by ManagerNavItems.
 //
-// The manager nav renders two row shapes over its descriptor list: a live row
-// that links to the destination, and an inert row that keeps the icon and label
-// but cannot be clicked.
-//
-// A row goes inert when the destination route's own capability gate
-// (`gateControlledRoute` in its `beforeLoad`) would answer with the unavailable
-// page, so the nav never offers a dead link. Disabling here is a UI
-// affordance, not a security boundary — the route gate and every server
-// function still authorize independently (ADR 0049, mirroring the note in
-// `controlled-route-gate.ts`).
+// Two row shapes: a live row that links, and an inert row that keeps icon and
+// label but cannot be clicked. A row goes inert when the destination's capability
+// gate (`gateControlledRoute`) would answer with the unavailable page. Disabling
+// here is a UI affordance, not a security boundary: the route gate and every
+// server function still authorize independently (ADR 0049).
 import type { ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -86,18 +81,12 @@ export function LinkNavItem({
 }
 
 /**
- * A nav entry that owns sub-pages — the shadcn `NavMain` composition
- * (`Collapsible` + `SidebarMenuSub`), with two deliberate differences.
- *
- * First, the parent is a link to its own landing page and a separate
- * `SidebarMenuAction` chevron toggles the sub-list. The docs' demo makes the
- * parent a pure toggle, but this sidebar is `collapsible="icon"` and
- * `SidebarMenuSub` hides itself in icon mode, so a toggle-only parent would do
- * nothing visible there. A link still works, and the one-click habit survives.
- *
- * Second, `Collapsible` renders `asChild` so its root merges into the
- * `<li>` rather than wrapping it in a `<div>`: `<ul>` may only contain `<li>`,
- * and the demo's nesting fails axe's `list`/`listitem` rules.
+ * A nav entry that owns sub-pages (shadcn `NavMain`: `Collapsible` + `SidebarMenuSub`),
+ * with two deliberate differences. The parent is a link to its landing page and a
+ * separate `SidebarMenuAction` chevron toggles the sub-list, because
+ * `SidebarMenuSub` hides in icon mode and a toggle-only parent would do nothing
+ * there. `Collapsible` renders `asChild` so it merges into the `<li>`; a wrapping
+ * `<div>` inside `<ul>` fails axe's `list`/`listitem` rules.
  */
 export function CategoryNavItem({
   icon: Icon,

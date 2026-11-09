@@ -12,14 +12,12 @@ type IconButtonProps = Omit<ButtonProps, 'aria-label' | 'children' | 'size'> & {
   /** A square Button size; the density rules of Button apply. */
   size?: 'icon' | 'icon-sm' | 'icon-xs' | 'icon-lg'
   /**
-   * What a pointer or a keyboard user reads on hover or focus. `true` (the default)
-   * shows the label; a string shows that instead (the label and a shortcut);
-   * `false` shows none. A button that opens a menu, popover or sheet
-   * (`aria-haspopup`, which Radix's triggers add) shows none either: the open
-   * popup says what it is, and when it closes Radix returns focus to the button,
-   * which would open the tooltip unprompted. Needs a `TooltipProvider` above it: the authenticated shell mounts the app's
-   * (`SidebarProvider`), and a story gets the preview's. Outside the shell, pass
-   * `false`.
+   * What a pointer or a keyboard user reads on hover or focus. `true` (the
+   * default) shows the label; a string shows that instead; `false` shows none. A
+   * button that opens a menu, popover or sheet (`aria-haspopup`) shows none
+   * either: the open popup says what it is, and Radix returns focus to the
+   * button on close, which would open the tooltip unprompted. Needs a
+   * `TooltipProvider` above it; outside the shell, pass `false`.
    */
   tooltip?: boolean | string
   /** The glyph. */

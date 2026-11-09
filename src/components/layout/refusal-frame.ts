@@ -13,20 +13,13 @@ type Where = Parameters<typeof resolveCrumbs>[1]
 
 /**
  * The width tier a refused page's frame uses: the page's own, else the layout's.
- * The settings layout is narrow (it wraps every settings page in
- * `PageShell tier="narrow"`), so a refusal drawn in the shell, without that
- * layout, must be narrow too or the page changes width.
+ * Settings is narrow via its layout, which a refusal drawn in the shell lacks.
  */
 export function pageTier(identity: PageIdentity): PageTier | undefined {
   return identity.tier ?? (identity.under === 'settings' ? 'narrow' : undefined)
 }
 
-/**
- * The frame a refusal of `title` is drawn in: the width tier and the trail of the
- * deepest page in the chain, so a refused People page keeps People's width and
- * its trail rather than the standard width and no trail. The notice keeps its own
- * title and copy; its last crumb is that title.
- */
+/** The width tier and trail of the deepest page in the chain; the notice keeps its own title and copy. */
 export function refusalFrame(
   matches: readonly PageMatch[],
   title: string,

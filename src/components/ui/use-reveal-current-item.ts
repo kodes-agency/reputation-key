@@ -9,14 +9,12 @@ const currentItemOf = (strip: HTMLElement) => strip.querySelector('[aria-current
 /**
  * Keep a scrolling strip's current item (`aria-current="page"`) in view.
  *
- * - When the current item changes (and on mount), the strip scrolls to it. A
- *   re-render for another reason does not: the person scrolling the row to an edge
- *   re-renders it (the fade follows the edge), and that must not pull it back.
- * - When the strip or its content changes size (a web font arrives after the first
- *   paint, a count widens a tab, the phone turns), the current item may have moved
- *   out of reach, or there was nothing to scroll yet and now there is. The strip scrolls to it again,
- *   unless the person has scrolled it since: the position the last reveal left is
- *   the only position that is re-revealed.
+ * - When the current item changes (and on mount), the strip scrolls to it. A re-render
+ *   for another reason does not: the person scrolling the row re-renders it (the fade
+ *   follows the edge), and that must not pull it back.
+ * - When the strip or its content changes size (a web font arrives, a count widens a
+ *   tab, the phone turns) the strip scrolls to the item again, unless the person has
+ *   scrolled it since: only the position the last reveal left is re-revealed.
  */
 export function useRevealCurrentItem(ref: RefObject<HTMLElement | null>) {
   const revealed = useRef<Revealed | null>(null)

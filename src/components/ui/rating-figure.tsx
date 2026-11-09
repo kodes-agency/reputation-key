@@ -20,13 +20,10 @@ export type RatingFigureProps = Readonly<{
 }>
 
 /**
- * A rating as a number with one star after it (UI consistency scan: COLL-09).
- * The star is the product's gold, `--rating`, the only gold a star wears; it was
- * a `★` character in the ink of the figure on two pages and a token star on two
- * others. The number is the content, so the star is decorative and a screen
- * reader hears "4.3 stars" rather than "4.3 black star". For five stars in a
- * row, or one where the count of filled glyphs is the only carrier of the score,
- * use `StarRating`.
+ * A rating as a number with one star after it. The star is the product's gold,
+ * `--rating`. The number is the content, so the star is decorative and a screen
+ * reader hears "4.3 stars". For five stars in a row, or one where the count of
+ * filled glyphs is the only carrier of the score, use `StarRating`.
  */
 export function RatingFigure({ value, size = 'sm', className }: RatingFigureProps) {
   return (

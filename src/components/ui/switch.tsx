@@ -3,9 +3,9 @@ import { Switch as SwitchPrimitive } from 'radix-ui'
 
 import { cn } from '#/lib/utils'
 
-// A disabled switch is dimmed, but a switch that is on and cannot change ("Always on")
-// must still read as on: halving a lit track and its thumb left a grey thumb on a dim
-// purple track. A disabled switch that is off keeps the full dimming.
+// A switch that is on and cannot change ("Always on") must still read as on, so a
+// lit track is not halved in opacity. A disabled switch that is off keeps the full
+// dimming.
 function Switch({
   className,
   size = 'default',
