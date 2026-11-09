@@ -25,7 +25,10 @@ import { inboxKeys } from '#/shared/queries/query-keys'
 import { buildBulkReopenCommands } from './inbox-bulk-policy'
 import { installInboxCacheHarness, type ListFilters } from './inbox-cache-test-harness'
 import type { InboxServerFns } from './types'
-import { useAddInboxNote, type AddInboxNoteInput } from './use-add-inbox-note'
+import {
+  useAddInboxNote,
+  type AddInboxNoteInput,
+} from '../../contexts/reputation/inbox/ui/use-add-inbox-note'
 import { useInboxBulkCommands } from './use-inbox-bulk-commands'
 
 vi.mock('@tanstack/react-router', () => ({

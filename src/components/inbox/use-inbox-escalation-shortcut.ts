@@ -2,7 +2,10 @@ import { useMemo } from 'react'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { Permission } from '#/shared/domain/permissions'
 import { isHeaderCommandPending } from './inbox-header-command-pending'
-import { isCaseToolbarShown, itemCommandFence } from './inbox-case-toolbar-props'
+import {
+  isCaseToolbarShown,
+  itemCommandFence,
+} from '../../contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 import { INBOX_SOURCE_HANDLE_PERMISSION } from './inbox-owner-control'
 import type { InboxDetailState } from './use-inbox-detail'
 

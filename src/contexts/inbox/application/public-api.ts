@@ -54,7 +54,12 @@ export type {
 } from './use-cases/check-inbox-review-on-google'
 export type { InboxNoteView } from './use-cases/get-inbox-notes'
 export type { InboxError } from '../domain/errors'
-export { INBOX_BULK_LIMIT } from './dto/inbox.dto'
+export {
+  INBOX_BULK_LIMIT,
+  addInboxNoteFormDto,
+  feedbackHandlingDecisionDto,
+} from './dto/inbox.dto'
+export type { GetInboxItemHistoryResult } from './use-cases/get-inbox-item-history'
 export type { Cursor, InboxSort } from './ports/inbox.repository'
 export { INBOX_QUEUES, replyQueueStage, type InboxQueue } from './inbox-queues'
 export type { InboxQueueCounts } from './use-cases/get-inbox-queue-counts'

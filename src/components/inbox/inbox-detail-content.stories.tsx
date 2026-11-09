@@ -15,8 +15,8 @@ import { expect, fireEvent, userEvent, waitFor, within } from 'storybook/test'
 import { Toaster } from '#/components/ui/sonner'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
-import { InboxDetailContent } from './inbox-detail-content'
-import { openConfirmation } from './reply-editor.stories.play'
+import { InboxDetailContent } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
+import { openConfirmation } from '#/components/inbox/reply-editor.stories.play'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { scriptReplyCommand } from '../../../.storybook/stubs/review-reply-server'
@@ -26,7 +26,10 @@ import {
 } from '../../../.storybook/stubs/ai-reply-suggestion-stream'
 import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply-drafting-v2-schema'
 import { withRole, withPermissions } from '../../../.storybook/AuthedRouterDecorator'
-import type { ComposerFocusBox, DetailContentProps } from './inbox-detail-content'
+import type {
+  ComposerFocusBox,
+  DetailContentProps,
+} from '#/contexts/reputation/inbox/ui/inbox-detail-content'
 import type {
   addInboxNoteFn,
   getInboxItemDetailFn,
@@ -35,7 +38,7 @@ import type {
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 import type { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
 import { fn } from 'storybook/test'
-import { ON_DEMAND_ANALYSIS_DWELL_MILLIS } from './use-on-demand-review-analysis'
+import { ON_DEMAND_ANALYSIS_DWELL_MILLIS } from '#/contexts/reputation/inbox/ui/use-on-demand-review-analysis'
 import type {
   InboxItem,
   InboxItemDetailResult,

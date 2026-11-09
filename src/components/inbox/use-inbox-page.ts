@@ -9,7 +9,7 @@ import { useInboxEscalationShortcut } from '#/components/inbox/use-inbox-escalat
 import { useInboxPriorityShortcut } from '#/components/inbox/use-inbox-priority-shortcut'
 import { useInboxSelectionActions } from '#/components/inbox/use-inbox-selection-actions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import type { ComposerFocusBox } from '#/components/inbox/inbox-detail-content'
+import type { ComposerFocusBox } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
 import type { InboxSearchParams } from './inbox-search-schema'
 import type { InboxServerFns } from './types'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'

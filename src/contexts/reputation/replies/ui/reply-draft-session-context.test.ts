@@ -10,7 +10,7 @@ import {
 import { BACKGROUND_DRAFT_DWELL_MILLIS } from './reply-draft-session'
 import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
-import { ReviewProse } from '#/components/inbox/review-prose'
+import { ReviewProse } from '#/contexts/reputation/inbox/ui/review-prose'
 const item = makeInboxItem({
   id: '750e8400-e29b-41d4-a716-446655440020',
   sourceType: 'review',

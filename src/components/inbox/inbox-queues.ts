@@ -20,7 +20,7 @@ import {
 } from '#/contexts/inbox/application/public-api'
 import type { ReplyQueueStage } from '#/shared/domain/reply-queue-stage'
 import type { LucideIcon } from 'lucide-react'
-import { STAR_FILLED_CLASS } from './inbox-detail-helpers'
+import { STAR_FILLED_CLASS } from '../../contexts/reputation/inbox/ui/inbox-detail-helpers'
 
 export type InboxQueueItem = Readonly<{
   key: InboxQueue
