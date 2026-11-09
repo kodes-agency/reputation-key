@@ -14,7 +14,6 @@ import { googleConnectionId } from '#/shared/domain/ids'
 import {
   listImportAccountsInputSchema,
   listImportCandidatesInputSchema,
-  renewImportAuthorizationLeaseInputSchema,
 } from '../application/dto/google-import-discovery.dto'
 import {
   cancelPropertyImportInputSchema,
@@ -177,34 +176,6 @@ export const listImportCandidates = createServerFn({ method: 'POST' })
     ),
   )
 
-export const renewImportAuthorizationLease = createServerFn({ method: 'POST' })
-  .validator(renewImportAuthorizationLeaseInputSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        disableProviderContentCaching()
-        const ctx = await resolveTenantContext(await headersFromContext())
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'integration.manage',
-          capability: 'property.import_gbp_v2',
-        })
-        try {
-          return await requireGoogleImportDiscovery().renewAuthorizationLease(
-            {
-              connectionId: googleConnectionId(data.connectionId),
-              leaseRef: data.leaseRef,
-            },
-            ctx,
-          )
-        } catch (error) {
-          return translateDiscoveryError(error)
-        }
-      },
-      'POST',
-      'integration.renewImportAuthorizationLease',
-    ),
-  )
 // ── atomic v2 import intent ────────────────────────────────────────
 
 export const startPropertyImportV2 = createServerFn({ method: 'POST' })

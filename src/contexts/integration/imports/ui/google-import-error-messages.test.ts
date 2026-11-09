@@ -6,7 +6,6 @@ import {
   connectionCallbackErrorMessage,
   discoveryErrorIsRecoverable,
   discoveryErrorMessage,
-  leaseRenewalFailureIsFinal,
   startErrorMessage,
   startErrorRequiresNewRequest,
 } from './google-import-error-messages'
@@ -158,26 +157,5 @@ describe('connectionCallbackErrorMessage', () => {
     const messages = CONNECTION_CALLBACK_ERRORS.map(connectionCallbackErrorMessage)
     expect(messages.every((message) => typeof message === 'string')).toBe(true)
     expect(new Set(messages).size).toBe(CONNECTION_CALLBACK_ERRORS.length)
-  })
-})
-
-describe('leaseRenewalFailureIsFinal', () => {
-  it.each(['reference_invalid', 'unauthorized', 'invalid_request'])(
-    'clears content when the server refuses the renewal with %s',
-    (code) => {
-      expect(leaseRenewalFailureIsFinal(coded(code))).toBe(true)
-      expect(leaseRenewalFailureIsFinal({ code })).toBe(true)
-    },
-  )
-
-  it('keeps content through an outage, leaving the lease expiry to decide', () => {
-    expect(leaseRenewalFailureIsFinal(coded('temporarily_unavailable'))).toBe(false)
-    expect(leaseRenewalFailureIsFinal(coded('provider_unavailable'))).toBe(false)
-  })
-
-  it('keeps content through a failure that carries no server verdict', () => {
-    // A suspended laptop or a dropped connection rejects with a bare TypeError.
-    expect(leaseRenewalFailureIsFinal(new TypeError('Failed to fetch'))).toBe(false)
-    expect(leaseRenewalFailureIsFinal(null)).toBe(false)
   })
 })

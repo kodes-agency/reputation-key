@@ -4,7 +4,6 @@ import {
   listImportAccounts,
   listImportCandidates,
   recoverPropertyImportV2,
-  renewImportAuthorizationLease,
   retryPropertyImportItem,
   startPropertyImportV2,
 } from '#/contexts/integration/server/gbp-import'
@@ -29,7 +28,7 @@ import {
 import type {
   GoogleImportFns,
   GoogleImportSetupFns,
-} from '#/components/features/integration/google-import-manager/google-import-manager-contract'
+} from '#/contexts/integration/imports/ui/google-import-manager-contract'
 import { getPropertySetupFn } from '#/contexts/reporting/server/property-setup'
 import {
   getReplyLibraryFn,
@@ -40,7 +39,6 @@ export const importFns: GoogleImportFns = {
   getGoogleAuthUrl,
   listImportAccounts,
   listImportCandidates,
-  renewImportAuthorizationLease,
   startPropertyImportV2,
   recoverPropertyImportV2,
   getPropertyImportV2Status,

@@ -24,15 +24,5 @@ export const listImportCandidatesInputSchema = z
     },
   )
 
-export const renewImportAuthorizationLeaseInputSchema = z
-  .object({
-    connectionId: connectionIdSchema,
-    leaseRef: opaqueReferenceSchema,
-  })
-  .strict()
-
 export type ListImportAccountsInput = z.infer<typeof listImportAccountsInputSchema>
 export type ListImportCandidatesInput = z.infer<typeof listImportCandidatesInputSchema>
-export type RenewImportAuthorizationLeaseInput = z.infer<
-  typeof renewImportAuthorizationLeaseInputSchema
->

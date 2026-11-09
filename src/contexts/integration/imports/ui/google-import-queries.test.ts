@@ -5,10 +5,9 @@ import { createKeys } from '#/shared/queries/query-keys'
 import {
   googleImportAccountsQuery,
   googleImportCandidatesQuery,
-  googleImportLeaseQuery,
   googleImportProgressPollInterval,
   googleImportStatusQuery,
-  scheduleGoogleImportExpiries,
+  scheduleGoogleImportExpiry,
 } from './google-import-queries'
 
 const { integrationKeys } = createKeys({ userId: 'user-1', organizationId: 'org-1' })
@@ -98,61 +97,6 @@ describe('Google import discovery while the tab is hidden', () => {
     vi.unstubAllGlobals()
   })
 
-  it('keeps renewing the authorization lease in the background', () => {
-    const options = googleImportLeaseQuery({
-      scope: { userId: 'user-1', organizationId: 'org-1' },
-      organizationId: 'org-1',
-      connectionId: CONNECTION_ID,
-      leaseRef: 'lease.ref',
-      enabled: true,
-      hasProviderContent: true,
-      epoch: 0,
-      guard,
-      renewLease: vi.fn() as never,
-    })
-
-    // Visibility is not an input: a hidden tab renews like a visible one, well
-    // inside the 30-second lease.
-    expect(options.enabled).toBe(true)
-    expect(options.refetchInterval).toBe(10_000)
-    expect(options.refetchIntervalInBackground).toBe(true)
-  })
-
-  it('renews only while the page holds provider content', () => {
-    const base = {
-      organizationId: 'org-1',
-      connectionId: CONNECTION_ID,
-      leaseRef: 'lease.ref',
-      enabled: true,
-      hasProviderContent: true,
-      epoch: 0,
-      guard,
-      renewLease: vi.fn() as never,
-    }
-
-    expect(
-      googleImportLeaseQuery({
-        scope: { userId: 'user-1', organizationId: 'org-1' },
-        ...base,
-        hasProviderContent: false,
-      }).enabled,
-    ).toBe(false)
-    expect(
-      googleImportLeaseQuery({
-        scope: { userId: 'user-1', organizationId: 'org-1' },
-        ...base,
-        leaseRef: null,
-      }).enabled,
-    ).toBe(false)
-    expect(
-      googleImportLeaseQuery({
-        scope: { userId: 'user-1', organizationId: 'org-1' },
-        ...base,
-        enabled: false,
-      }).enabled,
-    ).toBe(false)
-  })
-
   it('never refetches a discovery page on return, reconnect or remount', () => {
     const accounts = googleImportAccountsQuery({
       scope: { userId: 'user-1', organizationId: 'org-1' },
@@ -183,21 +127,17 @@ describe('Google import discovery while the tab is hidden', () => {
     }
   })
 
-  it('clears content at the last renewed lease expiry when no renewal succeeds', () => {
+  it('clears content at the checkpoint content deadline only', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-15T10:00:00.000Z'))
     vi.stubGlobal('window', globalThis)
     const clear = vi.fn()
 
-    const cancel = scheduleGoogleImportExpiries(
-      { clear },
-      '2026-09-16T10:00:00.000Z',
-      '2026-09-15T10:00:30.000Z',
-    )
-    vi.advanceTimersByTime(29_999)
+    const cancel = scheduleGoogleImportExpiry({ clear }, '2026-09-16T10:00:00.000Z')
+    vi.advanceTimersByTime(24 * 60 * 60_000 - 1)
     expect(clear).not.toHaveBeenCalled()
     vi.advanceTimersByTime(1)
-    expect(clear).toHaveBeenCalledExactlyOnceWith('lease_expired')
+    expect(clear).toHaveBeenCalledExactlyOnceWith('content_expired')
 
     cancel()
     vi.advanceTimersByTime(24 * 60 * 60_000)

@@ -85,7 +85,7 @@ function ReviewHarness({
   initialDraft?: () => ImportReviewDraft
   pending?: boolean
   submitError?: string | null
-  /** Re-render around the form on a timer, as the discovery lease renewal does. */
+  /** Re-render around the form on a timer, as any background update of the page does. */
   rerenderEveryMs?: number | null
 }) {
   const [, setTicks] = useState(0)
@@ -242,9 +242,9 @@ export const SearchATimezoneByOffset: Story = {
 }
 
 /**
- * The discovery lease renews every few seconds and re-renders the page. An
- * open list must stay where the merchant scrolled it; the old select jumped
- * back to the top on every renewal.
+ * The page can re-render while the list is open. An open list must stay where
+ * the merchant scrolled it; the old select jumped back to the top on every
+ * re-render.
  */
 export const OpenListKeepsItsPlace: Story = {
   render: () => <ReviewHarness rerenderEveryMs={200} />,

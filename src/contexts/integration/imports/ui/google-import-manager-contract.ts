@@ -18,7 +18,6 @@ import type {
   listImportAccounts,
   listImportCandidates,
   recoverPropertyImportV2,
-  renewImportAuthorizationLease,
   retryPropertyImportItem,
   startPropertyImportV2,
 } from '#/contexts/integration/server/gbp-import'
@@ -32,7 +31,6 @@ export type GoogleImportFns = Readonly<{
   getGoogleAuthUrl: typeof getGoogleAuthUrl
   listImportAccounts: typeof listImportAccounts
   listImportCandidates: typeof listImportCandidates
-  renewImportAuthorizationLease: typeof renewImportAuthorizationLease
   startPropertyImportV2: typeof startPropertyImportV2
   recoverPropertyImportV2: typeof recoverPropertyImportV2
   getPropertyImportV2Status: typeof getPropertyImportV2Status
@@ -86,7 +84,6 @@ export type GoogleImportDiscoveryController = Readonly<{
   setSearch: (value: string) => void
   visibleCandidates: readonly ImportCandidateDto[]
   reviewDraft: ImportReviewDraft | null
-  reviewCandidates: readonly ImportCandidateDto[]
   changeConnection: (connectionId: string) => Promise<void>
   resumeDiscovery: () => void
   selectAccount: (accountRef: string) => void
@@ -135,9 +132,6 @@ export type GoogleImportContentOptions = Readonly<{
   connectionId: string | null
   accountRef: string | null
   enabled: boolean
-  importFns: Pick<
-    GoogleImportFns,
-    'listImportAccounts' | 'listImportCandidates' | 'renewImportAuthorizationLease'
-  >
+  importFns: Pick<GoogleImportFns, 'listImportAccounts' | 'listImportCandidates'>
   clearProviderState: () => void
 }>

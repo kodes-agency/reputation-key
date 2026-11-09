@@ -1,7 +1,7 @@
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createGoogleImportContentLifecycle,
   type ImportCandidateDto,
@@ -22,10 +22,8 @@ import {
   googleImportAccountsQuery,
   googleImportCandidatesQuery,
   googleImportContentExpiry,
-  googleImportLeaseQuery,
-  scheduleGoogleImportExpiries,
+  scheduleGoogleImportExpiry,
 } from './google-import-queries'
-import { leaseRenewalFailureIsFinal } from './google-import-error-messages'
 import { createImportReviewDraft } from './google-import-review-model'
 import {
   activeGoogleImportConnectionId,
@@ -106,23 +104,6 @@ function useGoogleImportContent({
   const accounts = accountPages.flatMap((page) => page.items)
   const candidates = candidatePages.flatMap((page) => page.items)
   const contentExpiresAt = googleImportContentExpiry([...accountPages, ...candidatePages])
-  const authorizationLease = (candidatePages.at(-1) ?? accountPages.at(-1))
-    ?.authorizationLease
-  const leaseQuery = useQuery(
-    googleImportLeaseQuery({
-      scope,
-      organizationId,
-      connectionId,
-      leaseRef: authorizationLease?.leaseRef ?? null,
-      enabled,
-      hasProviderContent: accounts.length > 0 || candidates.length > 0,
-      epoch,
-      guard: lifecycle.guard,
-      renewLease: importFns.renewImportAuthorizationLease,
-    }),
-  )
-  const leaseExpiresAt =
-    leaseQuery.data?.expiresAt ?? authorizationLease?.expiresAt ?? null
 
   useEffect(() => {
     lifecycle.setClearContent(() => {
@@ -136,21 +117,13 @@ function useGoogleImportContent({
   }, [lifecycle])
   useEffect(() => {
     if (!enabled) return
-    return scheduleGoogleImportExpiries(lifecycle, contentExpiresAt, leaseExpiresAt)
-  }, [contentExpiresAt, enabled, leaseExpiresAt, lifecycle])
+    return scheduleGoogleImportExpiry(lifecycle, contentExpiresAt)
+  }, [contentExpiresAt, enabled, lifecycle])
   useEffect(() => {
     if (organizationIdRef.current === organizationId) return
     organizationIdRef.current = organizationId
     lifecycle.clear('tenant_changed')
   }, [lifecycle, organizationId])
-  // Only a refusal the server decided clears content at once. A renewal that
-  // failed in transit may still leave a valid lease; the scheduled lease expiry
-  // clears it if no later renewal succeeds.
-  useEffect(() => {
-    if (leaseQuery.error && leaseRenewalFailureIsFinal(leaseQuery.error)) {
-      lifecycle.clear('lease_expired')
-    }
-  }, [leaseQuery.error, lifecycle])
 
   return { accounts, candidates, accountsQuery, candidatesQuery, lifecycle }
 }
@@ -258,11 +231,7 @@ export function useGoogleImport({
     const candidates = content.candidates.filter((candidate) =>
       state.selectedIds.has(candidate.candidateId),
     )
-    dispatch({
-      type: 'review',
-      candidates,
-      draft: createImportReviewDraft(candidates),
-    })
+    dispatch({ type: 'review', draft: createImportReviewDraft(candidates) })
     window.scrollTo({ top: 0, behavior: 'auto' })
   }
 
