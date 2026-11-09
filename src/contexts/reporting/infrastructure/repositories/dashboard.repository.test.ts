@@ -92,6 +92,21 @@ async function seedReview(
         : overrides.contentExpiresAt,
     ],
   )
+  // A Review without a content clock holds no content row.
+  await pool.query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, rating, text, reviewed_at, first_fetched_at,
+       last_fetched_at, content_expires_at, source_epoch, source_revision,
+       ai_source_byte_length, ai_source_digest
+     )
+     SELECT id, organization_id, property_id, platform, external_id,
+            external_location_id, rating, text, reviewed_at, reviewed_at,
+            reviewed_at, content_expires_at, source_epoch, source_revision,
+            ai_source_byte_length, ai_source_digest
+     FROM reviews WHERE id = $1 AND content_expires_at IS NOT NULL`,
+    [id],
+  )
   return id
 }
 
