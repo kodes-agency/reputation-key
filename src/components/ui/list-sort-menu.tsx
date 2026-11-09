@@ -25,10 +25,9 @@ type Props<S extends string> = Readonly<{
 }>
 
 /**
- * The order of a list, in a menu at every width (UI consistency scan: COLL-06,
- * COLL-12): "Sort: Name", the sorts, then the two directions with the sort's
- * natural one first. A stacked phone layout has no column headers to click, so
- * the menu is the one control that is always there.
+ * The order of a list, in a menu at every width: "Sort: Name", the sorts, then the
+ * two directions with the sort's natural one first. A stacked phone layout has no
+ * column headers to click, so the menu is always there.
  */
 export function ListSortMenu<S extends string>({
   sort,

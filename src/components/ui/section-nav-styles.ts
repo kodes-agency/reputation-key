@@ -1,27 +1,17 @@
 // The class lists of a SectionNav, per frame and per presentation.
 //
-// A nav is a strip (one scrolling row) or a list (a column), and `auto` is a strip
-// that becomes a list once the container it sits in is wide enough. Tailwind finds
-// a class only when it is written out whole, so a prefixed class cannot be computed
-// from a plain one: every slot lists its classes four ways.
-//
+// A nav is a strip (one scrolling row), a list (a column), or `auto`: a strip that
+// becomes a list once its container is wide enough. Tailwind finds a class only
+// when it is written out whole, so every slot lists its classes four ways:
 // - `base`: both presentations.
 // - `strip`: the row only.
-// - `list`: the column only (the classes that turn the row into a column, resets
-//   included).
-// - `auto`: the row, then each `list` class behind the container variant, written
-//   out. `section-nav-styles.test.ts` fails when `auto` is not exactly that, so the
-//   two cannot drift.
+// - `list`: the column only (including resets).
+// - `auto`: the row, then each `list` class behind the container variant.
+//   `section-nav-styles.test.ts` fails when `auto` is not exactly that.
 //
-// Two frames, because the two surfaces that use a nav sit differently:
-//
-// - `rail`: a full-bleed workspace (the Portal editor). The strip is a bordered band
-//   on the page gutter; the list is a bordered 18rem column that stays in view while
-//   the section scrolls, from an 80rem container (room for the list, a form and the
-//   live preview).
-// - `inline`: a page's own content (Property settings). The strip scrolls to the
-//   screen edge on a phone; the list is a 14rem column beside the content, from a
-//   48rem container.
+// Frames: `rail` is a full-bleed workspace (bordered 18rem column that stays in
+// view, from an 80rem container); `inline` is a page's own content (14rem column
+// beside the content, from a 48rem container; the strip scrolls to the screen edge).
 import { PAGE_GUTTER_BLEED_PHONE, PAGE_GUTTER_X } from '#/components/layout/page-shell'
 
 export type SectionNavFrame = 'rail' | 'inline'

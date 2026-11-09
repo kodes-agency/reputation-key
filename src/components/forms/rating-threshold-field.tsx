@@ -1,8 +1,6 @@
-// "How low a rating" as one field (UI consistency scan: FORM-03): a Select of the
-// ratings, each worded "3★ or lower" for the eye and "3 stars or lower" for the ear.
-// The Portal editor's private-note threshold (1 to 5), the notification page's per-
-// channel threshold (Off, then 1 to 4) and the Organization targets' low-rating
-// threshold (1 to 5) are all this field; a field of a different kind is not a rating.
+// "How low a rating" as one field: a Select of the ratings, each worded "3★ or lower"
+// for the eye and "3 stars or lower" for the ear. A field of a different kind is not a
+// rating.
 import type { ReactNode } from 'react'
 import {
   Select,

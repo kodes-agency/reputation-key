@@ -1,24 +1,15 @@
 /**
- * useActionMutation — Query-native replacement for useMutationAction.
+ * useActionMutation: wraps `useMutation` and returns the `Action<TInput, TOutput>`
+ * shape the form/presentation components consume (callable + `.isPending` /
+ * `.error` / `.isSuccess` / `.data`).
  *
- * Wraps `useMutation` and returns the SAME `Action<TInput, TOutput>` shape that
- * the form/presentation components already consume (callable + `.isPending` /
- * `.error` / `.isSuccess` / `.data`). Every callsite becomes Query-native
- * (devtools visibility, `onMutate` optimistic updates available) WITHOUT touching
- * the ~29 Action-typed components.
- *
- * Invalidation is targeted Query keys (`invalidateKeys`) — never the
- * `router.invalidate()` sledgehammer. Server functions are called directly in
- * `mutationFn` (TanStack Start transforms them to RPCs — same as the route-loader
- * queryFns; no `useServerFn` wrap needed).
- *
- * Replaces BOTH `useMutationAction` (pass `successMessage` for a toast) and
- * `useMutationActionSilent` (omit `successMessage`).
+ * Invalidation is targeted Query keys (`invalidateKeys`), never
+ * `router.invalidate()`. Server functions are called directly in `mutationFn`.
+ * Pass `successMessage` for a toast; omit it for a silent mutation.
  *
  * Who reports a failure (one rule, so nothing is told twice):
  * - A FORM SUBMIT reports through `FormErrorBanner`, directly above that form's
- *   actions. Its mutation passes no `errorMessage`: the action holds the error
- *   and the banner shows it. The success may still toast.
+ *   actions. Its mutation passes no `errorMessage`. The success may still toast.
  * - A DIALOG SUBMIT or CONFIRMATION is a form submit: `ConfirmationDialog` and the
  *   form dialogs stay open while it runs and show the refusal themselves
  *   (`DialogErrorBanner`), so the mutation behind one passes no `errorMessage`.
@@ -42,12 +33,10 @@ export const GENERIC_ACTION_ERROR_MESSAGE = 'Something went wrong. Try again.'
  * generic one for anything else.
  *
  * A 4xx `ServerFunctionError` is a domain refusal whose message the context
- * wrote for the person who clicked (`throwContextError`, server-errors.ts:18,
- * sends `e.message` verbatim with the status the context mapped, e.g.
- * `reviewErrorStatus` in review/server/reply-read.ts). A 5xx or an untagged
- * error is a failure whose message was never written for a reader and may name
- * internal state, so it is replaced rather than shown. Recognition is by shape
- * (`isServerFunctionError`), because the class can load twice in dev.
+ * wrote for the person who clicked. A 5xx or an untagged error was never written
+ * for a reader and may name internal state, so it is replaced rather than shown.
+ * Recognition is by shape (`isServerFunctionError`), because the class can load
+ * twice in dev.
  */
 export function actionErrorMessage(error: unknown): string {
   if (isServerFunctionError(error) && error.status >= 400 && error.status < 500) {

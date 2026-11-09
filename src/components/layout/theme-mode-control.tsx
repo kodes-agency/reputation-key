@@ -10,12 +10,7 @@ type Props = Readonly<{
   labelledBy?: string
 }>
 
-/**
- * The theme choice: Light, Dark or System, as one segmented control. It is the
- * control for the setting wherever the setting is drawn in full: the
- * Preferences page here, and the account menu through `ThemeModeMenuControl`
- * (the same pill, drawn from menu items).
- */
+/** The theme choice (Light, Dark, System) as one segmented control; the account menu uses `ThemeModeMenuControl`. */
 export function ThemeModeControl({ labelledBy }: Props) {
   const { mode, setMode } = useThemeMode()
   const naming =

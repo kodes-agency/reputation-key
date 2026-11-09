@@ -6,15 +6,13 @@ import { cn } from '#/lib/utils'
 
 // Below `md` a control is at least a tap target tall: `--control-touch` is 44px, and
 // 36px inside a `data-density="compact"` workspace (styles.css). It is a minimum, not
-// a height, so a control that is taller on purpose (a field-like bar, a label that
-// wraps) keeps its own height. From `md` the desktop heights below apply. A caller
-// never re-spells either number; it sets the density on a container. Two props cover
-// the cases the sizes cannot: `touch` keeps a small button (`xs`, `icon-xs`, `inline`)
-// a tap target on a phone, and `iconBelow` is the button whose label hides below a
-// width, a square as wide as the touch height there. `sm` and `md` are the window's
-// breakpoints; `@lg` is the width of the nearest `@container` ancestor, for a bar in
-// a pane the window does not size (the Inbox's detail pane is 472 px wide in a 1280 px
-// window). Whoever sets `@lg` also hides the label under the same `@max-lg:`.
+// a height, so a deliberately taller control keeps its own height. From `md` the
+// desktop heights below apply. A caller sets the density on a container, never the
+// numbers. `touch` keeps a small button (`xs`, `icon-xs`, `inline`) a tap target on a
+// phone; `iconBelow` hides the label below a width, leaving a square as wide as the
+// touch height. `sm` and `md` are window breakpoints; `@lg` is the width of the
+// nearest `@container` ancestor, for a bar in a pane the window does not size, and
+// whoever sets `@lg` also hides the label under the same `@max-lg:`.
 const buttonVariants = cva(
   "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all focus-ring disabled:pointer-events-none disabled:opacity-50 aria-busy:disabled:opacity-100 aria-disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {

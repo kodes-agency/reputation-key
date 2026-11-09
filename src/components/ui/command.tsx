@@ -1,11 +1,7 @@
-// Vendored from shadcn/ui (https://ui.shadcn.com/docs/components/command),
-// `registry/new-york-v4/ui/command.tsx`, fetched 2026-09-15. MIT licensed. The
-// behaviour lives in the pinned npm package `cmdk@1.1.1`; this file is the
-// styled wrapper.
-//
-// Local changes: imports use this app's aliases, and `CommandDialog` and
-// `CommandShortcut` are left out until a screen needs them. The remaining
-// components and their classes are unchanged.
+// Vendored from shadcn/ui (`registry/new-york-v4/ui/command.tsx`), MIT licensed. The
+// behaviour lives in the pinned npm package `cmdk@1.1.1`; this file is the styled
+// wrapper. Local changes: imports use this app's aliases, and `CommandDialog` and
+// `CommandShortcut` are left out.
 
 import * as React from 'react'
 import { Command as CommandPrimitive } from 'cmdk'

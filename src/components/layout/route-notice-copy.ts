@@ -1,7 +1,5 @@
 // What a refusal says. The notice a route throws (`shared/auth/route-notice`)
-// carries only its cause; the sentences, and where the way back leads, are
-// decided here, when the shell's boundary draws it. Pure, so the copy is
-// unit-tested without a router.
+// carries only its cause; the sentences and the way back are decided here. Pure.
 import { REFUSAL_COPY } from '#/shared/auth/capability-refusal-category'
 import type { RouteBack, RouteBackTarget, RouteNotice } from '#/shared/auth/route-notice'
 import type { PageStateProps } from './page-state'
@@ -11,10 +9,7 @@ export type NoticeProps = Extract<PageStateProps, { kind: 'notFound' | 'unavaila
 
 const CAUSES: readonly string[] = ['role', 'feature', 'property']
 
-/**
- * Whether a not-found's `data` is a notice. It crosses server rendering and
- * could be anything a route threw, so it is checked, not assumed.
- */
+/** Whether a not-found's `data` is a notice; it crosses server rendering, so it is checked. */
 export function isRouteNotice(data: unknown): data is RouteNotice {
   if (typeof data !== 'object' || data === null) return false
   const { cause } = data as { cause?: unknown }
@@ -35,10 +30,7 @@ export type NoticeAccess = Readonly<{
 
 const OPEN_ACCESS: NoticeAccess = { canOpenProperties: true }
 
-/**
- * The Properties list is the way back from most refusals, but a role that cannot
- * open it would follow the link into a second refusal, so it goes to its profile.
- */
+/** The Properties list is the way back, except for a role that cannot open it (its profile instead). */
 function propertiesOrProfile({ canOpenProperties }: NoticeAccess): RouteBack {
   return canOpenProperties ? PROPERTIES : PROFILE
 }

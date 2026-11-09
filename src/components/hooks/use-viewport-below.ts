@@ -4,7 +4,7 @@ import { isHintBelow, UNKNOWN_VIEWPORT, type ViewportHint } from './viewport-hin
 /**
  * The request's viewport hint, provided by the authenticated layout from its
  * loader. Without a provider (Storybook, tests) the server render keeps the
- * wide layout, as it did before the hint existed.
+ * wide layout.
  */
 export const ViewportHintContext = createContext<ViewportHint>(UNKNOWN_VIEWPORT)
 

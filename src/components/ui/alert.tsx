@@ -14,11 +14,9 @@ import { TONE_ICON, TONE_INK, TONE_SURFACE } from './tone'
 //   info         worth knowing, nothing to do      accent tint
 //
 // `destructive` wears the same red tint and edge as a failed toast and the
-// negative Badge: on the card surface it was barely a box in the dark theme, so
-// the same refusal looked different depending on what showed it. It is the form
-// error recipe, so it also sets its description in the red (a refusal's own
-// words); the other three tones keep the quiet ink for the description so a long
-// sentence is not set in a colour, and the title and icon carry the tone.
+// negative Badge, so the same refusal looks the same wherever it shows. It is
+// the form error recipe, so it also sets its description in the red; the other
+// three tones keep the quiet ink for the description.
 // `destructive` and `warning` are announced at once (`role="alert"`): something
 // failed or needs a person. `info`, `success` and `default` are read in turn
 // (`role="status"`), so a notice that is already on the page when it loads does

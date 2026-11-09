@@ -7,11 +7,7 @@ type FontSetLinksProps = Readonly<{
   locale: GuestLocale
 }>
 
-/**
- * The `<link>` tags for one font set, meant for the document `<head>`. The root
- * links one set per page: both the app fonts and the guest fonts come from
- * our own origin.
- */
+/** The `<link>` tags for one font set, for the document `<head>`; the root links one set per page. */
 export function FontSetLinks({ fontSet, locale }: FontSetLinksProps) {
   return fontSetLinks(fontSet, locale).map((link) => (
     <link key={`${link.rel}:${link.href}`} {...link} />

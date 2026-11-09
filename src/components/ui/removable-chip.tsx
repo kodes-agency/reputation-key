@@ -16,17 +16,11 @@ type Props = Omit<
   }>
 
 /**
- * A choice made, shown as a pill you press to take back (UI consistency scan:
- * COLL-22). The Inbox's active-filter row drew these as raw buttons and the member
- * invitation's assigned properties as a Badge with a second button inside it: two
- * anatomies, and the second a small target in a pill that is not one. The whole
- * chip is the button, with the X as its cue.
- *
- * It is a pill 32px tall from `md`, and below it a tap target like every control:
- * `--control-touch` is the minimum, so 44px in a form (the member invitation) and
- * 36px in the Inbox's compact workspace, where the strip it sits in is 44px. A
- * mutually exclusive choice (the Inbox sheet's radio pills) is a different thing and
- * keeps its own anatomy.
+ * A choice made, shown as a pill you press to take back. The whole chip is the
+ * button, with the X as its cue. It is 32px tall from `md`, and below it a tap
+ * target: `--control-touch` is the minimum (44px, 36px in a compact workspace). A
+ * mutually exclusive choice (radio pills) is a different thing and keeps its own
+ * anatomy.
  */
 export function RemovableChip({
   label,

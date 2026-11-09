@@ -1,6 +1,5 @@
-// "Load more" for a cursor feed (UI consistency scan: COLL-16): the Inbox list, the
-// notification list, the Portal history ledger and the Google import lists. A list
-// with page numbers (the Portals overview) is `PortalOverviewPager`, not this.
+// "Load more" for a cursor feed. A list with page numbers (the Portals overview)
+// is `PortalOverviewPager`, not this.
 //
 // While a page loads the button shows a spinner and "Loading…" and is
 // `aria-disabled`, not `disabled`: a focused button that becomes disabled drops

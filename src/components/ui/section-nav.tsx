@@ -16,24 +16,16 @@ import { stripFadeStyle } from './strip-scroll'
 import { useRevealCurrentItem } from './use-reveal-current-item'
 import { useStripOverflow } from './use-strip-overflow'
 
-// A list of the sections of one place, each a link to its own address: a Property's
-// settings, the Portal editor's page parts. It is a navigation landmark with
-// `aria-current`, not an ARIA tablist, because the panel is the route's, not this
-// document's. Extracted from the Portal editor's section list with its look intact.
+// A list of the sections of one place, each a link to its own address. It is a
+// navigation landmark with `aria-current`, not an ARIA tablist, because the panel
+// is the route's, not this document's.
 //
-// - Items carry an optional icon, a summary line (a live value or a description), a
-//   trailing count and a group; a group is a run of neighbours under a heading.
-// - It is a strip (one scrolling row: the side that continues fades, the open item
-//   scrolls into view, no scrollbar) or a list, or `auto`: a strip until the
-//   container it sits in is wide enough (see `SectionNavLayout`). The side that
-//   continues fades: that is the cue, as in every strip, not a chevron.
-// - The current row wears the sidebar's accent-muted fill, drawn from the
-//   `aria-current` that `NavLink` sets from `current`, so what is drawn and what is
-//   announced are one answer. Hover and keyboard focus are shared by every row.
-//
-// The Inbox queue rail and strip keep their own composition (they are buttons that
-// change a filter, and the strip is a bar of pills) but wear this fill, this focus
-// ring and `NavCount`.
+// - Items carry an optional icon, summary line, trailing count and group; a group
+//   is a run of neighbours under a heading.
+// - A strip (one scrolling row; the side that continues fades, the open item
+//   scrolls into view) or a list, or `auto` (see `SectionNavLayout`).
+// - The current row's fill is drawn from the `aria-current` that `NavLink` sets, so
+//   what is drawn and what is announced are one answer.
 
 type Props = Readonly<{
   'aria-label': string

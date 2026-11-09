@@ -1,7 +1,3 @@
-// Reusable text field for forms — eliminates render-prop duplication.
-// Wraps TanStack Form's form.Field with shadcn's Field components.
-// Per conventions: shared form building blocks live in components/forms/.
-
 import type { ReactNode } from 'react'
 import { Input } from '#/components/ui/input'
 import { describedByOf, FormFieldFrame } from './form-field-frame'

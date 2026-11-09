@@ -29,12 +29,9 @@ type Props = Readonly<{
 }>
 
 /**
- * `capability` is the capability the destination route already gates on
- * (see `gateControlledRoute` in each route's `beforeLoad`). Kept in lockstep
- * with those gates so the nav never offers a link that lands on the
- * unavailable page. Dashboard and Reviews have no entry because their routes
- * carry no capability gate. See `nav-items-shared` for why disabling here is
- * an affordance rather than a boundary.
+ * `capability` is the one the destination route already gates on (see
+ * `gateControlledRoute`); keep them in lockstep so the nav never links to the
+ * unavailable page. Dashboard and Reviews carry none. See `nav-items-shared`.
  */
 type ManagerNavItem = Readonly<{
   capability?: Capability
@@ -45,14 +42,10 @@ type ManagerNavItem = Readonly<{
 }>
 
 /**
- * The dashboard's sub-pages (redesign rows 1, 2). Overview leads because it is
- * also the category's own landing page; the other three answer one question
- * each — how are we rated, how are we found, what do guests say.
- *
- * No entry carries a capability: like the overview they were split out of, none
- * of these routes gates on one. Guest voice checks the `dashboard.read`
- * *permission* in its own `beforeLoad`, which every role that can see this
- * sidebar already holds, so an inert row here would be a phantom.
+ * The dashboard's sub-pages. Overview leads because it is also the category's
+ * landing page. No entry carries a capability: none of these routes gates on one
+ * (Guest voice checks the `dashboard.read` permission, which every role that sees
+ * this sidebar holds), so an inert row would be a phantom.
  */
 const dashboardSubItems: ReadonlyArray<
   Readonly<{ key: string; label: string; to: string }>
@@ -140,9 +133,8 @@ function ManagerNavRow({
   const isOrganizationInbox = item.key === 'reviews' && activeSection === 'inbox'
   const link = navLinkFor(item, propertyId, activeSection)
 
-  // Same disabled affordance the no-property case already uses — an
-  // eligible-by-role manager sees why the destination is inert instead
-  // of navigating into the unavailable page.
+  // Same disabled affordance as the no-property case: the manager sees why the
+  // destination is inert instead of landing on the unavailable page.
   if (link === null || isUnavailable) {
     return (
       <InertNavItem
@@ -172,12 +164,7 @@ function ManagerNavRow({
   )
 }
 
-/**
- * The Dashboard category and its four sub-pages. Without a property — the
- * properties list, the import flow — the whole category is inert, exactly as
- * every property-scoped entry already was: there is nothing for Ratings or
- * Google to be about yet.
- */
+/** The Dashboard category and its sub-pages; without a property the whole category is inert. */
 function DashboardCategory({
   propertyId,
   activeSection,

@@ -6,14 +6,10 @@ import { isRouteNotice, noticeProps } from './route-notice-copy'
 import { NotFoundState, usePageWhere } from './route-page-state'
 
 /**
- * What the app shell's not-found boundary draws: the notice a route threw (a role
- * or feature that cannot open the page, a Property that is not there), else the
- * page that does not exist. Only the shell's boundary reads notices, so the copy
- * stays out of first paint.
- *
- * A refusal of a page is drawn in the frame of the page it replaces (its width
- * tier and its trail), so a refused Properties list stays 1200 wide and a refused
- * settings page stays narrow. A missing Property has no page to borrow from.
+ * What the app shell's not-found boundary draws: the notice a route threw, else the
+ * page that does not exist. Only the shell's boundary reads notices, keeping the
+ * copy out of first paint. A refusal is drawn in the frame (width tier and trail)
+ * of the page it replaces; a missing Property has none to borrow.
  */
 export function NoticeState({ data }: Readonly<{ data?: unknown }>) {
   const matches = useMatches()
