@@ -6,7 +6,7 @@
 // Look and the two manager-only sections (Group, Responsible) have no part:
 // they are not something the page shows.
 
-import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
+import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import type { PreviewStateId, PreviewStateOption } from './portal-preview-states'
 
 export const PREVIEW_PART_SECTIONS = [

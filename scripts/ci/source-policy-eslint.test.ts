@@ -73,7 +73,7 @@ describe('source policy lint rules', () => {
 
   it.each([
     'src/components/inbox/use-reply-actions.ts',
-    'src/components/features/portal/link-tree/use-linktree-mutations.ts',
+    'src/contexts/portal/editor/ui/link-tree/use-linktree-mutations.ts',
   ])('keeps the documented mutation hook %s', (filename) => {
     expect(
       messages(
@@ -86,6 +86,16 @@ describe('source policy lint rules', () => {
       messages(
         "import '#/contexts/property/server/properties'",
         filename.replace(/\.ts$/, '-other.ts'),
+        'component-server',
+      ),
+    ).toEqual(['serverImport'])
+  })
+
+  it('rejects the retired Linktree hook path', () => {
+    expect(
+      messages(
+        "import '#/contexts/portal/server/portal-links'",
+        'src/components/features/portal/link-tree/use-linktree-mutations.ts',
         'component-server',
       ),
     ).toEqual(['serverImport'])

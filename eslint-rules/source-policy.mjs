@@ -2,7 +2,7 @@ import { basename, relative, resolve } from 'node:path'
 
 const MUTATION_HOOKS = new Set([
   'src/components/inbox/use-reply-actions.ts',
-  'src/components/features/portal/link-tree/use-linktree-mutations.ts',
+  'src/contexts/portal/editor/ui/link-tree/use-linktree-mutations.ts',
 ])
 
 function filename(context) {

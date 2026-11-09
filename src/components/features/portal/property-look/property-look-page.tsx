@@ -25,7 +25,7 @@ import type { PropertyLookMedia } from '#/contexts/portal/application/portal-man
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import { PortalUnsavedChangesPrompt } from '../portal-detail/portal-unsaved-changes-prompt'
-import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
+import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import { PropertyLookBatchPublish } from './property-look-batch-publish'
 import { PropertyLookColoursSection } from './property-look-colours-section'
 import { PropertyLookIdentitySection } from './property-look-identity-section'
