@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createImmediateEmailEnqueue,
   createQuietHoursRelease,
-} from './immediate-email-enqueue'
+} from './send-emails.server'
 
 const NOW = new Date('2026-01-15T15:00:00.000Z')
 const EMAIL = '84000000-0000-4000-8000-000000000001'

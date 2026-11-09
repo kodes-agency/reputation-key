@@ -249,8 +249,24 @@ export type NotificationEmail = Readonly<{
    * layer parses it. `null` on rows queued before it was stored.
    */
   recipientAudience: unknown
+  /**
+   * The rendered request the row was frozen with before its first provider
+   * attempt, re-sent verbatim by every retry. `null` until then, and again once
+   * the row closes.
+   */
+  providerRequest: FrozenEmailRequest | null
   createdAt: Date
   updatedAt: Date
+}>
+
+/** The provider request of one immediate email, minus its idempotency key. */
+export type FrozenEmailRequest = Readonly<{
+  to: string
+  subject: string
+  html: string
+  text: string
+  headers: Readonly<Record<string, string>>
+  replyTo: string | null
 }>
 
 // ── Notification preferences ────────────────────────────────────────

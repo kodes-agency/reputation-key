@@ -303,7 +303,7 @@ describe.sequential('notification delivery lag report (real PostgreSQL)', () => 
         lastErrorClass: 'transient',
         attemptedAt: RECORDED,
         nextAttemptAt: new Date('2026-08-27T07:54:00.000Z'),
-        retryCount: 1,
+        retryCount: 7,
         createdAt: PENDING_SOURCE_RECORDED,
         updatedAt: RECORDED,
       },

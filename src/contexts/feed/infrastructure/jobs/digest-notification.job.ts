@@ -53,7 +53,7 @@ import {
 import {
   sweepImmediateOrphans,
   type ImmediateEmailEnqueue,
-} from './immediate-orphan-sweep'
+} from '../../email/send-emails.server'
 import {
   authorizedEntries,
   loadItems,

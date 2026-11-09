@@ -45,7 +45,10 @@ import {
 import { notificationScopeForType } from '../domain/notification-delivery-policy'
 import type { NotificationType } from '../domain/notification-types'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
-import { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } from './jobs/urgent-email.job'
+import {
+  MANDATORY_EMAIL_JOB_NAME,
+  URGENT_EMAIL_JOB_NAME,
+} from '../email/send-emails.server'
 import { parseOutboxNotificationDelivery } from './outbox-notification-delivery'
 
 import {

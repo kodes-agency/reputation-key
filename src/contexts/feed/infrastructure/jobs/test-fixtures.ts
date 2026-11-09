@@ -54,6 +54,7 @@ export type EmailOverrides = Partial<{
   idempotencyKey: string
   retryCount: number
   recipientAudience: unknown
+  providerRequest: NotificationEmail['providerRequest']
 }>
 
 export function buildNotificationEmail(
@@ -86,6 +87,7 @@ export function buildNotificationEmail(
     failedAt: null,
     retryCount: overrides.retryCount ?? 0,
     recipientAudience: overrides.recipientAudience ?? null,
+    providerRequest: overrides.providerRequest ?? null,
     createdAt: NOW,
     updatedAt: NOW,
   }

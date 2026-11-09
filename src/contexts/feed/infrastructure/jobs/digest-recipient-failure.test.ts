@@ -14,7 +14,9 @@ const mocks = vi.hoisted(() => ({ capture: vi.fn() }))
 vi.mock('#/shared/observability/telemetry', () => ({
   captureObservabilityException: mocks.capture,
 }))
-vi.mock('./immediate-orphan-sweep', () => ({ sweepImmediateOrphans: async () => {} }))
+vi.mock('../../email/send-emails.server', () => ({
+  sweepImmediateOrphans: async () => {},
+}))
 
 const ORG = 'org-1'
 

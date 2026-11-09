@@ -6615,6 +6615,7 @@ CREATE TABLE "public"."notification_email_queue" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "recipient_audience" "jsonb",
+    "provider_request" "jsonb",
     CONSTRAINT "notification_email_queue_mandatory_scope_check" CHECK ((((("category")::"text" = 'mandatory'::"text") AND ("property_id" IS NULL) AND (("cadence")::"text" = 'immediate'::"text")) OR ((("category")::"text" <> 'mandatory'::"text") AND ("property_id" IS NOT NULL))))
 );
 

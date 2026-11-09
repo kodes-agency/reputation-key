@@ -31,7 +31,6 @@ type MaterializationPendingRow = Readonly<{
 type ImmediateEmailAcceptanceRow = Readonly<{
   status: string
   lastErrorClass: string | null
-  retryCount: number
   attemptedAt: Date | string | null
   acceptedAt: Date | string | null
   sourceRecordedAt: Date | string | null
@@ -63,11 +62,13 @@ const activeNotificationTypeValues = sql.join(
   sql`, `,
 )
 
+// A transient failure is retried until the retry horizon closes the row, so
+// however many times it has failed it is still waiting for the provider.
 const isAwaitingProviderAcceptance = (row: ImmediateEmailAcceptanceRow): boolean =>
   row.acceptedAt === null &&
   (row.status === 'pending' ||
     row.status === 'delayed' ||
-    (row.status === 'failed' && row.lastErrorClass === 'transient' && row.retryCount < 5))
+    (row.status === 'failed' && row.lastErrorClass === 'transient'))
 
 const nearestRankP99 = (values: ReadonlyArray<number>): number | null => {
   if (values.length === 0) return null
@@ -161,7 +162,6 @@ const readSendableImmediateEmailRows = async (
     SELECT
       email.status,
       email.last_error_class AS "lastErrorClass",
-      email.retry_count AS "retryCount",
       email.attempted_at AS "attemptedAt",
       email.accepted_at AS "acceptedAt",
       CASE
