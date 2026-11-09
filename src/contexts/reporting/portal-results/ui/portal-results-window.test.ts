@@ -73,15 +73,13 @@ describe('the window texts', () => {
   })
 
   it('puts both periods and the comparison floor in the footer', () => {
-    expect(windowFooter(days, 'Europe/Sofia', 10, new Date('2026-10-01T00:00:00Z'))).toBe(
+    expect(windowFooter(days, 'Europe/Sofia', 10, false)).toBe(
       '1–30 Sep against 2–31 Aug, Sofia time · Averages compare only when both periods have at least 10 ratings.',
     )
   })
 
   it('has no comparison sentence when the comparison is off or All Time has none', () => {
-    expect(windowFooter(null, 'Europe/Sofia', 10, new Date('2028-09-30T00:00:00Z'))).toBe(
-      'All time, Sofia time',
-    )
+    expect(windowFooter(null, 'Europe/Sofia', 10, false)).toBe('All time, Sofia time')
   })
 
   it('leaves the comparison out of the footer when it is off', () => {
@@ -90,7 +88,7 @@ describe('the window texts', () => {
         { ...days, compareStart: null, compareEnd: null },
         'Europe/Sofia',
         10,
-        new Date('2026-10-01T00:00:00Z'),
+        false,
       ),
     ).toBe('1–30 Sep, Sofia time')
   })
