@@ -29,6 +29,7 @@ export type GoogleImportDiscoveryState = Readonly<{
   selectAllPending: boolean
   selectAllError: string | null
   reviewDraft: ImportReviewDraft | null
+  reviewCandidates: readonly ImportCandidateDto[]
 }>
 
 export type GoogleImportDiscoveryAction =
@@ -41,7 +42,11 @@ export type GoogleImportDiscoveryAction =
   | Readonly<{ type: 'set_selection'; selectedIds: ReadonlySet<string> }>
   | Readonly<{ type: 'select_all_pending'; pending: boolean }>
   | Readonly<{ type: 'select_all_error'; error: string | null }>
-  | Readonly<{ type: 'review'; draft: ImportReviewDraft }>
+  | Readonly<{
+      type: 'review'
+      draft: ImportReviewDraft
+      candidates: readonly ImportCandidateDto[]
+    }>
 
 export function createGoogleImportDiscoveryState(
   connectionId: string | null,
@@ -58,6 +63,7 @@ export function createGoogleImportDiscoveryState(
     selectAllPending: false,
     selectAllError: null,
     reviewDraft: null,
+    reviewCandidates: [],
   }
 }
 
@@ -113,6 +119,7 @@ export function reduceGoogleImportDiscoveryState(
         ...state,
         step: 'review',
         reviewDraft: action.draft,
+        reviewCandidates: action.candidates,
       }
   }
 }

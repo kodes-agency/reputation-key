@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   listImportAccountsInputSchema,
   listImportCandidatesInputSchema,
+  renewImportAuthorizationLeaseInputSchema,
 } from './google-import-discovery.dto'
 
 const CONNECTION_ID = '00000000-0000-4000-8000-000000000001'
@@ -45,4 +46,19 @@ describe('Google import discovery input schemas', () => {
       ).toBe(false)
     },
   )
+
+  it('rejects malformed connections and oversized opaque lease references', () => {
+    expect(
+      renewImportAuthorizationLeaseInputSchema.safeParse({
+        connectionId: 'not-a-uuid',
+        leaseRef: 'lease-ref',
+      }).success,
+    ).toBe(false)
+    expect(
+      renewImportAuthorizationLeaseInputSchema.safeParse({
+        connectionId: CONNECTION_ID,
+        leaseRef: 'x'.repeat(513),
+      }).success,
+    ).toBe(false)
+  })
 })

@@ -141,6 +141,19 @@ describe('volatile provider query keys', () => {
       'account-1',
       4,
     ])
+    expect(
+      integrationKeys.googleImportLease('org-1', 'connection-1', 'lease-1', 4),
+    ).toEqual([
+      'integrations',
+      'user-1',
+      'org-1',
+      'google-import-content',
+      'org-1',
+      'connection-1',
+      'lease',
+      'lease-1',
+      4,
+    ])
   })
 
   it('isolates performance authorization leases by report and lease identity', () => {

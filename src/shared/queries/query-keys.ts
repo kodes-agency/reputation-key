@@ -462,6 +462,20 @@ export function createKeys({ userId, organizationId }: TenantScope) {
         accountRef,
         viewEpoch,
       ] as const,
+    googleImportLease: (
+      organizationId: string,
+      connectionId: string,
+      leaseRef: string,
+      viewEpoch: number,
+    ) =>
+      [
+        ...integrationKeys.googleImportContent(),
+        organizationId,
+        connectionId,
+        'lease',
+        leaseRef,
+        viewEpoch,
+      ] as const,
     import: (importId: string) => [...integrationKeys.all, 'import', importId] as const,
   }
 

@@ -76,6 +76,7 @@ const importFns = {
   getGoogleAuthUrl: neverCalled('getGoogleAuthUrl'),
   listImportAccounts: neverCalled('listImportAccounts'),
   listImportCandidates: neverCalled('listImportCandidates'),
+  renewImportAuthorizationLease: neverCalled('renewImportAuthorizationLease'),
   startPropertyImportV2: neverCalled('startPropertyImportV2'),
   recoverPropertyImportV2: neverCalled('recoverPropertyImportV2'),
   getPropertyImportV2Status: fn(async () => completed),
@@ -244,6 +245,7 @@ const discoveryFns = {
     authorizationLease: lease,
     contentTtlSeconds: 86_400,
   })),
+  renewImportAuthorizationLease: fn(async () => lease),
 } as unknown as GoogleImportFns
 
 /**

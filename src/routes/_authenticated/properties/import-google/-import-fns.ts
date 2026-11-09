@@ -4,6 +4,7 @@ import {
   listImportAccounts,
   listImportCandidates,
   recoverPropertyImportV2,
+  renewImportAuthorizationLease,
   retryPropertyImportItem,
   startPropertyImportV2,
 } from '#/contexts/integration/server/gbp-import'
@@ -39,6 +40,7 @@ export const importFns: GoogleImportFns = {
   getGoogleAuthUrl,
   listImportAccounts,
   listImportCandidates,
+  renewImportAuthorizationLease,
   startPropertyImportV2,
   recoverPropertyImportV2,
   getPropertyImportV2Status,
