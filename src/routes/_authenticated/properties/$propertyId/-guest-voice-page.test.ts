@@ -6,8 +6,7 @@ import {
   guestVoiceReasonOf,
   guestVoiceV2PageOf,
   guestVoiceV2RangeOf,
-  guestVoiceV2View,
-} from './-guest-voice-v2'
+} from './-guest-voice-page'
 
 const NOT_ENOUGH: GuestVoiceV2Read = {
   status: 'not_enough_reviews',
@@ -79,22 +78,6 @@ describe('guestVoiceV2RangeOf', () => {
 
   it.each(['auto', '30d', '90d', '180d', '365d'] as const)('keeps %s', (range) => {
     expect(guestVoiceV2RangeOf(range)).toBe(range)
-  })
-})
-
-describe('guestVoiceV2View', () => {
-  it('has no drawer until the drawer has a read to show', () => {
-    const view = guestVoiceV2View(NOT_ENOUGH)
-
-    expect(view.read).toBe(NOT_ENOUGH)
-    expect(view.drawer).toBeUndefined()
-  })
-
-  it('carries where the Google rating goal stands, and none by default', () => {
-    expect(guestVoiceV2View(NOT_ENOUGH).ratingGoal).toBeNull()
-    const goal = { mode: 'climb', target: 4.6, shows: 4.4, status: 'below_pace' } as const
-
-    expect(guestVoiceV2View(NOT_ENOUGH, goal).ratingGoal).toBe(goal)
   })
 })
 
