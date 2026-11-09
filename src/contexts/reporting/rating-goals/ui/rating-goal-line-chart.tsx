@@ -149,7 +149,10 @@ function Lines({
 
 export function RatingGoalLineChart({ model }: Readonly<{ model: LineChartModel }>) {
   const id = useId()
-  const { active, selected, interactionProps } = useBarSelection(model.stops.length)
+  const { active, selected, interactionProps } = useBarSelection(
+    model.stops.length,
+    model.stops.map((stop) => stop.x / model.pastWidth),
+  )
   const chosen = active === null ? null : (model.stops[selected] ?? null)
   return (
     <figure

@@ -71,6 +71,7 @@ export type {
   MonthlyResultRevisionNotificationFacts,
 } from './ports/monthly-result-notification-facts.lookup'
 export type { GoalMetric, GoalSubject } from '../domain/goal-program'
+export { goalSubjectIdentity } from '../domain/goal-subject'
 export { buildGoalResultsMatrix } from './goal-results-matrix'
 export type {
   GoalResultsMatrix,

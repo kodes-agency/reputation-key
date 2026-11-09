@@ -3,7 +3,8 @@
 // above the bars; a bar that cannot be read draws nothing; a figure sits over a mark
 // that is close above its bar.
 import { describe, expect, it } from 'vitest'
-import { columnsModel, type GoalColumn } from './goal-columns-view'
+import { chosenIndex } from '#/components/hooks/use-bar-selection'
+import { columnsModel, plotMaxWidthRem, type GoalColumn } from './goal-columns-view'
 
 /** A column with nothing but a value; a test adds only what it is about. */
 const column = (key: string, value: number | null, extra: Partial<GoalColumn> = {}) => ({
@@ -201,5 +202,25 @@ describe('what a column keeps of its own', () => {
 
   it('draws no column at all for no columns', () => {
     expect(columnsModel([]).columns).toEqual([])
+  })
+})
+
+describe('where a pointer can choose a column', () => {
+  it('spans the bars themselves, so a pointer is read against the plot it is over', () => {
+    expect(plotMaxWidthRem(3, false)).toBe(21)
+    expect(plotMaxWidthRem(5, false)).toBe(35)
+  })
+
+  it('lets many bars, or a plan line, use the full width', () => {
+    expect(plotMaxWidthRem(6, false)).toBeNull()
+    expect(plotMaxWidthRem(3, true)).toBeNull()
+  })
+
+  it('reads a pointer in a 700 px container against the 336 px plot of three bars', () => {
+    const plot = Math.min(700, (plotMaxWidthRem(3, false) ?? 0) * 16)
+    expect(plot).toBe(336)
+    // 300 px is over the third bar (224 to 336), not the second.
+    expect(chosenIndex(300 / plot, 3)).toBe(2)
+    expect(chosenIndex(100 / plot, 3)).toBe(0)
   })
 })
