@@ -1,5 +1,4 @@
-import { randomBytes } from 'node:crypto'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import { createHash, randomBytes } from 'node:crypto'
 import type { ImportDiscoveryAuthorization } from '../application/ports/google-import-reference-store.port'
 
 export type DurableImportReferenceAudience =
@@ -10,8 +9,9 @@ export type DurableImportInvalidationScope = Readonly<{
   value: string
 }>
 
-const KEY_VERSION = /^[a-z][a-z0-9_-]{0,31}$/u
-const NONCE = /^[A-Za-z0-9_-]{43}$/u
+/** Stored in `key_version` for server-issued random identifiers. */
+const SERVER_ID_VERSION = 'server'
+const SERVER_ID = /^[A-Za-z0-9_-]{43}$/u
 
 const scope = (
   kind: DurableImportInvalidationScope['kind'],
@@ -44,51 +44,40 @@ export const invalidationScopeFor = (
 ): DurableImportInvalidationScope => scope(kind, parts)
 
 export const createDurableImportReferenceKeys = (input: {
-  keys: VersionedHmacKeyring
   random?: (bytes: number) => Buffer
 }) => {
   const random = input.random ?? randomBytes
-  const keyVersions = Object.freeze([
-    input.keys.activeVersion,
-    ...input.keys.retainedVersions,
-  ])
+  // The browser holds the random identifier itself; the row is bound to the
+  // organization, user and connection, and every redemption re-checks them.
   const recordKey = (
-    audience: DurableImportReferenceAudience,
+    _audience: DurableImportReferenceAudience,
     handle: string,
-  ): string | null => {
-    const [version, nonce, extra] = handle.split('.')
-    if (
-      extra !== undefined ||
-      !version ||
-      !nonce ||
-      !KEY_VERSION.test(version) ||
-      !NONCE.test(nonce) ||
-      !keyVersions.includes(version)
-    ) {
-      return null
-    }
-    return input.keys.derive(`google-import-reference:${audience}`, handle, version)
-  }
+  ): string | null => (SERVER_ID.test(handle) ? handle : null)
   const issue = (
     audience: DurableImportReferenceAudience,
   ): Readonly<{ handle: string; key: string; keyVersion: string }> | null => {
     const bytes = random(32)
     if (!Buffer.isBuffer(bytes) || bytes.byteLength !== 32) return null
-    const handle = `${input.keys.activeVersion}.${bytes.toString('base64url')}`
+    const handle = bytes.toString('base64url')
     const key = recordKey(audience, handle)
-    return key ? { handle, key, keyVersion: input.keys.activeVersion } : null
+    return key ? { handle, key, keyVersion: SERVER_ID_VERSION } : null
   }
-  const invalidationKeys = (target: DurableImportInvalidationScope) =>
-    keyVersions.flatMap((keyVersion) => {
-      const key = input.keys.derive(
-        `google-import-reference-invalidation:${target.kind}`,
-        target.value,
-        keyVersion,
-      )
-      return key ? [{ key, keyVersion, scopeKind: target.kind }] : []
-    })
+  const invalidationKeys = (target: DurableImportInvalidationScope) => [
+    {
+      key: createHash('sha256')
+        .update(`google-import-reference-invalidation:${target.kind}\0${target.value}`)
+        .digest('base64url'),
+      keyVersion: SERVER_ID_VERSION,
+      scopeKind: target.kind,
+    },
+  ]
 
-  return Object.freeze({ issue, recordKey, invalidationKeys, keyVersions })
+  return Object.freeze({
+    issue,
+    recordKey,
+    invalidationKeys,
+    keyVersion: SERVER_ID_VERSION,
+  })
 }
 
 export type DurableImportReferenceKeys = ReturnType<

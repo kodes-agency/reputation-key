@@ -26,7 +26,6 @@ import {
   createGoogleImportAcceptanceFixture,
   IMPORT_TEST_NOW,
   IMPORT_TEST_DAY_MS,
-  IMPORT_TEST_REFERENCE_KEYS,
   IMPORT_TEST_ENCRYPTION_KEY,
 } from '#/shared/testing/google-import-acceptance.test-fixtures'
 import { PROPERTY_IMPORT_RETENTION_RELEASED_EVENT } from '#/contexts/integration/application/google-import-v2-contract'
@@ -40,7 +39,6 @@ import {
   createDurableImportReferenceKeys,
   invalidationScopeFor,
 } from '#/contexts/integration/infrastructure/durable-import-reference-keys'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import { member, organization, user } from '#/shared/db/schema/auth'
 import { permissionVersion } from '#/shared/db/schema/dac.schema'
@@ -123,8 +121,7 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
     const otherUserId = randomUUID()
     const connectionId = randomUUID()
     const now = IMPORT_TEST_NOW
-    const keys = createVersionedHmacKeyring(IMPORT_TEST_REFERENCE_KEYS)
-    const invalidationKeys = createDurableImportReferenceKeys({ keys })
+    const invalidationKeys = createDurableImportReferenceKeys({})
       .invalidationKeys(invalidationScopeFor('connection', [orgId, connectionId]))
       .map((fence) => fence.key)
     const encryptionKey = IMPORT_TEST_ENCRYPTION_KEY
@@ -241,7 +238,6 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
         db.select().from(properties).where(eq(properties.organizationId, orgId)),
       async cleanup() {
         await runtime.close()
-        keys.dispose()
         await db.delete(workItems).where(eq(workItems.organizationId, orgId))
         await db.delete(googleImports).where(eq(googleImports.organizationId, orgId))
         await db
