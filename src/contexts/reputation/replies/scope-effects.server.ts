@@ -9,7 +9,9 @@ import {
 } from '#/shared/domain/ids'
 import {
   deleteOrganizationPublicationAttempts,
+  deletePropertyPublicationAttempts,
   releaseOrganizationAttemptConfirmations,
+  releasePropertyAttemptConfirmations,
 } from './row-commands.server'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 
@@ -172,6 +174,18 @@ async function lockReplyReviewsInScope(tx: Tx, scope: SQL): Promise<void> {
   `)
 }
 
+/** Replies carry no Property column; their Review does. */
+const propertyReplyRows = (request: { organizationId: string; propertyId: string }) =>
+  sql`organization_id = ${request.organizationId}
+      AND review_id IN (
+        SELECT id FROM reviews
+        WHERE organization_id = ${request.organizationId}
+          AND property_id = ${request.propertyId})`
+
+const propertyReviews = (request: { organizationId: string; propertyId: string }) =>
+  sql`review.organization_id = ${request.organizationId}
+      AND review.property_id = ${request.propertyId}`
+
 export async function cancelRepliesForOrganizationClosing(
   tx: Tx,
   request: Readonly<{ organizationId: string; occurredAt: Date }>,
@@ -220,6 +234,48 @@ export async function scrubOrganizationReplyContent(
   return result.rowCount ?? 0
 }
 
+export async function cancelRepliesForPropertyClosing(
+  tx: Tx,
+  request: Readonly<{ organizationId: string; propertyId: string; occurredAt: Date }>,
+): Promise<number> {
+  await lockReplyReviewsInScope(tx, propertyReviews(request))
+  const result = await tx.execute(sql`UPDATE replies
+        SET publication_state = 'cancelled',
+            status = 'draft',
+            reconcile_due_at = NULL,
+            updated_at = GREATEST(updated_at, ${request.occurredAt}::timestamptz)
+        WHERE ${propertyReplyRows(request)}
+          AND publication_state IN ('requested', 'authorized')`)
+  return result.rowCount ?? 0
+}
+
+export async function scrubPropertyReplyContent(
+  tx: Tx,
+  request: Readonly<{ organizationId: string; propertyId: string; occurredAt: Date }>,
+): Promise<number> {
+  await lockReplyReviewsInScope(tx, propertyReviews(request))
+  const result = await tx.execute(sql`UPDATE replies
+        SET text = '',
+            rejection_reason = NULL,
+            created_by = NULL,
+            submitted_by = NULL,
+            approved_by = NULL,
+            rejected_by = NULL,
+            reply_language_tag = NULL,
+            reconcile_due_at = NULL,
+            publication_last_error_class = NULL,
+            updated_at = GREATEST(updated_at, ${request.occurredAt}::timestamptz)
+        WHERE ${propertyReplyRows(request)}
+          AND (text <> ''
+               OR rejection_reason IS NOT NULL
+               OR created_by IS NOT NULL
+               OR submitted_by IS NOT NULL
+               OR approved_by IS NOT NULL
+               OR rejected_by IS NOT NULL
+               OR reply_language_tag IS NOT NULL)`)
+  return result.rowCount ?? 0
+}
+
 export function lockOrganizationReplyReviews(
   tx: Tx,
   organizationId: string,
@@ -234,5 +290,9 @@ export const replyScopeEffects = {
   scrubOrganizationReplyContent,
   releaseOrganizationAttemptConfirmations,
   deleteOrganizationPublicationAttempts,
+  cancelRepliesForPropertyClosing,
+  scrubPropertyReplyContent,
+  releasePropertyAttemptConfirmations,
+  deletePropertyPublicationAttempts,
   lockOrganizationReplyReviews,
 } as const

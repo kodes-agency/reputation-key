@@ -63,6 +63,9 @@ const PRESENCE_TABLES = Object.freeze([
   'reply_template_visibility',
 ] as const)
 
+/** Tables with no Property column: a Property request does not touch them. */
+const ORGANIZATION_ONLY_TABLES: ReadonlyArray<string> = ['organization_reply_voices']
+
 const BLOCKER_CODES = Object.freeze([
   'active_reply_publications',
   'unsettled_provider_attempts',
@@ -80,6 +83,41 @@ const propertyScope = (organizationId: string) => sql`(
   UNION
   SELECT DISTINCT property_id::text FROM reviews WHERE organization_id = ${organizationId}
 )`
+
+/** One Organization, or one Property inside it. */
+export type ReviewRightsScope = Readonly<{
+  organizationId: string
+  propertyId?: string
+}>
+
+/** Property ids of the scope: the Property itself, or the Organization's union. */
+const scopeProperties = (scope: ReviewRightsScope) =>
+  scope.propertyId
+    ? sql`(SELECT ${scope.propertyId}::text AS property_id)`
+    : propertyScope(scope.organizationId)
+
+/** Rows of a table that has `organization_id` and `property_id` columns. */
+const scopedRows = (scope: ReviewRightsScope) =>
+  scope.propertyId
+    ? sql`organization_id = ${scope.organizationId} AND property_id = ${scope.propertyId}`
+    : sql`organization_id = ${scope.organizationId}`
+
+/** `scopedRows` against a table alias, for joins. */
+const aliasedScope = (scope: ReviewRightsScope, alias: string) => {
+  const table = sql.identifier(alias)
+  return scope.propertyId
+    ? sql`${table}.organization_id = ${scope.organizationId}
+        AND ${table}.property_id = ${scope.propertyId}`
+    : sql`${table}.organization_id = ${scope.organizationId}`
+}
+
+const scopedReviews = (scope: ReviewRightsScope) =>
+  scope.propertyId
+    ? sql`organization_id = ${scope.organizationId}
+        AND review_id IN (SELECT id FROM reviews
+          WHERE organization_id = ${scope.organizationId}
+            AND property_id = ${scope.propertyId})`
+    : sql`organization_id = ${scope.organizationId}`
 
 function toCount(row: Row | undefined, field: string): number {
   const value = Number(row?.[field])
@@ -100,30 +138,61 @@ async function organizationExists(tx: Tx, organizationId: string): Promise<boole
   return result.rows.length > 0
 }
 
-async function readBlockers(
+/** The Property belongs to the Organization: its row, or a Review that names it. */
+async function propertyInOrganization(
   tx: Tx,
   organizationId: string,
+  propertyId: string,
+): Promise<boolean> {
+  const result = await tx.execute(sql`
+    SELECT 1 AS present FROM properties
+      WHERE organization_id = ${organizationId} AND id = ${propertyId}
+    UNION ALL
+    SELECT 1 FROM reviews
+      WHERE organization_id = ${organizationId} AND property_id = ${propertyId}
+    LIMIT 1`)
+  return result.rows.length > 0
+}
+
+async function scopeExists(tx: Tx, scope: ReviewRightsScope): Promise<boolean> {
+  return scope.propertyId
+    ? propertyInOrganization(tx, scope.organizationId, scope.propertyId)
+    : organizationExists(tx, scope.organizationId)
+}
+
+/** An Organization id or a scope, so the Organization entry points keep their shape. */
+export type ReviewRightsTarget = string | ReviewRightsScope
+
+const scopeOf = (target: ReviewRightsTarget): ReviewRightsScope =>
+  typeof target === 'string' ? { organizationId: target } : target
+
+const notFound = (scope: ReviewRightsScope) =>
+  scope.propertyId ? 'property not found' : 'organization not found'
+
+async function readBlockers(
+  tx: Tx,
+  scope: ReviewRightsScope,
   now: Date,
 ): Promise<ReadonlyArray<Readonly<{ code: string; count: number }>>> {
   const result = await tx.execute(sql`
     SELECT
       (SELECT count(*)::int FROM replies
-        WHERE organization_id = ${organizationId}
+        WHERE ${scopedReviews(scope)}
           AND publication_state IN ('requested', 'authorized', 'sending', 'pending_observation', 'ambiguous')
       ) AS active_reply_publications,
       (SELECT count(*)::int FROM reply_publication_attempts
-        WHERE organization_id = ${organizationId}
+        WHERE ${scopedRows(scope)}
           AND outcome IN ('sending', 'provider_outcome_pending', 'ambiguous')
       ) AS unsettled_provider_attempts,
       (SELECT count(*)::int FROM review_sync_state
-        WHERE property_id IN (SELECT property_id FROM ${propertyScope(organizationId)} AS scope)
+        WHERE property_id IN (SELECT property_id FROM ${scopeProperties(scope)} AS scope)
           AND (next_incremental_at IS NOT NULL
                OR next_inventory_at IS NOT NULL
                OR error_retry_at IS NOT NULL
                OR lease_until > ${now}::timestamptz)
       ) AS unfenced_sync_schedules,
       (SELECT count(*)::int FROM review_provider_snapshot_runs
-        WHERE organization_id = ${organizationId}
+        WHERE ${scopedRows(scope)}
           AND state NOT IN ('completed', 'failed')
           AND expires_at > ${now}::timestamptz
       ) AS open_provider_snapshot_runs
@@ -137,23 +206,24 @@ async function readBlockers(
 /** Counts and blocker codes only. */
 export async function readReviewRightsReport(
   db: Database,
-  organizationId: string,
+  target: ReviewRightsTarget,
   now: Date,
 ): Promise<ReadonlyArray<string>> {
+  const scope = scopeOf(target)
   return db.transaction(
     async (tx) => {
-      if (!(await organizationExists(tx, organizationId))) {
-        return ['organization not found']
-      }
+      if (!(await scopeExists(tx, scope))) return [notFound(scope)]
       const held: string[] = []
       for (const table of PRESENCE_TABLES) {
+        if (scope.propertyId && ORGANIZATION_ONLY_TABLES.includes(table)) continue
+        const rows = table === 'replies' ? scopedReviews(scope) : scopedRows(scope)
         const result = await tx.execute(
           sql`SELECT count(*)::int AS held FROM ${sql.identifier(table)}
-              WHERE organization_id = ${organizationId}`,
+              WHERE ${rows}`,
         )
         held.push(`${table}=${toCount(result.rows[0] as Row | undefined, 'held')}`)
       }
-      const found = await readBlockers(tx, organizationId, now)
+      const found = await readBlockers(tx, scope, now)
       return [
         held.join(' '),
         found.length === 0
@@ -275,7 +345,7 @@ export async function readReviewRightsExport(db: Database, organizationId: strin
 async function fence(
   tx: Tx,
   effects: ReplyScopeEffects,
-  organizationId: string,
+  scope: ReviewRightsScope,
   now: Date,
 ): Promise<number> {
   const schedules = await affected(
@@ -283,15 +353,21 @@ async function fence(
     sql`UPDATE review_sync_state
         SET next_incremental_at = NULL, next_inventory_at = NULL, error_retry_at = NULL,
             updated_at = GREATEST(updated_at, ${now}::timestamptz)
-        WHERE property_id IN (SELECT property_id FROM ${propertyScope(organizationId)} AS scope)
+        WHERE property_id IN (SELECT property_id FROM ${scopeProperties(scope)} AS scope)
           AND (next_incremental_at IS NOT NULL
                OR next_inventory_at IS NOT NULL
                OR error_retry_at IS NOT NULL)`,
   )
-  const publications = await effects.cancelRepliesForOrganizationClosing(tx, {
-    organizationId,
-    occurredAt: now,
-  })
+  const publications = scope.propertyId
+    ? await effects.cancelRepliesForPropertyClosing(tx, {
+        organizationId: scope.organizationId,
+        propertyId: scope.propertyId,
+        occurredAt: now,
+      })
+    : await effects.cancelRepliesForOrganizationClosing(tx, {
+        organizationId: scope.organizationId,
+        occurredAt: now,
+      })
   return schedules + publications
 }
 
@@ -304,18 +380,25 @@ async function fence(
 async function purge(
   tx: Tx,
   effects: ReplyScopeEffects,
-  organizationId: string,
+  scope: ReviewRightsScope,
   now: Date,
 ) {
-  const org = organizationId
-  const scopeRows = sql`property_id IN (SELECT property_id FROM ${propertyScope(org)} AS scope)`
+  const org = scope.organizationId
+  const property = scope.propertyId
+  const rows = scopedRows(scope)
+  const scopeRows = sql`property_id IN (SELECT property_id FROM ${scopeProperties(scope)} AS scope)`
+  const replyRequest = { organizationId: org, occurredAt: now }
   let deleted = 0
   // Reply observations and publication attempts reference each other with
   // RESTRICT keys; releasing the confirmation link first lets both go.
-  await effects.releaseOrganizationAttemptConfirmations(tx, {
-    organizationId: org,
-    occurredAt: now,
-  })
+  if (property) {
+    await effects.releasePropertyAttemptConfirmations(tx, {
+      ...replyRequest,
+      propertyId: property,
+    })
+  } else {
+    await effects.releaseOrganizationAttemptConfirmations(tx, replyRequest)
+  }
   // Children before parents; the snapshot run delete cascades its members and
   // deletion candidates.
   for (const table of [
@@ -331,23 +414,27 @@ async function purge(
     'review_provider_snapshot_runs',
     'review_provider_history_cutoffs',
   ] as const) {
-    deleted += await affected(
-      tx,
-      sql`DELETE FROM ${sql.identifier(table)} WHERE organization_id = ${org}`,
-    )
+    deleted += await affected(tx, sql`DELETE FROM ${sql.identifier(table)} WHERE ${rows}`)
   }
-  deleted += await effects.deleteOrganizationPublicationAttempts(tx, org)
-  let scrubbed = await effects.scrubOrganizationReplyContent(tx, {
-    organizationId: org,
-    occurredAt: now,
-  })
+  deleted += property
+    ? await effects.deletePropertyPublicationAttempts(tx, {
+        organizationId: org,
+        propertyId: property,
+      })
+    : await effects.deleteOrganizationPublicationAttempts(tx, org)
+  let scrubbed = property
+    ? await effects.scrubPropertyReplyContent(tx, {
+        ...replyRequest,
+        propertyId: property,
+      })
+    : await effects.scrubOrganizationReplyContent(tx, replyRequest)
   scrubbed += await affected(
     tx,
     sql`UPDATE material_review_revisions
         SET content_state = 'source_expired', content_erased_at = ${now},
             rating = NULL, normalized_text = NULL,
             updated_at = GREATEST(updated_at, ${now}::timestamptz)
-        WHERE organization_id = ${org} AND content_state = 'active'`,
+        WHERE ${rows} AND content_state = 'active'`,
   )
   scrubbed += await affected(
     tx,
@@ -361,21 +448,38 @@ async function purge(
             ai_source_byte_length = NULL, ai_source_digest = NULL,
             sentiment_label = NULL, sentiment_score = NULL,
             updated_at = GREATEST(updated_at, ${now}::timestamptz)
-        WHERE organization_id = ${org} AND source_content_state = 'active'`,
+        WHERE ${rows} AND source_content_state = 'active'`,
   )
   deleted += await affected(
     tx,
     sql`DELETE FROM idempotency_receipts
         WHERE scope = 'gbp_webhook'
-          AND payload->>'resolvedPropertyId' IN (SELECT property_id FROM ${propertyScope(org)} AS scope)`,
+          AND payload->>'resolvedPropertyId' IN (SELECT property_id FROM ${scopeProperties(scope)} AS scope)`,
   )
   deleted += await affected(tx, sql`DELETE FROM review_sync_runs WHERE ${scopeRows}`)
   deleted += await affected(tx, sql`DELETE FROM review_sync_state WHERE ${scopeRows}`)
+  deleted += await purgeReplyLibrary(tx, scope)
+  return { deleted, scrubbed }
+}
 
-  // The layered reply library, child first.
-  deleted += await affected(
+/**
+ * The layered reply library, child first. An Organization closure takes all of
+ * it; a Property request takes that Property's templates, visibility and voice.
+ */
+async function purgeReplyLibrary(tx: Tx, scope: ReviewRightsScope): Promise<number> {
+  const org = scope.organizationId
+  const property = scope.propertyId
+  const templates = property
+    ? sql`organization_id = ${org} AND property_id = ${property}`
+    : sql`organization_id = ${org}`
+  let deleted = await affected(
     tx,
-    sql`DELETE FROM reply_template_visibility WHERE organization_id = ${org}`,
+    property
+      ? sql`DELETE FROM reply_template_visibility
+            WHERE organization_id = ${org}
+              AND (property_id = ${property}
+                OR template_id IN (SELECT id FROM reply_templates WHERE ${templates}))`
+      : sql`DELETE FROM reply_template_visibility WHERE organization_id = ${org}`,
   )
   deleted += await affected(
     tx,
@@ -383,28 +487,29 @@ async function purge(
         WHERE revision_id IN (
           SELECT revision.id FROM reply_template_revisions AS revision
           JOIN reply_templates AS template ON template.id = revision.template_id
-          WHERE template.organization_id = ${org})`,
+          WHERE ${aliasedScope(scope, 'template')})`,
   )
   await affected(
     tx,
-    sql`UPDATE reply_templates SET current_revision_id = NULL WHERE organization_id = ${org}`,
+    sql`UPDATE reply_templates SET current_revision_id = NULL WHERE ${templates}`,
   )
   deleted += await affected(
     tx,
     sql`DELETE FROM reply_template_revisions
-        WHERE template_id IN (SELECT id FROM reply_templates WHERE organization_id = ${org})`,
+        WHERE template_id IN (SELECT id FROM reply_templates WHERE ${templates})`,
   )
-  for (const table of [
-    'reply_templates',
-    'property_reply_voices',
-    'organization_reply_voices',
-  ] as const) {
+  deleted += await affected(tx, sql`DELETE FROM reply_templates WHERE ${templates}`)
+  deleted += await affected(
+    tx,
+    sql`DELETE FROM property_reply_voices WHERE ${scopedRows(scope)}`,
+  )
+  if (!property) {
     deleted += await affected(
       tx,
-      sql`DELETE FROM ${sql.identifier(table)} WHERE organization_id = ${org}`,
+      sql`DELETE FROM organization_reply_voices WHERE organization_id = ${org}`,
     )
   }
-  return { deleted, scrubbed }
+  return deleted
 }
 
 export type ReviewClosureOutcome =
@@ -429,17 +534,18 @@ class RefusalProbeRolledBack extends Error {}
 export async function reviewClosureRefusal(
   db: Database,
   effects: ReplyScopeEffects,
-  organizationId: string,
+  target: ReviewRightsTarget,
   now: Date,
 ): Promise<string | null> {
+  const scope = scopeOf(target)
   const probe: { refusal: string | null } = { refusal: null }
   try {
     await db.transaction(async (tx) => {
-      if (!(await organizationExists(tx, organizationId))) {
-        probe.refusal = 'organization not found'
+      if (!(await scopeExists(tx, scope))) {
+        probe.refusal = notFound(scope)
       } else {
-        await fence(tx, effects, organizationId, now)
-        const found = await readBlockers(tx, organizationId, now)
+        await fence(tx, effects, scope, now)
+        const found = await readBlockers(tx, scope, now)
         probe.refusal = found.length > 0 ? notReadyMessage(found) : null
       }
       throw new RefusalProbeRolledBack()
@@ -457,32 +563,31 @@ export async function reviewClosureRefusal(
 export async function closeReviewInTx(
   tx: Tx,
   effects: ReplyScopeEffects,
-  organizationId: string,
+  target: ReviewRightsTarget,
   now: Date,
 ): Promise<ReviewClosureOutcome> {
-  if (!(await organizationExists(tx, organizationId))) {
-    return { ok: false, error: 'organization not found' }
-  }
-  await fence(tx, effects, organizationId, now)
-  const found = await readBlockers(tx, organizationId, now)
+  const scope = scopeOf(target)
+  if (!(await scopeExists(tx, scope))) return { ok: false, error: notFound(scope) }
+  await fence(tx, effects, scope, now)
+  const found = await readBlockers(tx, scope, now)
   if (found.length > 0) {
     throw new ReviewNotReady(notReadyMessage(found))
   }
-  return { ok: true, ...(await purge(tx, effects, organizationId, now)) }
+  return { ok: true, ...(await purge(tx, effects, scope, now)) }
 }
 
 /**
  * Fence, check readiness, purge — one transaction. A blocker rolls the fence
- * back too, so a refused closure leaves the Organization exactly as it was.
+ * back too, so a refused closure leaves the scope exactly as it was.
  */
 export async function closeReview(
   db: Database,
   effects: ReplyScopeEffects,
-  organizationId: string,
+  target: ReviewRightsTarget,
   now: Date,
 ): Promise<ReviewClosureOutcome> {
   try {
-    return await db.transaction((tx) => closeReviewInTx(tx, effects, organizationId, now))
+    return await db.transaction((tx) => closeReviewInTx(tx, effects, target, now))
   } catch (error) {
     if (error instanceof ReviewNotReady) return { ok: false, error: error.message }
     throw error

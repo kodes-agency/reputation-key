@@ -6,11 +6,12 @@ import { composeRightsExecutors } from './rights-executors'
 const deps = { db: {} as Database, runNotification: vi.fn() }
 
 describe('composeRightsExecutors', () => {
-  it('composes the five context executors in order', () => {
+  it('composes the context executors in order', () => {
     expect(composeRightsExecutors(deps, false).map(({ name }) => name)).toEqual([
       'google-integration',
       'review',
       'inbox',
+      'guest',
       'reporting',
       'identity-grants',
       'staff',
@@ -42,18 +43,23 @@ describe('composeRightsExecutors', () => {
       'google-integration',
       'review',
       'inbox',
+      'guest',
       'reporting',
       'staff',
       'notification',
     ])
   })
 
-  it('covers the property scope with the Google, grant and Property executors', () => {
+  it('covers the property scope with every Property erasure executor', () => {
     const covering = composeRightsExecutors(deps, false)
       .filter(({ scopes }) => scopes.includes('property'))
       .map(({ name }) => name)
     expect(covering).toEqual([
       'google-integration',
+      'review',
+      'inbox',
+      'guest',
+      'reporting',
       'identity-grants',
       'property',
       'notification',

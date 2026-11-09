@@ -101,9 +101,7 @@ async function integrationFootprint(
     SELECT
       (SELECT count(*)::int FROM google_connections
         WHERE organization_id = ${organizationId}) AS connections,
-      (SELECT count(*)::int FROM gbp_import_requests
-        WHERE organization_id = ${organizationId})
-      + (SELECT count(*)::int FROM google_imports
+      (SELECT count(*)::int FROM google_imports
         WHERE organization_id = ${organizationId}) AS imports
   `)
   const row = result.rows[0] as CountRow | undefined
@@ -233,32 +231,10 @@ const prepareClosing =
     `)
 
     // Import parents are FENCED, not terminalized: closing keeps data. Bumping
-    // `deletion_fence` and voiding the replay digests is the same fence the
-    // reviewed import lifecycle uses (`fenceLifecycleParent`), and its
-    // `wire_replay_digest IS NOT NULL` guard is what makes a second pass a
-    // no-op instead of a double bump.
-    //
-    // `google_imports` replay digests are NOT NULL, so its parent is fenced by
-    // the deletion fence alone; the zero guard keeps a second pass, and the
+    // `deletion_fence` is the same fence the reviewed import lifecycle uses
+    // (`fenceLifecycleParent`); the zero guard keeps a second pass, and the
     // lifecycle sweep that bumps the same column, from double counting.
-    //
-    // `gbp_import_sagas` has no fenceable column — its replay version/digest
-    // pair is NOT NULL by schema, so the saga header can only be voided by
-    // deleting the row, which closing must never do. A saga is an aggregate
-    // over its batches, so fencing every batch fences the saga.
     const importsFenced = await tx.execute(sql`
-      UPDATE gbp_import_requests
-      SET deletion_fence = deletion_fence + 1,
-          wire_replay_key_version = NULL,
-          wire_replay_digest = NULL,
-          semantic_replay_key_version = NULL,
-          semantic_replay_digest = NULL,
-          updated_at = ${request.occurredAt}
-      WHERE organization_id = ${request.organizationId}
-        AND wire_replay_digest IS NOT NULL
-      RETURNING id
-    `)
-    const singleRootImportsFenced = await tx.execute(sql`
       UPDATE google_imports
       SET deletion_fence = deletion_fence + 1,
           updated_at = ${request.occurredAt}
@@ -273,7 +249,7 @@ const prepareClosing =
         fenced.rows.length,
         subscriptionsStopped,
         credentialsRevoked,
-        importsFenced.rows.length + singleRootImportsFenced.rows.length,
+        importsFenced.rows.length,
       ]),
     }
   }
@@ -319,10 +295,7 @@ const verifyPurgeReadiness = async (
             OR google_subject IS NOT NULL
             OR status NOT IN ('disconnected', 'failed')
           )) AS live_connections,
-      (SELECT count(*)::int FROM gbp_import_request_items
-        WHERE organization_id = ${request.organizationId}
-          AND status IN ('pending', 'processing'))
-      + (SELECT count(*)::int FROM google_import_items
+      (SELECT count(*)::int FROM google_import_items
         WHERE organization_id = ${request.organizationId}
           AND status IN ('pending', 'processing')) AS in_flight_import_items,
       (SELECT count(*)::int FROM idempotency_receipts
@@ -365,17 +338,12 @@ const verifyPurgeReadiness = async (
  * foreign-key-safe order.
  *
  * Every entry is a ROW delete scoped to one `organization_id`. No table is
- * dropped, and the legacy `gbp_*` compatibility mirrors keep existing: they are
- * emptied for this tenant exactly like any other table, because a compatibility
- * mirror holds the same provider content under an older shape.
+ * dropped.
  */
 const PURGE_DELETE_TABLES = Object.freeze([
   // Import work, children before parents.
   'google_import_items',
   'google_imports',
-  'gbp_import_request_items',
-  'gbp_import_requests',
-  'gbp_import_sagas',
   // Pre-confirmation provider candidate pages behind HMAC handles.
   'google_import_discovery_records',
 ] as const)

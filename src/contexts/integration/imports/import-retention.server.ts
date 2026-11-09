@@ -10,12 +10,10 @@ import {
   parentScope,
   retentionReleasedEvent,
 } from './import-store-helpers.server'
-import { createLegacyImportRetention } from './legacy-import-retention.server'
 
 export function createImportRetention(
   db: Database,
 ): Pick<GoogleImportV2Store, 'listPurgeCandidates' | 'purgeParent'> {
-  const legacy = createLegacyImportRetention(db)
   return {
     listPurgeCandidates: async (now, limit) => {
       assertLifecycleSweepLimit(limit)
@@ -37,16 +35,9 @@ export function createImportRetention(
         )
         .orderBy(asc(googleImports.purgeAt), asc(googleImports.id))
         .limit(limit)
-      if (current.length >= limit) return current
-      return [
-        ...current,
-        ...(await legacy.listPurgeCandidates(now, limit - current.length)),
-      ]
+      return current
     },
-    purgeParent: async (input) => {
-      const purged = await purgeCurrent(input)
-      return purged === 'lost' ? legacy.purgeParent(input) : purged
-    },
+    purgeParent: purgeCurrent,
   }
 
   function purgeCurrent(input: Parameters<GoogleImportV2Store['purgeParent']>[0]) {

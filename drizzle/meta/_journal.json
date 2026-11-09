@@ -869,6 +869,13 @@
       "when": 1800000004000,
       "tag": "0123_resend_event_ordering",
       "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1800000005000,
+      "tag": "0124_drop_old_google_import_tables",
+      "breakpoints": true
     }
   ]
 }

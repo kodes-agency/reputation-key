@@ -2,12 +2,17 @@
 // script supplies effects it owns (the database, the job queue); this module
 // decides which executors exist for a request and what each one is given.
 
+import { randomUUID } from 'node:crypto'
 import type { Database } from '#/shared/db'
 import {
   createIdentityPropertyRightsExecutor,
   createStaffOrganizationRightsExecutor,
 } from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
 import { createPropertyRightsExecutor } from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
+import {
+  createGuestRightsExecutor,
+  type GuestRightsExecutorDeps,
+} from '#/contexts/guest/infrastructure/adapters/guest-rights.adapter'
 import { createReportingRightsExecutor } from '#/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
 import { createGoogleRightsExecutor } from '#/shared/ops/rights/google-rights-executor'
 import {
@@ -24,6 +29,8 @@ import { reputationReplyScopeEffects } from './reply-scope-effects'
 export type RightsExecutorsDeps = Readonly<{
   db: Database
   runNotification: NotificationRightsExecutorDeps['run']
+  /** The named operator for guest-response erasure; absent means that apply is denied. */
+  operator?: GuestRightsExecutorDeps['operator']
   now?: () => Date
 }>
 
@@ -46,6 +53,12 @@ export function composeRightsExecutors(
       replyEffects: reputationReplyScopeEffects,
     }),
     createInboxRightsExecutor({ db: deps.db, now }),
+    createGuestRightsExecutor({
+      db: deps.db,
+      now,
+      idGen: randomUUID,
+      operator: deps.operator,
+    }),
     createReportingRightsExecutor(deps.db, now),
     createIdentityPropertyRightsExecutor(deps.db),
     createStaffOrganizationRightsExecutor(deps.db),
