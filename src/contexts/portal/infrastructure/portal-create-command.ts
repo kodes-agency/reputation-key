@@ -27,7 +27,7 @@ import { portalError } from '../domain/errors'
 import { portalToRow } from './mappers/portal.mapper'
 import { assertCommittedRevision } from './portal-command-guards'
 import { assertCreateCommand } from './portal-create-guards'
-import { joinPortalGroupInTransaction } from './portal-group-commands'
+import { joinPortalGroupInTransaction } from '../publication/portal-group-commands.server'
 import { insertCopiedContent, refusingGoneLookImage } from './portal-copied-content'
 import {
   PORTAL_SLUG_UNIQUE,

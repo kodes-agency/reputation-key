@@ -42,13 +42,13 @@ import {
   assertCommittedRevision,
   sameInstant,
 } from '../infrastructure/portal-command-guards'
-import { createPortalGroupCommands } from '../infrastructure/portal-group-commands'
-import { createPortalLinkCommands } from '../infrastructure/portal-link-commands'
+import { createPortalGroupCommands } from './portal-group-commands.server'
+import { createPortalLinkCommands } from './portal-link-commands.server'
 import {
   assertLocaleSetFact,
   watchPrimaryLocaleChange,
 } from '../infrastructure/portal-locale-set'
-import { createPortalTokenCommands } from '../infrastructure/portal-token-commands'
+import { createPortalTokenCommands } from './portal-token-commands.server'
 import {
   activationToRow,
   assertSnapshotMatchesCommittedWorkingCopy,

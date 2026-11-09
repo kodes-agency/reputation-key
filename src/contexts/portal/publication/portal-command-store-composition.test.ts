@@ -5,11 +5,11 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
 import { createAtomicPortalCommandStore } from './portal-command-store.server'
-import { createPortalGroupCommands } from '../infrastructure/portal-group-commands'
-import { createPortalLinkCommands } from '../infrastructure/portal-link-commands'
-import { createPortalLinktreeCommands } from '../infrastructure/portal-linktree-commands'
+import { createPortalGroupCommands } from './portal-group-commands.server'
+import { createPortalLinkCommands } from './portal-link-commands.server'
+import { createPortalLinktreeCommands } from './portal-linktree-commands.server'
 import { createPortalPublicationCommands } from '../infrastructure/portal-publication-commands'
-import { createPortalTokenCommands } from '../infrastructure/portal-token-commands'
+import { createPortalTokenCommands } from './portal-token-commands.server'
 
 const db = {} as Database
 

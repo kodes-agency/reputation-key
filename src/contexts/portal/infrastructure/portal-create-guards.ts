@@ -11,7 +11,7 @@ import { MAX_PORTAL_LINKS } from '../domain/portal-linktree'
 import { portalError } from '../domain/errors'
 import type { CreatePortalCommand } from '../application/ports/portal-command-store.port'
 import { sameInstant } from './portal-command-guards'
-import { assertMembershipCommand } from './portal-group-commands'
+import { assertMembershipCommand } from '../publication/portal-group-commands.server'
 
 /** The `portal.created` fact must name exactly the Portal being written. */
 function matchesPortalCreationScope(command: CreatePortalCommand): boolean {

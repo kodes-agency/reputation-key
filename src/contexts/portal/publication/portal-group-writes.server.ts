@@ -1,5 +1,5 @@
 import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
-import { assertPersonalGroupTarget } from './personal-portal-group-guard'
+import { assertPersonalGroupTarget } from '../infrastructure/personal-portal-group-guard'
 // Portal command store — the writes the group commands share: the group fence,
 // the Portal and membership locks, ending and beginning a membership, and the
 // history ledger. Every group command takes its fences before it locks a Portal
@@ -21,7 +21,7 @@ import type {
 import { unbrand } from '#/shared/domain/ids'
 import { portalError } from '../domain/errors'
 import type { PortalGroupHistoryDraft } from '../domain/portal-group-history'
-import { assertCommittedRevision } from './portal-command-guards'
+import { assertCommittedRevision } from '../infrastructure/portal-command-guards'
 
 export type PortalGroupFence = Readonly<{
   organizationId: OrganizationId
