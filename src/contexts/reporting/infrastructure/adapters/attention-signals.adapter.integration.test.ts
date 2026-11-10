@@ -52,14 +52,21 @@ beforeAll(async () => {
   ] as const) {
     await client.query(
       `INSERT INTO reviews (
-         id, organization_id, property_id, platform, external_id,
-         external_location_id, rating, reviewed_at, expires_at, content_expires_at,
-         source_epoch, source_revision, analysis_sequence,
+         id, organization_id, property_id, platform, first_fetched_at,
+         source_epoch, source_revision, analysis_sequence
+       ) VALUES ($1, $2, $3, 'google', '2026-08-20T00:00:00Z', 0, 0, 0)`,
+      [id, ORGANIZATION, PROPERTY],
+    )
+    await client.query(
+      `INSERT INTO review_source_contents (
+         review_id, organization_id, property_id, platform, external_id,
+         external_location_id, rating, reviewed_at, content_expires_at,
+         first_fetched_at, last_fetched_at, source_epoch, source_revision,
          ai_source_byte_length, ai_source_digest
        ) VALUES (
          $1, $2, $3, 'google', $4, 'locations/attention', 4,
          '2026-08-20T00:00:00Z', '2026-09-25T00:00:00Z',
-         '2026-09-25T00:00:00Z', 0, 0, 0, 1, repeat('0', 64)
+         '2026-08-20T00:00:00Z', '2026-08-20T00:00:00Z', 0, 0, 1, repeat('0', 64)
        )`,
       [id, ORGANIZATION, PROPERTY, externalId],
     )

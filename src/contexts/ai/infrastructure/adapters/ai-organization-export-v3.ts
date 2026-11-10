@@ -56,7 +56,7 @@ export function reviewAnalysisServingFence(organizationId: string, asOfIso: stri
               AND review.source_epoch = analysis.source_epoch
               AND review.source_revision = analysis.source_revision
               AND review.analysis_sequence = analysis.analysis_sequence
-              AND review.content_expires_at > ${asOfIso}::timestamptz
+              AND EXISTS (SELECT 1 FROM review_source_contents content WHERE content.review_id = review.id AND content.organization_id = review.organization_id AND content.property_id = review.property_id AND content.content_expires_at > ${asOfIso}::timestamptz)
               AND analysis.expires_at > ${asOfIso}::timestamptz`
 }
 

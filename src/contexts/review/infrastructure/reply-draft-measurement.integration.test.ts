@@ -110,7 +110,9 @@ describe('content-free draft measurement through the reply workflow', () => {
     expect(published.published_at).not.toBeNull()
     expect(await currentLink()).toBe(generation.id)
     const review = (
-      await pool.query('SELECT text FROM reviews WHERE id = $1', [WORKFLOW_REVIEW])
+      await pool.query('SELECT text FROM review_source_contents WHERE review_id = $1', [
+        WORKFLOW_REVIEW,
+      ])
     ).rows[0]
     const serialized = JSON.stringify(await measurements())
     for (const text of [DRAFT, EDIT, review.text])

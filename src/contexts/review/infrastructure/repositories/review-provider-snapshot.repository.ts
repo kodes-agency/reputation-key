@@ -7,6 +7,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { and, asc, eq, gt, inArray, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
+import { requireReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { Tx } from '#/shared/outbox/commit'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
@@ -38,7 +39,7 @@ import {
 } from '../../domain/events'
 import { domainError } from '#/shared/domain/errors'
 import { historyListedSince } from './review-provider-history-listed'
-import { eraseReviewSourceContent } from '../review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { lockReviewSourceMutationScope } from '../review-source-mutation-serialization'
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
 import {
@@ -390,7 +391,7 @@ async function applyDeletionCandidate(
       expectedSourceRevision: candidate.expectedSourceRevision,
       state: 'provider_deleted',
     },
-    replyEffects,
+    requireReplyScopeEffects(replyEffects),
   )
   if (!erased) {
     await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
@@ -1089,15 +1090,15 @@ export const createReviewProviderSnapshotRepository = (
 
   readNextLinkedCandidate: async ({ runId }) => {
     const rows = await db.execute(sql`
-      SELECT c.run_id, c.review_id, c.expected_mapping_state,
-             c.expected_source_revision, c.state,
-             r.external_location_id || '/reviews/' || r.external_id AS review_name
+      SELECT c.run_id, c.review_id, c.expected_mapping_state, c.expected_source_revision, c.state,
+             content.external_location_id || '/reviews/' || content.external_id AS review_name
       FROM review_provider_deletion_candidates c
       JOIN review_provider_snapshot_runs run ON run.id = c.run_id
       JOIN reviews r ON r.id = c.review_id
         AND r.organization_id = run.organization_id
         AND r.property_id = run.property_id
         AND r.source_epoch = run.source_epoch
+      LEFT JOIN review_source_contents content ON content.review_id = r.id AND content.organization_id = r.organization_id AND content.property_id = r.property_id
       WHERE c.run_id = ${runId}
         AND c.state = 'pending'
         AND run.confirmation_deadline > transaction_timestamp()
@@ -1353,11 +1354,8 @@ export const createReviewProviderSnapshotRepository = (
           lockedReviewsById.get(candidate.reviewId),
           replyEffects,
         )
-        if (outcome.kind === 'applied') {
-          applied += 1
-        } else {
-          observed += 1
-        }
+        if (outcome.kind === 'applied') applied += 1
+        else observed += 1
       }
       const last = candidates.at(-1)?.reviewId ?? run.applyCursorReviewId
       const more =

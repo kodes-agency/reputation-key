@@ -1,3 +1,4 @@
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -131,12 +132,20 @@ export const createAiPropertyAggregateStoreAdapter = (
         }
         const [currentReview] = await tx
           .select({
-            rating: sql<number>`${reviews.rating}`,
+            rating: sql<number>`${reviewSourceContents.rating}`,
             localDate: sql<string | null>`ai_property_local_date_v1(
-              ${reviews.reviewedAt}, ${analysis.timezone}
+              ${reviewSourceContents.reviewedAt}, ${analysis.timezone}
             )::text`,
           })
           .from(reviews)
+          .innerJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),
@@ -146,8 +155,8 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(reviews.sourceRevision, input.sourceRevision),
               eq(reviews.analysisSequence, input.analysisSequence),
               eq(reviews.sourceContentState, 'active'),
-              isNotNull(reviews.rating),
-              isNotNull(reviews.reviewedAt),
+              isNotNull(reviewSourceContents.rating),
+              isNotNull(reviewSourceContents.reviewedAt),
             ),
           )
           .limit(1)

@@ -141,12 +141,24 @@ async function seedReview(
   analysisSequence: number,
 ): Promise<void> {
   await lease.pool.query(
-    `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id, reviewer_name,
+    `INSERT INTO reviews (id, organization_id, property_id, platform,
+       first_fetched_at, source_epoch, source_revision, analysis_sequence)
+     VALUES ($1, $2, $3, 'google', $4, 0, 1, $5)`,
+    [
+      reviewId,
+      fixture.organizationId,
+      fixture.propertyId,
+      new Date('2026-08-20T10:00:00.000Z'),
+      analysisSequence,
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id, reviewer_name,
        rating, text, language_code, reviewed_at, content_expires_at,
-       source_epoch, source_revision, analysis_sequence, ai_source_byte_length,
-       ai_source_digest
-     ) VALUES ($1, $2, $3, 'google', $4, $5, 5, $6, 'en', $7, $8, 0, 1, $9, 20, $10)`,
+       source_epoch, source_revision, ai_source_byte_length,
+       ai_source_digest, external_location_id, first_fetched_at, last_fetched_at
+     ) VALUES ($1, $2, $3, 'google', $4, $5, 5, $6, 'en', $7, $8, 0, 1, 20, $9, 'locations/ai-export-fixture', $7, $7)`,
     [
       reviewId,
       fixture.organizationId,
@@ -156,7 +168,6 @@ async function seedReview(
       MARKERS.reviewText,
       new Date('2026-08-20T10:00:00.000Z'),
       new Date('2027-08-20T10:00:00.000Z'),
-      analysisSequence,
       'a'.repeat(64),
     ],
   )

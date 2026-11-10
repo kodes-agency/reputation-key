@@ -1,3 +1,4 @@
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 // Health metrics — operational health for the outbox, queues, and content
 // lifecycle (PRE17C / BQR-1.4).
 //
@@ -16,7 +17,7 @@
 
 import { DEFAULT_LEASE_DURATION_MS, type OutboxRepository } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
-import { eq, sql, type SQL } from 'drizzle-orm'
+import { and, eq, sql, type SQL } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
@@ -931,20 +932,20 @@ async function readReviewContentMetrics(
   const result = await db
     .select({
       total: sql<number>`
-        count(*) FILTER (WHERE ${reviews.contentExpiresAt} IS NOT NULL)::int
+        count(*) FILTER (WHERE ${reviewSourceContents.contentExpiresAt} IS NOT NULL)::int
       `,
       refresh_due: sql<number>`
         count(*) FILTER (
-          WHERE ${reviews.contentExpiresAt} IS NOT NULL
-            AND ${reviews.lastFetchedAt} IS NOT NULL
-            AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
+          WHERE ${reviewSourceContents.contentExpiresAt} IS NOT NULL
+            AND ${reviewSourceContents.lastFetchedAt} IS NOT NULL
+            AND NOW() > (${reviewSourceContents.lastFetchedAt} + INTERVAL '25 days')
             AND ${refreshable}
         )::int
       `,
       expired: sql<number>`
         count(*) FILTER (
-          WHERE ${reviews.contentExpiresAt} IS NOT NULL
-            AND ${reviews.contentExpiresAt} < NOW()
+          WHERE ${reviewSourceContents.contentExpiresAt} IS NOT NULL
+            AND ${reviewSourceContents.contentExpiresAt} < NOW()
         )::int
       `,
       // BQC-1.5: oldest refresh-due expiry age (seconds until the
@@ -952,17 +953,25 @@ async function readReviewContentMetrics(
       // "before the policy deadline"). NULL when nothing is due.
       oldest_due_age_seconds: sql<number>`
         extract(epoch from (
-          min(${reviews.contentExpiresAt}) FILTER (
-            WHERE ${reviews.contentExpiresAt} IS NOT NULL
-              AND ${reviews.lastFetchedAt} IS NOT NULL
-              AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
-              AND ${reviews.contentExpiresAt} >= NOW()
+          min(${reviewSourceContents.contentExpiresAt}) FILTER (
+            WHERE ${reviewSourceContents.contentExpiresAt} IS NOT NULL
+              AND ${reviewSourceContents.lastFetchedAt} IS NOT NULL
+              AND NOW() > (${reviewSourceContents.lastFetchedAt} + INTERVAL '25 days')
+              AND ${reviewSourceContents.contentExpiresAt} >= NOW()
               AND ${refreshable}
           ) - NOW()
         ))::int
       `,
     })
     .from(reviews)
+    .innerJoin(
+      reviewSourceContents,
+      and(
+        eq(reviewSourceContents.reviewId, reviews.id),
+        eq(reviewSourceContents.organizationId, reviews.organizationId),
+        eq(reviewSourceContents.propertyId, reviews.propertyId),
+      ),
+    )
     .where(eq(reviews.sourceContentState, 'active'))
 
   const row = result[0]

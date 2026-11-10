@@ -16,7 +16,7 @@ import { insertLiveReview } from '#/shared/testing/review-tombstone-fixtures'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createEligibleReads } from '../../application/eligible-reads'
 import { createServingStats } from '../serving-stats'
-import { eraseReviewSourceContent } from '../review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createReviewRepository } from './review.repository'
 
 const ORG = organizationId('org-review-content-readers-1111111111')
@@ -139,10 +139,6 @@ describe('readers of provider content', () => {
       `UPDATE review_source_contents SET content_expires_at = $2 WHERE review_id = $1`,
       [REVIEW, CLOCK_LAPSED],
     )
-    await pool.query(`UPDATE reviews SET content_expires_at = $2 WHERE id = $1`, [
-      REVIEW,
-      CLOCK_LAPSED,
-    ])
 
     expect(await eligible.getReviewSnippetById(REVIEW, ORG)).toEqual({
       status: 'expired',
