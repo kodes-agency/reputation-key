@@ -30,7 +30,7 @@ async function propertyExists(
 }
 
 /** Erases the Property inside the caller's transaction; returns the rows changed. */
-export async function erasePropertyTombstoneInTx(
+async function erasePropertyTombstoneInTx(
   tx: Tx,
   scope: Readonly<{ organizationId: string; propertyId: string }>,
   erasedAt: Date,
@@ -60,6 +60,7 @@ export function createPropertyRightsExecutor(
   return Object.freeze({
     name: CONTEXT,
     scopes: ['property'] as const,
+    tables: { property: ['properties', 'property_responsible_managers'] },
     journalContexts: [CONTEXT] as const,
     async preflight(plan) {
       if (!plan.propertyId) return { ok: false, error: '--property is required' }

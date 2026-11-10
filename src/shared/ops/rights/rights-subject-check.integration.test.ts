@@ -91,6 +91,7 @@ describe.sequential('rights subject check', () => {
       name: 'a',
       scopes: ['property'],
       journalContexts: ['review'],
+      tables: {},
       report: async () => [],
       exportFiles: async () => [],
       preflight,

@@ -27,6 +27,7 @@ function run(plan: RightsRequestPlan, finalWarning: boolean) {
   const runs: NotificationRightsRun[] = []
   const executor = createNotificationRightsExecutor({
     finalWarning,
+    tables: { organization: ['notifications'] },
     run: vi.fn(async (request) => {
       runs.push(request)
       return { lines: ['queued=1'] }

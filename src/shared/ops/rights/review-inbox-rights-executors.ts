@@ -17,6 +17,7 @@ import {
   closeInbox,
   closeInboxInTx,
   inboxClosureRefusal,
+  INBOX_RIGHTS_TABLES,
   readInboxRightsExport,
   readInboxRightsReport,
   type InboxRightsTarget,
@@ -25,6 +26,7 @@ import {
   closeReview,
   closeReviewInTx,
   reviewClosureRefusal,
+  REVIEW_RIGHTS_TABLES,
   type ReviewRightsTarget,
   readReviewRightsExport,
   readReviewRightsReport,
@@ -70,6 +72,7 @@ export function createReviewRightsExecutor(deps: ReviewRightsDeps): RightsExecut
   return Object.freeze({
     name: 'review',
     scopes: ['access', 'organization', 'property'] as const,
+    tables: REVIEW_RIGHTS_TABLES,
     journalContexts: ['review'] as const,
     async preflight(plan) {
       if (plan.scope === 'property' && !plan.propertyId) {
@@ -115,6 +118,7 @@ export function createInboxRightsExecutor(deps: ReviewInboxRightsDeps): RightsEx
   return Object.freeze({
     name: 'inbox',
     scopes: ['access', 'organization', 'property'] as const,
+    tables: INBOX_RIGHTS_TABLES,
     journalContexts: ['inbox'] as const,
     async preflight(plan) {
       if (plan.scope === 'property' && !plan.propertyId) {

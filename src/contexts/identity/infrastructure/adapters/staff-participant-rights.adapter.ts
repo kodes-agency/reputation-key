@@ -22,6 +22,26 @@ export type StaffParticipantRightsDeps = Readonly<{
   now: () => Date
 }>
 
+/** The Staff rows a participant erasure pseudonymises or removes, with their logins. */
+const STAFF_PARTICIPANT_TABLES = Object.freeze([
+  'staff_participants',
+  'staff_participations',
+  'staff_user_links',
+  'staff_onboardings',
+  'portal_responsibilities',
+  'property_access_grants',
+  'property_access_grant',
+  'merchant_ai_notice_update_receipts',
+  'product_update_settings',
+  'product_update_receipts',
+  'invitation',
+  'member',
+  'verification',
+  'session',
+  'account',
+  'user',
+])
+
 const NO_MATCH = 'no Staff Participant in this Organization matches subject-ref'
 
 function batchesOf<T>(
@@ -47,6 +67,7 @@ export function createStaffParticipantRightsExecutor(
   return Object.freeze({
     name: 'staff-participant',
     scopes: ['participant'] as const,
+    tables: { participant: STAFF_PARTICIPANT_TABLES },
     // Every batch writes its own entry naming its ids; a scope-level entry could
     // not be replayed.
     journalContexts: [] as const,

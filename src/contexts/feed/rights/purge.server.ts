@@ -73,3 +73,19 @@ export async function purgeNotificationRightsData(
   }
   return counts
 }
+
+/** Rows the purge would delete, per table, so a report sizes the whole purge. */
+export async function countNotificationRightsData(
+  db: Pick<Database, 'execute'>,
+  scope: NotificationRightsScope,
+): Promise<NotificationPurgeCounts> {
+  const steps = scope.propertyId ? PROPERTY_STEPS : ORGANIZATION_STEPS
+  const counts: Record<string, number> = {}
+  for (const step of steps) {
+    const result = await db.execute(sql`
+      SELECT count(*)::int AS n FROM ${sql.identifier(step.table)}
+       WHERE ${step.predicate(scope as Required<NotificationRightsScope>)}`)
+    counts[step.table] = Number((result.rows[0] as { n?: number } | undefined)?.n ?? 0)
+  }
+  return counts
+}

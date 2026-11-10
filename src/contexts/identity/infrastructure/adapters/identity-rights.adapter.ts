@@ -20,6 +20,12 @@ import {
 
 const grants = createIdentityPropertyEraseContributor()
 
+const IDENTITY_GRANT_TABLES = Object.freeze([
+  'merchant_ai_decision_deferrals',
+  'property_access_grants',
+  'property_access_grant',
+])
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'unexpected error'
 }
@@ -28,6 +34,7 @@ export function createIdentityPropertyRightsExecutor(db: Database): RightsExecut
   return Object.freeze({
     name: 'identity-grants',
     scopes: ['property'] as const,
+    tables: { property: IDENTITY_GRANT_TABLES },
     journalContexts: ['identity'] as const,
     async preflight(plan) {
       return plan.propertyId
@@ -97,6 +104,7 @@ export function createStaffOrganizationRightsExecutor(db: Database): RightsExecu
   return Object.freeze({
     name: 'staff',
     scopes: ['organization'] as const,
+    tables: { organization: STAFF_LIFECYCLE_TABLES },
     journalContexts: ['staff'] as const,
     async preflight(plan) {
       const refusal = await db.transaction(
