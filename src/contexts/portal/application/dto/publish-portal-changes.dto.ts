@@ -14,8 +14,8 @@ export const publishPortalChangesInputSchema = z
 
 export const publishPortalsChangesInputSchema = z
   .object({
-    portalIds: z
-      .array(z.string().min(1, 'Portal ID is required'))
+    portals: z
+      .array(publishPortalChangesInputSchema)
       .min(1)
       .max(MAX_PORTALS_PER_PUBLISH_BATCH),
   })

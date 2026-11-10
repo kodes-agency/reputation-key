@@ -572,7 +572,10 @@ describe('publishPortalsChanges', () => {
     const harness = batchSetup()
     const batch = publishPortalsChanges(harness.deps)
 
-    const results = await batch({ portalIds: [harness.portal.id, 'missing'] }, manager())
+    const results = await batch(
+      { portals: [{ portalId: harness.portal.id }, { portalId: 'missing' }] },
+      manager(),
+    )
 
     expect(results).toEqual([
       expect.objectContaining({ portalId: harness.portal.id, outcome: 'published' }),
@@ -588,7 +591,10 @@ describe('publishPortalsChanges', () => {
     const harness = batchSetup()
     const batch = publishPortalsChanges(harness.deps)
 
-    const results = await batch({ portalIds: ['missing', harness.portal.id] }, manager())
+    const results = await batch(
+      { portals: [{ portalId: 'missing' }, { portalId: harness.portal.id }] },
+      manager(),
+    )
 
     expect(results.map((result) => result.outcome)).toEqual(['failed', 'published'])
     expect(harness.commands).toHaveLength(1)
@@ -657,7 +663,10 @@ describe('publishPortalsChanges', () => {
     const { first, second, deps, commands } = twoPortals()
     const batch = publishPortalsChanges(deps)
 
-    const results = await batch({ portalIds: [second.id, first.id] }, manager())
+    const results = await batch(
+      { portals: [{ portalId: second.id }, { portalId: first.id }] },
+      manager(),
+    )
 
     expect(results.map((r) => [r.portalId, r.outcome])).toEqual([
       [second.id, 'published'],
@@ -672,7 +681,10 @@ describe('publishPortalsChanges', () => {
     })
     const batch = publishPortalsChanges(deps)
 
-    const results = await batch({ portalIds: [first.id, second.id] }, manager())
+    const results = await batch(
+      { portals: [{ portalId: first.id }, { portalId: second.id }] },
+      manager(),
+    )
 
     expect(results).toEqual([
       expect.objectContaining({
@@ -691,7 +703,10 @@ describe('publishPortalsChanges', () => {
     })
     const batch = publishPortalsChanges(deps)
 
-    const results = await batch({ portalIds: [first.id, second.id] }, manager())
+    const results = await batch(
+      { portals: [{ portalId: first.id }, { portalId: second.id }] },
+      manager(),
+    )
 
     expect(results).toEqual([
       expect.objectContaining({
@@ -704,11 +719,56 @@ describe('publishPortalsChanges', () => {
     expect(commands.map((command) => command.portalId)).toEqual([second.id])
   })
 
+  it('refuses a ticked Portal that changed after it was reviewed and publishes the others', async () => {
+    const { first, second, deps, commands } = twoPortals()
+    const batch = publishPortalsChanges(deps)
+
+    const results = await batch(
+      {
+        portals: [
+          { portalId: first.id, reviewedDigest: 'digest-of-an-earlier-draft' },
+          { portalId: second.id },
+        ],
+      },
+      manager(),
+    )
+
+    expect(results).toEqual([
+      {
+        portalId: first.id,
+        outcome: 'failed',
+        code: 'revision_conflict',
+        message:
+          'The Portal changed after you reviewed it. Review the changes again before publishing',
+      },
+      expect.objectContaining({ portalId: second.id, outcome: 'published' }),
+    ])
+    expect(commands.map((command) => command.portalId)).toEqual([second.id])
+  })
+
+  it('publishes a ticked Portal whose reviewed digest still matches', async () => {
+    const { first, deps, commands } = twoPortals()
+    await publishPortalsChanges(deps)({ portals: [{ portalId: first.id }] }, manager())
+    const reviewedDigest = commands[0]!.snapshot.configurationDigest
+    const fresh = twoPortals()
+
+    const results = await publishPortalsChanges(fresh.deps)(
+      { portals: [{ portalId: fresh.first.id, reviewedDigest }] },
+      manager(),
+    )
+
+    expect(results).toEqual([
+      expect.objectContaining({ portalId: fresh.first.id, outcome: 'published' }),
+    ])
+  })
+
   it('reports a Portal with nothing pending as unchanged', async () => {
     const harness = setup()
     const batch = publishPortalsChanges(harness.deps)
 
-    await expect(batch({ portalIds: [harness.portal.id] }, manager())).resolves.toEqual([
+    await expect(
+      batch({ portals: [{ portalId: harness.portal.id }] }, manager()),
+    ).resolves.toEqual([
       { portalId: harness.portal.id, outcome: 'unchanged', version: 2 },
     ])
   })
@@ -718,7 +778,7 @@ describe('publishPortalsChanges', () => {
     const batch = publishPortalsChanges(harness.deps)
 
     const results = await batch(
-      { portalIds: [harness.portal.id, harness.portal.id] },
+      { portals: [{ portalId: harness.portal.id }, { portalId: harness.portal.id }] },
       manager(),
     )
 
@@ -738,9 +798,9 @@ describe('publishPortalsChanges', () => {
       },
     })
 
-    await expect(batch({ portalIds: [harness.portal.id] }, manager())).rejects.toThrow(
-      'connection reset',
-    )
+    await expect(
+      batch({ portals: [{ portalId: harness.portal.id }] }, manager()),
+    ).rejects.toThrow('connection reset')
   })
 })
 

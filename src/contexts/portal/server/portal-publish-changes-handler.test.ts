@@ -94,13 +94,25 @@ describe('publish changes while live (server functions)', () => {
 
     await withStartContext(() =>
       publishPortalsChanges({
-        data: { portalIds: ['portal-1', 'portal-2', 'portal-1'] },
+        data: {
+          portals: [
+            { portalId: 'portal-1', reviewedDigest: 'digest-1' },
+            { portalId: 'portal-2', reviewedDigest: 'digest-1' },
+            { portalId: 'portal-1', reviewedDigest: 'digest-1' },
+          ],
+        },
       }),
     )
 
     expect(mocks.requirePortalResourceScope).toHaveBeenCalledTimes(2)
     expect(mocks.publishMany).toHaveBeenCalledWith(
-      { portalIds: ['portal-1', 'portal-2', 'portal-1'] },
+      {
+        portals: [
+          { portalId: 'portal-1', reviewedDigest: 'digest-1' },
+          { portalId: 'portal-2', reviewedDigest: 'digest-1' },
+          { portalId: 'portal-1', reviewedDigest: 'digest-1' },
+        ],
+      },
       ACTOR,
     )
     expect(
@@ -115,7 +127,14 @@ describe('publish changes while live (server functions)', () => {
 
     await expect(
       withStartContext(() =>
-        publishPortalsChanges({ data: { portalIds: ['portal-1', 'portal-2'] } }),
+        publishPortalsChanges({
+          data: {
+            portals: [
+              { portalId: 'portal-1', reviewedDigest: 'digest-1' },
+              { portalId: 'portal-2', reviewedDigest: 'digest-1' },
+            ],
+          },
+        }),
       ),
     ).rejects.toMatchObject({ _tag: 'PortalError', code: 'forbidden', status: 403 })
     expect(mocks.publishMany).not.toHaveBeenCalled()
@@ -128,11 +147,23 @@ describe('publish changes while live (server functions)', () => {
     mocks.publishMany.mockResolvedValue([])
 
     await withStartContext(() =>
-      publishPortalsChanges({ data: { portalIds: ['portal-1', 'gone'] } }),
+      publishPortalsChanges({
+        data: {
+          portals: [
+            { portalId: 'portal-1', reviewedDigest: 'digest-1' },
+            { portalId: 'gone', reviewedDigest: 'digest-1' },
+          ],
+        },
+      }),
     )
 
     expect(mocks.publishMany).toHaveBeenCalledWith(
-      { portalIds: ['portal-1', 'gone'] },
+      {
+        portals: [
+          { portalId: 'portal-1', reviewedDigest: 'digest-1' },
+          { portalId: 'gone', reviewedDigest: 'digest-1' },
+        ],
+      },
       ACTOR,
     )
   })

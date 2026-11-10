@@ -85,7 +85,7 @@ export const publishPortalsChanges = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         return writeWithScope(
           ctx,
-          [...new Set(data.portalIds)],
+          [...new Set(data.portals.map((portal) => portal.portalId))],
           () =>
             getContainer().portalPublicApi.management.publishPortalsChanges(data, ctx),
           { missingIsPerPortal: true },

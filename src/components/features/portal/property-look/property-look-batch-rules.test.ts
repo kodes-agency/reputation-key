@@ -25,6 +25,7 @@ const review = (patch: Partial<BatchReviewFacts> = {}): BatchReviewFacts => ({
   action: 'publish_changes',
   nothingToPublish: false,
   canPublish: true,
+  reviewDigest: 'digest-7',
   publishesAsVersion: 7,
   changes: [
     {
@@ -52,10 +53,15 @@ const review = (patch: Partial<BatchReviewFacts> = {}): BatchReviewFacts => ({
 })
 
 describe('batchEntryOf — what the batch can do with one live portal', () => {
+  it('cannot hold a publish to a review that carries no digest', () => {
+    expect(batchEntryOf(review({ reviewDigest: null }))).toEqual({ kind: 'unreadable' })
+  })
+
   it('is ready when the review lets the viewer publish, with the version and what it carries', () => {
     expect(batchEntryOf(review())).toEqual({
       kind: 'ready',
       version: 7,
+      reviewDigest: 'digest-7',
       mix: { look: 2, other: 0, hasUnlisted: false },
       changesMayBeIncomplete: false,
     })
@@ -170,6 +176,7 @@ const ready = (
 ): BatchEntry => ({
   kind: 'ready',
   version: 7,
+  reviewDigest: 'digest-7',
   mix: { look: 0, other: 0, hasUnlisted: false, ...mix },
   changesMayBeIncomplete,
 })

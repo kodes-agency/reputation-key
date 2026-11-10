@@ -303,20 +303,29 @@ export type PreviewPortalChanges = ReturnType<typeof previewPortalChanges>
  * exists through, and that Portal reads `portal_not_found` here). Running it again is safe: a Portal that
  * already went live reads as `unchanged`. A fault that is not a Portal error
  * stops the batch and surfaces, because there is no per-Portal answer to give.
+ * A Portal that names the `reviewedDigest` it was reviewed at is refused, like
+ * a single publication, when its draft has changed since; the others still go.
  * The size of a batch is bounded where it enters (the DTO), not here.
  */
 export const publishPortalsChanges =
   (deps: PublishPortalChangesDeps) =>
   async (
-    input: Readonly<{ portalIds: ReadonlyArray<string> }>,
+    input: Readonly<{
+      portals: ReadonlyArray<Readonly<{ portalId: string; reviewedDigest?: string }>>
+    }>,
     ctx: AuthContext,
   ): Promise<PublishPortalsChangesResult> => {
-    const portalIds = [...new Set(input.portalIds)]
+    const portals = [
+      ...new Map(input.portals.map((portal) => [portal.portalId, portal])).values(),
+    ]
     const publishOne = publishPortalChanges(deps)
     const results: Array<PublishPortalsChangesResult[number]> = []
-    for (const portalId of portalIds) {
+    for (const { portalId, reviewedDigest } of portals) {
       try {
-        results.push({ portalId, ...(await publishOne({ portalId }, ctx)) })
+        results.push({
+          portalId,
+          ...(await publishOne({ portalId, reviewedDigest }, ctx)),
+        })
       } catch (error) {
         if (!isPortalError(error)) throw error
         results.push({
