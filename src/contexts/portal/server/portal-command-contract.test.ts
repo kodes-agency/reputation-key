@@ -86,9 +86,10 @@ describe.each([
     method: 'POST',
     action: 'portal.update',
     capability: 'portal.write',
-    input,
+    input: { ...input, reviewedDigest: 'reviewed-digest' },
     effect: mocks.publish,
-    invoke: () => publishPortal({ data: input }),
+    invoke: () =>
+      publishPortal({ data: { ...input, reviewedDigest: 'reviewed-digest' } }),
   },
   {
     name: 'portal.disablePortal',

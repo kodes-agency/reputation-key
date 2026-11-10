@@ -17,6 +17,7 @@ import {
 } from './fixtures'
 import { verifyGoogleReviewDestination } from './portal-goal-fixtures'
 import { requireE2eSeedState } from './seed-state'
+import { reviewedPortalInput } from './portal-review-fixtures'
 
 export const PORTAL_LOOK_PREFIX = 'e2e-pl-'
 
@@ -138,7 +139,7 @@ async function seedLivePortal(
   await callServerFn(page, {
     file: 'src/contexts/portal/server/portals.ts',
     exportName: 'publishPortal',
-    data: { portalId: portal.id },
+    data: await reviewedPortalInput(page, portal.id),
   })
   // A published Portal is only served while Portal Health says so, and health is
   // projected by a worker AFTER the publish commits; without this wait the guest

@@ -211,9 +211,13 @@ export const changePortalLanguages =
     })
   }
 
+/** Staff provisioning publishes the content it just created without a review digest. */
 export const publishPortal =
   (deps: PortalIntentDeps) =>
-  async (input: PortalIdInput, ctx: AuthContext): Promise<Portal> => {
+  async (
+    input: Readonly<{ portalId: string; reviewedDigest?: string }>,
+    ctx: AuthContext,
+  ): Promise<Portal> => {
     const existing = await loadPortal(deps, ctx, input, UPDATE)
     if (existing.kind === 'personal') assertEditable(existing)
     const publicationState = nextState(existing, 'published')
@@ -224,7 +228,14 @@ export const publishPortal =
       ctx.organizationId,
       existing,
     )
-    return commitPortalChange(deps, ctx, existing, { publicationState }, destination)
+    return commitPortalChange(
+      deps,
+      ctx,
+      existing,
+      { publicationState },
+      destination,
+      input.reviewedDigest,
+    )
   }
 
 export const disablePortal =
