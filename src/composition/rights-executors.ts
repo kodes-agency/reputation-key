@@ -41,6 +41,7 @@ import {
   createReportingRightsExecutor,
   createReportingRightsReplayers,
 } from '#/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
+import { createRetiredReadingsReplayer } from '#/contexts/reporting/infrastructure/adapters/retired-readings-erasure.adapter'
 import { createStaffParticipantErasureReplayer } from '#/contexts/identity/infrastructure/adapters/staff-participant-erasure-replayer.adapter'
 import { createStaffParticipantRightsExecutor } from '#/contexts/identity/infrastructure/adapters/staff-participant-rights.adapter'
 import {
@@ -131,6 +132,7 @@ export function composeRightsReplayers(
     createGuestBackupErasureReplayer(),
     createGuestPropertyErasureReplayer(),
     ...createReportingRightsReplayers(now),
+    createRetiredReadingsReplayer(),
     ...createPortalErasureReplayers(),
     ...createAiErasureReplayers(now),
     ...createActivityErasureReplayers(),

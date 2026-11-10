@@ -51,7 +51,7 @@ const EVIDENCE_REF = 'rights-request:v1'
 const LIFECYCLE_REVISION = 1
 
 /** A version-5-shaped UUID from the SHA-256 of the seed. */
-function derivedUuid(seed: string): string {
+export function derivedUuid(seed: string): string {
   const hex = createHash('sha256').update(seed).digest('hex')
   const variant = ((Number.parseInt(hex[16]!, 16) & 0x3) | 0x8).toString(16)
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`
