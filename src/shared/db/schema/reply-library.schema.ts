@@ -52,15 +52,9 @@ export const replyVoiceDigestCheck = sql.raw(
   "voice_digest IS NULL OR voice_digest ~ '^[0-9a-f]{64}$'",
 )
 
-const legacyReplyTemplateProvenanceCheck = sql.raw(`(
-  (template_id IS NULL AND template_version IS NULL)
-  OR (template_id IS NOT NULL AND template_version >= 1)
-)`)
-
 export const replyLibrarySchemaParts = {
   columns: layeredReplyProvenanceColumns,
   layeredProvenanceCheck: layeredReplyProvenanceCheck,
-  legacyProvenanceCheck: legacyReplyTemplateProvenanceCheck,
   voiceDigestCheck: replyVoiceDigestCheck,
 } as const
 
