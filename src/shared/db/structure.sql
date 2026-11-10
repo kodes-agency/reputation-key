@@ -7046,19 +7046,6 @@ CREATE TABLE "public"."portal_group_history" (
 
 
 --
--- Name: portal_group_members; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."portal_group_members" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "portal_group_id" "uuid" NOT NULL,
-    "portal_id" "uuid" NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
---
 -- Name: portal_group_memberships; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10116,14 +10103,6 @@ ALTER TABLE ONLY "public"."portal_group_history"
 
 
 --
--- Name: portal_group_members portal_group_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."portal_group_members"
-    ADD CONSTRAINT "portal_group_members_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: portal_group_memberships portal_group_memberships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12591,20 +12570,6 @@ CREATE INDEX "portal_goal_prompt_deferrals_org_idx" ON "public"."portal_goal_pro
 --
 
 CREATE INDEX "portal_group_history_group_idx" ON "public"."portal_group_history" USING "btree" ("organization_id", "portal_group_id", "occurred_at");
-
-
---
--- Name: portal_group_members_group_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "portal_group_members_group_idx" ON "public"."portal_group_members" USING "btree" ("portal_group_id");
-
-
---
--- Name: portal_group_members_portal_id_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "portal_group_members_portal_id_unique" ON "public"."portal_group_members" USING "btree" ("portal_id");
 
 
 --
@@ -15375,22 +15340,6 @@ ALTER TABLE ONLY "public"."portal_goal_prompt_deferrals"
 
 ALTER TABLE ONLY "public"."portal_group_history"
     ADD CONSTRAINT "portal_group_history_group_tenant_fk" FOREIGN KEY ("organization_id", "property_id", "portal_group_id") REFERENCES "public"."portal_groups"("organization_id", "property_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: portal_group_members portal_group_members_portal_group_id_portal_groups_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."portal_group_members"
-    ADD CONSTRAINT "portal_group_members_portal_group_id_portal_groups_id_fk" FOREIGN KEY ("portal_group_id") REFERENCES "public"."portal_groups"("id") ON DELETE CASCADE;
-
-
---
--- Name: portal_group_members portal_group_members_portal_id_portals_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."portal_group_members"
-    ADD CONSTRAINT "portal_group_members_portal_id_portals_id_fk" FOREIGN KEY ("portal_id") REFERENCES "public"."portals"("id") ON DELETE CASCADE;
 
 
 --

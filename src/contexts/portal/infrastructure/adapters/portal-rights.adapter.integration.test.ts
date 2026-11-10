@@ -89,11 +89,6 @@ async function seedProperty(organizationId: string): Promise<Property> {
      VALUES ($1, $2, $3, $4, 'Front Desk', 'front-desk', 'published', now(), now())`,
     [fixture.portalId, organizationId, fixture.propertyId, fixture.propertyId],
   )
-  await q(
-    `INSERT INTO portal_group_members (id, portal_group_id, portal_id, organization_id, created_at)
-     VALUES ($1, $2, $3, $4, now())`,
-    [randomUUID(), fixture.portalGroupId, fixture.portalId, organizationId],
-  )
   const mediaAssetId = randomUUID()
   await q(
     `INSERT INTO portal_media_assets (
@@ -538,7 +533,6 @@ describe.sequential('Portal rights executor through the rights-request command',
     const org = await runScript(organizationArgs(tenant.organizationId, false))
     expect(org.exit).toBe(0)
     expect(org.out).toContain('portal: portals 2')
-    expect(org.out).toContain('portal: portal_group_members 2')
     expect(other.organizationId).not.toBe(tenant.organizationId)
   })
 

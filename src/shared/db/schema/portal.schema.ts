@@ -10,7 +10,6 @@ import {
 } from '../../guest-locale-schemas'
 import { GUEST_LOCALES } from '../../domain/guest-locale'
 import { PORTAL_LINK_ICON_SQL_LIST } from '../../portal-link-icon-schemas'
-import { portalGroups } from './portal-group.schema'
 import { properties } from './property.schema'
 import { portalMediaAssets } from './portal-assets.schema'
 export { portalGroups } from './portal-group.schema'
@@ -726,27 +725,5 @@ export const portalLinks = pgTable(
       'portal_links_icon_key_valid',
       sql`${t.iconKey} IS NULL OR ${t.iconKey} IN (${sql.raw(PORTAL_LINK_ICON_SQL_LIST)})`,
     ),
-  ],
-)
-
-// ── portal_group_members ──────────────────────────────────────────
-// portalGroups table is defined in portal-group.schema.ts
-
-export const portalGroupMembers = pgTable(
-  'portal_group_members',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    portalGroupId: uuid('portal_group_id')
-      .notNull()
-      .references(() => portalGroups.id, { onDelete: 'cascade' }),
-    portalId: uuid('portal_id')
-      .notNull()
-      .references(() => portals.id, { onDelete: 'cascade' }),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    createdAt: createdAtColumn(),
-  },
-  (t) => [
-    uniqueIndex('portal_group_members_portal_id_unique').on(t.portalId),
-    index('portal_group_members_group_idx').on(t.portalGroupId),
   ],
 )
