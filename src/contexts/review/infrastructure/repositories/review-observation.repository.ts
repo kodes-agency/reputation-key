@@ -16,10 +16,7 @@ import { sha256Hex } from '#/shared/domain/sha256'
 import { parseGoogleReviewComment } from '#/shared/google-review-comment'
 import type { Tx } from '#/shared/outbox/commit'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
-import {
-  purgeAiDraftsForReview,
-  purgeExpiredAiDraftsForReview,
-} from '#/shared/db/ai/ai-draft-purge'
+import { purgeExpiredAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import type {
   MaterialReviewRevision,
   ReviewObservationComparison,
@@ -40,8 +37,13 @@ import type {
   ReviewProviderObservationOrigin,
   ReviewResponseTargetEligibility,
 } from '../../application/ports/response-target-authority.port'
-import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
-import { upsertReviewSourceContent } from '../review-source-content-store'
+import { reviewFromRow, reviewFromRows } from '../mappers/review.mapper'
+import {
+  upsertReviewSourceContent,
+  writeObservedReviewIdentity,
+} from '#/contexts/reputation/application/public-api'
+
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 
 const HEX_DIGEST = /^[0-9a-f]{64}$/u
 
@@ -287,6 +289,38 @@ async function lockStableIdentity(
   return existing
 }
 
+async function readObservationHead(
+  tx: Tx,
+  existing: ReviewRow | null,
+): Promise<ReviewRow | null> {
+  if (existing == null) return null
+  const [content] = await tx
+    .select()
+    .from(reviewSourceContents)
+    .where(
+      and(
+        eq(reviewSourceContents.reviewId, existing.id),
+        eq(reviewSourceContents.organizationId, existing.organizationId),
+        eq(reviewSourceContents.propertyId, existing.propertyId),
+      ),
+    )
+  if (!content)
+    return {
+      ...existing,
+      rating: null,
+      text: null,
+      reviewedAt: null,
+      sourceCreatedAt: null,
+      sourceUpdatedAt: null,
+      firstFetchedAt: null,
+      lastFetchedAt: null,
+      contentExpiresAt: null,
+      aiSourceDigest: null,
+      aiSourceByteLength: null,
+    }
+  return { ...existing, ...reviewFromRows(existing, content) }
+}
+
 /** The provider's external id may only belong to this Review and property. An
  * older epoch is the same stable identity to carry forward; a newer one fences
  * a stale observation. */
@@ -296,16 +330,16 @@ async function assertProviderIdentityScope(
 ): Promise<void> {
   const externalRows = await tx
     .select({
-      id: reviews.id,
-      propertyId: reviews.propertyId,
-      sourceEpoch: reviews.sourceEpoch,
+      id: reviewSourceContents.reviewId,
+      propertyId: reviewSourceContents.propertyId,
+      sourceEpoch: reviewSourceContents.sourceEpoch,
     })
-    .from(reviews)
+    .from(reviewSourceContents)
     .where(
       and(
-        eq(reviews.organizationId, input.review.organizationId),
-        eq(reviews.platform, input.review.platform),
-        eq(reviews.externalId, input.review.externalId),
+        eq(reviewSourceContents.organizationId, input.review.organizationId),
+        eq(reviewSourceContents.platform, input.review.platform),
+        eq(reviewSourceContents.externalId, input.review.externalId),
       ),
     )
     .for('update')
@@ -458,110 +492,6 @@ async function recordOutOfOrderObservation(
 }
 
 /**
- * An AI-assisted reply is bound to the Review's source epoch and Material
- * Review Revision (`ai-draft-binding.ts`). Only an observation that moves one
- * of them makes the draft stale. Every fetch moves `content_expires_at`, so a
- * refresh of the same revision must leave a reply alone while its binding is
- * current.
- */
-function movesAiDraftBinding(existing: ReviewRow, observed: ReviewRow): boolean {
-  return (
-    existing.sourceEpoch !== observed.sourceEpoch ||
-    existing.sourceRevision !== observed.sourceRevision
-  )
-}
-
-/** Insert the first Review row, or advance the existing one to this
- * observation's source content and counters. A guest edit or an epoch carry
- * withdraws the AI-assisted replies written for the revision it replaces. Any
- * other observation changed nothing they were written from, so it withdraws
- * only those whose binding has run out of time, which no transaction of its
- * own marks (`src/shared/db/ai/ai-draft-purge.ts`). */
-async function writeObservedReviewRow(
-  tx: Tx,
-  existing: ReviewRow | null,
-  observedReview: Omit<Review, 'createdAt' | 'updatedAt'>,
-  material: ReturnType<typeof compareMaterialReviewRevision>,
-  observationSequence: number,
-  observedAt: Date,
-  replyEffects: ReplyScopeEffects | undefined,
-): Promise<ReviewRow> {
-  const row = reviewToRow(observedReview)
-  const persistedRows: ReviewRow[] =
-    existing == null
-      ? await tx
-          .insert(reviews)
-          .values({
-            ...row,
-            sourceObservationSequence: observationSequence,
-            materialNormalizationVersion: material.normalizationVersion,
-            materialSourceDigest: material.sourceDigest,
-            materialNormalizedDigest: material.normalizedDigest,
-            createdAt: observedAt,
-            updatedAt: observedAt,
-          })
-          .returning()
-      : await tx
-          .update(reviews)
-          .set({
-            propertyId: row.propertyId,
-            externalId: row.externalId,
-            externalLocationId: row.externalLocationId,
-            googleConnectionId: row.googleConnectionId,
-            reviewerName: row.reviewerName,
-            reviewerProfilePhotoUrl: row.reviewerProfilePhotoUrl,
-            googleReviewUrl: row.googleReviewUrl,
-            rating: row.rating,
-            text: row.text,
-            translatedText: row.translatedText,
-            languageCode: row.languageCode,
-            reviewedAt: row.reviewedAt,
-            expiresAt: row.expiresAt,
-            sentimentLabel: row.sentimentLabel,
-            sentimentScore: row.sentimentScore,
-            sourceCreatedAt: row.sourceCreatedAt,
-            sourceUpdatedAt: row.sourceUpdatedAt,
-            firstFetchedAt: row.firstFetchedAt,
-            lastFetchedAt: row.lastFetchedAt,
-            contentExpiresAt: row.contentExpiresAt,
-            contentHash: row.contentHash,
-            sourceSeenGeneration: row.sourceSeenGeneration,
-            sourceEpoch: row.sourceEpoch,
-            sourceRevision: material.materialRevision,
-            sourceObservationSequence: observationSequence,
-            materialNormalizationVersion: material.normalizationVersion,
-            materialSourceDigest: material.sourceDigest,
-            materialNormalizedDigest: material.normalizedDigest,
-            analysisSequence: row.analysisSequence,
-            aiSourceByteLength: row.aiSourceByteLength,
-            aiSourceDigest: row.aiSourceDigest,
-            sourceContentState: 'active',
-            sourceContentErasedAt: null,
-            updatedAt: observedAt,
-          })
-          .where(
-            and(
-              eq(reviews.id, existing.id),
-              eq(reviews.organizationId, existing.organizationId),
-              eq(reviews.propertyId, existing.propertyId),
-              eq(reviews.sourceEpoch, existing.sourceEpoch),
-            ),
-          )
-          .returning()
-  const persistedRow = persistedRows[0]
-  if (!persistedRow) {
-    throw reviewError('repo_upsert_failed', 'Review observation returned no row')
-  }
-  if (existing !== null) {
-    const purge = movesAiDraftBinding(existing, persistedRow)
-      ? purgeAiDraftsForReview
-      : purgeExpiredAiDraftsForReview
-    await purge(tx, aiDraftScope(existing), replyEffects)
-  }
-  return persistedRow
-}
-
-/**
  * Whether this observation only re-reads what the Review's newest observation
  * already holds: same source epoch, live content, no material change, and the
  * same observation digest (every provider value it stores, `updateTime`
@@ -647,7 +577,7 @@ async function refreshHeadObservation(
 }
 
 /**
- * Canonical REV-01 write adapter. The caller supplies a transaction so Review,
+ * Provider observation writer. The caller supplies a transaction so Review,
  * current source content, the observation/revision records, and any outbox fact
  * commit as one unit. A re-read of what the newest observation holds writes no
  * observation row; it moves that row's content clock instead.
@@ -675,7 +605,7 @@ export async function persistReviewObservation(
   })
   const observationKey = resolveObservationKey(input, observationDigest)
 
-  const existing = await lockStableIdentity(tx, input)
+  const existing = await readObservationHead(tx, await lockStableIdentity(tx, input))
   await assertProviderIdentityScope(tx, input)
 
   const replayed = await findReplayedObservation(
@@ -737,7 +667,7 @@ export async function persistReviewObservation(
   const appliedSequence = rereadsHead
     ? existing.sourceObservationSequence
     : observationSequence
-  const persistedRow = await writeObservedReviewRow(
+  const persistedRow = await writeObservedReviewIdentity(
     tx,
     existing,
     observedReview,
@@ -790,7 +720,11 @@ export async function persistReviewObservation(
   }
 
   return {
-    review: reviewFromRow(persistedRow),
+    review: {
+      ...observedReview,
+      createdAt: persistedRow.createdAt,
+      updatedAt: persistedRow.updatedAt,
+    },
     observationSequence: appliedSequence,
     materialRevision: material.materialRevision,
     comparison: material.comparison,

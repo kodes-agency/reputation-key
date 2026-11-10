@@ -8,7 +8,7 @@ import { organizationId, propertyId, reviewId, type ReviewId } from '#/shared/do
 import type { Review } from '../../domain/types'
 import { reviewCreated } from '../../domain/events'
 import { createAtomicReviewCommandStore } from '../review-command-store'
-import { eraseReviewSourceContent } from '../review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createGoogleReplyObservationStore } from '../google-reply-observation-store'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
@@ -106,10 +106,6 @@ async function seedReview(id: ReviewId, ordinal: number): Promise<Review> {
 }
 
 async function markExpired(id: ReviewId): Promise<void> {
-  await getPool().query('UPDATE reviews SET content_expires_at = $2 WHERE id = $1', [
-    id,
-    EXPIRED_AT,
-  ])
   await getPool().query(
     'UPDATE review_source_contents SET content_expires_at = $2 WHERE review_id = $1',
     [id, EXPIRED_AT],
@@ -152,7 +148,7 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
     const tombstone = await seedReview(TOMBSTONE, 3)
 
     await getPool().query(
-      `UPDATE reviews SET text = 'compatibility drift' WHERE id = $1`,
+      `UPDATE review_source_contents SET source_revision = source_revision + 1 WHERE review_id = $1`,
       [DRIFTED],
     )
     await getDb().transaction((tx) =>
@@ -489,13 +485,13 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
 
     expect(result.rowsRedacted).toBe(0)
     const proof = await getPool().query(
-      `SELECT source_content_state, text
+      `SELECT source_content_state, source_content_erased_at
        FROM reviews WHERE id = $1`,
       [MATCHED],
     )
     expect(proof.rows[0]).toMatchObject({
       source_content_state: 'active',
-      text: 'Original review 1',
+      source_content_erased_at: null,
     })
   })
 
@@ -540,8 +536,9 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
     }
 
     const reviews = await getPool().query(
-      `SELECT id, source_content_state, text FROM reviews
-       WHERE id = ANY($1::uuid[]) ORDER BY id`,
+      `SELECT r.id, r.source_content_state, c.text
+       FROM reviews r JOIN review_source_contents c ON c.review_id = r.id
+       WHERE r.id = ANY($1::uuid[]) ORDER BY r.id`,
       [[MATCHED, DRIFTED]],
     )
     expect(reviews.rows).toMatchObject([

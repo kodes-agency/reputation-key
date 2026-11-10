@@ -1,3 +1,4 @@
+import { reviewSourceContents } from './schema/review-source-content.schema'
 // Push health and reconciliation age (ADR 0055), computed on read.
 // Lives in shared/db beside the other operational reads that name Drizzle tables.
 //
@@ -168,7 +169,7 @@ async function readPolledSightings(db: Database): Promise<LedgerSighting[]> {
       firstSeenVia: reviewFirstSightings.firstSeenVia,
       firstSeenAt: reviewFirstSightings.firstSeenAt,
       pushAcceptedAt: reviewFirstSightings.pushAcceptedAt,
-      sourceCreatedAt: reviews.sourceCreatedAt,
+      sourceCreatedAt: reviewSourceContents.sourceCreatedAt,
       previousListingAt,
     })
     .from(reviewFirstSightings)
@@ -186,6 +187,15 @@ async function readPolledSightings(db: Database): Promise<LedgerSighting[]> {
       and(
         eq(reviews.organizationId, reviewFirstSightings.organizationId),
         eq(reviews.id, reviewFirstSightings.reviewId),
+      ),
+    )
+
+    .leftJoin(
+      reviewSourceContents,
+      and(
+        eq(reviewSourceContents.reviewId, reviews.id),
+        eq(reviewSourceContents.organizationId, reviews.organizationId),
+        eq(reviewSourceContents.propertyId, reviews.propertyId),
       ),
     )
     .where(

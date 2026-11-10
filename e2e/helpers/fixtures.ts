@@ -798,7 +798,7 @@ export async function seedProperty(input: {
 }
 
 /**
- * A review row. expires_at (legal retention, NOT NULL) is set 25 days out.
+ * A stable review identity with a separately stored provider-content row.
  * contentExpiresAt is the eligibility clock (isContentEligibleForRead:
  * NULL is INELIGIBLE): absent → fresh (future, mirroring the sync's 30-day
  * TTL); explicit past Date → expired (typed unavailable outcome on reads);
@@ -844,33 +844,17 @@ export async function seedReview(input: {
   }
   const rows = await dbQuery<{ id: string }>(
     `INSERT INTO reviews
-       (organization_id, property_id, platform, external_id, external_location_id,
-        google_connection_id, reviewer_name, rating, text, language_code,
-        reviewed_at, expires_at, content_expires_at,
-        source_created_at, source_updated_at, first_fetched_at, last_fetched_at,
+       (organization_id, property_id, platform, google_connection_id, first_fetched_at,
         source_epoch, source_revision, analysis_sequence,
-        ai_source_byte_length, ai_source_digest,
         material_normalization_version)
-     VALUES ($1, $2, 'google', $3, $4, $5, $6, $7, $8, $9, $10,
-             now() + interval '25 days', $11, $10, $10, $10, $10,
-             $12, 1, 0, $13, $14,
-             'legacy-unverified-v0')
+     VALUES ($1, $2, 'google', $3, $4, $5, 1, 0, 'legacy-unverified-v0')
      RETURNING id`,
     [
       input.organizationId,
       input.propertyId,
-      input.externalId,
-      input.externalLocationId ?? GOOGLE_LOCATION_PRIMARY_RESOURCE,
       input.googleConnectionId ?? null,
-      reviewerName,
-      input.rating,
-      input.text ?? null,
-      languageCode,
       reviewedAt,
-      contentExpiresAt,
       property.sourceEpoch,
-      provenance.byteLength,
-      provenance.digest,
     ],
   )
   const reviewId = rows[0].id
@@ -885,13 +869,25 @@ export async function seedReview(input: {
          first_fetched_at, last_fetched_at, content_expires_at,
          source_epoch, source_revision, ai_source_byte_length, ai_source_digest
        )
-       SELECT id, organization_id, property_id, platform, external_id,
-              external_location_id, google_connection_id, reviewer_name, rating, text,
-              language_code, reviewed_at, source_created_at, source_updated_at,
-              first_fetched_at, last_fetched_at, content_expires_at,
-              source_epoch, source_revision, ai_source_byte_length, ai_source_digest
-       FROM reviews WHERE id = $1::uuid`,
-      [reviewId],
+       VALUES ($1, $2, $3, 'google', $4, $5, $6, $7, $8, $9, $10,
+               $11, $11, $11, $11, $11, $12, $13, 1, $14, $15)`,
+      [
+        reviewId,
+        input.organizationId,
+        input.propertyId,
+        input.externalId,
+        input.externalLocationId ?? GOOGLE_LOCATION_PRIMARY_RESOURCE,
+        input.googleConnectionId ?? null,
+        reviewerName,
+        input.rating,
+        input.text ?? null,
+        languageCode,
+        reviewedAt,
+        contentExpiresAt,
+        property.sourceEpoch,
+        provenance.byteLength,
+        provenance.digest,
+      ],
     )
   }
   // IBX-01-T9: revision 1 of the review's material identity. Observing a review
@@ -1522,14 +1518,24 @@ export async function getReplyById(replyId: string) {
   return rows[0] ?? null
 }
 
+const REVIEW_WITH_CONTENT = `SELECT r.*, c.external_id, c.external_location_id,
+  c.google_connection_id, c.reviewer_name, c.reviewer_profile_photo_url,
+  c.google_review_url, c.rating, c.text, c.translated_text, c.language_code,
+  c.reviewed_at, c.content_expires_at AS expires_at, c.source_created_at,
+  c.source_updated_at, c.first_fetched_at, c.last_fetched_at,
+  c.content_expires_at, c.content_hash, c.ai_source_byte_length, c.ai_source_digest
+  FROM reviews r LEFT JOIN review_source_contents c
+    ON c.review_id = r.id AND c.organization_id = r.organization_id
+   AND c.property_id = r.property_id`
+
 export async function getReviewById(reviewId: string) {
-  const rows = await dbQuery('SELECT * FROM reviews WHERE id = $1', [reviewId])
+  const rows = await dbQuery(`${REVIEW_WITH_CONTENT} WHERE r.id = $1`, [reviewId])
   return rows[0] ?? null
 }
 
 export async function getReviewsForProperty(propertyId: string) {
   return dbQuery(
-    'SELECT * FROM reviews WHERE property_id = $1 ORDER BY reviewed_at DESC',
+    `${REVIEW_WITH_CONTENT} WHERE r.property_id = $1 ORDER BY c.reviewed_at DESC`,
     [propertyId],
   )
 }
@@ -1601,13 +1607,14 @@ export async function getNotificationsForUser(userId: string) {
  */
 const FIXTURE_REVIEWS = `SELECT r.id FROM reviews r
      JOIN properties p ON p.id = r.property_id
+     LEFT JOIN review_source_contents c ON c.review_id = r.id
      LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
      WHERE r.organization_id = $1
-       AND (r.external_id LIKE $2 OR p.slug LIKE $2 OR gc.google_subject LIKE $2)`
+       AND (c.external_id LIKE $2 OR p.slug LIKE $2 OR gc.google_subject LIKE $2)`
 
 /**
  * Delete every fixture-created row matching the spec's prefix, in FK-safe
- * order. Prefixes match: reviews.external_id, google_connections.google_subject,
+ * order. Prefixes match: review_source_contents.external_id, google_connections.google_subject,
  * properties.slug, user.email. Call in beforeEach so reruns start clean.
  */
 export async function cleanupE2eData(input: {

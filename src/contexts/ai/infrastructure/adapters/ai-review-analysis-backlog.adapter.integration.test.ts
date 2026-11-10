@@ -1,8 +1,9 @@
+import { seedReviewContent } from '../testing/review-content-fixture'
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
-import { aiReviewAnalysisBacklog, properties, reviews } from '#/shared/db/schema'
+import { aiReviewAnalysisBacklog, properties } from '#/shared/db/schema'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createAiReviewAnalysisBacklogAdapter } from '../../replay/backlog-store.server'
@@ -21,7 +22,7 @@ describe.sequential('AI review analysis backlog adapter (real PostgreSQL)', () =
   async function seedReview(property: typeof PROPERTY_A, reviewedDaysAgo: number) {
     sequence += 1
     const id = reviewId(randomUUID())
-    await db.insert(reviews).values({
+    await seedReviewContent({
       id,
       organizationId: ORGANIZATION_ID,
       propertyId: property,

@@ -1,3 +1,4 @@
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 // Review context — Drizzle repository behind the dark head check.
 //
 // Reads the stored copies of the reviews on Google's newest page (with their
@@ -123,14 +124,22 @@ export const createReviewHeadCheckRepository = (
     if (input.externalIds.length === 0) return []
     const rows = await db
       .select({
-        externalId: reviews.externalId,
+        externalId: reviewSourceContents.externalId,
         sourceEpoch: reviews.sourceEpoch,
-        sourceUpdatedAt: reviews.sourceUpdatedAt,
-        lastFetchedAt: reviews.lastFetchedAt,
+        sourceUpdatedAt: reviewSourceContents.sourceUpdatedAt,
+        lastFetchedAt: reviewSourceContents.lastFetchedAt,
         replyState: googleReplyObservationHeads.state,
         replyProviderUpdatedAt: googleReplyObservations.providerUpdatedAt,
       })
       .from(reviews)
+      .innerJoin(
+        reviewSourceContents,
+        and(
+          eq(reviewSourceContents.reviewId, reviews.id),
+          eq(reviewSourceContents.organizationId, reviews.organizationId),
+          eq(reviewSourceContents.propertyId, reviews.propertyId),
+        ),
+      )
       .leftJoin(
         googleReplyObservationHeads,
         and(
@@ -151,7 +160,7 @@ export const createReviewHeadCheckRepository = (
           eq(reviews.propertyId, input.propertyId),
           eq(reviews.platform, 'google'),
           eq(reviews.sourceContentState, 'active'),
-          inArray(reviews.externalId, [...input.externalIds]),
+          inArray(reviewSourceContents.externalId, [...input.externalIds]),
         ),
       )
     return rows.flatMap(toCopy)
@@ -163,9 +172,17 @@ export const createReviewHeadCheckRepository = (
     const [row] = await db
       .select({
         count: sql<number>`count(*)::int`,
-        average: sql<string | null>`avg(${reviews.rating})`,
+        average: sql<string | null>`avg(${reviewSourceContents.rating})`,
       })
       .from(reviews)
+      .innerJoin(
+        reviewSourceContents,
+        and(
+          eq(reviewSourceContents.reviewId, reviews.id),
+          eq(reviewSourceContents.organizationId, reviews.organizationId),
+          eq(reviewSourceContents.propertyId, reviews.propertyId),
+        ),
+      )
       .where(
         and(
           eq(reviews.organizationId, input.organizationId),

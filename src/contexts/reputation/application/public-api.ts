@@ -1,5 +1,5 @@
 /**
- * Public API of the Reply writer. Other contexts reach Reply storage only
+ * Public API of Reputation storage. Other contexts reach its server writers only
  * through here: Review builds the writer with its own row helpers, and any
  * context that must end or withdraw Replies inside its transaction uses the
  * scope effects.
@@ -24,3 +24,10 @@ export {
   updateAdoptedAiDraft,
   upsertMirrorReply,
 } from '../replies/row-commands.server'
+
+export {
+  upsertReviewSourceContent,
+  eraseReviewSourceContent,
+  reviewIdentityValues,
+  writeObservedReviewIdentity,
+} from '../content/store.server'
