@@ -140,8 +140,6 @@ export type RatingGoalErrorCode =
   | 'invalid_pace'
   /** A change that changes nothing. */
   | 'no_change'
-  /** The Organization's closure holds it: no goal is set there. */
-  | 'organization_closing'
   /** The Monday check-in a Keep answers is not the one open now. */
   | 'recap_closed'
 

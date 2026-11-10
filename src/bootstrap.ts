@@ -39,10 +39,6 @@ import {
   JOB_NAME as RECOVER_INVITED_REGISTRATIONS_JOB,
 } from '#/contexts/identity/infrastructure/jobs/recover-invited-registrations.job'
 import {
-  createAdvanceOrganizationLifecycleHandler,
-  JOB_NAME as ADVANCE_ORGANIZATION_LIFECYCLE_JOB,
-} from '#/contexts/identity/infrastructure/jobs/advance-organization-lifecycle.job'
-import {
   createAiOperationExecutionReaperHandler,
   JOB_NAME as AI_EXECUTION_REAPER_JOB_NAME,
 } from '#/shared/jobs/ai-operation-execution-reaper.job'
@@ -254,30 +250,6 @@ export async function bootstrap(
       authorizeScope: createScheduledScopeAuthorizer('system:identity.accept_invitation'),
       logger: container.logger,
     }),
-  )
-
-  // LIF-01: these three safety handlers are registered so stale/older queued
-  // work has an explicit no-mutation landing. Their catalogue posture is
-  // quarantined, therefore scheduler reconciliation removes every recurrence
-  // until the named Identity runtime reports complete reviewed bindings.
-  container.jobRegistry.register(
-    ADVANCE_ORGANIZATION_LIFECYCLE_JOB,
-    createAdvanceOrganizationLifecycleHandler({
-      ...(container.identityLifecycleRuntime.maintenance.runScheduledPass
-        ? {
-            advance: container.identityLifecycleRuntime.maintenance.runScheduledPass,
-          }
-        : {}),
-      logger: container.logger,
-    }),
-  )
-  logger.info(
-    {
-      jobs: [ADVANCE_ORGANIZATION_LIFECYCLE_JOB],
-      lifecycleConfigured:
-        container.identityLifecycleRuntime.maintenance.readiness.configured,
-    },
-    'registered quarantined Organization lifecycle safety handlers',
   )
 
   const processGoogleImportV2Item = container.integrationWorkerRuntime.processImportItem

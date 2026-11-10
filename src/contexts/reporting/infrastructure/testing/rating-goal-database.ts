@@ -77,22 +77,6 @@ async function ensureProperty(propertyId: string): Promise<void> {
   )
 }
 
-/** The Organization's lifecycle holds it: a closure has been requested. */
-export async function holdOrganization(): Promise<void> {
-  await held!.client.query(
-    `INSERT INTO organization_lifecycle_authority
-       (organization_id, state, revision, closure_lineage_id, closure_requested_at,
-        recoverable_until, reactivation_required, requested_by, request_reason_code,
-        request_support_evidence_ref, last_transition_at, last_actor_id,
-        last_reason_code, last_support_evidence_ref)
-     VALUES ($1, 'closure_requested', 1, $2, now(), now() + interval '30 days', true,
-             'admin:lifecycle-test', 'test_workspace', 'test:closure-request', now(),
-             'admin:lifecycle-test', 'test_workspace', 'test:closure-request')
-     ON CONFLICT (organization_id) DO NOTHING`,
-    [RATING_GOAL_ORGANIZATION, '30000000-0000-4000-8000-0000000000c1'],
-  )
-}
-
 const goalValues = (goal: PropertyRatingGoal) => ({
   id: goal.id,
   organizationId: goal.organizationId,

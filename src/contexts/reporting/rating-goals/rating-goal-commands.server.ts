@@ -129,9 +129,6 @@ export async function setRatingGoal(
   actor: GoalActor,
 ): Promise<RatingGoalSetResult> {
   await authorizeRatingGoal(deps, actor, input.propertyId, 'goal.create')
-  if (await deps.repository.isOrganizationHeld(actor.organizationId)) {
-    throw ratingGoalError('organization_closing', 'The Organization is closing')
-  }
   if (await deps.repository.findActive(actor.organizationId, input.propertyId)) {
     throw ratingGoalError('goal_exists', 'This Property already has a rating goal')
   }

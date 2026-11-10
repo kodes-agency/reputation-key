@@ -21,9 +21,9 @@ export function isReauthRequired(error: unknown): boolean {
   return isServerFunctionError(error) && error.code === REAUTH_REQUIRED_CODE
 }
 
-/** The console may invite only an active Organization that has no Account Admin. */
+/** The console may invite only an Organization that has no Account Admin. */
 export function canInviteAdmin(organization: PlatformOrganizationView): boolean {
-  return organization.accountAdminCount === 0 && organization.lifecycleState === 'active'
+  return organization.accountAdminCount === 0
 }
 
 /**
@@ -43,25 +43,8 @@ export function hasCompetingAdminInvitations(
   return live.length > 1
 }
 
-const LIFECYCLE_LABELS: Readonly<
-  Record<PlatformOrganizationView['lifecycleState'], string>
-> = {
-  active: 'Active',
-  closure_requested: 'Closure requested',
-  closing: 'Closing',
-  purge_pending: 'Purge pending',
-  purging: 'Purging',
-  closed: 'Closed',
-}
-
-export function lifecycleLabel(
-  state: PlatformOrganizationView['lifecycleState'],
-): string {
-  return LIFECYCLE_LABELS[state]
-}
-
 export type OrganizationFlag = Readonly<{
-  id: 'needs-account-admin' | 'lifecycle' | 'controlled-beta-off'
+  id: 'needs-account-admin' | 'controlled-beta-off'
   label: string
   /** Only `controlled-beta-off`: the id the allowlist needs. */
   detail?: string
@@ -69,7 +52,7 @@ export type OrganizationFlag = Readonly<{
 
 /**
  * What the operator can act on, most actionable first: the Organization has no
- * Account Admin, it is not active, or controlled-beta capabilities are dark for it.
+ * Account Admin, or controlled-beta capabilities are dark for it.
  */
 export function organizationFlags(
   organization: PlatformOrganizationView,
@@ -77,14 +60,6 @@ export function organizationFlags(
   return [
     ...(organization.accountAdminCount === 0
       ? [{ id: 'needs-account-admin', label: 'Needs an Account Admin' } as const]
-      : []),
-    ...(organization.lifecycleState !== 'active'
-      ? [
-          {
-            id: 'lifecycle',
-            label: lifecycleLabel(organization.lifecycleState),
-          } as const,
-        ]
       : []),
     ...(organization.controlledBetaEnabled
       ? []

@@ -1,8 +1,11 @@
 // Shared pieces of the rights executor isolation tests: an Organization with
-// Properties, the lifecycle hold an Organization erasure requires, and a
+// Properties, the suspension an Organization erasure requires, and a
 // journal store that remembers what the runner wrote before it erased.
 
 import { randomUUID } from 'node:crypto'
+import { vi } from 'vitest'
+import { parseSuspendedOrgs } from '#/shared/auth/beta-capabilities'
+import { getEnv, resetEnv } from '#/shared/config/env'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
 import {
   runRightsExecutors,
@@ -50,37 +53,11 @@ export async function seedRightsOrganization(
   return { organizationId, propertyIds }
 }
 
-/** Moves the Organization to the purge-pending state an Organization erasure needs. */
-export async function holdRightsOrganization(
-  query: RightsQuery,
-  organizationId: string,
-): Promise<void> {
-  const at = RIGHTS_FIXTURE_AT
-  await query(
-    `UPDATE organization_lifecycle_authority
-     SET state = 'closure_requested', revision = revision + 1,
-         closure_lineage_id = $2, closure_requested_at = $3,
-         recoverable_until = $4, reactivation_required = true,
-         requested_by = 'admin:rights-test', request_reason_code = 'test_workspace',
-         request_support_evidence_ref = 'test:closure-request',
-         last_transition_at = $3, last_actor_id = 'admin:rights-test',
-         last_reason_code = 'test_workspace', last_support_evidence_ref = 'test:closure-request'
-     WHERE organization_id = $1`,
-    [organizationId, randomUUID(), at, new Date('2026-08-31T00:00:00.000Z')],
-  )
-  for (const [next, reason] of [
-    ['closing', 'closing_prepared'],
-    ['purge_pending', 'recovery_window_elapsed'],
-  ] as const) {
-    await query(
-      `UPDATE organization_lifecycle_authority
-       SET state = $2, revision = revision + 1,
-           last_transition_at = $3, last_actor_id = 'system:rights-test',
-           last_reason_code = $4, last_support_evidence_ref = 'test:advance'
-       WHERE organization_id = $1`,
-      [organizationId, next, at, reason],
-    )
-  }
+/** Suspends the Organization the way `BETA_SUSPENDED_ORGS` does, as an Organization erasure needs. */
+export function holdRightsOrganization(organizationId: string): void {
+  const suspended = [...parseSuspendedOrgs(getEnv().BETA_SUSPENDED_ORGS)]
+  vi.stubEnv('BETA_SUSPENDED_ORGS', [...suspended, organizationId].join(','))
+  resetEnv()
 }
 
 export function rightsPlan(

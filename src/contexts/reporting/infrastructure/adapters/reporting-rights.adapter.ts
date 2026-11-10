@@ -306,7 +306,7 @@ async function assertReadyToPurge(
 ): Promise<void> {
   await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`))
   if (property) await assertPropertyInOrganization(tx, organization, property)
-  else await assertOrganizationHeld(tx, organization)
+  else assertOrganizationHeld(organization)
   await fencePrograms(tx, organization, at, property)
   await assertNoLiveGoalWork(tx, organization, property)
   await assertPortalFactsSettled(tx, organization, at, property)

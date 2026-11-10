@@ -41,7 +41,6 @@ function build(
     site: 'pending' | 'approved' | 'disabled' | 'quarantined' | null
     /** Whether a live Portal is left to decide the site in; true unless said. */
     sitePortal: boolean
-    lifecycle: string | null
   }> = {},
 ) {
   const deps = {
@@ -99,9 +98,6 @@ function build(
             },
       ),
     },
-    organizationState: vi.fn(async () =>
-      overrides.lifecycle === undefined ? 'purge_pending' : overrides.lifecycle,
-    ),
     responsibleManagers: {
       findForProperty: vi.fn(async () => (overrides.managers ?? []).map(userId)),
       findForPortal: vi.fn(async () => (overrides.managers ?? []).map(userId)),
@@ -286,13 +282,10 @@ describe('whether the work a notice asks for still waits', () => {
     ).resolves.toBe(false)
   })
 
-  it('stops mailing the final deletion notice once the purge is cancelled', async () => {
+  it('always delivers the final deletion notice: no check can retire it', async () => {
     await expect(ask(build(), 'account.organization_purge_pending', ORG)).resolves.toBe(
       true,
     )
-    await expect(
-      ask(build({ lifecycle: 'active' }), 'account.organization_purge_pending', ORG),
-    ).resolves.toBe(false)
   })
 
   it('keeps a responsibility request waiting only while nobody is responsible', async () => {

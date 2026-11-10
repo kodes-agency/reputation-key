@@ -13,7 +13,6 @@ import type { NotificationEmailRepositoryPort } from '../../application/ports/no
 import type { NotificationPreferenceRepositoryPort } from '../../application/ports/notification-preference-repository.port'
 import { createNotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import { createNotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
-import { createNotificationOrganizationEmailStopReader } from '../repositories/notification-organization-email-stop.repository'
 import {
   createImmediateEmailEnqueue,
   createQuietHoursRelease,
@@ -39,7 +38,6 @@ import {
 
 /** What Feed's build already holds for every processor. */
 export type NotificationDeliveryParts = Readonly<{
-  db: Parameters<typeof createNotificationOrganizationEmailStopReader>[0]
   notificationRepo: NotificationRepositoryPort
   emailRepo: NotificationEmailRepositoryPort
   preferenceRepo: NotificationPreferenceRepositoryPort
@@ -92,10 +90,6 @@ export const createNotificationDeliveryProcessors = (
   const resolveOrganizationScope = createNotificationOrganizationScopeResolver(
     worker.pool,
   )
-  // A closure request stops optional email: the email paths read the
-  // lifecycle authority.
-  const organizationEmailStop = createNotificationOrganizationEmailStopReader(parts.db)
-
   // The queue row alone is inert, so the insert handler dispatches an urgent
   // email itself. The capability is org-gated at execution, so enqueuing is
   // safe even when a tenant has email disabled.
@@ -110,7 +104,6 @@ export const createNotificationDeliveryProcessors = (
     authorizeAudience: parts.authorizeAudience,
     workState: parts.workState,
     deliverySettlement: parts.deliverySettlement,
-    organizationEmailStop,
     ratingForRouting: parts.ratingForRouting,
     enqueueImmediateEmail: worker.jobQueue
       ? createImmediateEmailEnqueue(worker.jobQueue, 'notification:urgent-enqueue')
@@ -128,7 +121,6 @@ export const createNotificationDeliveryProcessors = (
     resolvePropertyScope,
     resolveOrganizationScope,
     authorizeScope: worker.authorizeUrgentScope,
-    organizationEmailStop,
     isRecipientEligible: parts.recipientStanding,
     workState: parts.workState,
     baseUrl: worker.baseUrl,
@@ -151,7 +143,6 @@ export const createNotificationDeliveryProcessors = (
     preferenceRepo: parts.preferenceRepo,
     resolveOrganizationScope,
     resolvePropertyScope,
-    organizationEmailStop,
     authorizeScope: worker.authorizeDigestScope,
     authorizeMandatoryScope: worker.authorizeMandatoryScope,
     isRecipientEligible: parts.recipientStanding,

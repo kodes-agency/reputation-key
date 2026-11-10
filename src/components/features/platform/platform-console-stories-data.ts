@@ -42,7 +42,6 @@ export const awaitingFirstAdmin: PlatformOrganizationView = {
   name: 'Riviera Hotels',
   slug: 'riviera-hotels',
   createdAt: '2026-09-30T08:12:00.000Z',
-  lifecycleState: 'active',
   memberCount: 0,
   accountAdminCount: 0,
   pendingInvitationCount: 1,
@@ -56,7 +55,6 @@ export const lapsedInvitation: PlatformOrganizationView = {
   name: 'Harbor Collective',
   slug: 'harbor-collective',
   createdAt: '2026-09-12T14:40:00.000Z',
-  lifecycleState: 'active',
   memberCount: 0,
   accountAdminCount: 0,
   pendingInvitationCount: 1,
@@ -82,7 +80,6 @@ export const competingInvitations: PlatformOrganizationView = {
   name: 'Lagoon Suites',
   slug: 'lagoon-suites',
   createdAt: '2026-09-28T10:00:00.000Z',
-  lifecycleState: 'active',
   memberCount: 0,
   accountAdminCount: 0,
   pendingInvitationCount: 2,
@@ -107,7 +104,6 @@ export const noInvitationOut: PlatformOrganizationView = {
   name: 'Sunset Apartments',
   slug: 'sunset-apartments',
   createdAt: '2026-09-02T11:00:00.000Z',
-  lifecycleState: 'active',
   memberCount: 0,
   accountAdminCount: 0,
   pendingInvitationCount: 0,
@@ -121,7 +117,6 @@ export const administered: PlatformOrganizationView = {
   name: 'Alpine Stays',
   slug: 'alpine-stays',
   createdAt: '2026-08-21T09:30:00.000Z',
-  lifecycleState: 'active',
   memberCount: 6,
   accountAdminCount: 2,
   pendingInvitationCount: 3,
@@ -129,28 +124,11 @@ export const administered: PlatformOrganizationView = {
   pendingAdminInvitations: [],
 }
 
-/** Closing down with an invitation still out: it can be cancelled, not resent. */
-export const closing: PlatformOrganizationView = {
-  id: 'org-gardens',
-  name: 'Closed Gardens',
-  slug: 'closed-gardens',
-  createdAt: '2026-07-04T16:00:00.000Z',
-  lifecycleState: 'closure_requested',
-  memberCount: 0,
-  accountAdminCount: 0,
-  pendingInvitationCount: 1,
-  controlledBetaEnabled: true,
-  pendingAdminInvitations: [
-    invitation({ id: 'inv-closing', email: 'owner@closedgardens.example' }),
-  ],
-}
-
 export const fleet: ReadonlyArray<PlatformOrganizationView> = [
   awaitingFirstAdmin,
   lapsedInvitation,
   noInvitationOut,
   administered,
-  closing,
 ]
 
 export const reauthError = new ServerFunctionError(

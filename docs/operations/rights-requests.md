@@ -60,7 +60,7 @@ private bucket by hand and delete the local copy.
     counts. Only allowlisted columns leave; a row from another Organization
     aborts the export. Upload the files to the private bucket by hand.
   - **Organization purge**: `organization --apply` refuses an Organization that is
-    still active (suspend it first), pauses its active goals, refuses while a
+    not suspended (add its ID to `BETA_SUSPENDED_ORGS` in the environment the command runs with), pauses its active goals, refuses while a
     goal is being evaluated or Portal source facts have not settled, then deletes
     its rows in one transaction and prints an erasure record (context, evidence
     line, rows per table, no content). The monthly-result delete guard is off
@@ -89,10 +89,9 @@ private bucket by hand and delete the local copy.
 
 ### Notifications
 
-- **report** counts notification history, preferences and settings, says
-  whether suspension is holding optional mail (mandatory mail is never held),
-  and, for an Organization, how many account admins and former members a final
-  warning would reach. For `access` and `organization`, `out=<dir>` writes
+- **report** counts notification history, preferences and settings and, for an
+  Organization, how many account admins and former members a final warning
+  would reach. For `access` and `organization`, `out=<dir>` writes
   `notification/notification-rights.json`; the export is never printed.
 - Reads are named and use explicit field allowlists. Delivery queues, digest
   batches and source event ids are not exported. A row of another Organization

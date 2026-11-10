@@ -164,7 +164,6 @@ describe('an immediate email whose work was done after its row was written', () 
     })),
     resolveOrganizationScope: vi.fn(async () => ({ timezone: 'Europe/London' })),
     authorizeScope: vi.fn(async () => true),
-    organizationEmailStop: vi.fn(async () => 'none' as const),
     isRecipientEligible: vi.fn(async () => true),
     workState: work,
     logger: createFakeJobLogger(),

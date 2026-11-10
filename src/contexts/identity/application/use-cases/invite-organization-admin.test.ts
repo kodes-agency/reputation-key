@@ -16,7 +16,6 @@ const ORG = organizationId('org-new')
 const ownerless: OrganizationAdministration = {
   organizationId: ORG,
   name: 'Hotel Riviera',
-  lifecycleState: 'active',
   accountAdminCount: 0,
   openAdminInvitationIds: [],
 }
@@ -142,11 +141,6 @@ describe('inviteOrganizationAdmin', () => {
     [
       'an Organization that already has an AccountAdmin',
       { ...ownerless, accountAdminCount: 1 },
-      'forbidden',
-    ],
-    [
-      'an Organization that is closing',
-      { ...ownerless, lifecycleState: 'closing' as const },
       'forbidden',
     ],
   ])('refuses %s before inviting anyone', async (_label, administration, code) => {
