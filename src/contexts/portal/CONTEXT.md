@@ -55,7 +55,7 @@ until a successful write, including when the person returns to the initial value
 - Export and purge run through the manual rights request command
   (`docs/operations/rights-requests.md`); neither is on `publicApi`.
 - Not exported, and not queried: `portal_tokens` (the address-token hash, the sealed raw address and the print code hashes) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret. `portal_address_downloads` is exported without the token id. An exported artifact's `status` is the state of its code at the export snapshot (`published` while the code resolves, `retiring` through a rotation's grace window, `retired` after it, `revoked` when it was stopped), read from `portal_tokens` without exposing the join key. The stored column stays `published`: the scan path reads it, and moving it with the code would end scan counting inside a grace window. In the CSV summary `portal_id` names the Portal a record belongs to (its own id on a Portal row) and is empty for a group, an approved destination, a media asset and the Property's look and wording. A Portal's own look row (`portalLookOverrides`, ADR 0070) names its Portal in `portal_id`; its columns are listed one by one and the photo's descriptions are written as text.
-- Not touched by any phase: `portal_metric_lifetime_aggregates` (Metric's anonymous aggregate), `properties`, and the Staff-owned people rows. Each is another owner's receipt.
+- Not touched by any phase: `properties`, and the Staff-owned people rows. Each is another owner's receipt.
 
 ## Model
 

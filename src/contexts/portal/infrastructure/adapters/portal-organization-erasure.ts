@@ -7,8 +7,6 @@
  * Deliberately NOT here:
  * - `portal_group_memberships`, `portal_responsibilities`, `team_*`: people
  *   and Staff rows whose data-fate owner is Staff, not Portal.
- * - `portal_metric_lifetime_aggregates`: the anonymous lifetime aggregate is
- *   Metric's row and Metric's receipt. Portal never edits or counts it.
  * - `properties`: Property's row; Portal only references it.
  *
  * `portal_group_members` IS in the plan, as a ROW delete. It is a

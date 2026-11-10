@@ -22,7 +22,7 @@ import { lockReviewSourceMutationScope } from './review-source-mutation-serializ
 const ORG = organizationId('org-review-source-fence-mode')
 const PROPERTY = propertyId('af100000-0000-4000-8000-000000000001')
 const REVIEW = reviewId('af100000-0000-4000-8000-000000000002')
-const PROPERTY_REVIEW_DASHBOARD_VERSION = '11111111-1111-4111-8111-111111111205'
+const PORTAL_RATING_VERSION = '11111111-1111-4111-8111-111111111202'
 /** Short enough to keep a regression fast, long enough for an unblocked insert. */
 const PROBE_LOCK_TIMEOUT = '1s'
 const LOCK_NOT_AVAILABLE = '55P03'
@@ -98,14 +98,14 @@ const insertMetricReading = () =>
        definition_version_id, source_event_id, source_policy, exact_value,
        sample_count, attribution_quality, recorded_at, event_at,
        property_local_date, data_quality, retention_class
-     ) VALUES ($1::uuid, $2, $3::uuid, NULL, 'property.review', 5::real,
-               $4, $5, 'google_property_derivative', 5::numeric, 1, 'exact',
+     ) VALUES ($1::uuid, $2, $3::uuid, NULL, 'portal.rating', 5::real,
+               $4, $5, 'first_party_guest_private', 5::numeric, 1, 'exact',
                NOW(), NOW(), '2026-09-29', 'exact', 'guest_gateway_metric')`,
     [
       randomUUID(),
       ORG,
       PROPERTY,
-      PROPERTY_REVIEW_DASHBOARD_VERSION,
+      PORTAL_RATING_VERSION,
       `review-source-fence-${randomUUID()}`,
     ],
   )

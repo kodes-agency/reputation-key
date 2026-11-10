@@ -256,47 +256,6 @@ export const REPORTING_EXPORT_TABLES: readonly ReportingExportTable[] = Object.f
       'updated_at',
     ],
   },
-  {
-    table: 'portal_metric_lifetime_aggregates',
-    tenant: 'own_column',
-    orderBy: 'created_at, id',
-    columns: [
-      'property_id',
-      'portal_id',
-      'qualified_scan_count',
-      'private_rating_count',
-      'private_rating_sum',
-      'private_rating_1_count',
-      'private_rating_2_count',
-      'private_rating_3_count',
-      'private_rating_4_count',
-      'private_rating_5_count',
-      'private_feedback_count',
-      'google_review_selection_count',
-      'secondary_link_selection_count',
-      'sealed_qualified_scan_count',
-      'sealed_private_rating_count',
-      'sealed_private_rating_sum',
-      'sealed_private_rating_1_count',
-      'sealed_private_rating_2_count',
-      'sealed_private_rating_3_count',
-      'sealed_private_rating_4_count',
-      'sealed_private_rating_5_count',
-      'sealed_private_feedback_count',
-      'sealed_google_review_selection_count',
-      'sealed_secondary_link_selection_count',
-      'sealed_through_local_date',
-      'last_sealed_at',
-      'created_at',
-      'updated_at',
-    ],
-  },
-  {
-    table: 'setup_checklist_milestones',
-    tenant: 'own_column',
-    orderBy: 'first_completed_at, step',
-    columns: ['step', 'first_completed_at', 'created_at'],
-  },
 ])
 
 /**
@@ -317,16 +276,9 @@ export const REPORTING_PURGE_ORDER = Object.freeze([
   'metric_corrections',
   'metric_readings',
   'metric_current_google_reputation_snapshots',
-  'portal_metric_lifetime_aggregates',
-  'setup_checklist_milestones',
 ] as const)
 
 export const MONTHLY_RESULT_GUARD = Object.freeze({
   table: 'goal_monthly_results',
   trigger: 'goal_monthly_results_guard',
 } as const)
-
-/** Tables with no Property column: a Property request leaves them alone. */
-export const REPORTING_ORGANIZATION_ONLY_TABLES: readonly string[] = Object.freeze([
-  'setup_checklist_milestones',
-])

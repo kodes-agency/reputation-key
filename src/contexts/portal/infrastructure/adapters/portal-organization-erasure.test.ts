@@ -21,7 +21,6 @@ describe('Portal erasure plan', () => {
     for (const foreign of [
       'properties',
       'guest_responses',
-      'portal_metric_lifetime_aggregates',
       'portal_responsibilities',
       'portal_group_memberships',
     ]) {

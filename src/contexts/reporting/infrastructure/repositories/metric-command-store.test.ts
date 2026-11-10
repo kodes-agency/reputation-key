@@ -68,20 +68,20 @@ const db = getDb()
 function makeReading(overrides: Partial<MetricReading> = {}): MetricReading {
   return createReading({
     id: READING_ID,
-    definitionVersionId: '11111111-1111-4111-8111-111111111205',
-    metricKey: 'property.review',
+    definitionVersionId: '11111111-1111-4111-8111-111111111202',
+    metricKey: 'portal.rating',
     organizationId: ORG_ID,
     propertyId: PROP_ID,
-    portalId: null,
+    portalId: PORTAL_ID,
     portalGroupId: null,
     value: 4,
     sampleCount: 1,
     sourceEventId: 'integration-source-event-1',
-    sourcePolicy: 'google_property_derivative',
+    sourcePolicy: 'first_party_guest_private',
     occurredAt: NOW,
     propertyLocalDate: '2026-06-01',
     attributionQuality: 'exact',
-    retentionClass: 'provider-aligned',
+    retentionClass: 'short',
     now: NOW,
     ...overrides,
   })
@@ -93,10 +93,6 @@ async function truncateAll(p: Pool) {
      WHERE reading_id IN (
        SELECT id FROM metric_readings WHERE organization_id = ANY($1)
      )`,
-    [TENANT_IDS],
-  )
-  await p.query(
-    'DELETE FROM portal_metric_lifetime_aggregates WHERE organization_id = ANY($1)',
     [TENANT_IDS],
   )
   await p.query('DELETE FROM metric_readings WHERE organization_id = ANY($1)', [
@@ -262,7 +258,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     expect(rows.rows).toHaveLength(1)
     expect(rows.rows[0]).toEqual({
       id: READING_ID as string,
-      metric_key: 'property.review',
+      metric_key: 'portal.rating',
       value: 4,
     })
     const facts = await pool.query(

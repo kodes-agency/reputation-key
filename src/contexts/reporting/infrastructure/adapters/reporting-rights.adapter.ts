@@ -31,7 +31,6 @@ import {
 import {
   MONTHLY_RESULT_GUARD,
   REPORTING_EXPORT_TABLES,
-  REPORTING_ORGANIZATION_ONLY_TABLES,
   REPORTING_PURGE_ORDER,
   type ReportingExportTable,
 } from './reporting-rights-plan'
@@ -119,7 +118,6 @@ async function readAccess(
   await db.transaction(
     async (tx) => {
       for (const spec of REPORTING_EXPORT_TABLES) {
-        if (property && REPORTING_ORGANIZATION_ONLY_TABLES.includes(spec.table)) continue
         const result = await tx.execute(selectTable(spec, organization, property))
         const records = projectTenantRows(spec, result.rows as Row[], organization)
         counts[spec.table] = records.length
@@ -351,7 +349,6 @@ async function purge(
   // rollback restores the guard.
   const deleted: Record<string, number> = {}
   for (const table of REPORTING_PURGE_ORDER) {
-    if (property && REPORTING_ORGANIZATION_ONLY_TABLES.includes(table)) continue
     deleted[table] = await deleteTable(tx, table, organization, property)
   }
   await tx.execute(
@@ -385,9 +382,7 @@ export function createReportingRightsExecutor(
     scopes: ['access', 'organization', 'property'] as const,
     tables: {
       organization: REPORTING_PURGE_ORDER,
-      property: REPORTING_PURGE_ORDER.filter(
-        (table) => !REPORTING_ORGANIZATION_ONLY_TABLES.includes(table),
-      ),
+      property: REPORTING_PURGE_ORDER,
     },
     journalContexts: REPORTING_JOURNAL_CONTEXTS,
     async preflight(plan) {

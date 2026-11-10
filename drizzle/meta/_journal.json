@@ -883,6 +883,13 @@
       "when": 1800000006000,
       "tag": "0125_notification_default_preference_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1800000007000,
+      "tag": "0126_drop_retired_reporting_tables",
+      "breakpoints": true
     }
   ]
 }

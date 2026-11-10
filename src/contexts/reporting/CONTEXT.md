@@ -16,8 +16,7 @@ while a future scans version waits. Ended goals do not hold a collector.
 
 - Record version-pinned metric readings and append-only corrections.
 - Individual Google review stars are not recorded as metric readings; current
-  Google figures come from verified snapshots. Stored `property.review` readings
-  and their registry entry remain until those rows are erased.
+  Google figures come from verified snapshots.
 - Compute Portal totals from effective readings and maintain Current on Google snapshots. A Current on Google snapshot is ordered, and `verifiedAt` dated, by when Google's numbers were READ (the event's `numbersObservedAt`, falling back to `evaluatedAt`), so a long snapshot that completes after a fresher head fact does not replace the newer numbers.
 - Resolve governed metric availability, provenance, completeness, and correction impact.
 - Create, revise, assign, schedule, evaluate, and close monthly Goal Programs.
@@ -674,7 +673,7 @@ and event time, declared in `shared/db/concurrent-index-registry.ts`. Recording
 time remains a separate cutoff for staff figures and late-arrival evidence.
 
 Reporting owns the metric, Goal Program, Property Google rating goal, dashboard
-setup-checklist milestones, Portal lifetime, and Current on Google tables declared in the shared schema
+and Current on Google tables declared in the shared schema
 package. Repositories remain split by
 aggregate and read purpose even though they share a bounded context.
 
@@ -725,8 +724,6 @@ latest revision. It is read-only and conservative, not a completeness proof.
 Changed outcomes require owner review and the existing result-revision command;
 the query authorizes no repair.
 
-Organization setup milestones have no product reader or writer. Their schema,
-export and purge-table declaration remain for existing data.
 Per-Property setup reads remain active.
 
 ## Durable facts

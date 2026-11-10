@@ -31,7 +31,7 @@ import {
 } from './reporting-rights.adapter'
 
 const AT = new Date('2026-08-01T00:00:00.000Z')
-const PROPERTY_REVIEW_DASHBOARD_VERSION = '11111111-1111-4111-8111-111111111205'
+const PORTAL_RATING_VERSION = '11111111-1111-4111-8111-111111111202'
 const JOURNAL_CONTEXTS: ReadonlyArray<BackupErasureLedgerContext> = [
   'goal',
   'metric',
@@ -59,11 +59,6 @@ async function seedOrganization(query: Query, properties: number): Promise<Seede
     propertyIds.push(propertyId)
     await seedProperty(query, organizationId, propertyId)
   }
-  await query(
-    `INSERT INTO setup_checklist_milestones (organization_id, step, first_completed_at, created_at)
-     VALUES ($1, 'published_portal', $2, $2)`,
-    [organizationId, AT],
-  )
   return { organizationId, propertyIds }
 }
 
@@ -91,14 +86,14 @@ async function seedProperty(
        id, organization_id, property_id, metric_key, value, definition_version_id,
        source_event_id, source_policy, exact_value, sample_count, attribution_quality,
        recorded_at, event_at, property_local_date, data_quality, retention_class
-     ) VALUES ($1::uuid, $2, $3::uuid, 'property.review', 5::real, $4, $5,
-               'google_property_derivative', 5::numeric, 1, 'exact', $6, $6,
+     ) VALUES ($1::uuid, $2, $3::uuid, 'portal.rating', 5::real, $4, $5,
+               'first_party_guest_private', 5::numeric, 1, 'exact', $6, $6,
                '2026-08-01', 'exact', 'guest_gateway_metric')`,
     [
       readingId,
       organizationId,
       propertyId,
-      PROPERTY_REVIEW_DASHBOARD_VERSION,
+      PORTAL_RATING_VERSION,
       `rights-${readingId}`,
       AT,
     ],
@@ -289,7 +284,6 @@ describe('reporting rights isolation', () => {
         'reporting: goal_programs 2',
         'reporting: metric_readings 2',
         'reporting: metric_corrections 4',
-        'reporting: setup_checklist_milestones 1',
       ]),
     )
     expect(await lines(other.organizationId)).toEqual(
@@ -297,7 +291,6 @@ describe('reporting rights isolation', () => {
         'reporting: goal_programs 1',
         'reporting: metric_readings 1',
         'reporting: metric_corrections 2',
-        'reporting: setup_checklist_milestones 1',
       ]),
     )
   })

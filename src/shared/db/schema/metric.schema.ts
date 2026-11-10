@@ -9,7 +9,6 @@ import {
   varchar,
   real,
   numeric,
-  bigint,
   integer,
   text,
   timestamp,
@@ -20,7 +19,7 @@ import {
   foreignKey,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
-import { createdAtColumn, updatedAtColumn } from '../columns'
+import { updatedAtColumn } from '../columns'
 import { properties } from './property.schema'
 import { portals } from './portal.schema'
 import { portalGroups } from './portal-group.schema'
@@ -173,158 +172,6 @@ export const metricReadings = pgTable(
         portalResponsibilities.staffParticipationId,
       ],
     }).onDelete('restrict'),
-  ],
-)
-
-/**
- * Anonymous, Property/Portal-owned lifetime analytics. `sealed_*` is the
- * content-free baseline for source facts already beyond the purge boundary;
- * rebuilds add the still-retained effective readings to that baseline. The
- * row intentionally has no source/response/session/contact id and no Guest
- * activity timestamp.
- */
-export const portalMetricLifetimeAggregates = pgTable(
-  'portal_metric_lifetime_aggregates',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    portalId: uuid('portal_id').notNull(),
-
-    qualifiedScanCount: bigint('qualified_scan_count', { mode: 'number' })
-      .notNull()
-      .default(0),
-    privateRatingCount: bigint('private_rating_count', { mode: 'number' })
-      .notNull()
-      .default(0),
-    privateRatingSum: bigint('private_rating_sum', { mode: 'number' })
-      .notNull()
-      .default(0),
-    privateRating1Count: bigint('private_rating_1_count', { mode: 'number' })
-      .notNull()
-      .default(0),
-    privateRating2Count: bigint('private_rating_2_count', { mode: 'number' })
-      .notNull()
-      .default(0),
-    privateRating3Count: bigint('private_rating_3_count', { mode: 'number' })
-      .notNull()
-      .default(0),
-    privateRating4Count: bigint('private_rating_4_count', { mode: 'number' })
-      .notNull()
-      .default(0),
-    privateRating5Count: bigint('private_rating_5_count', { mode: 'number' })
-      .notNull()
-      .default(0),
-    privateFeedbackCount: bigint('private_feedback_count', { mode: 'number' })
-      .notNull()
-      .default(0),
-    googleReviewSelectionCount: bigint('google_review_selection_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-    secondaryLinkSelectionCount: bigint('secondary_link_selection_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-
-    sealedQualifiedScanCount: bigint('sealed_qualified_scan_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-    sealedPrivateRatingCount: bigint('sealed_private_rating_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-    sealedPrivateRatingSum: bigint('sealed_private_rating_sum', { mode: 'number' })
-      .notNull()
-      .default(0),
-    sealedPrivateRating1Count: bigint('sealed_private_rating_1_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-    sealedPrivateRating2Count: bigint('sealed_private_rating_2_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-    sealedPrivateRating3Count: bigint('sealed_private_rating_3_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-    sealedPrivateRating4Count: bigint('sealed_private_rating_4_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-    sealedPrivateRating5Count: bigint('sealed_private_rating_5_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-    sealedPrivateFeedbackCount: bigint('sealed_private_feedback_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-    sealedGoogleReviewSelectionCount: bigint('sealed_google_review_selection_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-    sealedSecondaryLinkSelectionCount: bigint('sealed_secondary_link_selection_count', {
-      mode: 'number',
-    })
-      .notNull()
-      .default(0),
-
-    // A Property-local calendar boundary, not a Guest activity timestamp.
-    sealedThroughLocalDate: varchar('sealed_through_local_date', { length: 10 }),
-    projectionRevision: bigint('projection_revision', { mode: 'number' })
-      .notNull()
-      .default(0),
-    lastRebuiltAt: timestamp('last_rebuilt_at', { withTimezone: true }),
-    lastSealedAt: timestamp('last_sealed_at', { withTimezone: true }),
-    createdAt: createdAtColumn(),
-    updatedAt: updatedAtColumn(),
-  },
-  (t) => [
-    uniqueIndex('portal_metric_lifetime_scope_unique').on(
-      t.organizationId,
-      t.propertyId,
-      t.portalId,
-    ),
-    index('portal_metric_lifetime_property_idx').on(t.organizationId, t.propertyId),
-    foreignKey({
-      name: 'portal_metric_lifetime_portal_fk',
-      columns: [t.organizationId, t.propertyId, t.portalId],
-      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
-    }).onDelete('cascade'),
-    check(
-      'portal_metric_lifetime_nonnegative_check',
-      sql`${t.qualifiedScanCount} >= 0 AND ${t.privateRatingCount} >= 0 AND ${t.privateRatingSum} >= 0 AND ${t.privateRating1Count} >= 0 AND ${t.privateRating2Count} >= 0 AND ${t.privateRating3Count} >= 0 AND ${t.privateRating4Count} >= 0 AND ${t.privateRating5Count} >= 0 AND ${t.privateFeedbackCount} >= 0 AND ${t.googleReviewSelectionCount} >= 0 AND ${t.secondaryLinkSelectionCount} >= 0`,
-    ),
-    check(
-      'portal_metric_lifetime_rating_check',
-      sql`${t.privateRating1Count} + ${t.privateRating2Count} + ${t.privateRating3Count} + ${t.privateRating4Count} + ${t.privateRating5Count} = ${t.privateRatingCount} AND ${t.privateRatingSum} BETWEEN ${t.privateRatingCount} AND ${t.privateRatingCount} * 5`,
-    ),
-    check(
-      'portal_metric_lifetime_sealed_nonnegative_check',
-      sql`${t.sealedQualifiedScanCount} >= 0 AND ${t.sealedPrivateRatingCount} >= 0 AND ${t.sealedPrivateRatingSum} >= 0 AND ${t.sealedPrivateRating1Count} >= 0 AND ${t.sealedPrivateRating2Count} >= 0 AND ${t.sealedPrivateRating3Count} >= 0 AND ${t.sealedPrivateRating4Count} >= 0 AND ${t.sealedPrivateRating5Count} >= 0 AND ${t.sealedPrivateFeedbackCount} >= 0 AND ${t.sealedGoogleReviewSelectionCount} >= 0 AND ${t.sealedSecondaryLinkSelectionCount} >= 0`,
-    ),
-    check(
-      'portal_metric_lifetime_sealed_rating_check',
-      sql`${t.sealedPrivateRating1Count} + ${t.sealedPrivateRating2Count} + ${t.sealedPrivateRating3Count} + ${t.sealedPrivateRating4Count} + ${t.sealedPrivateRating5Count} = ${t.sealedPrivateRatingCount} AND ${t.sealedPrivateRatingSum} BETWEEN ${t.sealedPrivateRatingCount} AND ${t.sealedPrivateRatingCount} * 5`,
-    ),
-    check(
-      'portal_metric_lifetime_sealed_boundary_check',
-      sql`${t.sealedThroughLocalDate} IS NULL OR ${t.sealedThroughLocalDate} ~ '^\\d{4}-\\d{2}-\\d{2}$'`,
-    ),
   ],
 )
 

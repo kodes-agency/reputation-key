@@ -53,7 +53,7 @@ private bucket by hand and delete the local copy.
   Disconnect in Settings, Integrations, which revokes the grant.
 - **reporting** (`access`, `organization`): covers goal, metric and dashboard records (goal programs, versions,
   assignments, monthly results and revisions, rating goals, metric readings and
-  corrections, Google snapshots, Portal lifetime totals, setup milestones).
+  corrections, Google snapshots).
 
   - **Access**: `access` or `organization` with `out=<dir>` writes one JSON file
     per table under `<dir>/reporting/`, plus a manifest of row
