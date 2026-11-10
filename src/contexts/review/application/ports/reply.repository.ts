@@ -234,12 +234,11 @@ export type ReplyRepository = Readonly<{
    */
   saveDraft(reply: Reply, content: DraftReplyContent, now?: Date): Promise<Reply | null>
   /**
-   * Delete a draft or a rejected reply that was never authorized for
-   * publication. False, with nothing deleted, when `reply` is anything else or
-   * the row changed since it was read. A reply with a publication cycle keeps
-   * its authorization and attempt rows and is never deleted.
+   * Delete a never-authorized draft or rejected reply (true), or clear a
+   * settled failed reply in place (its new revision). False when refused or
+   * stale. Publication evidence always keeps its reply row.
    */
-  deleteDraft(reply: Reply): Promise<boolean>
+  deleteDraft(reply: Reply): Promise<boolean | Pick<Reply, 'id' | 'stateRevision'>>
   deleteByReviewIdAndSource(
     reviewId: ReviewId,
     source: ReplySource,

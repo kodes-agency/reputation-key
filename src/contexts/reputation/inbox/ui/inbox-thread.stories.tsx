@@ -398,6 +398,7 @@ const replyActions = {
     nextAutomaticCheckAt: null,
   })),
   onRetry: fn(async () => undefined),
+  onDeleteReply: fn(async () => undefined),
   onEditPublished: fn(() => {}),
   onEditRejected: fn(() => {}),
 } satisfies ComponentProps<typeof InboxThread>['replyActions']
@@ -1017,6 +1018,7 @@ export const ReplyNeedsCheckPhone = onPhone(ReplyNeedsCheck)
 
 export const ReplyNotPublished = replyNodeStory('notPublished', 'Not published', [
   'Try publishing again',
+  'Delete reply',
 ])
 export const ReplyNotPublishedPhone = onPhone(ReplyNotPublished)
 

@@ -725,15 +725,20 @@ export type DeleteReplyInput = Readonly<{
 
 export const deleteReply =
   (deps: ReplyDeps) =>
-  async (input: DeleteReplyInput, ctx: AuthContext): Promise<void> => {
+  async (
+    input: DeleteReplyInput,
+    ctx: AuthContext,
+  ): Promise<Readonly<{ id: string; stateRevision: number }> | null> => {
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply } = await requireAccessibleReply(deps, ctx, input.reviewId)
 
-    // A draft or a rejected reply that was never confirmed for publishing. One
-    // that was (a cancelled publication returns it to draft) has authorization
-    // and attempt rows behind it: they are evidence, the database keeps the
-    // reply for them, and the manager is told why instead of meeting the
-    // foreign key as an unexplained failure.
+    // A draft or a rejected reply that was never confirmed for publishing, or a
+    // reply whose publication failed for certain. One that was confirmed (a
+    // cancelled publication returns it to draft) has authorization and attempt
+    // rows behind it: they are evidence, the database keeps the reply for them,
+    // and the manager is told why instead of meeting the foreign key as an
+    // unexplained failure. A failed reply is cleared in its row, which keeps
+    // them; one of unknown outcome is checked with Google first.
     assertReplyCommandMayStart('delete', reply)
 
     // The draft on the manager's screen, not the one just read: a colleague's
@@ -744,6 +749,9 @@ export const deleteReply =
 
     const deleted = await deps.replyRepo.deleteDraft(reply)
     if (!deleted) throw replyChangedConcurrently()
+    // Return the write's own revision: a later read could name a colleague's
+    // next draft and authorize overwriting text this manager has not seen.
+    return deleted === true ? null : deleted
   }
 
 // ── Retry publish ─────────────────────────────────────────────────────

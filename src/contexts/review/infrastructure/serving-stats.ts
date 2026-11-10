@@ -374,6 +374,7 @@ export const createServingStats = (deps: {
                   WHERE replies.review_id = reviews.id
                   AND replies.organization_id = ${organizationId}
                   AND replies.status IN ('draft', 'pending_approval', 'approved')
+                  AND replies.text <> ''
                 ) THEN 'draft'
                 ELSE 'none'
               END),

@@ -213,9 +213,8 @@ export function ReplyStatusView({
       )
     // `published` is the ONLY state this editor opens on. `failed-retry` used
     // to share it, but `editPublishedReply` refuses any reply that is not
-    // `published` and `REPLY_TRANSITIONS.publish_failed` has no `draft`, so no
-    // server path exists today that changes the text of a publish-failed
-    // reply. Try again is its whole action list.
+    // `published`, so no server path edits the text of a publish-failed reply.
+    // Try again and Delete reply are its whole action list.
     //
     // Whether the editor is open is the pane's `editTarget`, not a local flag:
     // the cache patch that follows a republish re-resolves the reply to

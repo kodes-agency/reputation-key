@@ -1686,6 +1686,71 @@ describe('deleteReply', () => {
     expect(deps.replyRepo.deleteDraft).toHaveBeenCalledWith(reply)
   })
 
+  describe('a reply whose publication failed', () => {
+    const failed = (overrides: Partial<Reply> = {}) =>
+      makeReply({
+        status: 'publish_failed',
+        publicationState: 'terminal',
+        publicationCycle: 1,
+        publicationLastErrorClass: 'terminal_rejection',
+        stateRevision: 3,
+        ...overrides,
+      })
+
+    it('is cleared in its row, and the caller is told the revision to write against', async () => {
+      const reply = failed()
+      const restarted = { id: reply.id, stateRevision: 4 }
+      const deps = makeDeps({
+        replyRepo: {
+          ...replyRepoWith(reply),
+          deleteDraft: vi.fn(async () => restarted),
+        },
+      })
+
+      await expect(
+        deleteReply(deps)(
+          { reviewId: REVIEW_ID, expectedReply: { id: reply.id, stateRevision: 3 } },
+          MANAGER_CTX,
+        ),
+      ).resolves.toEqual(restarted)
+      expect(deps.replyRepo.deleteDraft).toHaveBeenCalledWith(reply)
+      // A later read could name a colleague's next draft, which this screen
+      // has never seen and must not receive authority to overwrite.
+      expect(deps.replyRepo.findInternalByReviewId).toHaveBeenCalledOnce()
+    })
+
+    it.each([
+      ['an uncertain outcome that ended', { publicationLastErrorClass: 'ambiguous' }],
+      [
+        'an uncertain outcome still being checked',
+        { publicationState: 'ambiguous', publicationLastErrorClass: 'ambiguous' },
+      ],
+    ] as const)('is refused for %s', async (_name, overrides) => {
+      const deps = makeDeps({ replyRepo: replyRepoWith(failed(overrides)) })
+
+      await expect(
+        deleteReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+      ).rejects.toMatchObject({ _tag: 'ReviewError', code: 'invalid_transition' })
+      expect(deps.replyRepo.deleteDraft).not.toHaveBeenCalled()
+    })
+
+    it('is refused for a screen that showed another revision', async () => {
+      const reply = failed()
+      const deps = makeDeps({ replyRepo: replyRepoWith(reply) })
+
+      await expect(
+        deleteReply(deps)(
+          { reviewId: REVIEW_ID, expectedReply: { id: reply.id, stateRevision: 2 } },
+          MANAGER_CTX,
+        ),
+      ).rejects.toMatchObject({
+        code: 'invalid_transition',
+        message: 'Reply status changed concurrently',
+      })
+      expect(deps.replyRepo.deleteDraft).not.toHaveBeenCalled()
+    })
+  })
+
   it('treats a reply that changed before the delete as invalid_transition', async () => {
     const deps = makeDeps({
       replyRepo: {

@@ -309,6 +309,8 @@ export const createReplyRepository = (
           and(
             eq(replies.organizationId, organizationId),
             sql`${replies.reviewId} = ANY(${sql.param(reviewIds.map(String))}::uuid[])`,
+            // An emptied reply retains publication evidence, but has no list badge.
+            or(ne(replies.status, 'draft'), ne(replies.text, '')),
           ),
         )
         .orderBy(asc(replies.reviewId), asc(replies.source))

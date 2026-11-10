@@ -64,9 +64,10 @@ export function computeReviewContentHash(
  *  `cancelledPublication`), and so does a cycle superseded by provider truth
  *  or a changed Review. While the edge sat in this table a draft save could
  *  take it and rewrite a reply that was being published.
- *  `pending_approval → draft` and `publish_failed → draft` are absent for the
- *  same reason: a guest edit makes them (`takenBackByGuestEdit`), and so does
- *  a different reply on Google for a failure of unknown outcome. */
+ *  `pending_approval → draft` is absent for the same reason: a guest edit makes
+ *  it (`takenBackByGuestEdit`). `publish_failed → draft` has one command: Delete
+ *  reply, on a failure that settled as not published, which clears the reply in
+ *  its row. A guest edit and a different reply on Google make it too. */
 const REPLY_TRANSITIONS: Readonly<Record<ReplyStatus, ReadonlyArray<ReplyStatus>>> = {
   draft: ['draft', 'pending_approval'],
   pending_approval: ['approved', 'rejected'],
@@ -77,7 +78,7 @@ const REPLY_TRANSITIONS: Readonly<Record<ReplyStatus, ReadonlyArray<ReplyStatus>
   // republishing can never duplicate the provider-visible reply.
   published: ['approved'],
   rejected: ['draft'],
-  publish_failed: ['approved', 'published'],
+  publish_failed: ['approved', 'published', 'draft'],
 }
 
 export const canTransitionReply = (current: ReplyStatus, next: ReplyStatus): boolean =>

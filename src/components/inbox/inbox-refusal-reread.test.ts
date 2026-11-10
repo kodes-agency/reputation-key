@@ -281,7 +281,7 @@ describe('a refused reply command', () => {
     const pendingSave = Promise.withResolvers<typeof saved>()
     replyServer.draftReplyFn.mockReturnValueOnce(pendingSave.promise)
     replyServer.draftReplyFn.mockResolvedValueOnce(recreated)
-    replyServer.deleteReplyFn.mockResolvedValueOnce(undefined)
+    replyServer.deleteReplyFn.mockResolvedValueOnce({ success: true, restarted: null })
     const actions = pane.renderHooks(() =>
       useReplyActions({
         reviewId: REVIEW_ID,
@@ -307,6 +307,32 @@ describe('a refused reply command', () => {
       pendingSave.resolve(saved)
       await Promise.allSettled([save, deletion])
     }
+  })
+
+  it('writes a new draft against the revision returned by clearing a failed reply', async () => {
+    const failed = { ...replyIn('publish_failed'), stateRevision: 3 }
+    const restarted = { id: failed.id, stateRevision: 4 }
+    replyServer.deleteReplyFn.mockResolvedValueOnce({ success: true, restarted })
+    replyServer.draftReplyFn.mockResolvedValueOnce({
+      ...replyIn('draft'),
+      ...restarted,
+      stateRevision: 5,
+      text: 'Thank you for visiting.',
+    })
+    const actions = pane.renderHooks(() =>
+      useReplyActions({
+        reviewId: REVIEW_ID,
+        reply: failed,
+        onReplyChanged: () => {},
+      }),
+    )
+
+    await actions.deleteDraft()
+    await actions.saveDraft('Thank you for visiting.')
+
+    expect(replyServer.draftReplyFn).toHaveBeenCalledWith({
+      data: expect.objectContaining({ expectedReply: restarted }),
+    })
   })
 
   it('advances the original review fence when a pending mutation receives replacement callbacks', async () => {
