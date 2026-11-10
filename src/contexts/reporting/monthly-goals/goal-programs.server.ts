@@ -277,6 +277,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         programId: string
         limit?: number
         after?: GoalHistoryCursor
+        subjects?: readonly GoalSubject[]
       }>,
       actor: GoalActor,
     ) => {

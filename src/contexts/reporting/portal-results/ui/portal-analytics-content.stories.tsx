@@ -103,7 +103,7 @@ export const RetainedHistory: Story = {
     ...AllTime.args,
     data: {
       ...AllTime.args!.data!,
-      period: { ...healthy.period, endAt: new Date('2028-10-01T00:00:00.000Z') },
+      retentionActive: true,
     },
   },
   play: async ({ canvas }) => {

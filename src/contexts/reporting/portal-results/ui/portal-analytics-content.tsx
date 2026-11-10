@@ -35,7 +35,7 @@ export function PortalAnalyticsContent({
         onTimeRangeChange={onTimeRangeChange}
         localDays={data.localDays}
         timezone={data.period.timezone}
-        asOf={data.period.endAt}
+        retentionActive={data.retentionActive}
       />
       {place?.skipPrivateRating ? (
         <p className="text-sm text-muted-foreground">
