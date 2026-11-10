@@ -92,8 +92,6 @@ export type NotificationWorkStateDeps = Readonly<{
   portalHealthLookup: Pick<PortalPublicApi, 'findPortalHealthNotificationFacts'>
   /** Portal-owned: whether a site is still waiting for an account admin. */
   destinationLookup: Pick<PortalPublicApi, 'findDestinationApprovalNotificationFacts'>
-  /** The Organization's lifecycle state; null when it has no lifecycle record. */
-  organizationState: (organizationId: OrganizationId) => Promise<string | null>
   responsibleManagers: Pick<
     ResponsibleManagerLookupPort,
     'findForProperty' | 'findForPortal'
@@ -235,12 +233,6 @@ const destinationStillPending: WorkCheck = async (
   return facts !== null && facts.approvalState === 'pending' && facts.portal !== null
 }
 
-/** The final deletion warning is true only while the purge is still pending. */
-const purgeStillPending: WorkCheck = async (deps, { organizationId }) => {
-  const state = await deps.organizationState(organizationId)
-  return state === null ? null : state === 'purge_pending'
-}
-
 const propertyStillUnstaffed: WorkCheck = async (deps, { organizationId, resourceId }) =>
   (await deps.responsibleManagers.findForProperty(organizationId, propertyId(resourceId)))
     .length === 0
@@ -269,7 +261,6 @@ const WORK_CHECKS: Readonly<Partial<Record<NotificationType, WorkCheck>>> = {
   'inbox.bulk_assigned': assignedItemsStillOpen,
   'portal.health_attention': healthStillNeedsAttention,
   'portal.link_approval': destinationStillPending,
-  'account.organization_purge_pending': purgeStillPending,
   'property.responsibility_needed': propertyStillUnstaffed,
   'portal.responsibility_needed': portalStillUnstaffed,
 }

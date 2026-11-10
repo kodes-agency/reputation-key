@@ -53,6 +53,7 @@ import {
   properties,
   reviewAiAnalysisHeads,
   reviews,
+  reviewSourceContents,
 } from '#/shared/db/schema'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
@@ -494,16 +495,28 @@ describe('BQC-7.4 alert injection — real reads', () => {
       organizationId: ANALYSIS_ORG,
       propertyId: EMPTY_ENROLLMENT_PROPERTY,
       platform: 'google',
+      firstFetchedAt: stalledAt,
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 2,
+    })
+    await db.insert(reviewSourceContents).values({
+      reviewId: ELIGIBLE_REVIEW_ID,
+      organizationId: ANALYSIS_ORG,
+      propertyId: EMPTY_ENROLLMENT_PROPERTY,
+      platform: 'google',
       externalId: 'review-analysis-empty-enrollment-alert',
+      externalLocationId: 'locations/review-analysis-alert',
       reviewerName: 'Synthetic reviewer',
       rating: 5,
       text: 'Synthetic eligibility fixture',
       languageCode: 'en',
       reviewedAt: stalledAt,
+      firstFetchedAt: stalledAt,
+      lastFetchedAt: stalledAt,
       contentExpiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
       sourceEpoch: 0,
       sourceRevision: 1,
-      analysisSequence: 2,
       aiSourceByteLength: 32,
       aiSourceDigest: 'f'.repeat(64),
     })

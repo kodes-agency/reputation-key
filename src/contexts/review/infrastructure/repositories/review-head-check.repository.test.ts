@@ -263,7 +263,7 @@ describe.sequential('reviewHeadCheckRepository.readBaseline (real PostgreSQL)', 
          language_code = NULL, reviewed_at = NULL, source_created_at = NULL,
          source_updated_at = NULL, content_hash = NULL, ai_source_byte_length = NULL,
          ai_source_digest = NULL
-       WHERE organization_id = $1 AND external_id = 'ext-a3'`,
+       WHERE organization_id = $1 AND id IN (SELECT review_id FROM review_source_contents WHERE organization_id = $1 AND external_id = 'ext-a3')`,
       [ORG],
     )
 
@@ -283,7 +283,7 @@ describe.sequential('reviewHeadCheckRepository.readBaseline (real PostgreSQL)', 
          language_code = NULL, reviewed_at = NULL, source_created_at = NULL,
          source_updated_at = NULL, content_hash = NULL, ai_source_byte_length = NULL,
          ai_source_digest = NULL
-       WHERE organization_id = $1 AND external_id = 'ext-gone'`,
+       WHERE organization_id = $1 AND id IN (SELECT review_id FROM review_source_contents WHERE organization_id = $1 AND external_id = 'ext-gone')`,
       [ORG],
     )
 

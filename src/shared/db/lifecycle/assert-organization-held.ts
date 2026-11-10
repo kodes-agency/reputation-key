@@ -1,18 +1,15 @@
-import { sql } from 'drizzle-orm'
-import type { Tx } from '#/shared/outbox/commit'
+import { parseSuspendedOrgs } from '#/shared/auth/beta-capabilities'
+import { getEnv } from '#/shared/config/env'
 
-/** A purge may only run on an Organization whose lifecycle is no longer active. */
-export async function assertOrganizationHeld(
-  tx: Tx,
-  organization: string,
-): Promise<void> {
-  const result = await tx.execute(sql`
-    SELECT state FROM organization_lifecycle_authority
-    WHERE organization_id = ${organization}
-  `)
-  const state = (result.rows[0] as { state?: string } | undefined)?.state
-  if (state === undefined) throw new Error('Organization has no lifecycle record')
-  if (state === 'active') {
-    throw new Error('Organization is still active; suspend it before a purge')
-  }
+/** Whether `BETA_SUSPENDED_ORGS` names the Organization. */
+export function isOrganizationSuspended(organization: string): boolean {
+  return parseSuspendedOrgs(getEnv().BETA_SUSPENDED_ORGS).has(organization)
+}
+
+export const ORGANIZATION_NOT_SUSPENDED =
+  'Organization is still active; suspend it before a purge'
+
+/** A purge may only run on an Organization that is suspended. */
+export function assertOrganizationHeld(organization: string): void {
+  if (!isOrganizationSuspended(organization)) throw new Error(ORGANIZATION_NOT_SUSPENDED)
 }

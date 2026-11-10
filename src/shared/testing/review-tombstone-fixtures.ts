@@ -51,8 +51,8 @@ const DEFAULT_LOCATION = 'locations/tombstone-fixtures'
 const DIGEST_ZEROES = '0'.repeat(64)
 
 /**
- * An active Review row as the sync stores it: provider values and both clocks
- * set, with its content row. A Review without a content clock holds nothing to
+ * An active Review identity with provider values and clocks in its content
+ * row. A Review without a content clock holds nothing to
  * serve, so it gets no content row. The content row goes with the Review when
  * the Review is deleted.
  */
@@ -61,29 +61,18 @@ export async function insertLiveReview(db: Query, seed: LiveReviewSeed): Promise
   const lastFetchedAt = seed.lastFetchedAt ?? reviewedAt
   await db.query(
     `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id,
-       external_location_id, google_connection_id, reviewer_name, rating, text,
-       reviewed_at, expires_at, first_fetched_at, last_fetched_at,
-       content_expires_at, source_epoch, source_revision, analysis_sequence,
-       ai_source_byte_length, ai_source_digest
+       id, organization_id, property_id, platform, google_connection_id, first_fetched_at,
+       source_epoch, source_revision, analysis_sequence
      ) VALUES (
-       $1, $2, $3, 'google', $4, $5, $6, 'Jane Doe', $7, $8,
-       $9, $9, $10, $10, $11, 0, $12, 0, 1, $13
+       $1, $2, $3, 'google', $4, $5, 0, $6, 0
      )`,
     [
       seed.id,
       seed.organizationId,
       seed.propertyId,
-      seed.externalId,
-      seed.externalLocationId ?? DEFAULT_LOCATION,
       seed.googleConnectionId ?? null,
-      seed.rating ?? 5,
-      seed.text ?? 'A live review',
-      reviewedAt,
       lastFetchedAt,
-      seed.contentExpiresAt,
       seed.sourceRevision ?? 0,
-      DIGEST_ZEROES,
     ],
   )
   if (seed.contentExpiresAt == null) return

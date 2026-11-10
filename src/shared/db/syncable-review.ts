@@ -1,3 +1,4 @@
+import { reviewSourceContents } from './schema/review-source-content.schema'
 // Whether a stored Review can still be refreshed by a sync.
 //
 // A refresh sync is authorized against the Property's CURRENT Google binding
@@ -33,6 +34,14 @@ export function reviewIsSyncable() {
       .select({ one: sql`1` })
       .from(properties)
       .innerJoin(
+        reviewSourceContents,
+        and(
+          eq(reviewSourceContents.reviewId, reviews.id),
+          eq(reviewSourceContents.organizationId, reviews.organizationId),
+          eq(reviewSourceContents.propertyId, reviews.propertyId),
+        ),
+      )
+      .innerJoin(
         googleConnections,
         eq(googleConnections.id, properties.googleConnectionId),
       )
@@ -40,7 +49,7 @@ export function reviewIsSyncable() {
         and(
           eq(properties.id, reviews.propertyId),
           eq(properties.organizationId, reviews.organizationId),
-          eq(properties.googleConnectionId, reviews.googleConnectionId),
+          eq(properties.googleConnectionId, reviewSourceContents.googleConnectionId),
           propertyIsSyncable,
         ),
       ),

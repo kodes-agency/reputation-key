@@ -17,7 +17,6 @@ import {
 import { resolveGoalStart, type GoalMonthlyPeriod } from '../../domain/goal-start'
 import { GOAL_VERSION_REASONS } from '../goal-version-reasons'
 import {
-  assertOrganizationFreeToStartGoals,
   assertSubjectsAreFree,
   assignmentFor,
   GoalProgramError,
@@ -194,8 +193,7 @@ export async function createGoalCore(
 /**
  * Create a Program from a request. The start month is read against the
  * Property's own calendar at the moment of the command: a key that is no
- * longer the current or the next local month is refused, never moved. An
- * Organization the lifecycle holds gets no new goal (`organization_closing`).
+ * longer the current or the next local month is refused, never moved.
  */
 export async function createGoal(
   deps: GoalProgramDependencies,
@@ -208,7 +206,6 @@ export async function createGoal(
     propertyId: input.propertyId,
     action: 'goal.create',
   })
-  await assertOrganizationFreeToStartGoals(deps, actor.organizationId)
   const timezone = await deps.subjects.getTimezone(actor.organizationId, input.propertyId)
   if (!timezone) throw new GoalProgramError('not_found')
   const now = deps.now()

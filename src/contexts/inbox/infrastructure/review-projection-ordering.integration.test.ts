@@ -183,8 +183,14 @@ async function advanceReview(from: 1 | 2, to: 2 | 3): Promise<void> {
   await pool.query(
     `UPDATE reviews
      SET source_revision = $2, source_observation_sequence = $2,
-         analysis_sequence = $2, source_updated_at = $3, last_fetched_at = $3
+         analysis_sequence = $2
      WHERE id = $1`,
+    [REVIEW, to],
+  )
+  await pool.query(
+    `UPDATE review_source_contents
+     SET source_revision = $2, source_updated_at = $3, last_fetched_at = $3
+     WHERE review_id = $1`,
     [REVIEW, to, OBSERVED[to - 1]],
   )
 }
@@ -202,17 +208,20 @@ async function seedActiveReview(revisions: 1 | 2 | 3 = 3): Promise<void> {
     [PROPERTY, ORG, `inbox-projection-ordering-${process.pid}`],
   )
   await pool.query(
-    `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id,
-       external_location_id, rating, reviewed_at, expires_at,
+    `WITH identity AS (
+       INSERT INTO reviews (
+         id, organization_id, property_id, platform, first_fetched_at,
+         source_epoch, source_revision, source_observation_sequence,
+         analysis_sequence, source_content_state, created_at, updated_at
+       ) VALUES ($1, $2, $3, 'google', $6, 0, $9, $9, $9, 'active', $6, $7)
+       RETURNING id
+     ) INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, rating, reviewed_at, content_expires_at,
        source_created_at, source_updated_at, first_fetched_at, last_fetched_at,
-       content_expires_at, source_epoch, source_revision,
-       source_observation_sequence, analysis_sequence, ai_source_byte_length,
-       ai_source_digest, source_content_state, created_at, updated_at
-     ) VALUES (
-       $1, $2, $3, 'google', 'ordering-review', 'locations/ordering', 5, $4, $5,
-       $6, $7, $6, $7, $5, 0, $9, $9, $9, 1, $8, 'active', $6, $7
-     )`,
+       source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+     ) SELECT id, $2, $3, 'google', 'ordering-review', 'locations/ordering',
+       5, $4, $5, $6, $7, $6, $7, 0, $9, 1, $8 FROM identity`,
     [
       REVIEW,
       ORG,
@@ -424,6 +433,9 @@ describe.sequential('Review source event delivery-order convergence', () => {
   })
 
   it('late creation after erasure keeps stable history closed and creates no targets', async () => {
+    await pool.query('DELETE FROM review_source_contents WHERE organization_id = $1', [
+      ORG,
+    ])
     await pool.query(
       `UPDATE reviews SET
          external_id = NULL, external_location_id = NULL,

@@ -76,7 +76,7 @@ function mapEntry(row: BacklogRow): AiReviewAnalysisBacklogEntry {
  */
 const NEWEST_FIRST = sql`
   (backlog.priority = 'interactive') DESC,
-  COALESCE(review.reviewed_at, review.created_at) DESC NULLS LAST,
+  COALESCE((SELECT content.reviewed_at FROM review_source_contents content WHERE content.review_id = review.id AND content.organization_id = review.organization_id AND content.property_id = review.property_id), review.created_at) DESC NULLS LAST,
   backlog.analysis_sequence DESC,
   backlog.event_envelope_id
 `

@@ -224,8 +224,12 @@ describe('a review Google restated at an unmoved updateTime', () => {
       rating: number
       text: string
     }>(
-      `SELECT material_source_digest, material_normalized_digest, rating, text
-         FROM reviews WHERE id = $1 AND organization_id = $2`,
+      `SELECT review.material_source_digest, review.material_normalized_digest, content.rating, content.text
+         FROM reviews AS review
+         JOIN review_source_contents AS content ON content.review_id = review.id
+           AND content.organization_id = review.organization_id
+           AND content.property_id = review.property_id
+         WHERE review.id = $1 AND review.organization_id = $2`,
       [REVIEW, ORG],
     )
     expect(head.rows[0]).toEqual({
@@ -348,7 +352,7 @@ describe('the content row through a restatement and an edit', () => {
     })
   })
 
-  it('serves the same revision, digest and byte length from the content row as from the review', async () => {
+  it('keeps the revision fence while writing the edited AI digest and byte length only to content', async () => {
     await observe(review(), 1)
     await observe(
       review({
@@ -363,14 +367,22 @@ describe('the content row through a restatement and an edit', () => {
 
     const both = await getPool().query(
       `SELECT r.source_revision = c.source_revision AS same_revision,
-              r.ai_source_digest = c.ai_source_digest AS same_digest,
-              r.ai_source_byte_length = c.ai_source_byte_length AS same_length
+              r.ai_source_digest IS NULL AS no_digest_copy,
+              r.ai_source_byte_length IS NULL AS no_length_copy,
+              c.ai_source_digest AS source_digest,
+              c.ai_source_byte_length AS source_length
          FROM reviews r JOIN review_source_contents c ON c.review_id = r.id
         WHERE r.id = $1`,
       [REVIEW],
     )
     expect(both.rows).toEqual([
-      { same_revision: true, same_digest: true, same_length: true },
+      {
+        same_revision: true,
+        no_digest_copy: true,
+        no_length_copy: true,
+        source_digest: 'c'.repeat(64),
+        source_length: 20,
+      },
     ])
   })
 })

@@ -226,14 +226,14 @@ const count = async (query: ReturnType<typeof sql>): Promise<number> => {
 const observationsOf = (externalId: string) =>
   count(sql`
     SELECT count(*)::int AS count FROM review_source_observations o
-    JOIN reviews r ON r.id = o.review_id AND r.organization_id = o.organization_id
-    WHERE r.organization_id = ${ORG} AND r.external_id = ${externalId}
+    JOIN review_source_contents c ON c.review_id = o.review_id AND c.organization_id = o.organization_id
+    WHERE c.organization_id = ${ORG} AND c.external_id = ${externalId}
   `)
 
 const reviewRows = async () =>
   (
     await db.execute(sql`
-      SELECT external_id, text FROM reviews WHERE organization_id = ${ORG} ORDER BY external_id
+      SELECT external_id, text FROM review_source_contents WHERE organization_id = ${ORG} ORDER BY external_id
     `)
   ).rows
 
@@ -412,8 +412,8 @@ describe('a persisting head check (real PostgreSQL)', () => {
     const history = await db.execute(sql`
       SELECT o.material_revision, o.comparison_result
       FROM review_source_observations o
-      JOIN reviews r ON r.id = o.review_id AND r.organization_id = o.organization_id
-      WHERE r.organization_id = ${ORG} AND r.external_id = ${original.externalId}
+      JOIN review_source_contents c ON c.review_id = o.review_id AND c.organization_id = o.organization_id
+      WHERE c.organization_id = ${ORG} AND c.external_id = ${original.externalId}
       ORDER BY o.observation_sequence
     `)
     expect(history.rows).toEqual([

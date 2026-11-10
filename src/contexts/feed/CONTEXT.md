@@ -110,11 +110,7 @@ notice depends on it: it carries no Property, and refusing it for that reason
 dropped the last warning before an irreversible deletion. Every other audience
 still fails closed without a Property.
 
-The Organization's lifecycle authority is read when an email is queued and
-again before it is sent. From a closure request, and until a cancelled
-closure is explicitly reactivated, no optional email is queued or sent and
-queued rows are suppressed as `organization_closing`; mandatory notices stop
-only at the irreversible boundary. Rows for a Property that is not active are
+Rows for a Property that is not active are
 held, by the digest and the urgent path alike.
 
 The browser receives a `NotificationView`, never the stored row: the event

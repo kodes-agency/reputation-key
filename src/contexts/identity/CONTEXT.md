@@ -18,8 +18,6 @@ adapter; no other context reads its tables directly.
   Staff Participation to a Portal; `primary` is the single metric-credit relation.
 - **Property Access Grant** — the only explicit Property-scope authority.
 - **Invitation** — a pending Organization membership request with a built-in role.
-- **Organization Lifecycle Authority** — the revisioned closure, recovery, purge,
-  and terminal-state control plane.
 
 ## Invariants
 
@@ -69,8 +67,6 @@ adapter; no other context reads its tables directly.
   not multiply metrics or select notification recipients.
 - Member, role, grant, policy, and lifecycle mutations advance their governing
   revision in the same transaction; stale command authority denies.
-- Organization closure and export require a current, transactionally rechecked
-  AccountAdmin. Purging is irreversible and Closed is terminal.
 - Exports are deterministic, encrypted, time-bounded, and assembled from exactly one
   contribution per stable data-owner slot; raw retrieval tokens are never stored.
   No CSV cell may start a spreadsheet formula: contributors write cells with

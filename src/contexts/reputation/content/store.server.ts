@@ -1,3 +1,4 @@
+import { reviewError } from '#/contexts/review/application/public-api'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -10,30 +11,23 @@ import { reviewSourceContents } from '#/shared/db/schema/review-source-content.s
 import { unbrand } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
-import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
+import {
+  purgeAiDraftsForReview,
+  purgeExpiredAiDraftsForReview,
+} from '#/shared/db/ai/ai-draft-purge'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
-import type { Review } from '../domain/types'
-import { deleteGoogleSyncMirrors } from '#/contexts/reputation/application/public-api'
+import type { Review } from '#/contexts/review/application/public-api'
 
 type ReviewSourceContentWriter = Pick<Database, 'insert'>
 
-/**
- * REV-01 expand writer.
- *
- * The independently erasable row and the legacy Review compatibility cache
- * are written in the caller's transaction. Keeping this function at the
- * infrastructure boundary prevents command paths from inventing a second
- * mapping or forgetting a provider-controlled field.
- */
+/** Write provider content in the caller's observation transaction. */
 export async function upsertReviewSourceContent(
   writer: ReviewSourceContentWriter,
   review: Omit<Review, 'createdAt' | 'updatedAt'>,
 ): Promise<boolean> {
   if (review.lastFetchedAt == null || review.contentExpiresAt == null) {
-    // Expand compatibility: pre-lifecycle fixtures/rows remain writable by
-    // generic repository callers, but are deliberately excluded from the new
-    // cache instead of inventing fetch clocks. Provider observations always
-    // supply both controls and command stores require a successful dual-write.
+    // Callers without provider fetch evidence cannot
+    // create content or renew its clock.
     return false
   }
 
@@ -105,7 +99,7 @@ export async function upsertReviewSourceContent(
 }
 
 /**
- * Atomically turn the compatibility Review row into a content-free tombstone
+ * Atomically turn the Review row into a content-free tombstone
  * and remove its independently erasable provider cache. The caller owns the
  * surrounding lifecycle transaction and event/outbox write.
  *
@@ -126,7 +120,7 @@ export async function eraseReviewSourceContent(
     expectedSourceRevision: number
     state: 'source_expired' | 'provider_deleted'
   }>,
-  replyEffects: ReplyScopeEffects | undefined,
+  replyEffects: ReplyScopeEffects,
 ): Promise<boolean> {
   const rows = await tx
     .update(reviews)
@@ -240,10 +234,10 @@ export async function eraseReviewSourceContent(
       ),
     )
 
-  // Pre-RPL provider mirrors are provider-owned source content too. Current
+  // Retained provider mirrors are provider-owned source content too. Current
   // code no longer creates them; erase any retained compatibility row during
   // the same lifecycle transaction.
-  await deleteGoogleSyncMirrors(tx, {
+  await replyEffects.deleteGoogleSyncMirrors(tx, {
     organizationId: input.organizationId,
     reviewId: input.reviewId,
   })
@@ -258,4 +252,108 @@ export async function eraseReviewSourceContent(
       ),
     )
   return true
+}
+
+export const reviewIdentityValues = (
+  review: Omit<Review, 'createdAt' | 'updatedAt'>,
+): typeof reviews.$inferInsert => ({
+  id: unbrand(review.id),
+  organizationId: unbrand(review.organizationId),
+  propertyId: unbrand(review.propertyId),
+  platform: review.platform,
+  // The publication permit's database guard binds this routing metadata.
+  googleConnectionId:
+    review.googleConnectionId == null ? null : unbrand(review.googleConnectionId),
+  // Stable first-fetch history survives content erasure and re-observation.
+  firstFetchedAt: review.firstFetchedAt,
+  sentimentLabel: review.sentimentLabel,
+  sentimentScore: review.sentimentScore,
+  sourceSeenGeneration: review.sourceSeenGeneration,
+  sourceEpoch: review.sourceEpoch,
+  sourceRevision: review.sourceRevision,
+  analysisSequence: review.analysisSequence,
+  sourceContentState: 'active',
+  sourceContentErasedAt: null,
+})
+
+/** Insert the first Review row, or advance the existing one to this
+ * observation's source content and counters. A guest edit or an epoch carry
+ * withdraws the AI-assisted replies written for the revision it replaces. Any
+ * other observation changed nothing they were written from, so it withdraws
+ * only those whose binding has run out of time, which no transaction of its
+ * own marks (`src/shared/db/ai/ai-draft-purge.ts`). */
+export async function writeObservedReviewIdentity(
+  tx: Tx,
+  existing: typeof reviews.$inferSelect | null,
+  observedReview: Omit<Review, 'createdAt' | 'updatedAt'>,
+  material: Readonly<{
+    materialRevision: number
+    normalizationVersion: string
+    sourceDigest: string
+    normalizedDigest: string
+  }>,
+  observationSequence: number,
+  observedAt: Date,
+  replyEffects: ReplyScopeEffects | undefined,
+): Promise<typeof reviews.$inferSelect> {
+  const row = reviewIdentityValues(observedReview)
+  const persistedRows: (typeof reviews.$inferSelect)[] =
+    existing == null
+      ? await tx
+          .insert(reviews)
+          .values({
+            ...row,
+            sourceObservationSequence: observationSequence,
+            materialNormalizationVersion: material.normalizationVersion,
+            materialSourceDigest: material.sourceDigest,
+            materialNormalizedDigest: material.normalizedDigest,
+            createdAt: observedAt,
+            updatedAt: observedAt,
+          })
+          .returning()
+      : await tx
+          .update(reviews)
+          .set({
+            propertyId: row.propertyId,
+            googleConnectionId: row.googleConnectionId,
+            sentimentLabel: row.sentimentLabel,
+            sentimentScore: row.sentimentScore,
+            sourceSeenGeneration: row.sourceSeenGeneration,
+            sourceEpoch: row.sourceEpoch,
+            sourceRevision: material.materialRevision,
+            sourceObservationSequence: observationSequence,
+            materialNormalizationVersion: material.normalizationVersion,
+            materialSourceDigest: material.sourceDigest,
+            materialNormalizedDigest: material.normalizedDigest,
+            analysisSequence: row.analysisSequence,
+            sourceContentState: 'active',
+            sourceContentErasedAt: null,
+            updatedAt: observedAt,
+          })
+          .where(
+            and(
+              eq(reviews.id, existing.id),
+              eq(reviews.organizationId, existing.organizationId),
+              eq(reviews.propertyId, existing.propertyId),
+              eq(reviews.sourceEpoch, existing.sourceEpoch),
+            ),
+          )
+          .returning()
+  const persistedRow = persistedRows[0]
+  if (!persistedRow) {
+    throw reviewError('repo_upsert_failed', 'Review observation returned no row')
+  }
+  if (existing !== null) {
+    const purge =
+      existing.sourceEpoch !== persistedRow.sourceEpoch ||
+      existing.sourceRevision !== persistedRow.sourceRevision
+        ? purgeAiDraftsForReview
+        : purgeExpiredAiDraftsForReview
+    await purge(
+      tx,
+      { organizationId: existing.organizationId, reviewId: existing.id },
+      replyEffects,
+    )
+  }
+  return persistedRow
 }

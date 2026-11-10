@@ -25,7 +25,6 @@ const ratingGoalStatus = (code: RatingGoalErrorCode): number => {
     case 'goal_exists':
     case 'not_active':
     case 'version_conflict':
-    case 'organization_closing':
     case 'recap_closed':
       return 409
     case 'invalid_target':

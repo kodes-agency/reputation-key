@@ -1,3 +1,4 @@
+import { reviewIdentityValues } from '#/contexts/reputation/application/public-api'
 // Review context — Drizzle review repository implementation
 // Per architecture: factory function returning Readonly<{ method }>.
 // Reviews table has no deletedAt column, so baseWhere is not used.
@@ -47,7 +48,7 @@ import type { Review, ReviewPlatform, StarRating } from '../../domain/types'
 import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { reviewFromRow, reviewFromRows, reviewToRow } from '../mappers/review.mapper'
+import { reviewFromRows } from '../mappers/review.mapper'
 import { reviewError } from '../../domain/errors'
 import { escapeLikePattern } from '#/shared/db/like-pattern'
 import { trace } from '#/shared/observability/trace'
@@ -59,7 +60,6 @@ import {
   computeAiReviewSourceSentences,
   findStoredAiReviewSourceProvenance,
 } from '../../application/ai-review-source'
-import { upsertReviewSourceContent } from '../review-source-content-store'
 import { reviewIsSyncable } from '#/shared/db/syncable-review'
 import {
   AiReviewSourceRefusal,
@@ -132,7 +132,7 @@ type ClockCursor = Readonly<{ contentExpiresAt: Date; id: string }> | null
  * the comparison of the clock with the sweep's date; the cursor is a strict
  * row-tuple greater-than, so rows inserted behind it are never skipped or
  * repeated as it advances. The clock predicate keeps the partial index
- * (`reviews_content_expires_idx`) usable.
+ * (`review_source_contents_expiry_idx`) usable.
  */
 async function clockBatchAcrossTenants(
   db: Database,
@@ -141,23 +141,21 @@ async function clockBatchAcrossTenants(
   limit: number,
   scope?: SQL,
 ) {
-  const rows = await db
-    .select()
-    .from(reviews)
+  const rows = await reviewsWithContent(db)
     .where(
       and(
         holdsContent,
-        isNotNull(reviews.contentExpiresAt),
+        isNotNull(reviewSourceContents.contentExpiresAt),
         bound,
         scope,
         cursor
-          ? sql`(${reviews.contentExpiresAt}, ${reviews.id}) > (${cursor.contentExpiresAt}, ${cursor.id})`
+          ? sql`(${reviewSourceContents.contentExpiresAt}, ${reviews.id}) > (${cursor.contentExpiresAt}, ${cursor.id})`
           : undefined,
       ),
     )
-    .orderBy(reviews.contentExpiresAt, reviews.id)
+    .orderBy(reviewSourceContents.contentExpiresAt, reviews.id)
     .limit(limit)
-  return rows.map(reviewFromRow)
+  return rows.map(reviewFromJoin)
 }
 
 export const createReviewRepository = (
@@ -454,14 +452,16 @@ export const createReviewRepository = (
               review.source_epoch,
               review.source_revision,
               review.analysis_sequence,
-              review.ai_source_byte_length,
+              source.ai_source_byte_length,
               (
-                COALESCE(octet_length(review.text), 0)::bigint
-                + COALESCE(octet_length(review.language_code), 0)::bigint
-                + COALESCE(octet_length(review.reviewer_name), 0)::bigint
+                COALESCE(octet_length(source.text), 0)::bigint
+                + COALESCE(octet_length(source.language_code), 0)::bigint
+                + COALESCE(octet_length(source.reviewer_name), 0)::bigint
               ) AS raw_source_bytes,
-              review.content_expires_at > captured.now AS is_unexpired
+              source.content_expires_at > captured.now AS is_unexpired
             FROM reviews AS review
+            LEFT JOIN review_source_contents AS source ON source.review_id = review.id
+              AND source.organization_id = review.organization_id AND source.property_id = review.property_id
             CROSS JOIN captured
             WHERE review.organization_id = ${input.organizationId}
               AND review.property_id = ${input.propertyId}::uuid
@@ -556,7 +556,7 @@ export const createReviewRepository = (
         .where(
           and(
             eq(reviews.platform, platform),
-            eq(reviews.externalId, externalId),
+            eq(reviewSourceContents.externalId, externalId),
             eq(reviews.organizationId, organizationId),
           ),
         )
@@ -680,57 +680,30 @@ export const createReviewRepository = (
         return observation.review
       }
 
-      // Compatibility-only path for non-provider fixtures and internal
-      // callers that predate fetch clocks. Provider observations always use
-      // the versioned adapter above.
-      const row = reviewToRow(review)
-      const result = await db.transaction(async (tx) => {
-        const rows = await tx
-          .insert(reviews)
-          .values(row)
-          .onConflictDoUpdate({
-            target: [reviews.platform, reviews.externalId, reviews.organizationId],
-            set: {
-              propertyId: row.propertyId,
-              externalLocationId: row.externalLocationId,
-              googleConnectionId: row.googleConnectionId,
-              reviewerName: row.reviewerName,
-              reviewerProfilePhotoUrl: row.reviewerProfilePhotoUrl,
-              googleReviewUrl: row.googleReviewUrl,
-              rating: row.rating,
-              text: row.text,
-              translatedText: row.translatedText,
-              languageCode: row.languageCode,
-              reviewedAt: row.reviewedAt,
-              expiresAt: row.expiresAt,
-              // BQC-1.3: every successful fetch advances the fetch clock and
-              // hash/baseline fields (ADR 0031). firstFetchedAt is preserved
-              // by omission — only the first observation sets it.
-              sourceCreatedAt: row.sourceCreatedAt,
-              sourceUpdatedAt: row.sourceUpdatedAt,
-              lastFetchedAt: row.lastFetchedAt,
-              contentExpiresAt: row.contentExpiresAt,
-              contentHash: row.contentHash,
-              sourceSeenGeneration: row.sourceSeenGeneration,
-              sourceEpoch: row.sourceEpoch,
-              sourceRevision: row.sourceRevision,
-              analysisSequence: row.analysisSequence,
-              aiSourceByteLength: row.aiSourceByteLength,
-              aiSourceDigest: row.aiSourceDigest,
-              sourceContentState: 'active',
-              sourceContentErasedAt: null,
-              updatedAt,
-            },
-          })
-          .returning()
-        await upsertReviewSourceContent(tx, review)
-        return rows
-      })
-
-      if (!result[0]) {
-        throw reviewError('repo_upsert_failed', 'Review upsert failed — no row returned')
-      }
-      return reviewFromRow(result[0])
+      const row = reviewIdentityValues(review)
+      const [identity] = await db
+        .insert(reviews)
+        .values(row)
+        .onConflictDoUpdate({
+          target: reviews.id,
+          set: {
+            propertyId: row.propertyId,
+            googleConnectionId: row.googleConnectionId,
+            sourceSeenGeneration: row.sourceSeenGeneration,
+            sourceEpoch: row.sourceEpoch,
+            sourceRevision: row.sourceRevision,
+            analysisSequence: row.analysisSequence,
+            sourceContentState: 'active',
+            sourceContentErasedAt: null,
+            updatedAt,
+          },
+          setWhere: eq(reviews.organizationId, review.organizationId),
+        })
+        .returning()
+      if (!identity)
+        throw reviewError('repo_upsert_failed', 'Review upsert returned no row')
+      // No provider fetch evidence means no content row or renewed expiry.
+      return { ...review, createdAt: identity.createdAt, updatedAt: identity.updatedAt }
     })
   },
 
@@ -738,7 +711,7 @@ export const createReviewRepository = (
     return trace('review.findByPropertyId', async () => {
       const query = reviewsWithContent(db)
         .where(and(eq(reviews.propertyId, propertyId), liveIn(organizationId)))
-        .orderBy(desc(reviews.reviewedAt), asc(reviews.id))
+        .orderBy(desc(reviewSourceContents.reviewedAt), asc(reviews.id))
 
       // F038: LIMIT pushdown for a caller that wants the newest few. Without a
       // limit the read is every live Review of the Property: the Inbox repair
@@ -767,7 +740,7 @@ export const createReviewRepository = (
         .where(
           and(
             eq(reviews.organizationId, organizationId),
-            eq(reviews.googleConnectionId, connectionId),
+            eq(reviewSourceContents.googleConnectionId, connectionId),
             cursor ? gt(reviews.id, cursor.id) : undefined,
           ),
         )
@@ -821,7 +794,7 @@ export const createReviewRepository = (
     return trace('review.findExpiringBatchAcrossTenants', () =>
       clockBatchAcrossTenants(
         db,
-        lte(reviews.contentExpiresAt, date),
+        lte(reviewSourceContents.contentExpiresAt, date),
         cursor,
         limit,
         reviewIsSyncable(),
@@ -839,7 +812,12 @@ export const createReviewRepository = (
    */
   findExpiredBatchBeforeAcrossTenants: async (date, cursor, limit) => {
     return trace('review.findExpiredBatchBeforeAcrossTenants', () =>
-      clockBatchAcrossTenants(db, lt(reviews.contentExpiresAt, date), cursor, limit),
+      clockBatchAcrossTenants(
+        db,
+        lt(reviewSourceContents.contentExpiresAt, date),
+        cursor,
+        limit,
+      ),
     )
   },
 
@@ -852,11 +830,19 @@ export const createReviewRepository = (
       const rows = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(reviews)
+        .innerJoin(
+          reviewSourceContents,
+          and(
+            eq(reviewSourceContents.reviewId, reviews.id),
+            eq(reviewSourceContents.organizationId, reviews.organizationId),
+            eq(reviewSourceContents.propertyId, reviews.propertyId),
+          ),
+        )
         .where(
           and(
             holdsContent,
-            isNotNull(reviews.contentExpiresAt),
-            lt(reviews.contentExpiresAt, date),
+            isNotNull(reviewSourceContents.contentExpiresAt),
+            lt(reviewSourceContents.contentExpiresAt, date),
           ),
         )
       return rows[0]?.count ?? 0

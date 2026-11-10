@@ -78,7 +78,7 @@ import { createAtomicReplyCommandStore } from './reply-command-store'
 import { createReplyRepository } from './repositories/reply.repository'
 import { createReviewRepository } from './repositories/review.repository'
 import { createAtomicReviewCommandStore } from './review-command-store'
-import { eraseReviewSourceContent } from './review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 
 const ORG = organizationId('ai-draft-purge-test-org')
 const SUBMITTER = userId('ai-draft-purge-submitter')

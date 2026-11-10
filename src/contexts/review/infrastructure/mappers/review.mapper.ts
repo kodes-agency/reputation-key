@@ -5,7 +5,6 @@ import type { reviews } from '#/shared/db/schema/review.schema'
 import type { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import type { Review } from '../../domain/types'
 import {
-  unbrand,
   reviewId,
   organizationId,
   propertyId,
@@ -14,7 +13,6 @@ import {
 import { reviewError } from '../../domain/errors'
 
 type ReviewRow = typeof reviews.$inferSelect
-type ReviewInsertRow = typeof reviews.$inferInsert
 type ReviewContentRow = typeof reviewSourceContents.$inferSelect
 
 const VALID_PLATFORMS = new Set<string>(['google'])
@@ -107,6 +105,7 @@ export const reviewFromRows = (row: ReviewRow, content: ReviewContentRow): Revie
     translatedText: content.translatedText,
     languageCode: content.languageCode,
     reviewedAt: content.reviewedAt,
+    expiresAt: content.contentExpiresAt,
     sourceCreatedAt: content.sourceCreatedAt,
     sourceUpdatedAt: content.sourceUpdatedAt,
     firstFetchedAt: content.firstFetchedAt,
@@ -116,41 +115,3 @@ export const reviewFromRows = (row: ReviewRow, content: ReviewContentRow): Revie
     aiSourceByteLength: content.aiSourceByteLength,
     aiSourceDigest: content.aiSourceDigest,
   })
-
-export const reviewToRow = (
-  review: Omit<Review, 'createdAt' | 'updatedAt'>,
-): ReviewInsertRow => ({
-  id: unbrand(review.id),
-  organizationId: unbrand(review.organizationId),
-  propertyId: unbrand(review.propertyId),
-  platform: review.platform,
-  externalId: review.externalId,
-  externalLocationId: review.externalLocationId,
-  googleConnectionId:
-    review.googleConnectionId != null ? unbrand(review.googleConnectionId) : null,
-  reviewerName: review.reviewerName,
-  reviewerProfilePhotoUrl: review.reviewerProfilePhotoUrl,
-  googleReviewUrl: review.googleReviewUrl,
-  rating: review.rating,
-  text: review.text,
-  translatedText: review.translatedText,
-  languageCode: review.languageCode,
-  reviewedAt: review.reviewedAt,
-  expiresAt: review.expiresAt,
-  sentimentLabel: review.sentimentLabel,
-  sentimentScore: review.sentimentScore,
-  sourceCreatedAt: review.sourceCreatedAt,
-  sourceUpdatedAt: review.sourceUpdatedAt,
-  firstFetchedAt: review.firstFetchedAt,
-  lastFetchedAt: review.lastFetchedAt,
-  contentExpiresAt: review.contentExpiresAt,
-  contentHash: review.contentHash,
-  sourceSeenGeneration: review.sourceSeenGeneration,
-  sourceEpoch: review.sourceEpoch,
-  sourceRevision: review.sourceRevision,
-  analysisSequence: review.analysisSequence,
-  aiSourceByteLength: review.aiSourceByteLength,
-  aiSourceDigest: review.aiSourceDigest,
-  sourceContentState: 'active',
-  sourceContentErasedAt: null,
-})

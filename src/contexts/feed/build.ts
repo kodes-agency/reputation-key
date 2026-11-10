@@ -46,7 +46,6 @@ import { createNotificationRecipientStanding } from './application/notification-
 import { createGroupedReopenStore } from './infrastructure/repositories/notification-grouped-reopen.repository'
 import { createActivePropertyLookup } from './infrastructure/repositories/active-property'
 import { createNotificationWorkState } from './application/notification-work-state'
-import { createNotificationOrganizationLifecycleStateReader } from './infrastructure/repositories/notification-organization-email-stop.repository'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
@@ -345,7 +344,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     replyStates: input.replyStates,
     portalHealthLookup: input.portalHealthLookup,
     destinationLookup: input.destinationLookup,
-    organizationState: createNotificationOrganizationLifecycleStateReader(input.db),
     responsibleManagers: input.responsibleManagers,
   })
   // Asked again immediately before every Property-scoped email is sent.
@@ -883,7 +881,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       createProcessors: (worker: NotificationDeliveryWorkerInput) =>
         createNotificationDeliveryProcessors(
           {
-            db: input.db,
             notificationRepo,
             emailRepo,
             preferenceRepo: prefRepo,

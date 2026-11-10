@@ -116,7 +116,11 @@ async function bindingHolds(
               AND profile.profile_version = draft.origin_property_profile_version
               AND review.source_epoch = draft.origin_source_epoch
               AND review.source_revision = draft.origin_source_revision
-              AND review.content_expires_at > transaction_timestamp()
+              AND EXISTS (SELECT 1 FROM review_source_contents AS content
+                WHERE content.review_id = review.id
+                  AND content.organization_id = review.organization_id
+                  AND content.property_id = review.property_id
+                  AND content.content_expires_at > transaction_timestamp())
               AND ${adoptionWindow}
               AND merchant.state = 'enabled'
               AND merchant.authorized_source_epoch = draft.origin_source_epoch

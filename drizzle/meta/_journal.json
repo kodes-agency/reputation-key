@@ -887,8 +887,15 @@
     {
       "idx": 126,
       "version": "7",
-      "when": 1800000007000,
-      "tag": "0126_drop_retired_reporting_tables",
+      "when": 1800100006000,
+      "tag": "0126_drop_legacy_reply_template_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1800100007000,
+      "tag": "0127_drop_retired_reporting_tables",
       "breakpoints": true
     }
   ]

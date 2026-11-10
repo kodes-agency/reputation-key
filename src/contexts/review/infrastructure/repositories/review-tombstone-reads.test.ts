@@ -33,7 +33,7 @@ import { createEligibleReads } from '../../application/eligible-reads'
 import { createAiReviewSource } from '../../application/ai-review-source'
 import { requireAccessibleReview } from '../../application/use-cases/reply-access'
 import { createReviewRepository } from './review.repository'
-import { eraseReviewSourceContent } from '../review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 
 const ORG = organizationId('org-review-tombstone-reads-1111111111')
 const PROPERTY = propertyId('7e100000-0000-4000-8000-000000000001')
@@ -227,9 +227,9 @@ describe.sequential('an erased Review in the repository reads', () => {
       const stored = await pool.query<{
         source_content_state: string
         content_expires_at: Date | null
-        last_fetched_at: Date | null
+        first_fetched_at: Date | null
       }>(
-        `SELECT source_content_state, content_expires_at, last_fetched_at
+        `SELECT source_content_state, content_expires_at, first_fetched_at
          FROM reviews WHERE id = $1`,
         [id],
       )
@@ -237,8 +237,8 @@ describe.sequential('an erased Review in the repository reads', () => {
         {
           source_content_state: state,
           content_expires_at: null,
-          // The fetch history is stable identity, not provider content.
-          last_fetched_at: FETCHED_AT,
+          // The first fetch is stable identity, not provider content.
+          first_fetched_at: FETCHED_AT,
         },
       ])
     },

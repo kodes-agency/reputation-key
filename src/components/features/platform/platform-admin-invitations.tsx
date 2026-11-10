@@ -34,8 +34,6 @@ type LineProps = Readonly<{
   organizationId: string
   organizationName: string
   invitation: PlatformAdminInvitationView
-  /** Resend needs an active Organization; Cancel does not. */
-  canResend: boolean
   resend: ResendAdminInvitationAction
   cancel: CancelAdminInvitationAction
 }>
@@ -44,7 +42,6 @@ function AdminInvitationLine({
   organizationId,
   organizationName,
   invitation,
-  canResend,
   resend,
   cancel,
 }: LineProps) {
@@ -64,17 +61,13 @@ function AdminInvitationLine({
         </span>
       </div>
       <RowActionsMenu name={invitation.email}>
-        {canResend ? (
-          <>
-            <RowActionsItem
-              disabled={resendInvitation.isPending}
-              onSelect={() => void resendInvitation(input).catch(() => undefined)}
-            >
-              Resend invitation
-            </RowActionsItem>
-            <RowActionsSeparator />
-          </>
-        ) : null}
+        <RowActionsItem
+          disabled={resendInvitation.isPending}
+          onSelect={() => void resendInvitation(input).catch(() => undefined)}
+        >
+          Resend invitation
+        </RowActionsItem>
+        <RowActionsSeparator />
         <RowActionsItem destructive opensDialog onSelect={() => setCancelling(true)}>
           Cancel invitation
         </RowActionsItem>
@@ -98,7 +91,6 @@ type Props = Readonly<{
   organizationId: string
   organizationName: string
   invitations: ReadonlyArray<PlatformAdminInvitationView>
-  canResend: boolean
   resend: ResendAdminInvitationAction
   cancel: CancelAdminInvitationAction
 }>

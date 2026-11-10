@@ -15,6 +15,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { REPORTING_PURGE_ORDER } from './reporting-rights-plan'
 import { createReportingRightsExecutor } from './reporting-rights.adapter'
+import { holdRightsOrganization } from '#/shared/db/testing/rights-isolation-fixture'
 
 const AT = new Date('2026-08-01T00:00:00.000Z')
 const PORTAL_RATING_VERSION = '11111111-1111-4111-8111-111111111202'
@@ -78,35 +79,6 @@ async function seedTenant(): Promise<Tenant> {
     [headId, tenant.readingId, `head-${headId}`, rootId, AT],
   )
   return tenant
-}
-
-async function hold(organizationId: string): Promise<void> {
-  const lineage = randomUUID()
-  await lease.pool.query(
-    `UPDATE organization_lifecycle_authority
-     SET state = 'closure_requested', revision = revision + 1,
-         closure_lineage_id = $2, closure_requested_at = $3,
-         recoverable_until = $4, reactivation_required = true,
-         requested_by = 'admin:rights-test', request_reason_code = 'test_workspace',
-         request_support_evidence_ref = 'test:closure-request',
-         last_transition_at = $3, last_actor_id = 'admin:rights-test',
-         last_reason_code = 'test_workspace', last_support_evidence_ref = 'test:closure-request'
-     WHERE organization_id = $1`,
-    [organizationId, lineage, AT, new Date('2026-08-31T00:00:00.000Z')],
-  )
-  for (const [next, reason] of [
-    ['closing', 'closing_prepared'],
-    ['purge_pending', 'recovery_window_elapsed'],
-  ] as const) {
-    await lease.pool.query(
-      `UPDATE organization_lifecycle_authority
-       SET state = $2, revision = revision + 1,
-           last_transition_at = $3, last_actor_id = 'system:rights-test',
-           last_reason_code = $4, last_support_evidence_ref = 'test:advance'
-       WHERE organization_id = $1`,
-      [organizationId, next, AT, reason],
-    )
-  }
 }
 
 async function counts(organizationId: string): Promise<Record<string, number>> {
@@ -214,7 +186,7 @@ describe('reporting rights executor', () => {
   it('purges one Organization, leaves the other untouched and the guard enabled', async () => {
     const a = await seedTenant()
     const b = await seedTenant()
-    await hold(a.organizationId)
+    holdRightsOrganization(a.organizationId)
     const bBefore = await counts(b.organizationId)
 
     const result = await run(plan(a.organizationId))

@@ -83,53 +83,55 @@ export function aiSourceLookupSql(input: AiReviewSourceRequest) {
       review.source_epoch,
       review.source_revision,
       review.analysis_sequence,
-      ai_epoch_millis_v1(review.content_expires_at) AS content_expires_at_epoch_millis,
-      ai_epoch_millis_v1(review.reviewed_at) AS reviewed_at_epoch_millis,
-      review.ai_source_byte_length,
-      review.ai_source_digest,
+      ai_epoch_millis_v1(source.content_expires_at) AS content_expires_at_epoch_millis,
+      ai_epoch_millis_v1(source.reviewed_at) AS reviewed_at_epoch_millis,
+      source.ai_source_byte_length,
+      source.ai_source_digest,
       (
-        COALESCE(octet_length(review.text), 0)::bigint
-        + COALESCE(octet_length(review.language_code), 0)::bigint
-        + COALESCE(octet_length(review.reviewer_name), 0)::bigint
+        COALESCE(octet_length(source.text), 0)::bigint
+        + COALESCE(octet_length(source.language_code), 0)::bigint
+        + COALESCE(octet_length(source.reviewer_name), 0)::bigint
       ) AS raw_source_bytes,
-      review.content_expires_at > captured.now AS is_unexpired,
+      source.content_expires_at > captured.now AS is_unexpired,
       CASE WHEN
-        review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
+        source.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
         AND (
-          COALESCE(octet_length(review.text), 0)::bigint
-          + COALESCE(octet_length(review.language_code), 0)::bigint
-          + COALESCE(octet_length(review.reviewer_name), 0)::bigint
+          COALESCE(octet_length(source.text), 0)::bigint
+          + COALESCE(octet_length(source.language_code), 0)::bigint
+          + COALESCE(octet_length(source.reviewer_name), 0)::bigint
         ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
-        AND review.content_expires_at > captured.now
-      THEN review.text ELSE NULL END AS text,
+        AND source.content_expires_at > captured.now
+      THEN source.text ELSE NULL END AS text,
       CASE WHEN
-        review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
+        source.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
         AND (
-          COALESCE(octet_length(review.text), 0)::bigint
-          + COALESCE(octet_length(review.language_code), 0)::bigint
-          + COALESCE(octet_length(review.reviewer_name), 0)::bigint
+          COALESCE(octet_length(source.text), 0)::bigint
+          + COALESCE(octet_length(source.language_code), 0)::bigint
+          + COALESCE(octet_length(source.reviewer_name), 0)::bigint
         ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
-        AND review.content_expires_at > captured.now
-      THEN review.rating ELSE NULL END AS rating,
+        AND source.content_expires_at > captured.now
+      THEN source.rating ELSE NULL END AS rating,
       CASE WHEN
-        review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
+        source.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
         AND (
-          COALESCE(octet_length(review.text), 0)::bigint
-          + COALESCE(octet_length(review.language_code), 0)::bigint
-          + COALESCE(octet_length(review.reviewer_name), 0)::bigint
+          COALESCE(octet_length(source.text), 0)::bigint
+          + COALESCE(octet_length(source.language_code), 0)::bigint
+          + COALESCE(octet_length(source.reviewer_name), 0)::bigint
         ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
-        AND review.content_expires_at > captured.now
-      THEN review.language_code ELSE NULL END AS language_code,
+        AND source.content_expires_at > captured.now
+      THEN source.language_code ELSE NULL END AS language_code,
       CASE WHEN
-        review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
+        source.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
         AND (
-          COALESCE(octet_length(review.text), 0)::bigint
-          + COALESCE(octet_length(review.language_code), 0)::bigint
-          + COALESCE(octet_length(review.reviewer_name), 0)::bigint
+          COALESCE(octet_length(source.text), 0)::bigint
+          + COALESCE(octet_length(source.language_code), 0)::bigint
+          + COALESCE(octet_length(source.reviewer_name), 0)::bigint
         ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
-        AND review.content_expires_at > captured.now
-      THEN review.reviewer_name ELSE NULL END AS reviewer_name
+        AND source.content_expires_at > captured.now
+      THEN source.reviewer_name ELSE NULL END AS reviewer_name
     FROM reviews AS review
+    LEFT JOIN review_source_contents AS source ON source.review_id = review.id
+      AND source.organization_id = review.organization_id AND source.property_id = review.property_id
     CROSS JOIN captured
     WHERE review.organization_id = ${input.organizationId}
       AND review.property_id = ${input.propertyId}::uuid

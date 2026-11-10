@@ -298,8 +298,10 @@ async function runCodes(): Promise<readonly (string | null)[]> {
 
 async function storedSourceState(review: GoogleReview): Promise<unknown> {
   const result = await db.execute(sql`
-    SELECT source_content_state, text FROM reviews
-    WHERE organization_id = ${ORG} AND external_id = ${review.externalId}
+    SELECT r.source_content_state, c.text FROM reviews r
+    JOIN review_source_contents c ON c.review_id = r.id AND c.organization_id = r.organization_id
+      AND c.property_id = r.property_id
+    WHERE c.organization_id = ${ORG} AND c.external_id = ${review.externalId}
   `)
   return result.rows[0]
 }
@@ -509,9 +511,9 @@ describe('a listing that changes between the two scans of a run (real PostgreSQL
       UPDATE review_provider_subjects s
       SET first_missing_at = now() - ${`${2 * DAY_MS} milliseconds`}::interval,
           first_missing_snapshot_run_id = ${crypto.randomUUID()}
-      FROM reviews r
-      WHERE r.id = s.review_id AND r.organization_id = ${ORG}
-        AND r.external_id = ${hidden.externalId}
+      FROM review_source_contents c
+      WHERE c.review_id = s.review_id AND c.organization_id = ${ORG}
+        AND c.external_id = ${hidden.externalId}
     `)
 
     // Google leaves it out of a listing that agrees with its own total, then a
@@ -560,9 +562,9 @@ describe('a listing that changes between the two scans of a run (real PostgreSQL
       UPDATE review_provider_subjects s
       SET first_missing_at = now() - ${`${2 * DAY_MS} milliseconds`}::interval,
           first_missing_snapshot_run_id = ${crypto.randomUUID()}
-      FROM reviews r
-      WHERE r.id = s.review_id AND r.organization_id = ${ORG}
-        AND r.external_id = ${hidden.externalId}
+      FROM review_source_contents c
+      WHERE c.review_id = s.review_id AND c.organization_id = ${ORG}
+        AND c.external_id = ${hidden.externalId}
     `)
 
     runOrder = []
@@ -747,9 +749,9 @@ describe('a Google listing that moves while a scan is reading its pages (real Po
       UPDATE review_provider_subjects s
       SET first_missing_at = now() - ${`${2 * DAY_MS} milliseconds`}::interval,
           first_missing_snapshot_run_id = ${earlierMiss}
-      FROM reviews r
-      WHERE r.id = s.review_id AND r.organization_id = ${ORG}
-        AND r.external_id = ${hidden.externalId}
+      FROM review_source_contents c
+      WHERE c.review_id = s.review_id AND c.organization_id = ${ORG}
+        AND c.external_id = ${hidden.externalId}
     `)
 
     runOrder = []
@@ -782,8 +784,8 @@ describe('a Google listing that moves while a scan is reading its pages (real Po
     expect(candidates.rows).toEqual([])
     const miss = await db.execute(sql`
       SELECT s.first_missing_snapshot_run_id FROM review_provider_subjects s
-      JOIN reviews r ON r.id = s.review_id
-      WHERE r.organization_id = ${ORG} AND r.external_id = ${hidden.externalId}
+      JOIN review_source_contents c ON c.review_id = s.review_id AND c.organization_id = s.organization_id
+      WHERE c.organization_id = ${ORG} AND c.external_id = ${hidden.externalId}
     `)
     expect(miss.rows).toEqual([{ first_missing_snapshot_run_id: earlierMiss }])
     expect(await storedSourceState(hidden)).toMatchObject({

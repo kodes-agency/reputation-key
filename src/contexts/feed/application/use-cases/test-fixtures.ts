@@ -115,7 +115,6 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
     emailIdGen: () => EMAIL_ID,
     enqueueImmediateEmail: vi.fn(async () => {}),
     ratingForRouting: vi.fn(async () => null),
-    organizationEmailStop: vi.fn(async (_organizationId: string) => 'none' as const),
     logger: {
       info: vi.fn(),
       warn: vi.fn(),
