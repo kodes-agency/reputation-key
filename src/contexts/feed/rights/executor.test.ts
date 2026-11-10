@@ -15,10 +15,6 @@ import { rightsRequestCommandSpec } from '#/shared/ops/rights/rights-request-com
 import type { RightsAuditEvent } from '#/shared/ops/rights/rights-audit'
 import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
 import {
-  isEmailStopped,
-  type OrganizationEmailStop,
-} from '../domain/organization-email-stop'
-import {
   buildManualFinalWarningJobs,
   runNotificationRights,
   type ManualFinalWarningJob,
@@ -53,7 +49,6 @@ type Store = {
   userSettings: ScopedRightsRow[]
   removals: ScopedRightsRow[]
   admins: Record<string, string[]>
-  stop: Record<string, OrganizationEmailStop>
 }
 
 function seed(): Store {
@@ -77,7 +72,6 @@ function seed(): Store {
       row(ORG_B, null, { userId: 'former-b', eventId: 'removal-b', createdAt: 't' }),
     ],
     admins: { [ORG_A]: ['admin-a'], [ORG_B]: ['admin-b'] },
-    stop: { [ORG_A]: 'optional', [ORG_B]: 'none' },
   }
 }
 
@@ -93,7 +87,6 @@ function fakePort(store: Store, enqueued: ManualFinalWarningJob[], deleted: stri
       s.propertyId ? [] : inScope(store.userSettings, s.organizationId),
     formerMembers: async (org) => inScope(store.removals, org),
     accountAdmins: async (org) => store.admins[org] ?? [],
-    emailStop: async (org) => store.stop[org] ?? 'none',
     organizationPayload: async (org) => ({ organizationName: `Name of ${org}` }),
     rowCounts: async (s) => ({
       notifications: inScope(store.history, s.organizationId, s.propertyId).length,
@@ -201,17 +194,6 @@ describe('notification: rights through the rights-request handler', () => {
     await expect(
       runScript(seed(), ORG_A, ['access', 'out=/tmp/a'], { tamper: true }),
     ).rejects.toThrow('another Organization')
-  })
-
-  it('reports that suspension holds optional mail but not mandatory mail', async () => {
-    const suspended = await runScript(seed(), ORG_A, ['access'])
-    const active = await runScript(seed(), ORG_B, ['access'])
-    expect(suspended.out.join('\n')).toContain(
-      'optional mail: held (stop=optional; mandatory mail still sent)',
-    )
-    expect(active.out.join('\n')).toContain('optional mail: flowing')
-    expect(isEmailStopped('optional', 'workflow_collaboration')).toBe(true)
-    expect(isEmailStopped('optional', 'mandatory')).toBe(false)
   })
 
   it('plans final warnings with no Property for admins and former members', async () => {

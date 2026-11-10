@@ -6,7 +6,6 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   administered,
   awaitingFirstAdmin,
-  closing,
   competingInvitations,
   lapsedInvitation,
   makeAction,
@@ -121,20 +120,6 @@ export const Administered: Story = {
     // Dark for controlled beta: the row names the id the allowlist needs.
     expect(canvas.getByText('Controlled beta off')).toBeVisible()
     expect(canvas.getByText('org-alpine')).toBeVisible()
-  },
-}
-
-export const Closing: Story = {
-  args: { organization: closing },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getByText('Closure requested')).toBeVisible()
-    // Cancelling is allowed; resending and inviting need an active Organization.
-    const [menu] = canvas.getAllByRole('button', { name: /^more actions for/i })
-    const email = menu?.getAttribute('aria-label')?.replace('More actions for ', '') ?? ''
-    expect(await menuItemsFor(canvasElement, email)).toEqual(['Cancel invitation…'])
-    expect(canvas.queryByRole('form')).toBeNull()
-    expect(canvas.getByText(/cannot take a new invitation/i)).toBeVisible()
   },
 }
 

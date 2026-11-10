@@ -4,6 +4,7 @@
 // is the witness that nothing else moves. Rows are compared as canonical JSON.
 
 import { randomUUID } from 'node:crypto'
+import { holdRightsOrganization } from '#/shared/db/testing/rights-isolation-fixture'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { getEnv } from '#/shared/config/env'
@@ -115,35 +116,6 @@ async function seedProperty(
      VALUES ($1::uuid, $2::uuid, $3, 'replace', 'fixture', 'system', 'system:test', 4::numeric, $4::uuid, $5, $5)`,
     [headId, readingId, `head-${headId}`, rootId, AT],
   )
-}
-
-async function hold(query: Query, organizationId: string): Promise<void> {
-  const lineage = randomUUID()
-  await query(
-    `UPDATE organization_lifecycle_authority
-     SET state = 'closure_requested', revision = revision + 1,
-         closure_lineage_id = $2, closure_requested_at = $3,
-         recoverable_until = $4, reactivation_required = true,
-         requested_by = 'admin:rights-test', request_reason_code = 'test_workspace',
-         request_support_evidence_ref = 'test:closure-request',
-         last_transition_at = $3, last_actor_id = 'admin:rights-test',
-         last_reason_code = 'test_workspace', last_support_evidence_ref = 'test:closure-request'
-     WHERE organization_id = $1`,
-    [organizationId, lineage, AT, new Date('2026-08-31T00:00:00.000Z')],
-  )
-  for (const [next, reason] of [
-    ['closing', 'closing_prepared'],
-    ['purge_pending', 'recovery_window_elapsed'],
-  ] as const) {
-    await query(
-      `UPDATE organization_lifecycle_authority
-       SET state = $2, revision = revision + 1,
-           last_transition_at = $3, last_actor_id = 'system:rights-test',
-           last_reason_code = $4, last_support_evidence_ref = 'test:advance'
-       WHERE organization_id = $1`,
-      [organizationId, next, AT, reason],
-    )
-  }
 }
 
 function tenantRows(table: string): string {
@@ -305,7 +277,7 @@ describe('reporting rights isolation', () => {
   it('purges Properties A and B together and leaves the other Organization byte-identical', async () => {
     const first = await seedTracked(2)
     const other = await seedTracked(1)
-    await hold(poolQuery, first.organizationId)
+    holdRightsOrganization(first.organizationId)
     const propertiesBefore = (await snapshot(poolQuery, first.organizationId)).split(
       '"properties":',
     )[1]
@@ -326,7 +298,7 @@ describe('reporting rights isolation', () => {
   it('removes resurrected rows again when the journal is replayed after a restore', async () => {
     const first = await seedTracked(2)
     const other = await seedTracked(1)
-    await hold(poolQuery, first.organizationId)
+    holdRightsOrganization(first.organizationId)
     const firstBefore = await snapshot(poolQuery, first.organizationId)
     const otherBefore = await snapshot(poolQuery, other.organizationId)
     const { store, entries } = recordingStore()
@@ -357,7 +329,7 @@ describe('reporting rights isolation', () => {
   it('erases nothing and raises the alert when the journal write rejects', async () => {
     const first = await seedTracked(2)
     const other = await seedTracked(1)
-    await hold(poolQuery, first.organizationId)
+    holdRightsOrganization(first.organizationId)
     const firstBefore = await snapshot(poolQuery, first.organizationId)
     const otherBefore = await snapshot(poolQuery, other.organizationId)
     const alert = vi.fn()
@@ -401,7 +373,7 @@ describe('reporting rights isolation', () => {
           programStatus: 'active',
           monthStatus: 'reconciling',
         })
-        await hold(query, organizationId)
+        holdRightsOrganization(organizationId)
         const before = await snapshot(query, organizationId)
         const statuses = () =>
           query(
@@ -436,7 +408,7 @@ describe('reporting rights isolation', () => {
           programStatus: 'active',
           monthStatus: 'open',
         })
-        await hold(query, organizationId)
+        holdRightsOrganization(organizationId)
         const before = await snapshot(query, organizationId)
 
         const outcome = await createReportingRightsExecutor(fixture.db, () => AT)

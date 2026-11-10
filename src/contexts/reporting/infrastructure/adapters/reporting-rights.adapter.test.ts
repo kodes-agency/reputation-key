@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnv } from '#/shared/config/env'
 import type { Tx } from '#/shared/outbox/commit'
 import { REPORTING_EXPORT_TABLES, REPORTING_PURGE_ORDER } from './reporting-rights-plan'
 import {
@@ -34,17 +35,13 @@ function renderSql(statement: unknown): Recorded {
   return { text: walk(statement).trim(), params }
 }
 
-function createFakeTx(options: { state?: string | null; liveGoals?: number } = {}) {
+function createFakeTx(options: { liveGoals?: number } = {}) {
   const statements: Recorded[] = []
   const passes = new Map<string, number>()
-  const state = options.state === undefined ? 'purge_pending' : options.state
   const tx = {
     execute: async (statement: unknown) => {
       const recorded = renderSql(statement)
       statements.push(recorded)
-      if (recorded.text.includes('organization_lifecycle_authority')) {
-        return { rows: state === null ? [] : [{ state }], rowCount: 1 }
-      }
       if (recorded.text.includes('AS active_programs')) {
         return {
           rows: [{ active_programs: options.liveGoals ?? 0, reconciling: 0 }],
@@ -94,17 +91,21 @@ describe('projectTenantRows', () => {
 })
 
 describe('reporting purge', () => {
-  it('refuses an Organization that is still active, before touching a row', async () => {
-    const { tx, statements } = createFakeTx({ state: 'active' })
-    await expect(reportingPurgeInTransaction(tx, ORG, AT)).rejects.toThrow(/still active/)
-    expect(statements.some((s) => /DELETE|UPDATE|ALTER/.test(s.text))).toBe(false)
+  beforeEach(() => {
+    vi.stubEnv('BETA_SUSPENDED_ORGS', ORG)
+    resetEnv()
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    resetEnv()
   })
 
-  it('refuses an Organization with no lifecycle record', async () => {
-    const { tx } = createFakeTx({ state: null })
-    await expect(reportingPurgeInTransaction(tx, ORG, AT)).rejects.toThrow(
-      /no lifecycle record/,
-    )
+  it('refuses an Organization that is not suspended, before touching a row', async () => {
+    vi.stubEnv('BETA_SUSPENDED_ORGS', '')
+    resetEnv()
+    const { tx, statements } = createFakeTx()
+    await expect(reportingPurgeInTransaction(tx, ORG, AT)).rejects.toThrow(/still active/)
+    expect(statements.some((s) => /DELETE|UPDATE|ALTER/.test(s.text))).toBe(false)
   })
 
   it('refuses while a goal is still active after the fence', async () => {

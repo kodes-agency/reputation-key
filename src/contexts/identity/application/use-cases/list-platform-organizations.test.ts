@@ -13,7 +13,6 @@ const row = (id: string, accountAdminCount: number): PlatformOrganizationRow => 
   name: `Org ${id}`,
   slug: id,
   createdAt: new Date('2026-09-01T00:00:00.000Z'),
-  lifecycleState: 'active',
   memberCount: accountAdminCount,
   accountAdminCount,
   pendingInvitationCount: 1,

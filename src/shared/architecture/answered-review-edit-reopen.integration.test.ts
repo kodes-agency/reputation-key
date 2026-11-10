@@ -209,7 +209,6 @@ async function writeNotices(jobs: ReadonlyArray<InsertNotificationJobData>) {
       destinationLookup: {
         findDestinationApprovalNotificationFacts: notAskedForAnArrival,
       },
-      organizationState: notAskedForAnArrival,
       responsibleManagers: {
         findForProperty: notAskedForAnArrival,
         findForPortal: notAskedForAnArrival,

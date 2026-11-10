@@ -60,11 +60,6 @@ import {
   NOT_ACTIONABLE_EMAIL_REASON,
 } from '../domain/notification-settlement'
 import {
-  isEmailStopped,
-  ORGANIZATION_CLOSING_REASON,
-} from '../domain/organization-email-stop'
-import type { NotificationOrganizationEmailStopPort } from '../application/ports/notification-organization-email-stop.port'
-import {
   notificationLink,
   notificationReplyTo,
   renderNotification,
@@ -128,8 +123,6 @@ export type SendEmailsDeps = Readonly<{
   resolvePropertyScope: NotificationPropertyScopeResolver
   resolveOrganizationScope: NotificationOrganizationScopeResolver
   authorizeScope: ScheduledScopeAuthorizer
-  /** How far the Organization's lifecycle stops its email. */
-  organizationEmailStop: NotificationOrganizationEmailStopPort
   /** The recipient's current membership, access and responsibility. */
   isRecipientEligible: NotificationRecipientStanding
   /** Whether the work the notice asks for is still waiting. */
@@ -550,12 +543,6 @@ export const createSendEmailsHandler = (deps: SendEmailsDeps) => {
     const mandatory = propId === null
     if (!hasValidDeliveryScope(entry, mandatory)) {
       await suppress(ids, 'invalid_delivery_scope')
-      return false
-    }
-    // A closure request stops optional mail at once; mandatory notices go
-    // out until the irreversible boundary.
-    if (isEmailStopped(await deps.organizationEmailStop(ids.orgId), entry.category)) {
-      await suppress(ids, ORGANIZATION_CLOSING_REASON)
       return false
     }
     // A backlog queued while email was dark is retired, never flushed, and a

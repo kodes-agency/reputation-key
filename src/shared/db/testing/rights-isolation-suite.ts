@@ -237,7 +237,7 @@ export function describeRightsIsolation(config: RightsIsolationConfig): void {
 
     it('erases the Organization, replays it after a restore and leaves the other one alone', async () => {
       const { first, other } = await seedBoth()
-      await holdRightsOrganization(query, first.organizationId)
+      holdRightsOrganization(first.organizationId)
       const firstBefore = await snapshotOf(query, config, first.organizationId)
       const otherBefore = await snapshotOf(query, config, other.organizationId)
       const { store, entries } = recordingJournalStore()

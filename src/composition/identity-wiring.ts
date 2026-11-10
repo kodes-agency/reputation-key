@@ -168,7 +168,6 @@ export function wireIdentity(
     releaseMemberAuthorities: memberAuthorityLifecycle.port.releaseMemberAuthorities,
     reconcileResponsibleManagerEligibility:
       memberAuthorityLifecycle.port.reconcileResponsibleManagerEligibility,
-    organizationLifecycle: options?.organizationLifecycle,
   })
 
   return identity

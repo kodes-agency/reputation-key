@@ -42,7 +42,6 @@ type Props = Readonly<{
 /** Waiting on the operator is the one flag that needs them: a tone, not a look. */
 const FLAG_VARIANT: Readonly<Record<OrganizationFlag['id'], 'warn' | 'outline'>> = {
   'needs-account-admin': 'warn',
-  lifecycle: 'outline',
   'controlled-beta-off': 'outline',
 }
 
@@ -55,7 +54,7 @@ function Fact({ term, value }: Readonly<{ term: string; value: number }>) {
 }
 
 function AdministrationSection({ organization, inviteAdmin, resend, cancel }: Props) {
-  const { id, name, accountAdminCount, lifecycleState } = organization
+  const { id, name, accountAdminCount } = organization
   if (accountAdminCount > 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -72,7 +71,6 @@ function AdministrationSection({ organization, inviteAdmin, resend, cancel }: Pr
           organizationId={id}
           organizationName={name}
           invitations={organization.pendingAdminInvitations}
-          canResend={lifecycleState === 'active'}
           resend={resend}
           cancel={cancel}
         />

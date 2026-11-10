@@ -549,20 +549,12 @@ and goal-detail pages.
 8. A version's target is never updated in place. A different target for a month still
    running is that month's own; a different target for the months after is a new version
    (ADR 0066).
-9. Nothing puts a Goal Program into `active` in an Organization the lifecycle holds: one with a
-   closure requested or in progress, or one whose closure was cancelled and awaits
-   reactivation (the Closing phase can pause only active programs; the database has no
-   scheduled -> paused edge). Maintenance neither lists nor activates its programs, and the
-   commands that would start one are refused with `organization_closing`: creating a goal (one
-   or several), and changing a goal's status to `active` (starting a scheduled goal, resuming a
-   paused one). Pausing and ending are never refused. A month already open still reconciles
-   and closes, which is how Goal's purge-readiness check comes to find none left.
-10. The Property Google rating goal and Goal Programs never feed each other. No Goal measure
-    reads Google data (`GOAL_METRICS`, and the metric CHECKs on `goal_program_versions` and
-    `goal_subject_assignments`), no Goal Program target or result is derived from the rating
-    goal, and the rating goal reads no metric reading and no Goal result. The rating goal is
-    never split across Portals, Portal Groups or people, never shown to staff, and never a
-    quota, ranking, incentive or employment input (ADR 0067).
+9. The Property Google rating goal and Goal Programs never feed each other. No Goal measure
+   reads Google data (`GOAL_METRICS`, and the metric CHECKs on `goal_program_versions` and
+   `goal_subject_assignments`), no Goal Program target or result is derived from the rating
+   goal, and the rating goal reads no metric reading and no Goal result. The rating goal is
+   never split across Portals, Portal Groups or people, never shown to staff, and never a
+   quota, ranking, incentive or employment input (ADR 0067).
 
 ## Portal results
 

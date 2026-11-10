@@ -40,7 +40,7 @@ export const resendOrganizationAdminInvitation =
   (deps: ResendOrganizationAdminInvitationDeps): ResendOrganizationAdminInvitation =>
   async (input, operator) => {
     const { organizationId, invitationId, administration } =
-      await readPermittedInvitation(deps.store, input, { requireActive: true })
+      await readPermittedInvitation(deps.store, input)
 
     const now = deps.clock()
     const renewed = await deps.store.renewAdminInvitation(
