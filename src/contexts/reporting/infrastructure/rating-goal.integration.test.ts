@@ -509,7 +509,18 @@ describe('the notices of a Property Google rating goal on PostgreSQL', () => {
 
     await evaluate(ORG, PROPERTY)
     await evaluate(ORG, PROPERTY)
-    await api.detail(allow, { propertyId: PROPERTY }, actor)
+    await expect(
+      api.detail(allow, { propertyId: PROPERTY }, actor),
+    ).resolves.toMatchObject({
+      state: 'active',
+      target: 4.6,
+      changes: [],
+      moved: {
+        thisWeek: { count: 1, allStars: 5, averageTenths: 50 },
+        lowReviews: [],
+        lowSinceSet: 0,
+      },
+    })
 
     expect((await noticeFacts()).map((fact) => fact.payload)).toEqual([
       expect.objectContaining({
