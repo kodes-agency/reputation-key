@@ -216,7 +216,9 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     (input) => changePortalLanguages(input),
     drawnFields,
   )
-  const goLive = usePortalAutosaveAction<{ data: { portalId: string } }>(
+  const goLive = usePortalAutosaveAction<{
+    data: { portalId: string; reviewedDigest: string }
+  }>(
     propertyId,
     portalId,
     (input) => publishPortal(input),

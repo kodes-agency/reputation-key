@@ -97,6 +97,11 @@ archived Portal back to Disabled. A Portal's state changes only through the inte
 address, languages), each of which commits through `commitPortalChange`; none accepts
 another intent's fields.
 
+The first go-live server function requires the digest from Review & publish and
+refuses a changed draft with the same refusal as publishing changes to a live Portal.
+Staff provisioning in `composition/identity-wiring.ts` deliberately calls the internal
+publish intent without a digest to publish the personal Portal it just created.
+
 Link, link-text and Linktree-setting commands recheck content mutability in
 `infrastructure/portal-aggregate-fence.ts`, using the state returned by the
 revision update while it holds the Portal row lock. An archived write rolls back

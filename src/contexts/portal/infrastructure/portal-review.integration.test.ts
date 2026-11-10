@@ -16,6 +16,7 @@ import { buildPortalPublicationSnapshot } from '../application/portal-publicatio
 import { getPortalReview } from '../application/use-cases/get-portal-review'
 import { publishPortalChanges } from '../application/use-cases/publish-portal-changes'
 import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
+import { publishPortal } from '../publication/portal-intents.server'
 import { recordPortalContentChange } from './portal-page-edits'
 import { createPortalRepository } from './repositories/portal.repository'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
@@ -52,6 +53,7 @@ const { getPool } = setupIntegrationDb({
   orgA: WORKING_COPY_ORG,
   orgB: WORKING_COPY_OTHER_ORG,
   tables: [
+    'portal_health_intervals',
     'portal_pending_content_changes',
     'portal_page_edits',
     'portal_publication_activations',
@@ -229,31 +231,42 @@ const MANAGER_CONTEXT = buildTestAuthContext({
 })
 
 let publishedIds = 0
+const publicationDeps = () => ({
+  portalRepo: createPortalRepository(getDb()),
+  commandStore: store(),
+  publicationRepo: publicationRepo(),
+  portalTokenRepo: {
+    findResolvableSummaryForPortal: async () => ({
+      version: 1,
+      issuedAt: SEEDED_AT,
+      gracePeriodEnds: null,
+      hasPublishedAccessArtifact: true,
+      addressKeyVersion: null,
+      issuedBy: null,
+    }),
+  },
+  propertyGoogleReviewDestinationApi: {
+    getGoogleReviewDestination: async () => DESTINATION,
+  },
+  propertyLifecycleApi: { isPropertyActive: async () => true },
+  staffPublicApi: {
+    getAccessiblePropertyIds: async () => null,
+    getAssignedPortals: async () => [],
+  },
+  idGen: () => `6f100000-0000-4000-8000-${String(++publishedIds).padStart(12, '0')}`,
+  clock: () => NOW,
+})
+
 const publishChanges = (reviewedDigest?: string) =>
-  publishPortalChanges({
-    portalRepo: createPortalRepository(getDb()),
-    commandStore: store(),
-    publicationRepo: publicationRepo(),
-    portalTokenRepo: {
-      findResolvableSummaryForPortal: async () => ({
-        version: 1,
-        issuedAt: SEEDED_AT,
-        gracePeriodEnds: null,
-        hasPublishedAccessArtifact: true,
-        addressKeyVersion: null,
-        issuedBy: null,
-      }),
-    },
-    propertyGoogleReviewDestinationApi: {
-      getGoogleReviewDestination: async () => DESTINATION,
-    },
-    propertyLifecycleApi: { isPropertyActive: async () => true },
-    staffPublicApi: {
-      getAccessiblePropertyIds: async () => null,
-      getAssignedPortals: async () => [],
-    },
-    idGen: () => `6f100000-0000-4000-8000-${String(++publishedIds).padStart(12, '0')}`,
-    clock: () => NOW,
+  publishPortalChanges(publicationDeps())(
+    { portalId: SCENARIO.portalId, reviewedDigest },
+    MANAGER_CONTEXT,
+  )
+
+const goLive = (reviewedDigest: string) =>
+  publishPortal({
+    ...publicationDeps(),
+    ratingGoalGuard: { findRunningRatingGoalBlock: async () => null },
   })({ portalId: SCENARIO.portalId, reviewedDigest }, MANAGER_CONTEXT)
 
 const review = () =>
@@ -292,6 +305,71 @@ const review = () =>
       role: 'AccountAdmin',
     }),
   )
+
+describe.sequential('first go-live after review (real PostgreSQL)', () => {
+  beforeEach(async () => {
+    await seedPortalWorkingCopy(getPool(), SCENARIO)
+  })
+
+  it('publishes exactly the draft the manager reviewed', async () => {
+    const { reviewDigest } = await review()
+    expect(reviewDigest).not.toBeNull()
+
+    await expect(goLive(reviewDigest ?? '')).resolves.toMatchObject({
+      publicationState: 'published',
+    })
+
+    await expect(
+      publicationRepo().findActiveForPortal(SCENARIO.organizationId, SCENARIO.portalId),
+    ).resolves.toMatchObject({ version: 1, configurationDigest: reviewDigest })
+  })
+
+  it('refuses a saved edit after review with the same refusal as publish changes', async () => {
+    const { reviewDigest } = await review()
+    expect(reviewDigest).not.toBeNull()
+    await rewordWelcome('Хотел Рила, обновен', EDITED_AT)
+
+    await expect(goLive(reviewDigest ?? '')).rejects.toMatchObject({
+      code: 'revision_conflict',
+      message:
+        'The Portal changed after you reviewed it. Review the changes again before publishing',
+    })
+
+    const after = await review()
+    expect(after.publicationState).toBe('draft')
+    expect(after.live).toBeNull()
+    expect(after.publishesAsVersion).toBe(1)
+    expect(after.reviewDigest).not.toBe(reviewDigest)
+    await expect(
+      publicationRepo().getCursor(SCENARIO.organizationId, SCENARIO.portalId),
+    ).resolves.toEqual({ nextSnapshotVersion: 1, nextActivationSequence: 1 })
+    const savedContent = await getPool().query(
+      `SELECT title FROM property_portal_brand_contents
+        WHERE property_id = $1 AND locale = 'bg'`,
+      [SCENARIO.propertyId],
+    )
+    expect(savedContent.rows[0].title).toBe('Хотел Рила, обновен')
+    const { rows } = await getPool().query(
+      'SELECT count(*)::int AS count FROM outbox_events WHERE organization_id = $1',
+      [SCENARIO.organizationId],
+    )
+    expect(rows[0].count).toBe(0)
+  })
+
+  it('publishes a saved edit after the manager reviews it again', async () => {
+    await review()
+    await rewordWelcome('Хотел Рила, обновен', EDITED_AT)
+    const { reviewDigest } = await review()
+    expect(reviewDigest).not.toBeNull()
+
+    await expect(goLive(reviewDigest ?? '')).resolves.toMatchObject({
+      publicationState: 'published',
+    })
+    await expect(
+      publicationRepo().findActiveForPortal(SCENARIO.organizationId, SCENARIO.portalId),
+    ).resolves.toMatchObject({ version: 1, configurationDigest: reviewDigest })
+  })
+})
 
 describe.sequential('getPortalReview (real PostgreSQL)', () => {
   beforeEach(async () => {

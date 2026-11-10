@@ -65,17 +65,33 @@ describe('publishReview', () => {
 
   it('takes a portal that is not live live, naming the version it publishes as', async () => {
     const deps = setup({
-      review: { action: 'publish', publishesAsVersion: 1, reviewDigest: null },
+      review: {
+        action: 'publish',
+        publishesAsVersion: 1,
+        reviewDigest: 'reviewed-digest',
+      },
     })
 
     await publishReview(deps)
 
     expect(deps.goLive).toHaveBeenCalledWith({
-      data: { portalId: PORTAL_ID },
+      data: { portalId: PORTAL_ID, reviewedDigest: 'reviewed-digest' },
     })
     expect(deps.publishChanges).not.toHaveBeenCalled()
     expect(deps.notify.success).toHaveBeenCalledWith('Version 1 is live')
     expect(deps.leave).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads the checks again instead of going live when there is no reviewed version', async () => {
+    const deps = setup({
+      review: { action: 'publish', publishesAsVersion: 1, reviewDigest: null },
+    })
+
+    await publishReview(deps)
+
+    expect(deps.goLive).not.toHaveBeenCalled()
+    expect(deps.refreshReview).toHaveBeenCalledTimes(1)
+    expect(deps.leave).not.toHaveBeenCalled()
   })
 
   it('stays on the page and says so when the draft already matches the live version', async () => {
