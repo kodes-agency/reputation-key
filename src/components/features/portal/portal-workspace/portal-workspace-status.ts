@@ -18,7 +18,7 @@
 // It stays one line, not a panel (round-4 owner decision): "Live · no working
 // code", where the problem is a link to the place that puts it right.
 import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
-import { describePortalStatus } from '../portal-detail/portal-detail-rules'
+import { describePortalStatus } from '#/contexts/portal/workspace/ui/portal-detail-rules'
 import {
   portalAttention,
   type PortalAttentionInput,

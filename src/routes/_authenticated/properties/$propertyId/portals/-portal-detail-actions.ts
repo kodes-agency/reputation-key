@@ -17,6 +17,7 @@ import {
 } from '#/contexts/portal/server/portals'
 import { publishPortalChanges } from '#/contexts/portal/server/portal-publish-changes'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
+import { useTakeDownImage } from './-portal-media-takedown'
 import type { Action } from '#/components/hooks/use-action'
 import {
   actionErrorMessage,
@@ -184,6 +185,7 @@ function usePortalLookActions(propertyId: string, portalId: string): PortalLookA
     saveColours: useActionMutation(savePortalLookColours, { invalidateKeys }),
     saveIdentity: useActionMutation(savePortalLookIdentity, { invalidateKeys }),
     savePhoto: useActionMutation(savePortalLookPhoto, { invalidateKeys }),
+    takeDownImage: useTakeDownImage(),
   }
 }
 

@@ -42,6 +42,11 @@ export type PhotoDialogInput = Readonly<{
   onBusyChange: (isBusy: boolean) => void
   onClose: () => void
   upload?: PortalImageUploader
+  /**
+   * Takes the photograph the look has now down, so no page serves it. Left out,
+   * the dialog offers no takedown (the viewer may not, or the page cannot).
+   */
+  onTakeDown?: (assetId: string) => Promise<unknown>
 }>
 
 export function usePhotoDialog({

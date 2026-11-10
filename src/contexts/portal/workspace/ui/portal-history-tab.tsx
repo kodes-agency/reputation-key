@@ -21,7 +21,7 @@ import { buildHistoryRows, type HistoryFilterKey } from './portal-history-rows'
 import { PortalHistoryView, type HistorySelection } from './portal-history-view'
 import { PortalVersionPreview } from './portal-version-preview'
 import { listedTileCount } from './portal-version-page-note'
-import { useNow } from './use-now'
+import { useNow } from '#/components/features/portal/shared/use-now'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 /** The reads, handed in by the route (components never import server modules). */
