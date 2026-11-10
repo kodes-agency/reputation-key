@@ -59,8 +59,6 @@ function reply(overrides: Partial<EntityReply>): EntityReply {
     reviewId: ITEM.sourceId,
     organizationId: ITEM.organizationId,
     text: 'Thank you for staying with us.',
-    templateId: null,
-    templateVersion: null,
     status: 'pending_approval',
     source: 'internal',
     createdBy: null,

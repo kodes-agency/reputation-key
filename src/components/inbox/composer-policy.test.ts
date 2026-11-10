@@ -17,8 +17,6 @@ const BASE: Reply = {
   organizationId: 'org-1' as Reply['organizationId'],
   text: 'Thank you for staying with us.',
   replyLanguageTag: 'en',
-  templateId: null,
-  templateVersion: null,
   status: 'draft',
   source: 'internal',
   createdBy: 'user-1' as Reply['createdBy'],

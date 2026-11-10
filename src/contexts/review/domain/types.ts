@@ -102,10 +102,7 @@ export type Reply = Readonly<{
   text: string
   /** Canonical concrete language selected for the public reply text. */
   replyLanguageTag?: string | null
-  /** Informational provenance for a property-authored library template. */
-  templateId: string | null
-  templateVersion: number | null
-  /** Layered reply-library provenance. Legacy template fields remain separate. */
+  /** Layered reply-library provenance. */
   templateLayer?: 'builtin' | 'account' | 'property' | null
   templateRef?: string | null
   templateRevision?: number | null

@@ -50,8 +50,6 @@ const authorizedReply = {
   rejectedBy: null,
   rejectionReason: null,
   aiGenerated: false,
-  templateId: null,
-  templateVersion: null,
   stateRevision: 7,
   submittedAt: NOW,
   approvedAt: NOW,

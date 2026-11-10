@@ -45,8 +45,6 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     reconcileDueAt: NOW,
     createdAt: NOW,
     updatedAt: NOW,
-    templateId: null,
-    templateVersion: null,
     ...overrides,
   }
 }

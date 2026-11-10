@@ -74,8 +74,6 @@ export type ConditionalReplyUpdate = Readonly<{
   status?: ReplyStatus
   text?: string
   replyLanguageTag?: string | null
-  templateId?: string | null
-  templateVersion?: number | null
   templateLayer?: Reply['templateLayer']
   templateRef?: string | null
   templateRevision?: number | null
@@ -107,8 +105,6 @@ export type DraftReplyContent = Readonly<{
   measurementGenerationId?: string | null
   text: string
   replyLanguageTag?: string | null
-  templateId?: string | null
-  templateVersion?: number | null
   templateLayer?: Reply['templateLayer']
   templateRef?: string | null
   templateRevision?: number | null
