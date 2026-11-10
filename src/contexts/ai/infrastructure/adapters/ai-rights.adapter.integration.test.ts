@@ -695,7 +695,7 @@ describe.sequential('ai rights report counts', () => {
 
   it('reports an Organization erasure as exactly the rows it removes', async () => {
     const { first, other } = await seedAll()
-    await holdRightsOrganization(query, first.organizationId)
+    holdRightsOrganization(first.organizationId)
     const everyone = [first.organizationId, other.organizationId]
     const plan = rightsPlan('organization', first.organizationId)
     const report = await reportOf(plan)

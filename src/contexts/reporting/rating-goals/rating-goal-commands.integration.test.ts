@@ -4,7 +4,6 @@ import {
   activeGoal,
   dependencies,
   exampleWorld,
-  holdOrganization,
   NOW,
   PROPERTY,
   type FakeWorld,
@@ -226,14 +225,6 @@ describe('setting a rating goal', () => {
       setRatingGoal(dependencies(world), { ...keep49, targetTenths: 43 }, actor),
     ).rejects.toMatchObject({ code: 'invalid_target' })
     expect(world.goals).toEqual([])
-  })
-
-  it('sets nothing while the Organization closure holds it', async () => {
-    await holdOrganization()
-
-    await expect(setRatingGoal(dependencies(world), climb, actor)).rejects.toMatchObject({
-      code: 'organization_closing',
-    })
   })
 
   it('sets nothing for an archived or suspended Property', async () => {

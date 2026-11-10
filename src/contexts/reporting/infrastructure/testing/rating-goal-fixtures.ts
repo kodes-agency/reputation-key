@@ -8,7 +8,7 @@ import {
   RATING_GOAL_PROPERTY,
 } from './rating-goal-database'
 
-export { holdOrganization, useRatingGoalDatabase } from './rating-goal-database'
+export { useRatingGoalDatabase } from './rating-goal-database'
 
 import type {
   GoogleRatingDayCount,

@@ -252,7 +252,6 @@ describe('Property Google rating goal server functions', () => {
     ['not_eligible', 409],
     ['version_conflict', 409],
     ['not_active', 409],
-    ['organization_closing', 409],
     ['recap_closed', 409],
     ['not_found', 404],
     ['forbidden', 403],

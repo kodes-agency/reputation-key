@@ -34,7 +34,6 @@ export const cancelOrganizationAdminInvitation =
     const { organizationId, invitationId } = await readPermittedInvitation(
       deps.store,
       input,
-      { requireActive: false },
     )
 
     await deps.store.cancelAdminInvitation(

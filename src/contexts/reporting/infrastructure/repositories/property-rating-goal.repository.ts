@@ -57,7 +57,6 @@ import type {
   RatingGoalPropertyFactsReader,
   RatingGoalWriteResult,
 } from '../../application/ports/property-rating-goal.repository'
-import { isOrganizationHeldByLifecycle } from './goal-organization-lifecycle-hold'
 
 type GoalRow = typeof propertyRatingGoals.$inferSelect
 type ChangeRow = typeof propertyRatingGoalChanges.$inferSelect
@@ -227,9 +226,6 @@ async function insertNoticeFacts(
 export const createPropertyRatingGoalRepository = (
   db: Database,
 ): PropertyRatingGoalRepository => ({
-  isOrganizationHeld: (organizationId) =>
-    isOrganizationHeldByLifecycle(db, organizationId),
-
   findActive: async (organizationId, propertyId) => {
     const [row] = await db
       .select()

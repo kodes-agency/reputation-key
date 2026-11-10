@@ -50,7 +50,6 @@ export async function recordDraftGeneration(
       AND global_control.generation = root.global_control_generation AND global_control.execution_state = 'enabled'
       AND provider_control.generation = root.provider_control_generation AND provider_control.execution_state = 'enabled'
       AND capability_control.generation = root.capability_control_generation AND capability_control.execution_state = 'enabled'
-      AND NOT EXISTS (SELECT 1 FROM organization_lifecycle_authority lifecycle WHERE lifecycle.organization_id = root.organization_id AND lifecycle.state <> 'active')
       AND merchant.state = 'enabled'  AND merchant.capabilities @> ARRAY['reply_drafting']::text[]
       AND root.authorization_lineage_id = merchant.authorization_lineage_id
       AND root.capability_fences->>'replyDraftingEpoch' = merchant.reply_drafting_epoch::text

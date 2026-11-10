@@ -1193,8 +1193,4 @@ describe('the Property facts a rating goal reads', () => {
     })
     await expect(facts.findPropertyFacts(ORG, FOREIGN_PROPERTY)).resolves.toBeNull()
   })
-
-  it('holds no Organization without a lifecycle closure', async () => {
-    await expect(repository().isOrganizationHeld(ORG)).resolves.toBe(false)
-  })
 })

@@ -700,18 +700,6 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { timeoutMs: 60_000 },
   ),
   job(
-    'advance-organization-lifecycle',
-    'src/contexts/identity/infrastructure/jobs/advance-organization-lifecycle.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:identity.organization_lifecycle',
-      schedule: 'every:300000',
-      registration: 'quarantined',
-    },
-    { timeoutMs: 300_000 },
-  ),
-  job(
     'recover-invited-registrations',
     'src/contexts/identity/infrastructure/jobs/recover-invited-registrations.job.ts',
     {

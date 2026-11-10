@@ -17,7 +17,6 @@ const OPERATOR: PlatformOperatorActor = { userId: userId('user-operator'), name:
 const ownerless: OrganizationAdministration = {
   organizationId: organizationId('org-new'),
   name: 'Hotel Riviera',
-  lifecycleState: 'active',
   accountAdminCount: 0,
   openAdminInvitationIds: [invitationId('inv-lapsed')],
 }
@@ -124,12 +123,6 @@ describe('resendOrganizationAdminInvitation', () => {
       'an Organization that already has an AccountAdmin',
       INPUT,
       { ...ownerless, accountAdminCount: 1 },
-      'forbidden',
-    ],
-    [
-      'an Organization that is not active',
-      INPUT,
-      { ...ownerless, lifecycleState: 'closure_requested' as const },
       'forbidden',
     ],
   ])('refuses %s without renewing', async (_label, input, administration, code) => {

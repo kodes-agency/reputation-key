@@ -35,7 +35,6 @@ export const COMMANDS: Readonly<
   'repair-partial-offboarding': ['scripts/ops/repair-partial-offboarding.ts'],
   'reparse-review-translations': ['scripts/ops/reparse-review-translations.ts'],
   'report-capability-refusal': ['scripts/ops/report-capability-refusal.ts'],
-  'report-organization-lifecycle': ['scripts/ops/report-organization-lifecycle.ts'],
   'restore-preflight': ['scripts/ops/restore-preflight.ts'],
   'restore-verify': ['scripts/ops/restore-verify.ts'],
   'review-observations': ['scripts/ops/review-observations.ts'],

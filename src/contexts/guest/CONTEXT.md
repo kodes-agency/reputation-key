@@ -173,7 +173,6 @@ takes its actor as data and decides nothing about who may use it, so no server f
 may expose it to a manager.
 
 Cleanup remains live even while `portal.guest_contact` is hard-blocked; it cannot submit, read, reveal, or withdraw a request.
-Organization closure waits for Guest outbox publication before scrubbing guest-authored values.
 
 ## Published direct Google journey
 

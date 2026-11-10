@@ -338,7 +338,7 @@ describe('composed rights executors', () => {
   it('erases the Organization across every executor and leaves the other one byte-identical', async () => {
     const first = await seedOrganization(2)
     const other = await seedOrganization(1)
-    await holdRightsOrganization(query, first.organizationId)
+    holdRightsOrganization(first.organizationId)
     const tables = await declaredTables(executorsFor('organization'), 'organization')
     const otherBefore = await snapshot(tables, other.organizationId)
 

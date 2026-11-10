@@ -54,7 +54,6 @@
     "scripts/ops/rebuild-projection.ts",
     "scripts/ops/repair-partial-offboarding.ts",
     "scripts/ops/reparse-review-translations.ts",
-    "scripts/ops/report-organization-lifecycle.ts",
     "scripts/ops/restore-preflight.ts",
     "scripts/ops/restore-verify.ts",
     "scripts/ops/review-observations.ts",
@@ -80,10 +79,6 @@
     "opencc-js"
   ],
   "ignoreExports": [
-    {
-      "file": "src/contexts/identity/domain/organization-lifecycle.ts",
-      "exports": ["ORGANIZATION_LIFECYCLE_RECEIPT_PHASES"]
-    },
     {
       "file": "src/contexts/inbox/infrastructure/inbox-escalation-history.ts",
       "exports": ["INBOX_ESCALATION_HISTORY_KINDS"]

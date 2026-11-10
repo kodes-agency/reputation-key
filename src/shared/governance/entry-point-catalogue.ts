@@ -41,7 +41,6 @@ export type SystemAction =
   | 'system:identity.accept_invitation'
   | 'system:identity.create_organization'
   | 'system:identity.auth_api'
-  | 'system:identity.organization_lifecycle'
   // guest / public surface (dark — portal.read gated)
   | 'system:guest.portal_read'
   | 'system:guest.rating'
@@ -282,12 +281,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   job(
     'permit-start-deadline-sweep',
     'system:permit.start_deadline_fence',
-    'none',
-    'tenant_cross',
-  ),
-  job(
-    'advance-organization-lifecycle',
-    'system:identity.organization_lifecycle',
     'none',
     'tenant_cross',
   ),
@@ -740,12 +733,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   schedule(
     'permit-start-deadline-sweep-recurring',
     'system:permit.start_deadline_fence',
-    'none',
-    'tenant_cross',
-  ),
-  schedule(
-    'advance-organization-lifecycle-recurring',
-    'system:identity.organization_lifecycle',
     'none',
     'tenant_cross',
   ),

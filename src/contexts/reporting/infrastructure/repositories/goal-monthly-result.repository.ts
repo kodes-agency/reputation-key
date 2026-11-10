@@ -238,12 +238,6 @@ export const createGoalMonthlyResultRepository = (
       return db.transaction(async (tx) => {
         let sourceMatches: SQL | undefined
         if (input.result.status === 'closed' && sourceHead) {
-          // Serialize with lifecycle transitions, including the first authority row.
-          // A committed hold stops new months; existing months must drain before purge.
-          const lifecycleFence =
-            await tx.execute(sql`SELECT pg_try_advisory_xact_lock_shared(hashtextextended(
-            ${`organization-lifecycle:${input.result.organizationId}`}, 0)) AS locked`)
-          if (lifecycleFence.rows[0]?.['locked'] !== true) return null
           const sourceLocked = await lockMetricSource(
             tx,
             input.result.organizationId,

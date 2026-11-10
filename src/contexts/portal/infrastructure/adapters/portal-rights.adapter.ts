@@ -122,7 +122,7 @@ async function erasePortalScopeInTx(
 
 async function assertReady(tx: Tx, scope: PortalRightsScope): Promise<void> {
   if (scope.propertyId) return
-  await assertOrganizationHeld(tx, scope.organizationId)
+  assertOrganizationHeld(scope.organizationId)
   await assertNothingLive(tx, scope.organizationId)
 }
 

@@ -28,6 +28,7 @@ import {
 } from './guest-backup-erasure-replayer.adapter'
 import { createGuestResponseErasureReplayer } from './guest-response-erasure-replayer.adapter'
 import { createGuestRightsExecutor } from './guest-rights.adapter'
+import { holdRightsOrganization } from '#/shared/db/testing/rights-isolation-fixture'
 
 const AT = new Date('2026-08-01T00:00:00.000Z')
 const OPERATOR = 'operator-guest-rights'
@@ -188,35 +189,6 @@ async function resurrect(before: string): Promise<void> {
       `INSERT INTO ${table} SELECT * FROM jsonb_populate_recordset(null::${table}, $1::jsonb)
        ON CONFLICT DO NOTHING`,
       [JSON.stringify(rows)],
-    )
-  }
-}
-
-async function hold(organizationId: string): Promise<void> {
-  const lineage = randomUUID()
-  await q(
-    `UPDATE organization_lifecycle_authority
-     SET state = 'closure_requested', revision = revision + 1,
-         closure_lineage_id = $2, closure_requested_at = $3,
-         recoverable_until = $4, reactivation_required = true,
-         requested_by = 'admin:rights-test', request_reason_code = 'test_workspace',
-         request_support_evidence_ref = 'test:closure-request',
-         last_transition_at = $3, last_actor_id = 'admin:rights-test',
-         last_reason_code = 'test_workspace', last_support_evidence_ref = 'test:closure-request'
-     WHERE organization_id = $1`,
-    [organizationId, lineage, AT, new Date('2026-08-31T00:00:00.000Z')],
-  )
-  for (const [next, reason] of [
-    ['closing', 'closing_prepared'],
-    ['purge_pending', 'recovery_window_elapsed'],
-  ] as const) {
-    await q(
-      `UPDATE organization_lifecycle_authority
-       SET state = $2, revision = revision + 1, last_transition_at = $3,
-           last_actor_id = 'system:rights-test', last_reason_code = $4,
-           last_support_evidence_ref = 'test:advance'
-       WHERE organization_id = $1`,
-      [organizationId, next, AT, reason],
     )
   }
 }
@@ -438,7 +410,7 @@ describe('guest rights executor', () => {
   it('purges the held Organization and leaves the other one byte-identical', async () => {
     const first = await seedOrganization()
     const other = await seedOrganization()
-    await hold(first.organizationId)
+    holdRightsOrganization(first.organizationId)
     const firstBefore = await snapshot(first.organizationId)
     const otherBefore = await snapshot(other.organizationId)
     const { store, entries } = recordingStore()
@@ -500,7 +472,7 @@ describe('guest rights executor', () => {
 
     it('refuses a purge while Guest facts are undelivered', async () => {
       const first = await seedOrganization()
-      await hold(first.organizationId)
+      holdRightsOrganization(first.organizationId)
       await q(
         `INSERT INTO outbox_events (id, event_type, event_version, payload, organization_id,
                                     source_context, source_aggregate_id, created_at)

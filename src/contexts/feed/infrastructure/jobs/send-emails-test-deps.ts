@@ -107,9 +107,6 @@ export function fakeDeps() {
       propertyNames: new Map([[PROPERTY as string, 'Riverside Hotel']]),
     })),
     authorizeScope: vi.fn(async () => true),
-    organizationEmailStop: vi.fn(
-      async (_organizationId: string): Promise<'none' | 'optional' | 'all'> => 'none',
-    ),
     isRecipientEligible: vi.fn(async () => true),
     workState: waitingWorkState(),
     logger: createFakeJobLogger(),
