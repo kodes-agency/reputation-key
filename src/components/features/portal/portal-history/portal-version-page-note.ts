@@ -9,7 +9,7 @@
 // from the phone is not a mystery.
 import type { PortalVersionDetail } from '#/contexts/portal/application/portal-management-contracts'
 
-export const TILES_LEFT_OUT_NOTE =
+const TILES_LEFT_OUT_NOTE =
   'Tiles whose address is no longer approved are left out of the page.'
 
 /**
