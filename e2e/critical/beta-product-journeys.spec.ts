@@ -4,6 +4,7 @@ import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady, dismissToasts } from '../helpers/interaction'
 import { expectOneH1 } from '../helpers/page-structure'
 import { requireE2eSeedState } from '../helpers/seed-state'
+import { reviewedPortalInput } from '../helpers/portal-review-fixtures'
 import { expectPortalUnavailable } from '../helpers/guest-unavailable'
 import { attachRequestLog } from '../helpers/request-log'
 import {
@@ -106,16 +107,10 @@ async function endOpenGoalPrograms(page: Page, propertyId: string) {
 
 /** Publishes a live Portal's changes the way the review page does: the digest it showed is handed back. */
 async function publishReviewedChanges(page: Page, portalId: string) {
-  const review = await callServerFnGet<{ reviewDigest: string | null }>(page, {
-    file: 'src/contexts/portal/server/portal-review.ts',
-    exportName: 'getPortalReview',
-    data: { portalId },
-  })
-  expect(review.reviewDigest).not.toBeNull()
   return await callServerFn<{ outcome: string }>(page, {
     file: 'src/contexts/portal/server/portal-publish-changes.ts',
     exportName: 'publishPortalChanges',
-    data: { portalId, reviewedDigest: review.reviewDigest },
+    data: await reviewedPortalInput(page, portalId),
   })
 }
 
@@ -315,38 +310,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     })
     expect(grouped.group.id).toBeTruthy()
 
-    // Publishing has an ORDERED chain of preconditions, and the journey walks
-    // it. `createPortal` has no publicationState field, so `publishPortal` is
-    // the only route to 'published' and owns every one of them.
-    //
-    // First: a Portal with no public address cannot be published — there would
-    // be nothing for a guest to arrive at.
-    const addressDenial = await callServerFnExpectError(page, {
-      file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'publishPortal',
-      data: { portalId: created.portal.id },
-    })
-    expect(addressDenial.message ?? '').toContain(
-      'Create the Portal public address before publishing',
-    )
-
-    const issued = await callServerFn<{ rawToken: string; version: number }>(page, {
-      file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'issuePortalToken',
-      data: { portalId: created.portal.id, printBatch: 'e2e-browser' },
-    })
-    expect(issued.version).toBe(1)
-
-    // Then the guest experience: a publication snapshot carries the whole thing,
-    // so the Property Brand Profile and the content for every enabled locale
-    // must exist before any Portal on that Property can be published.
-    //
-    // Not asserted as a refusal here, deliberately: the Brand Profile belongs
-    // to the PROPERTY, so once this journey has run once the Property has one
-    // and the refusal can never fire again. An order-dependent assertion that
-    // passes only on a pristine database is worse than none. The address
-    // refusal above is asserted because every newly created Portal genuinely
-    // starts without an address.
+    // Review needs complete guest wording to produce a digest. Set it up before
+    // checking the address refusal, since a fresh Property has no wording yet.
     await callServerFn(page, {
       file: 'src/contexts/portal/server/portals.ts',
       exportName: 'savePropertyPortalBrandProfile',
@@ -368,6 +333,23 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         shortDescription: 'Tell the team how it went — it takes a moment.',
       },
     })
+
+    // A reviewed Portal with no public address still cannot be published.
+    const addressDenial = await callServerFnExpectError(page, {
+      file: 'src/contexts/portal/server/portals.ts',
+      exportName: 'publishPortal',
+      data: await reviewedPortalInput(page, created.portal.id),
+    })
+    expect(addressDenial.message ?? '').toContain(
+      'Create the Portal public address before publishing',
+    )
+
+    const issued = await callServerFn<{ rawToken: string; version: number }>(page, {
+      file: 'src/contexts/portal/server/portals.ts',
+      exportName: 'issuePortalToken',
+      data: { portalId: created.portal.id, printBatch: 'e2e-browser' },
+    })
+    expect(issued.version).toBe(1)
 
     // Links are NOT a publish precondition any more. "feat(portal): make guest
     // gateway rating first" removed portal_has_no_links: once the rating is the
@@ -408,7 +390,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     }>(page, {
       file: 'src/contexts/portal/server/portals.ts',
       exportName: 'publishPortal',
-      data: { portalId: created.portal.id },
+      data: await reviewedPortalInput(page, created.portal.id),
     })
     expect(published.portal.publicationState).toBe('published')
     const rotated = await callServerFn<{

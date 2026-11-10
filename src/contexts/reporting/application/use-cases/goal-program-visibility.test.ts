@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Permission } from '#/shared/domain/permissions'
 import type { GoalSubject } from '../../domain/goal-program'
-import type { GoalProgramBundle } from '../ports/goal-program.repository'
+import type {
+  GoalProgramBundle,
+  GoalProgramHistoryPage,
+} from '../ports/goal-program.repository'
 import {
   GoalProgramError,
   type GoalActor,
@@ -199,16 +202,31 @@ it('projects a disabled staff target as paused while leaving the stored bundle i
   ).toMatchObject({ program: { status: 'paused' } })
 })
 
-it('scopes a history page and keeps its continuation across hidden subjects', async () => {
+it('scopes history before pagination and returns only visible target provenance', async () => {
   const { reads, visibility } = setup([portalOnly])
   const next = { periodStart: new Date('2026-01-01Z'), id: 'next-result' }
   const page = {
-    versions: [],
-    assignments: portalOnly.assignments,
+    versions: [{ id: 'visible-version' }, { id: 'hidden-version' }],
+    assignments: portalOnly.assignments.map((assignment, index) => ({
+      ...assignment,
+      programVersionId: index === 0 ? 'visible-version' : 'hidden-version',
+    })),
     results: portalOnly.results,
     targetChanges: [],
+    targetProvenance: {
+      'visible-version': {
+        setAt: new Date(0),
+        setBy: 'visible-user',
+        countsFrom: new Date(0),
+      },
+      'hidden-version': {
+        setAt: new Date(1),
+        setBy: 'hidden-user',
+        countsFrom: new Date(1),
+      },
+    },
     next,
-  }
+  } as unknown as GoalProgramHistoryPage
   const history = vi.fn(async () => page)
   const scoped = withGoalProgramVisibility({ ...reads, history }, visibility)
   const visible = await scoped.history!(
@@ -219,5 +237,37 @@ it('scopes a history page and keeps its continuation across hidden subjects', as
     'program-portal-assignment-0',
   ])
   expect(visible.results.map((row) => row.id)).toEqual(['program-portal-result-0'])
+  expect(history).toHaveBeenCalledWith(
+    expect.objectContaining({
+      subjects: [{ kind: 'portal', portalId: 'portal-visible' }],
+    }),
+    actorWith('goal.read'),
+  )
+  expect(visible.versions.map(({ id }) => id)).toEqual(['visible-version'])
+  expect(visible.targetProvenance).toEqual({
+    'visible-version': page.targetProvenance?.['visible-version'],
+  })
   expect(visible.next).toEqual(next)
+})
+
+it('refuses history for an invisible Program just as get does, before reading its page', async () => {
+  const { reads, visibility } = setup([hiddenGroup])
+  const history = vi.fn(async () => ({
+    versions: [],
+    assignments: [],
+    results: [],
+    targetChanges: [],
+    targetProvenance: {
+      hidden: { setAt: new Date(0), setBy: 'hidden-user', countsFrom: new Date(0) },
+    },
+    next: { periodStart: new Date(0), id: 'hidden-result' },
+  }))
+  const scoped = withGoalProgramVisibility({ ...reads, history }, visibility)
+  await expect(
+    scoped.history!(
+      { propertyId: PROPERTY_ID, programId: 'program-group' },
+      actorWith('goal.read'),
+    ),
+  ).rejects.toMatchObject({ code: 'not_found' })
+  expect(history).not.toHaveBeenCalled()
 })

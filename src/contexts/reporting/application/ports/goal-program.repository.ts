@@ -553,6 +553,8 @@ export type GoalProgramCurrentReads = Readonly<{
       limit?: number
       after?: GoalHistoryCursor
       includeProvenance?: boolean
+      /** Restrict subjects before choosing page rows and the continuation. */
+      subjects?: readonly GoalSubject[]
     }>,
   ): Promise<GoalProgramHistoryPage>
 }>

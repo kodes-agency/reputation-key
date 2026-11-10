@@ -8,7 +8,14 @@ import {
 } from '#/shared/db/testing/held-transaction'
 import { seedGoalMonth } from '../testing/goal-running-month-seed'
 import { createGoalProgramRepository } from './goal-program.repository'
-import { scopeGoalProgramsForMember } from '../../application/use-cases/goal-program-visibility'
+import {
+  scopeGoalProgramsForMember,
+  withGoalProgramVisibility,
+} from '../../application/use-cases/goal-program-visibility'
+import {
+  createGoalProgramService,
+  type GoalActor,
+} from '../../monthly-goals/goal-programs.server'
 import { goalTargetProvenance } from '../../application/goal-target-provenance'
 import type {
   GoalMonthlyResult,
@@ -255,6 +262,89 @@ describe.sequential('Goal history pages (integration)', () => {
       evaluation: { value: 6, achieved: false },
       revision: { id: lastRevision, number: 2 },
     })
+
+    const service = createGoalProgramService({
+      repository,
+      policy: { authorize: async () => undefined },
+      subjects: {
+        getTimezone: async () => 'UTC',
+        subjectBelongsToProperty: async () => true,
+      },
+      metrics: {
+        queryGoalMetric: async () => {
+          throw new Error('History must not evaluate metrics')
+        },
+      },
+      id: randomUUID,
+      now: () => september,
+    })
+    const member: GoalActor = {
+      organizationId: org,
+      userId: 'member',
+      role: 'Member',
+      effectivePermissions: new Set(['goal.read']),
+    }
+    const input = { propertyId: property, programId: first.programId, limit: 1 }
+    const scopedTo = (portalIds: string[]) =>
+      withGoalProgramVisibility(service, async () => ({ portalIds, groupIds: [] }))
+
+    // This subject has one old month. Newer, hidden months must not create a
+    // continuation or expose their version's target-setting metadata.
+    const historical = await scopedTo([portals[2]!]).history!(input, member)
+    expect(historical.results.map(({ id }) => id)).toEqual([revisedResult])
+    expect(historical.versions.map(({ id }) => id)).toEqual([first.versionId])
+    expect(Object.keys(historical.targetProvenance ?? {})).toEqual([first.versionId])
+    expect(historical.targetProvenance?.[first.versionId]?.setBy).toBe('manager-1')
+    expect(historical.next).toBeNull()
+
+    // A visible subject's two months remain reachable across hidden subject ties.
+    const scoped = scopedTo([portals[0]!])
+    const firstPage = await scoped.history!(input, member)
+    expect(firstPage.results.map(({ id }) => id)).toEqual([running[0]!.id])
+    expect(firstPage.next).toEqual({ periodStart: september, id: running[0]!.id })
+    expect(Object.keys(firstPage.targetProvenance ?? {})).toEqual([version.id])
+    const lastPage = await scoped.history!({ ...input, after: firstPage.next! }, member)
+    expect(lastPage.results.map(({ id }) => id)).toEqual([first.resultId])
+    expect(lastPage.next).toBeNull()
+    const emptyPage = await scoped.history!(
+      {
+        ...input,
+        after: { periodStart: original.results[0]!.periodStart, id: first.resultId },
+      },
+      member,
+    )
+    expect(emptyPage).toMatchObject({
+      results: [],
+      assignments: [],
+      versions: [],
+      targetChanges: [],
+      targetProvenance: {},
+      next: null,
+    })
+
+    const invisible = scopedTo([])
+    await expect(invisible.get(input, member)).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    await expect(invisible.history!(input, member)).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    await expect(
+      scoped.history!(input, { ...member, organizationId: 'another-organization' }),
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    const managerPage = await invisible.history!(
+      { ...input, limit: 100 },
+      {
+        ...member,
+        effectivePermissions: new Set(['goal.read', 'goal.create']),
+      },
+    )
+    expect(managerPage.results.map(({ id }) => id)).toEqual(seen.map(({ id }) => id))
+    expect(Object.keys(managerPage.targetProvenance ?? {}).sort()).toEqual(
+      [first.versionId, version.id].sort(),
+    )
+
     expect(
       await repository.listHistory('another-organization', property, first.programId, {
         limit: 2,
