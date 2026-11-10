@@ -52,8 +52,8 @@ until a successful write, including when the person returns to the initial value
 - AI Reply Brand Authority is content-minimal. Generation may read only the exact display name, profile version, and derived display-name digest; transaction-bound callers receive only a boolean exact-current answer. Image URLs, colors, localized content, Portal overrides, links, Guest ratings, and Private Feedback are never exposed through it.
 - Responsible-manager assignment never grants property access, portal access, or staff attribution.
 - Portal, Group, Link, Token, and Health repositories are read-only production ports. Authoritative mutations are available only through Portal command stores and Health reconciliation; direct PostgreSQL seeding/mutation lives under explicit test scaffolding and is guarded from production wiring by an architecture test.
-- Lifecycle export and purge contributors stay outside `publicApi`; irreversible
-  phases are composed only through the reviewed Identity lifecycle coordinator.
+- Export and purge run through the manual rights request command
+  (`docs/operations/rights-requests.md`); neither is on `publicApi`.
 - Not exported, and not queried: `portal_tokens` (the address-token hash, the sealed raw address and the print code hashes) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret. `portal_address_downloads` is exported without the token id. An exported artifact's `status` is the state of its code at the export snapshot (`published` while the code resolves, `retiring` through a rotation's grace window, `retired` after it, `revoked` when it was stopped), read from `portal_tokens` without exposing the join key. The stored column stays `published`: the scan path reads it, and moving it with the code would end scan counting inside a grace window. In the CSV summary `portal_id` names the Portal a record belongs to (its own id on a Portal row) and is empty for a group, an approved destination, a media asset and the Property's look and wording. A Portal's own look row (`portalLookOverrides`, ADR 0070) names its Portal in `portal_id`; its columns are listed one by one and the photo's descriptions are written as text.
 - Not touched by any phase: `portal_metric_lifetime_aggregates` (Metric's anonymous aggregate), `properties`, and the Staff-owned people rows. Each is another owner's receipt.
 
@@ -433,7 +433,7 @@ hidden in a segment do not survive, and the original is never stored.
   Portal look override, link or publication snapshot refers to (object, then row, in
   one transaction with the row locked). A snapshot's reference keeps an asset for as
   long as the snapshot exists.
-- **Purge**: the Organization lifecycle contributor removes the objects of the
+- **Purge**: the rights request command removes the objects of the
   Organization's assets before it deletes their rows. `portal_look_overrides` is
   scrubbed ahead of the rows it points at (after `portal_localized_overrides`, before
   the brand contents, profiles, media assets and Portals), because its RESTRICT foreign

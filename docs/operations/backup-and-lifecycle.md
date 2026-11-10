@@ -566,65 +566,25 @@ restore rehearsal does not prove this recovery step.
 
 ---
 
-## 9. Permanent Property Erase (LIF-01-T19)
+## 9. Property erasure and privacy requests
 
-**Posture.** `property.erase` is DISABLED in
-`src/shared/governance/capability-fate.ts` and is a member of
-`BLOCKED_CAPABILITIES` in `src/shared/auth/beta-capabilities.ts`. **It stays
-blocked as a tenant capability.** The only entry point is
-`pnpm ops property-erase`. There is no route, no server function and no tenant
-capability check that reaches the erase use case — asserted by a negative test
-in `src/contexts/property/application/use-cases/erase-property.test.ts`.
+Both run through `pnpm ops rights-request` (`docs/operations/rights-requests.md`):
+scope `property` for a permanent Property erase, `guest-response` and
+`participant` for a person's data. Apply is available in every environment. It
+needs a verified identity, a verification reference, a reason, a ticket, the
+exact typed confirmation and `--yes ops:rights-request`; it checks that the
+Organization exists and that a Property belongs to it; it writes each context's
+journal object to the private bucket before that context deletes anything, and a
+failed write stops the run; and it records one audit event for the run. A stopped
+run resumes by running the same command again. Each owner approves a one-off
+erasure at the time.
 
-An AccountAdmin may **request**. Requesting is not authorizing. Authorization is
-a registered operator plus an **independent** support authorization reference
-that is not derived from the tenant session or from the requester's identity
-verification.
+`property.erase` stays a blocked tenant capability in
+`src/shared/governance/capability-fate.ts`: no route, server function or tenant
+capability check reaches an erase.
 
-**Gates, in order.**
-
-1. the Property is already `archived` — erasure is not a shortcut past the
-   recoverable lifecycle. A Property stays restorable until its erase reaches
-   `purge_pending`, so the gate is asked three times: at the request, at the
-   confirmation, and by the job when it starts the grace period, where the
-   Property is moved only from `archived` and under the row lock Restore takes.
-   A Property restored after the confirmation is left as it is and its erase is
-   cancelled with reason `property_not_archived`; once the Property is
-   `purge_pending`, Restore refuses it until the erase is cancelled;
-2. the requester is a **current** AccountAdmin;
-3. an independent, content-free support authorization reference is supplied;
-4. the dependency inventory (every owning context's row counts, content-free)
-   and the export/retention preview are recorded; and
-5. the typed confirmation is exactly `ERASE PROPERTY <property-id>` and names
-   the inventory revision the admin was shown. A stale revision is refused.
-
-**State machine.** `requested → previewed → confirmed → purge_pending → purging
-→ purged`, with `cancelled` reachable from every state before `purging`. The
-Property's own `lifecycle_state` follows the authority from `purge_pending` on,
-in the same transaction. A cancel from `purge_pending` returns the Property to
-`archived`, so it can be restored (inside its recovery window), handled by
-support or requested again; a cancel from an earlier state does not touch the
-Property, which that request never moved. Every forward step moves the
-Property only from the state the erase last left it in, and changes nothing,
-the authority included, when it finds another.
-
-**The irreversible boundary is `purge_pending → purging`**, guarded three
-independent times: the domain transition table, the store's `from` predicate,
-and the `property_erase_authorities` database trigger. A cancel attempt after it
-is refused with `irreversible_state` in the application and
-`irreversible once purging has begun` in direct SQL.
-
-**Asynchronous purge.** `advance-property-erase.job.ts` advances at most ONE
-Property per pass, and a pass is one transaction. Every context's deletes and
-its append-only receipt, the move to `purged` and the backup-erasure ledger
-entry described in §8 commit together or not at all. An interruption, or one
-context that fails, rolls the whole pass back, the receipts of the contexts
-that had already answered included, and the next pass asks every context
-again: nothing is left half erased and nothing is resumed from receipts. A
-`purging` authority is always the next one picked, so a context that keeps
-failing stops erasure at that Property, ahead of every other, until its cause
-is repaired. A `no_data` receipt is still evidence — a context with nothing to
-erase must be distinguishable from a context that was never asked.
+Guest corrections reach the anonymous lifetime aggregate before the source facts
+are erased: the Guest executor refuses while a Guest fact is still unpublished.
 
 **What survives.** The `properties` row survives as a tombstone with its name,
 slug and address scrubbed: `purged` is a declared lifecycle state and the
@@ -649,56 +609,3 @@ answering `location_already_bound`.
 The Google executor owns the rest of the Google footprint (the Property's
 import items and the parents they leave empty); the Property erase does not
 repeat it. The Google connection itself belongs to the Organization and stays.
-
-**Not yet armed.** `scripts/ops/property-erase.ts` refuses `--apply` and says so.
-Only the Guest and Property erase contributors exist; the remaining fourteen
-contexts, the container composition and the job registration are pending.
-
-**Manual rights script.** `pnpm ops rights-request property` also runs the
-Property scope through executors that wrap these bodies: the Google executor
-(import items), the Identity grants executor and the Property executor
-(tombstone). Each journals its context before it applies and has a replayer, so
-a restore that brings the Property back is erased again. Apply stays refused in
-production.
-
----
-
-## 10. Privacy requests (LIF-01-T20)
-
-`privacy_requests` records access, correction, withdrawal and erasure requests
-for Guest contact/feedback and Participant data.
-
-**Structural properties.**
-
-- **Tenant AND property scoped** — both ids are NOT NULL. A request that is not
-  bound to exactly one Property cannot be answered without reading across
-  tenants.
-- **No subject content** — the subject is the SHA-256 of a VERIFIED identifier
-  (for a Guest, the Portal session id, hashed inside the database so the
-  plaintext never reaches the application). A record about a person's data must
-  not become another copy of that person's data.
-- **Expiry bound** — an access package reference carries a mandatory expiry and
-  a content classification. A privacy export that never expires is a permanent
-  secondary copy.
-- **No edge skips verification** — `received → verified → in_progress →
-fulfilled | refused`, enforced by the domain, the CHECK constraints and the
-  `privacy_requests` trigger. Every refusal carries an enumerated reason code;
-  there is no free-text refusal.
-
-**The ordering rule.** A withdrawal or correction must reach the anonymous
-lifetime aggregate BEFORE the source facts are purged — the same gate the Guest
-Organization lifecycle contributor enforces at closure. `fulfilPrivacyRequest`
-applies the contributor operation, then delivers corrections, and only then
-appends the ledger entry. Undelivered corrections leave the request
-`in_progress` with the source facts intact: a retryable stall beats a
-permanently wrong aggregate with no fact left to fix it.
-
-**Audit.** Every received and fulfilled request appends
-`privacy_request.received` / `privacy_request.fulfilled` carrying the request id
-and no subject content. These catalogue actions were declared and unused before
-this task.
-
-**Not yet armed.** `scripts/ops/privacy-request.ts` refuses `--apply` and says
-so. The Guest subject contributor exists and is proved against real PostgreSQL;
-the persistent `PrivacyRequestStore`, the Staff (Participant) contributor and
-the Inbox contributor are pending.

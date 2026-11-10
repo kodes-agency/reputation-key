@@ -31,7 +31,6 @@ import { createGoalProgramRepository } from './goal-program.repository'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createAtomicMetricCommandStore } from '../../readings/metric-command-store.server'
 import { createReading } from '../../domain/metric-reading'
-import { createGoalOrganizationLifecycleAdapter } from '../adapters/goal-organization-lifecycle.adapter'
 
 const START = new Date('2026-09-01T00:00:00Z')
 const NOW = new Date('2026-10-04T00:00:00Z')
@@ -511,17 +510,12 @@ describe.sequential('Goal result closure barriers (integration)', () => {
       await closing.pending.catch(() => undefined)
       suspender.release()
     }
-    const contributor = createGoalOrganizationLifecycleAdapter(getDb())
-    const request = {
-      organizationId: f.org,
-      closureLineageId,
-      lifecycleRevision: 1,
-      recoverableUntil,
-      occurredAt: NOW,
-    }
-    await expect(contributor.prepareClosing(request)).resolves.toMatchObject({
-      outcome: 'complete',
-    })
+    await lease.pool.query(
+      `UPDATE goal_programs SET status = 'paused',
+        status_reason = 'organization_closure_fence', updated_at = $2
+       WHERE organization_id = $1 AND status = 'active'`,
+      [f.org, NOW],
+    )
     await lease.pool.query(
       `UPDATE organization_lifecycle_authority SET state = 'closing',
         revision = revision + 1, last_transition_at = $2,
@@ -530,10 +524,7 @@ describe.sequential('Goal result closure barriers (integration)', () => {
        WHERE organization_id = $1`,
       [f.org, NOW],
     )
-    const readinessRequest = { ...request, lifecycleRevision: 2 }
-    await expect(contributor.verifyPurgeReadiness(readinessRequest)).rejects.toThrow(
-      'goal purge readiness blocked: 0 active program(s), 1 reconciling result(s)',
-    )
+    await expect(liveGoalWork(f.org)).resolves.toEqual({ active: 0, reconciling: 1 })
     await expect(f.service.reconcileResult(f.reference)).resolves.toMatchObject({
       status: 'closed',
       evaluation: { value: 1, achieved: false },
@@ -542,10 +533,19 @@ describe.sequential('Goal result closure barriers (integration)', () => {
       status: 'closed',
       closureFacts: 1,
     })
-    await expect(
-      contributor.verifyPurgeReadiness(readinessRequest),
-    ).resolves.toMatchObject({
-      outcome: 'complete',
-    })
+    await expect(liveGoalWork(f.org)).resolves.toEqual({ active: 0, reconciling: 0 })
   })
+
+  /** Active programs and months still reconciling: the work a purge waits for. */
+  async function liveGoalWork(organizationId: string) {
+    const { rows } = await lease.pool.query<{ active: number; reconciling: number }>(
+      `SELECT
+         (SELECT count(*)::int FROM goal_programs
+           WHERE organization_id = $1 AND status = 'active') AS active,
+         (SELECT count(*)::int FROM goal_monthly_results
+           WHERE organization_id = $1 AND status = 'reconciling') AS reconciling`,
+      [organizationId],
+    )
+    return rows[0]
+  }
 })

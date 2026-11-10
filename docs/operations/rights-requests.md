@@ -25,13 +25,17 @@ Scopes: `access`, `guest-response`, `participant`, `property`, `organization`.
   Organization is never listed.
 - **apply**: `--apply` with `verified=<iso>`, `verification=<ref>`, `--reason`,
   `--ticket`, `--yes ops:rights-request` and the exact
-  `confirm=ERASE <SCOPE> <id>` text. Refused whenever the database is not
-  local, whatever `NODE_ENV` says. On a local database it is still refused until
-  an erasure journal store is configured, because every erasure is journaled
-  before it runs; only the final warning, which deletes nothing, needs no
-  journal. It also refuses a request whose Organization does not exist or whose
-  Property belongs to another Organization, and `--property` is not accepted for
-  `access` or `organization`.
+  `confirm=ERASE <SCOPE> <id>` text. Every erasure is journaled before it runs:
+  the command writes one IDs-only journal object per context to the private
+  bucket first, and when that write fails nothing is deleted and an alert
+  fires. Only the final warning, which deletes nothing, needs no journal.
+  Work runs in bounded batches and a stopped run resumes by running the same
+  command again. Each run, whatever its outcome, records one audit event
+  naming the operator, the scope, the Organization and Property and the
+  verification reference. The command refuses a request whose Organization does
+  not exist or whose Property belongs to another Organization, and `--property`
+  is not accepted for `access` or `organization`. Each one-off erasure needs the
+  owner's approval at the time.
 
 `access` and `organization` reports accept `out=<dir>`, which writes each
 executor's export files under that directory (mode 0600). Upload them to the
@@ -104,6 +108,3 @@ private bucket by hand and delete the local copy.
   `verification` reference.
 
 Closing an Organization erases every Property in it: export first.
-
-The older `privacy-request` and `property-erase` commands stay until apply is
-activated.

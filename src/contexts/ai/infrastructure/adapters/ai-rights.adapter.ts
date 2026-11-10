@@ -22,7 +22,7 @@ import type { AiAuthorizationLifecycleTrigger } from '../../replay/contracts'
 import {
   AI_PURGE_DELETE_TABLES,
   eraseAiOrganizationRows,
-} from './ai-organization-lifecycle.adapter'
+} from './ai-organization-erasure'
 import { eraseRetiredDerivatives } from './ai-review-analysis-erasure'
 
 const CONTEXT = 'ai'

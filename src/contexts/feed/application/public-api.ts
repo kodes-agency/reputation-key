@@ -16,6 +16,11 @@ export * from './activity-public-api'
 export * from './notification-public-api'
 
 export const readAuditEvents = createServerOnlyFn(queryAuditEvents)
+// Loaded on call: the writer needs node:crypto, which browser bundles cannot import.
+export const writeAuditEvent = createServerOnlyFn(
+  async (...args: Parameters<typeof import('../audit/write.server').writeAuditEvent>) =>
+    (await import('../audit/write.server')).writeAuditEvent(...args),
+)
 export const copyNotificationCategoryDefaults = createServerOnlyFn(
   copyCategoryDefaultsToPreferences,
 )

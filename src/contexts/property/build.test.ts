@@ -99,10 +99,8 @@ describe('PropertyPublicApi', () => {
     })
 
     // ARC-03-T11: `responsibility` is the named member-authority capability.
-    // LIF-01: the Organization export and lifecycle contributors are built by
-    // composition/organization-export-contributors.ts, never by this build, and
-    // never reach the request-facing surface: the lifecycle contributor owns an
-    // irreversible purge phase that must stay unreachable by default.
+    // Export and erasure run through the rights request executors, never from
+    // this build, and never reach the request-facing surface.
     expect(Object.keys(context).sort()).toEqual([
       'googleBinding',
       'internal',

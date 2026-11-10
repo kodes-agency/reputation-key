@@ -11,7 +11,6 @@ import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
 import { sendInvitationEmail, sendStaffCodeReadyEmail } from '#/shared/auth/emails'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
-import { composeOrganizationLifecycle } from './organization-export-contributors'
 import type { CompositionRuntime, ContextWiringInput } from './runtime'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
@@ -169,10 +168,7 @@ export function wireIdentity(
     releaseMemberAuthorities: memberAuthorityLifecycle.port.releaseMemberAuthorities,
     reconcileResponsibleManagerEligibility:
       memberAuthorityLifecycle.port.reconcileResponsibleManagerEligibility,
-    organizationLifecycle: composeOrganizationLifecycle(
-      db,
-      options?.organizationLifecycle,
-    ),
+    organizationLifecycle: options?.organizationLifecycle,
   })
 
   return identity

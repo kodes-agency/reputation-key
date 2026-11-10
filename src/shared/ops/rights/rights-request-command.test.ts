@@ -15,10 +15,7 @@ const PROPERTY = '5eed0100-0000-4000-8000-000000000001'
 const OTHER_PROPERTY = '5eed0100-0000-4000-8000-000000000002'
 const RESPONSE = '5eed0100-0000-4000-8000-0000000000a1'
 const SUBJECT = 'a'.repeat(64)
-const DEV = { production: false }
-const PROD = { production: true }
-
-function plan(argv: string[], env = DEV, dryRun?: boolean) {
+function plan(argv: string[], dryRun?: boolean) {
   const parsed = parseOperatorArgs(
     ['--operator', 'op', '--org', ORG, ...argv],
     rightsRequestCommandSpec,
@@ -32,7 +29,7 @@ function plan(argv: string[], env = DEV, dryRun?: boolean) {
     dryRun: dryRun ?? !parsed.args.apply,
     batchSize: parsed.args.batchSize,
   } as unknown as OperatorContext
-  return planRightsRequest(ctx, parsed.args, env)
+  return planRightsRequest(ctx, parsed.args)
 }
 
 describe('export directory', () => {
@@ -73,22 +70,16 @@ describe('planRightsRequest', () => {
     expect(plan(['participant'])).toMatchObject({ ok: false })
   })
 
-  it('refuses apply in production before anything else', () => {
-    const result = plan(
-      [
-        'property',
-        '--property',
-        PROPERTY,
-        ...VERIFIED,
-        `confirm=${rightsConfirmationText('property', { organizationId: ORG, propertyId: PROPERTY })}`,
-        '--apply',
-      ],
-      PROD,
-    )
-    expect(result).toEqual({
-      ok: false,
-      error: expect.stringContaining('disabled in production'),
-    })
+  it('plans an apply whatever the database, once identity and confirmation are given', () => {
+    const result = plan([
+      'property',
+      '--property',
+      PROPERTY,
+      ...VERIFIED,
+      `confirm=${rightsConfirmationText('property', { organizationId: ORG, propertyId: PROPERTY })}`,
+      '--apply',
+    ])
+    expect(result).toMatchObject({ ok: true, plan: { mode: 'apply', scope: 'property' } })
   })
 
   it.each(['access', 'organization'])('refuses --property for %s', (scope) => {
@@ -96,21 +87,6 @@ describe('planRightsRequest', () => {
       ok: false,
       error: expect.stringContaining('--property is not accepted'),
     })
-  })
-
-  it('still allows report and replay in production', () => {
-    expect(plan(['organization'], PROD).ok).toBe(true)
-    expect(
-      plan(
-        [
-          'organization',
-          'replay',
-          'journal=/tmp/j.json',
-          'restore-point=2026-11-01T00:00:00Z',
-        ],
-        PROD,
-      ).ok,
-    ).toBe(true)
   })
 
   it('refuses apply without a verified identity', () => {
