@@ -118,8 +118,6 @@ const publishedReply: NonNullable<InboxItemDetailResult['reply']> = {
   organizationId: organizationId('77777777-7777-4777-8777-777777777777'),
   text: 'Thank you for the kind words — we will pass them on to the front desk.',
   replyLanguageTag: 'en-Latn',
-  templateId: null,
-  templateVersion: null,
   status: 'published',
   source: 'internal',
   createdBy: userId('88888888-8888-4888-8888-888888888888'),

@@ -36,8 +36,6 @@ function storedReply(command: Command, text: string): Reply {
     organizationId: ORGANIZATION,
     reviewId: REVIEW,
     text,
-    templateId: null,
-    templateVersion: null,
     status:
       command === 'submit'
         ? 'draft'

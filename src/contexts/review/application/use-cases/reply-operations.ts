@@ -313,9 +313,7 @@ export type DraftReplyInput = Readonly<{
   replyLanguageTag?: string
   provenanceToken?: string
   measurementGenerationId?: string | null
-  /** Internal-only provenance set by the property template loader. */
-  templateId?: string
-  templateVersion?: number
+  /** Internal-only provenance set by the template loader. */
   templateLayer?: 'builtin' | 'account' | 'property'
   templateRef?: string
   templateRevision?: number
@@ -332,12 +330,6 @@ export const draftReply =
     requireManager(ctx)
 
     assertReplyTextSendable(input.text)
-    if (
-      (input.templateId === undefined) !== (input.templateVersion === undefined) ||
-      (input.templateVersion !== undefined && input.templateVersion < 1)
-    ) {
-      throw reviewError('invalid_input', 'Template provenance is incomplete')
-    }
     const layeredTemplateParts = [
       input.templateLayer,
       input.templateRef,
@@ -417,12 +409,6 @@ export const draftReply =
           ...(input.replyLanguageTag !== undefined
             ? { replyLanguageTag: input.replyLanguageTag }
             : {}),
-          ...(input.templateId !== undefined
-            ? {
-                templateId: input.templateId,
-                templateVersion: input.templateVersion,
-              }
-            : {}),
           ...(input.templateRef !== undefined
             ? {
                 templateLayer: input.templateLayer,
@@ -455,8 +441,6 @@ export const draftReply =
       organizationId: ctx.organizationId,
       text: input.text,
       replyLanguageTag: input.replyLanguageTag ?? null,
-      templateId: input.templateId ?? null,
-      templateVersion: input.templateVersion ?? null,
       templateLayer: input.templateLayer ?? null,
       templateRef: input.templateRef ?? null,
       templateRevision: input.templateRevision ?? null,

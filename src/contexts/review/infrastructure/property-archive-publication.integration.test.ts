@@ -156,8 +156,6 @@ const pendingReply = (): Reply => ({
   publicationAttempts: 0,
   publicationLastErrorClass: null,
   reconcileDueAt: null,
-  templateId: null,
-  templateVersion: null,
   createdAt: NOW,
   updatedAt: NOW,
 })
