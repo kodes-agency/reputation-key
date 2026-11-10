@@ -56,6 +56,38 @@ describe('the alert guide', () => {
 })
 
 describe('the runbooks', () => {
+  it('have a section for every runbook an alert links to', () => {
+    const sections = new Set(
+      [...RUNBOOKS.matchAll(/^## (\d+)\./gm)].map((match) => `runbooks.md §${match[1]}`),
+    )
+
+    expect(
+      ALERT_DEFINITIONS.filter(({ runbook }) => !sections.has(runbook)).map(
+        ({ name }) => name,
+      ),
+    ).toEqual([])
+  })
+
+  it('have every section the triage trees point to', () => {
+    const TRIAGE = readFileSync('docs/operations/triage.md', 'utf8')
+    const sections = new Set(
+      [...RUNBOOKS.matchAll(/^## (\d+)\./gm)].map((match) => match[1]),
+    )
+    const cited = [...TRIAGE.matchAll(/§(\d+)/g)]
+      .map((match) => match[1])
+      .filter((section) => !sections.has(section))
+
+    expect(cited).toEqual([])
+  })
+
+  it('are reached by a triage tree for every alert that is implemented', () => {
+    const TRIAGE = readFileSync('docs/operations/triage.md', 'utf8')
+    const tree = new Set([...TRIAGE.matchAll(ALERT_NAME)].map((match) => match[1]))
+    const defined = new Set(ALERT_DEFINITIONS.map(({ name }) => name))
+
+    expect([...tree].filter((name) => !defined.has(name ?? ''))).toEqual([])
+  })
+
   // An alert is cited as `name` (P1) or as "the `name` alert".
   it('cite no alert the registry does not define', () => {
     const defined = new Set(ALERT_DEFINITIONS.map(({ name }) => name))
