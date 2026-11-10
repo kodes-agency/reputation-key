@@ -106,7 +106,7 @@ async function assertReady(
   property: string | null,
 ): Promise<void> {
   await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`))
-  if (property === null) await assertOrganizationHeld(tx, organization)
+  if (property === null) assertOrganizationHeld(organization)
   await assertNothingLive(tx, organization, property)
 }
 

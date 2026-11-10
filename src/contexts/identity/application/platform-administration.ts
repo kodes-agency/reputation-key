@@ -28,7 +28,6 @@ import type {
 export const PLATFORM_ORGANIZATION_LIST_LIMIT = 200
 
 export type AdministrationCheck = Readonly<{
-  requireActive: boolean
   /** When the change targets one invitation, it must be an open AccountAdmin one. */
   invitationId?: InvitationId
 }>
@@ -36,7 +35,7 @@ export type AdministrationCheck = Readonly<{
 /** Throws a tagged IdentityError unless the console may act on this Organization. */
 export function assertOperatorMayAdminister(
   admin: OrganizationAdministration | null,
-  check: AdministrationCheck,
+  check: AdministrationCheck = {},
 ): asserts admin is OrganizationAdministration {
   if (!admin) {
     throw identityError('forbidden', 'Organization not found')
@@ -46,9 +45,6 @@ export function assertOperatorMayAdminister(
       'forbidden',
       'This Organization already has an Account Admin; its admins manage invitations.',
     )
-  }
-  if (check.requireActive && admin.lifecycleState !== 'active') {
-    throw identityError('forbidden', 'This Organization is not active.')
   }
   if (
     check.invitationId !== undefined &&
@@ -72,12 +68,11 @@ export type PermittedInvitation = Readonly<{
 export async function readPermittedInvitation(
   store: Pick<PlatformOrganizationStore, 'readAdministration'>,
   input: OrganizationInvitationInput,
-  check: Pick<AdministrationCheck, 'requireActive'>,
 ): Promise<PermittedInvitation> {
   const organizationId = toOrganizationId(input.organizationId)
   const invitationId = toInvitationId(input.invitationId)
   const administration = await store.readAdministration(organizationId)
-  assertOperatorMayAdminister(administration, { ...check, invitationId })
+  assertOperatorMayAdminister(administration, { invitationId })
   return { organizationId, invitationId, administration }
 }
 
@@ -92,7 +87,6 @@ export function toPlatformOrganizationView(
     name: row.name,
     slug: row.slug,
     createdAt: row.createdAt.toISOString(),
-    lifecycleState: row.lifecycleState,
     memberCount: row.memberCount,
     accountAdminCount: row.accountAdminCount,
     pendingInvitationCount: row.pendingInvitationCount,

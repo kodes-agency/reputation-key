@@ -13,7 +13,6 @@ const OPERATOR: PlatformOperatorActor = { userId: userId('user-operator'), name:
 const ownerless: OrganizationAdministration = {
   organizationId: organizationId('org-new'),
   name: 'Hotel Riviera',
-  lifecycleState: 'active',
   accountAdminCount: 0,
   openAdminInvitationIds: [invitationId('inv-open')],
 }
@@ -68,17 +67,6 @@ describe('cancelOrganizationAdminInvitation', () => {
       },
       'user-operator',
     )
-  })
-
-  it('still cancels on an ownerless Organization that is no longer active', async () => {
-    const { cancel, cancelAdminInvitation } = setup({
-      ...ownerless,
-      lifecycleState: 'closure_requested',
-    })
-
-    await cancel(INPUT, OPERATOR)
-
-    expect(cancelAdminInvitation).toHaveBeenCalledOnce()
   })
 
   it('logs the cancellation content-free: no identifiers, no address', async () => {

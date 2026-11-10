@@ -52,7 +52,7 @@ async function assertReady(
   organization: string,
   property: string | null,
 ): Promise<void> {
-  if (property === null) await assertOrganizationHeld(tx, organization)
+  if (property === null) assertOrganizationHeld(organization)
   await assertNoLegalHold(tx, organization)
 }
 

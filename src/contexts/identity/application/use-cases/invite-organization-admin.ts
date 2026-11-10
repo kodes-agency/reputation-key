@@ -46,7 +46,7 @@ export const inviteOrganizationAdmin =
   async (input, operator) => {
     const organizationId = toOrganizationId(input.organizationId)
     const administration = await deps.store.readAdministration(organizationId)
-    assertOperatorMayAdminister(administration, { requireActive: true })
+    assertOperatorMayAdminister(administration)
 
     const invitationId = deps.idGen()
     await deps.store.inviteAdmin(

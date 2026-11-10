@@ -46,7 +46,6 @@ function depsFailingFor(failingUser: string) {
       timezone: 'UTC',
       propertyNames: new Map(),
     })),
-    organizationEmailStop: vi.fn(async (_org: string) => 'none' as const),
     authorizeScope: vi.fn(async () => true),
     logger: createFakeJobLogger(),
     clock: () => new Date('2026-07-11T08:00:00.000Z'),

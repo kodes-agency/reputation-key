@@ -15,7 +15,6 @@ const NOW = new Date('2026-09-30T12:00:00.000Z')
 const ownerless: OrganizationAdministration = {
   organizationId: organizationId('org-new'),
   name: 'Hotel Riviera',
-  lifecycleState: 'active',
   accountAdminCount: 0,
   openAdminInvitationIds: [invitationId('inv-open')],
 }
@@ -29,44 +28,22 @@ const refusal = (code: string, message?: RegExp) =>
 
 describe('assertOperatorMayAdminister', () => {
   it('lets the console act on an active Organization with no AccountAdmin', () => {
-    expect(() =>
-      assertOperatorMayAdminister(ownerless, { requireActive: true }),
-    ).not.toThrow()
+    expect(() => assertOperatorMayAdminister(ownerless)).not.toThrow()
   })
 
   it('refuses an Organization that does not exist', () => {
-    expect(() => assertOperatorMayAdminister(null, { requireActive: false })).toThrow(
-      refusal('forbidden'),
-    )
+    expect(() => assertOperatorMayAdminister(null)).toThrow(refusal('forbidden'))
   })
 
   it('refuses an Organization that already has an AccountAdmin', () => {
     expect(() =>
-      assertOperatorMayAdminister(
-        { ...ownerless, accountAdminCount: 1 },
-        { requireActive: false },
-      ),
+      assertOperatorMayAdminister({ ...ownerless, accountAdminCount: 1 }),
     ).toThrow(refusal('forbidden', /already has an Account Admin/))
-  })
-
-  it('refuses an invitation on a non-active Organization but still lets it cancel', () => {
-    const closing = { ...ownerless, lifecycleState: 'closure_requested' as const }
-
-    expect(() => assertOperatorMayAdminister(closing, { requireActive: true })).toThrow(
-      refusal('forbidden', /not active/),
-    )
-    expect(() =>
-      assertOperatorMayAdminister(closing, {
-        requireActive: false,
-        invitationId: invitationId('inv-open'),
-      }),
-    ).not.toThrow()
   })
 
   it('touches only the open AccountAdmin invitations of that Organization', () => {
     expect(() =>
       assertOperatorMayAdminister(ownerless, {
-        requireActive: true,
         invitationId: invitationId('inv-elsewhere'),
       }),
     ).toThrow(refusal('invitation_not_found'))
@@ -81,7 +58,7 @@ describe('readPermittedInvitation', () => {
 
   it('returns the Organization and the invitation the console may act on', async () => {
     await expect(
-      readPermittedInvitation(storeReading(ownerless), input, { requireActive: true }),
+      readPermittedInvitation(storeReading(ownerless), input),
     ).resolves.toEqual({
       organizationId: organizationId('org-new'),
       invitationId: invitationId('inv-open'),
@@ -91,23 +68,11 @@ describe('readPermittedInvitation', () => {
 
   it('refuses an invitation that is not one of the Organization open ones', async () => {
     await expect(
-      readPermittedInvitation(
-        storeReading(ownerless),
-        { ...input, invitationId: 'inv-elsewhere' },
-        { requireActive: true },
-      ),
+      readPermittedInvitation(storeReading(ownerless), {
+        ...input,
+        invitationId: 'inv-elsewhere',
+      }),
     ).rejects.toEqual(refusal('invitation_not_found'))
-  })
-
-  it('applies the active-Organization requirement it is given', async () => {
-    const closing = { ...ownerless, lifecycleState: 'closure_requested' as const }
-
-    await expect(
-      readPermittedInvitation(storeReading(closing), input, { requireActive: true }),
-    ).rejects.toEqual(refusal('forbidden', /not active/))
-    await expect(
-      readPermittedInvitation(storeReading(closing), input, { requireActive: false }),
-    ).resolves.toMatchObject({ invitationId: invitationId('inv-open') })
   })
 })
 
@@ -117,7 +82,6 @@ describe('toPlatformOrganizationView', () => {
     name: 'Hotel Riviera',
     slug: 'hotel-riviera',
     createdAt: new Date('2026-09-29T08:00:00.000Z'),
-    lifecycleState: 'active',
     memberCount: 0,
     accountAdminCount: 0,
     pendingInvitationCount: 1,
@@ -149,7 +113,6 @@ describe('toPlatformOrganizationView', () => {
       name: 'Hotel Riviera',
       slug: 'hotel-riviera',
       createdAt: '2026-09-29T08:00:00.000Z',
-      lifecycleState: 'active',
       memberCount: 0,
       accountAdminCount: 0,
       pendingInvitationCount: 1,

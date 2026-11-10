@@ -195,9 +195,6 @@ export function baseDeps(options: DigestTestOptions = {}) {
     resolvePropertyScope: vi.fn(async (_org: string, property: string) =>
       activeScope(property),
     ),
-    organizationEmailStop: vi.fn(
-      async (_organizationId: string): Promise<'none' | 'optional' | 'all'> => 'none',
-    ),
     authorizeScope: vi.fn(async (_org: string, _property?: string) => true),
     authorizeMandatoryScope: vi.fn(async (_org: string) => true),
     isRecipientEligible: vi.fn(

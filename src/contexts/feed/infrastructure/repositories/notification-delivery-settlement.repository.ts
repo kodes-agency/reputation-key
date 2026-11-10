@@ -13,7 +13,6 @@ import type { NotificationDeliverySettlement } from '../jobs/insert-notification
 import type { NotificationAudience } from '../../application/notification-audience'
 import type { OutboxNotificationDelivery } from '../outbox-notification-delivery'
 import { createNotificationRepository } from './notification.repository'
-import { createNotificationOrganizationEmailStopReader } from './notification-organization-email-stop.repository'
 import { createNotificationEmailRepository } from './notification-email.repository'
 import { createNotificationPreferenceRepository } from './notification-preference.repository'
 
@@ -123,8 +122,6 @@ export async function writeNoticeInTransaction(
     idGen: deps.idGen,
     emailIdGen: deps.emailIdGen,
     logger: deps.logger,
-    // Read inside the transaction, with the rows it decides about.
-    organizationEmailStop: createNotificationOrganizationEmailStopReader(transactionDb),
     ratingForRouting: deps.ratingForRouting,
   })(input, audience)
   return insertedEmail

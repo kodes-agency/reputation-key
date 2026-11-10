@@ -47,6 +47,7 @@ export const RETIRED_SCHEDULER_JOB_NAMES = Object.freeze([
   'generate-property-ai-trend',
   'generate-organization-export',
   'purge-expired-organization-exports',
+  'advance-organization-lifecycle',
 ] as const)
 
 /**

@@ -171,6 +171,16 @@ export function ignoresE2EGlobalOverride(
   )
 }
 
+/** The Organization IDs named in `BETA_SUSPENDED_ORGS`. */
+export function parseSuspendedOrgs(value: string | undefined): ReadonlySet<string> {
+  return new Set(
+    (value ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  )
+}
+
 /**
  * Creates a policy store from environment configuration.
  *
@@ -196,12 +206,7 @@ export function createEnvCapabilityPolicyStore(
   const killAll = isKillSwitchAll(env)
   const killedCapabilities = new Set(parseKilledCapabilities(env))
   const orgAllowlist = parseOrgAllowlist(env.BETA_ALLOWLIST_ORGS)
-  const suspendedOrgs = new Set(
-    (env.BETA_SUSPENDED_ORGS ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean),
-  )
+  const suspendedOrgs = parseSuspendedOrgs(env.BETA_SUSPENDED_ORGS)
   const e2eGlobalCapabilities = new Set(
     isDeployedProcess(env)
       ? []

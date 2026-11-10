@@ -78,7 +78,6 @@ describe('the immediate email of a grouped reopen', () => {
     })),
     resolveOrganizationScope: vi.fn(async () => ({ timezone: 'Europe/London' })),
     authorizeScope: vi.fn(async () => true),
-    organizationEmailStop: vi.fn(async () => 'none' as const),
     isRecipientEligible: vi.fn(async () => true),
     workState: workState(answer),
     logger: createFakeJobLogger(),
