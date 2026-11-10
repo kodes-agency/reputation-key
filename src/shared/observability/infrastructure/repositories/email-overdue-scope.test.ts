@@ -95,4 +95,57 @@ describe('notification email overdue set (real reads)', () => {
     expect(after.oldestPendingOverdueAgeMs!).toBeGreaterThanOrEqual(239 * MINUTE_MS)
     expect(after.oldestPendingOverdueAgeMs!).toBeLessThan(241 * MINUTE_MS)
   })
+
+  describe('an immediate row retrying past five attempts', () => {
+    const seedRetrying = (
+      key: string,
+      status: 'failed' | 'suppressed',
+      reason?: string,
+    ) =>
+      db.execute(sql`
+        INSERT INTO notification_email_queue (
+          notification_id, user_id, organization_id, property_id,
+          category, cadence, status, priority, idempotency_key,
+          last_error_class, retry_count, attempted_at, failed_at, next_attempt_at,
+          suppression_reason, created_at, updated_at
+        ) VALUES (
+          gen_random_uuid(), 'user-obs-overdue', ${MARKER_ORG}, ${PROP},
+          'review', 'immediate', ${status}, 'normal', ${key},
+          'transient', 7, NOW() - INTERVAL '5 hours', NOW() - INTERVAL '3 hours',
+          NOW() - INTERVAL '3 hours', ${reason ?? null},
+          NOW() - INTERVAL '5 hours', NOW() - INTERVAL '1 minute'
+        )
+      `)
+
+    it('is neither retry-exhausted nor missing from the stuck and overdue gauges', async () => {
+      await seedProperty(PROP, 'obs-overdue-scope')
+      const scoped = createHealthChecker(db, undefined, {
+        emailDeliveryEnabled: true,
+        isEmailDeliveryAllowed: (scope) => scope.organizationId === MARKER_ORG,
+      })
+      const baseline = (await scoped.check()).notifications
+
+      await seedRetrying('obs-overdue-retrying', 'failed')
+      const after = (await scoped.check()).notifications
+
+      expect(after.pendingOverdueCount).toBe(baseline.pendingOverdueCount + 1)
+      expect(after.attemptedStuckCount).toBe(baseline.attemptedStuckCount + 1)
+      expect(after.emailOutcomes.retryExhaustedCount).toBe(
+        baseline.emailOutcomes.retryExhaustedCount,
+      )
+    })
+
+    it('is retry-exhausted once its horizon retires it as stale', async () => {
+      await seedProperty(PROP, 'obs-overdue-scope')
+      const checker = createHealthChecker(db)
+      const baseline = (await checker.check()).notifications
+
+      await seedRetrying('obs-overdue-retired', 'suppressed', 'stale')
+      const after = (await checker.check()).notifications
+
+      expect(after.emailOutcomes.retryExhaustedCount).toBe(
+        baseline.emailOutcomes.retryExhaustedCount + 1,
+      )
+    })
+  })
 })

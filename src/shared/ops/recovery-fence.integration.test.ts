@@ -25,6 +25,7 @@ const SESSION_ID = 'recovery-proof-session'
 const VERIFICATION_ID = 'recovery-proof-verification'
 const INVITATION_ID = 'recovery-proof-invitation'
 const DIGEST_ID = '10000000-0000-4000-8000-000000000401'
+const QUEUED_EMAIL_ID = '10000000-0000-4000-8000-000000000411'
 const GOOGLE_CONNECTION_ID = '10000000-0000-4000-8000-000000000406'
 const IMPORT_V2_PARENT_ID = '10000000-0000-4000-8000-000000000407'
 const IMPORT_V2_CANCELLED_ITEM_ID = '10000000-0000-4000-8000-000000000408'
@@ -130,6 +131,21 @@ describe('restore recovery fence (REG-04, integration)', () => {
             ${'c'.repeat(64)}, ${'d'.repeat(64)}, 'recovery-proof-digest', 'prepared',
             clock_timestamp(), clock_timestamp()
           )
+        `)
+        await transaction.execute(sql`
+          INSERT INTO notification_email_queue (
+            id, notification_id, user_id, organization_id, category, cadence,
+            status, priority, idempotency_key, provider_request, created_at, updated_at
+          ) VALUES (
+            ${QUEUED_EMAIL_ID}::uuid, gen_random_uuid(), ${USER_ID}, 'org-recovery-proof',
+            'mandatory', 'immediate', 'failed', 'normal', 'recovery-proof-email',
+            '{"to":"guest@example.invalid"}'::jsonb, clock_timestamp(), clock_timestamp()
+          )
+        `)
+        await transaction.execute(sql`
+          UPDATE notification_digest_batches
+          SET provider_request = '{"to":"guest@example.invalid"}'::jsonb
+          WHERE id = ${DIGEST_ID}::uuid
         `)
         await transaction.execute(sql`
           INSERT INTO google_imports (
@@ -283,6 +299,9 @@ describe('restore recovery fence (REG-04, integration)', () => {
             (SELECT count(*)::int FROM verification WHERE id = ${VERIFICATION_ID}) AS verifications,
             (SELECT status FROM invitation WHERE id = ${INVITATION_ID}) AS invitation,
             (SELECT state FROM notification_digest_batches WHERE id = ${DIGEST_ID}::uuid) AS digest,
+            (SELECT provider_request IS NULL FROM notification_digest_batches WHERE id = ${DIGEST_ID}::uuid) AS digest_request_cleared,
+            (SELECT status FROM notification_email_queue WHERE id = ${QUEUED_EMAIL_ID}::uuid) AS queued_email,
+            (SELECT provider_request IS NULL FROM notification_email_queue WHERE id = ${QUEUED_EMAIL_ID}::uuid) AS queued_email_request_cleared,
             (SELECT first_terminal_at IS NOT NULL AND purge_at IS NOT NULL FROM google_imports WHERE id = ${IMPORT_V2_PARENT_ID}::uuid) AS v2_parent_retention_started,
             (SELECT status FROM google_import_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_item,
             (SELECT outcome_code FROM google_import_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_outcome,
@@ -310,6 +329,9 @@ describe('restore recovery fence (REG-04, integration)', () => {
           verifications: 0,
           invitation: 'canceled',
           digest: 'terminal',
+          digest_request_cleared: true,
+          queued_email: 'cancelled',
+          queued_email_request_cleared: true,
           v2_parent_retention_started: true,
           v2_cancelled_item: 'cancelled',
           v2_cancelled_outcome: 'authorization_changed',

@@ -279,7 +279,8 @@ export async function applyResendEvent(
  *
  * A delivery the provider repeats (a retry after a slow answer, say) is
  * acknowledged without being applied again. It is remembered only once applied,
- * so a delivery that failed halfway is still applied by its retry.
+ * so a delivery that failed halfway, or one for a message not recorded yet, is
+ * still applied when it is retried or replayed.
  */
 export const createResendEventHandler =
   (deps: ResendEventDeps) =>
@@ -301,6 +302,6 @@ export const createResendEventHandler =
         } satisfies ResendEventResult
       }
       const result = await applyResendEvent(deps, input)
-      await deps.emailRepo.markProviderEventApplied(input.eventId)
+      if (result.applied) await deps.emailRepo.markProviderEventApplied(input.eventId)
       return result
     })

@@ -464,6 +464,12 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
   it('stops delivery on Closing without deleting anything', async () => {
     const fixture = await seedFixture('closing')
     await advanceAuthority(fixture, 'closure_requested')
+    await lease.pool.query(
+      `UPDATE notification_email_queue
+          SET provider_request = '{"to":"guest@example.invalid"}'::jsonb
+        WHERE organization_id = $1`,
+      [fixture.organizationId],
+    )
     const before = await rowCounts(fixture.organizationId)
     expect(await dueEmailCount(fixture.organizationId, 'product')).toBe(3)
     expect(await openDigestBatchCount(fixture.organizationId)).toBe(1)
@@ -486,6 +492,14 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
       [fixture.organizationId],
     )
     expect(frozen.rows.map((row) => row.request)).toEqual([null])
+    // Likewise a cancelled queue row keeps no recipient or rendered mail.
+    const cancelled = await lease.pool.query<{ request: unknown }>(
+      `SELECT provider_request AS request FROM notification_email_queue
+        WHERE organization_id = $1 AND status = 'cancelled'`,
+      [fixture.organizationId],
+    )
+    expect(cancelled.rows).toHaveLength(3)
+    expect(cancelled.rows.every((row) => row.request === null)).toBe(true)
     // STOP EFFECTS, KEEP DATA — every owned table still has its rows.
     expect(await rowCounts(fixture.organizationId)).toEqual(before)
   })
