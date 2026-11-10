@@ -13,7 +13,9 @@ Each process has one pool (`pool.ts`). Web keeps `POOL_MAX_CONNECTIONS` (10);
 the worker sizes its pool from every queue's concurrency at boot
 (`src/worker/pool-budget.ts`, ADR 0060). A unit of work that holds a lock
 while it opens a second transaction reserves both clients first
-(`pool-client-reservation.ts`): a lock holder never waits on the pool.
+(`pool-client-reservation.ts`): a lock holder never waits on the pool. Review
+exact-current applies need no reservation: their consumer runs on the lent
+Review transaction.
 
 Job dispatch supplies an abort signal and deadline through
 `execution-deadline.server.ts`. Databases built by `createDatabase` (including

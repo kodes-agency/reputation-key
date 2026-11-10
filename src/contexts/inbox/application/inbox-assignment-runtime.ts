@@ -17,8 +17,9 @@ export function createInboxAssignmentRuntime(
   commandStore: InboxCommandStore,
 ): InboxAssignmentRuntime {
   return Object.freeze({
-    releaseAssignmentsForUser: (input) => commandStore.releaseAssignmentsForUser(input),
-    releaseIneligibleAssignmentsForUser: (input) =>
-      commandStore.releaseIneligibleAssignmentsForUser(input),
+    releaseAssignmentsForUser: (input, tx) =>
+      commandStore.releaseAssignmentsForUser(input, tx),
+    releaseIneligibleAssignmentsForUser: (input, tx) =>
+      commandStore.releaseIneligibleAssignmentsForUser(input, tx),
   })
 }

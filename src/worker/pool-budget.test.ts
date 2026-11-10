@@ -8,10 +8,6 @@
 import { describe, expect, it } from 'vitest'
 import { RAILWAY_SERVICE_SETTINGS } from '#/shared/release/railway-service-settings'
 import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/public-api'
-import {
-  REVIEW_EXACT_CURRENT_APPLY_CLIENTS,
-  REVIEW_EXACT_CURRENT_MAX_CONCURRENT_APPLIES,
-} from '#/contexts/review/infrastructure/exact-current-apply-admission'
 import { POOL_MAX_CONNECTIONS } from '#/shared/db/pool'
 import {
   BACKGROUND_QUEUE_CONCURRENCY,
@@ -51,11 +47,6 @@ describe('worker pool budget', () => {
     )
     expect(WORKER_POOL_CLIENT_BUDGET.domainEvents).toBeGreaterThanOrEqual(
       DOMAIN_EVENTS_QUEUE_CONCURRENCY,
-    )
-    // Each admitted exact-current apply holds a second client for its consumer.
-    expect(WORKER_POOL_CLIENT_BUDGET.exactCurrentApplies).toBeGreaterThanOrEqual(
-      REVIEW_EXACT_CURRENT_MAX_CONCURRENT_APPLIES *
-        (REVIEW_EXACT_CURRENT_APPLY_CLIENTS - 1),
     )
     expect(WORKER_POOL_CLIENT_BUDGET.runtime).toBeGreaterThanOrEqual(1)
   })
