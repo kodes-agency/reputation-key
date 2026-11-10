@@ -48,8 +48,32 @@ const PUTS_TEXT_FORWARD: ReadonlySet<ReplyCommand> = new Set([
   'edit_published',
 ])
 
+/** What Delete reply leaves of a failed reply: the shape the AI draft purge
+ * leaves a withdrawn one. The row stays for its publication record, with no
+ * text, no authorship claim and no template, and the manager writes a new reply
+ * into it. */
+const RESTARTED_AFTER_FAILURE: ConditionalReplyUpdate = {
+  status: 'draft',
+  text: '',
+  replyLanguageTag: null,
+  templateId: null,
+  templateVersion: null,
+  templateLayer: null,
+  templateRef: null,
+  templateRevision: null,
+  templateWordingKey: null,
+  voiceDigest: null,
+  voiceChoices: null,
+  aiGenerated: false,
+  rejectedBy: null,
+  rejectionReason: null,
+  publicationState: 'cancelled',
+  publicationLastErrorClass: null,
+  reconcileDueAt: null,
+}
+
 /** A retry's precondition reads how the last cycle failed: a failure of
- * unknown outcome is never sent again. The row must still say what the caller
+ * unknown outcome is never sent again, and never deleted. The row must still say what the caller
  * read, so a snapshot that calls an uncertain reply settled matches no row. */
 function sameFailureWhere(reply: Reply): SQL {
   return reply.publicationLastErrorClass === null
@@ -76,7 +100,10 @@ function replySnapshotWhere(
     PUTS_TEXT_FORWARD.has(command) || fenceStateRevision
       ? eq(replies.stateRevision, reply.stateRevision)
       : undefined,
-    command === 'retry_publication' ? sameFailureWhere(reply) : undefined,
+    command === 'retry_publication' ||
+      (command === 'delete' && reply.status === 'publish_failed')
+      ? sameFailureWhere(reply)
+      : undefined,
   )
 }
 
@@ -435,6 +462,21 @@ export function createReplyWriter({ db, clock, rows }: ReplyWriterDeps): ReplyWr
     deleteDraft: async (reply) => {
       return trace('reply.deleteDraft', () =>
         withReplyReviewLock(reply.organizationId, reply.reviewId, async (tx) => {
+          // A failed reply starts over in its row: the attempt rows stay, and the
+          // write is fenced on the state revision the manager saw.
+          if (reply.status === 'publish_failed') {
+            const restarted = await guardedReplyUpdate(
+              tx,
+              reply,
+              'delete',
+              RESTARTED_AFTER_FAILURE,
+              clock(),
+              true,
+            )
+            return restarted
+              ? { id: restarted.id, stateRevision: restarted.stateRevision }
+              : false
+          }
           // A reply that was ever authorized keeps its authorization and attempt
           // rows (ON DELETE RESTRICT), so it is refused here, not left to fail on
           // the foreign key.

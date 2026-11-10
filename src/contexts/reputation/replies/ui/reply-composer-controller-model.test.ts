@@ -21,6 +21,7 @@ vi.mock('sonner', () => ({
   toast: { error: vi.fn(), info: vi.fn(), success: vi.fn() },
 }))
 
+const DELETED = { success: true, restarted: null }
 const replyServer = vi.hoisted(() => ({
   draftReplyFn: vi.fn(),
   submitReplyFn: vi.fn(),
@@ -61,7 +62,7 @@ function openComposer(overrides: Partial<ReplyComposerInput> = {}) {
     }),
   )
   replyServer.submitReplyFn.mockResolvedValue({ ...savedReply, status: 'pending' })
-  replyServer.deleteReplyFn.mockResolvedValue(undefined)
+  replyServer.deleteReplyFn.mockResolvedValue(DELETED)
   const actions = pane.renderHooks(() =>
     useReplyActions({ reviewId: REVIEW_ID, reply: savedReply, onReplyChanged: () => {} }),
   )
@@ -396,6 +397,7 @@ describe('a saved draft deleted while the composer stays open', () => {
     )
     replyServer.deleteReplyFn.mockImplementation(async () => {
       order.push('delete')
+      return DELETED
     })
     controller.typeText('Thanks for the kind words.')
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)

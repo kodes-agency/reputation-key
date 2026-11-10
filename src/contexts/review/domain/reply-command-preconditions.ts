@@ -68,7 +68,13 @@ const REPLY_COMMAND_STARTS: Readonly<Record<ReplyCommand, ReplyCommandStart>> = 
   retry_publication: { statuses: ['publish_failed'], publicationStates: ['terminal'] },
   // NULL: a reply published before the publication state was recorded.
   edit_published: { statuses: ['published'], publicationStates: ['published', null] },
-  delete: { statuses: ['draft', 'rejected'], publicationStates: [null] },
+  // A draft or a rejected reply that was never confirmed is removed. A failed
+  // one whose cycle settled as not published starts over in its row (its
+  // attempt rows stay).
+  delete: {
+    statuses: ['draft', 'rejected', 'publish_failed'],
+    publicationStates: [null, 'terminal'],
+  },
   confirm_published: {
     statuses: ['approved', 'publish_failed'],
     publicationStates: UNCONFIRMED_PUBLICATION,
@@ -101,7 +107,11 @@ export function replyCommandMayStart(
 ): boolean {
   if (!isAtCommandStart(command, reply)) return false
   if (command === 'retry_publication') return !endedWithoutAnAnswer(reply)
-  if (command === 'delete') return !hasPublicationRecord(reply)
+  if (command === 'delete') {
+    return reply.status === 'publish_failed'
+      ? reply.publicationState === 'terminal' && !endedWithoutAnAnswer(reply)
+      : reply.publicationState === null && !hasPublicationRecord(reply)
+  }
   return true
 }
 
@@ -133,6 +143,7 @@ export function assertReplyCommandMayStart(
   if (replyCommandMayStart(command, reply)) return
   const keptForItsRecord =
     command === 'delete' &&
+    reply.status !== 'publish_failed' &&
     REPLY_COMMAND_STARTS.delete.statuses.includes(reply.status) &&
     hasPublicationRecord(reply)
   throw reviewError(

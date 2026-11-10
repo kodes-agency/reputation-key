@@ -307,7 +307,9 @@ describe('the AI text rule of each command against the hand-written workflow', (
   it('ends the adoption exactly where a manager writes the text', () => {
     const endsAdoption = new Set<ReplyCommandKind>()
     for (const reply of aiReplies) {
-      for (const kind of COMMAND_KINDS) {
+      // A delete writes no text: it takes the text away, and the authorship
+      // with it, whatever the binding says.
+      for (const kind of COMMAND_KINDS.filter((candidate) => candidate !== 'delete')) {
         const verdict = managerVerdict(reply, commandOf(kind), NEVER_SENT)
         if (!verdict.accepted || verdict.next === null || verdict.next === reply) continue
         const becameHuman = verdict.next.authorship === 'human'
@@ -628,6 +630,7 @@ describe('the status table against the hand-written workflow', () => {
       ['approved', 'publish_failed'],
       ['publish_failed', 'approved'],
       ['publish_failed', 'published'],
+      ['publish_failed', 'draft'],
       ['published', 'approved'],
     ]
     for (const from of STATUSES) {
@@ -935,7 +938,11 @@ function assertManagerMoveKeepsTheInvariants(
     expect(before.cycle, 'a reply with a publication record was deleted').toBe(0)
     return
   }
-  if (textIsFrozen(before)) {
+  if (command.kind === 'delete' && before.status === 'publish_failed') {
+    // Delete reply starts over: the words go, and the publication record stays.
+    expect(after).toMatchObject({ status: 'draft', publication: 'cancelled', text: '' })
+    expect(after.cycle, 'a failed reply lost its publication record').toBe(before.cycle)
+  } else if (textIsFrozen(before)) {
     expect(after.text, `${command.kind} changed text a manager had submitted`).toBe(
       before.text,
     )

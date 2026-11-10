@@ -96,6 +96,7 @@ export function useInboxComposerController({
     onReject: replyActions.reject,
     onCheck: replyActions.check,
     onRetry: replyActions.retry,
+    onDeleteReply: replyActions.deleteDraft,
     onEditPublished: () => {
       setEdit('published')
       focusComposer('reply')

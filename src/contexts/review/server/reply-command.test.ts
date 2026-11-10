@@ -213,6 +213,7 @@ beforeEach(() => {
   for (const method of Object.keys(mocks.reply) as ReplyMethod[]) {
     mocks.reply[method].mockResolvedValue(REPLY)
   }
+  mocks.reply.delete.mockResolvedValue(null)
 })
 
 describe('runReplyCommand', () => {
@@ -318,6 +319,17 @@ describe('reply command server functions', () => {
   it('deleteReplyFn answers success once the Review API has deleted the reply', async () => {
     await expect(call(deleteReplyFn, { reviewId: REVIEW_ID })).resolves.toEqual({
       success: true,
+      restarted: null,
+    })
+  })
+
+  it('deleteReplyFn names the reply a failed one was cleared into', async () => {
+    const restarted = { id: REPLY_ON_SCREEN_ID, stateRevision: 7 }
+    mocks.reply.delete.mockResolvedValue(restarted)
+
+    await expect(call(deleteReplyFn, { reviewId: REVIEW_ID })).resolves.toEqual({
+      success: true,
+      restarted,
     })
   })
 

@@ -509,6 +509,18 @@ describe('getRecentReviews reply status', () => {
     expect(await statusOf(REVIEW.a)).toBe('draft')
   })
 
+  it('is none for an empty reply kept with its publication record', async () => {
+    await insertReview(REVIEW.a)
+    await insertReply(REVIEW.a, { status: 'draft' })
+    await pool.query(
+      `UPDATE replies SET text = '', publication_state = 'cancelled', publication_cycle = 1
+       WHERE review_id = $1 AND organization_id = $2`,
+      [REVIEW.a, ORG],
+    )
+
+    expect(await statusOf(REVIEW.a)).toBe('none')
+  })
+
   it('is none when the Google reply is gone and RepKey sent nothing', async () => {
     await insertReview(REVIEW.a)
     await insertGoogleReply(REVIEW.a, { state: 'absent' })
