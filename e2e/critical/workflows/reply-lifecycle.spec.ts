@@ -138,7 +138,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
     const arrivedReview = await waitFor(
       async () => {
         const [review] = await dbQuery<{ id: string }>(
-          'SELECT id FROM reviews WHERE organization_id = $1 AND property_id = $2::uuid AND external_id = $3',
+          'SELECT review_id AS id FROM review_source_contents WHERE organization_id = $1 AND property_id = $2::uuid AND external_id = $3',
           [seed.organizationId, propertyId, `${name}-r1-${e2eRunId}`],
         )
         return review ?? null

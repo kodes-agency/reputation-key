@@ -31,7 +31,7 @@ import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-pr
 import { createReviewDiscoveryRepository } from '../repositories/review-discovery.repository'
 import { createReviewRepository } from '../repositories/review.repository'
 import { createReviewRefreshRunRepository } from '../repositories/review-refresh-run.repository'
-import { eraseReviewSourceContent } from '../review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createRefreshExpiringReviewsHandler } from './refresh-expiring-reviews.job'
 
 const ORG = organizationId('org-refresh-sweep-tombstone-11111111')

@@ -109,7 +109,7 @@ test.describe('Critical workflow: review arrival → inbox projection SLO', () =
     const projection = await waitFor(
       async () => {
         const reviews = await dbQuery<{ id: string }>(
-          'SELECT id FROM reviews WHERE organization_id = $1 AND external_id = $2',
+          'SELECT review_id AS id FROM review_source_contents WHERE organization_id = $1 AND external_id = $2',
           [seed.organizationId, 'slo-r1'],
         )
         if (!reviews[0]) return null
@@ -126,7 +126,7 @@ test.describe('Critical workflow: review arrival → inbox projection SLO', () =
     // content copies (BQC-1.2 — rating/snippet/reviewer resolve live).
     const review = (
       await dbQuery<{ id: string }>(
-        'SELECT id FROM reviews WHERE organization_id = $1 AND external_id = $2',
+        'SELECT review_id AS id FROM review_source_contents WHERE organization_id = $1 AND external_id = $2',
         [seed.organizationId, 'slo-r1'],
       )
     )[0]!

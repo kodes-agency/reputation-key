@@ -108,18 +108,29 @@ type SeedSighting = Readonly<{
 
 async function seedReview(propertyId: string, writtenMinutesAgo: number) {
   const id = crypto.randomUUID()
-  await db.execute(sql`
-    INSERT INTO reviews
-      (id, organization_id, property_id, platform, external_id, reviewer_name, rating,
-       text, language_code, reviewed_at, source_created_at, content_expires_at,
-       source_epoch, source_revision, analysis_sequence, ai_source_byte_length,
-       ai_source_digest)
-    VALUES (${id}, ${ORG}, ${propertyId}, 'google', ${`obs-sync-push-${id}`},
-            'Synthetic reviewer', 2, 'Synthetic review', 'en',
-            NOW() - (${writtenMinutesAgo} * INTERVAL '1 minute'),
-            NOW() - (${writtenMinutesAgo} * INTERVAL '1 minute'),
-            NOW() + INTERVAL '30 days', 0, 1, 1, 16, ${'a'.repeat(64)})
-  `)
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`
+      INSERT INTO reviews
+        (id, organization_id, property_id, platform, first_fetched_at,
+         source_epoch, source_revision, analysis_sequence)
+      VALUES (${id}, ${ORG}, ${propertyId}, 'google', NOW(), 0, 1, 1)
+    `)
+    await tx.execute(sql`
+      INSERT INTO review_source_contents
+        (review_id, organization_id, property_id, platform, external_id,
+         external_location_id, reviewer_name, rating, text, language_code,
+         reviewed_at, source_created_at, first_fetched_at, last_fetched_at,
+         content_expires_at, source_epoch, source_revision,
+         ai_source_byte_length, ai_source_digest)
+      VALUES (${id}, ${ORG}, ${propertyId}, 'google', ${`obs-sync-push-${id}`},
+              'sync-push-health-location', 'Synthetic reviewer', 2,
+              'Synthetic review', 'en',
+              NOW() - (${writtenMinutesAgo} * INTERVAL '1 minute'),
+              NOW() - (${writtenMinutesAgo} * INTERVAL '1 minute'),
+              NOW(), NOW(), NOW() + INTERVAL '30 days', 0, 1, 16,
+              ${'a'.repeat(64)})
+    `)
+  })
   return id
 }
 

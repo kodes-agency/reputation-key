@@ -8,6 +8,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import {
+  deleteGoogleSyncMirrors,
   deleteOrganizationPublicationAttempts,
   deletePropertyPublicationAttempts,
   releaseOrganizationAttemptConfirmations,
@@ -285,6 +286,7 @@ export function lockOrganizationReplyReviews(
 
 export const replyScopeEffects = {
   withdrawAiDrafts,
+  deleteGoogleSyncMirrors,
   fenceReplyPublicationsAfterRestore,
   cancelRepliesForOrganizationClosing,
   scrubOrganizationReplyContent,

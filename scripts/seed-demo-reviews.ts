@@ -18,8 +18,10 @@ import { getDb } from '../src/shared/db'
 import { user, member } from '../src/shared/db/schema/auth'
 import { properties } from '../src/shared/db/schema/property.schema'
 import { reviews, replies } from '../src/shared/db/schema/review.schema'
+import { reviewSourceContents } from '../src/shared/db/schema/review-source-content.schema'
 import { inboxItems } from '../src/shared/db/schema/inbox.schema'
 import { sha256Hex } from '../src/shared/domain/sha256'
+import { computeAiReviewSourceProvenance } from '../src/contexts/review/application/ai-review-source'
 
 const email = process.env.SEED_DEMO_EMAIL ?? 'bozhidar@local.dev'
 const propertySlug = process.env.SEED_DEMO_PROPERTY_SLUG ?? 'local-test-property'
@@ -31,7 +33,7 @@ const daysAhead = (n: number) => new Date(Date.now() + n * DAY_MS)
 
 type ReviewFixture = Readonly<{
   externalId: string
-  rating: number
+  rating: 1 | 2 | 3 | 4 | 5
   reviewerName: string
   text: string
   reviewedAt: Date
@@ -166,10 +168,11 @@ async function main(): Promise<void> {
     const existing = await db
       .select({ id: reviews.id })
       .from(reviews)
+      .innerJoin(reviewSourceContents, eq(reviewSourceContents.reviewId, reviews.id))
       .where(
         and(
           eq(reviews.platform, 'google'),
-          eq(reviews.externalId, fx.externalId),
+          eq(reviewSourceContents.externalId, fx.externalId),
           eq(reviews.organizationId, organizationId),
         ),
       )
@@ -181,30 +184,50 @@ async function main(): Promise<void> {
 
     const reviewId = randomUUID()
     const fetchedAt = now()
-    await db.insert(reviews).values({
-      id: reviewId,
-      organizationId,
-      propertyId: property.id,
-      platform: 'google',
-      externalId: fx.externalId,
-      externalLocationId: 'demo-location-1',
-      reviewerName: fx.reviewerName,
-      rating: fx.rating,
+    const provenance = computeAiReviewSourceProvenance({
       text: fx.text,
+      rating: fx.rating,
       languageCode: 'en',
-      reviewedAt: fx.reviewedAt,
-      expiresAt: fx.contentExpiresAt,
-      sourceCreatedAt: fx.reviewedAt,
-      sourceUpdatedAt: fx.reviewedAt,
-      sourceEpoch: 0,
-      sourceRevision: 1,
-      analysisSequence: 0,
-      firstFetchedAt: fetchedAt,
-      lastFetchedAt: fetchedAt,
-      contentExpiresAt: fx.contentExpiresAt,
-      contentHash: sha256Hex(
-        [String(fx.rating), fx.text, fx.reviewerName, 'en'].join('\0'),
-      ),
+      reviewedAtEpochMillis: fx.reviewedAt.getTime(),
+      reviewerDisplayName: fx.reviewerName,
+    })
+    await db.transaction(async (tx) => {
+      await tx.insert(reviews).values({
+        id: reviewId,
+        organizationId,
+        propertyId: property.id,
+        platform: 'google',
+        googleConnectionId: null,
+        firstFetchedAt: fetchedAt,
+        sourceEpoch: 0,
+        sourceRevision: 1,
+        analysisSequence: 0,
+      })
+      await tx.insert(reviewSourceContents).values({
+        reviewId,
+        organizationId,
+        propertyId: property.id,
+        platform: 'google',
+        externalId: fx.externalId,
+        externalLocationId: 'demo-location-1',
+        reviewerName: fx.reviewerName,
+        rating: fx.rating,
+        text: fx.text,
+        languageCode: 'en',
+        reviewedAt: fx.reviewedAt,
+        sourceCreatedAt: fx.reviewedAt,
+        sourceUpdatedAt: fx.reviewedAt,
+        sourceEpoch: 0,
+        sourceRevision: 1,
+        firstFetchedAt: fetchedAt,
+        lastFetchedAt: fetchedAt,
+        contentExpiresAt: fx.contentExpiresAt,
+        contentHash: sha256Hex(
+          [String(fx.rating), fx.text, fx.reviewerName, 'en'].join('\0'),
+        ),
+        aiSourceByteLength: provenance.byteLength,
+        aiSourceDigest: provenance.digest,
+      })
     })
     insertedReviews += 1
 

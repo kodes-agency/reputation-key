@@ -569,16 +569,23 @@ describe('Google Content authority repository', () => {
       }),
     )
     await db.execute(sql`
-      INSERT INTO reviews (
-        id, organization_id, property_id, platform, external_id,
-        external_location_id, google_connection_id, source_epoch,
-        source_revision, analysis_sequence, source_content_state
-      ) VALUES (
-        ${publicationReview}::uuid, ${organization}, ${property}::uuid,
-        'google', ${`provider-${publicationReview}`},
-        ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, ${connection}::uuid,
-        7, 9, 0, 'active'
-      )
+      WITH identity AS (
+        INSERT INTO reviews (
+          id, organization_id, property_id, platform, google_connection_id,
+          source_epoch, source_revision, analysis_sequence, source_content_state
+        ) VALUES (
+          ${publicationReview}::uuid, ${organization}, ${property}::uuid,
+          'google', ${connection}::uuid, 7, 9, 0, 'active'
+        ) RETURNING id
+      ) INSERT INTO review_source_contents (
+        review_id, organization_id, property_id, platform, external_id,
+        external_location_id, google_connection_id, rating, reviewed_at,
+        last_fetched_at, content_expires_at, source_epoch, source_revision,
+        ai_source_byte_length, ai_source_digest
+      ) SELECT id, ${organization}, ${property}::uuid, 'google',
+        ${`provider-${publicationReview}`}, ${GOOGLE_LOCATION_PRIMARY_RESOURCE},
+        ${connection}::uuid, 5, ${now}, ${now}, ${new Date(now.getTime() + 86400000)},
+        7, 9, 24, ${'a'.repeat(64)} FROM identity
     `)
     await db.execute(sql`
       INSERT INTO material_review_revisions (

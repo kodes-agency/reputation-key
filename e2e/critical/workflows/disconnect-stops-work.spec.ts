@@ -101,7 +101,7 @@ async function arrivedReviewId(propertyId: string, externalId: string): Promise<
   const review = await waitFor(
     async () => {
       const [row] = await dbQuery<{ id: string }>(
-        'SELECT id FROM reviews WHERE organization_id = $1 AND property_id = $2::uuid AND external_id = $3',
+        'SELECT review_id AS id FROM review_source_contents WHERE organization_id = $1 AND property_id = $2::uuid AND external_id = $3',
         [seed.organizationId, propertyId, externalId],
       )
       return row ?? null
@@ -129,11 +129,11 @@ async function storedReviewContent(reviewIds: string[]) {
     text: string
     source_content_state: string
     content_expires_at: Date
-    cache_text: string
-    cache_deadline: Date
+    legacy_text: string | null
+    legacy_deadline: Date | null
   }>(
-    `SELECT r.id, r.text, r.source_content_state, r.content_expires_at,
-            c.text AS cache_text, c.content_expires_at AS cache_deadline
+    `SELECT r.id, c.text, r.source_content_state, c.content_expires_at,
+            r.text AS legacy_text, r.content_expires_at AS legacy_deadline
      FROM reviews r
      JOIN review_source_contents c ON c.review_id = r.id
      WHERE r.organization_id = $1 AND r.id = ANY($2::uuid[])
@@ -273,8 +273,8 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     for (const row of contentBeforeDisconnect) {
       expect(row.source_content_state).toBe('active')
       expect(row.text).toBeTruthy()
-      expect(row.cache_text).toBe(row.text)
-      expect(row.cache_deadline).toEqual(row.content_expires_at)
+      expect(row.legacy_text).toBeNull()
+      expect(row.legacy_deadline).toBeNull()
       expect(row.content_expires_at.getTime()).toBeGreaterThan(Date.now())
     }
 
