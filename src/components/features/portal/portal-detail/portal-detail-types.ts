@@ -42,7 +42,7 @@ import type {
   PortalPrintKitResources,
 } from '../portal-share/portal-print-kit-types'
 import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
-import type { PortalLookActions } from '../portal-look/portal-look-types'
+import type { PortalLookActions } from '#/contexts/portal/look/ui/portal-look-types'
 import type { PortalGroupView } from '../portal-group/portal-group-types'
 import type { GoogleReviewDestinationStatus } from '../portal-settings/google-review-destination-status'
 import type {

@@ -15,7 +15,10 @@ import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
-import { patchedBrand, type BrandPatches } from '../portal-look/portal-look-preview-patch'
+import {
+  patchedBrand,
+  type BrandPatches,
+} from '#/contexts/portal/look/ui/portal-look-preview-patch'
 import type { GuestPortalCopy } from '#/components/features/guest'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import type {
