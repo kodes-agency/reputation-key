@@ -79,8 +79,6 @@ function makeReply(
     reviewId: reviewId('rev-1'),
     organizationId: ORG_ID,
     text: 'Thank you for staying with us.',
-    templateId: null,
-    templateVersion: null,
     status: 'rejected',
     source: 'internal',
     createdBy: USER_ID,

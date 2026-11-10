@@ -35,6 +35,7 @@ import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-e
 import { wireReviewSourceContentLifecycle } from '../../src/contexts/review/build'
 import { collectReviewSourceContentLifecycleReport } from '../../src/contexts/review/application/use-cases/collect-source-content-lifecycle-report'
 import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from '../../src/contexts/review/application/use-cases/run-source-content-lifecycle'
+import { exitIfHelp } from './command-help'
 import { runOperatorCommand } from './operator-command'
 
 const TARGETS = {
@@ -67,6 +68,7 @@ function usage(): never {
 }
 
 export async function main(): Promise<void> {
+  exitIfHelp(process.argv.slice(2), USAGE)
   const [target] = positionalArgs(process.argv.slice(2))
   if (!target || !(target in TARGETS)) usage()
   const { jobName, capability, lifecycleMode } = TARGETS[target as Target]

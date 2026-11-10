@@ -22,8 +22,8 @@ import {
   savePropertyLogo,
   savePropertyLook,
 } from '#/contexts/portal/server/property-look'
-import { PropertyLookPage } from '#/components/features/portal/property-look/property-look-page'
-import { savedDescriptions } from '#/components/features/portal/property-look/property-photo-rules'
+import { PropertyLookPage } from '#/contexts/portal/look/ui/property-look-page'
+import { savedDescriptions } from '#/contexts/portal/look/ui/property-photo-rules'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { propertyPortalExperienceQuery } from '../-settings-queries'
 import { portalOverviewQuery } from './-portal-overview-data'

@@ -126,15 +126,9 @@ const SELECTABLE_BUTTONS = [
   // The selectors follow measured page parts and compensate for the preview scale.
   ['src/components/features/portal/portal-preview/preview-part-frame.tsx', 'picker-tile'],
   // The draggable focal handle keeps its photograph-relative position and pointer capture.
-  [
-    'src/components/features/portal/property-look/focal-point-picker.tsx',
-    'picker-handle',
-  ],
+  ['src/contexts/portal/look/ui/focal-point-picker.tsx', 'picker-handle'],
   // The selectable portal rows keep their multiline identity and separate edit link.
-  [
-    'src/components/features/portal/property-look/property-look-portals.tsx',
-    'picker-tile',
-  ],
+  ['src/contexts/portal/look/ui/property-look-portals.tsx', 'picker-tile'],
   // The selectable metrics keep the figure and detail layout of the surrounding summary.
   ['src/components/features/property/property-list-summary.tsx', 'picker-tile'],
   // The radio pills keep their wrapping layout and roving keyboard selection.

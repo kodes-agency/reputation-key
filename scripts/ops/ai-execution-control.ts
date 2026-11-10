@@ -9,6 +9,7 @@ import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-e
 import { createAiControlAdapter } from '../../src/contexts/ai/infrastructure/adapters/ai-control.adapter'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runCommandEntrypoint } from './command-entrypoint'
+import { exitIfHelp } from './command-help'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:ai-control'
@@ -114,6 +115,7 @@ export function parseAiControlArgs(argv: readonly string[]): Parsed | null {
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2)
+  exitIfHelp(argv, USAGE)
   const command = parseAiControlArgs(argv)
   if (!command) return failUsage()
   const mutation = command.action !== 'inspect'

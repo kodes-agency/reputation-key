@@ -328,7 +328,7 @@ async function rowCount(table: string, organizationId: string): Promise<number> 
   return Number(result.rows[0]?.count ?? 0)
 }
 
-function planFor(argv: string[], production: boolean) {
+function planFor(argv: string[]) {
   const parsed = parseOperatorArgs(
     ['--operator', 'op', ...argv],
     rightsRequestCommandSpec,
@@ -342,17 +342,14 @@ function planFor(argv: string[], production: boolean) {
     dryRun: !parsed.args.apply,
     batchSize: parsed.args.batchSize,
   } as unknown as OperatorContext
-  return planRightsRequest(ctx, parsed.args, { production })
+  return planRightsRequest(ctx, parsed.args)
 }
 
 const quietStore: RightsJournalStore = { put: async () => {}, alert: () => {} }
 
 /** What scripts/ops/rights-request.ts does after the operator harness. */
-async function runScript(
-  argv: string[],
-  options: { production?: boolean; store?: RightsJournalStore } = {},
-) {
-  const planned = planFor(argv, options.production ?? false)
+async function runScript(argv: string[], options: { store?: RightsJournalStore } = {}) {
+  const planned = planFor(argv)
   const out: string[] = []
   const err: string[] = []
   const files = new Map<string, string>()
@@ -555,16 +552,6 @@ describe.sequential(
         expect(file).not.toContain(other.texts.reply)
         expect(file).not.toContain(other.texts.note)
       }
-    })
-
-    it('refuses to apply in production and changes nothing', async () => {
-      const asked = await seed()
-      const before = await snapshot(asked.organizationId)
-
-      const result = await runScript(apply(asked.organizationId), { production: true })
-
-      expect(result.exit).toBe(1)
-      expect(await snapshot(asked.organizationId)).toBe(before)
     })
 
     it('refuses a closure while a reply is out at the provider, rolling back the fence', async () => {
@@ -807,7 +794,7 @@ describe.sequential(
       it('refuses an Organization Inbox does not know, changing nothing', async () => {
         const { kept } = await seedPair()
         const before = await snapshot(kept.organizationId)
-        const planned = planFor(apply('rights-org-missing'), false)
+        const planned = planFor(apply('rights-org-missing'))
         if (!planned.ok) throw new Error(planned.error)
         const inbox = createInboxRightsExecutor({ db, now: () => NOW })
 

@@ -21,7 +21,7 @@ import type {
 } from '#/shared/ops/rights/rights-executor'
 import type { StoragePort } from '../../application/ports/storage.port'
 import { createPortalOrganizationExportContributor } from './portal-organization-export.adapter'
-import { PORTAL_PURGE_PLAN } from './portal-organization-lifecycle.adapter'
+import { PORTAL_PURGE_PLAN } from './portal-organization-erasure'
 
 const CONTEXT = 'portal'
 const LOCK_TIMEOUT = '5s'

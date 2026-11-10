@@ -32,7 +32,7 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
     'an upload tile, not a message',
   'src/contexts/portal/editor/ui/link-tree/link-add-form.tsx':
     'the slot a new link is typed into, a form and not a message',
-  'src/components/features/portal/property-look/property-look-photo-dialog.tsx':
+  'src/contexts/portal/look/ui/property-look-photo-dialog.tsx':
     'the frame a photograph will fill',
   'src/components/features/property/settings/property-setup-strip.tsx':
     'a step chip that is not yet done',

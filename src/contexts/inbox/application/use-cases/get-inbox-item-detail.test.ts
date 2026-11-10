@@ -107,8 +107,6 @@ function makeReply(): ReplyView {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
-    templateId: null,
-    templateVersion: null,
     stateRevision: 1,
     submittedAt: null,
     approvedAt: null,

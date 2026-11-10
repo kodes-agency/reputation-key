@@ -264,8 +264,6 @@ describe('transitionReply — BQC-3.8 AI-draft publication proof', () => {
       createdAt: NOW,
       updatedAt: NOW,
       ...overrides,
-      templateId: overrides.templateId ?? null,
-      templateVersion: overrides.templateVersion ?? null,
     }
   }
 

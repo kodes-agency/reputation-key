@@ -77,8 +77,6 @@ const draft: Reply = {
   reviewId: REVIEW,
   organizationId: ORG,
   text: 'Thank you for the kind words!',
-  templateId: null,
-  templateVersion: null,
   status: 'draft',
   source: 'internal',
   createdBy: CREATOR,

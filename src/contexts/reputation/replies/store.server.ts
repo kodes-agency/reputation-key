@@ -56,8 +56,6 @@ const RESTARTED_AFTER_FAILURE: ConditionalReplyUpdate = {
   status: 'draft',
   text: '',
   replyLanguageTag: null,
-  templateId: null,
-  templateVersion: null,
   templateLayer: null,
   templateRef: null,
   templateRevision: null,
@@ -380,8 +378,6 @@ export function createReplyWriter({ db, clock, rows }: ReplyWriterDeps): ReplyWr
               set: {
                 text: row.text,
                 replyLanguageTag: row.replyLanguageTag,
-                templateId: row.templateId,
-                templateVersion: row.templateVersion,
                 templateLayer: row.templateLayer,
                 templateRef: row.templateRef,
                 templateRevision: row.templateRevision,

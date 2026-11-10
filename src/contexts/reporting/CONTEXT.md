@@ -726,7 +726,7 @@ Changed outcomes require owner review and the existing result-revision command;
 the query authorizes no repair.
 
 Organization setup milestones have no product reader or writer. Their schema,
-export and lifecycle contributors, and purge-table declaration remain for existing data.
+export and purge-table declaration remain for existing data.
 Per-Property setup reads remain active.
 
 ## Durable facts

@@ -32,7 +32,7 @@ import {
   drizzleGuestLifecycleWorkbench,
   GUEST_PURGE_PLAN,
   GUEST_PURGE_READINESS_BLOCKED,
-} from './guest-organization-lifecycle.adapter'
+} from './guest-organization-erasure'
 import { createGuestPropertyEraseContributor } from './guest-property-erase.adapter'
 import {
   countGuestLegacyPropertyRows,

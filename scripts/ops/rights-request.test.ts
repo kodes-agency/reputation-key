@@ -52,7 +52,20 @@ it('wires Portal and the configured image store into the operator command', asyn
   try {
     await import('./rights-request')
     await vi.waitFor(() => expect(fakes.exit).toHaveBeenCalledOnce())
-    expect(fakes.effects?.environment).toBe(process.env)
+    expect(fakes.effects?.auditWrite).toBeTypeOf('function')
+    // The bucket is configured, so an erasure can be journaled before it runs.
+    expect(
+      fakes.effects?.journal.check(
+        {
+          scope: 'organization',
+          mode: 'apply',
+          organizationId: 'org-1',
+          batchSize: 50,
+          receivedAt: new Date('2026-11-01T00:00:00.000Z'),
+        },
+        ['review'],
+      ),
+    ).toBeNull()
     const executors = fakes.effects!.executors(false)
     expect(executors.map(({ name }) => name)).toContain('portal')
     expect(fakes.storage).toHaveBeenCalledWith({

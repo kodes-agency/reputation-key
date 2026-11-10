@@ -31,6 +31,7 @@
 
 import { organizationId, userId } from '../../src/shared/domain/ids'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
+import { exitIfHelp } from './command-help'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE = 'pnpm ops disconnect-connection <connectionId> --operator <id> --org <id>'
@@ -41,6 +42,7 @@ function usage(): never {
 }
 
 async function main(): Promise<void> {
+  exitIfHelp(process.argv.slice(2), USAGE)
   const [connectionId] = positionalArgs(process.argv.slice(2))
   if (!connectionId) usage()
 

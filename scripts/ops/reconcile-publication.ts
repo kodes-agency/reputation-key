@@ -39,6 +39,7 @@ import type {
   FindAmbiguousPublicationReconciliationCandidates,
   ReconcileReplyPublication,
 } from '../../src/contexts/review/application/public-api'
+import { exitIfHelp } from './command-help'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
@@ -376,6 +377,7 @@ function usage(): never {
 }
 
 async function main(): Promise<void> {
+  exitIfHelp(process.argv.slice(2), USAGE)
   let resume: ReturnType<typeof extractPublicationSweepResume>
   try {
     resume = extractPublicationSweepResume(process.argv.slice(2))

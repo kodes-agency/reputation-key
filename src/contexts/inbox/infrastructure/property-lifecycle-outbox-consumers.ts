@@ -2,10 +2,9 @@
 //
 // Archive fences a Property's provider and public work, and Inbox owns one
 // effect of its own that would otherwise keep running: Response Target
-// reminder slots. Organization closing already cancels them
-// (inbox-organization-lifecycle.adapter.ts); this consumer does the same for
-// one archived Property, so "halfway" and "target passed" prompts stop for
-// work nobody can do. Items, cycles and targets are untouched, and Restore
+// reminder slots. An Organization closure cancels them through the rights
+// request command; this consumer does the same for one archived Property, so
+// "halfway" and "target passed" prompts stop for work nobody can do. Items, cycles and targets are untouched, and Restore
 // re-arms nothing: a cancelled slot is terminal.
 
 import { validateEventPayload } from '#/shared/events/schema-registry'

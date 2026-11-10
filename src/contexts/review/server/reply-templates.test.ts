@@ -108,8 +108,8 @@ beforeEach(() => {
     id: '550e8400-e29b-41d4-a716-446655440003',
     reviewId: REVIEW_ID,
     text: 'Dear {guest_name}, thank you for your visit.',
-    templateId: TEMPLATE_ID,
-    templateVersion: 2,
+    templateRef: `template:${TEMPLATE_ID}`,
+    templateRevision: 2,
   })
 })
 
@@ -165,8 +165,8 @@ describe('reply-template server functions', () => {
 
     expect(result).toMatchObject({
       reviewId: REVIEW_ID,
-      templateId: TEMPLATE_ID,
-      templateVersion: 2,
+      templateRef: `template:${TEMPLATE_ID}`,
+      templateRevision: 2,
     })
     expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
       actor: ACTOR,

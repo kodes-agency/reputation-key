@@ -24,7 +24,7 @@ import {
   planRightsRequest,
   rightsRequestCommandSpec,
 } from '#/shared/ops/rights/rights-request-command'
-import { PORTAL_PURGE_PLAN } from './portal-organization-lifecycle.adapter'
+import { PORTAL_PURGE_PLAN } from './portal-organization-erasure'
 import {
   createPortalErasureReplayers,
   createPortalRightsExecutor,
@@ -432,7 +432,7 @@ async function runScript(argv: string[], journalStoreOverride?: RightsJournalSto
     dryRun: !parsed.args.apply,
     batchSize: parsed.args.batchSize,
   } as unknown as OperatorContext
-  const planned = planRightsRequest(ctx, parsed.args, { production: false })
+  const planned = planRightsRequest(ctx, parsed.args)
   const out: string[] = []
   const err: string[] = []
   const files = new Map<string, string>()
