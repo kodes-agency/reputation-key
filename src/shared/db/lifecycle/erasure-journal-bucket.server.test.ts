@@ -232,3 +232,42 @@ it.each([[{ Key: key }, { Key: key }], [{}]])(
     expect(send).toHaveBeenCalledTimes(contents.length)
   },
 )
+
+const unversionedExpiry = {
+  Rules: [{ ...expiry.Rules[0], NoncurrentVersionExpiration: undefined }],
+}
+
+it('accepts a rule without the noncurrent clause on an unversioned bucket', async () => {
+  const send = vi
+    .fn()
+    .mockResolvedValueOnce(unversionedExpiry)
+    .mockResolvedValueOnce({})
+    .mockResolvedValueOnce({})
+  await expect(
+    new ErasureJournalBucket({ send }, 'test-bucket').put(key, bytes),
+  ).resolves.toBeUndefined()
+  expect(send.mock.calls[2]?.[0].input.IfNoneMatch).toBe('*')
+})
+
+it.each(['Enabled', 'Suspended'])(
+  'still requires the noncurrent clause when versioning is %s',
+  async (Status) => {
+    const send = vi
+      .fn()
+      .mockResolvedValueOnce(unversionedExpiry)
+      .mockResolvedValueOnce({ Status })
+    await expect(
+      new ErasureJournalBucket({ send }, 'test-bucket').put(key, bytes),
+    ).rejects.toThrow('not configured')
+    expect(send).toHaveBeenCalledTimes(2)
+  },
+)
+
+it('still refuses a rule that expires the journal early on an unversioned bucket', async () => {
+  const send = vi.fn().mockResolvedValue({
+    Rules: [{ ...unversionedExpiry.Rules[0], Expiration: { Days: 30 } }],
+  })
+  await expect(
+    new ErasureJournalBucket({ send }, 'test-bucket').put(key, bytes),
+  ).rejects.toThrow(/expiry|too early/u)
+})
