@@ -117,22 +117,21 @@ const resolveChannelPreferences = async (
   // ADR 0046 r.1's versioned defaults. A Property added or reassigned since
   // the person last configured anything now inherits their default instead of
   // falling through to "urgent email, immediately".
-  const [inApp, email] = await Promise.all([
-    deps.preferenceRepo.resolveForDelivery(
-      input.userId,
-      input.organizationId,
-      input.propertyId,
-      category,
-      'in_app',
-    ),
-    deps.preferenceRepo.resolveForDelivery(
-      input.userId,
-      input.organizationId,
-      input.propertyId,
-      category,
-      'email',
-    ),
-  ])
+  // Settlement lends one transaction to both channel reads.
+  const inApp = await deps.preferenceRepo.resolveForDelivery(
+    input.userId,
+    input.organizationId,
+    input.propertyId,
+    category,
+    'in_app',
+  )
+  const email = await deps.preferenceRepo.resolveForDelivery(
+    input.userId,
+    input.organizationId,
+    input.propertyId,
+    category,
+    'email',
+  )
   return {
     inAppEnabled: inApp.enabled,
     emailEnabled: email.enabled,
@@ -199,26 +198,29 @@ const ratedPlan = async (
   if (!RATED_NOTIFICATION_TYPES.has(input.type) || input.propertyId === null) return null
   const rating = await ratingOf(deps, input)
   if (rating === null) return null
-  const [inAppLow, emailLow] = await Promise.all(
-    (['in_app', 'email'] as const).map((channel) =>
-      deps.preferenceRepo.resolveForDelivery(
-        input.userId,
-        input.organizationId,
-        input.propertyId!,
-        'low_ratings',
-        channel,
-      ),
-    ),
+  const inAppLow = await deps.preferenceRepo.resolveForDelivery(
+    input.userId,
+    input.organizationId,
+    input.propertyId,
+    'low_ratings',
+    'in_app',
+  )
+  const emailLow = await deps.preferenceRepo.resolveForDelivery(
+    input.userId,
+    input.organizationId,
+    input.propertyId,
+    'low_ratings',
+    'email',
   )
   const low = {
-    inApp: isLowFor(thresholdOf(inAppLow!, 'in_app'), rating),
-    email: isLowFor(thresholdOf(emailLow!, 'email'), rating),
+    inApp: isLowFor(thresholdOf(inAppLow, 'in_app'), rating),
+    email: isLowFor(thresholdOf(emailLow, 'email'), rating),
   }
   if (!low.inApp && !low.email) return null
   const arrivals = await resolveChannelPreferences(deps, input, 'arrivals')
   const inApp = low.inApp || arrivals.inAppEnabled
   const email = low.email
-    ? { category: 'low_ratings' as const, cadence: emailLow!.cadence }
+    ? { category: 'low_ratings' as const, cadence: emailLow.cadence }
     : arrivals.emailEnabled
       ? { category: 'arrivals' as const, cadence: arrivals.emailCadence }
       : null

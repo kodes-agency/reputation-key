@@ -337,24 +337,22 @@ export const createGoogleRatingReads = (deps: {
           .orderBy(desc(reviews.reviewedAt), desc(reviews.id))
           .limit(request.mostRecentLimit)
           .as('most_recent')
-        const [aggregateRows, recentRows] = await Promise.all([
-          deps.db
-            .select({
-              count: count(),
-              sum: sum(reviews.rating),
-              mixCount: countFrom(request.mixWindowStart),
-              mixSum: sumFrom(request.mixWindowStart),
-              ...totalsSinceColumns(request.totalsSince),
-              ...rangeColumns(request.rangeTotals),
-              ...windows,
-            })
-            .from(reviews)
-            .innerJoin(properties, currentBinding)
-            .where(scope),
-          deps.db
-            .select({ count: count(), sum: sum(mostRecent.rating) })
-            .from(mostRecent),
-        ])
+        const aggregateRows = await deps.db
+          .select({
+            count: count(),
+            sum: sum(reviews.rating),
+            mixCount: countFrom(request.mixWindowStart),
+            mixSum: sumFrom(request.mixWindowStart),
+            ...totalsSinceColumns(request.totalsSince),
+            ...rangeColumns(request.rangeTotals),
+            ...windows,
+          })
+          .from(reviews)
+          .innerJoin(properties, currentBinding)
+          .where(scope)
+        const recentRows = await deps.db
+          .select({ count: count(), sum: sum(mostRecent.rating) })
+          .from(mostRecent)
         const aggregate = (aggregateRows[0] ?? {}) as Record<string, unknown>
         return {
           all: totalsOf({ count: aggregate.count, sum: aggregate.sum }),

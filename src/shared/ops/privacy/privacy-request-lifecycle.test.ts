@@ -142,6 +142,56 @@ function scopedContributor(
 }
 
 describe('privacy request access (LIF-01-T20)', () => {
+  it.each(['resolve', 'access'] as const)(
+    'runs contributor %s sequentially on the shared transaction',
+    async (operation) => {
+      const h = harness({ kind: 'access', contributors: [] })
+      let active = 0
+      let peak = 0
+      const contributors = ['guest', 'feed'].map((context) => {
+        const contributor = scopedContributor(context, h.calls)
+        const query = async <T>(read: () => Promise<T>): Promise<T> => {
+          active++
+          peak = Math.max(peak, active)
+          await Promise.resolve()
+          try {
+            return await read()
+          } finally {
+            active--
+          }
+        }
+        return {
+          ...contributor,
+          resolve: (...args: Parameters<typeof contributor.resolve>) =>
+            operation === 'resolve'
+              ? query(() => contributor.resolve(...args))
+              : contributor.resolve(...args),
+          access: (...args: Parameters<typeof contributor.access>) =>
+            operation === 'access'
+              ? query(() => contributor.access(...args))
+              : contributor.access(...args),
+        }
+      })
+      const deps = { ...h.deps, contributors }
+
+      await verifyPrivacyRequest(deps, {
+        requestId: 'req-1',
+        verificationRef: 'verified',
+        actorRef: 'operator',
+      })
+      if (operation === 'resolve') expect(peak).toBe(1)
+      const result = await fulfilPrivacyRequest(deps, {
+        requestId: 'req-1',
+        actorRef: 'operator',
+      })
+      expect(result.package?.sections.map((section) => section.context)).toEqual([
+        'guest',
+        'feed',
+      ])
+      expect(peak).toBe(1)
+    },
+  )
+
   it('returns a tenant/property-scoped, classified, expiry-bound package', async () => {
     const h = harness({ kind: 'access', contributors: [] })
     const contributors = [scopedContributor('guest', h.calls)]

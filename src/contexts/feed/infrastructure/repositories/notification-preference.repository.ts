@@ -190,6 +190,7 @@ const propertyWindowScope = (userId: string, orgId: string, propertyId?: string)
   )
 
 export const createNotificationPreferenceRepository = (db: Database) => {
+  // Notification settlement may lend its transaction, so reads share one client.
   /**
    * The one settings row a person holds in an Organization. Two readers want
    * different parts of it — the delivery window and the whole settings record —
@@ -241,25 +242,23 @@ export const createNotificationPreferenceRepository = (db: Database) => {
     category: string,
     channel: string,
   ): Promise<NotificationCategoryDefault | null> => {
-    const [[own], [earlier]] = await Promise.all([
-      db
-        .select()
-        .from(notificationPreferences)
-        .where(defaultScope(userId, orgId, category, channel))
-        .limit(1),
-      db
-        .select()
-        .from(notificationCategoryDefaults)
-        .where(
-          and(
-            eq(notificationCategoryDefaults.userId, userId),
-            eq(notificationCategoryDefaults.organizationId, orgId),
-            eq(notificationCategoryDefaults.category, category),
-            eq(notificationCategoryDefaults.channel, channel),
-          ),
-        )
-        .limit(1),
-    ])
+    const [own] = await db
+      .select()
+      .from(notificationPreferences)
+      .where(defaultScope(userId, orgId, category, channel))
+      .limit(1)
+    const [earlier] = await db
+      .select()
+      .from(notificationCategoryDefaults)
+      .where(
+        and(
+          eq(notificationCategoryDefaults.userId, userId),
+          eq(notificationCategoryDefaults.organizationId, orgId),
+          eq(notificationCategoryDefaults.category, category),
+          eq(notificationCategoryDefaults.channel, channel),
+        ),
+      )
+      .limit(1)
     const winner = newerAnswer(own, earlier)
     return winner ? categoryDefaultFromRow(winner) : null
   }
@@ -349,10 +348,14 @@ export const createNotificationPreferenceRepository = (db: Database) => {
       category: string,
       channel: string,
     ): Promise<CategoryPreferenceValues> => {
-      const [property, personalDefault] = await Promise.all([
-        scopedPreference(userId, orgId, propertyId, category, channel),
-        categoryDefault(userId, orgId, category, channel),
-      ])
+      const property = await scopedPreference(
+        userId,
+        orgId,
+        propertyId,
+        category,
+        channel,
+      )
+      const personalDefault = await categoryDefault(userId, orgId, category, channel)
       return resolveCategoryPreference({
         category: category as NotificationCategory,
         channel: channel as NotificationChannel,
@@ -366,12 +369,9 @@ export const createNotificationPreferenceRepository = (db: Database) => {
       orgId: string,
       propertyId: string | null,
     ): Promise<PersonalDeliveryWindow> => {
-      const [personal, override] = await Promise.all([
-        personalWindow(userId, orgId),
-        propertyId === null
-          ? Promise.resolve(null)
-          : propertyWindow(userId, orgId, propertyId),
-      ])
+      const personal = await personalWindow(userId, orgId)
+      const override =
+        propertyId === null ? null : await propertyWindow(userId, orgId, propertyId)
       return resolveDeliveryWindow(personal, override)
     },
 
@@ -540,18 +540,19 @@ export const createNotificationPreferenceRepository = (db: Database) => {
       userId: string,
       orgId: string,
     ): Promise<NotificationCategoryDefault[]> => {
-      const [own, earlier] = await Promise.all([
-        db.select().from(notificationPreferences).where(defaultScope(userId, orgId)),
-        db
-          .select()
-          .from(notificationCategoryDefaults)
-          .where(
-            and(
-              eq(notificationCategoryDefaults.userId, userId),
-              eq(notificationCategoryDefaults.organizationId, orgId),
-            ),
+      const own = await db
+        .select()
+        .from(notificationPreferences)
+        .where(defaultScope(userId, orgId))
+      const earlier = await db
+        .select()
+        .from(notificationCategoryDefaults)
+        .where(
+          and(
+            eq(notificationCategoryDefaults.userId, userId),
+            eq(notificationCategoryDefaults.organizationId, orgId),
           ),
-      ])
+        )
       const key = (row: { category: string; channel: string }) =>
         `${row.category}:${row.channel}`
       const earlierByKey = new Map(earlier.map((row) => [key(row), row]))

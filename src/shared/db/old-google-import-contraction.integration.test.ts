@@ -146,14 +146,15 @@ it('refuses to drop the old import tables while a row is active, then drops them
           'SELECT hash, created_at, is_contract FROM drizzle.__drizzle_migrations ORDER BY created_at',
         )
       ).rows
-    const oldRows = async () =>
-      Promise.all(
-        TABLES.map(async (table) => {
-          // These fixed names are the objects authorized for contraction.
-          const result = await client.query(`SELECT * FROM ${table} ORDER BY id`)
-          return result.rows
-        }),
-      )
+    const oldRows = async () => {
+      const snapshots: unknown[][] = []
+      for (const table of TABLES) {
+        // These fixed names are the objects authorized for contraction.
+        const result = await client.query(`SELECT * FROM ${table} ORDER BY id`)
+        snapshots.push(result.rows)
+      }
+      return snapshots
+    }
     const beforeTables = await tables()
     const beforeTypes = await types()
     const beforeJournal = await journal()

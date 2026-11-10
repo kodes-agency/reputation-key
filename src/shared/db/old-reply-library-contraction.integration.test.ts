@@ -94,14 +94,15 @@ it('refuses to drop a library table holding more than one row, then drops both t
           'SELECT hash, created_at, is_contract FROM drizzle.__drizzle_migrations ORDER BY created_at',
         )
       ).rows
-    const libraryRows = async () =>
-      Promise.all(
-        TABLES.map(async (table) => {
-          // These fixed names are the two objects authorized for contraction.
-          const result = await client.query(`SELECT * FROM ${table} ORDER BY id`)
-          return result.rows
-        }),
-      )
+    const libraryRows = async () => {
+      const snapshots: unknown[][] = []
+      for (const table of TABLES) {
+        // These fixed names are the two objects authorized for contraction.
+        const result = await client.query(`SELECT * FROM ${table} ORDER BY id`)
+        snapshots.push(result.rows)
+      }
+      return snapshots
+    }
     const beforeTables = await tables()
     const beforeJournal = await journal()
 
