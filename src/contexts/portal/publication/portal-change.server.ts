@@ -20,7 +20,10 @@ import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
 } from '#/contexts/property/application/public-api'
-import { assertPersonalPortalPublicText } from '../domain/personal-portal-public-text'
+import {
+  assertPersonalPortalPublicText,
+  withoutInheritedBrand,
+} from '../domain/personal-portal-public-text'
 import { portalError } from '../domain/errors'
 import {
   portalArchived,
@@ -126,21 +129,25 @@ async function buildGoLive(
     )
   }
   await assertPortalHasOwnerAndAddress(deps, ctx, existing, at)
-  const [workingCopy, cursor] = await Promise.all([
-    deps.publicationRepo.loadWorkingCopy(ctx.organizationId, existing.id),
+  const [workingCopyWithLook, cursor] = await Promise.all([
+    deps.publicationRepo.loadWorkingCopyWithLook(ctx.organizationId, existing.id),
     deps.publicationRepo.getCursor(ctx.organizationId, existing.id),
   ])
-  if (!workingCopy) {
+  if (!workingCopyWithLook) {
     throw portalError(
       'publication_snapshot_unavailable',
       'Portal publication content is unavailable',
     )
   }
+  const workingCopy = workingCopyWithLook.source
   const publicSource = applyPatchToPublicationSource(workingCopy, {
     ...patch,
     name: existing.publicName ?? patch.name,
   })
-  assertPersonalPortalPublicText(existing, publicSource)
+  assertPersonalPortalPublicText(
+    existing,
+    withoutInheritedBrand(publicSource, workingCopyWithLook.lookSources.identity),
+  )
   const snapshot = buildPortalPublicationSnapshot({
     id: deps.idGen(),
     portalId: unbrand(existing.id),

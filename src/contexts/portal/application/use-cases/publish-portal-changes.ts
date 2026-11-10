@@ -1,4 +1,7 @@
-import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
+import {
+  assertPersonalPortalPublicText,
+  withoutInheritedBrand,
+} from '../../domain/personal-portal-public-text'
 // Portal context — publish changes while live.
 //
 // A Portal that is already Published can publish its working copy again: a new
@@ -103,8 +106,8 @@ const planPortalRepublish =
       )
     }
 
-    const [workingCopy, live, cursor, openChanges] = await Promise.all([
-      deps.publicationRepo.loadWorkingCopy(ctx.organizationId, pid),
+    const [workingCopyWithLook, live, cursor, openChanges] = await Promise.all([
+      deps.publicationRepo.loadWorkingCopyWithLook(ctx.organizationId, pid),
       deps.publicationRepo.findActiveForPortal(ctx.organizationId, pid),
       deps.publicationRepo.getCursor(ctx.organizationId, pid),
       deps.publicationRepo.listOpenPendingContentChanges?.(
@@ -113,7 +116,15 @@ const planPortalRepublish =
         pid,
       ) ?? Promise.resolve([]),
     ])
-    if (workingCopy) assertPersonalPortalPublicText(portal, workingCopy)
+    const workingCopy = workingCopyWithLook?.source
+    if (workingCopyWithLook)
+      assertPersonalPortalPublicText(
+        portal,
+        withoutInheritedBrand(
+          workingCopyWithLook.source,
+          workingCopyWithLook.lookSources.identity,
+        ),
+      )
     if (!workingCopy) {
       throw portalError(
         'publication_snapshot_unavailable',
