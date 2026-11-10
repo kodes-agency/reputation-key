@@ -90,7 +90,11 @@ with a new deadline rather than extending or executing the expired work. Before
 the deadline, Retry preserves the existing revision and replay fences.
 
 `imports/import-claims.server.ts` owns the stored authorization columns and
-reconstructs the frozen vector for item reads.
+reconstructs the frozen vector for item reads. An effect holds its item claim
+lock and a root key-share lock, allowing sibling claims and effects to proceed.
+Transitions serialize on a root no-key-update lock before the item lock; closure
+locks roots for update before connections, so the nested Property effect can
+finish its connection authority check while closure waits.
 
 `imports/import-completion.server.ts` owns every terminal transition,
 including lifecycle and isolated restore. It locks the import and then the item

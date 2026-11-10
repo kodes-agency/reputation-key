@@ -208,6 +208,125 @@ describe('createGbpNotificationReconciliation', () => {
     expect(apply.mock.calls.map(([org]) => org)).toEqual([ORG_A])
   })
 
+  it.each([
+    'authorization_unavailable',
+    'provider_failed',
+    'connection_inactive',
+    'throws',
+  ] as const)(
+    'tries the next organization sharing an account after %s',
+    async (outcome) => {
+      const shared = {
+        connectionId: 'connection-shared',
+        gbpAccountId: 'account-shared',
+        attemptedAt: null,
+      }
+      const unavailable = (organization: OrganizationId) =>
+        report(organization, {
+          counts: { [outcome === 'throws' ? 'authorization_unavailable' : outcome]: 1 },
+          accounts: NO_ACCOUNTS,
+        })
+      const apply = vi.fn(async (organization: OrganizationId) => {
+        if (organization !== ORG_A) return report(organization)
+        if (outcome === 'throws') throw new Error('backfill unavailable')
+        if (outcome === 'provider_failed')
+          return failedReport(organization, 'provider_503')
+        return unavailable(organization)
+      })
+      const reconcile = createGbpNotificationReconciliation({
+        topicConfigured: true,
+        listAccounts: async () => [
+          { ...shared, organizationId: ORG_A },
+          { ...shared, organizationId: ORG_B },
+        ],
+        recordAttempt: async () => undefined,
+        backfill: { apply },
+        nowMs: () => NOW_MS,
+      })
+
+      const summary = await reconcile({
+        authorizeOrganization: allowAll,
+        deadlineAtMs: NOW_MS + 60_000,
+      })
+
+      expect(apply.mock.calls.map(([org]) => org)).toEqual([ORG_A, ORG_B])
+      expect(summary).toMatchObject({
+        connectionOutcomes: { subscribed: 1 },
+        unsettledConnections: 0,
+        organizationsDeferred: 0,
+        retry: outcome === 'throws',
+      })
+    },
+  )
+
+  it('reports a shared account as unsettled when no organization could act', async () => {
+    const shared = {
+      connectionId: 'connection-shared',
+      gbpAccountId: 'account-shared',
+      attemptedAt: null,
+    }
+    const unavailable = (organization: OrganizationId) =>
+      report(organization, {
+        counts: { authorization_unavailable: 1 },
+        accounts: NO_ACCOUNTS,
+      })
+    const apply = vi.fn(async (organization: OrganizationId) => unavailable(organization))
+    const reconcile = createGbpNotificationReconciliation({
+      topicConfigured: true,
+      listAccounts: async () => [
+        { ...shared, organizationId: ORG_A },
+        { ...shared, organizationId: ORG_B },
+      ],
+      recordAttempt: async () => undefined,
+      backfill: { apply },
+      nowMs: () => NOW_MS,
+    })
+
+    const summary = await reconcile({
+      authorizeOrganization: allowAll,
+      deadlineAtMs: NOW_MS + 60_000,
+    })
+
+    expect(apply.mock.calls.map(([org]) => org)).toEqual([ORG_A, ORG_B])
+    expect(summary).toMatchObject({ unsettledConnections: 1 })
+  })
+
+  it('retains a transient account retry when another organization also cannot act', async () => {
+    const shared = {
+      connectionId: 'connection-shared',
+      gbpAccountId: 'account-shared',
+      attemptedAt: null,
+    }
+    const unavailable = (organization: OrganizationId) =>
+      report(organization, {
+        counts: { authorization_unavailable: 1 },
+        accounts: NO_ACCOUNTS,
+      })
+    const apply = vi.fn(async (organization: OrganizationId) =>
+      organization === ORG_A
+        ? failedReport(organization, 'provider_503')
+        : unavailable(organization),
+    )
+    const reconcile = createGbpNotificationReconciliation({
+      topicConfigured: true,
+      listAccounts: async () => [
+        { ...shared, organizationId: ORG_A },
+        { ...shared, organizationId: ORG_B },
+      ],
+      recordAttempt: async () => undefined,
+      backfill: { apply },
+      nowMs: () => NOW_MS,
+    })
+
+    const summary = await reconcile({
+      authorizeOrganization: allowAll,
+      deadlineAtMs: NOW_MS + 60_000,
+    })
+
+    expect(apply.mock.calls.map(([org]) => org)).toEqual([ORG_A, ORG_B])
+    expect(summary).toMatchObject({ unsettledConnections: 1, retry: true })
+  })
+
   it('advances oldest accounts across bounded runs, including two accounts in one organization', async () => {
     let now = NOW_MS
     const attempts = new Map([
