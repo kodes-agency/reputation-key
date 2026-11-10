@@ -174,12 +174,11 @@ lifecycle facts through the durable outbox. It subscribes to no foreign events.
 `identity.organization.created` is legacy: nothing has emitted it since `/register` was
 deleted, and Recent Activity keeps projecting and replaying the facts recorded before.
 
-## Lifecycle and export compatibility
+## Lifecycle compatibility
 
-People rows are Identity-owned, but durable lifecycle receipt context `staff` and
-export paths under `staff/` remain stable persisted identifiers. The moved
-`staff-organization-lifecycle` and `staff-organization-export` adapters therefore
-retain those keys while living under Identity infrastructure. Purge order is `staff_onboardings`, `staff_property_settings`,
+People rows are Identity-owned, but durable lifecycle receipt context `staff`
+remains a stable persisted identifier. The moved `staff-organization-lifecycle`
+adapter therefore retains that key while living under Identity infrastructure. Purge order is `staff_onboardings`, `staff_property_settings`,
 Portal Responsibilities, Portal Group memberships, Staff Participations, Staff user
 links, then Staff Participants; it never deletes users, memberships, sessions, or
 Property access grants.

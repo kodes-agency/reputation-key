@@ -10,7 +10,6 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createProductUpdatesStore } from './product-updates.repository'
 import { purgeProductUpdates } from '../product-updates-purge'
-import { createIdentityOrganizationExportContributor } from '../identity-organization-export-contributor'
 
 let db: Database
 let lease: TestLease
@@ -106,26 +105,6 @@ describe('durable personal product updates', () => {
     await store.setAutoShow(p, false)
     expect(await store.claim(p)).toBe(false)
     expect((await store.read(p)).lastAutoOpenedAt).toEqual(before.lastAutoOpenedAt)
-  })
-  it('exports both collections through the owning Identity contributor', async () => {
-    const p = await person(),
-      store = createProductUpdatesStore(db)
-    await store.setAutoShow(p, false)
-    await store.markSeen(p, ['one'])
-    const result = await createIdentityOrganizationExportContributor(db).contribute({
-      organizationId: p.organizationId,
-      requestId: randomUUID(),
-      asOf: new Date(Date.now() - 1000),
-    })
-    const entry = result.entries.find((e) => e.path.endsWith('.json'))
-    expect(entry).toBeDefined()
-    const payload = JSON.parse(Buffer.from(entry!.bytes).toString('utf8'))
-    expect(payload.productUpdateSettings).toMatchObject([
-      { auto_show: false, user_id: p.userId },
-    ])
-    expect(payload.productUpdateReceipts).toMatchObject([
-      { entry_id: 'one', user_id: p.userId },
-    ])
   })
   it('purges both collections only for the target Organization and repeats safely', async () => {
     const p = await person(),
