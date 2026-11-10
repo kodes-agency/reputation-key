@@ -25,8 +25,13 @@ Scopes: `access`, `guest-response`, `participant`, `property`, `organization`.
   Organization is never listed.
 - **apply**: `--apply` with `verified=<iso>`, `verification=<ref>`, `--reason`,
   `--ticket`, `--yes ops:rights-request` and the exact
-  `confirm=ERASE <SCOPE> <id>` text. Refused in production. Outside production
-  it validates, then runs the executors composed for the scope.
+  `confirm=ERASE <SCOPE> <id>` text. Refused whenever the database is not
+  local, whatever `NODE_ENV` says. On a local database it is still refused until
+  an erasure journal store is configured, because every erasure is journaled
+  before it runs; only the final warning, which deletes nothing, needs no
+  journal. It also refuses a request whose Organization does not exist or whose
+  Property belongs to another Organization, and `--property` is not accepted for
+  `access` or `organization`.
 
 `access` and `organization` reports accept `out=<dir>`, which writes each
 executor's export files under that directory (mode 0600). Upload them to the

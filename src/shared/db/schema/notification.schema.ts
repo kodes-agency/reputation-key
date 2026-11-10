@@ -543,7 +543,8 @@ export const notificationPreferences = pgTable(
   'notification_preferences',
   {
     ...recipientColumns(),
-    propertyId: uuid('property_id').notNull(),
+    // Null on a row that is the person's default for the whole Organization.
+    propertyId: uuid('property_id'),
     ...categoryChannelColumns(),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
@@ -556,6 +557,9 @@ export const notificationPreferences = pgTable(
       t.category,
       t.channel,
     ),
+    uniqueIndex('notification_prefs_default_scope_unique')
+      .on(t.userId, t.organizationId, t.category, t.channel)
+      .where(sql`${t.propertyId} IS NULL`),
     // Query: a Property hard delete's cascade check for this FK. The unique
     // index above leads with user_id, so it cannot serve a property-scoped
     // delete; this table has no other index at all (database-06).

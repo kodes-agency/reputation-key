@@ -79,6 +79,15 @@ async function seedFixture(): Promise<Fixture> {
       createdAt,
     ],
   )
+  // The person's Organization-wide default has no Property and is not exported.
+  await lease.pool.query(
+    `INSERT INTO notification_preferences (
+       id, user_id, organization_id, property_id, category, channel, enabled,
+       cadence, created_at, updated_at
+     ) VALUES ($1, $2, $3, NULL, 'workflow_collaboration', 'email', true,
+               'immediate', $4, $4)`,
+    [randomUUID(), fixture.userId, fixture.organizationId, createdAt],
+  )
   await lease.pool.query(
     `INSERT INTO notification_user_settings (
        id, user_id, organization_id, locale, timezone,

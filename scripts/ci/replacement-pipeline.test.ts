@@ -24,8 +24,13 @@ function job(id: string): string {
 }
 
 function needs(id: string): readonly string[] {
-  const list = /^ {4}needs: \[([^\]]*)\]/mu.exec(job(id))?.[1]
-  return list === undefined ? [] : list.split(',').map((name) => name.trim())
+  const list = /^ {4}needs:\s*\[([^\]]*)\]/mu.exec(job(id))?.[1]
+  return list === undefined
+    ? []
+    : list
+        .split(',')
+        .map((name) => name.trim())
+        .filter((name) => name !== '')
 }
 
 const INDEPENDENT_JOBS = ['secrets', 'storybook-test'] as const
@@ -37,6 +42,7 @@ const CI_GATES = [
   'probes',
   'browser',
   'populated-upgrade',
+  'guest-quality',
 ] as const
 const IMAGE_JOBS = ['image-build', 'image-scan'] as const
 

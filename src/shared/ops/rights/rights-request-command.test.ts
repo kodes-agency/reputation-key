@@ -91,6 +91,13 @@ describe('planRightsRequest', () => {
     })
   })
 
+  it.each(['access', 'organization'])('refuses --property for %s', (scope) => {
+    expect(plan([scope, '--property', PROPERTY])).toEqual({
+      ok: false,
+      error: expect.stringContaining('--property is not accepted'),
+    })
+  })
+
   it('still allows report and replay in production', () => {
     expect(plan(['organization'], PROD).ok).toBe(true)
     expect(

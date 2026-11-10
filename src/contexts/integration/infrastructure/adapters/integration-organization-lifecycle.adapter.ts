@@ -143,6 +143,16 @@ const prepareClosing =
       }
     }
 
+    // Import roots first, then connections: an item effect holds its root and
+    // asks for the connection inside, so closure takes the same order and waits
+    // for the effect instead of deadlocking against it.
+    await tx.execute(sql`
+      SELECT id FROM google_imports
+      WHERE organization_id = ${request.organizationId}
+      ORDER BY id
+      FOR UPDATE
+    `)
+
     // Deterministic lock order over the tenant's connections. The row lock is
     // what stops a concurrent reconnect from re-crediting a row between the
     // provider call and the fence.

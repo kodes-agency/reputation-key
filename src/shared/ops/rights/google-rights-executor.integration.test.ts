@@ -6,7 +6,11 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { getImportProgress } from '#/contexts/integration/imports/import-progress-store.server'
+import { createImportRetention } from '#/contexts/integration/imports/import-retention.server'
 import { getEnv } from '#/shared/config/env'
+import { integrationEventDescriptors } from '#/shared/events/integration-event-descriptors'
+import { clearEventSchemas, registerEventSchema } from '#/shared/events/schema-registry'
 import type { Database } from '#/shared/db'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'
@@ -190,14 +194,18 @@ async function seed(options: { live: boolean }): Promise<Fixture> {
   return fixture
 }
 
-async function insertGoogleImport(fixture: Fixture, importId: string): Promise<void> {
+async function insertGoogleImport(
+  fixture: Fixture,
+  importId: string,
+  totalCount: number,
+): Promise<void> {
   await lease.pool.query(
     `INSERT INTO google_imports (
        id, organization_id, request_id, initiated_by, total_count,
        wire_replay_key_version, wire_replay_digest,
        semantic_replay_key_version, semantic_replay_digest,
        first_terminal_at, purge_at, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 2, 'wire_v1', $5, 'semantic_v1', $5,
+     ) VALUES ($1, $2, $3, $4, $7, 'wire_v1', $5, 'semantic_v1', $5,
                $6, $6::timestamptz + interval '30 days', $6, $6)`,
     [
       importId,
@@ -206,6 +214,7 @@ async function insertGoogleImport(fixture: Fixture, importId: string): Promise<v
       fixture.userId,
       MARKERS.replayDigest,
       CREATED_AT,
+      totalCount,
     ],
   )
 }
@@ -240,6 +249,10 @@ async function insertPendingGoogleItem(
   propertyId: string,
 ): Promise<void> {
   await lease.pool.query(
+    `UPDATE google_imports SET total_count = total_count + 1 WHERE id = $1`,
+    [importId],
+  )
+  await lease.pool.query(
     `INSERT INTO google_import_items (
        id, organization_id, import_id, destination_property_id,
        connection_id, provider_account_suffix, provider_location_suffix,
@@ -268,7 +281,7 @@ async function insertPendingGoogleItem(
 
 /** One new-store import with a terminal item for each of the two Properties. */
 async function seedGoogleImport(fixture: Fixture): Promise<void> {
-  await insertGoogleImport(fixture, fixture.importId)
+  await insertGoogleImport(fixture, fixture.importId, 2)
   for (const propertyId of [fixture.propertyId, fixture.siblingPropertyId]) {
     await insertGoogleItem(fixture, fixture.importId, propertyId)
   }
@@ -277,7 +290,7 @@ async function seedGoogleImport(fixture: Fixture): Promise<void> {
 /** An import holding only the Property's item. */
 async function seedSoloImports(fixture: Fixture, propertyId: string): Promise<void> {
   const soloImportId = randomUUID()
-  await insertGoogleImport(fixture, soloImportId)
+  await insertGoogleImport(fixture, soloImportId, 1)
   await insertGoogleItem(fixture, soloImportId, propertyId)
 }
 
@@ -524,9 +537,8 @@ describe.sequential('Google rights executor through the rights-request command',
     expect(await snapshot(asked.organizationId)).toBe(before)
   })
 
-  it("exports one Property's import items without provider identifiers", async () => {
+  it('refuses --property on an access request and writes nothing', async () => {
     const asked = await seed({ live: false })
-    await seedSoloImports(asked, asked.propertyId)
 
     const result = await runScript([
       'access',
@@ -537,23 +549,9 @@ describe.sequential('Google rights executor through the rights-request command',
       'out=/export',
     ])
 
-    expect(result.exit).toBe(0)
-    const file = result.files.get(`/export/${GOOGLE_RIGHTS_EXPORT_PATH}`)
-    expect(file).toBeDefined()
-    const payload = JSON.parse(file ?? '{}')
-    expect(payload.propertyId).toBe(asked.propertyId)
-    const total = payload.importItems.reduce(
-      (sum: number, row: { item_count: number }) => sum + row.item_count,
-      0,
-    )
-    expect(total).toBe(2)
-    expect(
-      payload.importItems.some(
-        (row: { import_job_id: string }) => row.import_job_id === asked.importId,
-      ),
-    ).toBe(true)
-    expect(file).not.toContain(asked.siblingPropertyId)
-    for (const secret of Object.values(MARKERS)) expect(file).not.toContain(secret)
+    expect(result.exit).toBe(1)
+    expect(result.err.join('\n')).toContain('--property is not accepted for access')
+    expect(result.files.size).toBe(0)
   })
 
   it("erases one Property's import items and prunes emptied parents", async () => {
@@ -609,6 +607,89 @@ describe.sequential('Google rights executor through the rights-request command',
     expect(await rowCount('google_imports', asked.organizationId)).toBe(1)
   })
 
+  it('keeps the shared import readable and purgeable after one Property is erased', async () => {
+    const asked = await seed({ live: false })
+    const thirdPropertyId = randomUUID()
+    await lease.pool.query(
+      `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+       VALUES ($1, $2, 'Third Property', $3, 'UTC', $4, $4)`,
+      [thirdPropertyId, asked.organizationId, `third-${thirdPropertyId}`, CREATED_AT],
+    )
+    const threeItemImportId = randomUUID()
+    await insertGoogleImport(asked, threeItemImportId, 3)
+    for (const propertyId of [
+      asked.propertyId,
+      asked.siblingPropertyId,
+      thirdPropertyId,
+    ]) {
+      await insertGoogleItem(asked, threeItemImportId, propertyId)
+    }
+
+    const result = await runScript([
+      'property',
+      '--org',
+      asked.organizationId,
+      '--property',
+      asked.propertyId,
+      ...VERIFIED,
+      '--reason',
+      'erasure request',
+      '--ticket',
+      'T-5',
+      `confirm=ERASE PROPERTY ${asked.propertyId}`,
+      '--apply',
+      '--yes',
+      'ops:rights-request',
+    ])
+    expect(result.exit).toBe(0)
+
+    const counts = await lease.pool.query(
+      `SELECT parent.total_count::int AS total_count,
+              (SELECT count(*)::int FROM google_import_items AS item
+                WHERE item.organization_id = parent.organization_id
+                  AND item.import_id = parent.id) AS item_count
+       FROM google_imports AS parent
+       WHERE parent.organization_id = $1 ORDER BY parent.id`,
+      [asked.organizationId],
+    )
+    expect(counts.rows).toHaveLength(2)
+    for (const row of counts.rows) expect(row.total_count).toBe(row.item_count)
+
+    const progress = await getImportProgress(
+      db,
+      asked.organizationId,
+      threeItemImportId,
+      () => NOW,
+    )
+    expect(progress?.totalCount).toBe(2)
+    expect(progress?.items).toHaveLength(2)
+
+    const released = integrationEventDescriptors.find(
+      (descriptor) =>
+        descriptor.type === 'integration.property_import.retention_released',
+    )
+    if (!released) throw new Error('retention_released descriptor is missing')
+    registerEventSchema(released)
+    try {
+      const purged = await createImportRetention(db).purgeParent({
+        organizationId: asked.organizationId,
+        importJobId: threeItemImportId,
+        expectedDeletionFence: 0,
+        now: NOW,
+        outboxEventId: randomUUID(),
+      })
+      expect(purged).toBe('purged')
+    } finally {
+      clearEventSchemas()
+    }
+    const left = await lease.pool.query(
+      `SELECT count(*)::int AS count FROM google_import_items
+       WHERE organization_id = $1 AND import_id = $2`,
+      [asked.organizationId, threeItemImportId],
+    )
+    expect(left.rows[0]?.count).toBe(0)
+  })
+
   it('refuses to erase a Property with an import item in flight', async () => {
     const asked = await seed({ live: false })
     await insertPendingGoogleItem(asked, asked.importId, asked.propertyId)
@@ -646,7 +727,7 @@ describe.sequential('Google rights executor through the rights-request command',
       return { fixture }
     }
 
-    /** B's import items with the imports they hang on. */
+    /** B's import items with the imports they hang on; a shared import's count follows its items. */
     async function propertySnapshot(fixture: Fixture, propertyId: string) {
       const parts: string[] = []
       const queries: ReadonlyArray<readonly [string, string]> = [
@@ -657,7 +738,7 @@ describe.sequential('Google rights executor through the rights-request command',
         ],
         [
           'google_imports',
-          `SELECT to_jsonb(p.*)::text AS row FROM google_imports AS p
+          `SELECT (to_jsonb(p.*) - 'total_count')::text AS row FROM google_imports AS p
            WHERE p.organization_id = $1 AND p.id IN (
              SELECT import_id FROM google_import_items
              WHERE organization_id = $1 AND destination_property_id = $2)`,
@@ -740,10 +821,15 @@ describe.sequential('Google rights executor through the rights-request command',
     ): Promise<void> {
       for (const [table, rows] of captured) {
         if (rows.length === 0) continue
+        // A restore brings back the parent's count as it was, not only its rows.
+        const onConflict =
+          table === 'google_imports'
+            ? 'DO UPDATE SET total_count = EXCLUDED.total_count'
+            : 'DO NOTHING'
         await lease.pool.query(
           `INSERT INTO ${table}
            SELECT * FROM jsonb_populate_recordset(NULL::${table}, $1::jsonb)
-           ON CONFLICT (id) DO NOTHING`,
+           ON CONFLICT (id) ${onConflict}`,
           [JSON.stringify(rows)],
         )
       }

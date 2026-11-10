@@ -19,13 +19,18 @@ import type { ReviewSourceContentLifecycleInspection } from '#/contexts/review/a
 import { reviewId } from '#/shared/domain/ids'
 import type { ReviewSourceContentLifecycleStore } from '#/contexts/review/application/ports/source-content-lifecycle-store.port'
 import {
+  encodeErasureJournalExport,
+  type ErasureJournalEntry,
+} from '#/shared/db/lifecycle/erasure-journal.server'
+import { ZERO_BACKUP_ERASURE_REPLAY_COUNTS } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import {
   validateOperatorArgs,
   type OperatorContext,
   type OperatorIO,
 } from './operator-command'
 import {
   RESTORE_PREFLIGHT_SPEC,
-  RESTORE_VERIFY_REPLAY_NOTICE,
+  RESTORE_VERIFY_JOURNAL_REQUIRED,
   RESTORE_VERIFY_SPEC,
   runRestoreVerifyAction,
   type RestoreVerifyDeps,
@@ -62,6 +67,36 @@ const ZERO_RECOVERY = {
   aiOperationsFenced: 0,
   aiBackfillRunsStalled: 0,
 } as const
+
+const JOURNAL_ENTRY: ErasureJournalEntry = {
+  id: '30000000-0000-4000-8000-00000000000a',
+  recordedBeforeErasure: true,
+  subjectClass: 'organization',
+  organizationId: 'org-journal',
+  context: 'guest',
+  closureLineageId: '30000000-0000-4000-8000-000000000001',
+  lifecycleRevision: 1,
+  effectiveErasureAt: new Date('2026-08-02T12:00:00.000Z'),
+  erasedRowCount: 0,
+  evidenceRef: 'guest:purge:batch-1',
+}
+const JOURNAL_EXPORT = encodeErasureJournalExport(
+  [JOURNAL_ENTRY],
+  new Date('2026-08-05T00:00:00.000Z'),
+)
+
+function replayFor(bytes: string | null = JOURNAL_EXPORT) {
+  return {
+    journalFile: bytes === null ? null : '/secure/erasure-journal.json',
+    readFile: vi.fn(async (_path: string) => bytes ?? ''),
+    apply: vi.fn(async () => ({
+      verified: true,
+      counts: { ...ZERO_BACKUP_ERASURE_REPLAY_COUNTS, ledgerEntriesReapplied: 1 },
+      unreplayedEntryIds: [] as string[],
+      heldEntryIds: [] as string[],
+    })),
+  }
+}
 
 function memoryIO(): OperatorIO & { outLines: string[]; errLines: string[] } {
   const outLines: string[] = []
@@ -251,6 +286,7 @@ function depsFor(overrides: Partial<RestoreVerifyDeps> = {}): RestoreVerifyDeps 
     env: ISOLATED_ENV,
     confirmation: 'closed-beta-v2',
     clock: () => new Date('2026-11-07T10:00:00.000Z'),
+    erasureReplay: replayFor(),
     reviewLifecycle: {
       kind: 'confirmed_apply',
       admit: vi.fn(async () => ({
@@ -484,33 +520,100 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
   })
 
-  // Replay of the erasures a restore undid is not wired into the command. It
-  // says so on every run and never lists replay among the things it verified.
-  it('says on a dry run and on an apply that erasure replay is not wired', async () => {
-    for (const dryRun of [true, false]) {
-      const io = memoryIO()
-      const deps = depsFor({ countExpired: vi.fn().mockResolvedValue(0) })
-
-      expect(await runRestoreVerifyAction(ctxFor(dryRun), deps, io)).toBe(0)
-
-      expect(io.outLines.join('\n')).toContain(RESTORE_VERIFY_REPLAY_NOTICE)
-    }
-    // The wording is part of the contract: it must stay a plain statement that
-    // nothing is replayed, not something an operator could read as reassurance.
-    expect(RESTORE_VERIFY_REPLAY_NOTICE).toMatch(/^NOT WIRED: erasure replay/)
-    expect(RESTORE_VERIFY_REPLAY_NOTICE).toMatch(/does not re-apply/)
-  })
-
-  it('never claims that erasures were replayed or verified', async () => {
+  it('replays the journal export through the fence on apply and says it verified', async () => {
     const io = memoryIO()
-    const deps = depsFor({ countExpired: vi.fn().mockResolvedValue(0) })
+    const deps = depsFor()
 
     expect(await runRestoreVerifyAction(ctxFor(false), deps, io)).toBe(0)
 
-    const claims = io.outLines.filter((line) => line.startsWith('✓'))
-    expect(claims.length).toBeGreaterThan(0)
-    expect(claims.filter((line) => /erasure|replay/iu.test(line))).toEqual([])
-    expect(io.outLines.join('\n')).toMatch(/Re-apply by hand every erasure/)
+    expect(deps.erasureReplay.apply).toHaveBeenCalledWith({
+      entries: [expect.objectContaining({ id: JOURNAL_ENTRY.id })],
+      restorePointAt: new Date(ISOLATED_ENV.RESTORE_POINT_AT),
+    })
+    const out = io.outLines.join('\n')
+    expect(out).toMatch(/✓ erasure replay verified/)
+    expect(out).not.toMatch(/NOT WIRED/)
+    expect(deps.reviewComplete).toHaveBeenCalled()
+  })
+
+  it('plans the replay on a dry run and applies nothing', async () => {
+    const io = memoryIO()
+    const deps = depsFor({ countExpired: vi.fn().mockResolvedValue(0) })
+
+    expect(await runRestoreVerifyAction(ctxFor(true), deps, io)).toBe(0)
+
+    expect(io.outLines.join('\n')).toMatch(
+      /erasure replay plan: entries=1 replay_required=1/,
+    )
+    expect(deps.erasureReplay.apply).not.toHaveBeenCalled()
+  })
+
+  // Negative control: an altered export is refused before any mutation.
+  it('refuses a tampered journal export before any lifecycle work', async () => {
+    const tampered = JOURNAL_EXPORT.replace('org-journal', 'org-journal", "extra": "x')
+    for (const bytes of [
+      tampered,
+      JOURNAL_EXPORT.replace('"entries":[', '"entries":[null,'),
+      JOURNAL_EXPORT.replace('erasure-journal-v1', 'erasure-journal-v2'),
+      '',
+    ]) {
+      for (const dryRun of [true, false]) {
+        const io = memoryIO()
+        const deps = depsFor({ erasureReplay: replayFor(bytes) })
+
+        expect(await runRestoreVerifyAction(ctxFor(dryRun), deps, io)).toBe(1)
+
+        expect(io.errLines.join('\n')).toMatch(/unreadable, malformed or was altered/)
+        expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
+        expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
+        expect(deps.erasureReplay.apply).not.toHaveBeenCalled()
+      }
+    }
+  })
+
+  it('refuses an export taken before the restore point', async () => {
+    const early = encodeErasureJournalExport(
+      [JOURNAL_ENTRY],
+      new Date('2026-07-01T00:00:00.000Z'),
+    )
+    const io = memoryIO()
+    const deps = depsFor({ erasureReplay: replayFor(early) })
+
+    expect(await runRestoreVerifyAction(ctxFor(false), deps, io)).toBe(1)
+
+    expect(io.errLines.join('\n')).toMatch(/predates the restore point/)
+    expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
+  })
+
+  it('refuses apply without a journal export and only notes it on a dry run', async () => {
+    const applyIo = memoryIO()
+    const applyDeps = depsFor({ erasureReplay: replayFor(null) })
+    expect(await runRestoreVerifyAction(ctxFor(false), applyDeps, applyIo)).toBe(1)
+    expect(applyIo.errLines.join('\n')).toContain(RESTORE_VERIFY_JOURNAL_REQUIRED)
+    expect(applyDeps.reviewLifecycle.admit).not.toHaveBeenCalled()
+
+    const dryIo = memoryIO()
+    const dryDeps = depsFor({ erasureReplay: replayFor(null) })
+    expect(await runRestoreVerifyAction(ctxFor(true), dryDeps, dryIo)).toBe(0)
+    expect(dryIo.outLines.join('\n')).toContain('apply will refuse')
+  })
+
+  it('fails and leaves the receipt open when an entry could not be re-applied', async () => {
+    const io = memoryIO()
+    const replay = replayFor()
+    replay.apply.mockResolvedValueOnce({
+      verified: false,
+      counts: { ...ZERO_BACKUP_ERASURE_REPLAY_COUNTS, ledgerEntriesUnreplayed: 1 },
+      unreplayedEntryIds: [JOURNAL_ENTRY.id],
+      heldEntryIds: [],
+    })
+    const deps = depsFor({ erasureReplay: replay })
+
+    expect(await runRestoreVerifyAction(ctxFor(false), deps, io)).toBe(1)
+
+    expect(io.errLines.join('\n')).toContain(JOURNAL_ENTRY.id)
+    expect(deps.reviewComplete).not.toHaveBeenCalled()
+    expect(io.outLines.join('\n')).not.toMatch(/UNSET RESTORE_MODE/)
   })
 
   it('dry-run reports the eligible count and purges nothing', async () => {

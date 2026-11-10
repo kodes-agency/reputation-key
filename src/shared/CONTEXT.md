@@ -31,7 +31,8 @@ Primary areas:
   without changing the receipt's evidence or resetting its durable checkpoint.
   Expiry is checked again after fencing before the receipt can complete.
   `recovery_runs` retains the fence and cutover generation. Erasure
-  replay is a separate prerequisite and is not wired into this command.
+  replay runs from the local journal export (`journal=<file>`) before the
+  receipt completes.
   `release/railway-service-settings.ts` defines web and worker settings; image
   promotion checks deployed manifests and replica counts against that contract.
 
@@ -45,6 +46,10 @@ Reads, optimistic updates and invalidations share that
 scope. Tenant and session transitions still clear the caches independently.
 
 - `testing/` and `db/testing/` are test-only support, never runtime authorities.
+
+`ops/local-database.ts` is the shared local-only database guard for development
+scripts and the manual rights command. It checks the process environment and
+the PostgreSQL driver's effective host and database name before allowing writes.
 
 Shared-area dependency and production/test fences are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
 

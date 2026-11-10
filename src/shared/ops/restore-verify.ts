@@ -26,10 +26,11 @@
 //   4. Re-scans and proves every bounded backlog/authority count is zero.
 //   5. Prints retention + recovery evidence and the controlled cutover rules.
 //
-// Erasure replay is NOT wired: applyRestoreResurrectionFence and the Guest
-// replayer have no caller, so this command neither re-applies the erasures a
-// restore undid nor checks for them, and it says so on every run it admits
-// (RESTORE_VERIFY_REPLAY_NOTICE).
+// Erasure replay: the operator passes the local journal export
+// (journal=<file>, docs/operations/erasure-journal.md). The file is decoded
+// before any work, so an altered or malformed export refuses the run. Apply
+// feeds its entries to applyRestoreResurrectionFence and fails unless every
+// resurrected erasure is gone again; apply without a journal refuses.
 //
 // The module is purge-agnostic by injection (fallow boundary: the shared
 // zone cannot import the review context) — scripts/ops/restore-verify.ts
@@ -44,6 +45,12 @@ import {
   restoreSideServicesRefusal,
   type RestoreSideServicesEnv,
 } from '#/shared/config/restore-mode'
+import { decodeErasureJournalExport } from '#/shared/db/lifecycle/erasure-journal.server'
+import {
+  planBackupErasureReplay,
+  type BackupErasureLedgerEntry,
+  type RestoreResurrectionFenceResult,
+} from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type { OperatorCommandSpec, OperatorContext, OperatorIO } from './operator-command'
 import type {
   RecoveryFenceInput,
@@ -55,7 +62,7 @@ import type {
 export const RESTORE_VERIFY_PURGE_SUBJECT = 'reviews.purge' as const
 
 const RESTORE_VERIFY_USAGE =
-  'pnpm ops restore-verify --operator <id> [--reason <text> --apply --yes closed-beta-v2]'
+  'pnpm ops restore-verify --operator <id> journal=<file> [--reason <text> --apply --yes closed-beta-v2]'
 
 /**
  * The harness spec. Deliberately declares NO capability: in restore-isolated
@@ -81,14 +88,10 @@ export const RESTORE_PREFLIGHT_SPEC: OperatorCommandSpec = {
   usage: 'pnpm ops restore-preflight --operator <id>',
 }
 
-/**
- * Printed on every run. Replay of the erasures a restore undid is not wired
- * into this command, and it must not read as if it were.
- */
-export const RESTORE_VERIFY_REPLAY_NOTICE =
-  'NOT WIRED: erasure replay. This command does not re-apply the erasures made after ' +
-  'the restore point (RESTORE_POINT_AT), so data erased since then can be back in the ' +
-  'restored database, and nothing here checks for it.'
+/** Printed when no journal export was given; apply refuses in that case. */
+export const RESTORE_VERIFY_JOURNAL_REQUIRED =
+  'journal=<file> is required: pass the local erasure journal export so the erasures made ' +
+  'after the restore point can be re-applied.'
 
 export type RestoreVerifyEvidenceRow = Readonly<{
   subject: string
@@ -139,6 +142,19 @@ export type RestoreReviewLifecycleRuntimeTarget = Readonly<{
   correlationId: string
 }>
 
+export type RestoreErasureReplay = Readonly<{
+  /** Local path of the erasure journal export, or null when none was given. */
+  journalFile: string | null
+  readFile: (path: string) => Promise<string>
+  /** Re-apply the entries inside one transaction of the restored database. */
+  apply: (
+    input: Readonly<{
+      entries: readonly BackupErasureLedgerEntry[]
+      restorePointAt: Date
+    }>,
+  ) => Promise<RestoreResurrectionFenceResult>
+}>
+
 export type RestoreVerifyDeps = Readonly<{
   confirmation?: string
   clock: () => Date
@@ -155,6 +171,7 @@ export type RestoreVerifyDeps = Readonly<{
       RAILWAY_ENVIRONMENT_ID?: string
       RAILWAY_ENVIRONMENT_NAME?: string
     }>
+  erasureReplay: RestoreErasureReplay
   /** Normal composition injects inspection_only; it can never masquerade as apply. */
   reviewLifecycle: RestoreReviewLifecycleAuthority
   /** Review-owned report count of active source-content rows due for expiry. */
@@ -365,8 +382,39 @@ function reportCutoverChecklist(
   io.out(
     '  6. Rebuild projections/reconcile external state; do not redrive fenced outbox rows',
   )
+  io.out('  7. Delete the local erasure journal export under the recovery procedure')
+}
+
+type LoadedJournal = Readonly<{ entries: readonly BackupErasureLedgerEntry[] }>
+
+/** Decode the local export; a string is the refusal. */
+async function loadJournal(
+  replay: RestoreErasureReplay,
+  restorePointAt: Date,
+): Promise<LoadedJournal | string> {
+  if (replay.journalFile === null) return `REFUSED: ${RESTORE_VERIFY_JOURNAL_REQUIRED}`
+  let journal: ReturnType<typeof decodeErasureJournalExport>
+  try {
+    journal = decodeErasureJournalExport(await replay.readFile(replay.journalFile))
+  } catch {
+    return 'REFUSED: the erasure journal export is unreadable, malformed or was altered.'
+  }
+  if (journal.exportedAt.getTime() < restorePointAt.getTime()) {
+    return 'REFUSED: the erasure journal export predates the restore point, so it cannot cover the erasures made after it.'
+  }
+  return { entries: journal.entries }
+}
+
+function reportReplayPlan(
+  io: OperatorIO,
+  journal: LoadedJournal,
+  restorePointAt: Date,
+): void {
+  const plan = planBackupErasureReplay(journal.entries, restorePointAt)
+  const count = (disposition: string) =>
+    plan.filter((item) => item.disposition === disposition).length
   io.out(
-    '  7. Re-apply by hand every erasure made after the restore point: erasure replay did not run',
+    `erasure replay plan: entries=${plan.length} replay_required=${count('replay_required')} held=${count('held')} already_erased=${count('already_erased')}`,
   )
 }
 
@@ -393,7 +441,18 @@ export async function runRestoreVerifyAction(
   }
 
   io.out(`✓ ${RESTORE_ISOLATED_LOG_LINE} — restore mode active, target admitted`)
-  io.out(RESTORE_VERIFY_REPLAY_NOTICE)
+
+  const journal = await loadJournal(deps.erasureReplay, recoveryTarget.restorePointAt)
+  if (typeof journal === 'string') {
+    if (ctx.dryRun && deps.erasureReplay.journalFile === null) {
+      io.out(journal.replace('REFUSED', 'apply will refuse'))
+    } else {
+      io.err(journal)
+      return 1
+    }
+  } else {
+    reportReplayPlan(io, journal, recoveryTarget.restorePointAt)
+  }
 
   if (!ctx.dryRun && deps.reviewLifecycle.kind !== 'confirmed_apply') {
     io.err(
@@ -426,8 +485,24 @@ export async function runRestoreVerifyAction(
     )
     return 0
   }
+
+  return applyConfirmedRestore(ctx, deps, io, recoveryTarget, journal)
+}
+
+/** Apply the admitted lifecycles and complete the receipt only after replay verifies. */
+async function applyConfirmedRestore(
+  ctx: OperatorContext,
+  deps: RestoreVerifyDeps,
+  io: OperatorIO,
+  recoveryTarget: RestoreReviewLifecycleRuntimeTarget,
+  journal: LoadedJournal | string,
+): Promise<number> {
   if (deps.reviewLifecycle.kind !== 'confirmed_apply') {
     io.err('REFUSED: confirmed Review lifecycle apply authority is unavailable.')
+    return 1
+  }
+  if (typeof journal === 'string') {
+    io.err(journal)
     return 1
   }
   io.out(
@@ -457,6 +532,19 @@ export async function runRestoreVerifyAction(
     )
     return 1
   }
+  const replayed = await deps.erasureReplay.apply({
+    entries: journal.entries,
+    restorePointAt: recoveryTarget.restorePointAt,
+  })
+  if (!replayed.verified) {
+    io.err(
+      `FAILED: ${replayed.counts.ledgerEntriesUnreplayed} journal entr(ies) could not be re-applied: ${replayed.unreplayedEntryIds.join(', ')} — the restored database is not verified.`,
+    )
+    return 1
+  }
+  io.out(
+    `✓ erasure replay verified — counts=${JSON.stringify(replayed.counts)} held=${replayed.heldEntryIds.length}`,
+  )
   // Fencing can take long enough for another Review to expire. Leave the
   // receipt resumable so the next invocation drains that content as well.
   if (

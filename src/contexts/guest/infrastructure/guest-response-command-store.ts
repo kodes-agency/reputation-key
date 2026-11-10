@@ -2,6 +2,7 @@ import type { Database } from '#/shared/db'
 import { createHash } from 'node:crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
+  guestContactRequests,
   guestResponseExperienceSnapshots,
   guestResponseIntegrityDecisions,
   guestResponsePrivateFeedback,
@@ -229,6 +230,15 @@ export const createAtomicGuestResponseCommandStore = (
             and(
               eq(guestResponsePrivateFeedback.responseId, response.id),
               eq(guestResponsePrivateFeedback.organizationId, response.organizationId),
+            ),
+          )
+        // The reveal audits of the contact go with it through their foreign key.
+        await tx
+          .delete(guestContactRequests)
+          .where(
+            and(
+              eq(guestContactRequests.responseId, response.id),
+              eq(guestContactRequests.organizationId, response.organizationId),
             ),
           )
         for (const fact of facts) await insertOutboxRow(tx, fact)

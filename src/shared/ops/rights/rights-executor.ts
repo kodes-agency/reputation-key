@@ -1,6 +1,6 @@
 // Per-context executors for the manual rights request command. Each executor
 // owns one context's data: it reports what it holds for a tenant, lists the
-// export files it contributes, and (outside production) applies the erasure.
+// export files it contributes, and applies the erasure after command preflight.
 // The command contract decides whether a request may apply at all; this module
 // only runs the executors that cover the requested scope.
 
@@ -52,6 +52,8 @@ export type RunRightsExecutorsInput = Readonly<{
   io: OperatorIO
   /** Apply is refused when the journal has no store. */
   journal: RightsJournal
+  /** Why the request's Organization or Property does not exist, or null. */
+  subjectRefusal?: (plan: RightsRequestPlan) => Promise<string | null>
   writeExportFile: (path: string, bytes: Uint8Array) => Promise<void>
 }>
 
@@ -106,6 +108,14 @@ async function firstPreflightRefusal(
   return null
 }
 
+async function subjectRefusalOf(input: RunRightsExecutorsInput): Promise<string | null> {
+  try {
+    return (await input.subjectRefusal?.(input.plan)) ?? null
+  } catch (error) {
+    return `subject check: ${errorMessage(error)}`
+  }
+}
+
 async function applyJournaled(
   input: RunRightsExecutorsInput,
   executor: RightsExecutor,
@@ -124,7 +134,8 @@ async function applyAll(
   covering: ReadonlyArray<RightsExecutor>,
 ): Promise<number> {
   const { plan, io } = input
-  const refusal = await firstPreflightRefusal(input, covering)
+  const refusal =
+    (await subjectRefusalOf(input)) ?? (await firstPreflightRefusal(input, covering))
   if (refusal) {
     io.err(`rights-request: ${refusal}; nothing was changed`)
     return 1

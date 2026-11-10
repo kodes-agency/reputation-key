@@ -128,6 +128,49 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
     })
   }
 
+  it('claims and executes a sibling while another item effect is running', async () => {
+    const work = await commit(ORG_A, 2)
+    const [first, second] = work.items
+    if (!first || !second) throw new Error('missing sibling items')
+    const claim = (itemId: string, claimFence: string) => ({
+      organizationId: ORG_A,
+      itemId,
+      retryRevision: 0,
+      dispatchEpoch: 0,
+      attemptOrdinal: 1,
+      claimFence,
+      now: NOW,
+      leaseExpiresAt: minuteAfter(NOW),
+    })
+    const firstClaim = claim(first.id, randomUUID())
+    const secondClaim = claim(second.id, randomUUID())
+    await expect(store.claimItem(firstClaim)).resolves.toMatchObject({ kind: 'claimed' })
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const firstRun = store.runClaimedEffect(firstClaim, async () => {
+      entered.resolve()
+      await release.promise
+    })
+    await entered.promise
+    let siblingExecuted = false
+    const secondRun = (async () => {
+      await expect(store.claimItem(secondClaim)).resolves.toMatchObject({
+        kind: 'claimed',
+      })
+      await expect(
+        store.runClaimedEffect(secondClaim, async () => {
+          siblingExecuted = true
+        }),
+      ).resolves.toMatchObject({ kind: 'executed' })
+    })()
+    try {
+      await vi.waitFor(() => expect(siblingExecuted).toBe(true), { timeout: 2_000 })
+    } finally {
+      release.resolve()
+      await Promise.all([firstRun, secondRun])
+    }
+  })
+
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 6)
     db = createDatabase(lease.pool)

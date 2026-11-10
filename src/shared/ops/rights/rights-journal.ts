@@ -144,6 +144,7 @@ export function createRightsJournal(
 ): RightsJournal {
   return Object.freeze({
     check(plan, contexts) {
+      if (contexts.length === 0) return null
       if (!store) return 'no erasure journal store is configured; apply is refused'
       try {
         entriesOf(plan, contexts)
@@ -154,6 +155,7 @@ export function createRightsJournal(
     },
     entryIds: (plan, contexts) => entriesOf(plan, contexts).map(({ id }) => id),
     async run(plan, contexts, erase) {
+      if (contexts.length === 0) return erase()
       if (!store) throw new Error('no erasure journal store is configured')
       const entries = entriesOf(plan, contexts)
       const write = entries.reduceRight<() => ReturnType<typeof erase>>(

@@ -52,7 +52,7 @@ it('wires Portal and the configured image store into the operator command', asyn
   try {
     await import('./rights-request')
     await vi.waitFor(() => expect(fakes.exit).toHaveBeenCalledOnce())
-    expect(fakes.effects?.production).toBe(true)
+    expect(fakes.effects?.environment).toBe(process.env)
     const executors = fakes.effects!.executors(false)
     expect(executors.map(({ name }) => name)).toContain('portal')
     expect(fakes.storage).toHaveBeenCalledWith({

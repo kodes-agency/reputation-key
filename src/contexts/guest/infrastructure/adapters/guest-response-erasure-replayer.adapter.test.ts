@@ -34,11 +34,11 @@ function tx(rows: unknown[]) {
 }
 
 describe('guest response erasure replayers', () => {
-  it('counts the rows it re-erases for a resurrected response', async () => {
+  it('counts the response, feedback and contact rows it re-erases for a resurrected response', async () => {
     const replayer = createGuestResponseErasureReplayer()
     await expect(
       replayer.reErase(tx([{ id: ID }]), entry('guest_response')),
-    ).resolves.toBe(2)
+    ).resolves.toBe(3)
   })
 
   it('reports zero when nothing was resurrected', async () => {
