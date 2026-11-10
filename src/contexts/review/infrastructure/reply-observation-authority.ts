@@ -20,11 +20,6 @@ import {
   isSourceEpochCarry,
   selectRevisionBindingComparisons,
 } from './source-epoch-carry'
-import {
-  REVIEW_EXACT_CURRENT_APPLY_CLIENTS,
-  REVIEW_EXACT_CURRENT_MAX_CONCURRENT_APPLIES,
-  runWithReviewExactCurrentApplyAdmission,
-} from './exact-current-apply-admission'
 
 const sameInstant = (left: Date, right: Date): boolean =>
   left.getTime() === right.getTime()
@@ -192,24 +187,15 @@ function isExactCurrentObservation(
   )
 }
 
-/** One exact-current apply holds the Review transaction while its Inbox
- * callback opens the consumer-owned transaction, so it can require two pool
- * clients at the same time. Keep process-wide admission below pool capacity;
- * queued callers hold no database client. */
-export const REPLY_OBSERVATION_APPLY_CLIENTS = REVIEW_EXACT_CURRENT_APPLY_CLIENTS
-export const REPLY_OBSERVATION_MAX_CONCURRENT_APPLIES =
-  REVIEW_EXACT_CURRENT_MAX_CONCURRENT_APPLIES
-
 /**
  * Review-owned exact-current authority.
  *
  * The advisory lock is the same Review-scoped fence used by observation
- * writes. It remains held while the callback commits the consumer's own
- * transaction. PostgreSQL cannot atomically commit two context-owned
- * transactions together, so this deliberate fence closes the only dangerous
- * interval: a newer Review head cannot land between validation and the Inbox
- * commit. If the outer read-only transaction later fails, Inbox's receipt
- * makes redelivery idempotent.
+ * writes. The callback runs on this transaction's own client (lent as an open
+ * transaction), so the consumer's writes are savepoints inside it and commit
+ * or roll back with it. A newer Review head cannot land between validation and
+ * the consumer's writes, and a failed apply leaves nothing behind. The
+ * consumer's receipt still makes redelivery idempotent.
  */
 export const createReviewReplyObservationAuthority = (
   db: Database,
@@ -221,53 +207,51 @@ export const createReviewReplyObservationAuthority = (
       tx: ReviewOpenTransaction,
     ) => Promise<T>,
   ) =>
-    runWithReviewExactCurrentApplyAdmission(db, () =>
-      db.transaction(async (tx) => {
-        await lockReplyTruthScope(
-          tx,
-          organizationId(expectation.organizationId),
-          reviewId(expectation.reviewId),
-        )
+    db.transaction(async (tx) => {
+      await lockReplyTruthScope(
+        tx,
+        organizationId(expectation.organizationId),
+        reviewId(expectation.reviewId),
+      )
 
-        const rows = await selectCurrentObservationHead(tx, expectation)
-        const current = rows[0]
-        if (current === undefined || !isExactCurrentObservation(current, expectation)) {
-          return { status: 'obsolete' as const }
-        }
+      const rows = await selectCurrentObservationHead(tx, expectation)
+      const current = rows[0]
+      if (current === undefined || !isExactCurrentObservation(current, expectation)) {
+        return { status: 'obsolete' as const }
+      }
 
-        const sourceEpochCarryFrom = await sourceEpochCarryFromMaterialReviewRevision(
-          tx,
-          current,
-        )
+      const sourceEpochCarryFrom = await sourceEpochCarryFromMaterialReviewRevision(
+        tx,
+        current,
+      )
 
-        const permit: ReviewCurrentReplyObservationPermit = {
-          authority: 'review.current-google-reply-observation.v1',
-          organizationId: current.organizationId,
-          propertyId: current.propertyId,
-          reviewId: current.reviewId,
-          observationRevision: current.observationRevision,
-          sourceEpoch: current.sourceEpoch,
-          materialReviewRevision: current.materialReviewRevision,
-          sourceEpochCarryFromMaterialReviewRevision: sourceEpochCarryFrom,
-          state: current.state === 'live' ? 'live' : 'absent',
-          change: expectation.change,
-          resolution: expectation.resolution,
-          provenance: expectation.provenance,
-          matchedReplyId: current.matchedReplyId,
-          matchedPublicationCycle: current.matchedPublicationCycle,
-          observedAt: current.observedAt,
-          providerReplyUpdatedAt: current.providerUpdatedAt,
-          reviewSourceContentState:
-            current.reviewSourceContentState as ReviewCurrentReplyObservationPermit['reviewSourceContentState'],
-          responseTargetEligibility:
-            current.responseTargetEligibility as ReviewCurrentReplyObservationPermit['responseTargetEligibility'],
-          responseTargetStartAt: current.responseTargetStartAt,
-          rating: current.rating,
-        }
-        return {
-          status: 'current' as const,
-          value: await apply(permit, lendReviewTransaction(tx)),
-        }
-      }),
-    ),
+      const permit: ReviewCurrentReplyObservationPermit = {
+        authority: 'review.current-google-reply-observation.v1',
+        organizationId: current.organizationId,
+        propertyId: current.propertyId,
+        reviewId: current.reviewId,
+        observationRevision: current.observationRevision,
+        sourceEpoch: current.sourceEpoch,
+        materialReviewRevision: current.materialReviewRevision,
+        sourceEpochCarryFromMaterialReviewRevision: sourceEpochCarryFrom,
+        state: current.state === 'live' ? 'live' : 'absent',
+        change: expectation.change,
+        resolution: expectation.resolution,
+        provenance: expectation.provenance,
+        matchedReplyId: current.matchedReplyId,
+        matchedPublicationCycle: current.matchedPublicationCycle,
+        observedAt: current.observedAt,
+        providerReplyUpdatedAt: current.providerUpdatedAt,
+        reviewSourceContentState:
+          current.reviewSourceContentState as ReviewCurrentReplyObservationPermit['reviewSourceContentState'],
+        responseTargetEligibility:
+          current.responseTargetEligibility as ReviewCurrentReplyObservationPermit['responseTargetEligibility'],
+        responseTargetStartAt: current.responseTargetStartAt,
+        rating: current.rating,
+      }
+      return {
+        status: 'current' as const,
+        value: await apply(permit, lendReviewTransaction(tx)),
+      }
+    }),
 })

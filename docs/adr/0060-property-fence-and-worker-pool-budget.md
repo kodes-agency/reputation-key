@@ -49,7 +49,8 @@ traced three causes.
 2. **A lock holder never waits for a pool client.** A unit of work that holds a
    lock while it opens a second transaction checks out every client it needs
    before it takes the lock (`withReservedPoolClients`). The Review
-   exact-current authorities do this inside their admission. Clients the unit
+   exact-current authorities need only one: their consumer runs on the lent
+   Review transaction, so they reserve nothing. Clients the unit
    releases return to its reservation until it settles, so a plain read before
    the consumer's transaction cannot give that transaction's client away.
    Reservations are taken one at a time per pool. A reserved client whose
@@ -84,8 +85,8 @@ traced three causes.
   They hold no lock while they wait, so past the budget they only queue.
 - The Google import item job still holds its item row while it waits for a
   second client. That row is not the Property fence, and the budget covers it.
-- The fence is still held while an exact-current consumer commits on its own
-  connection. That consumer must not lock the same Property row (`FOR SHARE`
+- The fence is held while an exact-current consumer writes on the lent Review
+  transaction. That consumer must not lock the same Property row (`FOR SHARE`
   or stronger, or `UPDATE`): it would wait on its own caller until
   `lock_timeout`. None does; only its foreign-key checks touch the row, and
   they no longer wait.
@@ -98,3 +99,13 @@ budget, so the background queue's budget grows from 20 clients to 28 and the
 worker's pool from 49 to 57. With both services doubled for the deploy overlap
 and 20 kept for operators, that is 154 of the 497 connections the database
 leaves available.
+
+## Amendment — exact-current applies take one client
+
+The Inbox consumers of the Review exact-current authorities write on the
+Review transaction they are lent (their transactions are savepoints inside it),
+so an apply holds one client, not two. The process-wide admission limit and the
+second-client reservation are gone, and the worker budget no longer carries a
+line for exact-current applies (four clients). The burst suite runs the Inbox
+projection on a pool of one client and on a pool smaller than the dispatch
+concurrency.

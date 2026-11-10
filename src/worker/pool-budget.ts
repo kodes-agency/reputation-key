@@ -4,20 +4,15 @@
 // clients. On the closed beta (2026-09-29) a 244-review import exhausted it:
 // the Inbox projection held the Property fence while waiting for a client, and
 // every consumer queued on that fence failed at the lock timeout. Exact-current
-// applies now take both clients before the fence (see
-// `#/shared/db/pool-client-reservation`), and this budget gives every queue the
-// clients its configured concurrency can hold, so none of them waits on the
-// pool at its planned load.
+// applies now run the consumer on the Review transaction's own client, and this
+// budget gives every queue the clients its configured concurrency can hold, so
+// none of them waits on the pool at its planned load.
 //
 // Parallel reads that fan out per recipient or per cycle (insert-notification,
 // the feed consumers) are not bounded here. They hold no lock while waiting for
 // a client, so past the budget they only queue.
 
 import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/public-api'
-import {
-  REVIEW_EXACT_CURRENT_APPLY_CLIENTS,
-  REVIEW_EXACT_CURRENT_MAX_CONCURRENT_APPLIES,
-} from '#/contexts/review/infrastructure/exact-current-apply-admission'
 import {
   BACKGROUND_QUEUE_CONCURRENCY,
   DEFAULT_QUEUE_CONCURRENCY,
@@ -34,7 +29,7 @@ import {
  * - background: health-check's operations snapshot reads about six things in
  *   parallel. The AI backlog drain is budgeted on its own.
  * - domain-events: one session isolates live work plus one consumer client.
- *   Exact-current applies add a second client each, budgeted on their own.
+ *   An exact-current apply runs on that consumer client.
  */
 const PEAK_CLIENTS_PER_JOB = Object.freeze({
   default: Math.max(3, WORST_CASE_POOL_CLIENTS_PER_JOB),
@@ -53,9 +48,6 @@ export const WORKER_POOL_CLIENT_BUDGET = Object.freeze({
     AI_BACKLOG_DRAIN_CONCURRENCY +
     (BACKGROUND_QUEUE_CONCURRENCY - 1) * PEAK_CLIENTS_PER_JOB.background,
   domainEvents: DOMAIN_EVENTS_QUEUE_CONCURRENCY * PEAK_CLIENTS_PER_JOB['domain-events'],
-  exactCurrentApplies:
-    REVIEW_EXACT_CURRENT_MAX_CONCURRENT_APPLIES *
-    (REVIEW_EXACT_CURRENT_APPLY_CLIENTS - 1),
   runtime: RUNTIME_CLIENTS,
 })
 

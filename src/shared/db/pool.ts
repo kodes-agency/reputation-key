@@ -99,9 +99,8 @@ function wrapPoolConnectWithRetry(pool: Pool): void {
 
 /**
  * Physical connections in web's pool, and in any process that does not size
- * its own. Web cannot bound its request concurrency, so Review exact-current
- * applies are admitted against this size
- * (`#/contexts/review/infrastructure/exact-current-apply-admission`).
+ * its own. Web cannot bound its request concurrency, so a unit of work must
+ * never hold a lock while it waits for a second client of this pool.
  *
  * The worker's concurrency is known, so it sizes its pool from every queue
  * (`src/worker/pool-budget.ts`) through `configurePoolMaxConnections`. On the
