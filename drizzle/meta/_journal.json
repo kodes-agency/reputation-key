@@ -890,6 +890,13 @@
       "when": 1800100006000,
       "tag": "0126_drop_legacy_reply_template_provenance",
       "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1800100007000,
+      "tag": "0127_drop_portal_group_members",
+      "breakpoints": true
     }
   ]
 }
