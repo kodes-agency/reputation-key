@@ -1069,7 +1069,7 @@ describe.sequential('replyRepository (integration)', () => {
       ...overrides,
     })
 
-  const NOT_A_REWRITABLE_DRAFT = [
+  const NOT_A_DRAFT_OR_FAILED_REPLY = [
     ['waiting for approval', { status: 'pending_approval' }],
     ['being published', { status: 'approved', publicationState: 'authorized' }],
     [
@@ -1077,7 +1077,6 @@ describe.sequential('replyRepository (integration)', () => {
       { status: 'approved', publicationState: 'pending_observation' },
     ],
     ['published', { status: 'published', publicationState: 'published' }],
-    ['failed', { status: 'publish_failed', publicationState: 'terminal' }],
     [
       'a draft with an open publication',
       { status: 'draft', publicationState: 'sending' },
@@ -1196,21 +1195,21 @@ describe.sequential('replyRepository (integration)', () => {
       })
     })
 
-    it.each(NOT_A_REWRITABLE_DRAFT)(
-      'changes nothing for a reply that is %s',
-      async (_name, state) => {
-        const db = getDb()
-        await seedReview(db)
-        const repo = createReplyRepository(db, () => new Date())
-        const stored = await repo.upsert(
-          internalDraft({ ...state, publicationCycle: 1, text: 'Confirmed text' }),
-        )
+    it.each([
+      ...NOT_A_DRAFT_OR_FAILED_REPLY,
+      ['failed', { status: 'publish_failed', publicationState: 'terminal' }],
+    ] as const)('changes nothing for a reply that is %s', async (_name, state) => {
+      const db = getDb()
+      await seedReview(db)
+      const repo = createReplyRepository(db, () => new Date())
+      const stored = await repo.upsert(
+        internalDraft({ ...state, publicationCycle: 1, text: 'Confirmed text' }),
+      )
 
-        await expect(repo.saveDraft(stored, { text: 'Stale tab' })).resolves.toBeNull()
+      await expect(repo.saveDraft(stored, { text: 'Stale tab' })).resolves.toBeNull()
 
-        expect(await repo.findById(stored.id, ORG_A)).toEqual(stored)
-      },
-    )
+      expect(await repo.findById(stored.id, ORG_A)).toEqual(stored)
+    })
 
     it('loses to a reply that was submitted after the caller read it', async () => {
       const db = getDb()
@@ -1257,7 +1256,23 @@ describe.sequential('replyRepository (integration)', () => {
     )
 
     it.each([
-      ...NOT_A_REWRITABLE_DRAFT,
+      ...NOT_A_DRAFT_OR_FAILED_REPLY,
+      [
+        'an uncertain failure',
+        {
+          status: 'publish_failed',
+          publicationState: 'ambiguous',
+          publicationLastErrorClass: 'ambiguous',
+        },
+      ],
+      [
+        'a terminal failure whose outcome is unknown',
+        {
+          status: 'publish_failed',
+          publicationState: 'terminal',
+          publicationLastErrorClass: 'ambiguous',
+        },
+      ],
       ['a cancelled draft', { status: 'draft', publicationState: 'cancelled' }],
       ['a rejected reply that was confirmed before', { status: 'rejected' }],
     ] as const)('keeps a reply that is %s', async (_name, state) => {
@@ -1269,6 +1284,38 @@ describe.sequential('replyRepository (integration)', () => {
       await expect(repo.deleteDraft(stored)).resolves.toBe(false)
 
       expect(await repo.findById(stored.id, ORG_A)).toEqual(stored)
+    })
+
+    it('clears a settled failed reply and keeps its row for publication evidence', async () => {
+      const db = getDb()
+      await seedReview(db)
+      const repo = createReplyRepository(db, () => new Date())
+      const failed = await repo.upsert(
+        internalDraft({
+          status: 'publish_failed',
+          publicationState: 'terminal',
+          publicationCycle: 1,
+          publicationLastErrorClass: 'retryable',
+        }),
+      )
+
+      await expect(repo.deleteDraft(failed)).resolves.toEqual({
+        id: failed.id,
+        stateRevision: failed.stateRevision + 1,
+      })
+
+      const cleared = await repo.findById(failed.id, ORG_A)
+      expect(cleared).toMatchObject({
+        id: failed.id,
+        text: '',
+        status: 'draft',
+        publicationState: 'cancelled',
+        publicationCycle: 1,
+        publicationLastErrorClass: null,
+      })
+      expect(cleared!.stateRevision).toBeGreaterThan(failed.stateRevision)
+      await expect(repo.deleteDraft(failed)).resolves.toBe(false)
+      expect(await repo.findById(failed.id, ORG_A)).toEqual(cleared)
     })
 
     it('keeps a reply that was submitted after the caller read it', async () => {

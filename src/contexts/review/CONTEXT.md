@@ -318,7 +318,14 @@ Each reply command starts only from the states it names
 rejected reply with no open publication, submit from such a draft, Confirm &
 Publish and reject from `pending_approval`, Try publishing again from a settled
 `publish_failed`, edit-and-republish from `published`, delete from a draft or a
-rejected reply that was never authorized. The use case refuses anything else
+rejected reply that was never authorized (the row goes), or from a
+`publish_failed` reply that settled as not published (Delete reply: the row
+stays, cleared to the withdrawn shape below, with its authorization and attempt
+rows; one of unknown outcome is checked with Google first). An empty draft is
+omitted from the content-free reply-state lookup, so Inbox lists and notification
+eligibility see no reply; detail retains its identity and revision for the next
+draft. The guarded clearing write returns that revision without a later read.
+The use case refuses anything else
 with `invalid_transition`. The store does not trust the use case: every guarded
 write (`../reputation/replies/store.server.ts`) repeats the rule as its
 compare-and-set on status, publication state and cycle, and a publication write

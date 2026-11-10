@@ -57,6 +57,7 @@ export type ReplyMessageActionsProps = Readonly<{
   /** Starts the check; its answer is reported by `ReplyMessage`, not here. */
   onCheck: () => void
   onRetry: () => Promise<unknown>
+  onDeleteReply: () => Promise<unknown>
   onEditPublished: () => void
   onEditRejected: () => void
 }>
@@ -74,6 +75,7 @@ function SimpleAction({
   isEditing,
   onCheck,
   onRetry,
+  onDeleteReply,
   onEditPublished,
   onEditRejected,
 }: ReplyMessageActionsProps & Readonly<{ action: ReplyMessageAction }>): ReactNode {
@@ -103,6 +105,18 @@ function SimpleAction({
           onClick={() => void onRetry().catch(() => undefined)}
         >
           Try publishing again
+        </Button>
+      )
+    case 'deleteReply':
+      return (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={isSaving}
+          // Like Delete draft: no dialog. The delete mutation toasts a refusal.
+          onClick={() => void onDeleteReply().catch(() => undefined)}
+        >
+          Delete reply
         </Button>
       )
     case 'editPublished':

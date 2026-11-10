@@ -398,6 +398,7 @@ const replyActions = {
     nextAutomaticCheckAt: null,
   })),
   onRetry: fn(async () => undefined),
+  onDeleteReply: fn(async () => undefined),
   onEditPublished: fn(() => {}),
   onEditRejected: fn(() => {}),
 } satisfies ComponentProps<typeof InboxThread>['replyActions']

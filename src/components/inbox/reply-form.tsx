@@ -74,7 +74,9 @@ export function ReplyEditor({
       onSaveDraft={actions.saveDraft}
       onSubmitReply={actions.submitReply}
       // A missing reply has no draft to delete, so the composer shows no Delete.
-      onDeleteDraft={reply ? actions.deleteDraft : undefined}
+      // Neither has one cleared by Delete reply: it is the row of a failed reply,
+      // kept empty, and the box looks as it does for a review with no reply.
+      onDeleteDraft={reply && reply.text !== '' ? actions.deleteDraft : undefined}
       onSaveEdit={actions.saveEdit}
       onEditDone={onEditDone}
       onListTemplates={actions.listTemplates}
