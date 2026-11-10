@@ -15,8 +15,6 @@ const sampleRow: ReplyRow = {
   organizationId: 'org-uuid-001',
   text: 'Thank you for your feedback!',
   replyLanguageTag: null,
-  templateId: null,
-  templateVersion: null,
   templateLayer: null,
   templateRef: null,
   templateRevision: null,

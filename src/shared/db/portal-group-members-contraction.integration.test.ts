@@ -12,7 +12,7 @@ import {
 import manifest from '../../../test-fixtures/populated-upgrade/manifest.json'
 import { migrateJournal } from './migrate-journal.server'
 
-const CONTRACTION = '0126_drop_portal_group_members'
+const CONTRACTION = '0127_drop_portal_group_members'
 
 let maintenance: TestLease
 let target: TestLease | undefined

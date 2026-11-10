@@ -369,6 +369,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/reporting/infrastructure/adapters/retired-readings-erasure.adapter.ts',
+    symbol: 'count',
+    reason:
+      'The operator command ops:erase-retired-readings counts the retired property.review readings and their corrections, for one Organization or across tenants in a dry run; it returns the Organization id and two numbers per row and no reading content.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/feed/infrastructure/operational-action-history-store.ts',
     symbol: 'placeLegalHold',
     reason:
