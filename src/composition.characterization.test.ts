@@ -62,7 +62,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   // The reporter's beta-feedback requests; the triage repository itself is
   // never on the container.
   'identityBetaFeedback',
-  'identityLifecycleRuntime',
   // The platform operator console (ADR 0065): its server functions reach it
   // after requirePlatformOperator; no context receives it.
   'identityPlatform',
@@ -307,27 +306,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     expect(typeof container.refreshReviewProviderSubjectKeys).toBe('function')
     expect(typeof container.registerOutboxConsumers).toBe('function')
     expect(typeof container.registerReviewWorkerJobs).toBe('function')
-  })
-
-  it('keeps the named Organization lifecycle runtime non-executable without reviewed bindings', () => {
-    // Destructive lifecycle still has no contributors: those are supplied only
-    // by an explicitly reviewed composition, never by default.
-    expect(container.identityLifecycleRuntime.maintenance.readiness).toMatchObject({
-      configured: false,
-      contributorsConfigured: false,
-      supportAuthorizationConfigured: false,
-    })
-    expect(
-      container.identityLifecycleRuntime.maintenance.readiness.missingContexts,
-    ).toHaveLength(14)
-    expect(
-      container.identityLifecycleRuntime.maintenance.runScheduledPass,
-    ).toBeUndefined()
-    expect(container.identityLifecycleRuntime.support).toBeUndefined()
-
-    // Exports are written by the manual rights request command, so the runtime
-    // carries no in-app export surface.
-    expect(container.identityLifecycleRuntime).not.toHaveProperty('organizationExport')
   })
 
   it('wires the injected queues and defines rateLimiter/jobRegistry', () => {

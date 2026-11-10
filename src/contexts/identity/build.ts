@@ -10,8 +10,6 @@ import { createStaffSelfReader } from './infrastructure/adapters/staff-self.read
 //     persisted policy state (workers await it before starting; side-effect
 //     paths use it for fresh reads, BQC-2.5).
 //   - internal.policyAdmin — BQC-2.7 least-privilege policy administration ops.
-//   - internal.organizationLifecycleRuntime — named lifecycle control,
-//     content-free diagnostics, and contributor-gated maintenance services.
 
 import { createProductUpdates } from './application/use-cases/product-updates'
 import { createProductUpdatesStore } from './infrastructure/repositories/product-updates.repository'
@@ -66,28 +64,7 @@ import {
   createPropertyGrantHolderLookup,
 } from './infrastructure/adapters/grant-access-lookup.adapter'
 import { createPostgresPolicyAdminCommandStore } from './infrastructure/policy-admin-command-store'
-import { createOrganizationLifecycle } from './application/use-cases/organization-lifecycle'
-import {
-  reactivateOrganization,
-  type ReactivateOrganizationInput,
-} from './application/use-cases/reactivate-organization'
-import {
-  createDefaultOrganizationReactivationReadiness,
-  type OrganizationReactivationReadinessDeps,
-} from './infrastructure/organization-reactivation-readiness'
-import { createOrganizationLifecycleCommandStore } from './infrastructure/organization-lifecycle-command-store'
 import { createIdentityAssetReferences } from './infrastructure/adapters/identity-asset-references.adapter'
-import {
-  createOrganizationLifecycleCoordinator,
-  type BeginIrreversibleOrganizationPurgeInput,
-  type CancelPendingOrganizationPurgeInput,
-  type WaiveOrganizationRecoveryInput,
-} from './application/use-cases/advance-organization-lifecycle'
-import type { OrganizationLifecycleContributor } from './application/ports/organization-lifecycle-contributor.port'
-import {
-  ORGANIZATION_LIFECYCLE_CONTEXTS,
-  type OrganizationLifecycleContext,
-} from './domain/organization-lifecycle'
 import { createManagerMembershipRepository } from './infrastructure/repositories/manager-membership.repository'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import {
@@ -119,28 +96,6 @@ import { listMyBetaFeedback } from './application/use-cases/list-my-beta-feedbac
 import { BetaFeedbackTriageRepository } from './infrastructure/beta-feedback-triage.repository'
 import { deliverBetaFeedback } from './infrastructure/adapters/beta-feedback-sentry-delivery.adapter'
 import { findBetaFeedbackReporterContact } from './infrastructure/beta-feedback-reporter'
-
-/** Exactly the reactivation probes composition must supply, or none at all. */
-export type OrganizationReactivationProbeBindings = OrganizationReactivationReadinessDeps
-
-/**
- * Reviewed cross-context bindings for the Organization lifecycle control
- * plane. Partial contributor sets are accepted only as an explicit
- * composition-readiness state; they can never execute a lifecycle phase.
- */
-export type IdentityOrganizationLifecycleComposition = Readonly<{
-  lifecycleContributors?: readonly OrganizationLifecycleContributor[]
-  supportAuthorization?: import('./application/ports/organization-lifecycle-contributor.port').OrganizationLifecycleSupportAuthorization
-  /**
-   * LIF-01-T18: the three cross-context readiness probes reactivation needs.
-   *
-   * Absent means no reactivation command exists on the runtime at all — the
-   * same all-or-nothing posture the lifecycle coordinator uses. Composing them
-   * activates nothing on its own either: every probe is a read, and the
-   * command still refuses while any check or deliberate action is missing.
-   */
-  reactivationProbes?: OrganizationReactivationProbeBindings
-}>
 
 type AuthSession = Readonly<{
   setActiveOrganization: (organizationId: string) => Promise<void>
@@ -212,139 +167,7 @@ type IdentityContextDeps = Readonly<{
     userId: string,
     actorId: string,
   ) => Promise<void>
-  organizationLifecycle?: IdentityOrganizationLifecycleComposition
 }>
-
-type ContributorReadiness = Readonly<{
-  contributorsConfigured: boolean
-  missingContexts: readonly OrganizationLifecycleContext[]
-}>
-
-function contributorReadiness(
-  contributors: readonly Readonly<{ context: OrganizationLifecycleContext }>[] = [],
-): ContributorReadiness {
-  const contexts = contributors.map(({ context }) => context)
-  if (new Set(contexts).size !== contexts.length) {
-    throw new Error(`Organization lifecycle composition has duplicate context owners`)
-  }
-  const missingContexts = ORGANIZATION_LIFECYCLE_CONTEXTS.filter(
-    (context) => !contexts.includes(context),
-  )
-  return Object.freeze({
-    contributorsConfigured:
-      missingContexts.length === 0 &&
-      contexts.length === ORGANIZATION_LIFECYCLE_CONTEXTS.length,
-    missingContexts: Object.freeze(missingContexts),
-  })
-}
-
-/**
- * Which lifecycle capabilities the supplied composition can actually
- * execute. A partially bound set stays non-executable rather than exposing a
- * half-wired maintenance surface.
- */
-function deriveLifecycleCompositionReadiness(deps: IdentityContextDeps) {
-  const lifecycleContributorReadiness = contributorReadiness(
-    deps.organizationLifecycle?.lifecycleContributors,
-  )
-  const supportAuthorizationConfigured =
-    deps.organizationLifecycle?.supportAuthorization !== undefined
-  return {
-    lifecycleContributorReadiness,
-    supportAuthorizationConfigured,
-    lifecycleCompositionConfigured:
-      lifecycleContributorReadiness.contributorsConfigured &&
-      supportAuthorizationConfigured,
-  }
-}
-
-/**
- * Compose the organization lifecycle control plane from the bound
- * readiness: only fully bound services become executable.
- */
-function buildOrganizationLifecycleComposition(
-  deps: IdentityContextDeps,
-  bindings: Readonly<{
-    policyStore: ReturnType<typeof buildCapabilityPolicyHandle>
-  }>,
-) {
-  const { policyStore } = bindings
-  const organizationLifecycleStore = createOrganizationLifecycleCommandStore(deps.db)
-  const organizationLifecycle = createOrganizationLifecycle({
-    store: organizationLifecycleStore,
-    clock: deps.clock,
-    // Thunk: `reactivate` is constructed below, and a closure must not be
-    // armable in a deployment that cannot undo it.
-    reactivationConfigured: () => reactivate !== null,
-    refreshPolicy: policyStore.refreshRequired,
-  })
-  const {
-    lifecycleContributorReadiness,
-    supportAuthorizationConfigured,
-    lifecycleCompositionConfigured,
-  } = deriveLifecycleCompositionReadiness(deps)
-  const organizationLifecycleCoordinator =
-    lifecycleCompositionConfigured &&
-    deps.organizationLifecycle?.supportAuthorization &&
-    deps.organizationLifecycle.lifecycleContributors
-      ? createOrganizationLifecycleCoordinator({
-          store: organizationLifecycleStore,
-          contributors: deps.organizationLifecycle.lifecycleContributors,
-          supportAuthorization: deps.organizationLifecycle.supportAuthorization,
-          clock: deps.clock,
-        })
-      : null
-  // LIF-01-T18. Reactivation is an AccountAdmin command, but its readiness
-  // spans three other contexts, so it exists only when every probe is bound.
-  // An unbound reactivation is not a degraded reactivation — it would be a
-  // reactivation that cannot see what it is resuming.
-  const reactivationProbes = deps.organizationLifecycle?.reactivationProbes
-  const reactivate = reactivationProbes
-    ? reactivateOrganization({
-        store: organizationLifecycleStore,
-        readiness: createDefaultOrganizationReactivationReadiness(reactivationProbes),
-        clock: deps.clock,
-        refreshPolicy: policyStore.refreshRequired,
-      })
-    : null
-
-  const organizationLifecycleRuntime = Object.freeze({
-    control: Object.freeze({
-      ...organizationLifecycle,
-      reactivation: Object.freeze({
-        configured: reactivate !== null,
-        reactivate: reactivate
-          ? (input: ReactivateOrganizationInput) => reactivate(input)
-          : undefined,
-      }),
-    }),
-    operator: Object.freeze({
-      readStatus: (orgId: string) => organizationLifecycleStore.getAuthority(orgId),
-    }),
-    maintenance: Object.freeze({
-      readiness: Object.freeze({
-        configured: lifecycleCompositionConfigured,
-        ...lifecycleContributorReadiness,
-        supportAuthorizationConfigured,
-      }),
-      runScheduledPass: organizationLifecycleCoordinator
-        ? (input?: Readonly<{ limit?: number }>) =>
-            organizationLifecycleCoordinator.runScheduledPass(input)
-        : undefined,
-    }),
-    support: organizationLifecycleCoordinator
-      ? Object.freeze({
-          waiveRecoveryWindow: (input: WaiveOrganizationRecoveryInput) =>
-            organizationLifecycleCoordinator.waiveRecoveryWindow(input),
-          cancelPendingPurge: (input: CancelPendingOrganizationPurgeInput) =>
-            organizationLifecycleCoordinator.cancelPendingPurge(input),
-          beginIrreversiblePurge: (input: BeginIrreversibleOrganizationPurgeInput) =>
-            organizationLifecycleCoordinator.beginIrreversiblePurge(input),
-        })
-      : undefined,
-  })
-  return { organizationLifecycle, runtime: organizationLifecycleRuntime }
-}
 
 function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'idGen'>) {
   const accessiblePropertyLookup = createGrantAccessLookup(deps.db, deps.clock)
@@ -512,8 +335,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     clock: deps.clock,
     logger: deps.logger,
   })
-  const { organizationLifecycle, runtime: organizationLifecycleRuntime } =
-    buildOrganizationLifecycleComposition(deps, { policyStore })
   const merchantAiUpdates = buildMerchantAiUpdates(deps)
   const merchantAiDecisionDeferrals = createMerchantAiDecisionDeferralStore(deps.db)
   const authorizeMerchantAiManagement = async (
@@ -697,7 +518,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     merchantAiAuthorization,
     merchantAiDecisionDeferral,
     listMerchantAiOverview: listMerchantAiOverviewRead,
-    organizationLifecycle,
   } as const
 
   const merchantAiRequestApi = Object.freeze({
@@ -793,10 +613,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
           reason: 'member_offboarded',
         }),
     }),
-    // Named lifecycle/export control plane. It exposes AccountAdmin
-    // commands, content-free operator diagnostics, and only fully bound
-    // maintenance services; partial contributor sets remain non-executable.
-    lifecycle: organizationLifecycleRuntime,
     /** Beta-feedback reporting for the signed-in reporter. Request-facing, but
      * kept off `publicApi`, which other contexts receive. */
     betaFeedback: buildBetaFeedbackRequests(deps),

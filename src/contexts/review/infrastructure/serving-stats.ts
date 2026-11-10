@@ -58,10 +58,10 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 export const contentEligible = (now: Date) =>
   and(
     eq(reviews.sourceContentState, 'active'),
-    isNotNull(reviews.rating),
-    isNotNull(reviews.reviewedAt),
-    isNotNull(reviews.contentExpiresAt),
-    gt(reviews.contentExpiresAt, now),
+    isNotNull(reviewSourceContents.rating),
+    isNotNull(reviewSourceContents.reviewedAt),
+    isNotNull(reviewSourceContents.contentExpiresAt),
+    gt(reviewSourceContents.contentExpiresAt, now),
   )
 
 /** Period aggregate scope: tenant + property + reviewedAt range + eligibility. */
@@ -75,8 +75,8 @@ function servingPeriodWhere(
   return and(
     eq(reviews.organizationId, organizationId),
     eq(reviews.propertyId, propertyId),
-    gte(reviews.reviewedAt, startDate),
-    lt(reviews.reviewedAt, endDate),
+    gte(reviewSourceContents.reviewedAt, startDate),
+    lt(reviewSourceContents.reviewedAt, endDate),
     contentEligible(now),
   )
 }
@@ -101,7 +101,7 @@ function servingRecentWhere(
  * at 18:30 in Los Angeles belongs to that day, not to the UTC day after it. The
  * pool pins the session zone to UTC, so a bare DATE() would be the UTC day.
  */
-const reviewDate = sql`DATE(${reviews.reviewedAt} AT TIME ZONE ${properties.timezone})`
+const reviewDate = sql`DATE(${reviewSourceContents.reviewedAt} AT TIME ZONE ${properties.timezone})`
 
 type DailySeriesRow = Readonly<{ date: string; value: number | null }>
 
@@ -119,9 +119,17 @@ async function queryDailySeries(
   const rows = await db
     .select({
       date: sql<string>`TO_CHAR(${reviewDate}, 'YYYY-MM-DD')`.as('date'),
-      value: aggregate === 'avgRating' ? avg(reviews.rating) : count(),
+      value: aggregate === 'avgRating' ? avg(reviewSourceContents.rating) : count(),
     })
     .from(reviews)
+    .innerJoin(
+      reviewSourceContents,
+      and(
+        eq(reviewSourceContents.reviewId, reviews.id),
+        eq(reviewSourceContents.organizationId, reviews.organizationId),
+        eq(reviewSourceContents.propertyId, reviews.propertyId),
+      ),
+    )
     .innerJoin(
       properties,
       and(
@@ -219,8 +227,16 @@ export const createServingStats = (deps: {
   async getPeriodStats(organizationId, propertyId, startDate, endDate) {
     return trace('review.servingStats.getPeriodStats', async () => {
       const rows = await deps.db
-        .select({ count: count(), avgRating: avg(reviews.rating) })
+        .select({ count: count(), avgRating: avg(reviewSourceContents.rating) })
         .from(reviews)
+        .innerJoin(
+          reviewSourceContents,
+          and(
+            eq(reviewSourceContents.reviewId, reviews.id),
+            eq(reviewSourceContents.organizationId, reviews.organizationId),
+            eq(reviewSourceContents.propertyId, reviews.propertyId),
+          ),
+        )
         .where(
           servingPeriodWhere(
             organizationId,
@@ -241,8 +257,16 @@ export const createServingStats = (deps: {
   async getRatingDistribution(organizationId, propertyId, startDate, endDate) {
     return trace('review.servingStats.getRatingDistribution', async () => {
       const rows = await deps.db
-        .select({ stars: reviews.rating, count: count() })
+        .select({ stars: reviewSourceContents.rating, count: count() })
         .from(reviews)
+        .innerJoin(
+          reviewSourceContents,
+          and(
+            eq(reviewSourceContents.reviewId, reviews.id),
+            eq(reviewSourceContents.organizationId, reviews.organizationId),
+            eq(reviewSourceContents.propertyId, reviews.propertyId),
+          ),
+        )
         .where(
           servingPeriodWhere(
             organizationId,
@@ -252,7 +276,7 @@ export const createServingStats = (deps: {
             deps.clock(),
           ),
         )
-        .groupBy(reviews.rating)
+        .groupBy(reviewSourceContents.rating)
 
       const bucketMap = new Map(rows.map((r) => [r.stars, r.count]))
       return [1, 2, 3, 4, 5].map((stars) => ({
@@ -310,10 +334,18 @@ export const createServingStats = (deps: {
           )`,
           timedCount: count(replyAt),
           avgHours: avg(
-            sql`EXTRACT(EPOCH FROM (${replyAt} - ${reviews.reviewedAt})) / 3600`,
+            sql`EXTRACT(EPOCH FROM (${replyAt} - ${reviewSourceContents.reviewedAt})) / 3600`,
           ),
         })
         .from(reviews)
+        .innerJoin(
+          reviewSourceContents,
+          and(
+            eq(reviewSourceContents.reviewId, reviews.id),
+            eq(reviewSourceContents.organizationId, reviews.organizationId),
+            eq(reviewSourceContents.propertyId, reviews.propertyId),
+          ),
+        )
         .leftJoinLateral(repKeyReply, sql`true`)
         .leftJoin(googleReplyObservationHeads, liveGoogleReplyHead(organizationId))
         .leftJoin(googleReplyObservations, headObservation(organizationId))
@@ -352,9 +384,9 @@ export const createServingStats = (deps: {
       const rows = await deps.db
         .select({
           id: reviews.id,
-          rating: reviews.rating,
+          rating: reviewSourceContents.rating,
           text: reviewSourceContents.text,
-          reviewedAt: reviews.reviewedAt,
+          reviewedAt: reviewSourceContents.reviewedAt,
           replyStatus: sql<string>`
             COALESCE(
               (SELECT CASE
@@ -392,7 +424,7 @@ export const createServingStats = (deps: {
           ),
         )
         .where(servingRecentWhere(organizationId, propertyId, deps.clock()))
-        .orderBy(desc(reviews.reviewedAt))
+        .orderBy(desc(reviewSourceContents.reviewedAt))
         .limit(limit)
 
       return rows.flatMap(servableRecentReview)

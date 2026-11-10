@@ -12,7 +12,7 @@ import { createReviewRepository } from './review.repository'
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
 import { createRestatedRevisionQuery } from './restated-revision.repository'
 import { selectRevisionBindingComparisons } from '../source-epoch-carry'
-import { eraseReviewSourceContent } from '../review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createObservationRetention } from './observation-retention.repository'
 
 // The rows the writer stored before 2026-10-24, one per read, are rebuilt here

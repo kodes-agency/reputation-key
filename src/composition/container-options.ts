@@ -19,7 +19,6 @@ import type { RequestContextPort } from '#/contexts/identity/application/ports/r
 import type { AuthSessionOperations } from '#/shared/auth/better-auth-session'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
 import type { sendInvitationEmail } from '#/shared/auth/emails'
-import type { IdentityOrganizationLifecycleComposition } from '#/contexts/identity/build'
 import type { ProviderOverrides } from './provider-runtime'
 
 export type CreateContainerOptions = {
@@ -68,10 +67,4 @@ export type CreateContainerOptions = {
   /** Override external provider adapters (BQC-6.1: deterministic Google/GBP/
    * storage by injection — simulations/tests never hit the network). */
   providers?: ProviderOverrides
-  /**
-   * Reviewed Organization lifecycle/export contributors. Production leaves
-   * this absent until every owning context has explicit retention semantics;
-   * a partial set remains visible in readiness but cannot execute.
-   */
-  organizationLifecycle?: IdentityOrganizationLifecycleComposition
 }

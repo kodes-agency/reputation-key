@@ -38,16 +38,22 @@ type ReviewSeed = Readonly<{
 
 async function insertReview(seed: ReviewSeed): Promise<void> {
   await held.client.query(
-    `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id,
+    `INSERT INTO reviews (id, organization_id, property_id, platform,
+       source_epoch, source_revision, analysis_sequence)
+     VALUES ($1, $2, $3, 'google', $4, 0, 0)`,
+    [seed.id, seed.organization ?? ORG, seed.property ?? PROPERTY, seed.epoch ?? 2],
+  )
+  await held.client.query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
        external_location_id, reviewer_name, rating, text, reviewed_at,
-       expires_at, content_expires_at, first_fetched_at, last_fetched_at,
-       source_epoch, source_revision, analysis_sequence,
+       content_expires_at, first_fetched_at, last_fetched_at,
+       source_epoch, source_revision,
        ai_source_byte_length, ai_source_digest
      ) VALUES (
        $1, $2, $3, 'google', $4, $5, 'Guest', $6, 'Stay', $7::timestamptz,
-       $8::timestamptz, $8::timestamptz, $7::timestamptz, $7::timestamptz,
-       $9, 0, 0, 1, $10
+       $8::timestamptz, $7::timestamptz, $7::timestamptz,
+       $9, 0, 1, $10
      )`,
     [
       seed.id,

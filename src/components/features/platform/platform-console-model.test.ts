@@ -7,7 +7,6 @@ import {
   formatInvitationExpiry,
   hasCompetingAdminInvitations,
   isReauthRequired,
-  lifecycleLabel,
   organizationFlags,
   summarizeOrganizations,
   suggestedSlug,
@@ -20,7 +19,6 @@ const organization = (
   name: 'Hotel Riviera',
   slug: 'hotel-riviera',
   createdAt: '2026-09-30T12:00:00.000Z',
-  lifecycleState: 'active',
   memberCount: 0,
   accountAdminCount: 0,
   pendingInvitationCount: 1,
@@ -57,12 +55,9 @@ describe('isReauthRequired', () => {
 })
 
 describe('canInviteAdmin', () => {
-  it('opens the invite form only for an active Organization with no Account Admin', () => {
+  it('opens the invite form only for an Organization with no Account Admin', () => {
     expect(canInviteAdmin(organization())).toBe(true)
     expect(canInviteAdmin(organization({ accountAdminCount: 1 }))).toBe(false)
-    expect(canInviteAdmin(organization({ lifecycleState: 'closure_requested' }))).toBe(
-      false,
-    )
   })
 })
 
@@ -137,37 +132,13 @@ describe('organizationFlags', () => {
     ])
   })
 
-  it('states a lifecycle state that is not active, and nothing for an active one', () => {
-    const closing = organizationFlags(
-      organization({ accountAdminCount: 1, lifecycleState: 'closing' }),
-    )
-
-    expect(closing.map((flag) => [flag.id, flag.label])).toEqual([
-      ['lifecycle', 'Closing'],
-    ])
-    expect(organizationFlags(organization({ accountAdminCount: 1 }))).toEqual([])
-  })
-
   it('orders the flags by what the operator can act on first', () => {
-    const flags = organizationFlags(
-      organization({ lifecycleState: 'closed', controlledBetaEnabled: false }),
-    )
+    const flags = organizationFlags(organization({ controlledBetaEnabled: false }))
 
     expect(flags.map((flag) => flag.id)).toEqual([
       'needs-account-admin',
-      'lifecycle',
       'controlled-beta-off',
     ])
-  })
-})
-
-describe('lifecycleLabel', () => {
-  it.each([
-    ['active', 'Active'],
-    ['closure_requested', 'Closure requested'],
-    ['purge_pending', 'Purge pending'],
-  ] as const)('prints %s as %s', (state, label) => {
-    expect(lifecycleLabel(state)).toBe(label)
   })
 })
 

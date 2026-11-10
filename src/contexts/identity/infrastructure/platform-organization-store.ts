@@ -1,5 +1,5 @@
 // Platform operator console store (ADR 0065) over the Identity-owned tables
-// organization, member, invitation and organization_lifecycle_authority, plus
+// organization, member and invitation, plus
 // the `audit_logs` rows it writes.
 //
 // Provisioning is ONE transaction: the Organization insert (its insert
@@ -19,7 +19,6 @@ import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
 import { auditLogs } from '#/shared/db/schema/audit'
 import { invitation, member, organization } from '#/shared/db/schema/auth'
-import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
 import { trace } from '#/shared/observability/trace'
 import { isOwnerToken } from '#/shared/domain/roles'
 import {
@@ -29,10 +28,6 @@ import {
   type UserId,
 } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
-import {
-  ORGANIZATION_LIFECYCLE_STATES,
-  type OrganizationLifecycleState,
-} from '../domain/organization-lifecycle'
 import type {
   CancelInvitationCommand,
   IdentityCommandStore,
@@ -89,7 +84,6 @@ type OrganizationHead = Readonly<{
   name: string
   slug: string
   createdAt: Date
-  state: string
 }>
 
 /** An open AccountAdmin invitation of an Organization that has no AccountAdmin. */
@@ -104,12 +98,6 @@ type AdminInvitation = Readonly<{
 type MemberCounts = Readonly<{ memberCount: number; accountAdminCount: number }>
 
 const NO_MEMBERS: MemberCounts = { memberCount: 0, accountAdminCount: 0 }
-
-function lifecycleState(raw: string): OrganizationLifecycleState {
-  const state = ORGANIZATION_LIFECYCLE_STATES.find((known) => known === raw)
-  if (!state) throw new Error(`Unknown organization lifecycle state: ${raw}`)
-  return state
-}
 
 /** True when the error, or a cause drizzle wrapped it in, is the slug index's. */
 function violatesSlugUniqueness(error: unknown, depth = 0): boolean {
@@ -126,7 +114,6 @@ const headColumns = {
   name: organization.name,
   slug: organization.slug,
   createdAt: organization.createdAt,
-  state: organizationLifecycleAuthority.state,
 }
 
 /** The SQL twin of isOwnerToken: the comma-separated role names 'owner'. */
@@ -225,7 +212,6 @@ function toRow(
     name: head.name,
     slug: head.slug,
     createdAt: head.createdAt,
-    lifecycleState: lifecycleState(head.state),
     memberCount: facts.members.memberCount,
     accountAdminCount: facts.members.accountAdminCount,
     pendingInvitationCount: facts.liveInvitations,
@@ -264,10 +250,6 @@ export function createPlatformOrganizationStore(
         const heads: ReadonlyArray<OrganizationHead> = await db
           .select(headColumns)
           .from(organization)
-          .innerJoin(
-            organizationLifecycleAuthority,
-            eq(organizationLifecycleAuthority.organizationId, organization.id),
-          )
           .orderBy(desc(organization.createdAt), desc(organization.id))
           .limit(limit)
         if (heads.length === 0) return []
@@ -296,10 +278,6 @@ export function createPlatformOrganizationStore(
         const [head] = await db
           .select(headColumns)
           .from(organization)
-          .innerJoin(
-            organizationLifecycleAuthority,
-            eq(organizationLifecycleAuthority.organizationId, organization.id),
-          )
           .where(eq(organization.id, organizationId as string))
           .limit(1)
         if (!head) return null
@@ -309,7 +287,6 @@ export function createPlatformOrganizationStore(
         const administration: OrganizationAdministration = {
           organizationId: toOrganizationId(head.id),
           name: head.name,
-          lifecycleState: lifecycleState(head.state),
           accountAdminCount: members.accountAdminCount,
           openAdminInvitationIds: adminInvitations.map((row) => toInvitationId(row.id)),
         }

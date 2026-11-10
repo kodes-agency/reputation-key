@@ -10,7 +10,7 @@
 //   2. The injected error-monitoring sink for P1/P2 alerts.
 //   3. An optional operator webhook POST when ALERT_WEBHOOK_URL is set —
 //      the payload IS the log payload (one redaction surface), 3s timeout,
-//      fire-and-log-on-failure.
+//      one retry, then log on failure.
 //
 // Dispatch never throws for webhook delivery failures: they degrade to a warn
 // log. The error-level log remains the durable signal; the error-monitoring and
@@ -21,6 +21,9 @@ import type { AlertEvent } from './alert-definitions'
 
 /** Webhook delivery budget — an alert POST must never stall the job. */
 const ALERT_WEBHOOK_TIMEOUT_MS = 3000
+
+/** One retry: a transient webhook failure must not lose the operator copy. */
+const ALERT_WEBHOOK_ATTEMPTS = 2
 
 export type AlertDispatcher = Readonly<{
   dispatch: (event: AlertEvent) => Promise<void>
@@ -72,32 +75,57 @@ function toPayload(event: AlertEvent, firedAt: string): Record<string, unknown> 
 export function createAlertDispatcher(deps: AlertDispatcherDeps): AlertDispatcher {
   const fetchFn = (deps.fetchFn ?? fetch) as unknown as AlertFetchFn
 
-  return {
-    dispatch: async (event) => {
-      const payload = toPayload(event, deps.clock().toISOString())
-      deps.logger.error(payload, `[alert] ${event.name} firing (${event.severity})`)
-      if (event.severity === 'P1' || event.severity === 'P2') deps.report?.(event)
-
-      if (!deps.webhookUrl || !fetchFn) return
+  async function postWebhook(
+    url: string,
+    event: AlertEvent,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= ALERT_WEBHOOK_ATTEMPTS; attempt++) {
+      const isLastAttempt = attempt === ALERT_WEBHOOK_ATTEMPTS
       try {
-        const res = await fetchFn(deps.webhookUrl, {
+        const res = await fetchFn(url, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(payload),
           signal: AbortSignal.timeout(deps.webhookTimeoutMs ?? ALERT_WEBHOOK_TIMEOUT_MS),
         })
-        if (!res.ok) {
+        if (res.ok) return
+        if (isLastAttempt) {
           deps.logger.warn(
             { alert: event.name, status: res.status ?? 0 },
             '[alert] webhook delivery failed (non-2xx) — log line is the durable record',
           )
         }
       } catch (err) {
-        deps.logger.warn(
-          { err, alert: event.name },
-          '[alert] webhook delivery failed — log line is the durable record',
-        )
+        if (isLastAttempt) {
+          deps.logger.warn(
+            { err, alert: event.name },
+            '[alert] webhook delivery failed — log line is the durable record',
+          )
+        }
       }
+    }
+  }
+
+  return {
+    dispatch: async (event) => {
+      const payload = toPayload(event, deps.clock().toISOString())
+      deps.logger.error(payload, `[alert] ${event.name} firing (${event.severity})`)
+      // The sinks are independent: a failing error monitor must not stop the
+      // webhook, and a failing webhook must not stop the error monitor.
+      if (event.severity === 'P1' || event.severity === 'P2') {
+        try {
+          deps.report?.(event)
+        } catch (err) {
+          deps.logger.warn(
+            { err, alert: event.name },
+            '[alert] error-monitoring report failed — log line is the durable record',
+          )
+        }
+      }
+
+      if (!deps.webhookUrl || !fetchFn) return
+      await postWebhook(deps.webhookUrl, event, payload)
     },
   }
 }

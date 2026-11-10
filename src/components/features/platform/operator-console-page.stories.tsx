@@ -37,12 +37,12 @@ export const Default: Story = {
       canvas.getByRole('heading', { name: 'Operator console', level: 1 }),
     ).toBeVisible()
     expect(canvas.getByRole('button', { name: /new organization/i })).toBeVisible()
-    // Five Organizations, each with its own heading.
-    expect(canvas.getAllByRole('heading', { level: 3 })).toHaveLength(5)
-    // Four are waiting for a first Account Admin; one is administered.
+    // Four Organizations, each with its own heading.
+    expect(canvas.getAllByRole('heading', { level: 3 })).toHaveLength(4)
+    // Three are waiting for a first Account Admin; one is administered.
     const glance = within(canvas.getByLabelText('Organizations at a glance'))
     expect(glance.getByText('Need an Account Admin')).toBeVisible()
-    expect(canvas.getAllByText('Needs an Account Admin')).toHaveLength(4)
+    expect(canvas.getAllByText('Needs an Account Admin')).toHaveLength(3)
   },
 }
 

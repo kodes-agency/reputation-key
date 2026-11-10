@@ -66,23 +66,32 @@ async function insertReview(
   scope: Scope,
   review: Readonly<{ rating: number; sourceEpoch?: number; expired?: boolean }>,
 ): Promise<void> {
+  const id = randomUUID()
+  const reviewedAt = new Date(NOW.getTime() - 3 * DAY)
   const contentExpiresAt = new Date(NOW.getTime() + (review.expired ? -1 : 20) * DAY)
   await held.client.query(
     `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id, external_location_id,
-       reviewer_name, rating, text, reviewed_at, expires_at, content_expires_at,
+       id, organization_id, property_id, platform, first_fetched_at,
+       source_epoch, source_revision, analysis_sequence
+     ) VALUES ($1, $2, $3, 'google', $4, $5, 0, 0)`,
+    [id, scope.organizationId, scope.propertyId, reviewedAt, review.sourceEpoch ?? 0],
+  )
+  await held.client.query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id, external_location_id,
+       reviewer_name, rating, text, reviewed_at, content_expires_at,
        first_fetched_at, last_fetched_at, source_epoch, source_revision,
-       analysis_sequence, ai_source_byte_length, ai_source_digest
+       ai_source_byte_length, ai_source_digest
      ) VALUES (
        $1::uuid, $2, $3, 'google', $1::text, 'e2e-seed-location', 'Guest', $4, 'Stay', $5,
-       $6, $6, $5, $5, $7, 0, 0, 1, $8
+       $6, $5, $5, $7, 0, 1, $8
      )`,
     [
-      randomUUID(),
+      id,
       scope.organizationId,
       scope.propertyId,
       review.rating,
-      new Date(NOW.getTime() - 3 * DAY),
+      reviewedAt,
       contentExpiresAt,
       review.sourceEpoch ?? 0,
       '0'.repeat(64),

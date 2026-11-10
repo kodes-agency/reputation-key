@@ -8,7 +8,6 @@ import { assert } from '#/shared/domain/assert'
 import type { OrganizationId, UserId, InvitationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import type { MerchantAiState } from './merchant-ai-authorization'
-import type { OrganizationLifecycleState } from './organization-lifecycle'
 
 type IdentityEventArgs<T> = Omit<T, '_tag' | 'eventId' | 'correlationId'> &
   Readonly<{ correlationId?: string | null }>
@@ -255,7 +254,7 @@ export type IdentityOrganizationLifecycleChanged = Readonly<{
   eventId: string
   organizationId: OrganizationId
   closureLineageId: string
-  state: OrganizationLifecycleState
+  state: string
   revision: number
   reactivationRequired: boolean
   recoverableUntil: Date

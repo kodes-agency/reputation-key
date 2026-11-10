@@ -24,7 +24,7 @@ export async function recordDraftGeneration(
     SELECT root.id, root.organization_id, root.property_id, root.review_id,
       root.actor_user_id, root.idempotency_key, ${input.contract}, ${input.intent},
       ${input.trigger}, root.tone, root.concrete_reply_language_tag,
-      CASE WHEN review.rating <= 2 THEN 'low' WHEN review.rating = 3 THEN 'middle' ELSE 'high' END,
+      CASE WHEN content.rating <= 2 THEN 'low' WHEN content.rating = 3 THEN 'middle' ELSE 'high' END,
       ${input.case}, 1 + (SELECT count(*)::int FROM ai_operations child
         WHERE child.rewrite_parent_operation_id = root.id AND child.execution_attempt > 0),
       ${input.outcome}, CASE WHEN ${input.outcome} = 'ready' THEN NULL ELSE coalesce((SELECT child.failure_code FROM ai_operations child
@@ -33,6 +33,7 @@ export async function recordDraftGeneration(
       ${input.intent === 'explicit' && input.trigger === 'draft'}, ${input.intent === 'explicit' && input.trigger === 'try_again'}, ${input.intent === 'explicit' && input.trigger === 'shorter'}, ${input.intent === 'explicit' && input.trigger === 'tone'}
     FROM ai_operations root
     JOIN reviews review ON review.id = root.review_id AND review.organization_id = root.organization_id
+    JOIN review_source_contents content ON content.review_id = review.id AND content.organization_id = review.organization_id AND content.property_id = review.property_id
     JOIN ai_property_processing_profiles profile ON profile.organization_id = root.organization_id AND profile.property_id = root.property_id
     JOIN properties property ON property.organization_id = root.organization_id AND property.id = root.property_id
     JOIN ai_execution_control_heads global_control ON global_control.control_id = root.global_control_id
@@ -50,7 +51,6 @@ export async function recordDraftGeneration(
       AND global_control.generation = root.global_control_generation AND global_control.execution_state = 'enabled'
       AND provider_control.generation = root.provider_control_generation AND provider_control.execution_state = 'enabled'
       AND capability_control.generation = root.capability_control_generation AND capability_control.execution_state = 'enabled'
-      AND NOT EXISTS (SELECT 1 FROM organization_lifecycle_authority lifecycle WHERE lifecycle.organization_id = root.organization_id AND lifecycle.state <> 'active')
       AND merchant.state = 'enabled'  AND merchant.capabilities @> ARRAY['reply_drafting']::text[]
       AND root.authorization_lineage_id = merchant.authorization_lineage_id
       AND root.capability_fences->>'replyDraftingEpoch' = merchant.reply_drafting_epoch::text

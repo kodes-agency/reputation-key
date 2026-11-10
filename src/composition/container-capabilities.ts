@@ -165,7 +165,6 @@ export function buildContainerCapabilities({
     integrationWebhookRuntime: integration.webhook,
     propertyPublicApi: property.publicApi,
     reviewPublicApi: review.publicApi,
-    identityLifecycleRuntime: identity.lifecycle,
     guestPublicApi: guest.publicApi,
     inboxPublicApi: inbox.publicApi,
     /** Cross-context Inbox workflow authority; no request or repair surface. */

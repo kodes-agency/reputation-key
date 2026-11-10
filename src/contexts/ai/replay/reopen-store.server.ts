@@ -23,16 +23,20 @@ type Row = Readonly<Record<string, unknown>>
  * reviews an enrollment counts are the reviews that can be reopened.
  * Expects the `review` alias.
  */
-export const ANALYSABLE_REVIEW_SQL = sql`
-  review.text IS NOT NULL
-  AND review.content_expires_at > transaction_timestamp()
-  AND review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
+export const ANALYSABLE_REVIEW_SQL = sql`EXISTS (
+ SELECT 1 FROM review_source_contents AS content
+ WHERE content.review_id = review.id
+   AND content.organization_id = review.organization_id
+   AND content.property_id = review.property_id
+   AND content.text IS NOT NULL
+  AND content.content_expires_at > transaction_timestamp()
+  AND content.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
   AND (
-    COALESCE(octet_length(review.text), 0)::bigint
-    + COALESCE(octet_length(review.language_code), 0)::bigint
-    + COALESCE(octet_length(review.reviewer_name), 0)::bigint
+    COALESCE(octet_length(content.text), 0)::bigint
+    + COALESCE(octet_length(content.language_code), 0)::bigint
+    + COALESCE(octet_length(content.reviewer_name), 0)::bigint
   ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
-`
+)`
 
 const REOPEN_CODES_SQL = sql.join(
   AI_REVIEW_ANALYSIS_REOPEN_CODES.map((code) => sql`${code}`),

@@ -1,10 +1,7 @@
-// Closed beta, 2026-09-29: an import burst left three text reviews of one
-// Property settled without an analysis. Their operations had given up with
-// `operation_ambiguous` (nobody had judged the reviews), the backlog was empty
-// and the first-enablement enrollment still recorded itself caught up, so
-// nothing would ever analyse them. These suites reproduce that end state in
-// PostgreSQL and pin the safety net: the reopen pass queues such reviews again,
-// and an enrollment does not catch up while one of its reviews is waiting.
+import { seedReviewContent } from '../testing/review-content-fixture'
+// Reviews settled without an analysis remain eligible for the reopen queue.
+// An enrollment cannot catch up while any of its reviews still waits for one.
+// These suites prove that recovery against PostgreSQL, including its limits.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
@@ -176,7 +173,7 @@ function reviewFixture(scope: Scope) {
   const db = getDb()
   return {
     async review(input: { id: string; analysisSequence: number; text?: string | null }) {
-      await db.insert(reviews).values({
+      await seedReviewContent({
         id: input.id,
         organizationId: scope.organizationId,
         propertyId: scope.propertyId,

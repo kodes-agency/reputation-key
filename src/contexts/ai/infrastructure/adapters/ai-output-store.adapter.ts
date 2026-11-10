@@ -559,12 +559,20 @@ export const createAiOutputStoreAdapter = (
             analysisSequence: reviews.analysisSequence,
           })
           .from(reviews)
+          .innerJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),
               eq(reviews.propertyId, input.propertyId),
               eq(reviews.id, input.reviewId),
-              gt(reviews.contentExpiresAt, now),
+              gt(reviewSourceContents.contentExpiresAt, now),
             ),
           )
           .limit(1)

@@ -8,7 +8,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { eraseReviewSourceContent } from './review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createReviewObservationRepository } from './repositories/review-observation.repository'
 import { createReviewRepository } from './repositories/review.repository'
 import { createReviewResponseTargetAuthority } from './response-target-authority'
@@ -363,10 +363,13 @@ describe('atomic review re-observation', () => {
       analysis_sequence: string
       text: string
     }>(
-      `SELECT created_at, source_revision, analysis_sequence, text,
-              source_content_state, source_content_erased_at
-       FROM reviews
-       WHERE id = $1 AND organization_id = $2`,
+      `SELECT review.created_at, review.source_revision, review.analysis_sequence, content.text,
+              review.source_content_state, review.source_content_erased_at
+       FROM reviews AS review
+       JOIN review_source_contents AS content ON content.review_id = review.id
+         AND content.organization_id = review.organization_id
+         AND content.property_id = review.property_id
+       WHERE review.id = $1 AND review.organization_id = $2`,
       [REVIEW, ORG],
     )
 
@@ -685,8 +688,12 @@ describe('atomic review re-observation', () => {
       source_revision: string
       source_observation_sequence: string
     }>(
-      `SELECT rating, text, source_revision, source_observation_sequence
-       FROM reviews WHERE id = $1 AND organization_id = $2`,
+      `SELECT content.rating, content.text, review.source_revision, review.source_observation_sequence
+       FROM reviews AS review
+       JOIN review_source_contents AS content ON content.review_id = review.id
+         AND content.organization_id = review.organization_id
+         AND content.property_id = review.property_id
+       WHERE review.id = $1 AND review.organization_id = $2`,
       [REVIEW, ORG],
     )
     expect(current.rows[0]).toEqual({
@@ -1096,8 +1103,9 @@ describe('atomic review re-observation', () => {
     ).rejects.toThrow('scope collision')
 
     const persisted = await getPool().query<{ id: string; property_id: string }>(
-      `SELECT id, property_id FROM reviews
-       WHERE organization_id = $1 AND external_id = $2`,
+      `SELECT r.id, r.property_id FROM reviews r
+         JOIN review_source_contents c ON c.review_id = r.id
+        WHERE r.organization_id = $1 AND c.external_id = $2`,
       [ORG, initial.externalId],
     )
     expect(persisted.rows).toEqual([{ id: REVIEW, property_id: PROPERTY }])

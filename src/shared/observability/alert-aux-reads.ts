@@ -35,6 +35,20 @@ import { betaFeedbackTriage } from '#/shared/db/schema/beta-feedback-triage.sche
 import { retentionRuns } from '#/shared/db/schema/review-sync.schema'
 import type { AlertAuxReads } from '#/shared/observability/alert-definitions'
 
+/** One slow aggregate must not hold the whole health check; it reads as unavailable. */
+export const ALERT_AUX_READ_TIMEOUT_MS = 20_000
+
+function withinBudget<T>(read: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const expired = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${label} exceeded ${ALERT_AUX_READ_TIMEOUT_MS}ms`)),
+      ALERT_AUX_READ_TIMEOUT_MS,
+    )
+  })
+  return Promise.race([read, expired]).finally(() => clearTimeout(timer))
+}
+
 export type AlertAuxReader = Readonly<{
   read: () => Promise<AlertAuxReads>
 }>
@@ -257,19 +271,20 @@ async function readReviewAnalysisHealth(
       CROSS JOIN LATERAL (
         SELECT count(*)::bigint AS eligible_review_count
         FROM reviews AS review
+        INNER JOIN review_source_contents AS content ON content.review_id = review.id AND content.organization_id = review.organization_id AND content.property_id = review.property_id
         WHERE review.organization_id = enrollment.organization_id
           AND review.property_id = enrollment.property_id
           AND review.source_epoch = enrollment.source_epoch
           AND review.source_revision >= 1
           AND review.analysis_sequence <= enrollment.analysis_start_sequence
-          AND review.text IS NOT NULL
-          AND review.content_expires_at > transaction_timestamp()
-          AND review.ai_source_byte_length
+          AND content.text IS NOT NULL
+          AND content.content_expires_at > transaction_timestamp()
+          AND content.ai_source_byte_length
             <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
           AND (
-            COALESCE(octet_length(review.text), 0)::bigint
-            + COALESCE(octet_length(review.language_code), 0)::bigint
-            + COALESCE(octet_length(review.reviewer_name), 0)::bigint
+            COALESCE(octet_length(content.text), 0)::bigint
+            + COALESCE(octet_length(content.language_code), 0)::bigint
+            + COALESCE(octet_length(content.reviewer_name), 0)::bigint
           ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
       ) AS eligible
       WHERE enrollment.state IN ('queued', 'running')
@@ -338,25 +353,32 @@ export function createAlertAuxReader(deps: AlertAuxReaderDeps): AlertAuxReader {
   return {
     read: async () => {
       const [retention, betaFeedbackTriage, reviewAnalysis] = await Promise.all([
-        readRetentionFailedSubjects(deps.db).catch((err: unknown) => {
-          deps.logger.warn(
-            { err },
-            '[alert-aux] retention_runs read failed — unavailable fallback',
-          )
-          return { monitorAvailable: false, failedSubjects: [] } as const
-        }),
-        readBetaFeedbackTriage(deps.db).catch((err: unknown) => {
-          deps.logger.warn(
-            { err },
-            '[alert-aux] beta-feedback triage read failed — unavailable fallback',
-          )
-          return {
-            monitorAvailable: false,
-            deliveredUnresolvedCount: 0,
-            oldestDeliveredUnresolvedAgeMs: null,
-          } as const
-        }),
-        readReviewAnalysisHealth(deps.db).catch((err: unknown) => {
+        withinBudget(readRetentionFailedSubjects(deps.db), 'retention_runs read').catch(
+          (err: unknown) => {
+            deps.logger.warn(
+              { err },
+              '[alert-aux] retention_runs read failed — unavailable fallback',
+            )
+            return { monitorAvailable: false, failedSubjects: [] } as const
+          },
+        ),
+        withinBudget(readBetaFeedbackTriage(deps.db), 'beta-feedback triage read').catch(
+          (err: unknown) => {
+            deps.logger.warn(
+              { err },
+              '[alert-aux] beta-feedback triage read failed — unavailable fallback',
+            )
+            return {
+              monitorAvailable: false,
+              deliveredUnresolvedCount: 0,
+              oldestDeliveredUnresolvedAgeMs: null,
+            } as const
+          },
+        ),
+        withinBudget(
+          readReviewAnalysisHealth(deps.db),
+          'Review Analysis health read',
+        ).catch((err: unknown) => {
           deps.logger.warn(
             { err },
             '[alert-aux] Review Analysis health read failed — unavailable fallback',

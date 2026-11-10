@@ -4,7 +4,7 @@
 // Reads every Organization across tenants (the console is the only caller),
 // creates one without making the operator its member, and runs the console's
 // invitation changes. Uses the Identity-owned tables organization, member,
-// invitation and organization_lifecycle_authority, and writes `audit_logs`.
+// and invitation, and writes `audit_logs`.
 //
 // Every change commits an `audit_logs` row in the same transaction: the
 // Organization, the operator's user id and the action. Log lines and spans
@@ -12,7 +12,6 @@
 // that row is the only durable record of who made a console change.
 
 import type { InvitationId, OrganizationId, UserId } from '#/shared/domain/ids'
-import type { OrganizationLifecycleState } from '../../domain/organization-lifecycle'
 import type {
   CancelInvitationCommand,
   InviteMemberCommand,
@@ -34,7 +33,6 @@ export type PlatformOrganizationRow = Readonly<{
   name: string
   slug: string
   createdAt: Date
-  lifecycleState: OrganizationLifecycleState
   memberCount: number
   /** Members holding the 'owner' role token. */
   accountAdminCount: number
@@ -51,7 +49,6 @@ export type PlatformOrganizationRow = Readonly<{
 export type OrganizationAdministration = Readonly<{
   organizationId: OrganizationId
   name: string
-  lifecycleState: OrganizationLifecycleState
   accountAdminCount: number
   /**
    * Ids of its open AccountAdmin invitations — the only ones the console

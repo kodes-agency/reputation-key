@@ -24,7 +24,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
 import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
-import { eraseReviewSourceContent } from '#/contexts/review/infrastructure/review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createReplyObservationAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-observation-authority.adapter'
 import { createSourceTransitionAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/source-transition-authority.adapter'
 import type { CurrentReplyObservationPermit } from '#/contexts/inbox/application/ports/reply-observation-authority.port'

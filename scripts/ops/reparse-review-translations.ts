@@ -107,8 +107,8 @@ function createReviewTranslationStore(db: Database): ReviewTranslationStore {
       // truncated comment from being mistaken for an envelope.
       (
         await db.execute(sql`
-          SELECT id, property_id, rating, text, reviewer_name, language_code, reviewed_at
-          FROM reviews
+          SELECT review_id AS id, property_id, rating, text, reviewer_name, language_code, reviewed_at
+          FROM review_source_contents
           WHERE text LIKE '(Translated by Google)%'
             AND position('(Original)' IN text) > 0
             ${propertyId === null ? sql`` : sql`AND property_id = ${propertyId}::uuid`}
@@ -117,13 +117,13 @@ function createReviewTranslationStore(db: Database): ReviewTranslationStore {
       ).rows as unknown as readonly WrappedReviewRow[],
     repair: async (reviewId, repair) => {
       await db.execute(sql`
-        UPDATE reviews
+        UPDATE review_source_contents
         SET text = ${repair.text},
             translated_text = ${repair.translatedText},
             content_hash = ${repair.contentHash},
             ai_source_digest = ${repair.aiSourceDigest},
             ai_source_byte_length = ${repair.aiSourceByteLength}
-        WHERE id = ${reviewId}::uuid
+        WHERE review_id = ${reviewId}::uuid
       `)
     },
   }

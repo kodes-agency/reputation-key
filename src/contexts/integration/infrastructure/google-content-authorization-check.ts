@@ -510,7 +510,11 @@ const loadPublicationAttempt = async (
       AND reply.publication_state = 'sending'
       AND reply.publication_cycle = attempt.publication_cycle
       AND reply.publication_attempts = attempt.attempt_number
-      AND review.google_connection_id = ${input.scope.connectionId}::uuid
+      AND EXISTS (SELECT 1 FROM review_source_contents AS content
+        WHERE content.review_id = review.id
+          AND content.organization_id = review.organization_id
+          AND content.property_id = review.property_id
+          AND content.google_connection_id = ${input.scope.connectionId}::uuid)
       AND review.source_content_state = 'active'
       AND review.source_epoch = attempt.source_epoch
       AND review.source_revision = attempt.material_review_revision

@@ -17,6 +17,9 @@ is not monitoring coverage.
 | Portal address or image problem                          | Runbooks §§20, 26, 27, 31                                   |
 | AI coverage, authorization or renewal stalled            | Runbooks §§22, 32–34                                        |
 
+For a first check and action by area (site and release, restore, Google, queue and
+Redis, security and privacy) use the [triage trees](triage.md).
+
 [Operator commands](operator-commands.md) documents the supported command
 surface. [Backup and lifecycle](backup-and-lifecycle.md) records backup state,
 retention and restore restrictions. [Organization lifecycle](organization-lifecycle.md)

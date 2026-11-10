@@ -571,7 +571,7 @@ describe.sequential('ai rights report counts', () => {
     'reports and erases %s data with the retired tables absent',
     async (scope) => {
       const { first, other, a } = await seedAll()
-      await holdRightsOrganization(query, first.organizationId)
+      holdRightsOrganization(first.organizationId)
       await withoutRetiredAiTables(db, async (tx) => {
         const executor = createAiRightsExecutor(tx, () => RIGHTS_FIXTURE_AT)
         const plan = rightsPlan(scope, first.organizationId, { propertyId: a })
@@ -628,7 +628,7 @@ describe.sequential('ai rights report counts', () => {
 
   it('reports an Organization erasure as exactly the rows it removes', async () => {
     const { first, other } = await seedAll()
-    await holdRightsOrganization(query, first.organizationId)
+    holdRightsOrganization(first.organizationId)
     const everyone = [first.organizationId, other.organizationId]
     const plan = rightsPlan('organization', first.organizationId)
     const report = await reportOf(plan)

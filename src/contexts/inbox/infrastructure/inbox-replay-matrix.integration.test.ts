@@ -350,17 +350,20 @@ async function seedScope(): Promise<void> {
 /** Final Review truth: active, material revision 2, current reply confirmed. */
 async function seedReviewSourceTruth(): Promise<void> {
   await pool.query(
-    `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id,
-       external_location_id, rating, reviewed_at, expires_at,
+    `WITH identity AS (
+       INSERT INTO reviews (
+         id, organization_id, property_id, platform, first_fetched_at,
+         source_epoch, source_revision, source_observation_sequence,
+         analysis_sequence, source_content_state, created_at, updated_at
+       ) VALUES ($1, $2, $3, 'google', $6, 0, 2, 2, 2, 'active', $6, $7)
+       RETURNING id
+     ) INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, rating, reviewed_at, content_expires_at,
        source_created_at, source_updated_at, first_fetched_at, last_fetched_at,
-       content_expires_at, source_epoch, source_revision,
-       source_observation_sequence, analysis_sequence, ai_source_byte_length,
-       ai_source_digest, source_content_state, created_at, updated_at
-     ) VALUES (
-       $1, $2, $3, 'google', 'replay-review', 'locations/replay', 5, $4, $5,
-       $6, $7, $6, $7, $5, 0, 2, 2, 2, 1, $8, 'active', $6, $7
-     )`,
+       source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+     ) SELECT id, $2, $3, 'google', 'replay-review', 'locations/replay',
+       5, $4, $5, $6, $7, $6, $7, 0, 2, 1, $8 FROM identity`,
     [
       SCOPE.reviewId,
       ORG,

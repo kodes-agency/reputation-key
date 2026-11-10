@@ -304,7 +304,6 @@ describe('setMonthlyPortalGoal', () => {
   it.each([
     ['subject_has_goal', 409],
     ['start_month_changed', 409],
-    ['organization_closing', 409],
     ['invalid_target', 400],
   ] as const)('answers %s with HTTP %i', async (code, status) => {
     mocks.set.mockRejectedValue(new GoalProgramError(code))

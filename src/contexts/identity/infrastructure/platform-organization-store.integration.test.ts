@@ -371,7 +371,6 @@ describe.sequential('listOrganizations and readAdministration', () => {
     expect(provisioned).toMatchObject({
       name: 'Platform plat-count',
       slug: 'plat-count',
-      lifecycleState: 'active',
       memberCount: 0,
       accountAdminCount: 0,
       pendingInvitationCount: 2,
@@ -395,7 +394,6 @@ describe.sequential('listOrganizations and readAdministration', () => {
     expect(administration).toMatchObject({
       organizationId: orgId,
       name: 'Platform plat-count',
-      lifecycleState: 'active',
       accountAdminCount: 0,
     })
     expect([...(administration?.openAdminInvitationIds ?? [])].sort()).toEqual(

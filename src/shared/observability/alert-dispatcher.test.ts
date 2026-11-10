@@ -47,3 +47,45 @@ describe('alert dispatcher error reporting', () => {
     expect(report).not.toHaveBeenCalled()
   })
 })
+
+describe('alert dispatcher delivery', () => {
+  const event: AlertEvent = { ...BASE_ALERT, severity: 'P1' }
+  const webhookUrl = 'https://alerts.example.test/hook'
+
+  it('still posts the webhook when error reporting throws', async () => {
+    const logger = pino({ level: 'silent' })
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true })
+    const report = vi.fn(() => {
+      throw new Error('monitor down')
+    })
+
+    await createAlertDispatcher({ logger, clock, report, webhookUrl, fetchFn }).dispatch(
+      event,
+    )
+
+    expect(report).toHaveBeenCalledOnce()
+    expect(fetchFn).toHaveBeenCalledOnce()
+  })
+
+  it('retries a failed webhook once and stops after it succeeds', async () => {
+    const logger = pino({ level: 'silent' })
+    const fetchFn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('reset'))
+      .mockResolvedValue({ ok: true })
+
+    await createAlertDispatcher({ logger, clock, webhookUrl, fetchFn }).dispatch(event)
+
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+  })
+
+  it('gives up after two attempts without throwing', async () => {
+    const logger = pino({ level: 'silent' })
+    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 503 })
+
+    await expect(
+      createAlertDispatcher({ logger, clock, webhookUrl, fetchFn }).dispatch(event),
+    ).resolves.toBeUndefined()
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+  })
+})
