@@ -34,6 +34,8 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { portalError } from '../../domain/errors'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { loadPortalPrintKitContext } from '../load-portal-print-kit-context'
+import type { PortalPrintKitContext } from '../portal-print-kit-context'
+import type { Portal } from '../../domain/types'
 import {
   rememberLastPrint,
   type RememberLastPrintDeps,
@@ -63,7 +65,7 @@ export type CreatePortalPrintFinalDeps = RememberLastPrintDeps &
     staffPublicApi: StaffPublicApi
     publicationRepo: Pick<
       PortalPublicationRepository,
-      'loadWorkingCopy' | 'findActiveForPortal'
+      'loadWorkingCopy' | 'loadWorkingCopyWithLook' | 'findActiveForPortal'
     >
     mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
     objectStore: Pick<StoragePort, 'getObject'>
@@ -139,6 +141,22 @@ async function renderOrRefuse(
   }
 }
 
+/** The Property's brand is public already; a wordmark the Portal wrote itself is not. */
+async function assertPersonalPrintWordmark(
+  deps: CreatePortalPrintFinalDeps,
+  ctx: AuthContext,
+  portal: Portal,
+  context: PortalPrintKitContext,
+): Promise<void> {
+  const withLook = await deps.publicationRepo.loadWorkingCopyWithLook(
+    ctx.organizationId,
+    portal.id,
+  )
+  if (withLook?.lookSources.identity === 'property') return
+  if (context.look.wordmark === context.look.propertyName) return
+  assertPersonalPortalPublicText(portal, { wordmark: context.look.wordmark })
+}
+
 export const createPortalPrintFinal =
   (deps: CreatePortalPrintFinalDeps) =>
   async (
@@ -154,7 +172,8 @@ export const createPortalPrintFinal =
       organizationId: ctx.organizationId,
       portal,
     })
-    assertPersonalPortalPublicText(portal, { wordmark: context.look.wordmark })
+    if (portal.kind === 'personal')
+      await assertPersonalPrintWordmark(deps, ctx, portal, context)
     if (!isPrintKitLanguageChoice(context.locales, input.languages)) {
       throw portalError('locale_not_offered', 'Choose languages this portal offers')
     }

@@ -39,6 +39,7 @@ function wire(country: string | null = null, address: string = ADDRESS) {
     } as StaffPublicApi,
     publicationRepo: {
       loadWorkingCopy: async () => null,
+      loadWorkingCopyWithLook: async () => null,
       // A live look with no photo and no logo, so no picture is read from the store.
       findActiveForPortal: async () =>
         ({

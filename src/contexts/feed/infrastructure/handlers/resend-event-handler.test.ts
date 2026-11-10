@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { applyResendEvent, type ResendEventDeps } from './resend-event-handler'
+import {
+  applyResendEvent,
+  createResendEventHandler,
+  type ResendEventDeps,
+} from './resend-event-handler'
 import { createFakeJobLogger } from '../jobs/test-fixtures'
 import {
   notificationEmailId,
@@ -248,6 +252,41 @@ describe('resend delivery event handler (ADR 0046 r.6)', () => {
       expect.stringContaining('matched no queue row'),
     )
     expect(deps.emailRepo.suppressRecipient).not.toHaveBeenCalled()
+  })
+
+  describe('remembering a delivery', () => {
+    const handle = (deps: ReturnType<typeof fakeDeps>) =>
+      createResendEventHandler({
+        ...deps,
+        emailRepo: {
+          ...deps.emailRepo,
+          hasAppliedProviderEvent: vi.fn(async () => false),
+          markProviderEventApplied: markApplied,
+        },
+      } as unknown as ResendEventDeps)({
+        type: 'email.delivered',
+        providerMessageId: 'prov-1',
+        occurredAt: OCCURRED_AT,
+        eventId: 'msg_2abc',
+      })
+    const markApplied = vi.fn(async () => {})
+
+    it('remembers an applied event', async () => {
+      markApplied.mockClear()
+
+      await handle(fakeDeps())
+
+      expect(markApplied).toHaveBeenCalledWith('msg_2abc')
+    })
+
+    it('does not remember an event that matched no queue row, so a replay is applied', async () => {
+      markApplied.mockClear()
+
+      const result = await handle(fakeDeps({ moved: [] }))
+
+      expect(result.reason).toBe('unknown_message')
+      expect(markApplied).not.toHaveBeenCalled()
+    })
   })
 
   describe('a retried event whose row already moved', () => {

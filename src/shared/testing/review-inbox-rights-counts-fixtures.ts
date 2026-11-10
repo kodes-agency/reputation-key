@@ -16,6 +16,7 @@ const hex64 = () => (randomUUID() + randomUUID()).replaceAll('-', '').slice(0, 6
 export type Tenant = Readonly<{
   organizationId: string
   userId: string
+  keyVersion: string
   propertyIds: ReadonlyArray<string>
 }>
 
@@ -126,8 +127,16 @@ async function seedProperty(
     `INSERT INTO review_provider_subjects (
        organization_id, property_id, source_epoch, key_version, locator_hmac, verifier_hmac,
        review_id, last_source_revision, state, last_observed_at)
-     VALUES ($1, $2, 0, 'v1', $3, $4, $5, 1, 'linked', $6)`,
-    [org, propertyId, Buffer.alloc(32, 1), Buffer.alloc(32, 2), first, AT],
+     VALUES ($1, $2, 0, $7, $3, $4, $5, 1, 'linked', $6)`,
+    [
+      org,
+      propertyId,
+      Buffer.alloc(32, 1),
+      Buffer.alloc(32, 2),
+      first,
+      AT,
+      tenant.keyVersion,
+    ],
   )
   await q(
     `INSERT INTO review_ai_analysis_heads (organization_id, property_id, source_epoch)
@@ -428,9 +437,17 @@ export async function seedTenant(
   const tenant: Tenant = {
     organizationId: `counts-org-${suffix}`,
     userId: `counts-user-${suffix}`,
+    keyVersion: `counts-${suffix.replaceAll('-', '').slice(0, 24)}`,
     propertyIds: propertyReviewCounts.map(() => randomUUID()),
   }
   tenants.push(tenant)
+  // Count proofs need a referenced key, without taking over the active singleton.
+  await q(
+    `INSERT INTO review_provider_subject_hmac_key_versions
+       (key_version, key_digest, state, generation, created_at, retiring_at)
+     VALUES ($1, $2, 'retiring', 1, $3, $3)`,
+    [tenant.keyVersion, DIGEST, AT],
+  )
   await q(
     `INSERT INTO organization (id, name, slug, "createdAt") VALUES ($1, 'Counts fixture', $1, $2)`,
     [tenant.organizationId, AT],
@@ -528,4 +545,8 @@ export async function cleanup(tenant: Tenant): Promise<void> {
   }
   await deleteTestOrganizations(pool, [org])
   await q('DELETE FROM "user" WHERE id = $1', [tenant.userId])
+  await q(
+    'DELETE FROM review_provider_subject_hmac_key_versions WHERE key_version = $1',
+    [tenant.keyVersion],
+  )
 }

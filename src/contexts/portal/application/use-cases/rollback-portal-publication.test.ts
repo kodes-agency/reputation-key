@@ -9,10 +9,16 @@ import { publicationSource } from '../../domain/__fixtures__/publication-source'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { UpdatePortalCommand } from '../ports/portal-command-store.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { PROPERTY_LOOK_SOURCES } from '../../domain/portal-look'
 import { GOLDEN_SNAPSHOT_ROWS } from '../__fixtures__/publication-snapshots.golden'
 
 const NOW = new Date('2026-08-26T12:00:00.000Z')
 const portal = buildTestPortal({ publicationState: 'published' })
+const staffPortal = buildTestPortal({
+  publicationState: 'published',
+  kind: 'personal',
+  name: 'Marco Rossi',
+})
 const source = publicationSource({
   organizationId: portal.organizationId,
   propertyId: portal.propertyId,
@@ -64,10 +70,17 @@ function setup(
     /** The version live right now; the later one by default. */
     live?: 1 | 2
     configuration?: typeof versionOne.configuration
+    /** A personal Portal for Marco Rossi. */
+    personal?: boolean
+    /** The Portal wrote its own wordmark instead of following the Property brand. */
+    ownWordmark?: boolean
   } = {},
 ) {
   const portalRepo = createInMemoryPortalRepo()
-  const seeded = { ...portal, publicationState: options.state ?? 'published' }
+  const seeded = {
+    ...(options.personal ? { ...staffPortal, id: portal.id } : portal),
+    publicationState: options.state ?? 'published',
+  }
   portalRepo.seed([seeded])
   const outbox = createRecordedOutbox()
   const baseCommandStore = createInMemoryPortalCommandStore({ portalRepo, outbox })
@@ -75,7 +88,12 @@ function setup(
   const publicationRepo: PortalPublicationRepository = {
     countOpenPendingContentChanges: async () => [],
     loadWorkingCopy: async () => null,
-    loadWorkingCopyWithLook: async () => null,
+    loadWorkingCopyWithLook: async () => ({
+      source,
+      lookSources: options.ownWordmark
+        ? { ...PROPERTY_LOOK_SOURCES, identity: 'portal' }
+        : PROPERTY_LOOK_SOURCES,
+    }),
     getCursor: async () => ({
       nextSnapshotVersion: 3,
       nextActivationSequence: 3,
@@ -131,6 +149,44 @@ describe('rollbackPortalPublication', () => {
       expect(harness.command()).toBeNull()
     },
   )
+
+  describe('a personal Portal whose staff name is in a wordmark', () => {
+    const withWordmark = (wordmark: string) => {
+      const configuration = versionOne.configuration
+      if (
+        !('brandProfile' in configuration) ||
+        !('wordmark' in configuration.brandProfile)
+      )
+        throw new Error('expected the current format')
+      return {
+        ...configuration,
+        brandProfile: { ...configuration.brandProfile, wordmark },
+      } as typeof versionOne.configuration
+    }
+
+    it('rolls back when the name is only in the Property brand', async () => {
+      const harness = setup({
+        personal: true,
+        configuration: withWordmark('Pizzeria Marco'),
+      })
+      await expect(
+        harness.useCase({ portalId: portal.id, version: 1 }, buildTestAuthContext()),
+      ).resolves.toMatchObject({ version: 1 })
+      expect(harness.command()).not.toBeNull()
+    })
+
+    it('refuses the name in a wordmark the Portal wrote itself', async () => {
+      const harness = setup({
+        personal: true,
+        ownWordmark: true,
+        configuration: withWordmark('MARCO'),
+      })
+      await expect(
+        harness.useCase({ portalId: portal.id, version: 1 }, buildTestAuthContext()),
+      ).rejects.toMatchObject({ code: 'personal_portal_name_private' })
+      expect(harness.command()).toBeNull()
+    })
+  })
 
   it('appends an activation for an older immutable version', async () => {
     const harness = setup()

@@ -399,6 +399,30 @@ describe.sequential('Review and Inbox rights report counts', () => {
     tenants.length = 0
   })
 
+  it('owns and cleans up its provider key without changing the existing key inventory', async () => {
+    const inventory = async () =>
+      (
+        await q(
+          `SELECT * FROM review_provider_subject_hmac_key_versions ORDER BY key_version`,
+        )
+      ).rows
+    const before = await inventory()
+    const tenant = await seedTenant([2, 3])
+    const subjects = await q(
+      `SELECT DISTINCT key_version FROM review_provider_subjects WHERE organization_id = $1`,
+      [tenant.organizationId],
+    )
+
+    expect(subjects.rows).toHaveLength(1)
+    expect(before.map((row) => row.key_version)).not.toContain(
+      subjects.rows[0]!.key_version,
+    )
+    expect(await inventory()).toHaveLength(before.length + 1)
+
+    await cleanup(tenant)
+    expect(await inventory()).toEqual(before)
+  })
+
   it('counts, for an Organization, exactly the rows its apply removes or scrubs', async () => {
     const closing = await seedTenant([2, 3])
     const kept = await seedTenant([3, 2])
