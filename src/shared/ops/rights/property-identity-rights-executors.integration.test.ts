@@ -120,12 +120,6 @@ async function seedTenant(): Promise<Tenant> {
       [tenant.organizationId, propertyId, tenant.userId, CREATED_AT],
     )
     await q(
-      `INSERT INTO property_access_grants
-         (organization_id, property_id, user_id, kind, granted_by)
-       VALUES ($1, $2, $3, 'manage', $3)`,
-      [tenant.organizationId, propertyId, tenant.userId],
-    )
-    await q(
       `INSERT INTO property_access_grant
          (organization_id, property_id, user_id, source, created_by)
        VALUES ($1, $2, $3, 'operator', $3)`,
@@ -138,7 +132,6 @@ async function seedTenant(): Promise<Tenant> {
 const PROPERTY_TABLES = [
   ['properties', 'id'],
   ['property_responsible_managers', 'property_id'],
-  ['property_access_grants', 'property_id'],
   ['property_access_grant', 'property_id'],
 ] as const
 
@@ -221,7 +214,6 @@ async function cleanup(tenant: Tenant): Promise<void> {
   const q = lease.pool.query.bind(lease.pool)
   for (const table of [
     'property_access_grant',
-    'property_access_grants',
     'property_responsible_managers',
     ...[...STAFF_LIFECYCLE_TABLES],
     'properties',
@@ -334,7 +326,7 @@ describe.sequential('Property and Staff rights executors', () => {
       const out = result.out.join('\n')
       expect(out).toContain('property: properties 1')
       expect(out).toContain('property: property_responsible_managers 1')
-      expect(out).toContain('identity-grants: property_access_grants 1')
+      expect(out).toContain('identity-grants: property_access_grant 1')
       expect(await stringify(asked)).toBe(before)
     })
 

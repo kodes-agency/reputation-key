@@ -29,7 +29,7 @@ const byOrganization =
  * login links reference participants.
  *
  * Deliberately absent:
- *   * `property_access_grants` / `property_access_grant` — the property-access
+ *   * `property_access_grant` — the property-access
  *     authority is Identity's (ADR 0039, context acceptance matrix row 1).
  *     Staff never reads or writes an authorization record.
  *   * `user`, `member`, `session` — a Staff Participant may be a human who is

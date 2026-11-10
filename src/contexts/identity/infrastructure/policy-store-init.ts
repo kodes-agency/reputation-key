@@ -26,7 +26,6 @@ import {
 } from '#/shared/auth/system-execution-policy'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { createGrantAccessLookup } from './adapters/grant-access-lookup.adapter'
-import { getActiveConsent } from './repositories/policy-consent.repository'
 import { hasActiveMerchantAiConsent } from './repositories/merchant-ai-authorization.repository'
 
 const MERCHANT_AI_PURPOSES: Readonly<Record<string, true>> = Object.freeze({
@@ -103,8 +102,7 @@ export function buildCapabilityPolicyHandle(deps: {
         expectedFence: input.expectedFence,
       })
     }
-    const consent = await getActiveConsent(deps.db, input)
-    return consent !== null
+    return false
   }
 
   const executionPolicy = Object.freeze(

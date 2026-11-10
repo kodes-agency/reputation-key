@@ -27,14 +27,6 @@ import { createdAtColumn, updatedAtColumn } from '../columns'
 
 // ── Enums ──────────────────────────────────────────────────────────
 
-export const grantStatusEnum = pgEnum('grant_status', ['active', 'revoked'])
-export const grantKindEnum = pgEnum('grant_kind', [
-  'full_access',
-  'manage',
-  'respond',
-  'view',
-])
-
 export const participationStatusEnum = pgEnum('participation_status', [
   'active',
   'inactive',
@@ -50,38 +42,6 @@ export const staffParticipantStatusEnum = pgEnum('staff_participant_status', [
   'active',
   'archived',
 ])
-
-// ── Property Access Grants ────────────────────────────────────────
-
-export const propertyAccessGrants = pgTable(
-  'property_access_grants',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id')
-      .notNull()
-      .references(() => properties.id, { onDelete: 'restrict' }),
-    userId: varchar('user_id', { length: 255 }).notNull(),
-    kind: grantKindEnum('kind').notNull(),
-    status: grantStatusEnum('status').notNull().default('active'),
-    grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
-    revokedAt: timestamp('revoked_at', { withTimezone: true }),
-    grantedBy: varchar('granted_by', { length: 255 }).notNull(),
-    revokedBy: varchar('revoked_by', { length: 255 }),
-    reason: text('reason'),
-  },
-  (t) => [
-    index('pag_org_prop_user_idx').on(t.organizationId, t.propertyId, t.userId),
-    uniqueIndex('pag_unique_active')
-      .on(t.organizationId, t.propertyId, t.userId, t.kind)
-      .where(sql`status = 'active'`),
-    foreignKey({
-      name: 'pag_property_tenant_fk',
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-    }).onDelete('restrict'),
-  ],
-)
 
 // ── Staff Participants + optional login links ────────────────────
 

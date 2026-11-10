@@ -13,7 +13,6 @@ import type { Tx } from '#/shared/outbox/commit'
 
 export const FORMER_STAFF_LABEL = 'Former staff member'
 const ARCHIVE_REASON = 'Erased on request'
-const ERASED_BY = 'rights-request'
 
 export type StaffParticipantErasure = Readonly<{
   participants: number
@@ -176,10 +175,8 @@ async function removeLogins(
   logins: ReadonlyArray<string>,
   kept: ReadonlyArray<string>,
   participantIds: ReadonlyArray<string>,
-  at: Date,
 ): Promise<Pick<StaffParticipantErasure, 'logins' | 'memberships'>> {
   if (logins.length === 0) return { logins: 0, memberships: 0 }
-  const when = at.toISOString()
   await tx.execute(sql`
     DELETE FROM invitation
     WHERE "organizationId" = ${organizationId}
@@ -193,13 +190,6 @@ async function removeLogins(
           SELECT lower(email) FROM "user" WHERE id IN (${textList(logins)})
         )
       )
-  `)
-  await tx.execute(sql`
-    UPDATE property_access_grants
-    SET status = 'revoked', revoked_at = ${when}::timestamptz, revoked_by = ${ERASED_BY}
-    WHERE organization_id = ${organizationId}
-      AND user_id IN (${textList(logins)})
-      AND status = 'active'
   `)
   const memberships = await tx.execute(sql`
     DELETE FROM member
@@ -237,6 +227,6 @@ export async function eraseStaffParticipants(
   if (participantIds.length === 0) return { participants: 0, logins: 0, memberships: 0 }
   const { all, kept } = await staffParticipantLogins(tx, organizationId, participantIds)
   const participants = await pseudonymise(tx, organizationId, participantIds, at)
-  const removed = await removeLogins(tx, organizationId, all, kept, participantIds, at)
+  const removed = await removeLogins(tx, organizationId, all, kept, participantIds)
   return { participants, ...removed }
 }

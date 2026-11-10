@@ -189,20 +189,6 @@ describe.sequential('provisionOrganization', () => {
       [command.organizationId],
     )
     expect(org).toEqual({ name: 'Platform plat-riviera', slug: 'plat-riviera' })
-    const lifecycle = await one<{
-      state: string
-      last_reason_code: string
-      last_support_evidence_ref: string
-    }>(
-      `SELECT state, last_reason_code, last_support_evidence_ref
-         FROM organization_lifecycle_authority WHERE organization_id = $1`,
-      [command.organizationId],
-    )
-    expect(lifecycle).toEqual({
-      state: 'active',
-      last_reason_code: 'provisioned',
-      last_support_evidence_ref: 'organization:create',
-    })
     expect(
       await count(`SELECT count(*)::int AS n FROM member WHERE "organizationId" = $1`, [
         command.organizationId,
@@ -294,18 +280,17 @@ describe.sequential('provisionOrganization', () => {
       ),
     ).toBe(1)
     // The unique index refuses the loser's insert, and its transaction takes
-    // everything with it: no lifecycle row, invitation, fact or audit row.
+    // everything with it: no invitation, fact or audit row.
     const loser = commands[refusedAt]
     if (!loser) throw new Error('One provision must have been refused')
     expect(
       await one(
-        `SELECT (SELECT count(*)::int FROM organization_lifecycle_authority WHERE organization_id = $1) AS lifecycle,
-                (SELECT count(*)::int FROM invitation WHERE email = $2) AS invitations,
+        `SELECT (SELECT count(*)::int FROM invitation WHERE email = $2) AS invitations,
                 (SELECT count(*)::int FROM outbox_events WHERE organization_id = $1) AS facts,
                 (SELECT count(*)::int FROM audit_logs WHERE organization_id = $1) AS audits`,
         [loser.organizationId, loser.firstAdmin.email],
       ),
-    ).toEqual({ lifecycle: 0, invitations: 0, facts: 0, audits: 0 })
+    ).toEqual({ invitations: 0, facts: 0, audits: 0 })
   })
 
   it.each([
@@ -328,12 +313,6 @@ describe.sequential('provisionOrganization', () => {
       await count(`SELECT count(*)::int AS n FROM organization WHERE id = $1`, [
         command.organizationId,
       ]),
-    ).toBe(0)
-    expect(
-      await count(
-        `SELECT count(*)::int AS n FROM organization_lifecycle_authority WHERE organization_id = $1`,
-        [command.organizationId],
-      ),
     ).toBe(0)
     expect(
       await count(

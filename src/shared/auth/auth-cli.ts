@@ -36,6 +36,16 @@ if (!process.env.BETTER_AUTH_SECRET) {
   throw new Error('BETTER_AUTH_SECRET environment variable is required')
 }
 
+// Runtime custom roles are off, and the journal drops "organizationRole". A
+// database with no auth tables yet still needs the table, because the first
+// journal files build an index and a trigger on it; once the auth tables exist
+// without it, Better Auth must not create it again.
+const { rows: customRoleTable } = await pool.query<{ retired: boolean }>(
+  `SELECT to_regclass('public."user"') IS NOT NULL
+      AND to_regclass('public."organizationRole"') IS NULL AS retired`,
+)
+const isCustomRoleTableRetired = customRoleTable[0]?.retired === true
+
 const auth = betterAuth({
   database: pool,
   secret: process.env.BETTER_AUTH_SECRET,
@@ -59,7 +69,7 @@ const auth = betterAuth({
       // additionalFields (propertyIds, Organization contact/response target)
       // as the runtime.
       schema: organizationSchema,
-      dynamicAccessControl: { enabled: true },
+      dynamicAccessControl: { enabled: !isCustomRoleTableRetired },
       invitationExpiresIn: INVITATION_EXPIRY_SECONDS,
     }),
   ],

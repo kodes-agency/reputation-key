@@ -186,7 +186,6 @@ async function removeEverything(): Promise<void> {
       'staff_participations',
       'staff_onboardings',
       'staff_participants',
-      'property_access_grants',
       'portals',
       'properties',
     ]) {

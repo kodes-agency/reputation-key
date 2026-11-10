@@ -10,7 +10,7 @@ if (!databaseUrl) throw new Error('DATABASE_URL is required for Drizzle tooling'
 
 // The migratable barrel IS the boundary: every app-owned table. Auth
 // tables (user, session, account, verification, organization, member,
-// invitation, organizationRole) are excluded by the barrel and managed by
+// invitation) are excluded by the barrel and managed by
 // `pnpm auth:migrate` (Better Auth CLI). tablesFilter is derived FROM the
 // barrel (never a second hand-maintained list): db:push introspects only
 // these tables — without it, push pulls the auth tables, hits interactive

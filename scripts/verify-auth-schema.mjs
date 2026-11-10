@@ -12,14 +12,6 @@ import pg from 'pg'
 
 const EXPECTED = {
   member: ['id', 'organizationId', 'userId', 'role', 'createdAt'],
-  organizationRole: [
-    'id',
-    'organizationId',
-    'role',
-    'permission',
-    'createdAt',
-    'updatedAt',
-  ],
   invitation: [
     'id',
     'organizationId',
@@ -32,6 +24,8 @@ const EXPECTED = {
     'propertyIds',
   ],
 }
+
+const RETIRED_TABLES = ['organizationRole']
 
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL })
 let failures = []
@@ -56,6 +50,14 @@ try {
       }
     }
   }
+  for (const table of RETIRED_TABLES) {
+    const res = await client.query(`SELECT to_regclass($1) IS NOT NULL AS present`, [
+      `public."${table}"`,
+    ])
+    if (res.rows[0]?.present) {
+      failures.push(`${table}: dropped table exists again (Better Auth recreated it)`)
+    }
+  }
 } finally {
   await client.end()
 }
@@ -66,9 +68,9 @@ if (failures.length > 0) {
   )
   for (const f of failures) console.error('  ' + f)
   console.error(
-    'The DAC triggers + app-owned role/invitation services depend on these exact column names.',
+    'The DAC triggers + app-owned invitation services depend on these exact column names.',
   )
   process.exit(1)
 }
 
-console.log('✓ Auth schema casing verified (member, organizationRole, invitation).')
+console.log('✓ Auth schema casing verified (member, invitation; no organizationRole).')

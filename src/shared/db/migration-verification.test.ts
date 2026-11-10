@@ -18,7 +18,6 @@ const EXPECTED_TABLES = [
   // Business tables (created by db:migrate)
   'properties',
   'permission_version',
-  'organization_role_policy',
   'audit_logs',
   'organization_lifecycle_events',
   'portals',

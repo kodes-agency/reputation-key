@@ -57,7 +57,6 @@ describe('construct definition drift against the migrated catalog', () => {
     expect(rows.filter(({ mode }) => mode === 'A')).toEqual([
       { name: 'backup_erasure_ledger_truncate_guard', mode: 'A' },
       { name: 'backup_erasure_ledger_update_delete_guard', mode: 'A' },
-      { name: 'property_erase_authorities_transition_guard', mode: 'A' },
     ])
     expect(
       rows.filter(({ mode }) => mode !== 'A').every(({ mode }) => mode === 'O'),
