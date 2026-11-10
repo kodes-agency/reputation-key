@@ -45,15 +45,6 @@ const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
 const GUEST_VISIT_FACT_RETENTION_MONTHS = 24
 
 /**
- * ADR 0031 / Privacy Notice §6: a de-identified AI insight is kept 24 months.
- * An analysis stamps its own deadline at generation (`expires_at`,
- * `DERIVATIVE_RETENTION_MILLIS`), so its rule counts nothing back from the run.
- * The daily star counts stamp none, so theirs counts the same calendar months
- * back from the day they count.
- */
-const AI_DERIVATIVE_RETENTION_MONTHS = 24
-
-/**
  * The retention rule registry. Durations per table docs:
  * outbox/sync/webhook ~30d operational history; notifications/activity 90d
  * (documented in their CONTEXT docs); cache expires per-entry; audit
@@ -351,22 +342,6 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMs: 0,
     extraWhere:
       'NOT EXISTS (SELECT 1 FROM ai_property_aggregate_contribution_mentions m WHERE m.issue_group_id = ai_property_issue_groups.id)',
-  },
-  {
-    // How many reviews a Property got on a local day, by stars. Kept from the day
-    // it counts, not from the last update: a late review re-counts the day and
-    // must not keep it.
-    subject: 'ai_property_review_population_daily.expired',
-    table: 'ai_property_review_population_daily',
-    keyColumns: [
-      'organization_id',
-      'property_id',
-      'source_epoch',
-      'property_profile_version',
-      'local_date',
-    ],
-    tsColumn: 'local_date',
-    olderThanMonths: AI_DERIVATIVE_RETENTION_MONTHS,
   },
 ]
 
