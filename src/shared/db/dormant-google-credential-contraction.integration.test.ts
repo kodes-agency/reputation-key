@@ -144,14 +144,15 @@ it('refuses every populated credential table atomically, then contracts only emp
            WHERE scope = 'google_disconnect_revoke' ORDER BY key`,
         )
       ).rows
-    const legacyRows = async () =>
-      Promise.all(
-        TABLES.map(async (table) => {
-          // These fixed names are the three objects authorized for contraction.
-          const result = await client.query(`SELECT * FROM ${table} ORDER BY id`)
-          return result.rows
-        }),
-      )
+    const legacyRows = async () => {
+      const snapshots: unknown[][] = []
+      for (const table of TABLES) {
+        // These fixed names are the three objects authorized for contraction.
+        const result = await client.query(`SELECT * FROM ${table} ORDER BY id`)
+        snapshots.push(result.rows)
+      }
+      return snapshots
+    }
     const beforeTables = await tables()
     const beforeEnums = await enums()
     const beforeJournal = await journal()

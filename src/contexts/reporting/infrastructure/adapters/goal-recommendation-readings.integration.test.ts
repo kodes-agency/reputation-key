@@ -501,19 +501,19 @@ describe('the month a Property goal counts', () => {
     const governed = findMetricVersionById(METRIC_VERSION_IDS.portalRatingCountGoal)
     if (!governed) throw new Error('The rating count goal is not in the registry.')
 
-    const [recommendation, page] = await Promise.all([
-      recommendationOf(property, [listed(reception, 'Reception')]),
-      createMetricRepository(db).queryGoalAggregate({
-        organizationId: organizationId(ORG),
-        propertyId: toPropertyId(property),
-        definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
-        expectedMetricKey: governed.definition.key,
-        allowedSourcePolicies: governed.version.sourcePolicyAllowlist,
-        subject: { kind: 'property', propertyId: toPropertyId(property) },
-        periodStart: OCTOBER.periodStart,
-        periodEnd: OCTOBER.periodEnd,
-      }),
+    const recommendation = await recommendationOf(property, [
+      listed(reception, 'Reception'),
     ])
+    const page = await createMetricRepository(db).queryGoalAggregate({
+      organizationId: organizationId(ORG),
+      propertyId: toPropertyId(property),
+      definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+      expectedMetricKey: governed.definition.key,
+      allowedSourcePolicies: governed.version.sourcePolicyAllowlist,
+      subject: { kind: 'property', propertyId: toPropertyId(property) },
+      periodStart: OCTOBER.periodStart,
+      periodEnd: OCTOBER.periodEnd,
+    })
 
     // 5 - 1 + 2 - 1 = 5 at Reception, 3 with no Portal, 2 at the archived Terrace.
     expect(page.sum).toBe(10)

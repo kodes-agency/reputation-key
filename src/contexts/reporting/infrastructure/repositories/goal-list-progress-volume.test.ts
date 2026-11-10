@@ -297,7 +297,8 @@ describe.sequential('Goal list progress at volume (integration)', () => {
         { ...base, subject: { kind: 'property' as const, propertyId: otherProperty } },
       ]
       const assertParity = async () => {
-        const expected = await Promise.all(cases.map(single))
+        const expected = []
+        for (const query of cases) expected.push(await single(query))
         const actual = await batch(cases)
         // Single reads additionally carry a source watermark; compare governed outcomes.
         expect(actual).toEqual(

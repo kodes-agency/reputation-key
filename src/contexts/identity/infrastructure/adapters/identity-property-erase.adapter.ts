@@ -72,26 +72,27 @@ export const createIdentityPropertyEraseContributor = (): PropertyEraseContribut
   inventory: async (
     tx: Tx,
     scope: PropertyEraseScope,
-  ): Promise<readonly PropertyEraseInventoryEntry[]> =>
-    await Promise.all(
-      IDENTITY_PROPERTY_ERASE_PLAN.map(async (entry) => {
-        const result = entry.organizationScoped
-          ? await tx.execute(sql`
+  ): Promise<readonly PropertyEraseInventoryEntry[]> => {
+    const inventory: PropertyEraseInventoryEntry[] = []
+    for (const entry of IDENTITY_PROPERTY_ERASE_PLAN) {
+      const result = entry.organizationScoped
+        ? await tx.execute(sql`
               SELECT COUNT(*)::int AS "rows" FROM ${entry.table}
               WHERE organization_id = ${scope.organizationId}
                 AND property_id = ${scope.propertyId}::uuid
             `)
-          : await tx.execute(sql`
+        : await tx.execute(sql`
               SELECT COUNT(*)::int AS "rows" FROM ${entry.table}
               WHERE property_id = ${scope.propertyId}::uuid
             `)
-        return {
-          context: 'identity' as const,
-          table: entry.name,
-          rowCount: Number((result.rows[0] as { rows: number }).rows),
-        }
-      }),
-    ),
+      inventory.push({
+        context: 'identity' as const,
+        table: entry.name,
+        rowCount: Number((result.rows[0] as { rows: number }).rows),
+      })
+    }
+    return inventory
+  },
 
   /** IRREVERSIBLE. Ordered so no statement depends on rows already removed. */
   erase: async (tx: Tx, scope: PropertyEraseScope): Promise<number> => {

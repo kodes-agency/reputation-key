@@ -74,20 +74,19 @@ export const createGuestPropertyEraseContributor = (): PropertyEraseContributor 
     tx: Tx,
     scope: PropertyEraseScope,
   ): Promise<readonly PropertyEraseInventoryEntry[]> => {
-    const counts = await Promise.all(
-      TABLES.map(async (table, index) => {
-        const result = await tx.execute(sql`
+    const counts: PropertyEraseInventoryEntry[] = []
+    for (const [index, table] of TABLES.entries()) {
+      const result = await tx.execute(sql`
           SELECT COUNT(*)::int AS "rows" FROM ${table}
           WHERE organization_id = ${scope.organizationId}
             AND property_id = ${scope.propertyId}::uuid
         `)
-        return {
-          context: 'guest' as const,
-          table: DIRECT_TABLE_NAMES[index] as string,
-          rowCount: rowCount(result.rows[0]),
-        }
-      }),
-    )
+      counts.push({
+        context: 'guest' as const,
+        table: DIRECT_TABLE_NAMES[index] as string,
+        rowCount: rowCount(result.rows[0]),
+      })
+    }
     const receiptCount = await tx.execute(sql`
       SELECT COUNT(*)::int AS "rows" FROM ${idempotencyReceipts}
       WHERE ${idempotencyReceipts.scope} IN ('guest_qualified_scan', 'guest_destination_action')
