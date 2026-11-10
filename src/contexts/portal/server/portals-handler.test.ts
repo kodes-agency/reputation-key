@@ -110,7 +110,10 @@ const deniedResourceProbes: readonly [
 ][] = [
   [
     'publication',
-    async () => publishPortal({ data: { portalId: 'portal-p2' } }),
+    async () =>
+      publishPortal({
+        data: { portalId: 'portal-p2', reviewedDigest: 'reviewed-digest' },
+      }),
     mocks.publishPortal,
   ],
   [
@@ -144,6 +147,34 @@ describe('listPortals handler (executable)', () => {
       propertyId: 'property-p2',
       portalId: 'portal-p2',
     })
+  })
+
+  it('refuses go-live without a reviewed digest before calling the publication command', async () => {
+    mocks.publishPortal.mockResolvedValue({ publicationState: 'published' })
+
+    const response = await withStartContext(() =>
+      publishPortal.__executeServer({
+        method: 'POST',
+        data: { portalId: 'portal-p2' },
+      }),
+    )
+
+    expect(response).toMatchObject({
+      error: expect.objectContaining({
+        message: expect.stringContaining('"reviewedDigest"'),
+      }),
+    })
+    expect(mocks.publishPortal).not.toHaveBeenCalled()
+    expect(mocks.resolveTenantContext).not.toHaveBeenCalled()
+  })
+
+  it('forwards the reviewed digest when going live', async () => {
+    mocks.publishPortal.mockResolvedValue({ publicationState: 'published' })
+    const data = { portalId: 'portal-p2', reviewedDigest: 'reviewed-digest' }
+
+    await withStartContext(() => publishPortal({ data }))
+
+    expect(mocks.publishPortal).toHaveBeenCalledExactlyOnceWith(data, TEST_CTX)
   })
 
   it('returns the scoped manager publication history read model', async () => {

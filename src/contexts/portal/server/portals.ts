@@ -16,6 +16,7 @@ import {
   changePortalLanguagesInputSchema,
   changePortalSlugInputSchema,
   portalIdInputSchema,
+  publishPortalInputSchema,
   updatePortalSettingsInputSchema,
 } from '../application/dto/portal-intents.dto'
 import { completeContentReviewInputSchema } from '../application/dto/complete-content-review.dto'
@@ -423,7 +424,7 @@ export const changePortalLanguages = createServerFn({ method: 'POST' })
   )
 
 export const publishPortal = createServerFn({ method: 'POST' })
-  .validator(portalIdInputSchema)
+  .validator(publishPortalInputSchema)
   .handler(
     commandHandler(
       { method: 'POST', name: 'portal.publishPortal', errors: portalCommandErrors },

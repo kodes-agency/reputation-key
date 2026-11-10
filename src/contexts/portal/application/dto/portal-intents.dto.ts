@@ -9,6 +9,15 @@ const portalIdField = z.string().min(1, 'Portal ID is required')
 export const portalIdInputSchema = z.object({ portalId: portalIdField }).strict()
 export type PortalIdInput = z.infer<typeof portalIdInputSchema>
 
+/** Going live names the version the manager reviewed; the server refuses a draft that has moved. */
+export const publishPortalInputSchema = z
+  .object({
+    portalId: portalIdField,
+    reviewedDigest: z.string().min(1, 'The reviewed version is required'),
+  })
+  .strict()
+export type PublishPortalInput = z.infer<typeof publishPortalInputSchema>
+
 export const updatePortalSettingsInputSchema = z
   .object({
     portalId: portalIdField,
