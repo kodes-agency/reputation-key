@@ -256,7 +256,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'cancelImportsForOrganization',
       'cancelImportsForUser',
       'finalizePropertyDeletion',
-      'organizationLifecycleContributor',
       'prepareConnectorDeparture',
       'preparePropertyDeletion',
     ])
@@ -326,21 +325,20 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     ).toBeUndefined()
     expect(container.identityLifecycleRuntime.support).toBeUndefined()
 
-    // LIF-01-T11: export contributor coverage is now complete by default,
-    // because reading nothing and writing nothing is not an activation. The
-    // export service is still absent — egress needs storage, the archive
-    // writer, the retrieval-secret binding and generation recovery, none of
-    // which a default container supplies.
+    // The in-app export has no contributors: exports are written by the manual
+    // rights request command, so the runtime reports every context missing and
+    // its service stays absent (egress also needs storage, the archive writer,
+    // the retrieval-secret binding and generation recovery).
     expect(container.identityLifecycleRuntime.organizationExport.readiness).toMatchObject(
       {
         configured: false,
-        contributorsConfigured: true,
+        contributorsConfigured: false,
         storageConfigured: false,
       },
     )
     expect(
       container.identityLifecycleRuntime.organizationExport.readiness.missingContexts,
-    ).toHaveLength(0)
+    ).toHaveLength(13)
     expect(container.identityLifecycleRuntime.organizationExport.service).toBeUndefined()
   })
 

@@ -53,8 +53,8 @@ describe('buildFeedContext', () => {
     )
     expect(context.publicApi.getFeedHead).toBe(context.notification.publicApi.getFeedHead)
 
-    // LIF-01: the Organization export and lifecycle contributors are built by
-    // composition/organization-export-contributors.ts, never by this build.
+    // Export and erasure run through the rights request executors, never from
+    // this build.
     const activity = context.activity
     for (const surface of [activity, context.notification]) {
       expect(surface).not.toHaveProperty('organizationExportContributor')

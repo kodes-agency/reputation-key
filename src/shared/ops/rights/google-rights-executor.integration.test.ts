@@ -355,7 +355,7 @@ async function rowCount(table: string, organizationId: string): Promise<number> 
 /** What scripts/ops/rights-request.ts does after the operator harness. */
 async function runScript(
   argv: string[],
-  options: { production?: boolean; journalStore?: RightsJournalStore } = {},
+  options: { journalStore?: RightsJournalStore } = {},
 ) {
   const parsed = parseOperatorArgs(
     ['--operator', 'op', ...argv],
@@ -370,9 +370,7 @@ async function runScript(
     dryRun: !parsed.args.apply,
     batchSize: parsed.args.batchSize,
   } as unknown as OperatorContext
-  const planned = planRightsRequest(ctx, parsed.args, {
-    production: options.production ?? false,
-  })
+  const planned = planRightsRequest(ctx, parsed.args)
   const out: string[] = []
   const err: string[] = []
   const files = new Map<string, string>()
@@ -524,17 +522,6 @@ describe.sequential('Google rights executor through the rights-request command',
     const refused = await runScript(apply(unknown))
     expect(refused.exit).toBe(1)
     expect(refused.err.join('\n')).toContain('organization not found')
-  })
-
-  it('does not apply in production', async () => {
-    const asked = await seed({ live: false })
-    const before = await snapshot(asked.organizationId)
-
-    const result = await runScript(apply(asked.organizationId), { production: true })
-
-    expect(result.exit).toBe(1)
-    expect(result.err.join('\n')).toContain('apply is disabled in production')
-    expect(await snapshot(asked.organizationId)).toBe(before)
   })
 
   it('refuses --property on an access request and writes nothing', async () => {

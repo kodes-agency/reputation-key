@@ -300,17 +300,11 @@ describe('Portal Organization Export contributor', () => {
     )
     expect(routes).toEqual([])
 
-    // Built once, by the composition-owned contributor set, never by a build.
+    // Built by the rights executor, never by a build.
     const build = readFileSync(
       join(process.cwd(), 'src/contexts/portal/build.ts'),
       'utf8',
     )
     expect(build).not.toContain('createPortalOrganizationExportContributor')
-    expect(
-      readFileSync(
-        join(process.cwd(), 'src/composition/organization-export-contributors.ts'),
-        'utf8',
-      ),
-    ).toContain('createPortalOrganizationExportContributor(db)')
   })
 })

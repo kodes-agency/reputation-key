@@ -15,7 +15,7 @@ import type {
   PropertyEraseContributor,
   PropertyEraseInventoryEntry,
   PropertyEraseScope,
-} from '#/contexts/property/application/ports/property-erase-contributor.port'
+} from '#/shared/ops/rights/property-erasure'
 import {
   guestContactRequestRevealAudits,
   guestContactRequests,

@@ -62,15 +62,12 @@ const CONTENT_FREE_EVIDENCE_REF = /^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$/u
 const LIFECYCLE_AUTHORITY_CHANGED = 'lifecycle contribution authority changed'
 const CONTRIBUTION_KIND_PREFIX = 'organization_lifecycle_contribution'
 const COMMAND_KIND_PREFIX = 'organization_lifecycle_command'
-const PROPERTY_ERASE_KIND_PREFIX = 'property_erase'
 const BACKUP_HOLD_RELEASE_KIND_PREFIX = 'backup_erasure_hold_release'
 
 const contributionKind = (closureLineageId: string, lifecycleRevision: number): string =>
   `${CONTRIBUTION_KIND_PREFIX}:${closureLineageId}:r${lifecycleRevision}`
 const commandKind = (operationId: string): string =>
   `${COMMAND_KIND_PREFIX}:${operationId}`
-const propertyEraseKind = (authorityId: string): string =>
-  `${PROPERTY_ERASE_KIND_PREFIX}:${authorityId}`
 const backupHoldReleaseKind = (ledgerEntryId: string): string =>
   `${BACKUP_HOLD_RELEASE_KIND_PREFIX}:${ledgerEntryId}`
 
@@ -162,7 +159,7 @@ export function lifecycleRequestFingerprint(
   )
 }
 
-export function validateContentFreeEvidenceRef(value: string): string {
+function validateContentFreeEvidenceRef(value: string): string {
   if (value.length > 200) {
     throw new Error('Lifecycle evidence reference must be at most 200 characters')
   }
@@ -443,85 +440,6 @@ export async function appendOrganizationLifecycleCommandEvent(
       lastSupportEvidenceRef: event.status.lastSupportEvidenceRef,
     },
     recordedAt: event.status.lastTransitionAt,
-  })
-}
-
-export type PropertyEraseContextEvent = Readonly<{
-  organizationId: string
-  authorityId: string
-  context: OrganizationLifecycleEventContext
-  phase: 'inventory' | 'purge'
-  outcome: OrganizationLifecycleReceiptOutcome
-  erasedRowCount: number
-  evidenceRef: string
-  recordedAt: Date
-}>
-
-export async function appendPropertyEraseContextEvent(
-  tx: Tx,
-  event: PropertyEraseContextEvent,
-): Promise<void> {
-  await tx
-    .insert(organizationLifecycleEvents)
-    .values({
-      organizationId: event.organizationId,
-      context: event.context,
-      phase: event.phase,
-      kind: propertyEraseKind(event.authorityId),
-      payload: {
-        authorityId: event.authorityId,
-        outcome: event.outcome,
-        erasedRowCount: event.erasedRowCount,
-        evidenceRef: event.evidenceRef,
-      },
-      recordedAt: event.recordedAt,
-    })
-    .onConflictDoNothing({
-      target: [
-        organizationLifecycleEvents.context,
-        organizationLifecycleEvents.phase,
-        organizationLifecycleEvents.kind,
-      ],
-    })
-}
-
-export async function readPropertyEraseContextEvents(
-  tx: Tx,
-  input: Readonly<{ authorityId: string; phase: 'inventory' | 'purge' }>,
-): Promise<readonly PropertyEraseContextEvent[]> {
-  const rows = await tx
-    .select({
-      organizationId: organizationLifecycleEvents.organizationId,
-      context: organizationLifecycleEvents.context,
-      payload: organizationLifecycleEvents.payload,
-      recordedAt: organizationLifecycleEvents.recordedAt,
-    })
-    .from(organizationLifecycleEvents)
-    .where(
-      and(
-        eq(organizationLifecycleEvents.phase, input.phase),
-        eq(organizationLifecycleEvents.kind, propertyEraseKind(input.authorityId)),
-      ),
-    )
-    .orderBy(organizationLifecycleEvents.context)
-
-  return rows.map((row) => {
-    const subject = 'Property erase context event'
-    const payload = objectPayload(row.payload, subject)
-    const outcome = requiredString(payload, 'outcome', subject)
-    if (outcome !== 'complete' && outcome !== 'no_data') {
-      throw new Error(`${subject} payload is invalid`)
-    }
-    return {
-      organizationId: row.organizationId,
-      authorityId: input.authorityId,
-      context: row.context,
-      phase: input.phase,
-      outcome,
-      erasedRowCount: requiredInteger(payload, 'erasedRowCount', subject),
-      evidenceRef: requiredString(payload, 'evidenceRef', subject),
-      recordedAt: row.recordedAt,
-    }
   })
 }
 

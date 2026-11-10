@@ -33,7 +33,7 @@ import type {
   PropertyEraseContributor,
   PropertyEraseInventoryEntry,
   PropertyEraseScope,
-} from '#/contexts/property/application/ports/property-erase-contributor.port'
+} from '#/shared/ops/rights/property-erasure'
 import { merchantAiDecisionDeferrals } from '#/shared/db/schema/merchant-ai-authorization.schema'
 import { propertyAccessGrants } from '#/shared/db/schema/people-access.schema'
 import { propertyAccessGrant } from '#/shared/db/schema/policy.schema'
