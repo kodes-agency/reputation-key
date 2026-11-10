@@ -19,7 +19,10 @@ function tablesOf(module: Record<string, unknown>): PgTable[] {
 }
 
 const V3_TABLES = [
-  ...tablesOf(v3Schema),
+  // The unused population projection remains declared until schema contraction.
+  ...tablesOf(v3Schema).filter(
+    (table) => table !== v3Schema.aiPropertyReviewPopulationDaily,
+  ),
   ...tablesOf(issueSchema),
   ...tablesOf(correctionSchema),
 ]
@@ -56,7 +59,6 @@ describe('Review Analysis v3 retention', () => {
       'ai_property_aggregate_contribution_mentions',
       'ai_property_issue_groups',
       'ai_property_issue_members',
-      'ai_property_review_population_daily',
       'ai_review_analysis_mention_corrections',
       'ai_review_analysis_mention_sentences',
       'ai_review_analysis_mentions',
@@ -80,7 +82,6 @@ describe('Review Analysis v3 retention', () => {
       ai_property_aggregate_contribution_mentions: 'ai_review_analyses',
       ai_property_issue_groups: 'ai_property_issue_groups',
       ai_property_issue_members: 'ai_property_issue_groups',
-      ai_property_review_population_daily: 'ai_property_review_population_daily',
       ai_review_analysis_mention_corrections: 'ai_review_analyses',
       ai_review_analysis_mention_sentences: 'ai_review_analyses',
       ai_review_analysis_mentions: 'ai_review_analyses',
@@ -107,18 +108,6 @@ describe('Review Analysis v3 retention', () => {
       'source_revision',
       'analysis_sequence',
     ])
-  })
-
-  it('keeps the daily star counts 24 calendar months from the day they count, never from an update', () => {
-    const [rule, ...others] = swept('ai_property_review_population_daily')
-
-    expect(others).toEqual([])
-    expect(rule).toMatchObject({
-      subject: 'ai_property_review_population_daily.expired',
-      tsColumn: 'local_date',
-      olderThanMonths: 24,
-    })
-    expect(rule?.tsColumn).not.toBe('updated_at')
   })
 
   it('deletes issue groups only after analyses release their contribution references', () => {

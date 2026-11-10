@@ -36,13 +36,10 @@ const ORGANIZATION_ONLY_TABLES: ReadonlySet<string> = new Set([
 /** Rows that go with their parent by cascade; the report counts them too. */
 const CASCADE_TABLES = Object.freeze([
   'ai_draft_measurement_links',
-  'ai_review_analysis_aspects',
   'ai_review_analysis_mentions',
   'ai_review_analysis_mention_sentences',
   'ai_review_analysis_mention_corrections',
-  'ai_property_aggregate_contribution_aspects',
   'ai_property_aggregate_contribution_mentions',
-  'ai_property_daily_aspect_aggregates',
 ] as const)
 
 /** The tables the AI report counts and erasure changes, per request scope. */

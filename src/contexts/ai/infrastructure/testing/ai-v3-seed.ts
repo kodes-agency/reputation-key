@@ -25,7 +25,6 @@ import {
   aiPropertyAggregateContributions,
   aiPropertyAggregateHeads,
   aiPropertyAggregateSettlements,
-  aiPropertyDailyAggregates,
   aiPropertyIssueGroups,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
@@ -636,14 +635,6 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
             and(
               eq(aiReviewAnalyses.organizationId, ids.organizationId),
               eq(aiReviewAnalyses.propertyId, ids.propertyId),
-            ),
-          )
-        await db
-          .delete(aiPropertyDailyAggregates)
-          .where(
-            and(
-              eq(aiPropertyDailyAggregates.organizationId, ids.organizationId),
-              eq(aiPropertyDailyAggregates.propertyId, ids.propertyId),
             ),
           )
         await db
