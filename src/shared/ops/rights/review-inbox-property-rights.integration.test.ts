@@ -489,10 +489,10 @@ describe.sequential('Review and Inbox rights executors for a Property request', 
         const result = await runScript(report(tenant.organizationId, propertyId))
         expect(result.exit).toBe(0)
         expect(result.out).toContain(
-          'review: reviews=1 replies=1 review_provider_snapshot_runs=0 review_provider_history_cutoffs=0 review_ai_analysis_heads=0 review_google_reputation_snapshot_facts=0 property_reply_voices=1 reply_templates=1 reply_template_visibility=0',
+          'review: reviews=1 replies=1 review_provider_snapshot_runs=0 review_provider_history_cutoffs=0 review_ai_analysis_heads=0 review_google_reputation_snapshot_facts=0 property_reply_voices=1 reply_templates=1 reply_template_visibility=0 reply_template_revisions=1 reply_template_wordings=1 reply_publication_attempts=0 material_review_revisions=0 review_source_contents=0 review_source_observations=0 review_first_sightings=0 review_provider_subjects=0 review_ai_analysis_released_sequences=0 google_reply_observations=0 google_reply_observation_heads=0 review_provider_snapshot_members=0 review_provider_deletion_candidates=0 review_sync_runs=0 review_sync_state=1 idempotency_receipts=0',
         )
         expect(result.out).toContain(
-          'inbox: inbox_items=1 inbox_handling_cycles=0 inbox_notes=1 inbox_private_feedback_target_property_overrides=1',
+          'inbox: inbox_items=1 inbox_handling_cycles=0 inbox_notes=1 inbox_private_feedback_target_property_overrides=1 inbox_assignment_history=0 inbox_escalation_history=0 inbox_priority_history=0 inbox_handling_cycle_heads=0 inbox_handling_cycle_transitions=0 inbox_handling_cycle_response_targets=0 inbox_response_target_reminders=0 inbox_response_target_exclusions=0 inbox_feedback_handling_outcomes=0',
         )
       }
     }

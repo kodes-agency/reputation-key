@@ -4,6 +4,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '#/shared/db'
+import { NOTIFICATION_RIGHTS_TABLES } from '#/contexts/feed/application/public-api'
 import {
   createAiErasureReplayers,
   createAiRightsExecutor,
@@ -78,6 +79,7 @@ export function composeRightsExecutors(
   const now = deps.now ?? (() => new Date())
   const notification = createNotificationRightsExecutor({
     finalWarning,
+    tables: NOTIFICATION_RIGHTS_TABLES,
     run: deps.runNotification,
   })
   if (finalWarning) return [notification]

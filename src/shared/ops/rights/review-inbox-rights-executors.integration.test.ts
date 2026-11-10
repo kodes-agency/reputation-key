@@ -661,23 +661,21 @@ describe.sequential(
       it('reports the counts of both Properties and of the other Organization', async () => {
         const { closing, kept } = await seedPair()
 
-        const closingLines = (await reportLines(closing.organizationId)).join('\n')
-        const keptLines = (await reportLines(kept.organizationId)).join('\n')
+        const closingLines = await reportLines(closing.organizationId)
+        const keptLines = await reportLines(kept.organizationId)
 
-        expect(closingLines).toContain('review: reviews=4 replies=4 ')
         expect(closingLines).toContain(
-          'organization_reply_voices=1 property_reply_voices=1 reply_templates=1',
+          'review: reviews=4 replies=4 review_provider_snapshot_runs=0 review_provider_history_cutoffs=0 review_ai_analysis_heads=0 review_google_reputation_snapshot_facts=0 organization_reply_voices=1 property_reply_voices=1 reply_templates=1 reply_template_visibility=0 reply_template_revisions=1 reply_template_wordings=1 reply_publication_attempts=0 material_review_revisions=0 review_source_contents=0 review_source_observations=0 review_first_sightings=0 review_provider_subjects=0 review_ai_analysis_released_sequences=0 google_reply_observations=0 google_reply_observation_heads=0 review_provider_snapshot_members=0 review_provider_deletion_candidates=0 review_sync_runs=0 review_sync_state=0 idempotency_receipts=0',
         )
         expect(closingLines).toContain('review: closure blockers: none')
         expect(closingLines).toContain(
-          'inbox: inbox_items=2 inbox_handling_cycles=0 inbox_notes=2 inbox_response_target_organization_policies=1',
-        )
-        expect(keptLines).toContain('review: reviews=3 replies=3 ')
-        expect(keptLines).toContain(
-          'organization_reply_voices=1 property_reply_voices=0 reply_templates=1',
+          'inbox: inbox_items=2 inbox_handling_cycles=0 inbox_notes=2 inbox_response_target_organization_policies=1 inbox_private_feedback_target_property_overrides=0 inbox_user_views=0 inbox_assignment_history=0 inbox_escalation_history=0 inbox_priority_history=0 inbox_handling_cycle_heads=0 inbox_handling_cycle_transitions=0 inbox_handling_cycle_response_targets=0 inbox_response_target_reminders=0 inbox_response_target_exclusions=0 inbox_feedback_handling_outcomes=0',
         )
         expect(keptLines).toContain(
-          'inbox: inbox_items=1 inbox_handling_cycles=0 inbox_notes=1',
+          'review: reviews=3 replies=3 review_provider_snapshot_runs=0 review_provider_history_cutoffs=0 review_ai_analysis_heads=0 review_google_reputation_snapshot_facts=0 organization_reply_voices=1 property_reply_voices=0 reply_templates=1 reply_template_visibility=0 reply_template_revisions=1 reply_template_wordings=1 reply_publication_attempts=0 material_review_revisions=0 review_source_contents=0 review_source_observations=0 review_first_sightings=0 review_provider_subjects=0 review_ai_analysis_released_sequences=0 google_reply_observations=0 google_reply_observation_heads=0 review_provider_snapshot_members=0 review_provider_deletion_candidates=0 review_sync_runs=0 review_sync_state=0 idempotency_receipts=0',
+        )
+        expect(keptLines).toContain(
+          'inbox: inbox_items=1 inbox_handling_cycles=0 inbox_notes=1 inbox_response_target_organization_policies=1 inbox_private_feedback_target_property_overrides=0 inbox_user_views=0 inbox_assignment_history=0 inbox_escalation_history=0 inbox_priority_history=0 inbox_handling_cycle_heads=0 inbox_handling_cycle_transitions=0 inbox_handling_cycle_response_targets=0 inbox_response_target_reminders=0 inbox_response_target_exclusions=0 inbox_feedback_handling_outcomes=0',
         )
       })
 
