@@ -90,16 +90,26 @@ describe('Are guests using it?', () => {
       'All time shows the total. Choose a range to see days and weeks.',
     ]))
 })
-it('names retained history accurately after October 2028', () => {
+it('names retained history accurately when retention is active', () => {
   expect(
     read({
       localDays: null,
+      retentionActive: true,
       period: {
         ...data.period,
         endAt: new Date('2028-10-01T00:00:00.000Z'),
       },
     }).using.lines,
   ).toEqual(['Last 24 months shows the total. Choose a range to see days and weeks.'])
+})
+it('keeps All time after October 2028 while retention is inactive', () => {
+  expect(
+    read({
+      localDays: null,
+      retentionActive: false,
+      period: { ...data.period, endAt: new Date('2029-02-01T00:00:00Z') },
+    }).using.lines,
+  ).toEqual(['All time shows the total. Choose a range to see days and weeks.'])
 })
 describe('Are they happy?', () => {
   it.each([

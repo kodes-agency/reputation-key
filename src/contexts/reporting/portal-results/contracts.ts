@@ -137,6 +137,8 @@ export type PortalResultsThresholds = Readonly<{
 }>
 
 export type PortalAnalyticsData = Readonly<{
+  /** Whether scheduled retention limits the readings to their retained window. */
+  retentionActive?: boolean
   period: Readonly<{ startAt: Date; endAt: Date; timezone: string }>
   /** The equal-length window before, when compared; null for All Time or "off". */
   comparePeriod: Readonly<{ startAt: Date; endAt: Date }> | null

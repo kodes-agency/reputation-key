@@ -91,7 +91,7 @@ function using(data: PortalAnalyticsData, place?: PortalResultsPlace): Card {
     `${scans.value >= 10 ? 'Yes, ' : ''}${guests(scans.value)} ${action}`,
     data.localDays === null
       ? [
-          `${allTimeLabel(data.period.endAt)} shows the total. Choose a range to see days and weeks.`,
+          `${allTimeLabel(data.retentionActive)} shows the total. Choose a range to see days and weeks.`,
         ]
       : [],
     change(scans, data),
