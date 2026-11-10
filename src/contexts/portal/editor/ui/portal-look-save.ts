@@ -9,11 +9,8 @@ import type {
   PortalLookPhotoInput,
 } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalDraftSaveOutcome } from './portal-draft-autosave'
-import {
-  sameFocal,
-  type FocalPoint,
-} from '#/components/features/portal/property-look/focal-point'
-import type { ColoursDraft } from '#/components/features/portal/property-look/property-look-colours-section'
+import { sameFocal, type FocalPoint } from '#/contexts/portal/look/ui/focal-point'
+import type { ColoursDraft } from '#/contexts/portal/look/ui/property-look-colours-section'
 import {
   coloursAreUnchanged,
   coloursInputOf,
@@ -21,8 +18,8 @@ import {
   focalInputOf,
   wordmarkInputOf,
   wordmarkProblemOf,
-} from '#/components/features/portal/portal-look/portal-look-rules'
-import type { PortalLookTarget } from '#/components/features/portal/portal-look/portal-look-types'
+} from '#/contexts/portal/look/ui/portal-look-rules'
+import type { PortalLookTarget } from '#/contexts/portal/look/ui/portal-look-types'
 
 /** One autosaved write: the draft against what the server holds, and what it holds afterwards. */
 export type PortalLookSave<T> = (

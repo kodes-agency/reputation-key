@@ -9,15 +9,15 @@ import { lazy, Suspense } from 'react'
 import { Skeleton } from '#/components/ui/skeleton'
 import { PROPERTY_LOOK_SOURCES } from '#/contexts/portal/application/portal-management-contracts'
 import { usePortalEditAccess } from '#/components/features/portal/portal-detail/use-portal-edit-access'
-import { PortalLookFacts } from '#/components/features/portal/portal-look/portal-look-facts'
-import { PropertyLookLink } from '#/components/features/portal/portal-look/portal-look-property-link'
+import { PortalLookFacts } from '#/contexts/portal/look/ui/portal-look-facts'
+import { PropertyLookLink } from '#/contexts/portal/look/ui/portal-look-property-link'
 import {
   lookFactsNoteOf,
   lookIntroOf,
   portalLookSurfaceOf,
   SUMMARY_DESCRIPTION,
-} from '#/components/features/portal/portal-look/portal-look-surface'
-import { PortalLookSummary } from '#/components/features/portal/portal-look/portal-look-summary'
+} from '#/contexts/portal/look/ui/portal-look-surface'
+import { PortalLookSummary } from '#/contexts/portal/look/ui/portal-look-summary'
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
 import type { PortalEditorSectionProps } from '../portal-editor-types'
 
@@ -25,11 +25,9 @@ import type { PortalEditorSectionProps } from '../portal-editor-types'
 // on a property with a second portal ever sees it, and it carries the colour
 // controls, the focus picker and the autosave of three groups.
 const PortalLookEditor = lazy(() =>
-  import('#/components/features/portal/portal-look/portal-look-editor').then(
-    (module) => ({
-      default: module.PortalLookEditor,
-    }),
-  ),
+  import('#/contexts/portal/look/ui/portal-look-editor').then((module) => ({
+    default: module.PortalLookEditor,
+  })),
 )
 
 export function LookSection({ resources, canEdit }: PortalEditorSectionProps) {

@@ -23,7 +23,7 @@ import {
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import { openPageErrorMessage } from '#/components/features/portal/portal-workspace/portal-open-page'
-import type { PortalLookActions } from '#/components/features/portal/portal-look/portal-look-types'
+import type { PortalLookActions } from '#/contexts/portal/look/ui/portal-look-types'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type {
   ChangePortalLanguagesVariables,
