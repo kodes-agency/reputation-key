@@ -94,7 +94,7 @@ const RED_PARAGRAPH_ALLOWED: Readonly<Record<string, string>> = {
     'the copy fallback: it sits beside the note the person can select instead',
   'src/components/features/portal/portal-new/portal-new-start-from-field.tsx':
     'a field-level error, not an action failure',
-  'src/components/features/portal/property-look/property-look-batch-dialog.tsx':
+  'src/contexts/portal/look/ui/property-look-batch-dialog.tsx':
     'the stop reason of a batch publish, part of its result readout',
   'src/contexts/reputation/inbox/ui/inbox-detail-regions.tsx':
     'a region that failed to load (region states own it)',

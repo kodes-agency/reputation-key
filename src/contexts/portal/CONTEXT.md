@@ -15,8 +15,9 @@ assignment, and governed access artifacts.
   and facts. `application/portal-management-contracts.ts` contains the browser-safe
   management types and pure rules used by screens.
 - RPC calls stay in `server/`. The editor and Linktree screens, save coordinator
-  and field writers live in `editor/ui/`; the other management screens remain in
-  `src/components/features/portal/`. Neither imports the context build at runtime.
+  and field writers live in `editor/ui/`; the Property and Portal look screens
+  live in `look/ui/`. Other management screens remain in
+  `src/components/features/portal/`. None imports the context build at runtime.
 - `build.ts` composes request management separately from worker jobs. Portal and
   Guest retain separate builds.
 - `infrastructure/adapters/portal-rights.adapter.ts` supplies Property and

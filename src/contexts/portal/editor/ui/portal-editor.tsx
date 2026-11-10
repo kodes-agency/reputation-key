@@ -12,11 +12,11 @@ import { usePortalEditAccess } from '#/components/features/portal/portal-detail/
 import {
   PortalLookPreviewProvider,
   type SetBrandPatch,
-} from '#/components/features/portal/portal-look/portal-look-preview-context'
+} from '#/contexts/portal/look/ui/portal-look-preview-context'
 import {
   withBrandPatch,
   type BrandPatches,
-} from '#/components/features/portal/portal-look/portal-look-preview-patch'
+} from '#/contexts/portal/look/ui/portal-look-preview-patch'
 import { PortalPreviewPane } from '#/components/features/portal/portal-preview/portal-preview-pane'
 import type { PreviewPartSection } from '#/components/features/portal/portal-preview/preview-parts'
 import { PortalEditorNav } from './portal-editor-nav'

@@ -8,7 +8,7 @@ import {
   GUEST_LOCALE_METADATA,
   type OfferedGuestLocale,
 } from '#/shared/domain/guest-locale'
-import { ownPartsOf, sourcesOf } from '../property-look/property-look-reach'
+import { ownPartsOf, sourcesOf } from '#/contexts/portal/look/ui/property-look-reach'
 import { sourceLocalesOf, type PortalNewOptions } from './portal-new-rules'
 import type { PortalNewSource } from './portal-new-types'
 
