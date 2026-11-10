@@ -712,30 +712,6 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { timeoutMs: 300_000 },
   ),
   job(
-    'generate-organization-export',
-    'src/contexts/identity/infrastructure/jobs/generate-organization-export.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:identity.organization_export',
-      schedule: 'every:60000',
-      registration: 'quarantined',
-    },
-    { timeoutMs: 300_000 },
-  ),
-  job(
-    'purge-expired-organization-exports',
-    'src/contexts/identity/infrastructure/jobs/purge-expired-organization-exports.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:identity.organization_export',
-      schedule: 'every:3600000',
-      registration: 'quarantined',
-    },
-    { timeoutMs: 300_000 },
-  ),
-  job(
     'recover-invited-registrations',
     'src/contexts/identity/infrastructure/jobs/recover-invited-registrations.job.ts',
     {

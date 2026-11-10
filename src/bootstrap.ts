@@ -43,14 +43,6 @@ import {
   JOB_NAME as ADVANCE_ORGANIZATION_LIFECYCLE_JOB,
 } from '#/contexts/identity/infrastructure/jobs/advance-organization-lifecycle.job'
 import {
-  createGenerateOrganizationExportHandler,
-  JOB_NAME as GENERATE_ORGANIZATION_EXPORT_JOB,
-} from '#/contexts/identity/infrastructure/jobs/generate-organization-export.job'
-import {
-  createPurgeExpiredOrganizationExportsHandler,
-  JOB_NAME as PURGE_EXPIRED_ORGANIZATION_EXPORTS_JOB,
-} from '#/contexts/identity/infrastructure/jobs/purge-expired-organization-exports.job'
-import {
   createAiOperationExecutionReaperHandler,
   JOB_NAME as AI_EXECUTION_REAPER_JOB_NAME,
 } from '#/shared/jobs/ai-operation-execution-reaper.job'
@@ -279,37 +271,11 @@ export async function bootstrap(
       logger: container.logger,
     }),
   )
-  const organizationExportService =
-    container.identityLifecycleRuntime.organizationExport.service
-  container.jobRegistry.register(
-    GENERATE_ORGANIZATION_EXPORT_JOB,
-    createGenerateOrganizationExportHandler({
-      ...(organizationExportService
-        ? { generateNext: () => organizationExportService.generateNext() }
-        : {}),
-      logger: container.logger,
-    }),
-  )
-  container.jobRegistry.register(
-    PURGE_EXPIRED_ORGANIZATION_EXPORTS_JOB,
-    createPurgeExpiredOrganizationExportsHandler({
-      ...(organizationExportService
-        ? { purgeNextExpired: () => organizationExportService.purgeNextExpired() }
-        : {}),
-      logger: container.logger,
-    }),
-  )
   logger.info(
     {
-      jobs: [
-        ADVANCE_ORGANIZATION_LIFECYCLE_JOB,
-        GENERATE_ORGANIZATION_EXPORT_JOB,
-        PURGE_EXPIRED_ORGANIZATION_EXPORTS_JOB,
-      ],
+      jobs: [ADVANCE_ORGANIZATION_LIFECYCLE_JOB],
       lifecycleConfigured:
         container.identityLifecycleRuntime.maintenance.readiness.configured,
-      exportConfigured:
-        container.identityLifecycleRuntime.organizationExport.readiness.configured,
     },
     'registered quarantined Organization lifecycle safety handlers',
   )

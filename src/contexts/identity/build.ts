@@ -10,7 +10,7 @@ import { createStaffSelfReader } from './infrastructure/adapters/staff-self.read
 //     persisted policy state (workers await it before starting; side-effect
 //     paths use it for fresh reads, BQC-2.5).
 //   - internal.policyAdmin — BQC-2.7 least-privilege policy administration ops.
-//   - internal.organizationLifecycleRuntime — named lifecycle/export control,
+//   - internal.organizationLifecycleRuntime — named lifecycle control,
 //     content-free diagnostics, and contributor-gated maintenance services.
 
 import { createProductUpdates } from './application/use-cases/product-updates'
@@ -83,19 +83,11 @@ import {
   type CancelPendingOrganizationPurgeInput,
   type WaiveOrganizationRecoveryInput,
 } from './application/use-cases/advance-organization-lifecycle'
-import { createOrganizationExportService } from './application/use-cases/organization-export'
 import type { OrganizationLifecycleContributor } from './application/ports/organization-lifecycle-contributor.port'
-import type {
-  OrganizationExportArchiveWriter,
-  OrganizationExportStorage,
-} from './application/ports/organization-export.port'
-import type { OrganizationExportContributor } from './application/ports/organization-export-contributor.port'
 import {
   ORGANIZATION_LIFECYCLE_CONTEXTS,
   type OrganizationLifecycleContext,
 } from './domain/organization-lifecycle'
-import { createOrganizationExportRepository } from './infrastructure/organization-export.repository'
-import { createIdentityOrganizationExportContributor } from './infrastructure/identity-organization-export-contributor'
 import { createManagerMembershipRepository } from './infrastructure/repositories/manager-membership.repository'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import {
@@ -134,23 +126,11 @@ export type OrganizationReactivationProbeBindings = OrganizationReactivationRead
 /**
  * Reviewed cross-context bindings for the Organization lifecycle control
  * plane. Partial contributor sets are accepted only as an explicit
- * composition-readiness state; they can never execute a lifecycle phase or
- * generate an export.
+ * composition-readiness state; they can never execute a lifecycle phase.
  */
 export type IdentityOrganizationLifecycleComposition = Readonly<{
   lifecycleContributors?: readonly OrganizationLifecycleContributor[]
   supportAuthorization?: import('./application/ports/organization-lifecycle-contributor.port').OrganizationLifecycleSupportAuthorization
-  /**
-   * Cross-context export contributors; Identity supplies its own reviewed
-   * owner and rejects a supplied `identity` entry.
-   *
-   * LIF-01-T11: this is deliberately a sibling of `organizationExport` rather
-   * than a field inside it. A contributor set reads nothing and writes nothing
-   * on its own, so composing all sixteen is not an activation — it only lets
-   * readiness report the truth about coverage. Egress still requires the
-   * `organizationExport` bundle below, which stays all-or-nothing.
-   */
-  exportContributors?: readonly OrganizationExportContributor[]
   /**
    * LIF-01-T18: the three cross-context readiness probes reactivation needs.
    *
@@ -160,14 +140,6 @@ export type IdentityOrganizationLifecycleComposition = Readonly<{
    * command still refuses while any check or deliberate action is missing.
    */
   reactivationProbes?: OrganizationReactivationProbeBindings
-  organizationExport?: Readonly<{
-    archiveWriter: OrganizationExportArchiveWriter
-    storage: OrganizationExportStorage
-    deriveRetrievalSecret: (input: {
-      requestId: string
-      operationId: string
-    }) => Uint8Array
-  }>
 }>
 
 type AuthSession = Readonly<{
@@ -250,11 +222,10 @@ type ContributorReadiness = Readonly<{
 
 function contributorReadiness(
   contributors: readonly Readonly<{ context: OrganizationLifecycleContext }>[] = [],
-  surface = 'Organization lifecycle',
 ): ContributorReadiness {
   const contexts = contributors.map(({ context }) => context)
   if (new Set(contexts).size !== contexts.length) {
-    throw new Error(`${surface} composition has duplicate context owners`)
+    throw new Error(`Organization lifecycle composition has duplicate context owners`)
   }
   const missingContexts = ORGANIZATION_LIFECYCLE_CONTEXTS.filter(
     (context) => !contexts.includes(context),
@@ -268,7 +239,7 @@ function contributorReadiness(
 }
 
 /**
- * Which lifecycle and export capabilities the supplied composition can actually
+ * Which lifecycle capabilities the supplied composition can actually
  * execute. A partially bound set stays non-executable rather than exposing a
  * half-wired maintenance surface.
  */
@@ -276,66 +247,28 @@ function deriveLifecycleCompositionReadiness(deps: IdentityContextDeps) {
   const lifecycleContributorReadiness = contributorReadiness(
     deps.organizationLifecycle?.lifecycleContributors,
   )
-  const suppliedExportContributors = deps.organizationLifecycle?.exportContributors ?? []
-  if (suppliedExportContributors.some(({ context }) => context === 'identity')) {
-    throw new Error(
-      'Organization Export composition must not override the Identity-owned contributor',
-    )
-  }
-  const exportContributors = Object.freeze([
-    createIdentityOrganizationExportContributor(deps.db),
-    ...suppliedExportContributors,
-  ])
-  const exportContributorReadiness = contributorReadiness(
-    exportContributors,
-    'Organization Export',
-  )
   const supportAuthorizationConfigured =
     deps.organizationLifecycle?.supportAuthorization !== undefined
-  const exportStorageConfigured =
-    deps.organizationLifecycle?.organizationExport !== undefined
-  // A reclaimed lease must recover an object written before an ambiguous
-  // post-upload crash without rebuilding a historical snapshot. Migration 0170
-  // added the durable pre-egress evidence that makes that possible: the row
-  // records its coverage/manifest/archive digests and object key BEFORE the
-  // upload, so a reclaimed lease can ask storage whether those exact bytes
-  // landed and then complete with the original digests or fail closed.
-  //
-  // The fence is therefore derived from the supplied storage rather than
-  // hard-coded: a storage adapter that cannot answer verifyStored still cannot
-  // recover, and production composition still refuses.
-  const exportGenerationRecoveryConfigured =
-    typeof deps.organizationLifecycle?.organizationExport?.storage.verifyStored ===
-    'function'
   return {
     lifecycleContributorReadiness,
-    exportContributors,
-    exportContributorReadiness,
     supportAuthorizationConfigured,
     lifecycleCompositionConfigured:
       lifecycleContributorReadiness.contributorsConfigured &&
       supportAuthorizationConfigured,
-    exportStorageConfigured,
-    exportGenerationRecoveryConfigured,
-    exportCompositionConfigured:
-      exportContributorReadiness.contributorsConfigured &&
-      exportStorageConfigured &&
-      exportGenerationRecoveryConfigured,
   }
 }
 
 /**
- * Compose the organization lifecycle and export control plane from the bound
+ * Compose the organization lifecycle control plane from the bound
  * readiness: only fully bound services become executable.
  */
 function buildOrganizationLifecycleComposition(
   deps: IdentityContextDeps,
   bindings: Readonly<{
     policyStore: ReturnType<typeof buildCapabilityPolicyHandle>
-    managerMembershipRepo: ReturnType<typeof createManagerMembershipRepository>
   }>,
 ) {
-  const { policyStore, managerMembershipRepo } = bindings
+  const { policyStore } = bindings
   const organizationLifecycleStore = createOrganizationLifecycleCommandStore(deps.db)
   const organizationLifecycle = createOrganizationLifecycle({
     store: organizationLifecycleStore,
@@ -347,13 +280,8 @@ function buildOrganizationLifecycleComposition(
   })
   const {
     lifecycleContributorReadiness,
-    exportContributors,
-    exportContributorReadiness,
     supportAuthorizationConfigured,
     lifecycleCompositionConfigured,
-    exportStorageConfigured,
-    exportGenerationRecoveryConfigured,
-    exportCompositionConfigured,
   } = deriveLifecycleCompositionReadiness(deps)
   const organizationLifecycleCoordinator =
     lifecycleCompositionConfigured &&
@@ -363,25 +291,6 @@ function buildOrganizationLifecycleComposition(
           store: organizationLifecycleStore,
           contributors: deps.organizationLifecycle.lifecycleContributors,
           supportAuthorization: deps.organizationLifecycle.supportAuthorization,
-          clock: deps.clock,
-        })
-      : null
-  const organizationExport =
-    exportCompositionConfigured && deps.organizationLifecycle?.organizationExport
-      ? createOrganizationExportService({
-          repository: createOrganizationExportRepository(deps.db),
-          contributors: exportContributors,
-          archiveWriter: deps.organizationLifecycle.organizationExport.archiveWriter,
-          storage: deps.organizationLifecycle.organizationExport.storage,
-          authority: {
-            isCurrentAccountAdmin: ({ organizationId: orgId, actorUserId }) =>
-              managerMembershipRepo.isCurrentAccountAdmin({
-                organizationId: orgId,
-                userId: actorUserId,
-              }),
-          },
-          deriveRetrievalSecret:
-            deps.organizationLifecycle.organizationExport.deriveRetrievalSecret,
           clock: deps.clock,
         })
       : null
@@ -433,15 +342,6 @@ function buildOrganizationLifecycleComposition(
             organizationLifecycleCoordinator.beginIrreversiblePurge(input),
         })
       : undefined,
-    organizationExport: Object.freeze({
-      readiness: Object.freeze({
-        configured: exportCompositionConfigured,
-        ...exportContributorReadiness,
-        storageConfigured: exportStorageConfigured,
-        generationRecoveryConfigured: exportGenerationRecoveryConfigured,
-      }),
-      service: organizationExport ?? undefined,
-    }),
   })
   return { organizationLifecycle, runtime: organizationLifecycleRuntime }
 }
@@ -613,10 +513,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     logger: deps.logger,
   })
   const { organizationLifecycle, runtime: organizationLifecycleRuntime } =
-    buildOrganizationLifecycleComposition(deps, {
-      policyStore,
-      managerMembershipRepo,
-    })
+    buildOrganizationLifecycleComposition(deps, { policyStore })
   const merchantAiUpdates = buildMerchantAiUpdates(deps)
   const merchantAiDecisionDeferrals = createMerchantAiDecisionDeferralStore(deps.db)
   const authorizeMerchantAiManagement = async (
