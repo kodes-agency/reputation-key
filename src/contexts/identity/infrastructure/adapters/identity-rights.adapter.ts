@@ -16,7 +16,7 @@ import {
   assertStaffOutboxSettled,
   deleteStaffTenantRows,
   STAFF_LIFECYCLE_TABLES,
-} from './staff-organization-lifecycle.adapter'
+} from './staff-organization-erasure'
 
 const grants = createIdentityPropertyEraseContributor()
 

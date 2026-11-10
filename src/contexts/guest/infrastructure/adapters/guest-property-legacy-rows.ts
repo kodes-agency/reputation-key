@@ -5,7 +5,7 @@
 // rows are deleted, never the tables.
 
 import { and, eq, sql } from 'drizzle-orm'
-import type { PropertyEraseScope } from '#/contexts/property/application/ports/property-erase-contributor.port'
+import type { PropertyEraseScope } from '#/shared/ops/rights/property-erasure'
 import { feedback, ratings, scanEvents } from '#/shared/db/schema/guest.schema'
 import type { Tx } from '#/shared/outbox/commit'
 

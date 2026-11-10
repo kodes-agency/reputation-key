@@ -13,7 +13,7 @@ import {
 import {
   drizzleGuestLifecycleWorkbench,
   type GuestLifecycleWorkbench,
-} from './guest-organization-lifecycle.adapter'
+} from './guest-organization-erasure'
 
 /**
  * Re-erase one Organization's Guest rows in a restored cell.

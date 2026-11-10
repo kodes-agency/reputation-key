@@ -1,25 +1,8 @@
-// LIF-01 bullets 4 and 5 — the Guest context's Organization lifecycle
-// contribution (LIF-01-T12/T13/T14).
-//
-// This is a cross-context adapter implementation, so it may import the
-// contributor port it implements and nothing else from Identity (see
-// src/contexts/CONTEXT.md "Dependency rules" and the port header). Authority
-// binding, the advisory lock, the request fingerprint and the append-only
-// receipt all live in the shared store.
-//
-// Guest holds the most sensitive rows in the product, so the reading order for
-// a reviewer is: why Closing mutates nothing, then why readiness blocks on
-// undelivered corrections, then GUEST_PURGE_PLAN and what it deliberately
-// keeps.
+// Guest's Organization erasure: the purge plan, the count of facts still
+// undelivered to their aggregates, and the scrub. The rights executor runs it
+// behind its journal entry.
 
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
-import {
-  createOrganizationLifecycleContributorScaffold,
-  validateContentFreeEvidenceRef,
-  type OrganizationLifecycleContributionRequest,
-  type OrganizationLifecyclePhaseOutcome,
-} from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
 import {
   feedback,
   guestContactRequestRevealAudits,
@@ -206,110 +189,5 @@ export const drizzleGuestLifecycleWorkbench: GuestLifecycleWorkbench = Object.fr
   },
 })
 
-function evidenceRef(
-  phase: 'closing' | 'purge_readiness' | 'purge',
-  outcome: 'complete' | 'no_data',
-  request: OrganizationLifecycleContributionRequest,
-): string {
-  // Identifiers, enums and a revision only. No rating, feedback text, contact
-  // value, session pseudonym or count reaches the receipt.
-  return validateContentFreeEvidenceRef(
-    `guest:${phase}:${outcome}:${request.closureLineageId}:r${request.lifecycleRevision}`,
-  )
-}
-
 export const GUEST_PURGE_READINESS_BLOCKED =
   'guest purge readiness blocked: Guest facts are not yet delivered to their aggregates'
-
-export const createGuestOrganizationLifecycleContributor = (
-  db: Database,
-  workbench: GuestLifecycleWorkbench = drizzleGuestLifecycleWorkbench,
-) => {
-  /**
-   * Closing — STOP EFFECTS, KEEP DATA. Guest mutates nothing here.
-   *
-   * That is a decision, not an omission. Guest has no admission of its own:
-   * EVERY public Guest write — scan, rating, correction, private feedback,
-   * withdrawal, destination action — re-resolves the Portal by its address
-   * token on each request, and that resolution requires both a live Portal
-   * publication activation and `isPropertyActive`. Portal withdraws the
-   * activation and Property suspends the Property in this same phase, so the
-   * Guest write path is already closed by the time this receipt is written.
-   *
-   * The only alternative would be to edit or expire Guest rows, and Closing is
-   * a RECOVERABLE window: every row here is guest content, retained history or
-   * a live retention window. Deleting or truncating any of it would make a
-   * cancelled closure unrecoverable and would move erasure in front of the
-   * irreversible boundary. Guest therefore answers affirmatively and keeps its
-   * data intact.
-   */
-  const prepareClosing = async (
-    tx: Tx,
-    request: OrganizationLifecycleContributionRequest,
-  ): Promise<OrganizationLifecyclePhaseOutcome> => {
-    const owned = await workbench.countTenantRows(tx, request.organizationId)
-    const outcome = owned === 0 ? 'no_data' : 'complete'
-    return { outcome, evidenceRef: evidenceRef('closing', outcome, request) }
-  }
-
-  /**
-   * Purge readiness — READ ONLY, and the ordering gate the lifetime aggregate
-   * depends on.
-   *
-   * A Guest correction, withdrawal or scan retraction becomes a correction to
-   * the anonymous `portal_metric_lifetime_aggregates` row only once its outbox
-   * fact has been published. Scrubbing the source facts while one is still
-   * unpublished would strand the correction forever: the aggregate keeps the
-   * uncorrected count and the fact that would have fixed it no longer exists.
-   * So corrections are applied to the aggregate BEFORE the source facts are
-   * scrubbed, and this is where that ordering is enforced.
-   *
-   * Failing is the only way this contract can say "blocked". It leaves the
-   * Organization in `closing` and the next pass retries.
-   */
-  const verifyPurgeReadiness = async (
-    tx: Tx,
-    request: OrganizationLifecycleContributionRequest,
-  ): Promise<OrganizationLifecyclePhaseOutcome> => {
-    const undelivered = await workbench.countUndeliveredGuestFacts(
-      tx,
-      request.organizationId,
-    )
-    if (undelivered > 0) throw new Error(GUEST_PURGE_READINESS_BLOCKED)
-    const owned = await workbench.countTenantRows(tx, request.organizationId)
-    const outcome = owned === 0 ? 'no_data' : 'complete'
-    return { outcome, evidenceRef: evidenceRef('purge_readiness', outcome, request) }
-  }
-
-  /**
-   * Purge — IRREVERSIBLE, reached only after readiness passed.
-   *
-   * Every guest-authored value goes: private feedback bodies, legacy feedback
-   * comments, ratings, permitted contact ciphertext, media object keys,
-   * session pseudonyms and network pseudonyms. What stays is the anonymous
-   * lifetime aggregate (Metric's row), the global retention cursor, and this
-   * context's own content-free receipt.
-   *
-   * Idempotent: presence is read first, so a replay over an already-scrubbed
-   * Organization deletes nothing and still answers.
-   */
-  const purge = async (
-    tx: Tx,
-    request: OrganizationLifecycleContributionRequest,
-  ): Promise<OrganizationLifecyclePhaseOutcome> => {
-    const owned = await workbench.countTenantRows(tx, request.organizationId)
-    if (owned === 0) {
-      return { outcome: 'no_data', evidenceRef: evidenceRef('purge', 'no_data', request) }
-    }
-    await workbench.scrubTenantRows(tx, request.organizationId)
-    return { outcome: 'complete', evidenceRef: evidenceRef('purge', 'complete', request) }
-  }
-
-  return createOrganizationLifecycleContributorScaffold({
-    db,
-    context: 'guest',
-    prepareClosing,
-    verifyPurgeReadiness,
-    purge,
-  })
-}

@@ -360,7 +360,7 @@ function planFor(argv: string[]) {
     dryRun: !parsed.args.apply,
     batchSize: parsed.args.batchSize,
   } as unknown as OperatorContext
-  return planRightsRequest(ctx, parsed.args, { production: false })
+  return planRightsRequest(ctx, parsed.args)
 }
 
 const quietStore: RightsJournalStore = { put: async () => {}, alert: () => {} }

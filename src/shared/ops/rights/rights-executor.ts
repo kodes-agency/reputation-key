@@ -6,6 +6,7 @@
 
 import type { BackupErasureLedgerContext } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type { OperatorIO } from '../operator-command'
+import { rightsAuditEvent, type RightsAudit } from './rights-audit'
 import type { RightsJournal } from './rights-journal'
 import type { RightsRequestPlan, RightsRequestScope } from './rights-request-command'
 
@@ -55,6 +56,8 @@ export type RunRightsExecutorsInput = Readonly<{
   /** Why the request's Organization or Property does not exist, or null. */
   subjectRefusal?: (plan: RightsRequestPlan) => Promise<string | null>
   writeExportFile: (path: string, bytes: Uint8Array) => Promise<void>
+  /** Records each apply run, whatever its outcome. */
+  audit?: RightsAudit
 }>
 
 /** Whether any executor covers the plan's scope. */
@@ -141,14 +144,13 @@ async function applyAll(
     return 1
   }
   const applied: string[] = []
+  let failure: string | null = null
   for (const executor of covering) {
     const outcome = await applyJournaled(input, executor)
     if (!outcome.ok) {
       const done = applied.length > 0 ? applied.join(', ') : 'none'
-      io.err(
-        `rights-request: ${executor.name}: ${outcome.error}; executors applied before it: ${done}`,
-      )
-      return 1
+      failure = `rights-request: ${executor.name}: ${outcome.error}; executors applied before it: ${done}`
+      break
     }
     applied.push(executor.name)
     for (const line of outcome.lines) io.out(`${executor.name}: ${line}`)
@@ -158,7 +160,34 @@ async function applyAll(
         ` journal=${input.journal.entryIds(plan, executor.journalContexts).join(',')}`,
     )
   }
-  return 0
+  if (failure) io.err(failure)
+  const recorded = await recordRun(input, covering, failure === null)
+  return failure === null && recorded ? 0 : 1
+}
+
+/** Writes the run's audit event; false when it could not be written. */
+async function recordRun(
+  input: RunRightsExecutorsInput,
+  covering: ReadonlyArray<RightsExecutor>,
+  succeeded: boolean,
+): Promise<boolean> {
+  const { audit, plan, io } = input
+  if (!audit) return true
+  const erases = covering.some((executor) => executor.journalContexts.length > 0)
+  try {
+    await audit.write(
+      rightsAuditEvent(audit, plan, {
+        erases,
+        outcome: succeeded ? 'succeeded' : 'failed',
+      }),
+    )
+    return true
+  } catch (error) {
+    io.err(
+      `rights-request: the audit event could not be written (${errorMessage(error)}); record this run by hand`,
+    )
+    return false
+  }
 }
 
 /**

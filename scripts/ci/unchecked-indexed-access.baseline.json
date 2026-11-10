@@ -43,7 +43,6 @@
   "src/contexts/identity/application/use-cases/update-organization.test.ts": 1,
   "src/contexts/identity/infrastructure/adapters/auth-identity.adapter.test.ts": 5,
   "src/contexts/identity/infrastructure/adapters/better-auth-schemas.test.ts": 1,
-  "src/contexts/identity/infrastructure/adapters/staff-organization-export.adapter.test.ts": 1,
   "src/contexts/identity/infrastructure/primary-staff-attribution.ts": 20,
   "src/contexts/identity/infrastructure/repositories/staff-participation.repository.test.ts": 2,
   "src/contexts/inbox/application/use-cases/add-inbox-note.test.ts": 1,

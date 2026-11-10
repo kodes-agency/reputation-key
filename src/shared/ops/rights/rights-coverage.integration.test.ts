@@ -28,6 +28,8 @@ import {
 } from '#/contexts/feed/rights/executor.server'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import { writeAuditEvent } from '#/contexts/feed/audit/write.server'
+import type { RightsAudit } from './rights-audit'
 import { runRightsExecutors, type RightsExecutor } from './rights-executor'
 import { createRightsJournal } from './rights-journal'
 
@@ -189,6 +191,7 @@ async function run(
   scope: 'property' | 'organization',
   organizationId: string,
   propertyId?: string,
+  audit?: RightsAudit,
 ) {
   const out: string[] = []
   const err: string[] = []
@@ -199,6 +202,7 @@ async function run(
     journal: createRightsJournal(store),
     io: { out: (line) => out.push(line), err: (line) => err.push(line) },
     writeExportFile: async () => {},
+    ...(audit ? { audit } : {}),
   })
   return { code, out, err }
 }
@@ -291,6 +295,44 @@ describe('composed rights executors', () => {
     expect(leftInA).toEqual([])
     expect(await snapshot(tables, first.organizationId, b)).toBe(before.b)
     expect(await snapshot(tables, other.organizationId)).toBe(before.other)
+  })
+
+  it('records the apply as one audit event that names the Property and no content', async () => {
+    const first = await seedOrganization(2)
+    const [a] = first.propertyIds as [string, string]
+    const audit: RightsAudit = {
+      operatorId: 'ops:rights-tester',
+      write: async (event) => {
+        await writeAuditEvent(db, event)
+      },
+    }
+
+    try {
+      const result = await run('property', first.organizationId, a, audit)
+
+      expect(result.err).toEqual([])
+      expect(result.code).toBe(0)
+      const rows = await query(
+        `SELECT action, outcome, actor_type, actor_id, property_id, source_kind, resource_type
+         FROM audit_events WHERE organization_id = $1`,
+        [first.organizationId],
+      )
+      expect(rows.rows).toEqual([
+        {
+          action: 'rights.erase.property',
+          outcome: 'succeeded',
+          actor_type: 'operator',
+          actor_id: 'ops:rights-tester',
+          property_id: a,
+          source_kind: 'operator_command',
+          resource_type: 'rights_request',
+        },
+      ])
+    } finally {
+      await query('DELETE FROM audit_events WHERE organization_id = $1', [
+        first.organizationId,
+      ])
+    }
   })
 
   it('erases the Organization across every executor and leaves the other one byte-identical', async () => {
