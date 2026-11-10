@@ -36,6 +36,7 @@ import {
   waitFor,
 } from './fixtures'
 import { requireE2eSeedState } from './seed-state'
+import { reviewedPortalInput } from './portal-review-fixtures'
 
 export const PORTAL_GOAL_PREFIX = 'e2e-pg-'
 export const MONTHLY_PORTAL_GOALS =
@@ -136,7 +137,7 @@ export async function seedPortalGoalProperty(
     await callServerFn(page, {
       file: PORTALS,
       exportName: 'publishPortal',
-      data: { portalId: portal.id },
+      data: await reviewedPortalInput(page, portal.id),
     })
     portals.push({ id: portal.id, name })
   }

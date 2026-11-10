@@ -531,6 +531,41 @@ describe('portal intents', () => {
     })
   })
 
+  it('goes live when the draft still says what the manager reviewed', async () => {
+    const { publish, portalRepo, lastUpdateCommand } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+    await publish({ portalId: portal.id }, ctx)
+    const publication = lastUpdateCommand()?.publication
+    const reviewedDigest =
+      publication?.kind === 'publish' ? publication.snapshot.configurationDigest : ''
+    portalRepo.seed([portal])
+
+    const updated = await publish({ portalId: portal.id, reviewedDigest }, ctx)
+
+    expect(updated.publicationState).toBe('published')
+  })
+
+  it('refuses to go live when the draft changed after it was reviewed', async () => {
+    const { publish, portalRepo, commandWrites } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+
+    await expect(
+      publish({ portalId: portal.id, reviewedDigest: 'digest-before-the-edit' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        isPortalError(e) &&
+        e.code === 'revision_conflict' &&
+        e.message ===
+          'The Portal changed after you reviewed it. Review the changes again before publishing',
+    )
+    expect(commandWrites()).toBe(0)
+    expect(portalRepo.all()[0]?.publicationState).toBe('draft')
+  })
+
   it('publishes the new design: schema version 3, in every language the Portal offers', async () => {
     const { publish, portalRepo, lastUpdateCommand } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })

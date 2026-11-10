@@ -29,7 +29,9 @@ export type ReviewPublishDeps = Readonly<{
     outcome: 'published' | 'unchanged'
     version: number
   }>
-  goLive: (input: { data: { portalId: string } }) => Promise<unknown>
+  goLive: (input: {
+    data: { portalId: string; reviewedDigest: string }
+  }) => Promise<unknown>
   notify: Readonly<{
     success: (message: string) => void
     info: (message: string) => void
@@ -68,7 +70,11 @@ export async function publishReview(deps: ReviewPublishDeps): Promise<void> {
         return
       }
     } else {
-      await deps.goLive({ data: { portalId } })
+      if (review.reviewDigest === null) {
+        await deps.refreshReview()
+        return
+      }
+      await deps.goLive({ data: { portalId, reviewedDigest: review.reviewDigest } })
       notify.success(
         describePublishOutcome({
           outcome: 'published',

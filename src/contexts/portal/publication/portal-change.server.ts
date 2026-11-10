@@ -33,7 +33,10 @@ import {
 } from '../domain/events'
 import type { VerifiedPublicationDestination } from '../domain/portal-publication-snapshot'
 import type { PortalPublicationSource } from '../domain/portal-publication-source'
-import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
+import {
+  buildPortalPublicationSnapshot,
+  reviewedPublicationDigest,
+} from '../application/portal-publication-snapshot'
 import { assertPortalHasOwnerAndAddress } from '../application/portal-publication-readiness'
 import { nextPortalCommandAt } from '../application/portal-command-version'
 import { buildLocaleSetFact, buildPortalHealthFact } from './portal-facts.server'
@@ -121,6 +124,7 @@ async function buildGoLive(
   destination: VerifiedPublicationDestination | null,
   ctx: AuthContext,
   at: Date,
+  reviewedDigest: string | undefined,
 ): Promise<PortalPublicationMutation> {
   if (!destination) {
     throw portalError(
@@ -140,6 +144,15 @@ async function buildGoLive(
     )
   }
   const workingCopy = workingCopyWithLook.source
+  if (
+    reviewedDigest !== undefined &&
+    reviewedDigest !== reviewedPublicationDigest(workingCopy, destination)
+  ) {
+    throw portalError(
+      'revision_conflict',
+      'The Portal changed after you reviewed it. Review the changes again before publishing',
+    )
+  }
   const publicSource = applyPatchToPublicationSource(workingCopy, {
     ...patch,
     name: existing.publicName ?? patch.name,
@@ -214,7 +227,9 @@ function lifecycleEventFor(
 /**
  * Writes `changes` over the Portal as one command. Nothing is written, and the
  * Portal comes back as it was, when nothing differs. `destination` is the
- * verified destination a go-live pins; only a go-live needs it.
+ * verified destination a go-live pins; only a go-live needs it. A go-live that
+ * names the `reviewedDigest` it was reviewed at is refused when the draft has
+ * changed since.
  */
 export async function commitPortalChange(
   deps: PortalIntentDeps,
@@ -222,6 +237,7 @@ export async function commitPortalChange(
   existing: Portal,
   changes: Partial<PortalPatch>,
   destination: VerifiedPublicationDestination | null = null,
+  reviewedDigest?: string,
 ): Promise<Portal> {
   const patch = patchOf(existing, changes)
   if (!hasPortalChanges(existing, patch)) return existing
@@ -231,7 +247,15 @@ export async function commitPortalChange(
   const wasPublished = existing.publicationState === 'published'
   const publication: PortalPublicationMutation | undefined =
     !wasPublished && patch.publicationState === 'published'
-      ? await buildGoLive(deps, existing, patch, destination, ctx, occurredAt)
+      ? await buildGoLive(
+          deps,
+          existing,
+          patch,
+          destination,
+          ctx,
+          occurredAt,
+          reviewedDigest,
+        )
       : wasPublished &&
           (patch.publicationState === 'disabled' || patch.publicationState === 'archived')
         ? { kind: 'deactivate', reason: patch.publicationState, at: occurredAt }
