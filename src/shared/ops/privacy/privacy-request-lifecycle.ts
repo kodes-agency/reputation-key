@@ -159,9 +159,10 @@ export async function verifyPrivacyRequest(
   const scope = scopeOf(record)
 
   const resolved = await deps.runInTransaction(async (tx) => {
-    const answers = await Promise.all(
-      deps.contributors.map((contributor) => contributor.resolve(tx, scope)),
-    )
+    const answers: boolean[] = []
+    for (const contributor of deps.contributors) {
+      answers.push(await contributor.resolve(tx, scope))
+    }
     return answers.some(Boolean)
   })
   if (!resolved) {
@@ -234,11 +235,10 @@ export async function fulfilPrivacyRequest(
 
   const outcome = await deps.runInTransaction(async (tx) => {
     if (operation === 'access') {
-      const sections = (
-        await Promise.all(
-          deps.contributors.map((contributor) => contributor.access(tx, scope)),
-        )
-      ).flat()
+      const sections: PrivacyPackageSection[] = []
+      for (const contributor of deps.contributors) {
+        sections.push(...(await contributor.access(tx, scope)))
+      }
       return { sections, affected: 0, ledgerEntryId: undefined as string | undefined }
     }
 

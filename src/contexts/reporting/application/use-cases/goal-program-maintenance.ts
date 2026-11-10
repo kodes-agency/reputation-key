@@ -418,19 +418,21 @@ export async function reconcileResult(
     propertyId: result.propertyId,
     action: 'goal.update',
   })
-  const [program, assignment, version] = await Promise.all([
-    deps.repository.get(result.organizationId, result.propertyId, result.programId),
-    deps.repository.getAssignment(
-      result.organizationId,
-      result.propertyId,
-      result.assignmentId,
-    ),
-    deps.repository.getVersion(
-      result.organizationId,
-      result.propertyId,
-      result.programVersionId,
-    ),
-  ])
+  const program = await deps.repository.get(
+    result.organizationId,
+    result.propertyId,
+    result.programId,
+  )
+  const assignment = await deps.repository.getAssignment(
+    result.organizationId,
+    result.propertyId,
+    result.assignmentId,
+  )
+  const version = await deps.repository.getVersion(
+    result.organizationId,
+    result.propertyId,
+    result.programVersionId,
+  )
   if (!program || !assignment || !version) throw new GoalResultReferenceMissingError()
   if (isOutsideItsWindow(result, assignment, version)) {
     throw new GoalResultOutsideWindowError()
@@ -505,18 +507,16 @@ export async function reconcileClosedResult(
     propertyId: head.result.propertyId,
     action: 'goal.update',
   })
-  const [assignment, version] = await Promise.all([
-    deps.repository.getAssignment(
-      head.result.organizationId,
-      head.result.propertyId,
-      head.result.assignmentId,
-    ),
-    deps.repository.getVersion(
-      head.result.organizationId,
-      head.result.propertyId,
-      head.result.programVersionId,
-    ),
-  ])
+  const assignment = await deps.repository.getAssignment(
+    head.result.organizationId,
+    head.result.propertyId,
+    head.result.assignmentId,
+  )
+  const version = await deps.repository.getVersion(
+    head.result.organizationId,
+    head.result.propertyId,
+    head.result.programVersionId,
+  )
   if (!assignment || !version) throw new GoalProgramError('not_found')
   const reading = await deps.metrics.queryGoalMetric({
     organizationId: toOrganizationId(head.result.organizationId),

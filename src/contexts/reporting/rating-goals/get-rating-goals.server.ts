@@ -72,18 +72,20 @@ export async function getRatingGoalSetup(
   const now = deps.now()
   const org = toOrganizationId(actor.organizationId)
   const property = toPropertyId(input.propertyId)
-  const [reading, active, years, months, days] = await Promise.all([
-    requireReading(deps, actor.organizationId, input.propertyId, now),
-    deps.repository.findActive(actor.organizationId, input.propertyId),
-    deps.reviews.getYearlyTotals(org, property),
-    deps.reviews.getMonthlyTotals(
-      org,
-      property,
-      daysBefore(now, MONTH_READ_LOOKBACK_DAYS),
-      EVIDENCE_MIN_REVIEWS,
-    ),
-    deps.reviews.getDailyCounts(org, property, daysBefore(now, DAY_READ_LOOKBACK_DAYS)),
-  ])
+  const reading = await requireReading(deps, actor.organizationId, input.propertyId, now)
+  const active = await deps.repository.findActive(actor.organizationId, input.propertyId)
+  const years = await deps.reviews.getYearlyTotals(org, property)
+  const months = await deps.reviews.getMonthlyTotals(
+    org,
+    property,
+    daysBefore(now, MONTH_READ_LOOKBACK_DAYS),
+    EVIDENCE_MIN_REVIEWS,
+  )
+  const days = await deps.reviews.getDailyCounts(
+    org,
+    property,
+    daysBefore(now, DAY_READ_LOOKBACK_DAYS),
+  )
   return buildSetupView(reading, active !== null, { years, months, days })
 }
 
@@ -125,34 +127,34 @@ export async function getRatingGoalDetail(
   const chartFrom = detailChartStart(goal, reading).instant
   const setback = setbackNumbers(goal, reading)
   const lowBelow = setback === null ? null : lowReviewReadBelow(setback)
-  const [changes, history, shown, low, thisWeek, sinceSet] = await Promise.all([
-    deps.repository.listChanges(
-      goal.organizationId,
-      goal.propertyId,
-      goal.id,
-      RATING_GOAL_CHANGE_LOG_LIMIT,
-    ),
-    deps.reviews.getWeeklyHistory(org, property, chartFrom),
-    deps.reviews.getShownNumberChanges(org, property, chartFrom),
+  const changes = await deps.repository.listChanges(
+    goal.organizationId,
+    goal.propertyId,
+    goal.id,
+    RATING_GOAL_CHANGE_LOG_LIMIT,
+  )
+  const history = await deps.reviews.getWeeklyHistory(org, property, chartFrom)
+  const shown = await deps.reviews.getShownNumberChanges(org, property, chartFrom)
+  const low =
     lowBelow === null
       ? []
-      : deps.reviews.getLowReviews(
+      : await deps.reviews.getLowReviews(
           org,
           property,
           goal.createdAt,
           lowBelow,
           LOW_REVIEW_READ_LIMIT,
-        ),
-    deps.reviews.getStarDistribution(
-      org,
-      property,
-      weekStartInstant(reading.now, reading.facts.timezone),
-    ),
-    // The stars since the set say how many were low; only while a goal climbs.
+        )
+  const thisWeek = await deps.reviews.getStarDistribution(
+    org,
+    property,
+    weekStartInstant(reading.now, reading.facts.timezone),
+  )
+  // The stars since the set say how many were low; only while a goal climbs.
+  const sinceSet =
     setback === null
       ? null
-      : deps.reviews.getStarDistribution(org, property, goal.createdAt),
-  ])
+      : await deps.reviews.getStarDistribution(org, property, goal.createdAt)
   // At the quality the goal now expects of new reviews: the plan's, the plan
   // mixed with new reviews, or theirs while too low (trackingMix).
   const basis = goalBasis(goal, reading)?.basis ?? null

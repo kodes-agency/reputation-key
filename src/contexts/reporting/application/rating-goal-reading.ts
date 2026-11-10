@@ -108,19 +108,17 @@ export async function readRatingGoalInputs(
   if (facts === null) return null
   const org = toOrganizationId(organizationId)
   const property = toPropertyId(propertyId)
-  const [snapshot, summary] = await Promise.all([
-    deps.google.getCurrentOnGoogle(org, property),
-    deps.reviews.getRatingSummary(org, property, {
-      mixWindowStart: new Date(now.getTime() - RECENT_MIX_WINDOW_DAYS * DAY_MS),
-      mostRecentLimit: RECENT_MIX_FALLBACK_REVIEWS,
-      countSince: [
-        new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS),
-        ...(request.countSince?.(facts) ?? []),
-      ],
-      ...(request.totalsSince === undefined ? {} : { totalsSince: request.totalsSince }),
-      ...(request.range === undefined ? {} : { rangeTotals: request.range(facts) }),
-    }),
-  ])
+  const snapshot = await deps.google.getCurrentOnGoogle(org, property)
+  const summary = await deps.reviews.getRatingSummary(org, property, {
+    mixWindowStart: new Date(now.getTime() - RECENT_MIX_WINDOW_DAYS * DAY_MS),
+    mostRecentLimit: RECENT_MIX_FALLBACK_REVIEWS,
+    countSince: [
+      new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS),
+      ...(request.countSince?.(facts) ?? []),
+    ],
+    ...(request.totalsSince === undefined ? {} : { totalsSince: request.totalsSince }),
+    ...(request.range === undefined ? {} : { rangeTotals: request.range(facts) }),
+  })
   const google: GoogleNumbers | null = snapshot
     ? {
         reviewCount: snapshot.reviewCount,

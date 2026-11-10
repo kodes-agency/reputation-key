@@ -116,62 +116,60 @@ export const createPortalHealthReconciliationStore = (
 
           let changed = 0
           for (const portal of portalRows) {
-            const [activation, address, manager, current] = await Promise.all([
-              tx
-                .select({ id: portalPublicationActivations.id })
-                .from(portalPublicationActivations)
-                .where(
-                  and(
-                    eq(portalPublicationActivations.organizationId, input.organizationId),
-                    eq(portalPublicationActivations.propertyId, input.propertyId),
-                    eq(portalPublicationActivations.portalId, portal.id),
-                    isNull(portalPublicationActivations.deactivatedAt),
-                  ),
-                )
-                .limit(1),
-              tx
-                .select({ id: portalTokens.id })
-                .from(portalTokens)
-                .where(
-                  and(
-                    eq(portalTokens.organizationId, input.organizationId),
-                    eq(portalTokens.propertyId, input.propertyId),
-                    eq(portalTokens.portalId, portal.id),
-                    or(
-                      eq(portalTokens.status, 'active'),
-                      and(
-                        eq(portalTokens.status, 'rotating'),
-                        gte(portalTokens.gracePeriodEnds, observedAt),
-                      ),
+            const activation = await tx
+              .select({ id: portalPublicationActivations.id })
+              .from(portalPublicationActivations)
+              .where(
+                and(
+                  eq(portalPublicationActivations.organizationId, input.organizationId),
+                  eq(portalPublicationActivations.propertyId, input.propertyId),
+                  eq(portalPublicationActivations.portalId, portal.id),
+                  isNull(portalPublicationActivations.deactivatedAt),
+                ),
+              )
+              .limit(1)
+            const address = await tx
+              .select({ id: portalTokens.id })
+              .from(portalTokens)
+              .where(
+                and(
+                  eq(portalTokens.organizationId, input.organizationId),
+                  eq(portalTokens.propertyId, input.propertyId),
+                  eq(portalTokens.portalId, portal.id),
+                  or(
+                    eq(portalTokens.status, 'active'),
+                    and(
+                      eq(portalTokens.status, 'rotating'),
+                      gte(portalTokens.gracePeriodEnds, observedAt),
                     ),
                   ),
-                )
-                .limit(1),
-              tx
-                .select({ id: portalResponsibleManagers.id })
-                .from(portalResponsibleManagers)
-                .where(
-                  and(
-                    eq(portalResponsibleManagers.organizationId, input.organizationId),
-                    eq(portalResponsibleManagers.propertyId, input.propertyId),
-                    eq(portalResponsibleManagers.portalId, portal.id),
-                    isNull(portalResponsibleManagers.effectiveTo),
-                  ),
-                )
-                .limit(1),
-              tx
-                .select()
-                .from(portalHealthIntervals)
-                .where(
-                  and(
-                    eq(portalHealthIntervals.organizationId, input.organizationId),
-                    eq(portalHealthIntervals.propertyId, input.propertyId),
-                    eq(portalHealthIntervals.portalId, portal.id),
-                    isNull(portalHealthIntervals.effectiveTo),
-                  ),
-                )
-                .limit(1),
-            ])
+                ),
+              )
+              .limit(1)
+            const manager = await tx
+              .select({ id: portalResponsibleManagers.id })
+              .from(portalResponsibleManagers)
+              .where(
+                and(
+                  eq(portalResponsibleManagers.organizationId, input.organizationId),
+                  eq(portalResponsibleManagers.propertyId, input.propertyId),
+                  eq(portalResponsibleManagers.portalId, portal.id),
+                  isNull(portalResponsibleManagers.effectiveTo),
+                ),
+              )
+              .limit(1)
+            const current = await tx
+              .select()
+              .from(portalHealthIntervals)
+              .where(
+                and(
+                  eq(portalHealthIntervals.organizationId, input.organizationId),
+                  eq(portalHealthIntervals.propertyId, input.propertyId),
+                  eq(portalHealthIntervals.portalId, portal.id),
+                  isNull(portalHealthIntervals.effectiveTo),
+                ),
+              )
+              .limit(1)
 
             const next = derivePortalHealth({
               publicationState: publicationState(portal.publicationState),
