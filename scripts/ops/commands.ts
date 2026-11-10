@@ -25,8 +25,6 @@ export const COMMANDS: Readonly<
   inbox: ['scripts/ops/inbox-exclude-restated-revision-targets.ts'],
   inspect: ['scripts/ops/inspect-decision.ts'],
   jobs: ['scripts/ops/job-repair.ts'],
-  'privacy-request': ['scripts/ops/privacy-request.ts'],
-  'property-erase': ['scripts/ops/property-erase.ts'],
   purge: ['scripts/ops/enqueue-purge.ts'],
   quarantine: ['scripts/ops/quarantine-redrive.ts'],
   queue: ['scripts/ops/queue-quarantine.ts'],

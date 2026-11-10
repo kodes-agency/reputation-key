@@ -38,9 +38,8 @@ describe('buildInboxContext', () => {
   it('separates request, lifecycle, maintenance, and worker capabilities', () => {
     const context = build()
 
-    // LIF-01: the Organization export and lifecycle contributors are built by
-    // composition/organization-export-contributors.ts, never by this build: a
-    // second instance here would be read by nothing.
+    // Export and erasure run through the rights request executors, never from
+    // this build.
     expect(Object.keys(context).sort()).toEqual([
       // ARC-03-T12: named member-authority and scheduled-release capabilities.
       'assignments',

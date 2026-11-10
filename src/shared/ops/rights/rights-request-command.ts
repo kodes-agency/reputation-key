@@ -5,7 +5,7 @@
 // and erases a person's data is covered by tests that run. Three modes:
 //
 //   report  the default; reads nothing it cannot name and writes nothing
-//   apply   --apply with typed confirmation; refused unless the database is local
+//   apply   --apply with typed confirmation, behind the erasure journal and an audit event
 //   replay  plans the re-erasure of an exported journal against a restore point
 //
 // The subject is named by the SHA-256 of a verified identifier, never the
@@ -86,8 +86,6 @@ export type RightsRequestPlan = Readonly<{
 
 export type RightsRequestPlanResult =
   Readonly<{ ok: true; plan: RightsRequestPlan }> | Readonly<{ ok: false; error: string }>
-
-export type RightsRequestEnvironment = Readonly<{ production: boolean }>
 
 const SHA256 = /^[0-9a-f]{64}$/u
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
@@ -208,11 +206,7 @@ function applyError(
   scope: RightsRequestScope,
   ctx: OperatorContext,
   fields: Fields,
-  environment: RightsRequestEnvironment,
 ): string | null {
-  if (environment.production) {
-    return 'apply is disabled in production and on any database that is not local; run report or replay'
-  }
   if (scope === 'access') return 'access is a report; it has no apply mode'
   if (!fields.verifiedAt || !fields.verificationRef) {
     return 'verified=<iso> and verification=<ref> are required: no identity, no erasure'
@@ -228,14 +222,10 @@ function applyError(
   return null
 }
 
-/**
- * Turn a validated invocation into an explicit plan, or say why not. Apply is
- * refused in production whatever else is supplied.
- */
+/** Turn a validated invocation into an explicit plan, or say why not. */
 export function planRightsRequest(
   ctx: OperatorContext,
   args: OperatorArgs,
-  environment: RightsRequestEnvironment,
 ): RightsRequestPlanResult {
   const [rawScope] = args.positionals
   const scope = rawScope as RightsRequestScope
@@ -249,7 +239,7 @@ export function planRightsRequest(
     fieldShapeError(fields) ??
     scopeError(scope, ctx, fields) ??
     (mode === 'replay' ? replayError(fields) : null) ??
-    (mode === 'apply' ? applyError(scope, ctx, fields, environment) : null)
+    (mode === 'apply' ? applyError(scope, ctx, fields) : null)
   if (error) return { ok: false, error }
 
   const receivedAt = fields.receivedAt ?? undefined
@@ -305,7 +295,7 @@ export function describeRightsReport(plan: RightsRequestPlan): ReadonlyArray<str
   if (plan.mode === 'report' && plan.scope !== 'access') {
     lines.push(
       `to execute: add --apply, verified=<iso> verification=<ref> and ` +
-        `'confirm=${rightsConfirmationText(plan.scope, plan)}' (refused unless the database is local)`,
+        `'confirm=${rightsConfirmationText(plan.scope, plan)}'`,
     )
   }
   return lines

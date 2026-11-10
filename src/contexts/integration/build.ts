@@ -102,8 +102,6 @@ import {
 } from './application/ports/google-review-push-reference.port'
 import { createGoogleReviewPushReferenceStore } from './infrastructure/google-review-push-reference-store'
 import { createGbpReviewPushReceiptStore } from './infrastructure/gbp-review-push-receipt.store'
-import { createIntegrationOrganizationLifecycleContributor } from './infrastructure/adapters/integration-organization-lifecycle.adapter'
-import { createGoogleOrganizationClosureProvider } from './infrastructure/adapters/google-organization-closure-provider.adapter'
 import { registerGoogleCategoryRefreshConsumer } from './infrastructure/google-category-refresh-outbox-consumers'
 
 export {
@@ -789,24 +787,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       }),
     }),
     lifecycle: Object.freeze({
-      // LIF-01-T12/T13/T14: the three destructive lifecycle phases. This is the
-      // `integration` argument to buildOrganizationLifecycleContributors
-      // (composition/organization-export-contributors.ts): unlike the other
-      // contributors it is not a pure `(db)`, because revoking Google
-      // credentials and subscriptions needs the provider port wired here.
-      // Exposing it does NOT arm it — the coordinator that calls `purge` is
-      // composed only under an explicitly reviewed composition, and nothing
-      // here reaches a request surface.
-      organizationLifecycleContributor: createIntegrationOrganizationLifecycleContributor(
-        {
-          db: deps.db,
-          provider: createGoogleOrganizationClosureProvider({
-            oauth: oauthPort,
-            encryption: encryptionPort,
-            unsubscribeFromNotifications: manageNotificationsUseCase.unsubscribe,
-          }),
-        },
-      ),
       prepareConnectorDeparture: useCases.prepareGoogleConnectorDeparture,
       cancelImportsForConnection: useCases.cancelGoogleImportV2ForConnection,
       cancelImportsForUser: useCases.cancelGoogleImportV2ForUser,

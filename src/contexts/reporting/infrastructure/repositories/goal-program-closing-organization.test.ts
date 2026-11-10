@@ -23,7 +23,6 @@ import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import type { Tx } from '#/shared/outbox/commit'
 import {
   findMetricVersionById,
   METRIC_DEFINITION_IDS,
@@ -33,7 +32,6 @@ import type { GoalProgramBundle } from '../../application/ports/goal-program.rep
 import type { GoalProgramDependencies } from '../../application/use-cases/goal-program-shared'
 import { maintain } from '../../application/use-cases/goal-program-maintenance'
 import { createGoalProgramService } from '../../monthly-goals/goal-programs.server'
-import { GOAL_ORGANIZATION_LIFECYCLE_PHASES } from '../adapters/goal-organization-lifecycle.adapter'
 import { createGoalProgramRepository } from './goal-program.repository'
 
 const NOW = new Date('2026-10-14T09:00:00.000Z')
@@ -207,15 +205,27 @@ describe.sequential('Goal maintenance in a closing Organization (integration)', 
     return rows[0]?.status
   }
 
-  /** Goal's purge-readiness phase for the Organization, as the lifecycle coordinator runs it. */
-  function verifyPurgeReadiness(goal: GoalProgramBundle) {
-    return GOAL_ORGANIZATION_LIFECYCLE_PHASES.verifyPurgeReadiness(db as unknown as Tx, {
-      organizationId: goal.program.organizationId,
-      closureLineageId: randomUUID(),
-      lifecycleRevision: 3,
-      recoverableUntil: RECOVERABLE_UNTIL,
-      occurredAt: NOW,
-    })
+  /** The goal work a purge would have to wait for: active programs and months still reconciling. */
+  async function liveGoalWork(goal: GoalProgramBundle) {
+    const { rows } = await client.query<{ active: number; reconciling: number }>(
+      `SELECT
+         (SELECT count(*)::int FROM goal_programs
+           WHERE organization_id = $1 AND status = 'active') AS active,
+         (SELECT count(*)::int FROM goal_monthly_results
+           WHERE organization_id = $1 AND status = 'reconciling') AS reconciling`,
+      [goal.program.organizationId],
+    )
+    return rows[0]
+  }
+
+  /** What an Organization closure does first: pause every active program. */
+  async function pauseActivePrograms(goal: GoalProgramBundle) {
+    await client.query(
+      `UPDATE goal_programs
+       SET status = 'paused', status_reason = 'organization_closure_fence', updated_at = $2
+       WHERE organization_id = $1 AND status = 'active'`,
+      [goal.program.organizationId, NOW],
+    )
   }
 
   beforeAll(async () => {
@@ -275,9 +285,7 @@ describe.sequential('Goal maintenance in a closing Organization (integration)', 
 
     await maintain(dependencies(goal))
 
-    await expect(verifyPurgeReadiness(goal)).resolves.toMatchObject({
-      outcome: 'complete',
-    })
+    await expect(liveGoalWork(goal)).resolves.toEqual({ active: 0, reconciling: 0 })
   })
 
   it.each([
@@ -312,13 +320,7 @@ describe.sequential('Goal maintenance in a closing Organization (integration)', 
       const deps = dependencies(goal)
       await expect(maintain(deps)).resolves.toMatchObject({ activated: 1 })
       await setLifecycle(goal.program.organizationId, 'closing')
-      await GOAL_ORGANIZATION_LIFECYCLE_PHASES.prepareClosing(db as unknown as Tx, {
-        organizationId: goal.program.organizationId,
-        closureLineageId: randomUUID(),
-        lifecycleRevision: 2,
-        recoverableUntil: RECOVERABLE_UNTIL,
-        occurredAt: NOW,
-      })
+      await pauseActivePrograms(goal)
       await expect(statusOf(goal)).resolves.toBe('paused')
       return {
         goal,
@@ -342,9 +344,7 @@ describe.sequential('Goal maintenance in a closing Organization (integration)', 
       ).rejects.toMatchObject({ name: 'GoalProgramError', code: 'organization_closing' })
 
       await expect(statusOf(goal)).resolves.toBe('paused')
-      await expect(verifyPurgeReadiness(goal)).resolves.toMatchObject({
-        outcome: 'complete',
-      })
+      await expect(liveGoalWork(goal)).resolves.toEqual({ active: 0, reconciling: 0 })
     })
 
     it('cannot set a goal for the current month', async () => {

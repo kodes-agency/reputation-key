@@ -1,10 +1,9 @@
 # Erasure journal
 
-The journal is built but inactive. No customer or guest erasure path writes it
-in this release. Existing lifecycle receipts and withdrawal safeguards remain.
-The restore verifier replays a local journal export (`journal=<file>`) through
-the resurrection fence. No erasure path writes the journal yet, so there is no
-live erasure evidence.
+`pnpm ops rights-request --apply` writes one journal object per context to the
+private bucket before that context deletes anything (see `rights-requests.md`).
+Guest self-service withdrawal does not write it yet. The restore verifier replays
+a local journal export (`journal=<file>`) through the resurrection fence.
 
 ## Bucket evidence
 

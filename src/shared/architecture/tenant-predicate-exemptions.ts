@@ -250,13 +250,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/property/infrastructure/property-erase-command-store.ts',
-    symbol: 'nextAdvanceable',
-    reason:
-      'The globally serialized erase worker intentionally claims exactly one advanceable authority across tenants and returns its complete tenant identity.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/review/infrastructure/repositories/reply.repository.ts',
     symbol: 'findDuePublicationBatch',
     reason:

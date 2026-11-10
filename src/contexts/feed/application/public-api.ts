@@ -2,6 +2,7 @@
 import { createServerOnlyFn } from '@tanstack/react-start'
 import { queryAuditEvents } from '../audit/read.server'
 import { AUDIT_EVENT_RETENTION_RULE } from '../audit/retention.server'
+import { writeAuditEvent as appendAuditEvent } from '../audit/write.server'
 import {
   copyCategoryDefaultsToPreferences,
   countCategoryDefaultsToCopy,
@@ -16,6 +17,7 @@ export * from './activity-public-api'
 export * from './notification-public-api'
 
 export const readAuditEvents = createServerOnlyFn(queryAuditEvents)
+export const writeAuditEvent = createServerOnlyFn(appendAuditEvent)
 export const copyNotificationCategoryDefaults = createServerOnlyFn(
   copyCategoryDefaultsToPreferences,
 )

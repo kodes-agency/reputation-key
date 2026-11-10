@@ -1,14 +1,12 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import { portalLookOverrides } from '#/shared/db/schema/portal-look.schema'
-import { PORTAL_PURGE_PLAN } from './portal-organization-lifecycle.adapter'
+import { PORTAL_PURGE_PLAN } from './portal-organization-erasure'
 
 /** Physical-drop-blocked compatibility mirrors Portal may only DELETE from. */
 const COMPATIBILITY_MIRRORS = ['portal_group_members'] as const
 
-describe('Portal Organization lifecycle contributor', () => {
+describe('Portal erasure plan', () => {
   it('names a bounded purge plan of row deletes, never drops', () => {
     expect(PORTAL_PURGE_PLAN).toContain('portals')
     expect(PORTAL_PURGE_PLAN).toContain('portal_groups')
@@ -101,58 +99,9 @@ describe('Portal Organization lifecycle contributor', () => {
     }
   })
 
-  it('names a Portal’s own look once, and no root of its own: it hangs off the Portals the count already reads', () => {
+  it('names a Portal’s own look once', () => {
     expect(
       PORTAL_PURGE_PLAN.filter((table) => table === 'portal_look_overrides'),
     ).toHaveLength(1)
-    const source = readFileSync(
-      join(
-        process.cwd(),
-        'src/contexts/portal/infrastructure/adapters/portal-organization-lifecycle.adapter.ts',
-      ),
-      'utf8',
-    )
-    const count = source.slice(
-      source.indexOf('countTenantRows: async'),
-      source.indexOf('listMediaObjectKeys: async'),
-    )
-    expect(count).toContain('FROM ${portals}')
-    expect(count).not.toContain('portalLookOverrides')
-  })
-
-  it('changes no capability fate: a lifecycle contributor is not what opens a capability', () => {
-    // The fate of portal.upload is the owner's decision (ADR 0063), recorded in
-    // capability-fate.ts and pinned there. This contributor neither reads nor
-    // writes a capability, so closing and purging work whatever it is.
-    const source = readFileSync(
-      join(
-        process.cwd(),
-        'src/contexts/portal/infrastructure/adapters/portal-organization-lifecycle.adapter.ts',
-      ),
-      'utf8',
-    )
-    expect(source).not.toContain('capability-fate')
-    expect(source).not.toContain('beta-capabilities')
-  })
-
-  it('keeps the lifecycle contributor out of the Portal public API', () => {
-    const build = readFileSync(
-      join(process.cwd(), 'src/contexts/portal/build.ts'),
-      'utf8',
-    )
-    const publicApiBlock = build.slice(
-      build.indexOf('const publicApi:'),
-      build.indexOf('const portalGroupPublicApi'),
-    )
-    expect(publicApiBlock).not.toContain('organizationLifecycleContributor')
-    expect(publicApiBlock).not.toContain('LifecycleContributor')
-    // Built once, by the composition-owned contributor set, never by a build.
-    expect(build).not.toContain('createPortalOrganizationLifecycleContributor')
-    expect(
-      readFileSync(
-        join(process.cwd(), 'src/composition/organization-export-contributors.ts'),
-        'utf8',
-      ),
-    ).toContain('createPortalOrganizationLifecycleContributor(db, portalObjectStore)')
   })
 })

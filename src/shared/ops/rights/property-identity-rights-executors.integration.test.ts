@@ -10,7 +10,7 @@ import {
   createIdentityPropertyRightsExecutor,
   createStaffOrganizationRightsExecutor,
 } from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
-import { STAFF_LIFECYCLE_TABLES } from '#/contexts/identity/infrastructure/adapters/staff-organization-lifecycle.adapter'
+import { STAFF_LIFECYCLE_TABLES } from '#/contexts/identity/infrastructure/adapters/staff-organization-erasure'
 import { createPropertyRightsExecutor } from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
@@ -264,7 +264,7 @@ async function runScript(
     dryRun: !parsed.args.apply,
     batchSize: parsed.args.batchSize,
   } as unknown as OperatorContext
-  const planned = planRightsRequest(ctx, parsed.args, { production: false })
+  const planned = planRightsRequest(ctx, parsed.args)
   const out: string[] = []
   const err: string[] = []
   if (!planned.ok) return { exit: 1, out, err: [planned.error] }

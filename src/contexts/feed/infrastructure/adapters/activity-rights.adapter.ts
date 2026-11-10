@@ -16,7 +16,7 @@ import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
 import {
   eraseActivityOrganizationRows,
   type ActivityLifecycleProjectionCounts,
-} from './activity-organization-lifecycle.adapter'
+} from './activity-organization-erasure'
 
 const CONTEXT = 'activity'
 
