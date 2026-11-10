@@ -148,21 +148,7 @@ describe('PortalUnavailable says nothing about why', () => {
 })
 
 describe('the unavailable page stylesheet', () => {
-  it('is light whatever the app theme, and sets its own type', () => {
-    expect(PORTAL_UNAVAILABLE_CSS).toContain('color-scheme: light')
-    expect(PORTAL_UNAVAILABLE_CSS).toContain('var(--font-guest-body')
-    expect(PORTAL_UNAVAILABLE_CSS).toMatch(/radial-gradient/u)
-  })
-
-  it('fills the viewport so the message sits at the centre', () => {
-    expect(PORTAL_UNAVAILABLE_CSS).toMatch(/min-height:\s*100dvh/u)
-  })
-
-  it('keeps the retry button a 44 px target with a visible focus ring and no motion on request', () => {
-    expect(PORTAL_UNAVAILABLE_CSS).toMatch(
-      /\.portal-unavailable__retry\s*\{[^}]*min-height:\s*44px/u,
-    )
-    expect(PORTAL_UNAVAILABLE_CSS).toMatch(/\.portal-unavailable__retry:focus-visible/u)
+  it('turns the retry button motion off when the visitor asks for less motion', () => {
     expect(PORTAL_UNAVAILABLE_CSS).toMatch(/prefers-reduced-motion:\s*reduce/u)
   })
 })

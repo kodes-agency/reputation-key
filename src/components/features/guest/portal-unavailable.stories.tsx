@@ -43,6 +43,24 @@ export const G12Unavailable: Story = {
     expect(canvasElement.querySelector('[lang="bg"]')).toBeNull()
     const retry = canvas.getByRole('button', { name: 'Try again' })
     expect(retry.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
+    // The page fills the screen and its message sits at the centre, both ways.
+    const main = canvas.getByRole('main')
+    const box = main.getBoundingClientRect()
+    expect(box.height).toBeGreaterThanOrEqual(document.documentElement.clientHeight)
+    const icon = canvasElement.querySelector('.portal-unavailable__icon')
+    const last = main.lastElementChild
+    if (!icon || !last) throw new Error('the page lost its icon or its last line')
+    const top = icon.getBoundingClientRect().top - box.top
+    const bottom = box.bottom - last.getBoundingClientRect().bottom
+    expect(Math.abs(top - bottom)).toBeLessThan(2)
+    const message = retry.getBoundingClientRect()
+    expect(
+      Math.abs(message.left + message.width / 2 - (box.left + box.width / 2)),
+    ).toBeLessThan(2)
+    // Its own type and paper, not the app's.
+    const style = getComputedStyle(main)
+    expect(style.fontFamily).toContain('Ysabeau Office')
+    expect(style.backgroundImage).toContain('radial-gradient')
   },
 }
 
@@ -86,7 +104,9 @@ export const TryAgainIsAButton: Story = {
     expect(retry).toHaveAttribute('type', 'button')
     retry.focus()
     expect(document.activeElement).toBe(retry)
-    expect(getComputedStyle(retry).outlineStyle).not.toBe('none')
+    const ring = getComputedStyle(retry)
+    expect(ring.outlineStyle).toBe('solid')
+    expect(ring.outlineWidth).toBe('2px')
   },
 }
 
