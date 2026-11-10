@@ -8132,8 +8132,6 @@ CREATE TABLE "public"."replies" (
     "reconcile_due_at" timestamp(3) with time zone,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "template_id" "uuid",
-    "template_version" integer,
     "submitted_by" character varying(255),
     "template_layer" character varying(20),
     "template_ref" "text",
@@ -8149,7 +8147,6 @@ CREATE TABLE "public"."replies" (
     CONSTRAINT "replies_publication_state_check" CHECK (("publication_state" = ANY (ARRAY['requested'::"text", 'authorized'::"text", 'sending'::"text", 'pending_observation'::"text", 'published'::"text", 'terminal'::"text", 'ambiguous'::"text", 'cancelled'::"text"]))),
     CONSTRAINT "replies_reply_language_tag_valid" CHECK ((("reply_language_tag" IS NULL) OR (("reply_language_tag")::"text" ~ '^(en-Latn|es-Latn|fr-Latn|de-Latn|pt-Latn|it-Latn|nl-Latn|pl-Latn|tr-Latn|uk-Cyrl|ru-Cyrl|ar-Arab|he-Hebr|hi-Deva|bn-Beng|ta-Taml|th-Thai|vi-Latn|id-Latn|zh-Hans|zh-Hant|ja-Jpan|ko-Kore|bg-Cyrl)(-(001|002|003|005|009|011|013|014|015|017|018|019|021|029|030|034|035|039|053|054|057|061|142|143|145|150|151|154|155|202|419|AC|AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BV|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CP|CQ|CR|CU|CV|CW|CX|CY|CZ|DE|DG|DJ|DK|DM|DO|DZ|EA|EC|EE|EG|EH|ER|ES|ET|EU|EZ|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HM|HN|HR|HT|HU|IC|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|QO|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TA|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|UN|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|XA|XB|XK|YE|YT|ZA|ZM|ZW))?$'::"text"))),
     CONSTRAINT "replies_state_revision_safe" CHECK ((("state_revision" >= 1) AND ("state_revision" <= '9007199254740991'::bigint))),
-    CONSTRAINT "replies_template_provenance_valid" CHECK (((("template_id" IS NULL) AND ("template_version" IS NULL)) OR (("template_id" IS NOT NULL) AND ("template_version" >= 1)))),
     CONSTRAINT "replies_voice_digest_valid" CHECK ((("voice_digest" IS NULL) OR (("voice_digest")::"text" ~ '^[0-9a-f]{64}$'::"text")))
 );
 
