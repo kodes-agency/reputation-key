@@ -24,7 +24,6 @@ import { renewLapsedMerchantAiAuthorizations } from '../../application/use-cases
 import { createStandingRenewalStore } from './merchant-ai-standing-renewal.repository'
 import { createMerchantAiAuthorizationStore } from './merchant-ai-authorization.repository'
 import { createMerchantAiNoticeUpdateStore } from './merchant-ai-notice-updates.repository'
-import { createIdentityOrganizationExportContributor } from '../identity-organization-export-contributor'
 
 // The reply-drafting runtime the build serves, switchable per test: a Property is
 // renewed under whichever runtime is served when the sweep runs, and the one it
@@ -644,14 +643,5 @@ describe('AI update receipts', () => {
       sql`SELECT user_id FROM merchant_ai_notice_update_receipts WHERE organization_id = ${f.organizationId}`,
     )
     expect(rows.rows).toEqual([{ user_id: f.actorUserId }])
-    const exported = await createIdentityOrganizationExportContributor(db).contribute({
-      organizationId: f.organizationId,
-      requestId: randomUUID(),
-      asOf: new Date(),
-    })
-    const json = exported.entries.find((entry) => entry.mediaType === 'application/json')!
-    expect(
-      JSON.parse(Buffer.from(json.bytes).toString()).merchantAiNoticeUpdateReceipts,
-    ).toHaveLength(1)
   })
 })

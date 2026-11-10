@@ -42,7 +42,6 @@ export type SystemAction =
   | 'system:identity.create_organization'
   | 'system:identity.auth_api'
   | 'system:identity.organization_lifecycle'
-  | 'system:identity.organization_export'
   // guest / public surface (dark — portal.read gated)
   | 'system:guest.portal_read'
   | 'system:guest.rating'
@@ -291,20 +290,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:identity.organization_lifecycle',
     'none',
     'tenant_cross',
-  ),
-  job(
-    'generate-organization-export',
-    'system:identity.organization_export',
-    'none',
-    'tenant_cross',
-    true,
-  ),
-  job(
-    'purge-expired-organization-exports',
-    'system:identity.organization_export',
-    'none',
-    'tenant_cross',
-    true,
   ),
   job(
     'recover-invited-registrations',
@@ -763,20 +748,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:identity.organization_lifecycle',
     'none',
     'tenant_cross',
-  ),
-  schedule(
-    'generate-organization-export-recurring',
-    'system:identity.organization_export',
-    'none',
-    'tenant_cross',
-    true,
-  ),
-  schedule(
-    'purge-expired-organization-exports-recurring',
-    'system:identity.organization_export',
-    'none',
-    'tenant_cross',
-    true,
   ),
   schedule(
     'recover-invited-registrations-recurring',

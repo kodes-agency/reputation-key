@@ -1,6 +1,6 @@
 // Read-only LIF-01 operator diagnostic. It reports the exact Identity-owned
 // lifecycle authority plus production composition readiness; it cannot waive,
-// cancel, begin purge, reactivate, generate an export, or delete an object.
+// cancel, begin purge, reactivate, or delete an object.
 
 import { runOperatorCommand } from './operator-command'
 
@@ -31,8 +31,6 @@ async function main(): Promise<void> {
             reactivationRequired: status.reactivationRequired,
             composition: {
               lifecycle: container.identityLifecycleRuntime.maintenance.readiness,
-              organizationExport:
-                container.identityLifecycleRuntime.organizationExport.readiness,
             },
           },
           null,

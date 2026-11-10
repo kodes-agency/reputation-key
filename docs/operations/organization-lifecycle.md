@@ -3,7 +3,7 @@
 ## Operational status
 
 The repository now contains a fail-closed local control plane for recoverable
-Property lifecycle, staged Organization closure, and Organization Export. It is
+Property lifecycle and staged Organization closure. It is
 not yet an activated beta workflow.
 
 Implemented and locally testable:
@@ -17,14 +17,6 @@ Implemented and locally testable:
 - Organization lifecycle authority, request/cancel, scheduled transitions,
   support-gated recovery/waiver/irreversible-boundary commands, and database
   fences;
-- a deterministic context-owned Organization Export contract, request
-  authority, encrypted-storage adapter, single-use retrieval, and expiry
-  deletion control plane;
-- one concrete Identity export contributor that reads tenant-visible profile,
-  member, invitation, role, access-policy, and lifecycle status through a
-  bounded read-only snapshot while excluding authentication/recovery secrets
-  and restricted operational control state, preserving PostgreSQL timestamp
-  microseconds in canonical UTC text; and
 - a transaction-bound Identity lifecycle contribution wrapper whose reviewed
   phase mutation and append-only content-free receipt commit together after
   the exact live lifecycle state, lineage, revision, and deadline are locked
@@ -33,26 +25,22 @@ Implemented and locally testable:
 Production-shaped but deliberately quarantined:
 
 - Identity now exposes one named `identityLifecycleRuntime` rather than adding
-  maintenance, support, or export methods to the flattened container use-case
+  maintenance or support methods to the flattened container use-case
   surface;
 - independently authorized support transitions are present on that runtime
   only when the exact reviewed contributor set and support authorization are
   both bound; no server route or mutating operator command invokes them;
-- bounded handlers exist for lifecycle advancement (50 Organizations), export
-  generation (one lease), and expired-object deletion (one object);
-- the operational catalogue owns their intended five-minute, one-minute, and
-  hourly schedules, but all three job families are `quarantined`, so worker
-  reconciliation removes those schedules while retaining no-mutation safety
-  handlers for stale queued work; and
+- a bounded handler exists for lifecycle advancement (50 Organizations);
+- the operational catalogue owns its intended five-minute schedule, but the job
+  family is `quarantined`, so worker reconciliation removes that schedule while
+  retaining a no-mutation safety handler for stale queued work; and
 - `pnpm ops report-organization-lifecycle --operator <id> --org <id>` reports
   exact content-free authority and composition readiness. It has no apply mode.
 
 Not activated or complete:
 
-- the 17 concrete lifecycle contributors and remaining 16 concrete export
-  contributors;
-- reviewed contributor/storage composition, durable post-upload generation
-  recovery, active worker schedules,
+- the 17 concrete lifecycle contributors;
+- reviewed contributor composition, active worker schedules,
   authenticated Closure Center, mutating independently authorized operator
   commands, final notice delivery, or explicit reactivation;
 - context purge/scrub implementations, legal-hold handling, backup erasure
@@ -249,146 +237,22 @@ tool. Do not invoke equivalent ad-hoc SQL.
 
 ### Worker quarantine and activation rule
 
-The worker boot-registers three content-free safety handlers:
+The worker boot-registers one content-free safety handler:
 
-| Job                                  | Per-pass bound       | Intended cadence | Current posture |
-| ------------------------------------ | -------------------- | ---------------- | --------------- |
-| `advance-organization-lifecycle`     | 50 Organizations     | 5 minutes        | quarantined     |
-| `generate-organization-export`       | one generation lease | 1 minute         | quarantined     |
-| `purge-expired-organization-exports` | one expired object   | 1 hour           | quarantined     |
+| Job                              | Per-pass bound   | Intended cadence | Current posture |
+| -------------------------------- | ---------------- | ---------------- | --------------- |
+| `advance-organization-lifecycle` | 50 Organizations | 5 minutes        | quarantined     |
 
 Do not change a family to `enabled` merely because its handler exists. Lifecycle
 advancement requires all 17 unique context contributors plus independently
-reviewed support authorization. Export generation requires all 17 unique export
-contributors, encrypted private storage, a dedicated retrieval-secret binding,
-durable recovery of a post-upload/pre-completion crash, and the bundle builder's
-formula-safe CSV check (see Organization Export below). Export
-deletion additionally requires a live absence-verification drill. A partial set
-is reported as missing contexts and remains non-executable; it is never
-converted to `no_data` by composition.
-
-### Post-upload crash recovery
-
-Migration `0170_organization_export_pre_egress_evidence.sql` makes the ambiguous
-window recoverable, so `generationRecoveryConfigured` is now derived from the
-supplied storage rather than hard-coded false. A storage adapter that cannot
-answer `verifyStored` still cannot recover, and composition still refuses.
-
-The protocol is:
-
-1. `generating` — the bundle is built.
-2. `recordPreEgressEvidence` commits the coverage, manifest and archive digests
-   plus the deterministic object key, and moves the row to `egress_pending`.
-   `encryption_evidence_ref` is still null: the bytes have not left yet.
-3. `storage.putEncrypted` uploads.
-4. `completeGeneration` confirms the persisted digests and moves to `ready`.
-
-A crash anywhere after step 2 is no longer ambiguous, because step 2 recorded
-what the bytes must be before they existed. A reclaimed `egress_pending` lease
-renews **in place** — never back to `generating` — calls `storage.verifyStored`,
-and either completes with the **original** digests or fails closed with
-`egress_evidence_mismatch`, retaining them for inspection. `buildBundle` is
-never invoked on the recovery path, so a reclaimed lease can never produce a
-second archive of a different as-of moment.
+reviewed support authorization. A partial set is reported as missing contexts
+and remains non-executable; it is never converted to `no_data` by composition.
 
 ## Organization Export
 
-Organization Export is not a cross-context database dump. Exactly one
-contributor from each of the 17 contexts must return `complete`, `no_data`, or
-`omitted` at a fixed `as_of`. `complete` requires a human-readable CSV and a
-lossless JSON file; omission requires a content-free code. Paths, encodings,
-classifications, duplicates, and forbidden path components are validated.
-
-The recipient opens the CSV files in a spreadsheet, and a spreadsheet evaluates
-a cell whose text starts a formula even when RFC 4180 quoting keeps it in its
-own cell (OWASP CSV Injection). Every contributor therefore writes its cells
-with `csvCell` (`src/shared/security/csv-cell.ts`), which prefixes `'` to text
-starting with `=`, `+`, `-`, `@`, TAB or CR unless the whole cell is a decimal
-number, so a Member-chosen name or a Staff display name opens as text. The
-builder refuses any `text/csv` entry that still has such a cell or malformed
-quoting. `README.md` explains the prefix to the recipient; the JSON files keep
-the exact value.
-
-The deterministic `organization-export/v1` ZIP contains:
-
-- `README.md`;
-- `schema.json`;
-- `coverage.json`, including every context and omission state;
-- context-owned CSV/JSON files; and
-- `manifest.json` with media type, classification, byte size, and SHA-256 for
-  every preceding entry.
-
-Canonical UTF-8 byte ordering and fixed ZIP metadata make retries reproducible.
-The Review contributor may expose only manager-authored material; Integration
-is content-free lifecycle status; AI is limited to retained permitted
-derivatives. OAuth material, sessions, cookies, password/hash/key/credential
-material, raw provider review content/identifiers, live Performance payloads,
-queues/outbox/receipts, rate limits, fraud/security/operator internals,
-prompts/transient inference, and restricted Operational Action History are
-excluded by contract. Concrete contributors still require independent review;
-the coordinator cannot prove a secret was mislabeled inside otherwise valid
-CSV/JSON bytes. The Identity contributor is the first reviewed concrete owner:
-it emits `identity/organization.csv` and `identity/organization.json`, names
-excluded record classes, never queries Account credentials, Sessions, or
-Verification challenges, and refuses a request whose extraction cannot begin
-within the 15-minute bounded snapshot window. Its stable payload omits the
-changing transaction timestamp, so an unchanged database produces identical
-bytes on retry.
-
-A request and every retrieval step recheck and lock a current AccountAdmin
-membership plus active Organization Binding inside the database transaction.
-PostgreSQL stores only state, revisions, checksums, a private deterministic
-object key, encrypted-storage evidence, a token digest, clocks, and deletion
-evidence. It stores neither ZIP bytes nor the raw token.
-
-Generation uses a bounded renewable lease and deterministic private key. A
-failure before storage starts can become a content-free terminal failure. Once
-storage starts, the row remains retryable so an ambiguous object write cannot
-be hidden behind a terminal database state. The remaining blocker is durable
-recovery of the exact archive/checksum evidence after a process dies between
-the object write and database completion; rebuilding a later live snapshot is
-not accepted as proof. Production composition is hard-disabled until that
-protocol and its post-upload crash test exist. The S3-compatible adapter
-requires private keys, server-side AES-256 evidence, exact checksum replay, and
-verified absence after deletion.
-
-Retrieval authority is derived from a dedicated server secret, bound to the
-request and operation UUID, stored only as a SHA-256 digest, valid for at most
-24 hours and never beyond the object deadline, and atomically consumed before
-object bytes are read. Every issued operation and digest is also retained in
-append-only `organization_export_retrieval_issuances`, so expired rotation
-cannot resurrect an earlier raw token. The archive checksum is reverified after read. A
-consumed request no longer blocks a new export, which provides a safe recovery
-path after a client/storage read failure without making the original token
-reusable. An expired 24-hour authority can be transactionally replaced by a
-fresh current-AccountAdmin request while the encrypted object remains inside
-its seven-day deadline; the prior digest stops authorizing retrieval. Export
-objects have a maximum seven-day deadline; deletion is only complete after
-object deletion/absence is verified and content-free evidence is committed.
-
-The deletion pass commits its claim (`delete_pending`) before it deletes the
-object. If the delete fails, or the worker dies before the evidence is
-committed, the row stays `delete_pending`, and a later pass claims it again once
-the claim is 15 minutes old. The row is handed back unchanged (the transition
-guard admits only `delete_pending → deleted`, so the claim instant in
-`updated_at` is the lease); deleting an object that is already gone still
-verifies its absence, and the completion accepts its own replay.
-
-Each pass deletes one object, in this order:
-
-- A newly expired object is claimed before any retried one, oldest deadline
-  first. A retry therefore never delays a first deletion, and a retry is only
-  attempted on a pass that finds no newly expired object: each newly expired
-  object waiting postpones every retry by one pass.
-- Among retried objects the pass picks one at random. An object that cannot be
-  deleted fails each pass that picks it with `export_deletion_failed`, but it is
-  not picked every time, so the other retried objects are still deleted. With
-  one object that keeps failing and one that does not, each pass is an even
-  draw between them.
-
-A pass that fails with `export_deletion_failed` means the object it picked could
-not be deleted; it does not mean that object is the only one waiting. Every
-`organization_exports` row in state `delete_pending` is a deletion still owed.
+There is no in-app export runtime and no export worker family. An Organization's
+data is exported on request through the manual procedure in
+[rights-requests.md](rights-requests.md).
 
 ## Member offboarding
 
@@ -492,10 +356,10 @@ pnpm ops report-organization-lifecycle \
 ```
 
 The command is read-only. It reports state/revision/lineage/deadlines,
-reactivation fence, and missing lifecycle/export bindings. It cannot request
+reactivation fence, and missing lifecycle bindings. It cannot request
 or cancel closure,
-waive recovery, cross the irreversible boundary, reactivate, generate an
-export, issue a retrieval token, or delete storage.
+waive recovery, cross the irreversible boundary, reactivate, or delete
+storage.
 
 Use exact tenant/request identifiers and read only:
 
@@ -504,9 +368,6 @@ Use exact tenant/request identifiers and read only:
 - `organization_lifecycle_events` for append-only request/cancel retry results,
   transaction-bound context phase results, Property erase receipts, privacy
   transitions, and backup legal-hold releases;
-- `organization_export_retrieval_issuances` for append-only, digest-only
-  evidence that every old retrieval authority remains dead;
-- `organization_exports` for content-free generation/retrieval/deletion state;
 - `audit_logs` actions `privacy_request.received`,
   `sensitive_data.exported`, and `sensitive_data.accessed`; and
 - `outbox_events` filtered to
@@ -521,27 +382,24 @@ or support evidence in routine product telemetry.
 LIF-01 cannot be marked complete until all of the following exist and pass on
 the final candidate:
 
-1. concrete, idempotent lifecycle contributors for all 17 contexts and export
-   contributors for the remaining 16 contexts;
-2. immutable pre-egress archive evidence plus post-upload/pre-completion crash
-   recovery that never rebuilds a later live snapshot as historical proof;
-3. production composition, bounded schedules, manager Closure Center, and
+1. concrete, idempotent lifecycle contributors for all 17 contexts;
+2. production composition, bounded schedules, manager Closure Center, and
    ticketed independent operator authorization;
-4. the migration that adds the `active -> active` reactivation edge and the
+3. the migration that adds the `active -> active` reactivation edge and the
    `reactivate` receipt operation, without which explicit reactivation (whose
    command, readiness port and checks now exist) cannot commit;
-5. support-mediated Property Erase and Organization Purge interruption/retry
+4. support-mediated Property Erase and Organization Purge interruption/retry
    drills with independently retained managerial-work decisions;
-6. backup erasure/restore fences proving closed or expired data cannot
+5. backup erasure/restore fences proving closed or expired data cannot
    resurrect;
-7. Guest-contact/feedback and Participant access/correction/withdrawal/erasure;
-8. a counsel-approved retention registry with owner, eligibility query,
+6. Guest-contact/feedback and Participant access/correction/withdrawal/erasure;
+7. a counsel-approved retention registry with owner, eligibility query,
    evidence, restore implications, report-only run, bounded cell-local apply,
    and tenant-isolation/time-travel tests;
-9. a fresh-database migration proof for migrations `0159` and `0168` and the
+8. a fresh-database migration proof for migrations `0159` and `0168` and the
    final journal, plus live Railway storage configuration and deletion
    verification; and
-10. product, security, legal, support, and operational acceptance evidence.
+9. product, security, legal, support, and operational acceptance evidence.
 
 Migration `0159` is append-only candidate DDL. Do not rewrite it after release
 or successful application to a non-disposable environment; any later correction

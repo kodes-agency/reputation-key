@@ -325,21 +325,9 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     ).toBeUndefined()
     expect(container.identityLifecycleRuntime.support).toBeUndefined()
 
-    // The in-app export has no contributors: exports are written by the manual
-    // rights request command, so the runtime reports every context missing and
-    // its service stays absent (egress also needs storage, the archive writer,
-    // the retrieval-secret binding and generation recovery).
-    expect(container.identityLifecycleRuntime.organizationExport.readiness).toMatchObject(
-      {
-        configured: false,
-        contributorsConfigured: false,
-        storageConfigured: false,
-      },
-    )
-    expect(
-      container.identityLifecycleRuntime.organizationExport.readiness.missingContexts,
-    ).toHaveLength(13)
-    expect(container.identityLifecycleRuntime.organizationExport.service).toBeUndefined()
+    // Exports are written by the manual rights request command, so the runtime
+    // carries no in-app export surface.
+    expect(container.identityLifecycleRuntime).not.toHaveProperty('organizationExport')
   })
 
   it('wires the injected queues and defines rateLimiter/jobRegistry', () => {
