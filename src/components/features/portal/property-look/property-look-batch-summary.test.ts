@@ -13,6 +13,7 @@ const ready = (
 ): BatchEntry => ({
   kind: 'ready',
   version: 7,
+  reviewDigest: 'digest-7',
   mix: { look: 0, other: 0, hasUnlisted: false, ...mix },
   changesMayBeIncomplete,
 })

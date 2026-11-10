@@ -335,9 +335,9 @@ export function publishingPortals(
   answer: PublishAnswer | Error = allPublished,
 ): PublishPortalsAction {
   return Object.assign(
-    fn(async (input: { data: { portalIds: string[] } }) => {
+    fn(async (input: { data: { portals: { portalId: string }[] } }) => {
       if (answer instanceof Error) throw answer
-      return answer(input.data.portalIds)
+      return answer(input.data.portals.map((portal) => portal.portalId))
     }),
     NOT_ANSWERABLE,
   ) as unknown as PublishPortalsAction

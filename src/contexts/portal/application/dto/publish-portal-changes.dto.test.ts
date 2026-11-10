@@ -24,33 +24,48 @@ describe('publish changes while live: input', () => {
   })
 
   it('names at least one and at most the batch limit of Portals', () => {
-    const ids = (count: number) => Array.from({ length: count }, (_, i) => `portal-${i}`)
+    const ids = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        portalId: `portal-${i}`,
+        reviewedDigest: 'digest',
+      }))
 
-    expect(publishPortalsChangesInputSchema.safeParse({ portalIds: [] }).success).toBe(
+    expect(publishPortalsChangesInputSchema.safeParse({ portals: [] }).success).toBe(
       false,
     )
-    expect(
-      publishPortalsChangesInputSchema.safeParse({ portalIds: ids(1) }).success,
-    ).toBe(true)
+    expect(publishPortalsChangesInputSchema.safeParse({ portals: ids(1) }).success).toBe(
+      true,
+    )
     expect(
       publishPortalsChangesInputSchema.safeParse({
-        portalIds: ids(MAX_PORTALS_PER_PUBLISH_BATCH),
+        portals: ids(MAX_PORTALS_PER_PUBLISH_BATCH),
       }).success,
     ).toBe(true)
     expect(
       publishPortalsChangesInputSchema.safeParse({
-        portalIds: ids(MAX_PORTALS_PER_PUBLISH_BATCH + 1),
+        portals: ids(MAX_PORTALS_PER_PUBLISH_BATCH + 1),
       }).success,
     ).toBe(false)
   })
 
-  it('refuses an empty Portal ID and keys it does not know', () => {
-    expect(publishPortalsChangesInputSchema.safeParse({ portalIds: [''] }).success).toBe(
-      false,
-    )
+  it('refuses a Portal named without the version that was reviewed', () => {
     expect(
-      publishPortalsChangesInputSchema.safeParse({ portalIds: ['p1'], force: true })
+      publishPortalsChangesInputSchema.safeParse({ portals: [{ portalId: 'p1' }] })
         .success,
+    ).toBe(false)
+  })
+
+  it('refuses an empty Portal ID and keys it does not know', () => {
+    expect(
+      publishPortalsChangesInputSchema.safeParse({
+        portals: [{ portalId: '', reviewedDigest: 'digest' }],
+      }).success,
+    ).toBe(false)
+    expect(
+      publishPortalsChangesInputSchema.safeParse({
+        portals: [{ portalId: 'p1', reviewedDigest: 'digest' }],
+        force: true,
+      }).success,
     ).toBe(false)
   })
 })

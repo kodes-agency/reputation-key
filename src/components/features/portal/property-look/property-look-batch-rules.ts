@@ -49,6 +49,7 @@ export type BatchReviewFacts = Pick<
   | 'action'
   | 'nothingToPublish'
   | 'canPublish'
+  | 'reviewDigest'
   | 'publishesAsVersion'
   | 'changes'
   | 'changesMayBeIncomplete'
@@ -60,6 +61,8 @@ export type BatchEntry =
   | Readonly<{
       kind: 'ready'
       version: number
+      /** The version of the draft the review showed; the publish only goes through if the draft still says that. */
+      reviewDigest: string
       /** What the publish carries: this page's look edits, and everything else saved. */
       mix: ChangeMix
       changesMayBeIncomplete: boolean
@@ -123,9 +126,13 @@ export function batchEntryOf(review: BatchReviewFacts | null): BatchEntry {
   if (review.action !== 'publish_changes') return { kind: 'not_live' }
   if (review.nothingToPublish) return { kind: 'nothing' }
   if (review.canPublish) {
+    // A review that can be published always carries its digest; without one
+    // there is nothing the publish could be held to.
+    if (review.reviewDigest === null) return { kind: 'unreadable' }
     return {
       kind: 'ready',
       version: review.publishesAsVersion,
+      reviewDigest: review.reviewDigest,
       mix: changeMixOf(review.changes),
       changesMayBeIncomplete: review.changesMayBeIncomplete,
     }
