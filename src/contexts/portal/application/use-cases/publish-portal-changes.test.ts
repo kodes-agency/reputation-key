@@ -82,10 +82,15 @@ type Options = Readonly<{
   /** `older`: a live code made before access artifacts (it works; its scans are not counted). */
   hasAddress?: boolean | 'older'
   responsibilityNeededSince?: Date | null
+  /** A personal Portal for this staff member. */
+  staffName?: string
+  /** The Portal wrote its own wordmark instead of following the Property brand. */
+  ownWordmark?: boolean
 }>
 
 function setup(options: Options = {}) {
   const portal = buildTestPortal({
+    ...(options.staffName ? { kind: 'personal' as const, name: options.staffName } : {}),
     publicationState: options.state ?? 'published',
     responsibilityNeededSince: options.responsibilityNeededSince ?? null,
   })
@@ -109,7 +114,9 @@ function setup(options: Options = {}) {
     loadWorkingCopy: async () => draftWorkingCopy(),
     loadWorkingCopyWithLook: async () => ({
       source: draftWorkingCopy(),
-      lookSources: PROPERTY_LOOK_SOURCES,
+      lookSources: options.ownWordmark
+        ? { ...PROPERTY_LOOK_SOURCES, identity: 'portal' }
+        : PROPERTY_LOOK_SOURCES,
     }),
     getCursor: async () => ({ nextSnapshotVersion: 3, nextActivationSequence: 4 }),
     findSnapshotByVersion: async () => null,
@@ -243,6 +250,64 @@ describe('publishPortalChanges', () => {
     expect(command?.event).toMatchObject({
       previousPublicationState: 'published',
       publicationState: 'published',
+    })
+  })
+
+  describe('a personal Portal whose staff name is in a wordmark', () => {
+    const wordmarked = (wordmark: string) => ({
+      look: { ...publicationSource().look!, wordmark },
+    })
+
+    it('publishes and republishes when the name is only in the Property brand', async () => {
+      const published = setup({
+        staffName: 'Marco Rossi',
+        workingCopy: wordmarked('Pizzeria Marco'),
+      })
+      await expect(
+        published.useCase({ portalId: published.portal.id }, manager()),
+      ).resolves.toMatchObject({ outcome: 'published' })
+
+      const republished = setup({
+        staffName: 'Marco Rossi',
+        workingCopy: wordmarked('Pizzeria Marco'),
+        destination: 'relinked',
+      })
+      await expect(
+        republished.useCase({ portalId: republished.portal.id }, manager()),
+      ).resolves.toMatchObject({ outcome: 'published' })
+    })
+
+    it('refuses the name in a wordmark the Portal wrote itself and writes nothing', async () => {
+      const harness = setup({
+        staffName: 'Marco Rossi',
+        workingCopy: wordmarked('MARCO'),
+        ownWordmark: true,
+      })
+      await expect(
+        harness.useCase({ portalId: harness.portal.id }, manager()),
+      ).rejects.toMatchObject({ code: 'personal_portal_name_private' })
+      expect(harness.commands).toEqual([])
+    })
+
+    it('still refuses the name in the Portal wording', async () => {
+      const harness = setup({
+        staffName: 'Marco Rossi',
+        workingCopy: {
+          ...wordmarked('Pizzeria Marco'),
+          wording: {
+            en: {
+              title: 'Ask Marco',
+              shortDescription: 'Rate your visit.',
+              heroAlt: null,
+              linktreeTitle: null,
+            },
+          },
+        },
+      })
+      await expect(
+        harness.useCase({ portalId: harness.portal.id }, manager()),
+      ).rejects.toMatchObject({ code: 'personal_portal_name_private' })
+      expect(harness.commands).toEqual([])
     })
   })
 
@@ -555,6 +620,10 @@ describe('publishPortalsChanges', () => {
         ...harness.deps.publicationRepo,
         loadWorkingCopy: async (_org: unknown, id: unknown) =>
           workingCopyOf(portalOf(String(id))),
+        loadWorkingCopyWithLook: async (_org: unknown, id: unknown) => ({
+          source: workingCopyOf(portalOf(String(id))),
+          lookSources: PROPERTY_LOOK_SOURCES,
+        }),
         findActiveForPortal: async (_org: unknown, id: unknown) =>
           liveSnapshotOf(portalOf(String(id)), workingCopyOf(portalOf(String(id)))),
       } as PortalPublicationRepository,

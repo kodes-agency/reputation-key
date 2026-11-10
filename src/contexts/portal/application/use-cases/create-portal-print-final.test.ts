@@ -28,6 +28,7 @@ import {
   type PortalPrintFinalRenderer,
   type PrintFinalRenderInput,
 } from '../ports/portal-print-final-renderer.port'
+import { PROPERTY_LOOK_SOURCES } from '../../domain/portal-look'
 import { createPortalPrintFinal } from './create-portal-print-final'
 import type { RevealPortalAddress } from './reveal-portal-address'
 
@@ -40,7 +41,10 @@ const PRINTED_AT = new Date('2026-10-25T09:30:00.000Z')
 
 type Options = Readonly<{
   personal?: boolean
+  staffName?: string
   wordmark?: string
+  /** The Portal wrote its own wordmark instead of following the Property brand. */
+  ownWordmark?: boolean
   accessible?: readonly PropertyId[]
   live?: boolean
   revealFailure?: ReturnType<typeof portalError>
@@ -53,7 +57,11 @@ type Options = Readonly<{
 async function setup(options: Options = {}) {
   const portal = buildTestPortal(
     options.personal
-      ? { kind: 'personal', name: 'Polly Smith', publicName: 'Reception' }
+      ? {
+          kind: 'personal',
+          name: options.staffName ?? 'Polly Smith',
+          publicName: 'Reception',
+        }
       : { name: 'Reception' },
   )
   const portalRepo = createInMemoryPortalRepo()
@@ -109,6 +117,13 @@ async function setup(options: Options = {}) {
     },
     publicationRepo: {
       loadWorkingCopy: async () => publicationSource(),
+      loadWorkingCopyWithLook: async () => ({
+        source: publicationSource(),
+        lookSources: {
+          ...PROPERTY_LOOK_SOURCES,
+          ...(options.ownWordmark ? { identity: 'portal' as const } : {}),
+        },
+      }),
       findActiveForPortal: async () =>
         options.live === false
           ? null
@@ -194,10 +209,22 @@ describe('createPortalPrintFinal', () => {
     expect(input?.logo).not.toBeNull()
   })
 
-  it('refuses a personal name in a live wordmark before revealing or rendering', async () => {
+  it('prints a personal Portal whose staff name is in the Property brand', async () => {
+    const { portal, make, rendered } = await setup({
+      personal: true,
+      staffName: 'Marco Rossi',
+      wordmark: 'Pizzeria Marco',
+    })
+    await make(tents(portal.id), buildTestAuthContext())
+    expect(rendered[0]?.wordmark).toBe('Pizzeria Marco')
+  })
+
+  it('refuses a staff name in the wordmark the personal Portal wrote itself', async () => {
     const { portal, make, reveal, rendered, wordingRepo, lastPrintRepo } = await setup({
       personal: true,
-      wordmark: 'POLLY',
+      staffName: 'Marco Rossi',
+      wordmark: 'MARCO',
+      ownWordmark: true,
     })
     await expect(make(tents(portal.id), buildTestAuthContext())).rejects.toMatchObject({
       code: 'personal_portal_name_private',
@@ -206,6 +233,24 @@ describe('createPortalPrintFinal', () => {
     expect(rendered).toEqual([])
     expect(wordingRepo.saved()).toEqual([])
     expect(lastPrintRepo.recorded()).toEqual([])
+  })
+
+  it('still refuses the staff name in the personal Portal custom words', async () => {
+    const { portal, make, rendered } = await setup({
+      personal: true,
+      staffName: 'Marco Rossi',
+      wordmark: 'Pizzeria Marco',
+    })
+    await expect(
+      make(
+        tents(portal.id, {
+          callToAction: 'how_was_stay',
+          customWords: { en: { headline: 'Ask Marco', subline: 'Tell us more' } },
+        }),
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({ code: 'personal_portal_name_private' })
+    expect(rendered).toEqual([])
   })
 
   it('keeps a neutral personal print and the manager-only name in its file name', async () => {

@@ -1,4 +1,7 @@
-import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
+import {
+  assertPersonalPortalPublicText,
+  withoutInheritedBrand,
+} from '../../domain/personal-portal-public-text'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId, unbrand } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
@@ -73,7 +76,17 @@ export const rollbackPortalPublication =
       throw portalError('not_restorable', 'This earlier page design is view-only')
     }
 
-    assertPersonalPortalPublicText(portal, target.configuration)
+    const workingCopy = await deps.publicationRepo.loadWorkingCopyWithLook(
+      ctx.organizationId,
+      pid,
+    )
+    assertPersonalPortalPublicText(
+      portal,
+      withoutInheritedBrand(
+        target.configuration,
+        workingCopy?.lookSources.identity ?? 'portal',
+      ),
+    )
     const occurredAt = deps.clock()
     const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     await deps.commandStore.updatePortal({
