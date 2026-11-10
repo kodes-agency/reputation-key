@@ -14,7 +14,7 @@ import type { Database } from '#/shared/db'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { Tx } from '#/shared/outbox/commit'
 
-export const REVIEW_EXPORT_VERSION = 'review-rights-export/v1'
+const REVIEW_EXPORT_VERSION = 'review-rights-export/v1'
 
 const UTC = 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
 
@@ -23,7 +23,7 @@ function utc(column: string, alias = column.split('.').pop() as string): SQL {
   return sql`to_char(${sql.raw(column)} AT TIME ZONE 'UTC', ${UTC}) AS ${sql.raw(alias)}`
 }
 
-export const REVIEW_EXCLUDED_RECORD_CLASSES = Object.freeze([
+const REVIEW_EXCLUDED_RECORD_CLASSES = Object.freeze([
   {
     recordClass: 'google_controlled_review_source_content',
     reasonCode: 'provider_controlled_content',
@@ -48,23 +48,6 @@ export const REVIEW_EXCLUDED_RECORD_CLASSES = Object.freeze([
 ])
 
 type Row = Readonly<Record<string, unknown>>
-
-/** Review tables scoped directly by `organization_id` that hold tenant content. */
-const PRESENCE_TABLES = Object.freeze([
-  'reviews',
-  'replies',
-  'review_provider_snapshot_runs',
-  'review_provider_history_cutoffs',
-  'review_ai_analysis_heads',
-  'review_google_reputation_snapshot_facts',
-  'organization_reply_voices',
-  'property_reply_voices',
-  'reply_templates',
-  'reply_template_visibility',
-] as const)
-
-/** Tables with no Property column: a Property request does not touch them. */
-const ORGANIZATION_ONLY_TABLES: ReadonlyArray<string> = ['organization_reply_voices']
 
 const BLOCKER_CODES = Object.freeze([
   'active_reply_publications',
@@ -118,6 +101,99 @@ const scopedReviews = (scope: ReviewRightsScope) =>
           WHERE organization_id = ${scope.organizationId}
             AND property_id = ${scope.propertyId})`
     : sql`organization_id = ${scope.organizationId}`
+
+/**
+ * Every table closure deletes from or scrubs, with the rows of the scope in
+ * it, so the report sizes what apply removes. Children that go with a parent
+ * by cascade are counted through that parent.
+ */
+const COUNTED_TABLES: ReadonlyArray<
+  Readonly<{
+    table: string
+    organizationOnly?: true
+    rows: (scope: ReviewRightsScope) => SQL
+  }>
+> = [
+  { table: 'reviews', rows: scopedRows },
+  { table: 'replies', rows: scopedReviews },
+  { table: 'review_provider_snapshot_runs', rows: scopedRows },
+  { table: 'review_provider_history_cutoffs', rows: scopedRows },
+  { table: 'review_ai_analysis_heads', rows: scopedRows },
+  { table: 'review_google_reputation_snapshot_facts', rows: scopedRows },
+  { table: 'organization_reply_voices', organizationOnly: true, rows: scopedRows },
+  { table: 'property_reply_voices', rows: scopedRows },
+  { table: 'reply_templates', rows: scopedRows },
+  {
+    table: 'reply_template_visibility',
+    rows: (scope) =>
+      scope.propertyId
+        ? sql`organization_id = ${scope.organizationId}
+            AND (property_id = ${scope.propertyId}
+              OR template_id IN (SELECT id FROM reply_templates WHERE ${scopedRows(scope)}))`
+        : scopedRows(scope),
+  },
+  {
+    table: 'reply_template_revisions',
+    rows: (scope) =>
+      sql`template_id IN (SELECT id FROM reply_templates WHERE ${scopedRows(scope)})`,
+  },
+  {
+    table: 'reply_template_wordings',
+    rows: (scope) =>
+      sql`revision_id IN (
+        SELECT revision.id FROM reply_template_revisions AS revision
+        JOIN reply_templates AS template ON template.id = revision.template_id
+        WHERE ${aliasedScope(scope, 'template')})`,
+  },
+  { table: 'reply_publication_attempts', rows: scopedRows },
+  { table: 'material_review_revisions', rows: scopedRows },
+  { table: 'review_source_contents', rows: scopedRows },
+  { table: 'review_source_observations', rows: scopedRows },
+  { table: 'review_first_sightings', rows: scopedRows },
+  { table: 'review_provider_subjects', rows: scopedRows },
+  { table: 'review_ai_analysis_released_sequences', rows: scopedRows },
+  { table: 'google_reply_observations', rows: scopedRows },
+  { table: 'google_reply_observation_heads', rows: scopedRows },
+  {
+    table: 'review_provider_snapshot_members',
+    rows: (scope) =>
+      sql`run_id IN (SELECT id FROM review_provider_snapshot_runs WHERE ${scopedRows(scope)})`,
+  },
+  {
+    table: 'review_provider_deletion_candidates',
+    rows: (scope) =>
+      sql`run_id IN (SELECT id FROM review_provider_snapshot_runs WHERE ${scopedRows(scope)})`,
+  },
+  {
+    table: 'review_sync_runs',
+    rows: (scope) =>
+      sql`property_id IN (SELECT property_id FROM ${scopeProperties(scope)} AS scope)`,
+  },
+  {
+    table: 'review_sync_state',
+    rows: (scope) =>
+      sql`property_id IN (SELECT property_id FROM ${scopeProperties(scope)} AS scope)`,
+  },
+  {
+    table: 'idempotency_receipts',
+    rows: (scope) =>
+      sql`scope = 'gbp_webhook'
+        AND payload->>'resolvedPropertyId' IN (SELECT property_id FROM ${scopeProperties(scope)} AS scope)`,
+  },
+]
+
+/** The tables the Review report counts and closure changes, per request scope. */
+export const REVIEW_RIGHTS_TABLES = Object.freeze({
+  organization: COUNTED_TABLES.map(({ table }) => table),
+  property: COUNTED_TABLES.filter(({ organizationOnly }) => !organizationOnly).map(
+    ({ table }) => table,
+  ),
+})
+
+const countedTables = (scope: ReviewRightsScope) =>
+  COUNTED_TABLES.filter(
+    ({ organizationOnly }) => !(scope.propertyId && organizationOnly),
+  ).map(({ table, rows }) => ({ table, rows: rows(scope) }))
 
 function toCount(row: Row | undefined, field: string): number {
   const value = Number(row?.[field])
@@ -214,9 +290,7 @@ export async function readReviewRightsReport(
     async (tx) => {
       if (!(await scopeExists(tx, scope))) return [notFound(scope)]
       const held: string[] = []
-      for (const table of PRESENCE_TABLES) {
-        if (scope.propertyId && ORGANIZATION_ONLY_TABLES.includes(table)) continue
-        const rows = table === 'replies' ? scopedReviews(scope) : scopedRows(scope)
+      for (const { table, rows } of countedTables(scope)) {
         const result = await tx.execute(
           sql`SELECT count(*)::int AS held FROM ${sql.identifier(table)}
               WHERE ${rows}`,
