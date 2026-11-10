@@ -21,10 +21,10 @@ import pino from 'pino'
 import type { QueueDepth } from '#/shared/health/queue-depth'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
 import {
-  evaluateAlerts,
   implementedAlertNames,
   type AlertAuxReads,
 } from '#/shared/observability/alert-definitions'
+import { evaluateAlerts } from '#/shared/observability/alert-evaluation'
 import type { AlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import type { AlertStateStore } from '#/shared/health/alert-state'
 

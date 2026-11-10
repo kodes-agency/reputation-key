@@ -35,6 +35,20 @@ import { betaFeedbackTriage } from '#/shared/db/schema/beta-feedback-triage.sche
 import { retentionRuns } from '#/shared/db/schema/review-sync.schema'
 import type { AlertAuxReads } from '#/shared/observability/alert-definitions'
 
+/** One slow aggregate must not hold the whole health check; it reads as unavailable. */
+export const ALERT_AUX_READ_TIMEOUT_MS = 20_000
+
+function withinBudget<T>(read: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const expired = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${label} exceeded ${ALERT_AUX_READ_TIMEOUT_MS}ms`)),
+      ALERT_AUX_READ_TIMEOUT_MS,
+    )
+  })
+  return Promise.race([read, expired]).finally(() => clearTimeout(timer))
+}
+
 export type AlertAuxReader = Readonly<{
   read: () => Promise<AlertAuxReads>
 }>
@@ -338,25 +352,32 @@ export function createAlertAuxReader(deps: AlertAuxReaderDeps): AlertAuxReader {
   return {
     read: async () => {
       const [retention, betaFeedbackTriage, reviewAnalysis] = await Promise.all([
-        readRetentionFailedSubjects(deps.db).catch((err: unknown) => {
-          deps.logger.warn(
-            { err },
-            '[alert-aux] retention_runs read failed — unavailable fallback',
-          )
-          return { monitorAvailable: false, failedSubjects: [] } as const
-        }),
-        readBetaFeedbackTriage(deps.db).catch((err: unknown) => {
-          deps.logger.warn(
-            { err },
-            '[alert-aux] beta-feedback triage read failed — unavailable fallback',
-          )
-          return {
-            monitorAvailable: false,
-            deliveredUnresolvedCount: 0,
-            oldestDeliveredUnresolvedAgeMs: null,
-          } as const
-        }),
-        readReviewAnalysisHealth(deps.db).catch((err: unknown) => {
+        withinBudget(readRetentionFailedSubjects(deps.db), 'retention_runs read').catch(
+          (err: unknown) => {
+            deps.logger.warn(
+              { err },
+              '[alert-aux] retention_runs read failed — unavailable fallback',
+            )
+            return { monitorAvailable: false, failedSubjects: [] } as const
+          },
+        ),
+        withinBudget(readBetaFeedbackTriage(deps.db), 'beta-feedback triage read').catch(
+          (err: unknown) => {
+            deps.logger.warn(
+              { err },
+              '[alert-aux] beta-feedback triage read failed — unavailable fallback',
+            )
+            return {
+              monitorAvailable: false,
+              deliveredUnresolvedCount: 0,
+              oldestDeliveredUnresolvedAgeMs: null,
+            } as const
+          },
+        ),
+        withinBudget(
+          readReviewAnalysisHealth(deps.db),
+          'Review Analysis health read',
+        ).catch((err: unknown) => {
           deps.logger.warn(
             { err },
             '[alert-aux] Review Analysis health read failed — unavailable fallback',
