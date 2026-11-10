@@ -21,7 +21,6 @@ import { describe, it, expect, vi } from 'vitest'
 import pino from 'pino'
 import {
   ALERT_DEFINITIONS,
-  evaluateAlerts,
   OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS,
   QUARANTINE_REDRIVE_SLA_ALERT_MS,
   QUARANTINE_NONEMPTY_ALERT_MS,
@@ -41,6 +40,7 @@ import {
   type AlertAuxReads,
   type AlertEvent,
 } from '#/shared/observability/alert-definitions'
+import { evaluateAlerts } from '#/shared/observability/alert-evaluation'
 import {
   createAlertDispatcher,
   type AlertDispatcher,

@@ -11,7 +11,6 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
   ALERT_DEFINITIONS,
-  evaluateAlerts,
   NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
   NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
   NOTIFICATION_EMAIL_STALLED_ALERT_MS,
@@ -28,6 +27,7 @@ import {
   SYNC_SWEEP_LAG_ALERT_MS,
   type AlertAuxReads,
 } from './alert-definitions'
+import { evaluateAlerts } from './alert-evaluation'
 import { alertFactTags } from './alert-facts'
 import { ZERO_SYNC_PUSH_HEALTH } from '#/shared/db/sync-push-health'
 import { RECONCILIATION_OVERDUE_AFTER_MS } from '#/shared/domain/push-health'
@@ -1609,5 +1609,92 @@ describe('beta-feedback.triage-backlog is off for the closed beta', () => {
 
     expect(evaluation.toDispatch).toEqual([])
     expect(evaluation.firing).not.toContain(NAME)
+  })
+})
+
+// ── the frozen-location case and unknown health ───────────────────
+
+describe('frozen Google locations', () => {
+  it('fire both the failed-sync and the reconciliation-age alerts', () => {
+    const s = healthy()
+    s.sync = {
+      ...s.sync,
+      failedSyncCount: 4,
+      failedSyncCodes: { provider_rejected: 4 },
+    }
+    s.syncPush = {
+      ...s.syncPush,
+      reconciliation: {
+        ...s.syncPush.reconciliation,
+        overdueCount: 4,
+        oldestAgeMs: RECONCILIATION_OVERDUE_AFTER_MS + 60_000,
+      },
+    }
+
+    const { toDispatch, firing } = evaluateAlerts(s, AUX, new Set(), new Set())
+
+    expect(toDispatch.map(({ name }) => name).sort()).toEqual([
+      'sync.failed-nonzero',
+      'sync.reconciliation-age',
+    ])
+    expect([...firing].sort()).toEqual(['sync.failed-nonzero', 'sync.reconciliation-age'])
+    expect(toDispatch.find(({ name }) => name === 'sync.failed-nonzero')?.facts).toEqual({
+      count: 4,
+      codes: { provider_rejected: 4 },
+    })
+  })
+})
+
+describe('an auxiliary read that did not answer', () => {
+  const UNAVAILABLE_ANALYSIS: AlertAuxReads = {
+    ...AUX,
+    reviewAnalysis: { ...AUX.reviewAnalysis, monitorAvailable: false },
+  }
+
+  it('keeps an empty-enrollment alert that is already firing, without paging again', () => {
+    const result = evaluateAlerts(
+      healthy(),
+      UNAVAILABLE_ANALYSIS,
+      new Set(['ai.review-analysis-empty-enrollment']),
+      new Set(),
+    )
+
+    expect(result.firing).toContain('ai.review-analysis-empty-enrollment')
+    expect(result.held).toContain('ai.review-analysis-empty-enrollment')
+    expect(result.toDispatch.map(({ name }) => name)).not.toContain(
+      'ai.review-analysis-empty-enrollment',
+    )
+  })
+
+  it('does not open an empty-enrollment alert from the fallback', () => {
+    const result = evaluateAlerts(healthy(), UNAVAILABLE_ANALYSIS, new Set(), new Set())
+
+    expect(result.firing).not.toContain('ai.review-analysis-empty-enrollment')
+  })
+
+  it('keeps the coverage alert that is already firing, without paging again', () => {
+    const result = evaluateAlerts(
+      healthy(),
+      UNAVAILABLE_ANALYSIS,
+      new Set(['ai.review-analysis-stalled']),
+      new Set(),
+    )
+
+    expect(result.firing).toContain('ai.review-analysis-stalled')
+    expect(result.toDispatch.map(({ name }) => name)).not.toContain(
+      'ai.review-analysis-stalled',
+    )
+  })
+
+  it('keeps a firing retention alert when the retention read fails', () => {
+    const result = evaluateAlerts(
+      healthy(),
+      { ...AUX, retention: { monitorAvailable: false, failedSubjects: [] } },
+      new Set(['retention.failure']),
+      new Set(),
+    )
+
+    expect(result.firing).toContain('retention.failure')
+    expect(result.toDispatch).toEqual([])
   })
 })
