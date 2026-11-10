@@ -292,13 +292,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts',
-    symbol: 'findCurrentReviewIdsByAspect',
-    reason:
-      "The EXISTS subquery ties aspect mentions to the analysis row on Organization and Property; findCurrentAnalysisReviewIds, which embeds it, restricts the analysis rows to the caller's Organization.",
-    category: 'TENANT-CORRELATED',
-  },
-  {
     file: 'src/contexts/ai/replay/backlog-store.server.ts',
     symbol: 'claimReady',
     reason:
