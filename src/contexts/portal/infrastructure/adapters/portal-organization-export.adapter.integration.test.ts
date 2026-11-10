@@ -33,7 +33,6 @@ const CHILD_TABLES = [
   'portal_link_texts',
   'portal_links',
   'portal_link_categories',
-  'portal_group_members',
   'portal_group_history',
   'portal_groups',
   'portal_approved_destinations',
@@ -126,12 +125,6 @@ async function seedFixture(): Promise<Fixture> {
                                        kind, name, previous_name, actor_user_id, occurred_at)
      VALUES ($1, $2, $3, $4, 'renamed', 'Ground Floor', 'Lobby Level', $5, now())`,
     [randomUUID(), organizationId, fixture.propertyId, fixture.groupId, fixture.userId],
-  )
-  await q(
-    `INSERT INTO portal_group_members (id, portal_group_id, portal_id, organization_id,
-                                       created_at)
-     VALUES ($1, $2, $3, $4, now())`,
-    [randomUUID(), fixture.groupId, fixture.portalId, organizationId],
   )
   await q(
     `INSERT INTO portal_approved_destinations (
