@@ -95,10 +95,13 @@ describe('composeRightsExecutors', () => {
   })
 
   it('registers a replayer for every journaled context and erasing scope', () => {
-    const registered = composeRightsReplayers({
+    const replayers = composeRightsReplayers({
       ...deps,
       notificationReplayers: NOTIFICATION_REPLAYERS,
-    }).map(({ context, subjectClass }) => `${context}:${subjectClass}`)
+    })
+    const registered = replayers.map(
+      ({ context, subjectClass }) => `${context}:${subjectClass}`,
+    )
     const needed = composeRightsExecutors(deps, false).flatMap((executor) =>
       executor.scopes
         .filter((scope) => scope === 'organization' || scope === 'property')
@@ -108,7 +111,11 @@ describe('composeRightsExecutors', () => {
     )
     expect(needed.length).toBeGreaterThan(0)
     for (const key of needed) expect(registered).toContain(key)
-    expect(new Set(registered).size).toBe(registered.length)
+    const keys = replayers.map(
+      ({ context, subjectClass, targetKind }) =>
+        `${context}:${subjectClass}:${targetKind ?? 'scope'}`,
+    )
+    expect(new Set(keys).size).toBe(keys.length)
   })
 })
 

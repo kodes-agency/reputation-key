@@ -16,6 +16,7 @@ export const COMMANDS: Readonly<
   'deploy-ci-images': ['scripts/ops/deploy-ci-images.ts'],
   'copy-notification-defaults': ['scripts/ops/copy-notification-defaults.ts'],
   'disconnect-connection': ['scripts/ops/disconnect-connection.ts'],
+  'erase-retired-readings': ['scripts/ops/erase-retired-readings.ts'],
   'erasure-journal-export': ['scripts/ops/erasure-journal-export.ts'],
   'erasure-journal-expiry': ['scripts/ops/erasure-journal-export.ts', 'expiry'],
   'feedback-issue': ['scripts/ops/feedback-issue.ts'],
