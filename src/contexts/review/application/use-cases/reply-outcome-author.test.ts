@@ -40,8 +40,6 @@ const reply = (overrides: Partial<Reply>): Reply => ({
   reviewId: REVIEW,
   organizationId: ORG,
   text: 'Thank you for staying with us.',
-  templateId: null,
-  templateVersion: null,
   status: 'pending_approval',
   source: 'internal',
   createdBy: CREATOR,

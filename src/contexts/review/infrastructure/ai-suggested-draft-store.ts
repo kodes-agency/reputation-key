@@ -385,8 +385,6 @@ export const createAiSuggestedDraftStore = (
             {
               text: input.text,
               replyLanguageTag: provenance.concreteLanguageTag,
-              templateId: null,
-              templateVersion: null,
               templateLayer: null,
               templateRef: null,
               templateRevision: null,
@@ -421,8 +419,6 @@ export const createAiSuggestedDraftStore = (
             organizationId: input.organizationId,
             text: input.text,
             replyLanguageTag: provenance.concreteLanguageTag,
-            templateId: null,
-            templateVersion: null,
             voiceDigest: replyVoiceDigest ?? null,
             voiceChoices: replyV2VoiceChoices(provenance, bodyFrame),
             status: 'draft',

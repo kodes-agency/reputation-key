@@ -43,8 +43,6 @@ function checkedReply(overrides: Partial<CheckedReply> = {}): CheckedReply {
     reviewId: reviewId('review-1'),
     organizationId: organizationId('org-1'),
     text: 'Thank you for staying with us.',
-    templateId: null,
-    templateVersion: null,
     status: 'publish_failed',
     source: 'internal',
     createdBy: null,

@@ -250,8 +250,6 @@ function makeReply(overrides: Partial<Omit<Reply, 'id'>> & { id?: string } = {})
     createdAt: now,
     updatedAt: now,
     ...rest,
-    templateId: rest.templateId ?? null,
-    templateVersion: rest.templateVersion ?? null,
   } as Reply
 }
 
@@ -281,8 +279,10 @@ describe.sequential('replyRepository (integration)', () => {
         source: 'internal',
         createdBy: 'manager-1' as never,
         aiGenerated: false,
-        templateId: '73000000-0000-4000-8000-000000000001',
-        templateVersion: 3,
+        templateLayer: 'account',
+        templateRef: 'template:73000000-0000-4000-8000-000000000001',
+        templateRevision: 3,
+        templateWordingKey: 'w1',
         publishedAt: null,
       })
 
@@ -291,8 +291,10 @@ describe.sequential('replyRepository (integration)', () => {
         .select({
           aiGenerated: replies.aiGenerated,
           authorship: replies.authorship,
-          templateId: replies.templateId,
-          templateVersion: replies.templateVersion,
+          templateLayer: replies.templateLayer,
+          templateRef: replies.templateRef,
+          templateRevision: replies.templateRevision,
+          templateWordingKey: replies.templateWordingKey,
         })
         .from(replies)
         .where(eq(replies.id, draft.id))
@@ -300,8 +302,10 @@ describe.sequential('replyRepository (integration)', () => {
       expect(persisted).toEqual({
         aiGenerated: false,
         authorship: 'human',
-        templateId: '73000000-0000-4000-8000-000000000001',
-        templateVersion: 3,
+        templateLayer: 'account',
+        templateRef: 'template:73000000-0000-4000-8000-000000000001',
+        templateRevision: 3,
+        templateWordingKey: 'w1',
       })
     })
 

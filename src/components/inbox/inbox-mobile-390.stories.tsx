@@ -216,8 +216,6 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     organizationId: organizationId(reviewItem.organizationId),
     text: REPLY_TEXT,
     replyLanguageTag: 'en-Latn',
-    templateId: null,
-    templateVersion: null,
     status: 'pending_approval',
     source: 'internal',
     createdBy: userId(ADA_ID),

@@ -322,8 +322,6 @@ function reply(overrides: Partial<ReplyEntityView> = {}): ReplyEntityView {
     organizationId: organizationId('org-1'),
     text: REPLY_TEXT,
     replyLanguageTag: 'en-Latn',
-    templateId: null,
-    templateVersion: null,
     status: 'pending_approval',
     source: 'internal',
     createdBy: userId(ADA_ID),

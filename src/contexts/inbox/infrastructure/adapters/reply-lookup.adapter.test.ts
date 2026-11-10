@@ -47,8 +47,6 @@ function makeReply(overrides: Partial<ReplyEntityView> = {}): ReplyEntityView {
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
-    templateId: overrides.templateId ?? null,
-    templateVersion: overrides.templateVersion ?? null,
   }
 }
 

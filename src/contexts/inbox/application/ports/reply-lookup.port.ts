@@ -33,8 +33,6 @@ export type ReplyEntityView = Readonly<{
   organizationId: OrganizationId
   text: string
   replyLanguageTag?: string | null
-  templateId: string | null
-  templateVersion: number | null
   status: ReplyStatus
   source: ReplySource
   createdBy: UserId | null

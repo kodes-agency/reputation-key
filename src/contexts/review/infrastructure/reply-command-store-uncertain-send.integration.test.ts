@@ -142,8 +142,6 @@ function pendingReply(): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
-    templateId: null,
-    templateVersion: null,
     stateRevision: 1,
     submittedAt: STARTED_AT,
     approvedAt: null,
