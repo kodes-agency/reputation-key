@@ -1018,6 +1018,7 @@ export const ReplyNeedsCheckPhone = onPhone(ReplyNeedsCheck)
 
 export const ReplyNotPublished = replyNodeStory('notPublished', 'Not published', [
   'Try publishing again',
+  'Delete reply',
 ])
 export const ReplyNotPublishedPhone = onPhone(ReplyNotPublished)
 
