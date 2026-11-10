@@ -21,23 +21,9 @@
 // (src/shared/ops/google-provider-commands.ts). The container's own refusals
 // stay as the backstop for a command that reaches a provider path anyway.
 
-import { getDb } from '../../src/shared/db'
-import { closePool } from '../../src/shared/db/pool'
 import { getEnv } from '../../src/shared/config/env'
 import { assertRestoreCommandEnvironment } from '../../src/shared/config/restore-mode'
-import { getLogger } from '../../src/shared/observability/logger'
-import { buildCapabilityPolicyHandle } from '../../src/contexts/identity/infrastructure/policy-store-init'
-import {
-  claimProcessContainer,
-  releaseProcessContainer,
-  type Container,
-} from '../../src/composition'
-import { createOperatorContainer } from '../../src/composition/operator-container'
-import { closeJobQueueConnections } from '../../src/shared/jobs/queue'
-import {
-  bindProcessPolicies,
-  releaseProcessPolicies,
-} from '../../src/shared/auth/process-policy-binding'
+import type { Container } from '../../src/composition'
 import {
   runOperatorCommand as runCore,
   parseOperatorArgs,
@@ -59,6 +45,23 @@ type OperatorBoot = Readonly<{
 
 /** Boot the policy runtime, then the refusing operator Application Container. */
 async function bootOperatorRuntime(): Promise<OperatorBoot> {
+  // Loaded here, not at the top: `--help` and a refused argument list never
+  // reach this, so they open no settings, database or queue.
+  const [
+    { getDb },
+    { buildCapabilityPolicyHandle },
+    { getLogger },
+    { claimProcessContainer, releaseProcessContainer },
+    { createOperatorContainer },
+    { bindProcessPolicies, releaseProcessPolicies },
+  ] = await Promise.all([
+    import('../../src/shared/db'),
+    import('../../src/contexts/identity/infrastructure/policy-store-init'),
+    import('../../src/shared/observability/logger'),
+    import('../../src/composition'),
+    import('../../src/composition/operator-container'),
+    import('../../src/shared/auth/process-policy-binding'),
+  ])
   const db = getDb()
   const env = getEnv()
   const logger = getLogger(process.stderr)
@@ -126,13 +129,13 @@ export async function runOperatorCommand(
       }
     }
   }
+  if (argv.includes('--help')) {
+    const writeHelp = io?.out ?? ((line: string) => console.log(line))
+    writeHelp(`usage: ${spec.usage}`)
+    return { exitCode: 0 }
+  }
   const boot = await bootOperatorRuntime()
   try {
-    if (argv.includes('--help')) {
-      const writeHelp = io?.out ?? ((line: string) => console.log(line))
-      writeHelp(`usage: ${spec.usage}`)
-      return { exitCode: 0 }
-    }
     return await runCore(
       spec,
       (ctx, args, actionIO) =>
@@ -143,6 +146,12 @@ export async function runOperatorCommand(
     )
   } finally {
     boot.cleanup()
+    const [{ releaseProcessContainer }, { closeJobQueueConnections }, { closePool }] =
+      await Promise.all([
+        import('../../src/composition'),
+        import('../../src/shared/jobs/queue'),
+        import('../../src/shared/db/pool'),
+      ])
     const queues = new Set([
       boot.container.jobQueue,
       boot.container.backgroundQueue,

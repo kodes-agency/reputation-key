@@ -1,9 +1,13 @@
 // `pnpm ops check-google-oauth` — ask Google whether it accepts the closed
 // beta's "Connect Google" (callback address and client secret). Read-only.
 
-import { verifyClosedBetaGoogleOAuth } from './deploy-ci-images'
+if (process.argv.includes('--help')) {
+  console.log('usage: pnpm ops check-google-oauth')
+  process.exit(0)
+}
 
-void verifyClosedBetaGoogleOAuth()
+void import('./deploy-ci-images')
+  .then(({ verifyClosedBetaGoogleOAuth }) => verifyClosedBetaGoogleOAuth())
   .then((ok) => {
     process.exitCode = ok ? 0 : 1
   })
