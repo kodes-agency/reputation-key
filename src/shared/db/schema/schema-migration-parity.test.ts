@@ -143,11 +143,20 @@ describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions
       ])
     })
   })
-  describe('appended migration 0004 — reply template provenance', () => {
-    it('exposes informational template provenance on replies', () => {
+  describe('reply template provenance', () => {
+    it('keeps layered provenance after retiring the legacy template pair', () => {
       expect(columnNames(replies)).toEqual(
-        expect.arrayContaining(['template_id', 'template_version']),
+        expect.arrayContaining([
+          'template_layer',
+          'template_ref',
+          'template_revision',
+          'template_wording_key',
+          'voice_digest',
+          'voice_choices',
+        ]),
       )
+      expect(columnNames(replies)).not.toContain('template_id')
+      expect(columnNames(replies)).not.toContain('template_version')
     })
   })
 })
