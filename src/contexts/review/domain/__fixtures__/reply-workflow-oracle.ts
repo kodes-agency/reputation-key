@@ -303,7 +303,14 @@ export function managerVerdict(
       return editVerdict(state, command.text)
     case 'delete':
       // A reply that was ever authorized keeps its publication evidence, and
-      // the evidence keeps the reply.
+      // the evidence keeps the reply. One that failed for certain starts over
+      // in the same row, as the purge leaves a withdrawn reply; one whose
+      // outcome is unknown is checked with Google first.
+      if (state.status === 'publish_failed') {
+        return state.publication === 'terminal' && !outcomeUnknown(state)
+          ? { accepted: true, next: withdrawn(state) }
+          : REFUSED
+      }
       return (state.status === 'draft' || state.status === 'rejected') &&
         state.publication === null &&
         state.cycle === 0

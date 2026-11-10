@@ -146,6 +146,7 @@ const MANAGER_CTX: AuthContext = {
 }
 
 const TENANT_TABLES = [
+  'property_reply_voices',
   'authorization_execution_permits',
   'google_reply_observation_heads',
   'google_reply_observations',
@@ -225,7 +226,12 @@ export type ReplyWorkflowHarness = Awaited<ReturnType<typeof createReplyWorkflow
  * not this context's infrastructure.
  */
 export async function createReplyWorkflowHarness(
-  input: Readonly<{ pool: Pool; locationName: string; logger: LoggerPort }>,
+  input: Readonly<{
+    pool: Pool
+    locationName: string
+    logger: LoggerPort
+    replyLibrary?: ReplyDeps['replyLibrary']
+  }>,
 ) {
   const { pool, locationName, logger } = input
   const db = getDb()
@@ -516,6 +522,7 @@ export async function createReplyWorkflowHarness(
   }
 
   const replyDeps: ReplyDeps = {
+    replyLibrary: input.replyLibrary,
     replyRepo,
     reviewRepo,
     queue: {
@@ -683,9 +690,8 @@ export async function createReplyWorkflowHarness(
     await ai.restore()
   }
 
-  async function currentReply(): Promise<Reply | null> {
-    return replyRepo.findInternalByReviewId(WORKFLOW_REVIEW, WORKFLOW_ORG)
-  }
+  const currentReply = () =>
+    replyRepo.findInternalByReviewId(WORKFLOW_REVIEW, WORKFLOW_ORG)
 
   async function evidence(): Promise<ReplyEvidence> {
     const authorizations = await pool.query<{
@@ -960,17 +966,15 @@ export async function createReplyWorkflowHarness(
       ) => useCases.submit({ ...reviewInput, measurement }, MANAGER_CTX),
       /** `expectedReply`: the reply the manager's screen showed, and its revision. */
       approve: (expectedReply?: ReplyOnScreen) =>
-        useCases.approve(
-          expectedReply === undefined ? reviewInput : { ...reviewInput, expectedReply },
-          MANAGER_CTX,
-        ),
+        useCases.approve({ ...reviewInput, expectedReply }, MANAGER_CTX),
       reject: () => useCases.reject(reviewInput, MANAGER_CTX),
       retry: () => useCases.retry(reviewInput, MANAGER_CTX),
       /** Check Google again: read-only, it never sends. */
       checkGoogle: () => checkGoogle(reviewInput, MANAGER_CTX),
       editPublished: (text: string) =>
         useCases.editPublished({ ...reviewInput, text }, MANAGER_CTX),
-      delete: () => useCases.delete(reviewInput, MANAGER_CTX),
+      delete: (expectedReply?: ReplyOnScreen) =>
+        useCases.delete({ ...reviewInput, expectedReply }, MANAGER_CTX),
     },
   }
 }

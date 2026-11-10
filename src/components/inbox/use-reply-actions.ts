@@ -211,7 +211,13 @@ export function useReplyActions(input: Input): ReplyActions {
     successMessage: 'Reply deleted',
     errorMessage: actionErrorMessage,
     onError: reread,
-    onSuccess: (_deleted, command) => changed('state_changed')(null, command),
+    onSuccess: (deleted, command) => {
+      changed('state_changed')(null, command)
+      // A failed reply is emptied in its row, and the next draft names it.
+      if (deleted.restarted && command.data.reviewId === revisionFence.reviewId) {
+        revisionFence.didWrite(deleted.restarted)
+      }
+    },
   })
   const check = useActionMutation(
     checkReplyPublicationFn,
@@ -286,7 +292,7 @@ export function useReplyActions(input: Input): ReplyActions {
             expectedReply: revisionFence.beforeWrite(replyRevisionOnScreen(input.reply)),
           },
         })
-        revisionFence.didDelete()
+        if (!deleted.restarted) revisionFence.didDelete()
         return deleted
       }),
     approve: (expectedReply) =>

@@ -28,7 +28,7 @@ import {
   useReplyFocusReturn,
 } from '#/contexts/reputation/replies/ui/use-reply-check-run'
 import { formatExactTime, formatRelativeTime } from './utils'
-import { useRef, type ReactNode } from 'react'
+import { useRef, type ReactNode, type RefObject } from 'react'
 
 /**
  * Chip tone. `accent` is NOT the purple `--accent` token: purple is
@@ -213,9 +213,33 @@ type Props = Readonly<{
   /** Resolves what the check found; see `useReplyCheckRun`. */
   onCheck: () => Promise<ReplyPublicationCheckResult>
   onRetry: () => Promise<unknown>
+  onDeleteReply: () => Promise<unknown>
   onEditPublished: () => void
   onEditRejected: () => void
 }>
+
+/** A successful rejection remounts the actions; return focus to its new control. */
+function useReplyRejection(
+  reply: ReplyData,
+  isSaving: boolean,
+  onReject: Props['onReject'],
+  articleRef: RefObject<HTMLElement | null>,
+): Props['onReject'] {
+  const target = reply?.id ?? null
+  const focus = useReplyFocusReturn(
+    articleRef,
+    target,
+    reply ? actionRowKey(reply.id, reply.status) : null,
+    isSaving,
+  )
+  return (reason) => {
+    focus.cancel()
+    return onReject(reason).then((result) => {
+      if (target) focus.request(target, actionRowKey(target, 'rejected'))
+      return result
+    })
+  }
+}
 
 /**
  * The property's reply as ONE message in the thread (plan row 6), in the same
@@ -269,6 +293,7 @@ export function ReplyMessage({
   onReject,
   onCheck,
   onRetry,
+  onDeleteReply,
   onEditPublished,
   onEditRejected,
 }: Props): ReactNode {
@@ -280,26 +305,9 @@ export function ReplyMessage({
   )
   const articleRef = useRef<HTMLElement>(null)
   const checkRun = useReplyCheckRun(reply, onCheck, articleRef)
-  const focusAfterReject = useReplyFocusReturn(
-    articleRef,
-    reply?.id ?? null,
-    reply ? actionRowKey(reply.id, reply.status) : null,
-    isSaving,
-  )
+  const reject = useReplyRejection(reply, isSaving, onReject, articleRef)
   // A draft lives in the composer, so it is not a thread message at all.
   if (!view || !reply) return null
-
-  // A reject that lands remounts the row as the rejected view and takes the
-  // focused Confirm rejection with it; focus goes to that view's Edit & resubmit.
-  // A refused one leaves the panel open, so it asks for nothing.
-  const target = reply.id
-  const reject = (reason?: string) => {
-    focusAfterReject.cancel()
-    return onReject(reason).then((result) => {
-      focusAfterReject.request(target, actionRowKey(target, 'rejected'))
-      return result
-    })
-  }
 
   // The item carries the property's name or nothing; the pane header settles
   // on the same neutral noun rather than leaving the author blank.
@@ -351,6 +359,7 @@ export function ReplyMessage({
             onReject={reject}
             onCheck={checkRun.check}
             onRetry={onRetry}
+            onDeleteReply={onDeleteReply}
             onEditPublished={onEditPublished}
             onEditRejected={onEditRejected}
           />

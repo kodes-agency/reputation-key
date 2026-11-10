@@ -75,6 +75,36 @@ describe('assertReplyCommandMayStart', () => {
   })
 })
 
+describe('delete from a failed reply', () => {
+  const failed = (overrides: Partial<ReplyCommandSubject> = {}) =>
+    reply({
+      status: 'publish_failed',
+      publicationState: 'terminal',
+      publicationCycle: 1,
+      publicationLastErrorClass: 'terminal_rejection',
+      ...overrides,
+    })
+
+  it('may start once the publication settled as not published', () => {
+    expect(replyCommandMayStart('delete', failed())).toBe(true)
+    expect(
+      replyCommandMayStart('delete', failed({ publicationLastErrorClass: 'retryable' })),
+    ).toBe(true)
+  })
+
+  it('never starts while the outcome is uncertain', () => {
+    expect(
+      replyCommandMayStart('delete', failed({ publicationLastErrorClass: 'ambiguous' })),
+    ).toBe(false)
+    expect(
+      replyCommandMayStart(
+        'delete',
+        failed({ publicationState: 'ambiguous', publicationLastErrorClass: 'ambiguous' }),
+      ),
+    ).toBe(false)
+  })
+})
+
 describe('hasPublicationRecord', () => {
   it('is true once a cycle was authorized, whatever happened to it', () => {
     expect(hasPublicationRecord(reply())).toBe(false)

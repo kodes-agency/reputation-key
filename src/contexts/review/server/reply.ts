@@ -30,11 +30,11 @@ export const deleteReplyFn = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) =>
         runReplyCommand(async (reply, ctx) => {
-          await reply.delete(
+          const restarted = await reply.delete(
             { reviewId: reviewId(data.reviewId), expectedReply: data.expectedReply },
             ctx,
           )
-          return { success: true }
+          return { success: true, restarted }
         }),
       'POST',
       'review.deleteReply',

@@ -220,7 +220,10 @@ describe('canTransitionReply', () => {
     expect(canTransitionReply('rejected', 'approved')).toBe(false)
     expect(canTransitionReply('rejected', 'published')).toBe(false)
     expect(canTransitionReply('approved', 'approved')).toBe(false)
-    expect(canTransitionReply('publish_failed', 'draft')).toBe(false)
+  })
+
+  it('lets a failed reply start over as a draft (Delete reply)', () => {
+    expect(canTransitionReply('publish_failed', 'draft')).toBe(true)
   })
 
   it('rejects a transition from an unknown status (defensive `?? false` fallback)', () => {

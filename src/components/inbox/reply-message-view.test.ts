@@ -284,11 +284,10 @@ describe('presentReplyMessage', () => {
 
     expect(view?.chip).toBe('Not published')
     expect(view?.detail).toContain('stopped after 3 attempts')
-    // Retry is the ONLY action. `editPublishedReply` refuses anything but a
-    // `published` reply and `REPLY_TRANSITIONS.publish_failed` has no `draft`,
-    // so no server path changes the text of a publish-failed reply — an edit
-    // offered here could only ever fail into a toast.
-    expect(view?.actions).toEqual(['retry'])
+    // Retry and Delete reply are the only actions. `editPublishedReply` refuses
+    // anything but a `published` reply, so no server path edits the text of a
+    // publish-failed reply — an edit offered here could only fail into a toast.
+    expect(view?.actions).toEqual(['retry', 'deleteReply'])
   })
 
   /**
@@ -311,7 +310,7 @@ describe('presentReplyMessage', () => {
     expect(view?.detail).toBe(
       "This reply couldn't be published, and nothing was posted to Google. Check the Google Business Profile connection, then try again.",
     )
-    expect(view?.actions).toEqual(['retry'])
+    expect(view?.actions).toEqual(['retry', 'deleteReply'])
   })
 
   /**

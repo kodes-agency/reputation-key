@@ -135,6 +135,7 @@ const replyActions: ThreadReplyActions = {
     throw new Error('this thread has no reply to check')
   }),
   onRetry: fn(async () => undefined),
+  onDeleteReply: fn(async () => undefined),
   onEditPublished: fn(() => {}),
   onEditRejected: fn(() => {}),
 }

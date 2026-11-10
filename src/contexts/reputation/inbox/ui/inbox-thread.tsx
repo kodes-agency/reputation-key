@@ -75,6 +75,7 @@ export type ThreadReplyActions = Readonly<{
   /** Resolves what "Check Google again" found (`ReplyPublicationCheckResult`). */
   onCheck: () => Promise<ReplyPublicationCheckResult>
   onRetry: () => Promise<unknown>
+  onDeleteReply: () => Promise<unknown>
   onEditPublished: () => void
   onEditRejected: () => void
 }>
