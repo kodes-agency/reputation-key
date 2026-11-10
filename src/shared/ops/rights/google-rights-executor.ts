@@ -22,6 +22,7 @@ import {
   scrubRestoredGoogleIntegrationInTx,
   googleClosureRefusal,
   googlePropertyErasureRefusal,
+  GOOGLE_RIGHTS_TABLES,
   readGoogleRightsExport,
   readGoogleRightsPropertyExport,
   readGoogleRightsPropertyReport,
@@ -43,6 +44,7 @@ export function createGoogleRightsExecutor(
   return Object.freeze({
     name: 'google-integration',
     scopes: ['access', 'organization', 'property'] as const,
+    tables: GOOGLE_RIGHTS_TABLES,
     journalContexts: ['integration'] as const,
     async preflight(plan) {
       if (plan.scope === 'property') {

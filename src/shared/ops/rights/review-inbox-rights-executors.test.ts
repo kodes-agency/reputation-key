@@ -15,11 +15,13 @@ vi.mock('#/shared/db/lifecycle/review-rights-store', () => ({
   closeReview: stores.closeReview,
   readReviewRightsExport: stores.readReviewRightsExport,
   readReviewRightsReport: stores.readReviewRightsReport,
+  REVIEW_RIGHTS_TABLES: { organization: ['reviews'], property: ['reviews'] },
 }))
 vi.mock('#/shared/db/lifecycle/inbox-rights-store', () => ({
   closeInbox: stores.closeInbox,
   readInboxRightsExport: stores.readInboxRightsExport,
   readInboxRightsReport: stores.readInboxRightsReport,
+  INBOX_RIGHTS_TABLES: { organization: ['inbox_items'], property: ['inbox_items'] },
 }))
 
 const {

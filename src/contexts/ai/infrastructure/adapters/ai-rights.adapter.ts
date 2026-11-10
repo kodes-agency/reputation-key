@@ -11,6 +11,7 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { assertOrganizationHeld } from '#/shared/db/lifecycle/assert-organization-held'
 import type { Tx } from '#/shared/outbox/commit'
 import {
   organizationId as toOrganizationId,
@@ -32,6 +33,26 @@ const ORGANIZATION_ONLY_TABLES: ReadonlySet<string> = new Set([
   'ai_organization_cost_windows',
 ])
 
+/** Rows that go with their parent by cascade; the report counts them too. */
+const CASCADE_TABLES = Object.freeze([
+  'ai_draft_measurement_links',
+  'ai_review_analysis_aspects',
+  'ai_review_analysis_mentions',
+  'ai_review_analysis_mention_sentences',
+  'ai_review_analysis_mention_corrections',
+  'ai_property_aggregate_contribution_aspects',
+  'ai_property_aggregate_contribution_mentions',
+  'ai_property_daily_aspect_aggregates',
+] as const)
+
+/** The tables the AI report counts and erasure changes, per request scope. */
+const AI_RIGHTS_TABLES = Object.freeze({
+  organization: [...AI_PURGE_DELETE_TABLES, ...CASCADE_TABLES],
+  property: [...AI_PURGE_DELETE_TABLES, ...CASCADE_TABLES].filter(
+    (table) => !ORGANIZATION_ONLY_TABLES.has(table),
+  ),
+})
+
 type CountRow = Record<string, unknown>
 
 function errorMessage(error: unknown): string {
@@ -45,18 +66,6 @@ function count(value: unknown): number {
 function propertyOf(plan: { propertyId?: string }): string {
   if (!plan.propertyId) throw new Error('--property is required for a Property erasure')
   return plan.propertyId
-}
-
-async function assertHeld(tx: Tx, organization: string): Promise<void> {
-  const result = await tx.execute(sql`
-    SELECT state FROM organization_lifecycle_authority
-    WHERE organization_id = ${organization}
-  `)
-  const state = (result.rows[0] as { state?: string } | undefined)?.state
-  if (state === undefined) throw new Error('Organization has no lifecycle record')
-  if (state === 'active') {
-    throw new Error('Organization is still active; suspend it before a purge')
-  }
 }
 
 /** Authorizations, enrollments and operations that would outlive or rebuild the erasure. */
@@ -97,7 +106,7 @@ async function assertReady(
   property: string | null,
 ): Promise<void> {
   await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`))
-  if (property === null) await assertHeld(tx, organization)
+  if (property === null) await assertOrganizationHeld(tx, organization)
   await assertNothingLive(tx, organization, property)
 }
 
@@ -169,7 +178,7 @@ async function erasePropertyRows(
 }
 
 /** Exported so replayers and tests run the erasure body inside their own transaction. */
-export async function aiRightsEraseInTransaction(
+async function aiRightsEraseInTransaction(
   tx: Tx,
   organization: string,
   property: string | null,
@@ -197,6 +206,23 @@ async function reportCounts(
             : sql`SELECT count(*) AS n FROM ${sql.identifier(table)}
                   WHERE organization_id = ${organization}
                     AND property_id = ${property}::uuid`,
+        )
+        lines.push(`${table} ${count((result.rows[0] as CountRow).n)}`)
+      }
+      for (const table of CASCADE_TABLES) {
+        const result = await tx.execute(
+          table === 'ai_draft_measurement_links'
+            ? sql`SELECT count(*) AS n FROM ai_draft_measurement_links
+                  WHERE generation_id IN (
+                    SELECT id FROM ai_draft_measurements
+                    WHERE organization_id = ${organization}
+                    ${property === null ? sql`` : sql`AND property_id = ${property}::uuid`})`
+            : property === null
+              ? sql`SELECT count(*) AS n FROM ${sql.identifier(table)}
+                    WHERE organization_id = ${organization}`
+              : sql`SELECT count(*) AS n FROM ${sql.identifier(table)}
+                    WHERE organization_id = ${organization}
+                      AND property_id = ${property}::uuid`,
         )
         lines.push(`${table} ${count((result.rows[0] as CountRow).n)}`)
       }
@@ -239,6 +265,7 @@ export function createAiRightsExecutor(db: Database, now: () => Date): RightsExe
   return Object.freeze({
     name: CONTEXT,
     scopes: ['property', 'organization'] as const,
+    tables: AI_RIGHTS_TABLES,
     journalContexts: [CONTEXT] as const,
     async preflight(plan) {
       if (plan.scope !== 'organization' && plan.scope !== 'property') {

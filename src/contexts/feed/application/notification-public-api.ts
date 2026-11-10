@@ -2,6 +2,8 @@
 // Other contexts consume these types to interact with the Feed notification surface.
 // Per architecture: contexts must not import from another context's internal layers.
 
+export { NOTIFICATION_RIGHTS_TABLES } from '../domain/notification-rights-tables'
+
 // ── Domain type re-exports ────────────────────────────────────────────
 export type {
   ConfigurableNotificationCategory,

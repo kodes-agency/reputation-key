@@ -33,6 +33,12 @@ export type RightsExecutor = Readonly<{
    * covering executor before the first apply.
    */
   preflight?: (plan: RightsRequestPlan) => Promise<RightsPreflightOutcome>
+  /**
+   * Every table the executor reports on and changes, per scope it erases,
+   * including rows that go by cascade. The rights coverage gate joins these
+   * to the data-fate authority.
+   */
+  tables: Readonly<Partial<Record<RightsRequestScope, ReadonlyArray<string>>>>
   /** Content-free lines: counts, codes and ids only. */
   report: (plan: RightsRequestPlan) => Promise<ReadonlyArray<string>>
   /** The allowlisted files this context adds to an access or closure export. */
@@ -52,7 +58,7 @@ export type RunRightsExecutorsInput = Readonly<{
 }>
 
 /** Whether any executor covers the plan's scope. */
-export function rightsExecutorsFor(
+function rightsExecutorsFor(
   plan: RightsRequestPlan,
   executors: ReadonlyArray<RightsExecutor>,
 ): ReadonlyArray<RightsExecutor> {

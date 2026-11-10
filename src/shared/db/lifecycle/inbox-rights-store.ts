@@ -11,7 +11,7 @@ import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Tx } from '#/shared/outbox/commit'
 
-export const INBOX_EXPORT_VERSION = 'inbox-rights-export/v1'
+const INBOX_EXPORT_VERSION = 'inbox-rights-export/v1'
 
 const UTC = 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
 
@@ -20,7 +20,7 @@ function utc(column: string, alias = column.split('.').pop() as string): SQL {
   return sql`to_char(${sql.raw(column)} AT TIME ZONE 'UTC', ${UTC}) AS ${sql.raw(alias)}`
 }
 
-export const INBOX_EXCLUDED_RECORD_CLASSES = Object.freeze([
+const INBOX_EXCLUDED_RECORD_CLASSES = Object.freeze([
   { recordClass: 'inbox_personal_last_view_state', reasonCode: 'personal_read_state' },
   {
     recordClass: 'inbox_response_target_reminder_schedule',
@@ -38,12 +38,10 @@ export const INBOX_EXCLUDED_RECORD_CLASSES = Object.freeze([
 
 type Row = Readonly<Record<string, unknown>>
 
-/** Tables with no Property column: a Property request does not touch them. */
-const ORGANIZATION_ONLY_TABLES: ReadonlyArray<string> = [
-  'inbox_response_target_organization_policies',
-  'inbox_user_views',
-]
-
+/**
+ * Every table closure changes. Item children go with their item through
+ * ON DELETE CASCADE and are counted here so the report sizes the whole closure.
+ */
 const REPORT_TABLES = Object.freeze([
   'inbox_items',
   'inbox_handling_cycles',
@@ -51,7 +49,28 @@ const REPORT_TABLES = Object.freeze([
   'inbox_response_target_organization_policies',
   'inbox_private_feedback_target_property_overrides',
   'inbox_user_views',
+  'inbox_assignment_history',
+  'inbox_escalation_history',
+  'inbox_priority_history',
+  'inbox_handling_cycle_heads',
+  'inbox_handling_cycle_transitions',
+  'inbox_handling_cycle_response_targets',
+  'inbox_response_target_reminders',
+  'inbox_response_target_exclusions',
+  'inbox_feedback_handling_outcomes',
 ] as const)
+
+/** Tables with no Property column: a Property request does not touch them. */
+const ORGANIZATION_ONLY_TABLES: ReadonlyArray<string> = [
+  'inbox_response_target_organization_policies',
+  'inbox_user_views',
+]
+
+/** The tables the Inbox report counts and closure changes, per request scope. */
+export const INBOX_RIGHTS_TABLES = Object.freeze({
+  organization: REPORT_TABLES,
+  property: REPORT_TABLES.filter((table) => !ORGANIZATION_ONLY_TABLES.includes(table)),
+})
 
 /** One Organization, or one Property inside it. */
 export type InboxRightsScope = Readonly<{ organizationId: string; propertyId?: string }>

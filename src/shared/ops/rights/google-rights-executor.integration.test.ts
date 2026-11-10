@@ -2,7 +2,7 @@
 // scripts/ops/rights-request.ts drives it: parse, plan, run the executors.
 // Two tenants are seeded so every case proves the other one is untouched.
 
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
@@ -48,6 +48,13 @@ type Fixture = Readonly<{
   connectionId: string
   permitId: string
 }>
+
+const RECEIPT_SCOPES = [
+  'google_oauth_exchange',
+  'gbp_import_item_retry',
+  'google_import_discovery',
+  'google_disconnect_revoke',
+]
 
 const fixtures: Fixture[] = []
 let lease: TestLease
@@ -140,6 +147,31 @@ async function seed(options: { live: boolean }): Promise<Fixture> {
       CREATED_AT,
     ],
   )
+  await q(
+    `INSERT INTO google_import_discovery_records (
+       reference_key, key_version, audience, organization_id, user_id, connection_id,
+       connection_lifecycle_version, connection_access_version, credential_generation,
+       authorization_vector, payload, issued_at, expires_at
+     ) VALUES ($1, 'v1', 'account_selection', $2, $3, $4, 1, 1, 1, '{}'::jsonb,
+               '{}'::jsonb, $5, $5::timestamptz + interval '1 hour')`,
+    [
+      randomBytes(32).toString('base64url'),
+      fixture.organizationId,
+      fixture.userId,
+      fixture.connectionId,
+      CREATED_AT,
+    ],
+  )
+  for (const scope of RECEIPT_SCOPES.filter(
+    (name) => name !== 'google_disconnect_revoke',
+  )) {
+    await q(
+      `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+       VALUES ($1, $2, jsonb_build_object(
+         'organizationId', $3::text, 'terminalAt', $4::timestamptz), $4)`,
+      [scope, randomUUID(), fixture.organizationId, CREATED_AT],
+    )
+  }
   await q(
     `INSERT INTO authorization_execution_permits (
        id, capability, organization_id, connection_id, initiator_user_id,
@@ -266,10 +298,11 @@ async function cleanup(fixture: Fixture): Promise<void> {
   const q = lease.pool.query.bind(lease.pool)
   await q(
     `DELETE FROM idempotency_receipts
-     WHERE scope = 'google_disconnect_revoke' AND payload->>'organizationId' = $1`,
-    [fixture.organizationId],
+     WHERE scope = ANY($2::text[]) AND payload->>'organizationId' = $1`,
+    [fixture.organizationId, RECEIPT_SCOPES],
   )
   for (const table of [
+    'google_import_discovery_records',
     'authorization_execution_permits',
     'google_import_items',
     'google_imports',
@@ -357,6 +390,10 @@ async function runScript(
   })
   return { exit, out, err, files }
 }
+
+const ORGANIZATION_REPORT_LINE =
+  'google-integration: connections=1 imports=3 import_items=4 ' +
+  'import_discovery_records=1 idempotency_receipts=4 authorization_execution_permits=1'
 
 const VERIFIED = ['verified=2026-11-01T10:00:00Z', 'verification=ticket:123']
 const apply = (organizationId: string) => [
@@ -832,13 +869,139 @@ describe.sequential('Google rights executor through the rights-request command',
             propertyId,
           ])
           expect(report.exit).toBe(0)
-          expect(report.out).toContain('google-integration: import_items=2')
+          expect(report.out).toContain('google-integration: import_items=2 imports=1')
           expect(report.out).toContain('google-integration: erasure blockers: none')
         }
         const org = await runScript(['organization', '--org', fixture.organizationId])
-        expect(org.out).toContain('google-integration: connections=1 imports=3')
+        expect(org.out).toContain(ORGANIZATION_REPORT_LINE)
         expect(org.out).toContain('google-integration: closure blockers: none')
       }
+    })
+
+    /** Every row of a query as text, so a before/after diff needs no report code. */
+    async function rowTexts(from: string, where: string, args: unknown[]) {
+      const result = await lease.pool.query(
+        `SELECT to_jsonb(t.*)::text AS row FROM ${from} AS t WHERE ${where}`,
+        args,
+      )
+      return result.rows.map((row) => String(row.row))
+    }
+
+    const reportSources: ReadonlyArray<
+      readonly [
+        label: string,
+        table: string,
+        where: string,
+        args: (id: string) => unknown[],
+      ]
+    > = [
+      ['connections', 'google_connections', 't.organization_id = $1', (id) => [id]],
+      ['imports', 'google_imports', 't.organization_id = $1', (id) => [id]],
+      ['import_items', 'google_import_items', 't.organization_id = $1', (id) => [id]],
+      [
+        'import_discovery_records',
+        'google_import_discovery_records',
+        't.organization_id = $1',
+        (id) => [id],
+      ],
+      [
+        'idempotency_receipts',
+        'idempotency_receipts',
+        `t.scope = ANY($2::text[]) AND t.payload->>'organizationId' = $1`,
+        (id) => [id, RECEIPT_SCOPES],
+      ],
+      [
+        'authorization_execution_permits',
+        'authorization_execution_permits',
+        't.organization_id = $1',
+        (id) => [id],
+      ],
+    ]
+
+    async function reportedRows(organizationId: string) {
+      const rows = new Map<string, string[]>()
+      for (const [label, table, where, args] of reportSources) {
+        rows.set(label, await rowTexts(table, where, args(organizationId)))
+      }
+      return rows
+    }
+
+    /** Per table, the rows that were deleted or changed in place. */
+    function touchedLine(before: Map<string, string[]>, after: Map<string, string[]>) {
+      return reportSources
+        .map(([label]) => {
+          const kept = new Set(after.get(label))
+          const touched = (before.get(label) ?? []).filter((row) => !kept.has(row))
+          return `${label}=${touched.length}`
+        })
+        .join(' ')
+    }
+
+    async function organizationReport(organizationId: string): Promise<string> {
+      const { out } = await runScript(['organization', '--org', organizationId])
+      const prefix = 'google-integration: '
+      const line = out.find((entry) => entry.startsWith(`${prefix}connections=`))
+      return (line ?? '').slice(prefix.length)
+    }
+
+    async function propertyReport(fixture: Fixture, propertyId: string) {
+      const { out } = await runScript([
+        'property',
+        '--org',
+        fixture.organizationId,
+        '--property',
+        propertyId,
+      ])
+      return out.filter((entry) => entry.startsWith('google-integration: import_items='))
+    }
+
+    it('reports for an Organization exactly the rows its closure deletes or scrubs', async () => {
+      const asked = await seedTenant(false)
+      const other = await seedTenant(false)
+      const { organizationId } = asked.fixture
+      const otherId = other.fixture.organizationId
+      const otherBefore = await reportedRows(otherId)
+      const otherReport = await organizationReport(otherId)
+      const report = await organizationReport(organizationId)
+      const before = await reportedRows(organizationId)
+
+      const result = await runScript(apply(organizationId))
+
+      expect(result.exit).toBe(0)
+      const after = await reportedRows(organizationId)
+      expect(report).toBe(touchedLine(before, after))
+      expect(`google-integration: ${report}`).toBe(ORGANIZATION_REPORT_LINE)
+      expect(after.get('import_items')).toEqual([])
+      expect(after.get('imports')).toEqual([])
+      expect(after.get('import_discovery_records')).toEqual([])
+      expect(after.get('idempotency_receipts')).toHaveLength(1)
+      expect(await reportedRows(otherId)).toEqual(otherBefore)
+      expect(await organizationReport(otherId)).toBe(otherReport)
+    })
+
+    it('reports for a Property exactly the items and imports its erase deletes', async () => {
+      const asked = await seedTenant(false)
+      const other = await seedTenant(false)
+      const { fixture } = asked
+      const count = async (table: string) =>
+        (await rowTexts(table, 't.organization_id = $1', [fixture.organizationId])).length
+      const itemsBefore = await count('google_import_items')
+      const importsBefore = await count('google_imports')
+      const report = await propertyReport(fixture, fixture.propertyId)
+      const otherReport = await propertyReport(other.fixture, other.fixture.propertyId)
+
+      const result = await runScript(propertyApplyArgs(fixture))
+
+      expect(result.exit).toBe(0)
+      const items = itemsBefore - (await count('google_import_items'))
+      const imports = importsBefore - (await count('google_imports'))
+      expect(report).toEqual([
+        `google-integration: import_items=${items} imports=${imports}`,
+      ])
+      expect([items, imports]).toEqual([2, 1])
+      expect(await propertyReport(other.fixture, other.fixture.propertyId)).toEqual(
+        otherReport,
+      )
     })
 
     it('erases A, leaves B and the other Organization byte-identical, and replays a restore', async () => {

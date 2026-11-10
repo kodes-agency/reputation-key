@@ -14,6 +14,7 @@ import type {
   BackupErasureLedgerEntry,
   BackupErasureReplayer,
 } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { assertOrganizationHeld } from '#/shared/db/lifecycle/assert-organization-held'
 import type { Tx } from '#/shared/outbox/commit'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type {
@@ -135,18 +136,6 @@ async function readAccess(
     bytes: encode({ context: CONTEXT, organizationId: organization, rowCounts: counts }),
   })
   return files
-}
-
-async function assertHeld(tx: Tx, organization: string): Promise<void> {
-  const result = await tx.execute(sql`
-    SELECT state FROM organization_lifecycle_authority
-    WHERE organization_id = ${organization}
-  `)
-  const state = (result.rows[0] as { state?: string } | undefined)?.state
-  if (state === undefined) throw new Error('Organization has no lifecycle record')
-  if (state === 'active') {
-    throw new Error('Organization is still active; suspend it before a purge')
-  }
 }
 
 function count(value: unknown): number {
@@ -317,7 +306,7 @@ async function assertReadyToPurge(
 ): Promise<void> {
   await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`))
   if (property) await assertPropertyInOrganization(tx, organization, property)
-  else await assertHeld(tx, organization)
+  else await assertOrganizationHeld(tx, organization)
   await fencePrograms(tx, organization, at, property)
   await assertNoLiveGoalWork(tx, organization, property)
   await assertPortalFactsSettled(tx, organization, at, property)
@@ -394,6 +383,12 @@ export function createReportingRightsExecutor(
   return Object.freeze({
     name: CONTEXT,
     scopes: ['access', 'organization', 'property'] as const,
+    tables: {
+      organization: REPORTING_PURGE_ORDER,
+      property: REPORTING_PURGE_ORDER.filter(
+        (table) => !REPORTING_ORGANIZATION_ONLY_TABLES.includes(table),
+      ),
+    },
     journalContexts: REPORTING_JOURNAL_CONTEXTS,
     async preflight(plan) {
       if (plan.scope === 'access') return { ok: true }
