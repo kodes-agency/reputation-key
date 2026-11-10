@@ -252,10 +252,6 @@
   ],
   "usedClassMembers": [
     {
-      "implements": "OrganizationExportStorage",
-      "members": ["putEncrypted", "readEncrypted", "delete", "verifyStored"]
-    },
-    {
       "extends": "Error",
       "members": ["_tag", "code"]
     }
@@ -317,14 +313,6 @@
         "functions": ["assertPortalContentCommand"],
         "maxCyclomatic": 34,
         "reason": "This is the task brief's own canonical waiver shape: an exhaustive switch over a closed union of seven event tags, where each arm is a flat two-to-five-term conjunction that reads trivially. Cognitive is 10 \u2014 a third of the ceiling \u2014 which is the tell that the code is flat, not nested; only cyclomat"
-      },
-      {
-        "files": [
-          "src/contexts/identity/infrastructure/identity-organization-export-contributor.ts"
-        ],
-        "functions": ["csvSummary"],
-        "maxCyclomatic": 26,
-        "reason": "The function is 26 lines with ZERO control-flow statements \u2014 no if, no loop, no ternary. All 22 counted branches are `??` operators forming five field-precedence lists (`record.name ?? record.email ?? record.role ?? ...`). Cognitive complexity is 7 of a 20 ceiling, i.e. the metric that measures unde"
       },
       {
         "files": ["src/contexts/reporting/infrastructure/guest-outbox-consumers.ts"],
