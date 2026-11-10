@@ -185,7 +185,7 @@ export default defineConfig({
             'src/**/*.integration.test.ts',
             'src/shared/db/migration-verification.test.ts',
           ],
-          setupFiles: ['src/test-setup.ts'],
+          setupFiles: ['src/test-setup.ts', 'src/shared/testing/integration-setup.ts'],
           // BQC-6.1: create + migrate the scratch database before the suite
           // (idempotent — fast-skips when the deploy migration state is present).
           globalSetup: ['src/shared/testing/integration-global-setup.ts'],

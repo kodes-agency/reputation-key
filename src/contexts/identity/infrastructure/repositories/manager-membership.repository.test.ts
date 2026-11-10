@@ -126,24 +126,24 @@ describe('manager membership repository', () => {
           tx as unknown as Database,
           async () => 'organization',
         )
-        decisions = await Promise.all([
-          repository.isCurrentAccountAdmin({
+        decisions = [
+          await repository.isCurrentAccountAdmin({
             organizationId: organization,
             userId: owner,
           }),
-          repository.isCurrentAccountAdmin({
+          await repository.isCurrentAccountAdmin({
             organizationId: organization,
             userId: manager,
           }),
-          repository.isCurrentAccountAdmin({
+          await repository.isCurrentAccountAdmin({
             organizationId: organization,
             userId: otherOwner,
           }),
-          repository.isCurrentAccountAdmin({
+          await repository.isCurrentAccountAdmin({
             organizationId: organization,
             userId: `missing-${suffix}`,
           }),
-        ])
+        ]
         throw rollback
       }),
     ).rejects.toBe(rollback)

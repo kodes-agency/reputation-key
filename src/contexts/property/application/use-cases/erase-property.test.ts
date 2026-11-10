@@ -163,6 +163,33 @@ describe('permanent Property Erase — dependency inventory (LIF-01-T19)', () =>
     erase: async () => rowCount,
   })
 
+  it('reads each contributor inventory sequentially on its shared transaction', async () => {
+    let active = 0
+    let peak = 0
+    const contributors = [contributor('guest', 4), contributor('review', 0)].map(
+      (entry) => ({
+        ...entry,
+        inventory: async (...args: Parameters<typeof entry.inventory>) => {
+          active++
+          peak = Math.max(peak, active)
+          await Promise.resolve()
+          try {
+            return await entry.inventory(...args)
+          } finally {
+            active--
+          }
+        },
+      }),
+    )
+    const preview = await previewPropertyErase(makeDeps({ contributors }), {
+      authorityId: AUTHORITY,
+      organizationId: ORG,
+      retentionPreviewRef: 'retention:preview',
+    })
+    expect(preview.inventory.map((entry) => entry.rowCount)).toEqual([4, 0])
+    expect(peak).toBe(1)
+  })
+
   it('enumerates every owning context BEFORE confirmation and stays content-free', async () => {
     const deps = makeDeps({
       contributors: [contributor('guest', 4), contributor('review', 0)],

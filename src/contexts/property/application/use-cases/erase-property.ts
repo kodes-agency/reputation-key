@@ -161,23 +161,22 @@ export async function previewPropertyErase(
     propertyId: authority.propertyId,
   }
   const inventory = await deps.runInventory(async (tx) => {
-    const perContext = await Promise.all(
-      deps.contributors.map(async (contributor) => {
-        const entries = await contributor.inventory(tx, scope)
-        // A contributor answering for a context it does not own would make the
-        // preview attributable to the wrong owner.
-        for (const entry of entries) {
-          if (entry.context !== contributor.context) {
-            throw propertyEraseError(
-              'preview_missing',
-              `Contributor ${contributor.context} answered for ${entry.context}`,
-            )
-          }
+    const inventory: PropertyEraseInventoryEntry[] = []
+    for (const contributor of deps.contributors) {
+      const entries = await contributor.inventory(tx, scope)
+      // A contributor answering for a context it does not own would make the
+      // preview attributable to the wrong owner.
+      for (const entry of entries) {
+        if (entry.context !== contributor.context) {
+          throw propertyEraseError(
+            'preview_missing',
+            `Contributor ${contributor.context} answered for ${entry.context}`,
+          )
         }
-        return entries
-      }),
-    )
-    return perContext.flat()
+      }
+      inventory.push(...entries)
+    }
+    return inventory
   })
 
   const inventoryRevision = authority.inventoryRevision + 1
