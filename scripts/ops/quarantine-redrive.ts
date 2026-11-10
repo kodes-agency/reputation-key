@@ -31,6 +31,7 @@ import {
   positionalArgs,
   type OperatorCommandSpec,
 } from '../../src/shared/ops/operator-command'
+import { exitIfHelp } from './command-help'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:quarantine'
@@ -76,6 +77,7 @@ function printEntry(entry: QuarantinedEntry): void {
 }
 
 async function main(): Promise<void> {
+  exitIfHelp(process.argv.slice(2), USAGE)
   const [action, id] = positionalArgs(process.argv.slice(2))
   if (action !== 'list' && action !== 'redrive' && action !== 'discard') usage()
   if (action !== 'list' && !id) usage()
