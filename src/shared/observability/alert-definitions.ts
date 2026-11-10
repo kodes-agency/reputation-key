@@ -140,6 +140,12 @@ export type AlertDefinition = Readonly<{
    * reading is already the impact.
    */
   sustained: boolean
+  /**
+   * An auxiliary read this alert needs did not answer. Like a degraded
+   * snapshot section, the reading is unknown: the alert's prior state is held.
+   * Alerts that page on their own unavailable read declare none.
+   */
+  unknownWhen: ((aux: AlertAuxReads) => boolean) | null
   /** Pure evaluation; null exactly when implemented is false. */
   evaluate:
     ((snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertEvent | null) | null
@@ -308,16 +314,18 @@ function define(
     threshold: number
     blindedBy?: readonly SnapshotSection[]
     sustained?: boolean
+    unknownWhen?: (aux: AlertAuxReads) => boolean
     read: (snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertReading | null
   }>,
 ): AlertDefinition {
-  const { read, blindedBy = [], sustained = false, ...statics } = def
+  const { read, blindedBy = [], sustained = false, unknownWhen = null, ...statics } = def
   return {
     ...statics,
     owner: OWNER,
     implemented: true,
     blindedBy,
     sustained,
+    unknownWhen,
     evaluate: (snapshot, aux) => {
       const reading = read(snapshot, aux)
       if (reading === null) return null
@@ -350,12 +358,13 @@ function registered(
     implemented: false,
     blindedBy: [],
     sustained: false,
+    unknownWhen: null,
     evaluate: null,
   }
 }
 
 /** Implemented alerts whose input section is degraded in this snapshot. */
-function blindedAlerts(degraded: readonly string[]): readonly AlertDefinition[] {
+export function blindedAlerts(degraded: readonly string[]): readonly AlertDefinition[] {
   return ALERT_DEFINITIONS.filter(
     (def) =>
       def.implemented && def.blindedBy.some((section) => degraded.includes(section)),
@@ -732,6 +741,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §22',
     windowMs: EVAL_CADENCE_MS,
     threshold: 0,
+    unknownWhen: (aux) => !aux.reviewAnalysis.monitorAvailable,
     read: (_snapshot, aux) => {
       const analysis = aux.reviewAnalysis
       if (!analysis.monitorAvailable || analysis.zeroSnapshotEnrollmentCount <= 0) {
@@ -1127,63 +1137,4 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
 /** Names of the alerts the health-check job evaluates and tracks state for. */
 export function implementedAlertNames(): readonly string[] {
   return ALERT_DEFINITIONS.filter((d) => d.implemented).map((d) => d.name)
-}
-
-export type AlertEvaluation = Readonly<{
-  /** Newly-firing alerts (ok→firing edge) to dispatch now. */
-  toDispatch: readonly AlertEvent[]
-  /** All currently-firing alert names (state-store reconciliation input). */
-  firing: readonly string[]
-  /**
-   * Sustained alerts breaching for the first time: not firing, not
-   * dispatched. The caller persists them; a breach on the next evaluation
-   * with the name in `previouslyPending` fires.
-   */
-  pending: readonly string[]
-  /**
-   * Alerts not evaluated because an input section is degraded. A held alert
-   * that was firing stays in `firing`, so its state is neither cleared nor
-   * re-paged; one that was quiet cannot open an edge on a fallback reading.
-   */
-  held: readonly string[]
-}>
-
-/**
- * Pure evaluation pass: run every implemented definition against the
- * snapshot + aux reads. Edge-trigger hysteresis is expressed through
- * `previouslyFiring`: an alert already in the firing state does NOT
- * re-dispatch. The caller persists the state (Redis, 24h TTL) — a
- * continuously-firing alert re-notifies only after its state key expires,
- * and the caller clears state on recovery (name absent from `firing`). An
- * alert whose input section is degraded is held, not evaluated: unknown is
- * not recovery. A sustained alert's first breach is only `pending`; it fires
- * when it breaches again with its name in `previouslyPending`.
- */
-export function evaluateAlerts(
-  snapshot: OperationsSnapshot,
-  aux: AlertAuxReads,
-  previouslyFiring: ReadonlySet<string>,
-  previouslyPending: ReadonlySet<string>,
-): AlertEvaluation {
-  const toDispatch: AlertEvent[] = []
-  const firing: string[] = []
-  const pending: string[] = []
-  const held = new Set(blindedAlerts(snapshot.degraded).map((def) => def.name))
-  for (const def of ALERT_DEFINITIONS) {
-    if (!def.implemented || def.evaluate === null) continue
-    const wasFiring = previouslyFiring.has(def.name)
-    if (held.has(def.name)) {
-      if (wasFiring) firing.push(def.name)
-      continue
-    }
-    const event = def.evaluate(snapshot, aux)
-    if (event === null) continue
-    if (def.sustained && !wasFiring && !previouslyPending.has(def.name)) {
-      pending.push(def.name)
-      continue
-    }
-    firing.push(def.name)
-    if (!wasFiring) toDispatch.push(event)
-  }
-  return { toDispatch, firing, pending, held: [...held] }
 }
