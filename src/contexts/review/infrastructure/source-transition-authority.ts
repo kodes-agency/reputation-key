@@ -9,7 +9,6 @@ import type {
 } from '../application/ports/source-transition-authority.port'
 import type { ReviewOpenTransaction } from '../application/ports/open-transaction'
 import { lendReviewTransaction } from './open-transaction'
-import { runWithReviewExactCurrentApplyAdmission } from './exact-current-apply-admission'
 import { lockReviewSourceMutationScope } from './review-source-mutation-serialization'
 
 const sameInstant = (left: Date, right: Date): boolean =>
@@ -33,68 +32,66 @@ export const createReviewSourceTransitionAuthority = (
       tx: ReviewOpenTransaction,
     ) => Promise<T>,
   ) =>
-    runWithReviewExactCurrentApplyAdmission(db, () =>
-      db.transaction(async (tx) => {
-        const scopeCurrent = await lockReviewSourceMutationScope(tx, {
-          organizationId: organizationId(expectation.organizationId),
-          propertyId: propertyId(expectation.propertyId),
-          reviewId: reviewId(expectation.reviewId),
-          sourceEpoch: expectation.sourceEpoch,
+    db.transaction(async (tx) => {
+      const scopeCurrent = await lockReviewSourceMutationScope(tx, {
+        organizationId: organizationId(expectation.organizationId),
+        propertyId: propertyId(expectation.propertyId),
+        reviewId: reviewId(expectation.reviewId),
+        sourceEpoch: expectation.sourceEpoch,
+      })
+      if (!scopeCurrent) return { status: 'obsolete' as const }
+
+      const rows = await tx
+        .select({
+          organizationId: reviews.organizationId,
+          propertyId: reviews.propertyId,
+          reviewId: reviews.id,
+          sourceEpoch: reviews.sourceEpoch,
+          sourceRevision: reviews.sourceRevision,
+          analysisSequence: reviews.analysisSequence,
+          sourceContentState: reviews.sourceContentState,
+          sourceContentErasedAt: reviews.sourceContentErasedAt,
         })
-        if (!scopeCurrent) return { status: 'obsolete' as const }
+        .from(reviews)
+        .where(
+          and(
+            eq(reviews.id, expectation.reviewId),
+            eq(reviews.organizationId, expectation.organizationId),
+            eq(reviews.propertyId, expectation.propertyId),
+          ),
+        )
+        .for('update')
+        .limit(1)
+      const current = rows[0]
+      if (
+        current === undefined ||
+        current.organizationId !== expectation.organizationId ||
+        current.propertyId !== expectation.propertyId ||
+        current.reviewId !== expectation.reviewId ||
+        current.sourceEpoch !== expectation.sourceEpoch ||
+        current.sourceRevision !== expectation.sourceRevision ||
+        current.analysisSequence !== expectation.analysisSequence ||
+        current.sourceContentState !== expectation.change ||
+        !(current.sourceContentErasedAt instanceof Date) ||
+        !sameInstant(current.sourceContentErasedAt, expectation.occurredAt)
+      ) {
+        return { status: 'obsolete' as const }
+      }
 
-        const rows = await tx
-          .select({
-            organizationId: reviews.organizationId,
-            propertyId: reviews.propertyId,
-            reviewId: reviews.id,
-            sourceEpoch: reviews.sourceEpoch,
-            sourceRevision: reviews.sourceRevision,
-            analysisSequence: reviews.analysisSequence,
-            sourceContentState: reviews.sourceContentState,
-            sourceContentErasedAt: reviews.sourceContentErasedAt,
-          })
-          .from(reviews)
-          .where(
-            and(
-              eq(reviews.id, expectation.reviewId),
-              eq(reviews.organizationId, expectation.organizationId),
-              eq(reviews.propertyId, expectation.propertyId),
-            ),
-          )
-          .for('update')
-          .limit(1)
-        const current = rows[0]
-        if (
-          current === undefined ||
-          current.organizationId !== expectation.organizationId ||
-          current.propertyId !== expectation.propertyId ||
-          current.reviewId !== expectation.reviewId ||
-          current.sourceEpoch !== expectation.sourceEpoch ||
-          current.sourceRevision !== expectation.sourceRevision ||
-          current.analysisSequence !== expectation.analysisSequence ||
-          current.sourceContentState !== expectation.change ||
-          !(current.sourceContentErasedAt instanceof Date) ||
-          !sameInstant(current.sourceContentErasedAt, expectation.occurredAt)
-        ) {
-          return { status: 'obsolete' as const }
-        }
-
-        const permit: ReviewCurrentSourceTransitionPermit = {
-          authority: 'review.current-source-transition.v1',
-          organizationId: current.organizationId,
-          propertyId: current.propertyId,
-          reviewId: current.reviewId,
-          sourceEpoch: current.sourceEpoch,
-          sourceRevision: current.sourceRevision,
-          analysisSequence: current.analysisSequence,
-          change: expectation.change,
-          occurredAt: current.sourceContentErasedAt,
-        }
-        return {
-          status: 'current' as const,
-          value: await apply(permit, lendReviewTransaction(tx)),
-        }
-      }),
-    ),
+      const permit: ReviewCurrentSourceTransitionPermit = {
+        authority: 'review.current-source-transition.v1',
+        organizationId: current.organizationId,
+        propertyId: current.propertyId,
+        reviewId: current.reviewId,
+        sourceEpoch: current.sourceEpoch,
+        sourceRevision: current.sourceRevision,
+        analysisSequence: current.analysisSequence,
+        change: expectation.change,
+        occurredAt: current.sourceContentErasedAt,
+      }
+      return {
+        status: 'current' as const,
+        value: await apply(permit, lendReviewTransaction(tx)),
+      }
+    }),
 })

@@ -10,6 +10,11 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // import stream upserting reviews while the domain-event dispatcher runs the
 // Inbox projection for every imported review, all on one Property, over a pool
 // the dispatcher alone can exhaust. No operation may reach the lock timeout.
+//
+// An Inbox projection runs on the Review transaction it is lent, so it holds one
+// pool client. Further runs shrink the pool below the dispatch concurrency, down
+// to a single client: a projection that needed a second client while it held
+// the fence would stall until the connection timeout.
 
 import { randomUUID } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
@@ -64,6 +69,13 @@ const RELAY_TICK_MS = 100
 const LOCK_TIMEOUT_MS = 3_000
 const CONNECTION_TIMEOUT_MS = 15_000
 const BURST_TEST_TIMEOUT_MS = 180_000
+/** A pool far below the dispatch concurrency: applies must queue, not stall. */
+const SMALL_POOL_SIZE = 3
+/** With one client, an apply that wanted a second would wait for itself. */
+const SINGLE_CLIENT_REVIEWS = 6
+const SINGLE_CLIENT_DISPATCH_SLOTS = 4
+/** Past this, a queued apply was starved rather than waiting its turn. */
+const STARVATION_LIMIT_MS = 30_000
 
 type OperationKind = 'import' | 'inbox'
 type Outcome = Readonly<{ kind: OperationKind; ms: number; failure: string | null }>
@@ -246,8 +258,14 @@ function createDispatcher(slots: number) {
   }
 }
 
-async function runBurst(): Promise<Outcome[]> {
-  const db = drizzle(pool)
+type BurstShape = Readonly<{
+  pool: Pool
+  reviews: number
+  dispatchSlots: number
+}>
+
+async function runBurst(shape: BurstShape): Promise<Outcome[]> {
+  const db = drizzle(shape.pool)
   const importer = createAtomicReviewCommandStore(
     db,
     () => IMPORTED_AT,
@@ -256,7 +274,7 @@ async function runBurst(): Promise<Outcome[]> {
     replyScopeEffects,
   )
   const inbox = inboxDeps(db)
-  const dispatcher = createDispatcher(DISPATCH_CONCURRENCY)
+  const dispatcher = createDispatcher(shape.dispatchSlots)
   const outcomes: Outcome[] = []
   // The relay publishes whatever committed since its last tick in one batch,
   // so the dispatcher sees bursts while the import is still running.
@@ -272,7 +290,7 @@ async function runBurst(): Promise<Outcome[]> {
   const relay = setInterval(publish, RELAY_TICK_MS)
 
   try {
-    for (let index = 0; index < BURST_REVIEWS; index += 1) {
+    for (let index = 0; index < shape.reviews; index += 1) {
       const review = burstReview(index)
       const imported = await measure('import', outcomes, () =>
         importer.upsertAndRecord(
@@ -346,15 +364,19 @@ async function clean(): Promise<void> {
   }
 }
 
-beforeAll(async () => {
-  lease = await acquireTestLease(getEnv().DATABASE_URL, 2)
-  pool = new Pool({
+function createBurstPool(max: number): Pool {
+  return new Pool({
     connectionString: getEnv().DATABASE_URL,
-    max: EXHAUSTIBLE_POOL_SIZE,
+    max,
     application_name: APPLICATION_NAME,
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
     onConnect: (client) => client.query(`SET lock_timeout = ${LOCK_TIMEOUT_MS}`),
   })
+}
+
+beforeAll(async () => {
+  lease = await acquireTestLease(getEnv().DATABASE_URL, 2)
+  pool = createBurstPool(EXHAUSTIBLE_POOL_SIZE)
   clearEventSchemas()
   registerAllEventSchemas()
 })
@@ -377,12 +399,43 @@ beforeEach(async () => {
   )
 })
 
+async function expectEveryReviewProjected(
+  outcomes: readonly Outcome[],
+  reviews: number,
+): Promise<void> {
+  const failures = outcomes
+    .filter((outcome) => outcome.failure !== null)
+    .map(({ kind, failure }) => `${kind}: ${failure}`)
+  expect(failures).toEqual([])
+  expect(Math.max(...outcomes.map((outcome) => outcome.ms))).toBeLessThan(
+    STARVATION_LIMIT_MS,
+  )
+  const projected = await lease.pool.query<{ items: number }>(
+    `SELECT count(*)::int AS items FROM inbox_items WHERE organization_id = $1`,
+    [ORG],
+  )
+  expect(projected.rows[0]).toEqual({ items: reviews })
+}
+
+async function runOnPoolOf(max: number, shape: Omit<BurstShape, 'pool'>) {
+  const small = createBurstPool(max)
+  try {
+    return await runBurst({ pool: small, ...shape })
+  } finally {
+    await small.end()
+  }
+}
+
 describe('review import burst on one Property', () => {
   it(
     'projects every imported review without a lock timeout',
     async ({ task }) => {
       const started = performance.now()
-      const outcomes = await runBurst()
+      const outcomes = await runBurst({
+        pool,
+        reviews: BURST_REVIEWS,
+        dispatchSlots: DISPATCH_CONCURRENCY,
+      })
       const summary = {
         wallMs: Math.round(performance.now() - started),
         ...summarize(outcomes),
@@ -390,15 +443,33 @@ describe('review import burst on one Property', () => {
       // Read back with `--reporter=json`: the before/after evidence for the fix.
       Object.assign(task.meta, { propertyLockBurst: summary })
 
-      const failures = outcomes
-        .filter((outcome) => outcome.failure !== null)
-        .map(({ kind, failure }) => `${kind}: ${failure}`)
-      expect(failures).toEqual([])
-      const projected = await lease.pool.query<{ items: number }>(
-        `SELECT count(*)::int AS items FROM inbox_items WHERE organization_id = $1`,
-        [ORG],
-      )
-      expect(projected.rows[0]).toEqual({ items: BURST_REVIEWS })
+      await expectEveryReviewProjected(outcomes, BURST_REVIEWS)
+    },
+    BURST_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'projects every review when the pool is smaller than the dispatch concurrency',
+    async () => {
+      const outcomes = await runOnPoolOf(SMALL_POOL_SIZE, {
+        reviews: BURST_REVIEWS,
+        dispatchSlots: DISPATCH_CONCURRENCY,
+      })
+
+      await expectEveryReviewProjected(outcomes, BURST_REVIEWS)
+    },
+    BURST_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'projects every review on a pool of one client',
+    async () => {
+      const outcomes = await runOnPoolOf(1, {
+        reviews: SINGLE_CLIENT_REVIEWS,
+        dispatchSlots: SINGLE_CLIENT_DISPATCH_SLOTS,
+      })
+
+      await expectEveryReviewProjected(outcomes, SINGLE_CLIENT_REVIEWS)
     },
     BURST_TEST_TIMEOUT_MS,
   )

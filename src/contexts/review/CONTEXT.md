@@ -17,9 +17,9 @@ is not the identity or history authority.
   Metric may project a verified reputation fact but cannot infer provider truth.
 - The source fence is the Property row locked `FOR NO KEY UPDATE`, always
   before Reply truth and the Review. It excludes other fence holders and epoch
-  writers but not foreign-key checks. An exact-current authority checks out
-  both pool clients before it takes the fence, so it never waits for the
-  consumer's client while holding it (ADR 0060).
+  writers but not foreign-key checks. An exact-current authority runs its
+  consumer on the Review transaction's own client, so it never waits for a
+  second client while holding the fence (ADR 0060).
 - AI provider output is not a Reply. Only explicit adoption may create a draft,
   and Review receives only a boolean Portal Brand-current answer.
 - Manager-authored Reply export and destructive lifecycle contributions stay
