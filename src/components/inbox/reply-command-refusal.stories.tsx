@@ -181,6 +181,7 @@ function ReplyPane(): ReactNode {
         onReject={actions.reject}
         onCheck={actions.check}
         onRetry={actions.retry}
+        onDeleteReply={actions.deleteDraft}
         onEditPublished={() => setEditRequested(true)}
         onEditRejected={() => {}}
       />

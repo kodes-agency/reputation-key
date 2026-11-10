@@ -8,12 +8,16 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
+import { getDb } from '#/shared/db'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { replyQueueStage } from '#/shared/domain/reply-queue-stage'
+import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
 import type { Reply } from '../domain/types'
+import { createReplyLibraryRepository } from './repositories/reply-library.repository'
 import {
   reviewReplyApproved,
   reviewReplyPublicationCancelled,
@@ -50,6 +54,7 @@ beforeAll(async () => {
     pool,
     locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     logger: createMockLogger(),
+    replyLibrary: createReplyLibraryRepository(getDb(), () => harness.clock()),
   })
   await harness.seed()
 }, WORKFLOW_HOOK_TIMEOUT_MS)
@@ -591,6 +596,204 @@ describe.sequential('reply command preconditions (PostgreSQL)', () => {
       await harness.commands.reject()
       await harness.commands.delete()
       expect(await harness.currentReply()).toBeNull()
+    })
+
+    describe('a reply whose publication failed', () => {
+      async function failForCertain(): Promise<Reply> {
+        await confirmReply()
+        await harness.runPublishJob(0, 'not_sent', true)
+        const failed = await storedReply()
+        expect(failed).toMatchObject({
+          status: 'publish_failed',
+          publicationState: 'terminal',
+        })
+        return failed
+      }
+
+      it('starts over in the same row and keeps every attempt row', async () => {
+        const failed = await failForCertain()
+        const before = await harness.evidence()
+        expect(before.attempts.length).toBeGreaterThan(0)
+        const attemptRows = await pool.query(
+          'SELECT * FROM reply_publication_attempts WHERE reply_id = $1 ORDER BY publication_cycle, attempt_number',
+          [failed.id],
+        )
+
+        const restarted = await harness.commands.delete(screenOf(failed))
+
+        expect(restarted).toEqual(screenOf(await storedReply()))
+        expect(await storedReply()).toMatchObject({
+          id: failed.id,
+          status: 'draft',
+          text: '',
+          publicationState: 'cancelled',
+          publicationCycle: failed.publicationCycle,
+          publicationLastErrorClass: null,
+          reconcileDueAt: null,
+          aiGenerated: false,
+        })
+        const after = await harness.evidence()
+        expect(after.attempts).toEqual(before.attempts)
+        expect(after.authorizations).toEqual(before.authorizations)
+        expect(
+          (
+            await pool.query(
+              'SELECT * FROM reply_publication_attempts WHERE reply_id = $1 ORDER BY publication_cycle, attempt_number',
+              [failed.id],
+            )
+          ).rows,
+        ).toEqual(attemptRows.rows)
+      })
+
+      it('reads as a review with no reply in every queue', async () => {
+        const failed = await failForCertain()
+        expect(
+          replyQueueStage(
+            (
+              await harness.replyRepo.findStatesByReviewIds(
+                [WORKFLOW_REVIEW],
+                WORKFLOW_ORG,
+              )
+            )[0]!,
+          ),
+        ).toBe('needs_reply')
+        await harness.commands.delete(screenOf(failed))
+
+        const states = await harness.replyRepo.findStatesByReviewIds(
+          [WORKFLOW_REVIEW],
+          WORKFLOW_ORG,
+        )
+        expect(states).toEqual([])
+        const lookup = createReplyLookupAdapter({
+          ...harness.replyRepo,
+          getCurrentGoogleReplyByReviewId: async () => null,
+        })
+        expect(
+          await lookup.getReplyStatesByReviewIds([WORKFLOW_REVIEW], WORKFLOW_ORG),
+        ).toEqual(new Map())
+        expect(await lookup.findReviewIdsByReplyStage(WORKFLOW_ORG)).toEqual({
+          awaiting: [],
+          waiting: [],
+        })
+        expect(await harness.replyRepo.findReviewIdsByReplyStage(WORKFLOW_ORG)).toEqual([
+          expect.objectContaining({ stage: 'needs_reply' }),
+        ])
+      })
+
+      it('lets a new reply be written, confirmed and published beside the old attempts', async () => {
+        const failed = await failForCertain()
+        const oldAttempts = (await harness.evidence()).attempts
+        await harness.commands.delete(screenOf(failed))
+
+        await harness.commands.draft(LATER_TEXT)
+        await harness.commands.submit()
+        const approved = await harness.commands.approve()
+        expect(approved).toMatchObject({
+          id: failed.id,
+          status: 'approved',
+          publicationCycle: failed.publicationCycle + 1,
+        })
+        await harness.runPublishJob(1, 'accepted')
+
+        const attempts = (await harness.evidence()).attempts
+        expect(attempts.slice(0, oldAttempts.length)).toEqual(oldAttempts)
+        expect(attempts.length).toBeGreaterThan(oldAttempts.length)
+        expect(attempts.at(-1)?.publicationCycle).toBe(failed.publicationCycle + 1)
+      })
+
+      it('lets a reply refused by current content rules be deleted and replaced', async () => {
+        const library = createReplyLibraryRepository(getDb(), () => harness.clock())
+        await confirmReply('Thank you for being our patient.')
+        await harness.runPublishJob(0, 'not_sent', true)
+        const failed = await storedReply()
+        const before = await harness.evidence()
+        const voice = await library.saveVoice({
+          organizationId: WORKFLOW_ORG,
+          propertyId: WORKFLOW_PROPERTY,
+          scope: 'property',
+          set: { privacyMode: true },
+          reset: [],
+          expectedVersion: 0,
+          actorId: WORKFLOW_MANAGER,
+        })
+        expect(voice).not.toBe('version_conflict')
+
+        try {
+          await expect(harness.commands.retry()).rejects.toMatchObject({
+            code: 'invalid_reply',
+            context: { findingCodes: expect.arrayContaining(['privacy_content']) },
+          })
+          expect(await harness.evidence()).toEqual(before)
+
+          await harness.commands.delete(screenOf(failed))
+          expect((await harness.evidence()).attempts).toEqual(before.attempts)
+          await harness.commands.draft(LATER_TEXT)
+          await harness.commands.submit()
+          await harness.commands.approve()
+          await harness.runPublishJob(1, 'accepted')
+          await harness.observeGoogle()
+
+          expect(await storedReply()).toMatchObject({
+            id: failed.id,
+            text: LATER_TEXT,
+            status: 'published',
+            publicationCycle: failed.publicationCycle + 1,
+          })
+          const attempts = (await harness.evidence()).attempts
+          expect(attempts.slice(0, before.attempts.length)).toEqual(before.attempts)
+          expect(attempts.at(-1)?.outcome).toBe('confirmed')
+        } finally {
+          if (voice !== 'version_conflict') {
+            await library.saveVoice({
+              organizationId: WORKFLOW_ORG,
+              propertyId: WORKFLOW_PROPERTY,
+              scope: 'property',
+              set: {},
+              reset: ['privacyMode'],
+              expectedVersion: voice.version,
+              actorId: WORKFLOW_MANAGER,
+            })
+          }
+        }
+      })
+
+      it('refuses a stale revision with the conflict copy and changes nothing', async () => {
+        const failed = await failForCertain()
+
+        await expect(
+          harness.commands.delete({
+            id: failed.id,
+            stateRevision: failed.stateRevision - 1,
+          }),
+        ).rejects.toMatchObject({
+          ...REFUSED,
+          message: 'Reply status changed concurrently',
+        })
+
+        expect(await storedReply()).toEqual(failed)
+      })
+
+      it('is refused once the outcome is uncertain, until Google was checked', async () => {
+        await confirmReply()
+        await harness.runPublishJob(0, 'timeout_lost', true)
+        const stillChecked = await storedReply()
+        expect(stillChecked).toMatchObject({
+          status: 'publish_failed',
+          publicationState: 'ambiguous',
+        })
+        await expect(harness.commands.delete()).rejects.toMatchObject(REFUSED)
+        expect(await storedReply()).toEqual(stillChecked)
+
+        harness.advance(LADDER_END_MINUTES * MINUTE_MS)
+        await harness.runSweep()
+        const ended = await storedReply()
+        expect(ended).toMatchObject({
+          publicationState: 'terminal',
+          publicationLastErrorClass: 'ambiguous',
+        })
+        await expect(harness.commands.delete()).rejects.toMatchObject(REFUSED)
+        expect(await storedReply()).toEqual(ended)
+      })
     })
 
     it('does not delete a reply that was submitted after the caller read it', async () => {

@@ -18,7 +18,13 @@ export type ResolvedReplyView = ReturnType<typeof resolveReplyView>
 type ReplyEntity = Extract<ResolvedReplyView, { kind: 'pending' }>['reply']
 
 export type ReplyMessageAction =
-  'approve' | 'reject' | 'check' | 'retry' | 'editPublished' | 'editRejected'
+  | 'approve'
+  | 'reject'
+  | 'check'
+  | 'retry'
+  | 'deleteReply'
+  | 'editPublished'
+  | 'editRejected'
 
 export type ReplyMessageTone = 'neutral' | 'positive' | 'negative' | 'accent'
 
@@ -60,12 +66,12 @@ function meta(label: string, at: Date | string | null): ReplyMessageView['meta']
 }
 
 /**
- * A publish failure that is safe to send again. Retry is its ONLY action: no
- * server path changes the text of a `publish_failed` reply. `editPublishedReply`
- * refuses anything but `published` (`reply-operations.ts`), and
- * `REPLY_TRANSITIONS.publish_failed` has no `draft` (`domain/rules.ts`), so it
- * cannot be re-drafted either. An Edit reply here would open an editor headed
- * "Edit published reply" whose every save fails into a toast.
+ * A publish failure that is safe to send again. Retry and Delete reply are its
+ * only actions: no server path edits the text of a `publish_failed` reply.
+ * `editPublishedReply` refuses anything but `published` (`reply-operations.ts`),
+ * so an Edit reply here would open an editor headed "Edit published reply" whose
+ * every save fails into a toast. Delete reply clears the reply in its row, and
+ * the manager writes a new one in the empty composer.
  */
 function failedRetryView(reply: ReplyEntity): ReplyMessageView {
   const copy =
@@ -80,7 +86,7 @@ function failedRetryView(reply: ReplyEntity): ReplyMessageView {
     meta: meta('Confirmed', reply.approvedAt),
     detail: replyStateDescription(copy, reply.publicationAttempts),
     reason: null,
-    actions: ['retry'],
+    actions: ['retry', 'deleteReply'],
   }
 }
 

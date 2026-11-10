@@ -163,6 +163,7 @@ const onCheck = fn(async (): Promise<ReplyPublicationCheckResult> =>
   checkResult('not_on_google'),
 )
 const onRetry = fn(async () => undefined)
+const onDeleteReply = fn(async () => undefined)
 const onEditPublished = fn(() => {})
 const onEditRejected = fn(() => {})
 
@@ -173,6 +174,7 @@ function resetSpies(): void {
     onReject,
     onCheck,
     onRetry,
+    onDeleteReply,
     onEditPublished,
     onEditRejected,
   ])
@@ -334,6 +336,7 @@ const meta: Meta<typeof ReplyMessage> = {
     onReject,
     onCheck,
     onRetry,
+    onDeleteReply,
     onEditPublished,
     onEditRejected,
   },
@@ -1358,12 +1361,8 @@ export const NeedsCheckError = checkStory(
 )
 
 /**
- * A failure that is safe to send again — and Try again is its WHOLE action
- * list. There is no server path that changes the text of a `publish_failed`
- * reply: `editPublishedReply` refuses anything that is not `published`, and
- * `REPLY_TRANSITIONS.publish_failed` has no `draft`, so it cannot be
- * re-drafted either. An Edit reply here opened an editor headed "Edit
- * published reply" whose every save could only fail into a toast.
+ * A settled failure offers retry and deletion. It has no published-reply
+ * editor: deleting it starts over in an empty composer.
  */
 export const NotPublished: Story = {
   args: {
@@ -1384,10 +1383,14 @@ export const NotPublished: Story = {
       /stopped after 5 attempts/i,
     )
 
-    // Retry is the only control on the message, so there is no way to reach an
-    // editor the server would refuse.
-    expect(message.getAllByRole('button')).toHaveLength(1)
+    // Retry and Delete reply are the only controls on the message, so there is
+    // no way to reach an editor the server would refuse.
+    expect(message.getAllByRole('button')).toHaveLength(2)
     expect(message.queryByRole('button', { name: /edit/i })).toBeNull()
+
+    await userEvent.click(message.getByRole('button', { name: 'Delete reply' }))
+    expect(onDeleteReply).toHaveBeenCalledOnce()
+    expect(onRetry).not.toHaveBeenCalled()
 
     await userEvent.click(message.getByRole('button', { name: 'Try publishing again' }))
     expect(onRetry).toHaveBeenCalledOnce()
@@ -1400,8 +1403,7 @@ export const NotPublished: Story = {
 /**
  * A terminal rejection: Google refused the request, or RepKey refused to send
  * it, and the sentence claims neither. Same chip to the reader; a different
- * sentence — and the same single action, because the text is just as
- * unchangeable after a terminal rejection as after a retryable one.
+ * sentence — and the same retry and deletion actions.
  */
 export const NotPublishedAfterGoogleRejection: Story = {
   args: {
@@ -1421,7 +1423,8 @@ export const NotPublishedAfterGoogleRejection: Story = {
       /nothing was posted to google/i,
     )
     expect(message.getByRole('button', { name: 'Try publishing again' })).toBeEnabled()
-    expect(message.getAllByRole('button')).toHaveLength(1)
+    expect(message.getByRole('button', { name: 'Delete reply' })).toBeEnabled()
+    expect(message.getAllByRole('button')).toHaveLength(2)
   },
 }
 
@@ -1429,7 +1432,8 @@ export const NotPublishedWhileSaving: Story = {
   args: { ...NotPublished.args, isSaving: true },
   play: async ({ canvas }) => {
     expect(canvas.getByRole('button', { name: 'Starting…' })).toBeDisabled()
-    expect(canvas.getAllByRole('button')).toHaveLength(1)
+    expect(canvas.getByRole('button', { name: 'Delete reply' })).toBeDisabled()
+    expect(canvas.getAllByRole('button')).toHaveLength(2)
   },
 }
 
