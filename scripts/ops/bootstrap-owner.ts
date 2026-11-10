@@ -45,6 +45,7 @@ import {
   type BootstrapSnapshot,
 } from '../../src/shared/ops/bootstrap-owner-state'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
+import { exitIfHelp } from './command-help'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:bootstrap-owner'
@@ -159,6 +160,7 @@ async function completeOwnerBootstrap(
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2)
+  exitIfHelp(argv, USAGE)
   const input = parse(argv)
 
   const result = await runOperatorCommand(
