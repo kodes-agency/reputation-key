@@ -43,7 +43,7 @@ function pendingContribution(scope: GuestVoiceFactsScope): SQL {
         AND review.source_revision = contribution.source_revision
         AND review.analysis_sequence = contribution.analysis_sequence
         AND review.source_content_state = 'active'
-        AND ai_property_local_date_v1(review.reviewed_at, profile.timezone) IS NOT NULL
+        AND ai_property_local_date_v1((SELECT content.reviewed_at FROM review_source_contents content WHERE content.review_id = review.id AND content.organization_id = review.organization_id AND content.property_id = review.property_id), profile.timezone) IS NOT NULL
     )
   `
 }
@@ -166,7 +166,7 @@ export function createAiProfileRebuild(db: Database, logger?: Pick<LoggerPort, '
         )
         UPDATE ai_property_aggregate_contributions AS contribution
         SET property_profile_version = ${scope.propertyProfileVersion},
-          local_date = ai_property_local_date_v1(review.reviewed_at, ${profile.timezone}),
+          local_date = ai_property_local_date_v1((SELECT content.reviewed_at FROM review_source_contents content WHERE content.review_id = review.id AND content.organization_id = review.organization_id AND content.property_id = review.property_id), ${profile.timezone}),
           applied_aggregate_revision = ${head.aggregateRevision + 1},
           applied_at = transaction_timestamp()
         FROM batch, reviews AS review

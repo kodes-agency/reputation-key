@@ -115,7 +115,7 @@ test.describe('Critical workflow: content-safe notifications and handling histor
     const inboxItem = await waitFor(
       async () => {
         const reviews = await dbQuery<{ id: string }>(
-          'SELECT id FROM reviews WHERE organization_id = $1 AND external_id = $2',
+          'SELECT review_id AS id FROM review_source_contents WHERE organization_id = $1 AND external_id = $2',
           [seed.organizationId, 'not-r1'],
         )
         if (!reviews[0]) return null

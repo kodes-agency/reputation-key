@@ -88,7 +88,13 @@ export function answeredEditFixtures(pool: Pool) {
         ORG,
       ])
       await q('DELETE FROM google_reply_observations WHERE organization_id = $1', [ORG])
-      for (const table of ['outbox_events', 'inbox_items', 'reviews', 'properties']) {
+      for (const table of [
+        'outbox_events',
+        'inbox_items',
+        'review_source_contents',
+        'reviews',
+        'properties',
+      ]) {
         await q(`DELETE FROM ${table} WHERE organization_id = $1`, [ORG])
       }
       await deleteTestOrganizations(pool, [ORG])
@@ -110,14 +116,21 @@ export function answeredEditFixtures(pool: Pool) {
       )
       await q(
         `INSERT INTO reviews (
-           id, organization_id, property_id, platform, external_id,
-           external_location_id, rating, reviewed_at, expires_at, source_created_at,
-           source_updated_at, first_fetched_at, last_fetched_at, content_expires_at,
+           id, organization_id, property_id, platform, first_fetched_at,
            source_epoch, source_revision, source_observation_sequence,
-           analysis_sequence, ai_source_byte_length, ai_source_digest,
-           source_content_state, created_at, updated_at
+           analysis_sequence, source_content_state, created_at, updated_at
+         ) VALUES ($1, $2, $3, 'google', $4, 0, 1, 1, 1, 'active', $4, $4)`,
+        [REVIEW, ORG, PROPERTY, REVISION_1_AT],
+      )
+      await q(
+        `INSERT INTO review_source_contents (
+           review_id, organization_id, property_id, platform, external_id,
+           external_location_id, rating, reviewed_at, source_created_at,
+           source_updated_at, first_fetched_at, last_fetched_at, content_expires_at,
+           source_epoch, source_revision, ai_source_byte_length, ai_source_digest,
+           created_at, updated_at
          ) VALUES ($1, $2, $3, 'google', 'answered-edit-review', 'locations/answered-edit',
-                   5, $4, $5, $4, $4, $4, $4, $5, 0, 1, 1, 1, 1, $6, 'active', $4, $4)`,
+                   5, $4, $4, $4, $4, $4, $5, 0, 1, 1, $6, $4, $4)`,
         [
           REVIEW,
           ORG,
@@ -134,9 +147,15 @@ export function answeredEditFixtures(pool: Pool) {
     async recordGuestEdit(): Promise<void> {
       await insertMaterialRevision(2)
       await q(
-        `UPDATE reviews SET rating = 2, source_revision = 2, source_observation_sequence = 2,
-           analysis_sequence = 2, source_updated_at = $2, last_fetched_at = $2
+        `UPDATE reviews SET source_revision = 2, source_observation_sequence = 2,
+           analysis_sequence = 2
          WHERE id = $1`,
+        [REVIEW],
+      )
+      await q(
+        `UPDATE review_source_contents SET rating = 2, source_revision = 2,
+           source_updated_at = $2, last_fetched_at = $2
+         WHERE review_id = $1`,
         [REVIEW, REVISION_2_AT],
       )
     },

@@ -184,7 +184,7 @@ describe('a review stored with a provider envelope glued to its text', () => {
     ])
     expect(await history.findMaterialRevisions(REVIEW, ORG)).toHaveLength(2)
     const current = await getPool().query<{ text: string; translated_text: string }>(
-      `SELECT text, translated_text FROM reviews WHERE id = $1 AND organization_id = $2`,
+      `SELECT text, translated_text FROM review_source_contents WHERE review_id = $1 AND organization_id = $2`,
       [REVIEW, ORG],
     )
     expect(current.rows[0]).toEqual({ text: 'Ок', translated_text: 'Ok' })

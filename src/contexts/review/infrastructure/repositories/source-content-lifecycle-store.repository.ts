@@ -1,6 +1,9 @@
 import { and, asc, eq, gt, inArray, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
+import {
+  requireReplyScopeEffects,
+  type ReplyScopeEffects,
+} from '#/shared/db/reply-scope-effects'
 import {
   googleReplyObservationHeads,
   googleReplyObservations,
@@ -24,7 +27,7 @@ import type {
   ReviewSourceContentState,
 } from '../../application/ports/source-content-lifecycle-store.port'
 import { reviewSourceTransitioned } from '../../domain/events'
-import { eraseReviewSourceContent } from '../review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { lockReplyTruthScope } from '../reply-truth-serialization'
 import { REVIEW_SOURCE_CONTENT_LIFECYCLE_RETENTION_POLICY_VERSION } from '../../application/use-cases/run-source-content-lifecycle'
 import { deleteGoogleSyncMirrors } from '#/contexts/reputation/application/public-api'
@@ -145,15 +148,12 @@ function lifecycleScopeCondition(scope: ReviewSourceContentLifecycleScope) {
       return and(
         eq(reviews.organizationId, scope.organizationId),
         eq(reviews.sourceContentState, 'active'),
-        or(
-          eq(reviews.googleConnectionId, scope.connectionId),
-          sql<boolean>`EXISTS (
+        sql<boolean>`EXISTS (
             SELECT 1 FROM ${reviewSourceContents} AS lifecycle_scope_source
             WHERE lifecycle_scope_source.review_id = ${reviews.id}
               AND lifecycle_scope_source.organization_id = ${scope.organizationId}
               AND lifecycle_scope_source.google_connection_id = ${scope.connectionId}::uuid
           )`,
-        ),
       )
     case 'property':
       return and(
@@ -183,7 +183,6 @@ function lockedRowMatchesScope(
     organizationId: string
     propertyId: string
     googleConnectionId: string | null
-    sourceCacheConnectionId: string | null
   }>,
   scope: ReviewSourceContentLifecycleScope,
 ): boolean {
@@ -193,8 +192,7 @@ function lockedRowMatchesScope(
     case 'connection':
       return (
         row.organizationId === scope.organizationId &&
-        (row.googleConnectionId === scope.connectionId ||
-          row.sourceCacheConnectionId === scope.connectionId)
+        row.googleConnectionId === scope.connectionId
       )
     case 'property':
       return (
@@ -330,8 +328,7 @@ function selectLockedLifecycleRows(tx: Tx, pageIds: ReadonlyArray<string>) {
       id: reviews.id,
       organizationId: reviews.organizationId,
       propertyId: reviews.propertyId,
-      googleConnectionId: reviews.googleConnectionId,
-      sourceCacheConnectionId: reviewSourceContents.googleConnectionId,
+      googleConnectionId: reviewSourceContents.googleConnectionId,
       sourceEpoch: reviews.sourceEpoch,
       sourceRevision: reviews.sourceRevision,
       sourceContentState: reviews.sourceContentState,
@@ -395,7 +392,7 @@ async function applyLifecycleToReview(
             ? 'provider_deleted'
             : 'source_expired',
       },
-      replyEffects,
+      requireReplyScopeEffects(replyEffects),
     )
     if (!erased) {
       throw new Error('Review changed during lifecycle batch apply')
@@ -544,27 +541,8 @@ export const createReviewSourceContentLifecycleStore = (
           ${reviews.organizationId} IS NOT DISTINCT FROM ${reviewSourceContents.organizationId}
           AND ${reviews.propertyId} IS NOT DISTINCT FROM ${reviewSourceContents.propertyId}
           AND ${reviews.platform} IS NOT DISTINCT FROM ${reviewSourceContents.platform}
-          AND ${reviews.externalId} IS NOT DISTINCT FROM ${reviewSourceContents.externalId}
-          AND ${reviews.externalLocationId} IS NOT DISTINCT FROM ${reviewSourceContents.externalLocationId}
-          AND ${reviews.googleConnectionId} IS NOT DISTINCT FROM ${reviewSourceContents.googleConnectionId}
-          AND ${reviews.reviewerName} IS NOT DISTINCT FROM ${reviewSourceContents.reviewerName}
-          AND ${reviews.reviewerProfilePhotoUrl} IS NOT DISTINCT FROM ${reviewSourceContents.reviewerProfilePhotoUrl}
-          AND ${reviews.googleReviewUrl} IS NOT DISTINCT FROM ${reviewSourceContents.googleReviewUrl}
-          AND ${reviews.rating} IS NOT DISTINCT FROM ${reviewSourceContents.rating}
-          AND ${reviews.text} IS NOT DISTINCT FROM ${reviewSourceContents.text}
-          AND ${reviews.translatedText} IS NOT DISTINCT FROM ${reviewSourceContents.translatedText}
-          AND ${reviews.languageCode} IS NOT DISTINCT FROM ${reviewSourceContents.languageCode}
-          AND ${reviews.reviewedAt} IS NOT DISTINCT FROM ${reviewSourceContents.reviewedAt}
-          AND ${reviews.sourceCreatedAt} IS NOT DISTINCT FROM ${reviewSourceContents.sourceCreatedAt}
-          AND ${reviews.sourceUpdatedAt} IS NOT DISTINCT FROM ${reviewSourceContents.sourceUpdatedAt}
-          AND ${reviews.firstFetchedAt} IS NOT DISTINCT FROM ${reviewSourceContents.firstFetchedAt}
-          AND ${reviews.lastFetchedAt} IS NOT DISTINCT FROM ${reviewSourceContents.lastFetchedAt}
-          AND ${reviews.contentExpiresAt} IS NOT DISTINCT FROM ${reviewSourceContents.contentExpiresAt}
-          AND ${reviews.contentHash} IS NOT DISTINCT FROM ${reviewSourceContents.contentHash}
           AND ${reviews.sourceEpoch} IS NOT DISTINCT FROM ${reviewSourceContents.sourceEpoch}
           AND ${reviews.sourceRevision} IS NOT DISTINCT FROM ${reviewSourceContents.sourceRevision}
-          AND ${reviews.aiSourceByteLength} IS NOT DISTINCT FROM ${reviewSourceContents.aiSourceByteLength}
-          AND ${reviews.aiSourceDigest} IS NOT DISTINCT FROM ${reviewSourceContents.aiSourceDigest}
         )`,
         observationPresent: sql<boolean>`${reviewSourceObservations.reviewId} IS NOT NULL`,
         observationMatches: sql<boolean>`(

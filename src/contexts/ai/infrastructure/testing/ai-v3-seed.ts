@@ -10,11 +10,9 @@
 // made for the spec the way every other spec makes one. For that, `{ adopt: true }` adds
 // the AI rows to the Organization and Property the caller made and leaves both alone: the
 // seed neither creates nor deletes them, and `tearDown()` removes only what it wrote. The
-// stack's web and worker also serve Review's own reads: they open a review only if its row
-// holds a location and a retention date, and Review counts a Property's reviews for Guest
-// voice from the source cache the product writes beside every review
-// (`review_source_contents`). The integration suites stand those reads in, so `adopt`
-// writes the whole row and the cache row too, the two mirroring each other.
+// stack's web and worker also serve Review's own reads. Every seed writes provider values
+// and their retention clock to `review_source_contents`; the stable Review holds identity,
+// revision controls and first-fetch history.
 import { randomUUID } from 'node:crypto'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -372,21 +370,10 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
       organizationId: ids.organizationId,
       propertyId: ids.propertyId,
       platform: 'google',
-      externalId: `ai-v3-seed-${id}`,
-      reviewerName: 'Synthetic reviewer',
-      rating: review.rating,
-      text: 'Synthetic review',
-      languageCode: 'en',
-      reviewedAt: review.reviewedAt,
-      contentExpiresAt: CONTENT_EXPIRES_AT,
+      firstFetchedAt: review.reviewedAt,
       sourceEpoch: SOURCE_EPOCH,
       sourceRevision: SOURCE_REVISION,
       analysisSequence: sequenceOf(review),
-      aiSourceByteLength: SOURCE_BYTE_COUNT,
-      aiSourceDigest: DIGEST,
-      ...(adoptedLocation === undefined
-        ? {}
-        : { ...fetchedContent(review, adoptedLocation), expiresAt: CONTENT_EXPIRES_AT }),
     })
     await db.insert(reviewSourceContents).values({
       reviewId: id,

@@ -14,6 +14,7 @@ import {
   properties,
   reviewGoogleReputationSnapshotFacts as snapshotFacts,
   reviews,
+  reviewSourceContents,
 } from '#/shared/db/schema'
 import type { Clock } from '#/shared/domain/clock'
 import { reviewId, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
@@ -55,7 +56,7 @@ function currentGoogleReviews(
     eq(reviews.propertyId, propertyId),
     eq(reviews.platform, 'google'),
     contentEligible(now),
-    since ? gte(reviews.reviewedAt, since) : undefined,
+    since ? gte(reviewSourceContents.reviewedAt, since) : undefined,
   )
 }
 
@@ -67,34 +68,36 @@ const totalsOf = (
 })
 
 const countFrom = (instant: Date) =>
-  sql<number>`count(*) FILTER (WHERE ${reviews.reviewedAt} >= ${instant})`
+  sql<number>`count(*) FILTER (WHERE ${reviewSourceContents.reviewedAt} >= ${instant})`
 
 const sumFrom = (instant: Date) =>
   sql<
     number | null
-  >`sum(${reviews.rating}) FILTER (WHERE ${reviews.reviewedAt} >= ${instant})`
+  >`sum(${reviewSourceContents.rating}) FILTER (WHERE ${reviewSourceContents.reviewedAt} >= ${instant})`
 
 /** The Monday of a review's week in its Property's time zone. */
-const reviewWeek = sql<string>`TO_CHAR(DATE_TRUNC('week', ${reviews.reviewedAt} AT TIME ZONE ${properties.timezone}), 'YYYY-MM-DD')`
+const reviewWeek = sql<string>`TO_CHAR(DATE_TRUNC('week', ${reviewSourceContents.reviewedAt} AT TIME ZONE ${properties.timezone}), 'YYYY-MM-DD')`
 
 /** The calendar year of a review in its Property's time zone. */
-const reviewYear = sql<number>`EXTRACT(YEAR FROM ${reviews.reviewedAt} AT TIME ZONE ${properties.timezone})::int`
+const reviewYear = sql<number>`EXTRACT(YEAR FROM ${reviewSourceContents.reviewedAt} AT TIME ZONE ${properties.timezone})::int`
 
 /** The calendar month of a review in its Property's time zone. */
-const reviewMonth = sql<number>`EXTRACT(MONTH FROM ${reviews.reviewedAt} AT TIME ZONE ${properties.timezone})::int`
+const reviewMonth = sql<number>`EXTRACT(MONTH FROM ${reviewSourceContents.reviewedAt} AT TIME ZONE ${properties.timezone})::int`
 
 /** The civil date of a review in its Property's time zone, `YYYY-MM-DD`. */
-const reviewDay = sql<string>`TO_CHAR(${reviews.reviewedAt} AT TIME ZONE ${properties.timezone}, 'YYYY-MM-DD')`
+const reviewDay = sql<string>`TO_CHAR(${reviewSourceContents.reviewedAt} AT TIME ZONE ${properties.timezone}, 'YYYY-MM-DD')`
 
 /** A range's count and sum, when the request asks for them. */
 const rangeColumns = (
   range: GoogleRatingRange | undefined,
 ): Readonly<Record<string, SQL<number | null>>> => {
   if (range === undefined) return {}
-  const inRange = sql`${reviews.reviewedAt} >= ${range.from} AND ${reviews.reviewedAt} < ${range.to}`
+  const inRange = sql`${reviewSourceContents.reviewedAt} >= ${range.from} AND ${reviewSourceContents.reviewedAt} < ${range.to}`
   return {
     rangeCount: sql<number>`count(*) FILTER (WHERE ${inRange})`,
-    rangeSum: sql<number | null>`sum(${reviews.rating}) FILTER (WHERE ${inRange})`,
+    rangeSum: sql<
+      number | null
+    >`sum(${reviewSourceContents.rating}) FILTER (WHERE ${inRange})`,
   }
 }
 
@@ -135,10 +138,20 @@ async function weekTotals(
     .select({
       week: sql<
         string | null
-      >`CASE WHEN ${reviews.reviewedAt} >= ${since} THEN ${reviewWeek} END`.as('week'),
-      rating: reviews.rating,
+      >`CASE WHEN ${reviewSourceContents.reviewedAt} >= ${since} THEN ${reviewWeek} END`.as(
+        'week',
+      ),
+      rating: reviewSourceContents.rating,
     })
     .from(reviews)
+    .innerJoin(
+      reviewSourceContents,
+      and(
+        eq(reviewSourceContents.reviewId, reviews.id),
+        eq(reviewSourceContents.organizationId, reviews.organizationId),
+        eq(reviewSourceContents.propertyId, reviews.propertyId),
+      ),
+    )
     .innerJoin(properties, currentBinding)
     .where(currentGoogleReviews(organizationId, propertyId, deps.clock()))
     .as('scoped')
@@ -280,8 +293,20 @@ async function lowReviews(
   limit: number,
 ): Promise<readonly GoogleRatingLowReview[]> {
   const rows = await deps.db
-    .select({ id: reviews.id, rating: reviews.rating, reviewedAt: reviews.reviewedAt })
+    .select({
+      id: reviews.id,
+      rating: reviewSourceContents.rating,
+      reviewedAt: reviewSourceContents.reviewedAt,
+    })
     .from(reviews)
+    .innerJoin(
+      reviewSourceContents,
+      and(
+        eq(reviewSourceContents.reviewId, reviews.id),
+        eq(reviewSourceContents.organizationId, reviews.organizationId),
+        eq(reviewSourceContents.propertyId, reviews.propertyId),
+      ),
+    )
     .innerJoin(properties, currentBinding)
     .where(
       and(
@@ -291,11 +316,11 @@ async function lowReviews(
           deps.clock(),
           scope.since,
         ),
-        sql`${reviews.rating} * 1000 < ${belowThousandths}`,
-        lte(reviews.rating, LOW_REVIEW_MAX_STARS),
+        sql`${reviewSourceContents.rating} * 1000 < ${belowThousandths}`,
+        lte(reviewSourceContents.rating, LOW_REVIEW_MAX_STARS),
       ),
     )
-    .orderBy(desc(reviews.reviewedAt), desc(reviews.id))
+    .orderBy(desc(reviewSourceContents.reviewedAt), desc(reviews.id))
     .limit(limit)
   // Eligibility already requires both; the guard only narrows the types.
   return rows.flatMap((row) =>
@@ -330,17 +355,25 @@ export const createGoogleRatingReads = (deps: {
           ]),
         )
         const mostRecent = deps.db
-          .select({ rating: reviews.rating })
+          .select({ rating: reviewSourceContents.rating })
           .from(reviews)
+          .innerJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .innerJoin(properties, currentBinding)
           .where(scope)
-          .orderBy(desc(reviews.reviewedAt), desc(reviews.id))
+          .orderBy(desc(reviewSourceContents.reviewedAt), desc(reviews.id))
           .limit(request.mostRecentLimit)
           .as('most_recent')
         const aggregateRows = await deps.db
           .select({
             count: count(),
-            sum: sum(reviews.rating),
+            sum: sum(reviewSourceContents.rating),
             mixCount: countFrom(request.mixWindowStart),
             mixSum: sumFrom(request.mixWindowStart),
             ...totalsSinceColumns(request.totalsSince),
@@ -348,6 +381,14 @@ export const createGoogleRatingReads = (deps: {
             ...windows,
           })
           .from(reviews)
+          .innerJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .innerJoin(properties, currentBinding)
           .where(scope)
         const recentRows = await deps.db
@@ -386,8 +427,20 @@ export const createGoogleRatingReads = (deps: {
     async getYearlyTotals(organizationId, propertyId) {
       return trace('review.googleRatingReads.getYearlyTotals', async () => {
         const rows = await deps.db
-          .select({ year: reviewYear, count: count(), sum: sum(reviews.rating) })
+          .select({
+            year: reviewYear,
+            count: count(),
+            sum: sum(reviewSourceContents.rating),
+          })
           .from(reviews)
+          .innerJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .innerJoin(properties, currentBinding)
           .where(currentGoogleReviews(organizationId, propertyId, deps.clock()))
           .groupBy(reviewYear)
@@ -403,9 +456,17 @@ export const createGoogleRatingReads = (deps: {
             year: reviewYear,
             month: reviewMonth,
             count: count(),
-            sum: sum(reviews.rating),
+            sum: sum(reviewSourceContents.rating),
           })
           .from(reviews)
+          .innerJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .innerJoin(properties, currentBinding)
           .where(currentGoogleReviews(organizationId, propertyId, deps.clock(), since))
           .groupBy(reviewYear, reviewMonth)
@@ -424,6 +485,14 @@ export const createGoogleRatingReads = (deps: {
         const rows = await deps.db
           .select({ day: reviewDay, count: count() })
           .from(reviews)
+          .innerJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .innerJoin(properties, currentBinding)
           .where(currentGoogleReviews(organizationId, propertyId, deps.clock(), since))
           .groupBy(reviewDay)
@@ -450,11 +519,19 @@ export const createGoogleRatingReads = (deps: {
     async getStarDistribution(organizationId, propertyId, since) {
       return trace('review.googleRatingReads.getStarDistribution', async () => {
         const rows = await deps.db
-          .select({ stars: reviews.rating, count: count() })
+          .select({ stars: reviewSourceContents.rating, count: count() })
           .from(reviews)
+          .innerJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .innerJoin(properties, currentBinding)
           .where(currentGoogleReviews(organizationId, propertyId, deps.clock(), since))
-          .groupBy(reviews.rating)
+          .groupBy(reviewSourceContents.rating)
         const byStars = new Map(rows.map((row) => [row.stars, Number(row.count)]))
         return [1, 2, 3, 4, 5].map((stars) => ({ stars, count: byStars.get(stars) ?? 0 }))
       })

@@ -271,19 +271,20 @@ async function readReviewAnalysisHealth(
       CROSS JOIN LATERAL (
         SELECT count(*)::bigint AS eligible_review_count
         FROM reviews AS review
+        INNER JOIN review_source_contents AS content ON content.review_id = review.id AND content.organization_id = review.organization_id AND content.property_id = review.property_id
         WHERE review.organization_id = enrollment.organization_id
           AND review.property_id = enrollment.property_id
           AND review.source_epoch = enrollment.source_epoch
           AND review.source_revision >= 1
           AND review.analysis_sequence <= enrollment.analysis_start_sequence
-          AND review.text IS NOT NULL
-          AND review.content_expires_at > transaction_timestamp()
-          AND review.ai_source_byte_length
+          AND content.text IS NOT NULL
+          AND content.content_expires_at > transaction_timestamp()
+          AND content.ai_source_byte_length
             <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
           AND (
-            COALESCE(octet_length(review.text), 0)::bigint
-            + COALESCE(octet_length(review.language_code), 0)::bigint
-            + COALESCE(octet_length(review.reviewer_name), 0)::bigint
+            COALESCE(octet_length(content.text), 0)::bigint
+            + COALESCE(octet_length(content.language_code), 0)::bigint
+            + COALESCE(octet_length(content.reviewer_name), 0)::bigint
           ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
       ) AS eligible
       WHERE enrollment.state IN ('queued', 'running')

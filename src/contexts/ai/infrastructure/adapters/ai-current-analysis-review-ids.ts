@@ -1,3 +1,4 @@
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 // Governed live-analysis identifiers for Inbox filters.
 
 import {
@@ -89,7 +90,7 @@ export function findCurrentAnalysisReviewIds(
     eq(aiReviewAnalyses.sourceEpoch, reviews.sourceEpoch),
     eq(aiReviewAnalyses.sourceRevision, reviews.sourceRevision),
     eq(aiReviewAnalyses.analysisSequence, reviews.analysisSequence),
-    gt(reviews.contentExpiresAt, now),
+    gt(reviewSourceContents.contentExpiresAt, now),
     eq(aiPropertyProcessingProfiles.lifecycleState, 'active'),
     analysisMatchesProcessingProfile(
       input.organizationId,
@@ -112,6 +113,15 @@ export function findCurrentAnalysisReviewIds(
         eq(reviews.organizationId, aiReviewAnalyses.organizationId),
         eq(reviews.propertyId, aiReviewAnalyses.propertyId),
         eq(reviews.id, aiReviewAnalyses.reviewId),
+      ),
+    )
+
+    .innerJoin(
+      reviewSourceContents,
+      and(
+        eq(reviewSourceContents.reviewId, reviews.id),
+        eq(reviewSourceContents.organizationId, reviews.organizationId),
+        eq(reviewSourceContents.propertyId, reviews.propertyId),
       ),
     )
     .innerJoin(

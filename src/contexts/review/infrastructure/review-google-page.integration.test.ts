@@ -3,10 +3,10 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // real PostgreSQL, through the real sync observation writer.
 //
 // The link is provider cache data (ADR 0031): it is written with the erasable
-// source content and its REV-01 compatibility copy, on every applied fetch —
+// source content on every applied fetch —
 // the quiet same-content refresh that extends the content clock included, which
 // is how existing Reviews get one without a backfill — and it is erased with
-// them. It is in no digest and no observation, so a link appearing or going
+// that content. It is in no digest and no observation, so a link appearing or going
 // away never makes a Review look changed. It is served only through the
 // eligible read.
 
@@ -35,7 +35,7 @@ import { createGoogleReplyObservationStore } from './google-reply-observation-st
 import { createReviewSourceContentLifecycleStore } from './repositories/source-content-lifecycle-store.repository'
 import { createReviewRepository } from './repositories/review.repository'
 import { createAtomicReviewCommandStore } from './review-command-store'
-import { eraseReviewSourceContent } from './review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 
 const ORG = organizationId('review-google-page-org-a')
 const OTHER_ORG = organizationId('review-google-page-org-b')
@@ -161,7 +161,7 @@ async function stored(id: ReviewId): Promise<StoredPage> {
     `SELECT r.google_review_url AS compatibility,
             c.google_review_url AS source_cache,
             c.review_id IS NOT NULL AS has_source_cache,
-            r.content_expires_at, r.source_revision
+            c.content_expires_at, r.source_revision
      FROM reviews r
      LEFT JOIN review_source_contents c ON c.review_id = r.id
      WHERE r.id = $1`,
@@ -241,11 +241,11 @@ beforeEach(async () => {
 })
 
 describe.sequential("a Review's own page on Google", () => {
-  it('is stored with the source content and its compatibility copy, in parity', async () => {
+  it('is stored only with the source content while the old copy stays empty', async () => {
     const id = await observe(FIRST_FETCH, REVIEW_PAGE)
 
     await expect(stored(id)).resolves.toMatchObject({
-      compatibility: REVIEW_PAGE,
+      compatibility: null,
       sourceCache: REVIEW_PAGE,
     })
     await expect(findingsFor(id)).resolves.toEqual([])
@@ -260,7 +260,7 @@ describe.sequential("a Review's own page on Google", () => {
     expect(await observe(REFRESH, REVIEW_PAGE)).toBe(id)
 
     const after = await stored(id)
-    expect(after).toMatchObject({ compatibility: REVIEW_PAGE, sourceCache: REVIEW_PAGE })
+    expect(after).toMatchObject({ compatibility: null, sourceCache: REVIEW_PAGE })
     expect(after.contentExpiresAt?.getTime()).toBe(REFRESH.getTime() + 30 * DAY_MS)
     expect(after.contentExpiresAt?.getTime()).toBeGreaterThan(
       before.contentExpiresAt?.getTime() ?? Infinity,
@@ -284,7 +284,7 @@ describe.sequential("a Review's own page on Google", () => {
     // A later fetch carries what Google sends then: another page, then none.
     await observe(LATER_REFRESH, LATER_PAGE)
     await expect(stored(id)).resolves.toMatchObject({
-      compatibility: LATER_PAGE,
+      compatibility: null,
       sourceCache: LATER_PAGE,
     })
     await observe(new Date(LATER_REFRESH.getTime() + DAY_MS), null)
@@ -308,7 +308,7 @@ describe.sequential("a Review's own page on Google", () => {
     expect(await observe(reobservedAt, LATER_PAGE, firstFetch)).toBe(id)
 
     await expect(stored(id)).resolves.toMatchObject({
-      compatibility: LATER_PAGE,
+      compatibility: null,
       sourceCache: LATER_PAGE,
     })
     await expect(findingsFor(id)).resolves.toEqual([])
@@ -375,11 +375,11 @@ describe.sequential("a Review's own page on Google", () => {
     ).rejects.toThrow(/reviews_source_content_state_valid/)
   })
 
-  it('is part of the shadow-parity comparison of the two copies', async () => {
+  it('reports a content row whose revision differs from its Review identity', async () => {
     const id = await observe(FIRST_FETCH, REVIEW_PAGE)
     await getPool().query(
-      'UPDATE review_source_contents SET google_review_url = $2 WHERE review_id = $1',
-      [id, LATER_PAGE],
+      'UPDATE review_source_contents SET source_revision = source_revision + 1 WHERE review_id = $1',
+      [id],
     )
 
     await expect(findingsFor(id)).resolves.toEqual(['active_compatibility_drift'])

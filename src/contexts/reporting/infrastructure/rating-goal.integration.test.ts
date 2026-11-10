@@ -105,23 +105,32 @@ async function insertReview(
   review: Readonly<{ rating: number; daysAgo: number }>,
   externalId: string,
 ): Promise<void> {
+  const id = randomUUID()
+  const reviewedAt = new Date(NOW.getTime() - review.daysAgo * DAY)
   await held.client.query(
     `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id, external_location_id,
-       reviewer_name, rating, text, reviewed_at, expires_at, content_expires_at,
+       id, organization_id, property_id, platform, first_fetched_at,
+       source_epoch, source_revision, analysis_sequence
+     ) VALUES ($1, $2, $3, 'google', $4, 2, 0, 0)`,
+    [id, ORG, PROPERTY, reviewedAt],
+  )
+  await held.client.query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id, external_location_id,
+       reviewer_name, rating, text, reviewed_at, content_expires_at,
        first_fetched_at, last_fetched_at, source_epoch, source_revision,
-       analysis_sequence, ai_source_byte_length, ai_source_digest
+       ai_source_byte_length, ai_source_digest
      ) VALUES (
        $1, $2, $3, 'google', $4, 'rating-goal-location', 'Guest', $5, 'Stay', $6,
-       $7, $7, $6, $6, 2, 0, 0, 1, $8
+       $7, $6, $6, 2, 0, 1, $8
      )`,
     [
-      randomUUID(),
+      id,
       ORG,
       PROPERTY,
       externalId,
       review.rating,
-      new Date(NOW.getTime() - review.daysAgo * DAY),
+      reviewedAt,
       new Date(NOW.getTime() + 20 * DAY),
       '0'.repeat(64),
     ],
