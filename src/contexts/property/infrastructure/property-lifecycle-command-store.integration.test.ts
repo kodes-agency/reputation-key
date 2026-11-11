@@ -6,12 +6,13 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { propertyArchived } from '../domain/events'
+import { propertyArchived, propertyRestored } from '../domain/events'
 import { createPropertyLifecycleCommandStore } from './property-lifecycle-command-store'
 
 const db = getDb()
 const ORGANIZATION_ID = organizationId('org-property-lifecycle-atomicity')
 const PROPERTY_ID = propertyId('f5000000-0000-4000-8000-000000000001')
+const OTHER_ORGANIZATION_ID = organizationId('org-property-lifecycle-other')
 const ACTOR_ID = userId('admin-property-lifecycle')
 const NOW = new Date('2026-08-28T12:00:00.000Z')
 const RECOVERY_DEADLINE = new Date('2026-09-27T12:00:00.000Z')
@@ -41,6 +42,46 @@ const archiveCommand = (event: ReturnType<typeof archiveEvent>) => ({
   occurredAt: NOW,
   event,
 })
+
+const restoreEvent = () =>
+  propertyRestored({
+    organizationId: ORGANIZATION_ID,
+    propertyId: PROPERTY_ID,
+    userId: ACTOR_ID,
+    previousState: 'archived',
+    sourceEpoch: 9,
+    googleBindingReadiness: 'ready',
+    occurredAt: NOW,
+  })
+
+const restoreCommand = (
+  event: ReturnType<typeof restoreEvent>,
+  expectedResponsibleManagerRevision: number,
+) => ({
+  organizationId: ORGANIZATION_ID,
+  propertyId: PROPERTY_ID,
+  from: 'archived' as const,
+  to: 'active' as const,
+  expectedSourceEpoch: 8,
+  nextSourceEpoch: 9,
+  expectedProfileVersion: 1,
+  expectedResponsibleManagerRevision,
+  reason: null,
+  recoveryDeadline: null,
+  initiatedBy: ACTOR_ID,
+  occurredAt: NOW,
+  event,
+})
+
+const lifecycleRow = async () => {
+  const result = await db.execute(sql`
+    SELECT lifecycle_state, lifecycle_reason, purge_scheduled_for, source_epoch,
+           responsible_manager_revision
+    FROM properties
+    WHERE id = ${PROPERTY_ID}
+  `)
+  return result.rows[0]
+}
 
 async function resetProperty() {
   await db.execute(
@@ -74,6 +115,11 @@ beforeAll(async () => {
       'Property Lifecycle Atomicity',
       ${ORGANIZATION_ID},
       ${NOW}
+    ), (
+      ${OTHER_ORGANIZATION_ID},
+      'Property Lifecycle Other',
+      ${OTHER_ORGANIZATION_ID},
+      ${NOW}
     )
     ON CONFLICT (id) DO NOTHING
   `)
@@ -97,7 +143,7 @@ afterAll(async () => {
     sql`DELETE FROM outbox_events WHERE organization_id = ${ORGANIZATION_ID}`,
   )
   await db.execute(sql`DELETE FROM properties WHERE id = ${PROPERTY_ID}`)
-  await deleteTestOrganizations(db, [ORGANIZATION_ID])
+  await deleteTestOrganizations(db, [ORGANIZATION_ID, OTHER_ORGANIZATION_ID])
 })
 
 describe('Property lifecycle command store atomicity', () => {
@@ -166,5 +212,62 @@ describe('Property lifecycle command store atomicity', () => {
       purge_scheduled_for: null,
       source_epoch: 7,
     })
+  })
+
+  it('rolls a Restore back when the required fact cannot be inserted', async () => {
+    const event = restoreEvent()
+    await db.execute(sql`
+      UPDATE properties
+      SET lifecycle_state = 'archived',
+          lifecycle_reason = 'Property no longer trading',
+          purge_scheduled_for = ${RECOVERY_DEADLINE},
+          source_epoch = 8
+      WHERE id = ${PROPERTY_ID}
+    `)
+    const before = await lifecycleRow()
+    await db.execute(sql`
+      INSERT INTO outbox_events (
+        id, event_type, event_version, payload, organization_id,
+        property_id, source_context, source_aggregate_id, created_at
+      ) VALUES (
+        ${event.eventId}, 'test.collision', 1, '{}'::jsonb, ${ORGANIZATION_ID},
+        ${PROPERTY_ID}, 'property', ${PROPERTY_ID}, ${NOW}
+      )
+    `)
+
+    await expect(
+      createPropertyLifecycleCommandStore(db, replyScopeEffects).transitionLifecycle(
+        restoreCommand(event, Number(before?.responsible_manager_revision)),
+      ),
+    ).rejects.toMatchObject({ cause: { code: '23505' } })
+
+    expect(await lifecycleRow()).toEqual(before)
+  })
+
+  it("refuses another organization's Archive and leaves the Property and its facts alone", async () => {
+    const before = await lifecycleRow()
+    const event = propertyArchived({
+      organizationId: OTHER_ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      userId: ACTOR_ID,
+      previousState: 'active',
+      sourceEpoch: 8,
+      recoveryDeadline: RECOVERY_DEADLINE,
+      occurredAt: NOW,
+    })
+
+    await expect(
+      createPropertyLifecycleCommandStore(db, replyScopeEffects).transitionLifecycle({
+        ...archiveCommand(event),
+        organizationId: OTHER_ORGANIZATION_ID,
+      }),
+    ).rejects.toMatchObject({ code: 'property_not_found' })
+
+    expect(await lifecycleRow()).toEqual(before)
+    const facts = await db.execute(sql`
+      SELECT id FROM outbox_events
+      WHERE organization_id IN (${ORGANIZATION_ID}, ${OTHER_ORGANIZATION_ID})
+    `)
+    expect(facts.rows).toHaveLength(0)
   })
 })
