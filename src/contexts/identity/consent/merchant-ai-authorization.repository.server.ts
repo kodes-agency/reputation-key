@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import {
   getAiRuntimeCapability,
@@ -9,26 +8,13 @@ import type {
   MerchantAiCapability,
   MerchantAiPurpose,
 } from '#/shared/domain/merchant-ai-capability'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type { Database } from '#/shared/db/index'
-import { insertOutboxRow } from '#/shared/outbox/commit'
-import { organizationId } from '#/shared/domain/ids'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
-import { purgeAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
-import { identityMerchantAiChanged } from '../domain/events'
-import type {
-  MerchantAiCapabilityEpochs,
-  MerchantAiSnapshot,
-} from '../domain/merchant-ai-authorization'
-import {
-  MerchantAiAuthorizationStoreError,
-  type MerchantAiAuthorizationStore,
-} from './merchant-ai-authorization.server'
-import {
-  mapSnapshot,
-  runMerchantAiMutation,
-  type SnapshotRow,
-} from './merchant-ai-transition.server'
+import type { MerchantAiSnapshot } from '../domain/merchant-ai-authorization'
+import type { MerchantAiAuthorizationStore } from './merchant-ai-authorization.server'
+import { mapSnapshot, type SnapshotRow } from './merchant-ai-snapshot.server'
+import { transitionMerchantAi } from './merchant-ai-transition.server'
+import { resetMerchantAiForRestore } from './merchant-ai-transition-commit.server'
 import { runMerchantAiConsentCeremony } from './merchant-ai-consent-ceremony.server'
 
 export type MerchantAiAuthorizationFence = MerchantAiConsentFence
@@ -124,163 +110,22 @@ export const createMerchantAiAuthorizationStore = (
     getSnapshot: (input) => getMerchantAiAuthorizationSnapshot(db, input),
 
     mutate: (input) =>
-      db.transaction((tx) => runMerchantAiMutation(tx, input, idGen, replyEffects)),
+      db.transaction(
+        async (tx) =>
+          (
+            await transitionMerchantAi(
+              tx,
+              { kind: 'command', command: input },
+              idGen,
+              replyEffects,
+            )
+          ).snapshot,
+      ),
 
     enableForProperties: (input) =>
       runMerchantAiConsentCeremony(db, input, idGen, replyEffects),
 
-    async restoreReset(input) {
-      const requestHash = createHash('sha256')
-        .update('merchant-ai-restore-reset-v1\0', 'utf8')
-        .update(
-          canonicalizeRfc8785({
-            organizationId: input.organizationId,
-            propertyId: input.propertyId,
-            idempotencyKey: input.idempotencyKey,
-            expectedStateVersion: input.expectedStateVersion,
-            reasonCode: input.reasonCode,
-            noticeVersion: input.noticeVersion,
-            noticeDigest: input.noticeDigest,
-            sourcePolicyId: input.sourcePolicyId,
-            routingPolicyVersion: input.routingPolicyVersion,
-            providerDeploymentProfileVersion: input.providerDeploymentProfileVersion,
-            redactionProfileFamily: input.redactionProfileFamily,
-          }),
-          'utf8',
-        )
-        .digest('hex')
-      return db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.organizationId}:${input.propertyId}`}, 0))`,
-        )
-
-        const replayResult = await tx.execute(sql`
-          SELECT *
-          FROM merchant_ai_consent_evidence
-          WHERE organization_id = ${input.organizationId}
-            AND idempotency_key = ${input.idempotencyKey}
-          LIMIT 1
-        `)
-        const replay = replayResult.rows[0] as SnapshotRow | undefined
-        if (replay) {
-          if (replay.request_hash !== requestHash) {
-            throw new MerchantAiAuthorizationStoreError(
-              'idempotency_conflict',
-              'Idempotency key was already used for a different command',
-            )
-          }
-          return mapSnapshot(replay)
-        }
-
-        const propertyResult = await tx.execute(sql`
-          SELECT source_epoch
-          FROM properties
-          WHERE organization_id = ${input.organizationId}
-            AND id = ${input.propertyId}::uuid
-            AND deleted_at IS NULL
-          FOR UPDATE
-        `)
-        const property = propertyResult.rows[0] as SnapshotRow | undefined
-        if (
-          !property ||
-          !Number.isSafeInteger(Number(property.source_epoch)) ||
-          // 0-based source epoch (drizzle/0060): a never-edited property sits at
-          // 0 and is still live. The liveness signal here is the row existing
-          // with deleted_at IS NULL, not the epoch being non-zero.
-          Number(property.source_epoch) < 0
-        ) {
-          throw new MerchantAiAuthorizationStoreError(
-            'restore_reset_denied',
-            'Restored Merchant AI state requires a live property',
-          )
-        }
-        const sourceEpoch = Number(property.source_epoch)
-
-        const currentResult = await tx.execute(sql`
-          SELECT *
-          FROM merchant_ai_enablement
-          WHERE organization_id = ${input.organizationId}
-            AND property_id = ${input.propertyId}::uuid
-          FOR UPDATE
-        `)
-        const currentRow = currentResult.rows[0] as SnapshotRow | undefined
-        const current = currentRow ? mapSnapshot(currentRow) : null
-        if (input.expectedStateVersion !== (current?.stateVersion ?? 0)) {
-          throw new MerchantAiAuthorizationStoreError(
-            'version_conflict',
-            'Merchant AI state changed before restore reset',
-          )
-        }
-
-        const runtimeProfiles = Object.freeze({})
-
-        const authorizationLineageId = idGen()
-        const capabilityEpochs = Object.freeze({
-          review_analysis: 1,
-          reply_drafting: 1,
-          property_trends: 1,
-        }) satisfies MerchantAiCapabilityEpochs
-        const runtimeProfilesJson = canonicalizeRfc8785(runtimeProfiles)
-
-        const evidenceResult = await tx.execute(sql`
-          SELECT (
-            apply_merchant_ai_transition_v1(
-              ${authorizationLineageId}::uuid,
-              ${input.expectedStateVersion},
-              1,
-              ${input.organizationId},
-              ${input.propertyId}::uuid,
-              'restore_reset',
-              'disabled',
-              ARRAY[]::text[],
-              ${runtimeProfilesJson}::jsonb,
-              1,
-              1,
-              1,
-              ${sourceEpoch},
-              0,
-              ${input.noticeVersion},
-              ${input.noticeDigest},
-              ${input.sourcePolicyId},
-              ${input.routingPolicyVersion},
-              'global',
-              ${input.providerDeploymentProfileVersion},
-              ${input.redactionProfileFamily},
-              'restore-controller',
-              ${input.reasonCode},
-              ${input.idempotencyKey},
-              ${requestHash},
-              ${input.now}
-            )
-          ).*
-        `)
-        const evidence = evidenceResult.rows[0] as SnapshotRow
-        await purgeAiDraftsForAuthorization(
-          tx,
-          {
-            organizationId: input.organizationId,
-            propertyId: input.propertyId,
-          },
-          replyEffects,
-        )
-
-        const snapshot = mapSnapshot(evidence)
-        const event = identityMerchantAiChanged({
-          organizationId: organizationId(input.organizationId),
-          propertyId: input.propertyId,
-          authorizationLineageId,
-          state: 'disabled',
-          reviewAnalysisEpoch: capabilityEpochs.review_analysis,
-          replyDraftingEpoch: capabilityEpochs.reply_drafting,
-          propertyTrendsEpoch: capabilityEpochs.property_trends,
-          authorizedSourceEpoch: sourceEpoch,
-          analysisStartSequence: 0,
-          stateVersion: 1,
-          occurredAt: input.now,
-        })
-        await insertOutboxRow(tx, event)
-        return snapshot
-      })
-    },
+    restoreReset: (input) =>
+      db.transaction((tx) => resetMerchantAiForRestore(tx, input, idGen, replyEffects)),
   }
 }
