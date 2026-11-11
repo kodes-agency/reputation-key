@@ -29,7 +29,6 @@ const STAFF_PARTICIPANT_TABLES = Object.freeze([
   'staff_user_links',
   'staff_onboardings',
   'portal_responsibilities',
-  'property_access_grants',
   'property_access_grant',
   'merchant_ai_notice_update_receipts',
   'product_update_settings',
