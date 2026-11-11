@@ -1,9 +1,22 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Pool } from 'pg'
 import {
   getReviewInboxItemIds,
   REVIEW_INBOX_ITEM_LOOKUP_LIMIT,
 } from './get-review-inbox-item-ids'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import {
+  clearInboxUseCaseRows,
+  createUseCaseDatabase,
+  createUseCaseInboxRepository,
+  dropInboxUseCaseOrganization,
+  openFixturePool,
+} from '../../infrastructure/inbox-database-fixtures-use-cases'
+import {
+  seedInboxItem,
+  seedInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -19,14 +32,16 @@ import {
   type PropertyId,
 } from '#/shared/domain/ids'
 
-const ORG_ID = organizationId('org-1')
-const OTHER_ORG_ID = organizationId('org-2')
+const ORG_ID = organizationId('org-get-review-inbox-item-ids')
+const OTHER_ORG_ID = organizationId('org-get-review-inbox-item-ids-other')
 const USER_ID = userId('user-1')
-const PROPERTY = propertyId('prop-1')
-const OTHER_PROPERTY = propertyId('prop-2')
+const PROPERTY = propertyId('7f000000-0000-4000-8000-000000000001')
+const FOREIGN_ORG_PROPERTY = propertyId('7f000000-0000-4000-8000-000000000003')
+const OTHER_PROPERTY = propertyId('7f000000-0000-4000-8000-000000000002')
 const REVIEW_WITH_ITEM = reviewId('10000000-0000-4000-8000-000000000001')
 const SECOND_REVIEW_WITH_ITEM = reviewId('10000000-0000-4000-8000-000000000002')
 const REVIEW_WITHOUT_ITEM = reviewId('10000000-0000-4000-8000-000000000003')
+const REVIEW_AT_OTHER_PROPERTY = reviewId('10000000-0000-4000-8000-000000000004')
 
 const ctxWith = (...permissions: Permission[]): AuthContext => ({
   organizationId: ORG_ID,
@@ -90,29 +105,57 @@ const staffWithAccess = (
   getAssignedPortals: async () => [],
 })
 
-function setup(staffPublicApi: StaffPublicApi = staffWithAccess(null)) {
-  const repo = createInMemoryInboxRepo()
-  repo.items.push(
-    makeReviewItem('20000000-0000-4000-8000-000000000001', {
-      sourceId: REVIEW_WITH_ITEM,
-    }),
-    makeReviewItem('20000000-0000-4000-8000-000000000002', {
-      sourceId: SECOND_REVIEW_WITH_ITEM,
-    }),
-  )
-  const findActiveReviewItemIds = vi.spyOn(repo, 'findActiveReviewItemIds')
-  return {
-    repo,
-    findActiveReviewItemIds,
-    useCase: getReviewInboxItemIds({ repo, staffPublicApi }),
+const NOW = new Date('2026-09-08T12:00:00.000Z')
+
+describe.sequential('getReviewInboxItemIds', () => {
+  const db = createUseCaseDatabase()
+  let pool: Pool
+
+  const seed = async (...items: InboxItem[]) => {
+    for (const item of items) await seedInboxItem(pool, db, item, () => NOW)
   }
-}
 
-const ALL_REVIEWS = [REVIEW_WITH_ITEM, SECOND_REVIEW_WITH_ITEM, REVIEW_WITHOUT_ITEM]
+  async function setup(staffPublicApi: StaffPublicApi = staffWithAccess(null)) {
+    await seed(
+      makeReviewItem('20000000-0000-4000-8000-000000000001', {
+        sourceId: REVIEW_WITH_ITEM,
+      }),
+      makeReviewItem('20000000-0000-4000-8000-000000000002', {
+        sourceId: SECOND_REVIEW_WITH_ITEM,
+      }),
+    )
+    const repo = createUseCaseInboxRepository(db, () => NOW)
+    const findActiveReviewItemIds = vi.spyOn(repo, 'findActiveReviewItemIds')
+    return {
+      findActiveReviewItemIds,
+      useCase: getReviewInboxItemIds({ repo, staffPublicApi }),
+    }
+  }
 
-describe('getReviewInboxItemIds', () => {
+  beforeAll(async () => {
+    pool = openFixturePool()
+    clearEventSchemas()
+    registerAllEventSchemas()
+    await seedInboxOrganization(pool, ORG_ID, [PROPERTY, OTHER_PROPERTY])
+    await seedInboxOrganization(pool, OTHER_ORG_ID, [FOREIGN_ORG_PROPERTY])
+  })
+
+  beforeEach(async () => {
+    await clearInboxUseCaseRows(pool, ORG_ID)
+    await clearInboxUseCaseRows(pool, OTHER_ORG_ID)
+  })
+
+  afterAll(async () => {
+    clearEventSchemas()
+    await dropInboxUseCaseOrganization(pool, ORG_ID)
+    await dropInboxUseCaseOrganization(pool, OTHER_ORG_ID)
+    await pool.end()
+  })
+
+  const ALL_REVIEWS = [REVIEW_WITH_ITEM, SECOND_REVIEW_WITH_ITEM, REVIEW_WITHOUT_ITEM]
+
   it('maps each Review with an Inbox Item to it and leaves the others out', async () => {
-    const { useCase } = setup()
+    const { useCase } = await setup()
 
     const itemIds = await useCase(
       { propertyId: PROPERTY, reviewIds: ALL_REVIEWS },
@@ -128,26 +171,31 @@ describe('getReviewInboxItemIds', () => {
   })
 
   it('reads only the requested Property within the caller organization', async () => {
-    const { repo, useCase, findActiveReviewItemIds } = setup()
-    repo.items.push(
+    const { useCase, findActiveReviewItemIds } = await setup()
+    await seed(
       makeReviewItem('20000000-0000-4000-8000-000000000003', {
-        sourceId: REVIEW_WITHOUT_ITEM,
+        sourceId: REVIEW_AT_OTHER_PROPERTY,
         propertyId: OTHER_PROPERTY,
       }),
       makeReviewItem('20000000-0000-4000-8000-000000000004', {
         sourceId: REVIEW_WITHOUT_ITEM,
+        propertyId: FOREIGN_ORG_PROPERTY,
         organizationId: OTHER_ORG_ID,
       }),
     )
 
     const itemIds = await useCase(
-      { propertyId: PROPERTY, reviewIds: [REVIEW_WITHOUT_ITEM] },
+      {
+        propertyId: PROPERTY,
+        reviewIds: [REVIEW_WITHOUT_ITEM, REVIEW_AT_OTHER_PROPERTY],
+      },
       ctxWith('inbox.read', 'review.read'),
     )
 
     expect(itemIds.size).toBe(0)
     expect(findActiveReviewItemIds).toHaveBeenCalledWith(ORG_ID, PROPERTY, [
       REVIEW_WITHOUT_ITEM,
+      REVIEW_AT_OTHER_PROPERTY,
     ])
   })
 
@@ -157,7 +205,7 @@ describe('getReviewInboxItemIds', () => {
   ])(
     'answers no Review when the caller %s, without reading the items',
     async (_label, ctx) => {
-      const { useCase, findActiveReviewItemIds } = setup()
+      const { useCase, findActiveReviewItemIds } = await setup()
 
       const itemIds = await useCase({ propertyId: PROPERTY, reviewIds: ALL_REVIEWS }, ctx)
 
@@ -169,7 +217,9 @@ describe('getReviewInboxItemIds', () => {
   )
 
   it('answers no Review at a Property outside the caller access', async () => {
-    const { useCase, findActiveReviewItemIds } = setup(staffWithAccess([OTHER_PROPERTY]))
+    const { useCase, findActiveReviewItemIds } = await setup(
+      staffWithAccess([OTHER_PROPERTY]),
+    )
 
     const itemIds = await useCase(
       { propertyId: PROPERTY, reviewIds: ALL_REVIEWS },
@@ -181,7 +231,7 @@ describe('getReviewInboxItemIds', () => {
   })
 
   it('answers an assigned caller at a Property they can access', async () => {
-    const { useCase } = setup(staffWithAccess([PROPERTY]))
+    const { useCase } = await setup(staffWithAccess([PROPERTY]))
 
     const itemIds = await useCase(
       { propertyId: PROPERTY, reviewIds: [REVIEW_WITH_ITEM] },
@@ -195,7 +245,7 @@ describe('getReviewInboxItemIds', () => {
 
   it('does not read access or items when no Review is asked for', async () => {
     const getAccessiblePropertyIds = vi.fn(async () => null)
-    const { useCase, findActiveReviewItemIds } = setup({
+    const { useCase, findActiveReviewItemIds } = await setup({
       getAccessiblePropertyIds,
       getAssignedPortals: async () => [],
     })
@@ -208,7 +258,7 @@ describe('getReviewInboxItemIds', () => {
   })
 
   it('rejects a lookup larger than the navigation bound before any read', async () => {
-    const { useCase, findActiveReviewItemIds } = setup()
+    const { useCase, findActiveReviewItemIds } = await setup()
     const reviewIds = Array.from({ length: REVIEW_INBOX_ITEM_LOOKUP_LIMIT + 1 }, (_, n) =>
       reviewId(`30000000-0000-4000-8000-${String(n).padStart(12, '0')}`),
     )
