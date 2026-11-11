@@ -43,7 +43,7 @@ describe('changeLines', () => {
     ])
   })
 
-  it('the average’s level is set from a month, or for one, in tenths (PG-21)', () => {
+  it('the average’s level is set from a month, or for one, in tenths', () => {
     expect(
       textOf(set({ target: 4.5, measure: 'portal_rating_average', source: 'own' })),
     ).toEqual(['Oct 23 · Elena set 4.5 from November'])

@@ -219,7 +219,7 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
   })
 
   // A portal goal's notice states the month's count, the target it was judged
-  // against and whose goal it is (ADR 0046, amended 2026-10-17). Each is read
+  // against and whose goal it is (ADR 0046). Each is read
   // here when the notice is raised; no event carries them.
   it("facts carry the month's count, its own target and the portal's name", async () => {
     const portalId = randomUUID()

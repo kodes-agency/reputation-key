@@ -97,7 +97,7 @@ export type EvaluatedRatingGoal = Readonly<{
   lastWeek: GoogleRatingRangeTotals
 }>
 
-/** Last week's average is told only from this many reviews (Q4; Review gives no sum under it). */
+/** Last week's average is told only from this many reviews; Review gives no sum under it. */
 const LAST_WEEK_AVERAGE_MIN_REVIEWS = 10
 
 /**
@@ -111,7 +111,7 @@ export async function evaluateActiveRatingGoal(
   goal: PropertyRatingGoal,
 ): Promise<EvaluatedRatingGoal> {
   const now = deps.now()
-  // The pace is judged from when it came into force (Q3); the reviews since
+  // The pace is judged from when it came into force; the reviews since
   // the set from the set.
   const window = statusPaceWindow(goal.paceSince, now)
   const reading = await requireReading(deps, goal.organizationId, goal.propertyId, now, {

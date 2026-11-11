@@ -64,7 +64,7 @@ describe('the setup read', () => {
     expect(world.calls).toContain('reviews.getYearlyTotals')
   })
 
-  it('offers Keep first from 4.7, and a climb still (X1)', async () => {
+  it('offers Keep first from 4.7, and a climb still', async () => {
     world.snapshot = { ...world.snapshot!, averageRating: Math.fround(4.7) }
     world.summary = { ...world.summary, all: { count: 812, sum: 3817 } }
 
@@ -82,7 +82,7 @@ describe('the setup read', () => {
     expect(setup).toMatchObject({ offerKeepFirst: true, offersClimb: false })
   })
 
-  it('offers Keep first, and no climb, when Google shows 4.8 but 4.9 is earned (D28)', async () => {
+  it('offers Keep first, and no climb, when Google shows 4.8 but 4.9 is earned', async () => {
     world.snapshot = { ...world.snapshot!, averageRating: Math.fround(4.8) }
     world.summary = { ...world.summary, all: { count: 812, sum: 3947 } } // 4.861
 

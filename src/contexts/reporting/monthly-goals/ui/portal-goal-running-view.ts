@@ -50,7 +50,7 @@ export type PortalGoalRunningWords =
       line: string
     }>
 
-/** G-25: a month whose figure cannot be read, never a zero. */
+/** A month whose figure cannot be read, never a zero. */
 export const MONTH_FIGURE_UNREADABLE = 'This month’s figure can’t be read right now.'
 
 /**
@@ -101,7 +101,7 @@ function headlineWords(
 }
 
 /**
- * G-21…G-25: the month so far, in the measure it counts. A figure that cannot be
+ * The month so far, in the measure it counts. A figure that cannot be
  * read says so and is never a zero.
  */
 export function runningWords(month: PortalGoalRunningMonth): PortalGoalRunningWords {
@@ -133,7 +133,6 @@ export type PortalGoalCountRow = Readonly<{ key: string; name: string; count: st
 export type PortalGoalCountsWords =
   | Readonly<{
       kind: 'rows'
-      /** G-26 */
       heading: string
       /** Each published Portal in the read's name order, then "Other portals". */
       rows: readonly PortalGoalCountRow[]
@@ -146,8 +145,8 @@ export type PortalGoalCountsWords =
     }>
 
 /**
- * G-26 and G-27: what each Portal brought in, plain counts in the read's name
- * order (P-1), never sorted and with no bars; "Other portals" only when
+ * What each Portal brought in, plain counts in the read's name
+ * order, never sorted and with no bars; "Other portals" only when
  * something came from them. One Portal that brought in all of it is named, and
  * from 5 Portals the card says how many, with "See each" to the goal's page.
  */
@@ -186,7 +185,7 @@ export function portalCountsWords(rows: PortalGoalRows): PortalGoalCountsWords {
   }
 }
 
-/** G-29: a stopped goal still counts to the end of its month. */
+/** A stopped goal still counts to the end of its month. */
 export function stoppedWords(
   stopped: NonNullable<PortalGoalOfCard['stopped']>,
   monthKey: string,
@@ -202,7 +201,7 @@ const LAST_READINGS: Readonly<Record<PortalGoalMeasure, string>> = {
 }
 
 /**
- * G-30 and G-31: the month before, in what it counted, while its last readings
+ * The month before, in what it counted, while its last readings
  * are counted (with the day its final figure is due, until that day has gone),
  * then met (with a check) or not met (neutral, never red). A month with no
  * usable result says nothing here.

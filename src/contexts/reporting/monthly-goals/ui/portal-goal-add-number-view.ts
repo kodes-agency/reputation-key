@@ -33,7 +33,7 @@ function primaryOf(
     : { label: `Set ${number} for ${monthName(options.month)}`, disabled: false }
 }
 
-/** M-10: the number step of a goal for one Portal or one group; its box is the set sheet's. */
+/** The number step of a goal for one Portal or one group; its box is the set sheet's. */
 export function numberModel(
   options: PortalGoalAddOptions,
   offer: PortalGoalAddOffer,
@@ -105,7 +105,7 @@ function averageSteps(value: number | null) {
 /** The average's unit, under its box. */
 export const AVERAGE_UNIT = 'average private rating'
 
-/** M-14: what an average needs, under its box (and the average's change sheet's). */
+/** What an average needs, under its box (and the average's change sheet's). */
 export const AVERAGE_NEEDS = 'Needs 10 private ratings a month.'
 
 /**
@@ -123,7 +123,7 @@ export function averageBox(text: string): PortalGoalSheetModel['number'] {
   }
 }
 
-/** M-6, M-14: the average step; its box starts empty, and the number is the manager's own. */
+/** The average step; its box starts empty, and the number is the manager's own. */
 export function averageModel(options: PortalGoalAddOptions, text: string) {
   const number = averageBox(text)
   const { value } = number

@@ -1,5 +1,5 @@
-// The Monthly portal goal on the Property Overview (PLAN PG-16; copy deck
-// O-1…O-6): the number ready to use in one line ("See it", "Not now", which
+// The Monthly portal goal on the Property Overview: the number ready to use in
+// one line ("See it", "Not now", which
 // hides it), the running month as the Goals page's card draws it (what is left, the
 // ruler, and each Portal's count in name order), the month-start check-in as the
 // strip above that card, and nothing for a goal that has not started. At 320,
@@ -97,7 +97,7 @@ const expectTitle = (canvas: ReturnType<typeof within>) =>
 
 const PROMPT = 'Your monthly portal goal for November is ready: 40 private ratings.'
 
-/** O-1: one line, "See it" to the Goals page's card, and "Not now", which hides it. */
+/** One line, "See it" to the Goals page's card, and "Not now", which hides it. */
 export const Ready: Story = {
   args: { card: CARD_READY },
   play: async ({ canvasElement }) => {
@@ -117,7 +117,7 @@ export const Ready: Story = {
   },
 }
 
-/** O-2: the running month as the Goals page's card says it, and View details. */
+/** The running month as the Goals page's card says it, and View details. */
 export const Running: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -133,7 +133,7 @@ export const Running: Story = {
       }),
     ).toBeVisible()
     await expect(canvas.queryByText(/on pace/iu)).toBeNull()
-    // Name order, never by count (P-1), in a narrow slot as in a wide one.
+    // Name order, never by count, in a narrow slot as in a wide one.
     await expect(portalRows(canvas)).toEqual([
       ['Reception', '3'],
       ['Restaurant', '0'],
@@ -147,7 +147,7 @@ export const Running: Story = {
   },
 }
 
-/** O-3…O-6: on Dec 1 the check-in, the strip above the card; Keep is sent once. */
+/** On Dec 1 the check-in, the strip above the card; Keep is sent once. */
 export const CheckIn: Story = {
   args: { card: CARD_CHECK_IN },
   play: async ({ canvasElement }) => {

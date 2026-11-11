@@ -1,4 +1,4 @@
-// Portal goals for the results page's stories and its view test (PLAN PG-18);
+// Portal goals for the results page's stories and its view test;
 // the `.stories.` segment keeps this module out of production-shaped source
 // inventories and bundles.
 //

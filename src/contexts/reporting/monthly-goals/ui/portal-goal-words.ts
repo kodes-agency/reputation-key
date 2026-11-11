@@ -54,7 +54,7 @@ export const dayWords = (day: string): string =>
   formatLocalDate(day, { year: false }) ?? day
 
 /**
- * S-9 and P-3: the other measure, in the sheet and in the goal page's menu
+ * The other measure, in the sheet and in the goal page's menu
  * ("Count scans instead"). Here, not in the sheet's view, so the page's menu
  * does not pull the sheet into its own chunk.
  */
@@ -79,7 +79,7 @@ const SCANS_SECTION_LINE = 'How many scans your portals get each month.'
 export const shownMeasure = (goal: PortalGoalOfCard): PortalGoalMeasure =>
   goal.month?.measure ?? goal.countingMonth?.measure ?? goal.measure
 
-/** G-2: what the goal counts, under the section's title. None at a gate (G-5 says it). */
+/** What the goal counts, under the section's title. None at a gate (the gate says it). */
 export function portalGoalSectionLine(card: PortalGoalCardView): string | null {
   switch (card.state) {
     // At a gate the fact says it.
@@ -102,10 +102,10 @@ export type PortalGoalGateAction =
   | Readonly<{ kind: 'open_portals'; label: string }>
   | Readonly<{ kind: 'create_portal'; label: string }>
 
-/** The way to the Property's Portals (G-6, G-19). */
+/** The way to the Property's Portals. */
 const OPEN_PORTALS: PortalGoalGateAction = { kind: 'open_portals', label: 'Open portals' }
 
-/** G-5 and G-6: the gate, as a fact, and the one way on. */
+/** The gate, as a fact, and the one way on. */
 export function gateWords(
   card: Extract<PortalGoalCardView, { state: 'no_portal' | 'drafts_only' }>,
   canCreatePortal: boolean,
@@ -145,10 +145,10 @@ export function gateWords(
   }
 }
 
-/** G-7: the first weeks' heading. */
+/** The first weeks' heading. */
 export const GETTING_READY_WORDS = 'Getting your portals ready'
 
-/** G-8 and G-10: a Portal's three steps, and the hint once its code has gone unscanned. */
+/** A Portal's three steps, and the hint once its code has gone unscanned. */
 export function readinessWords(row: PortalReadinessRow): Readonly<{
   steps: readonly Readonly<{ label: string; done: boolean }>[]
   hint: Readonly<{ text: string; open: string }> | null
@@ -175,12 +175,12 @@ function soFarPart(measure: PortalGoalMeasure, count: number | null): string {
   return `${formatNumber(count)} ${portalGoalUnit(measure, count)}`
 }
 
-/** G-9: "So far in October: 8 private ratings · 47 scans". */
+/** "So far in October: 8 private ratings · 47 scans". */
 export function soFarWords(month: string, soFar: PortalGoalSoFar): string {
   return `So far in ${monthName(month)}: ${soFarPart('portal_rating_count', soFar.ratings)} · ${soFarPart('qualified_scans', soFar.scans)}`
 }
 
-/** G-11: when the recommended number is ready. */
+/** When the recommended number is ready. */
 export function readyOnWords(readyOn: string | null): string {
   return readyOn === null
     ? 'Your recommended number is ready 2 weeks after a portal goes live.'
@@ -188,7 +188,7 @@ export function readyOnWords(readyOn: string | null): string {
 }
 
 /**
- * G-12: the way into the set sheet with a number of the manager's own, before
+ * The way into the set sheet with a number of the manager's own, before
  * one is recommended: in the first weeks and while the recommendation cannot
  * be read, "Set my own number"; when nothing came in, "Set a number anyway".
  */
@@ -198,7 +198,7 @@ export function ownNumberDoorWords(
   return state === 'nothing_counted' ? 'Set a number anyway' : 'Set my own number'
 }
 
-/** G-19: nothing came in over the basis, and the way to the codes. */
+/** Nothing came in over the basis, and the way to the codes. */
 export function nothingCountedWords(weeks: number): Readonly<{
   text: string
   action: PortalGoalGateAction
@@ -209,7 +209,7 @@ export function nothingCountedWords(weeks: number): Readonly<{
   }
 }
 
-/** G-19: the recommendation could not be read. */
+/** The recommendation could not be read. */
 export const RECOMMENDATION_UNREADABLE_WORDS =
   'Your recommended number can’t be read right now.'
 
@@ -221,7 +221,7 @@ export const monthNumberWords = (
 ): string => `${monthName(month)} · ${portalGoalCount(measure, target)}`
 
 /**
- * G-20: a goal with no month running, on its card. Scheduled: the first month
+ * A goal with no month running, on its card. Scheduled: the first month
  * and its number, the day it starts and this month so far. Paused, or stopped
  * with no month counting now: the month it still counts and its number. A
  * running month is `runningWords`'.

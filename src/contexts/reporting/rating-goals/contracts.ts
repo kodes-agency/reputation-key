@@ -75,7 +75,7 @@ export type RatingGoalSetupView = Readonly<{
   /**
    * A goal to climb can be planned: eligible, with inputs, and the reviews
    * have earned less than 4.9 (so Google shows less too, and is not catching
-   * up with a 4.9, D28). Worked out with no planning maths (D18).
+   * up with a 4.9). Worked out with no planning maths.
    */
   offersClimb: boolean
 }>
@@ -140,7 +140,7 @@ export type RatingGoalCardView = Readonly<{
   /** What Google showed, and the cache held, when the goal was set. */
   baseline: Readonly<{ googleShows: number; reviewCount: number; exactAverage: number }>
   /**
-   * The number above the goal, "possible in about N" (R4-4), at the same pace
+   * The number above the goal, "possible in about N", at the same pace
    * as `forecast`: the reviews it takes beyond the goal and the days to it
    * from today. Null for a keep goal, at 4.9, or when the average does not
    * clear it.
@@ -156,7 +156,7 @@ export type RatingGoalCardView = Readonly<{
    * midnight shows the day before until its next read.
    */
   weekday: number
-  /** The Monday check-in, while it is due (Q4); null otherwise. */
+  /** The Monday check-in, while it is due; null otherwise. */
   recap: RatingGoalRecapView | null
 }>
 
@@ -278,7 +278,7 @@ export type RatingGoalThisWeekView = Readonly<{
 
 /**
  * A low review since the set as the detail read hands it to the server
- * function (D-2b, E17): the server turns `reviewId` into an Inbox item and
+ * function: the server turns `reviewId` into an Inbox item and
  * never sends it to the browser.
  */
 export type RatingGoalLowReviewRead = Readonly<{
@@ -391,7 +391,7 @@ export type RatingGoalSetupChoices = Readonly<{
     | null
   /** A typed average, in tenths. */
   ownAverageTenths: number | null
-  /** Change plan: the plan's stored average when it differs from today's automatic one (D30). */
+  /** Change plan: the plan's stored average when it differs from today's automatic one. */
   keptAverageTenths: number | null
   /** A goal moved off the recommendation with − / +, in tenths. */
   pinnedTargetTenths: number | null
@@ -445,7 +445,7 @@ export type RatingSetupPaceView = Readonly<{
 
 export type RatingSetupGoalView = Readonly<{
   shownTenths: number
-  /** The highest tenth the cache already clears; the shown one unless Google lags (D28). */
+  /** The highest tenth the cache already clears; the shown one unless Google lags. */
   earnedTenths: number
   minTenths: number
   maxTenths: number
@@ -463,14 +463,14 @@ export type RatingSetupGoalView = Readonly<{
 export type RatingGoalSetupPlanView =
   /** Google shows 4.9 or 5.0: there is nothing higher to plan. */
   | Readonly<{ kind: 'keep_only' }>
-  /** The cache already clears every tenth up to 4.9 while Google lags (D28). */
+  /** The cache already clears every tenth up to 4.9 while Google lags. */
   | Readonly<{ kind: 'catching_up'; earnedTenths: number }>
   | Readonly<{
       kind: 'plan'
       average: RatingSetupAverageView
       pace: RatingSetupPaceView
       goal: RatingSetupGoalView
-      /** Always more than none (D28). */
+      /** Always more than none. */
       reviewsNeeded: number
       days: RatingFraction
       likely: Readonly<{ fast: RatingFraction; slow: RatingFraction | null }>

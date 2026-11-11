@@ -24,11 +24,11 @@ const GETTING_STARTED_DAYS = 14
 const FULL_PACE_WINDOW_DAYS = 28
 /** On pace at this share of the chosen pace or more. */
 const ON_PACE_PERCENT = 90
-/** New reviews are judged on their own average from this many since the set (R2-5). */
+/** New reviews are judged on their own average from this many since the set. */
 export const QUALITY_VERDICT_MIN_REVIEWS = 10
 /**
  * The planned average counts like this many reviews in the average a goal's
- * numbers assume, so new reviews take over step by step (R4-2, owner X3).
+ * numbers assume, so new reviews take over step by step.
  */
 export const PLANNED_AVERAGE_WEIGHT_REVIEWS = 15
 
@@ -66,12 +66,12 @@ export function statusPaceWindow(paceSince: Date, now: Date): PaceWindow | null 
   return { start, end: now }
 }
 
-/** The simple card forecasts at the actual pace once the pace is 28 days old (Q8). */
+/** The simple card forecasts at the actual pace once the pace is 28 days old. */
 export const forecastPaceBasis = (paceSince: Date, now: Date): 'chosen' | 'actual' =>
   ageMs(paceSince, now) >= FULL_PACE_WINDOW_DAYS * DAY_MS ? 'actual' : 'chosen'
 
 /**
- * Getting started again because a manager changed the pace (Q3): the pace is
+ * Getting started again because a manager changed the pace: the pace is
  * younger than 14 days and the goal is not. A goal's own first 14 days are no
  * restart, even when its pace changed in them.
  */
@@ -87,7 +87,7 @@ export function restartsAfterPaceChange(
 }
 
 /**
- * reviews / weeks(window) ≥ 90% × chosen, with the chosen pace in tenths a
+ * Reviews / weeks(window) ≥ 90% × chosen, with the chosen pace in tenths a
  * week. Compared in BigInt: as Numbers the products pass 2^53 above about
  * 14,900 reviews in the window, where a comparison could silently round.
  */
@@ -122,7 +122,7 @@ export type TrackingMix = Readonly<{ mix: Ratio; basis: QualityBasis }>
  * (W × q / 10 + s) / (W + n), exact. Too low for the target, their own
  * average (s / n) instead: the verdict judges them unblended (`reviewsTooLow`).
  * Before the tenth review the blend is held at min(q, minimumQualityTenths(T)):
- * lower, it could read "not reachable" under a chip that is not too low (R2-5).
+ * lower, it could read "not reachable" under a chip that is not too low.
  * From the tenth on no floor is needed: a blend of the plan with reviews that
  * clear the threshold clears it too.
  */

@@ -10,7 +10,7 @@ export const PORTAL_SHEET_REFUSALS: GoalRefusalSentences = {
   subject_has_goal: 'A monthly portal goal was set a moment ago. Here is the latest.',
 }
 
-/** F-5: the goal was stopped a moment ago, from a change or a second Stop. */
+/** The goal was stopped a moment ago, from a change or a second Stop. */
 export const PORTAL_GOAL_ALREADY_STOPPED =
   'This goal was already stopped. Here is the latest.'
 
@@ -24,8 +24,8 @@ export const PORTAL_GOAL_BEHIND: ReadonlySet<string> = new Set([
 ])
 
 /**
- * F-1, F-2 (the month that ended, and the one it goes to) and F-5 for a change
- * of the goal.
+ * The refusals for a change of the goal, naming the month that ended and the
+ * one it goes to.
  */
 export function changeRefusals(month: string, next: string): GoalRefusalSentences {
   return {

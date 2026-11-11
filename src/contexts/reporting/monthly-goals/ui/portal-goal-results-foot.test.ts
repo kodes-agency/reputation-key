@@ -36,7 +36,7 @@ describe('allResultsLink', () => {
   })
 })
 
-describe('the way to every month’s result (R-3)', () => {
+describe('the way to every month’s result', () => {
   it('opens once a month of a portal goal has closed', () => {
     expect(anyPortalGoalMonthClosed([MONTHLY_GOAL])).toBe(true)
     expect(anyPortalGoalMonthClosed([SCHEDULED, STOPPED_GOAL])).toBe(true)
@@ -49,7 +49,7 @@ describe('the way to every month’s result (R-3)', () => {
   })
 })
 
-describe('the way to the ended portal goals (R-4)', () => {
+describe('the way to the ended portal goals', () => {
   it('counts the ended goals', () => {
     expect(endedPortalGoalsLink(SEAVIEW_GOALS)).toBe('Ended portal goals (3)')
     expect(endedPortalGoalsLink([MONTHLY_GOAL, RECEPTION_GOAL])).toBe(

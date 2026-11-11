@@ -2,7 +2,7 @@
 // Portal's count of the month, as the card and the goal's page draw it; the
 // goal page's headings, the card that says where the goal stands, its closed
 // cards ("What changed", "How this goal counts"), tiles and month chips (the
-// average goal's page keeps them, PLAN PG-21); and what follows an answer on the
+// average goal's page keeps them); and what follows an answer on the
 // card: its toast, the card read again, and the focus on the card's title.
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 

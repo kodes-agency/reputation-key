@@ -71,7 +71,7 @@ describe('the goal under − and +', () => {
   })
 })
 
-describe('the faster-pace link (D31)', () => {
+describe('the faster-pace link', () => {
   it('keeps the goal it named when the faster chip recommends another', () => {
     const faster = takeFasterPace({ pin: 43 }, 2, 43, 42)
     expect(faster).toMatchObject({ pace: { kind: 'chip', index: 2 }, pin: 43 })
@@ -169,7 +169,7 @@ describe('Change plan', () => {
     expect(draft.keptAverageTenths).toBeUndefined()
   })
 
-  it('keeps an average that is not today’s automatic one, as the plan’s earlier one (D30)', () => {
+  it('keeps an average that is not today’s automatic one, as the plan’s earlier one', () => {
     const draft = draftFromGoal(HARBORLINE, {
       mode: 'climb',
       targetTenths: 41,

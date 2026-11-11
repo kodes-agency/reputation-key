@@ -34,7 +34,7 @@ type Props = Readonly<{
 
 type FirstWeeksView = Extract<PortalGoalBeforeView, { state: 'getting_ready' }>
 
-/** G-12: the manager's own number, on scans when every candidate skips ratings. */
+/** The manager's own number, on scans when every candidate skips ratings. */
 function OwnNumberDoor({
   state,
   openSheet,

@@ -81,7 +81,7 @@ export type RatingGoalReceipt = Readonly<{
   headline: string
   /** "About 1 a day · about 7 a week"; none for a goal to keep. */
   pace: string | null
-  /** "In about 3 months, likely 9 weeks to 4 months.", as the setup said it (X11). */
+  /** "In about 3 months, likely 9 weeks to 4 months.", as the setup said it. */
   forecast: string | null
 }>
 
@@ -114,7 +114,7 @@ export function wizardReceipt(saved: SavedGoal): RatingGoalReceipt {
 }
 
 /**
- * Why Keep comes first at a shown 4.7 or 4.8 (X1, owner 2026-10-16): the next
+ * Why Keep comes first at a shown 4.7 or 4.8: the next
  * tenth needs new reviews of nearly five stars. Null where there is no higher
  * number at all.
  */

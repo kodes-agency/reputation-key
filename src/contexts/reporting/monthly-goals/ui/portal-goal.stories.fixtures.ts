@@ -1,6 +1,6 @@
 // The Monthly portal goal's story fixtures: Seaview Hotel on Sofia time, where
-// Reception and Restaurant went live on Oct 9 and Spa on Oct 15, read on Oct 17
-// (PROPOSAL §4.1); on Oct 23 the number is ready (PLAN goldens G1, G2 and G5),
+// Reception and Restaurant went live on Oct 9 and Spa on Oct 15, read on Oct 17;
+// on Oct 23 the number is ready,
 // and a goal set from it runs in November (`portal-goal-running.stories.fixtures.ts`).
 // Every shape is the read's own type, from Reporting's application layer;
 // nothing here is worked out, only stated.
@@ -116,7 +116,7 @@ export const OFFER_NOVEMBER: PortalGoalOffer = {
   timezone: SEAVIEW.timezone,
 }
 
-/** G2: the rest of October, 23 · 24 · 25 on top of the 12 that already count. */
+/** The rest of October, 23 · 24 · 25 on top of the 12 that already count. */
 export const OFFER_OCTOBER: PortalGoalOffer = {
   ...OFFER_NOVEMBER,
   month: '2026-10',
@@ -130,7 +130,7 @@ export const OFFER_OCTOBER: PortalGoalOffer = {
   rest: { daysLeft: 9, about: 10 },
 }
 
-/** G5: 23 scans and no private ratings in 2 weeks at one Portal: scans first, 55. */
+/** 23 scans and no private ratings in 2 weeks at one Portal: scans first, 55. */
 export const OFFER_SCANS: PortalGoalOffer = {
   ...OFFER_NOVEMBER,
   measure: 'qualified_scans',

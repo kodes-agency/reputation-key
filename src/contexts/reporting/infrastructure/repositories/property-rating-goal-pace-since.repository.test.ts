@@ -1,5 +1,5 @@
 // The Property Google rating goal repository's pace start and answered check-in
-// (migration 0061, round 5 D-3) against real PostgreSQL: a set writes its own
+// (migration 0061) against real PostgreSQL: a set writes its own
 // clock as the pace start, never the column's DEFAULT; a change of plan writes
 // the pace start the use case worked out, and only a change that moves the pace
 // moves it; a Keep stores its week with no version and no log row.

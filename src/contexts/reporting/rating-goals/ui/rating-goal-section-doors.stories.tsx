@@ -3,7 +3,7 @@
 // and so read from History), the door into the wizard, the "keep" door, the reasons
 // there is no goal yet, a read on its way or failed, and a reader who cannot set goals;
 // then the section as the Goals page draws it, its Active / History tabs inside it
-// (P-7a). The card of an active goal is `rating-goal-section.stories.tsx`. The Storybook
+//. The card of an active goal is `rating-goal-section.stories.tsx`. The Storybook
 // plays use the app stylesheet and the shared accessibility and phone checks.
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
@@ -82,7 +82,7 @@ type Canvas = ReturnType<typeof within>
 
 /**
  * After a goal is reached: "Set your next goal" opens the setup. Keep is
- * offered from 4.7 (X1), so 4.5 has no "Keep 4.5".
+ * offered from 4.7, so 4.5 has no "Keep 4.5".
  */
 async function expectNextGoalDoors(canvas: Canvas, onStart: unknown) {
   await userEvent.click(canvas.getByRole('button', { name: 'Set your next goal' }))
@@ -466,7 +466,7 @@ export const HistoryEmpty: Story = {
 }
 
 /**
- * The section as the Goals page draws it (P-7a, ADR 0068): one region named
+ * The section as the Goals page draws it (ADR 0068): one region named
  * "Google rating goal" holds the Active / History tabs, then the view they
  * choose. The page's axe scan holds landmarks unique; this runner's does not
  * (no page shell), so the plays count the region.

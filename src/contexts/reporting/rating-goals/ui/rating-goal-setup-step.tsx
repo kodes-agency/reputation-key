@@ -93,7 +93,7 @@ function saveOf(props: Props, plan: Plan) {
   return { submission, saved }
 }
 
-/** The status line's links: the faster pace keeps the goal it named (D31). */
+/** The status line's links: the faster pace keeps the goal it named. */
 function actionOf(props: Props, plan: Plan, action: StatusAction): Draft {
   const { draft, setup } = props
   if (action.kind === 'recommended') return steps.backToRecommended(draft)

@@ -38,7 +38,7 @@ const subjectName = (subject: GoalSubject): string =>
       ? (NAMES[`portal_group:${subject.portalGroupId}`] ?? 'Group')
       : 'Seaview Hotel'
 
-describe('the other portal goals as compact rows (PG-21)', () => {
+describe('the other portal goals as compact rows', () => {
   it('names whom each goal counts and what; the average by its measure alone', () => {
     const { rows } = extrasRows(
       [

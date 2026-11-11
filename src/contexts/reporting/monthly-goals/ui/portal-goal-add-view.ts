@@ -22,9 +22,9 @@ export type PortalGoalAddKind = 'portal' | 'each' | 'group' | 'average'
 /** The steps an address may open: the choice, or one of its own steps. */
 export type PortalGoalAddStep = 'choose' | PortalGoalAddKind
 
-/** M-2: the sheet's title on every step. */
+/** The sheet's title on every step. */
 export const ADD_TITLE = 'Add a portal goal'
-/** M-9: a subject that takes no second goal on the measure. */
+/** A subject that takes no second goal on the measure. */
 const HAS_A_GOAL = 'Has a goal'
 
 type Choice = Readonly<{
@@ -43,7 +43,7 @@ const someOpen = (offers: readonly PortalGoalAddOffer[]): boolean =>
   offers.some(({ heldBy }) => heldBy === null)
 
 /**
- * M-3…M-6: the choices the read opens, in the screens' order. A goal for one
+ * The choices the read opens, in the screens' order. A goal for one
  * Portal, for each, or for a group is drawn while one of its Portals or groups
  * can still take a goal; with every one held there is nothing to pick there.
  */
@@ -104,7 +104,7 @@ export function portalGoalAddOffered(options: PortalGoalAddOptions): boolean {
   return choicesFor(options).some(({ disabled }) => !disabled)
 }
 
-/** M-2…M-8: the first step, with the choice picked so far. */
+/** The first step, with the choice picked so far. */
 export function chooseModel(
   options: PortalGoalAddOptions,
   picked: PortalGoalAddKind | null,
@@ -166,7 +166,7 @@ export function subjectRow(offer: PortalGoalAddOffer): PortalGoalAddRow {
   }
 }
 
-/** M-9: "Which portal?" (or group), with the one picked so far. */
+/** "Which portal?" (or group), with the one picked so far. */
 export function whichModel(
   options: PortalGoalAddOptions,
   of: 'portal' | 'group',
@@ -206,7 +206,7 @@ export function numberOfferOf(
   return offer === null || offer.heldBy !== null ? null : offer
 }
 
-/** M-12: "Reception goal set: 22 private ratings for December"; the average's by its name. */
+/** "Reception goal set: 22 private ratings for December"; the average's by its name. */
 export function addedToast(
   options: PortalGoalAddOptions,
   sent: PortalGoalAddSubmission,

@@ -1,4 +1,4 @@
-// The card's climb as the card read hands it on (round 5, PLAN-D D-1): the
+// The card's climb as the card read hands it on: the
 // next number, what is still needed, the number above the goal, when the goal
 // arrives in days, the day of the week and the last four weeks.
 import { beforeEach, describe, expect, it } from 'vitest'

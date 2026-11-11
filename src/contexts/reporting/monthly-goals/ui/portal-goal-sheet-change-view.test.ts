@@ -11,7 +11,7 @@ import {
 import { CARD_LAST_DAY, CARD_RUNNING } from './portal-goal-running.stories.fixtures'
 import { CARD_SCHEDULED } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
 
-// Changing the Monthly portal goal in its sheet (PLAN PG-14).
+// Changing the Monthly portal goal in its sheet.
 // Nov 22 at Seaview: November runs at 40 with 23 so far (9 days left, today
 // counted); December is recommended at 45 (40 · 45 · 50 over the last 4
 // weeks), and 55 scans; after the 20th the sheet opens on December.

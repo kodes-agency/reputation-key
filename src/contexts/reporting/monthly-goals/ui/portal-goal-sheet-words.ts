@@ -24,7 +24,7 @@ export type PortalGoalChoice = Readonly<{
   recommended: boolean
 }>
 
-/** U-S2 (S-4 split): the three suggestions, "a bit more" the recommended one (P-3). */
+/** The three suggestions, "a bit more" the recommended one. */
 export function choicesOf(
   offer: Pick<PortalGoalOffer, 'choices'> | null,
 ): readonly PortalGoalChoice[] | null {
@@ -52,7 +52,7 @@ export function choicesOf(
   ]
 }
 
-/** S-5, S-6 and S-7 (S-23 when changing): what the number is. */
+/** What the number is. */
 export function statusOf(
   offer: PortalGoalOffer | null,
   value: number | null,
@@ -87,7 +87,7 @@ export function statusOf(
 export const countsLine = (measure: PortalGoalMeasure): string =>
   `We count ${portalGoalUnit(measure, 2)} each calendar month.`
 
-/** S-8: how far an own number is from the month's usual, when it is far. */
+/** How far an own number is from the month's usual, when it is far. */
 export function notesOf(
   offer: PortalGoalOffer | null,
   value: number | null,

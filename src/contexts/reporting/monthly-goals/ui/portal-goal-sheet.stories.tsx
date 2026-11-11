@@ -1,11 +1,11 @@
-// The Monthly portal goal's set sheet under a manager's hands (PLAN PG-10):
+// The Monthly portal goal's set sheet under a manager's hands:
 // opened on the recommended 40 for November, a step to an own number and the
 // way back, a number typed far from the usual, the rest of October, an own
 // number in the first weeks (the box starts empty), scans instead, "How we
 // worked this out", a set on its way, a goal set a moment ago elsewhere, the
 // month turning, a narrow phone (with a note), and a five-figure number. On
-// Seaview's Oct 23 (goldens G1, G2) unless named. Then the sheet that changes
-// the goal (PLAN PG-14), on Nov 22 with November at 40 and 23 so far: from
+// Seaview's Oct 23 unless named. Then the sheet that changes
+// the goal, on Nov 22 with November at 40 and 23 so far: from
 // next month, now (below pace), on the last day, scans instead (from next
 // month only), a month found ended, the month turned under a change from the
 // next month, a goal changed meanwhile, a goal stopped meanwhile, at 320, 390,
@@ -65,7 +65,7 @@ const refusal = (code: string) =>
 type HarnessProps = Pick<PortalGoalSheetProps, 'facts' | 'intent'> &
   Partial<Pick<PortalGoalSheetProps, 'commands' | 'goal' | 'now' | 'canSwitch'>> &
   Readonly<{
-    /** The card read again after F-1, F-2 or F-4, which the sheet opens afresh on. */
+    /** The card read again after a stale-goal refusal, which the sheet opens afresh on. */
     latest?: Readonly<{ goal: PortalGoalSheetProps['goal']; facts: PortalGoalSheetFacts }>
   }>
 
@@ -78,8 +78,7 @@ type Shown = Readonly<{
 /**
  * A page with one door the sheet opens from: a fresh sheet for every opening,
  * closed when a goal is set or changed, and the focus handed back to the door
- * as the page's host does. A change refused as behind the goal (F-1, F-2,
- * F-4) opens afresh on the card read again (`latest`), still saying why, as
+ * as the page's host does. A change refused as behind the goal opens afresh on the card read again (`latest`), still saying why, as
  * the host does.
  */
 function Harness({
@@ -550,7 +549,7 @@ export const Pending: Story = {
   },
 }
 
-/** F-3: a goal was set a moment ago elsewhere. The card is read again, the sheet closes, a toast says why. */
+/** A goal was set a moment ago elsewhere. The card is read again, the sheet closes, a toast says why. */
 export const RefusedSetRace: Story = {
   args: {
     commands: {
@@ -573,7 +572,7 @@ export const RefusedSetRace: Story = {
   },
 }
 
-/** F-4: the month turned while the sheet was open. The banner says so, and the card is read again. */
+/** The month turned while the sheet was open. The banner says so, and the card is read again. */
 export const RefusedMonthTurned: Story = {
   args: {
     commands: {
@@ -647,7 +646,7 @@ export const TypeALongNumber: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
-// ─── Changing the goal (PLAN PG-14) ────────────────────────────────────────
+// ─── Changing the goal ────────────────────────────────────────
 
 const goalOf = (card: PortalGoalCardView) => {
   if (card.state !== 'goal') throw new Error('expected a goal')
@@ -804,9 +803,8 @@ export const ChangeLastDay: Story = {
 }
 
 /**
- * A Portal's goal whose Portal already holds a scans goal from December (PLAN
- * PG-21): its change sheet offers no "Count scans instead", which would be
- * refused.
+ * A Portal's goal whose Portal already holds a scans goal from December: its
+ * change sheet offers no "Count scans instead", which would be refused.
  */
 export const ChangeScansHeld: Story = {
   args: { ...CHANGING, canSwitch: false },
@@ -853,7 +851,7 @@ const READ_ON_DECEMBER_1 = {
 }
 
 /**
- * F-2: November ended while the sheet was open on its last day. The card is
+ * November ended while the sheet was open on its last day. The card is
  * read again and the sheet opens afresh on it, on "December, now", saying why.
  */
 export const RefusedMonthEnded: Story = {
@@ -907,7 +905,7 @@ export const RefusedMonthEnded: Story = {
 }
 
 /**
- * F-4: the month turned while "From Dec 1" was open, so the change would start
+ * The month turned while "From Dec 1" was open, so the change would start
  * in January. It is refused, not moved on; the sheet opens afresh on the latest.
  */
 export const RefusedStartMonthChanged: Story = {
@@ -937,7 +935,7 @@ export const RefusedStartMonthChanged: Story = {
   },
 }
 
-/** F-5: someone stopped the goal meanwhile. Nothing is left to change: the sheet closes and says so. */
+/** Someone stopped the goal meanwhile. Nothing is left to change: the sheet closes and says so. */
 export const RefusedStopped: Story = {
   args: {
     ...CHANGING,
@@ -953,7 +951,7 @@ export const RefusedStopped: Story = {
   },
 }
 
-/** F-1: someone changed the goal meanwhile. The latest is read, and the sheet opens on it. */
+/** Someone changed the goal meanwhile. The latest is read, and the sheet opens on it. */
 export const RefusedConflict: Story = {
   args: {
     ...CHANGING,

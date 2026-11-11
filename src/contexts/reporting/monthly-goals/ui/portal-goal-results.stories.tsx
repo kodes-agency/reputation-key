@@ -1,4 +1,4 @@
-// The Portal goal results page (PLAN PG-18; ADR 0068 amended 2026-11-01): Seaview
+// The Portal goal results page (ADR 0068): Seaview
 // Hotel on Dec 3, 2026. `Months`: the Monthly portal goal in one card titled by its
 // name, a bar for each month against its own number, then a row for each month, newest
 // first ("41 of 40", Met, Missed by 4), each opening the day its figure was counted
@@ -240,7 +240,7 @@ const endedTitle = (canvasElement: HTMLElement) =>
   within(canvasElement).findByRole('heading', { level: 2, name: 'Ended portal goals' })
 
 /**
- * "Ended portal goals (n)" asks for the focus (R-4): the list's title takes it.
+ * "Ended portal goals (n)" asks for the focus: the list's title takes it.
  * An address typed or kept leaves the focus where the browser puts it.
  */
 export const ArrivingAtEndedTakesTheFocusWhenAsked: Story = {

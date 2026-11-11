@@ -351,7 +351,7 @@ export const createPropertyRatingGoalRepository = (
             paceSince: change.paceSince,
             // The status the new plan puts the goal in is the manager's own
             // doing: the next evaluation stores it without a notice. A new
-            // pace alone keeps it: the fresh start compares with it (Q3).
+            // pace alone keeps it: the fresh start compares with it.
             ...(change.forgetsKnownStatus ? { lastKnownStatus: null } : {}),
             version: sql`${propertyRatingGoals.version} + 1`,
             updatedAt: change.changedAt,

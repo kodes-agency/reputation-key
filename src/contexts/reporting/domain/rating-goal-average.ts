@@ -8,7 +8,7 @@ import { nearestTenth, qualityProblem, type BestYear } from './rating-goal-quali
 import type { BestMonth } from './rating-goal-evidence'
 import { HIGHEST_TARGET_TENTHS, PERFECT_TENTHS } from './rating-goal-stops'
 
-/** The automatic average never plans above 4.8 (R4-1). */
+/** The automatic average never plans above 4.8. */
 export const AUTOMATIC_AVERAGE_CAP_TENTHS = 48
 /** A typed average starts two tenths above the shown number: the next goal needs one. */
 const OWN_AVERAGE_STEP_TENTHS = 2

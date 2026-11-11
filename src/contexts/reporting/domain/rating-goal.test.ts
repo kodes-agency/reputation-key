@@ -26,7 +26,7 @@ describe('the target a rating goal may hold', () => {
     expect(targetProblem('keep', 9, 49)).toBe('invalid_target')
   })
 
-  it('keeps from 4.7, where a higher number needs new reviews of nearly 5★ (X1)', () => {
+  it('keeps from 4.7, where a higher number needs new reviews of nearly 5★', () => {
     expect(targetProblem('keep', 47, 47)).toBeNull()
     expect(targetProblem('keep', 48, 48)).toBeNull()
     expect(targetProblem('keep', 46, 46)).toBe('invalid_target')
@@ -108,7 +108,7 @@ describe('the change log rows a change writes', () => {
   })
 })
 
-describe('when the pace a change of plan leaves came into force (Q3)', () => {
+describe('when the pace a change of plan leaves came into force', () => {
   const SET = new Date('2026-09-01T09:00:00.000Z')
   const CHANGED = new Date('2026-10-01T09:00:00.000Z')
   const goal = { paceTenthsPerWeek: 70, paceSince: SET }

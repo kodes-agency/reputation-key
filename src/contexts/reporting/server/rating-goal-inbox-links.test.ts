@@ -1,5 +1,5 @@
-// The rating goal detail's server function links the low reviews to the Inbox
-// (PLAN-D D-2b, E17): one lookup after the policy allows inbox.read, never a
+// The rating goal detail's server function links the low reviews to the Inbox:
+// one lookup after the policy allows inbox.read, never a
 // review id in the answer, and rows without links for a viewer the policy
 // refuses the Inbox (an Organization without the inbox.use capability; the
 // built-in manager roles hold both, so no journey can show it).
