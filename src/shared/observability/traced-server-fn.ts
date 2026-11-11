@@ -22,6 +22,26 @@ import { startRequestSpan } from '#/shared/observability/trace'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { getLogger } from '#/shared/observability/logger'
+import { getRequestDatabaseTiming } from '#/shared/db/scope-observation.server'
+
+/**
+ * Statement and transaction time for the request, rounded to 0.1 ms. Before
+ * row security is enforced every read runs in a short scoped transaction;
+ * these fields measure what each page spends now, per server function.
+ */
+function databaseTiming(): Record<string, number> {
+  const timing = getRequestDatabaseTiming()
+  if (!timing) return {}
+  const ms = (value: number) => Math.round(value * 10) / 10
+  return {
+    dbStatements: timing.statements,
+    dbStatementMs: ms(timing.statementMs),
+    dbAutocommitStatements: timing.autocommitStatements,
+    dbTransactions: timing.transactions,
+    dbTransactionMs: ms(timing.transactionMs),
+    dbScopeSettingMs: ms(timing.scopeSettingMs),
+  }
+}
 
 /**
  * Wraps a server function handler with tracing and error safety net.
@@ -51,7 +71,10 @@ export function tracedHandler<TInput, TOutput>(
         enrichSpan({ useCase: name ?? 'serverFn' })
         try {
           const result = await fn(ctx)
-          log.info({ duration: Date.now() - start }, 'request complete')
+          log.info(
+            { duration: Date.now() - start, ...databaseTiming() },
+            'request complete',
+          )
           span.end()
           return result
         } catch (e) {
