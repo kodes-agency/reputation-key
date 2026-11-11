@@ -14,31 +14,6 @@ import type {
   UpdatePropertyCommand,
 } from '../application/ports/property-command-store.port'
 
-type PropertySetValues = {
-  name?: string
-  slug?: string
-  timezone?: string
-  defaultReplyLanguage?: string | null
-  address?: string | null
-  gbpLocationId?: string | null
-  gbpAccountId?: string | null
-  googleConnectionId?: string | null
-  profileVersion?: number
-  googleBindingState?:
-    'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
-  profileSource?: 'legacy' | 'tenant_confirmed'
-  profileConfirmedAt?: Date | null
-  profileConfirmedBy?: string | null
-  updatedAt?: Date
-  deletedAt?: Date | null
-  // Property locale facts
-  countryCode?: string | null
-  countrySource?: string | null
-  timezoneSource?: string | null
-  timezoneResolvedAt?: Date | null
-  sourceEpoch?: number
-}
-
 /** The columns a property patch may set — never identity columns. */
 const SETTABLE_PROPERTY_KEYS = [
   'updatedAt',
@@ -60,15 +35,18 @@ const SETTABLE_PROPERTY_KEYS = [
   'timezoneSource',
   'timezoneResolvedAt',
   'sourceEpoch',
-] as const satisfies ReadonlyArray<keyof PropertySetValues & keyof Property>
+] as const satisfies ReadonlyArray<keyof Property>
+
+type PropertySetValues = Partial<Pick<Property, (typeof SETTABLE_PROPERTY_KEYS)[number]>>
 
 /** Never sets identity columns. */
 function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySetValues {
-  const set: Record<string, unknown> = {}
-  for (const key of SETTABLE_PROPERTY_KEYS) {
-    if (patch[key] !== undefined) set[key] = patch[key]
-  }
-  return set as PropertySetValues
+  return Object.fromEntries(
+    SETTABLE_PROPERTY_KEYS.filter((key) => patch[key] !== undefined).map((key) => [
+      key,
+      patch[key],
+    ]),
+  ) as PropertySetValues
 }
 
 export const createAtomicPropertyCommandStore = (db: Database): PropertyCommandStore => {

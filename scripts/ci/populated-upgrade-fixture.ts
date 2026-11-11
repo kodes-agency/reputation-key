@@ -44,6 +44,35 @@ export function restorePopulatedUpgradeFixture(databaseUrl: string): void {
       timeout: 30_000,
     },
   )
+  eraseRetiredReadings(url.toString(), password)
+}
+
+/**
+ * The pinned dump predates the erasure of the retired Google per-review
+ * readings, which a deployment applies before the migration that retires them.
+ */
+function eraseRetiredReadings(databaseUrl: string, password: string): void {
+  execFileSync(
+    'psql',
+    [
+      '--no-psqlrc',
+      '--quiet',
+      '--single-transaction',
+      '--set',
+      'ON_ERROR_STOP=1',
+      '--dbname',
+      databaseUrl,
+      '--command',
+      `DELETE FROM metric_corrections WHERE reading_id IN
+         (SELECT id FROM metric_readings WHERE metric_key = 'property.review');
+       DELETE FROM metric_readings WHERE metric_key = 'property.review'`,
+    ],
+    {
+      env: { ...process.env, PGPASSWORD: password },
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 30_000,
+    },
+  )
 }
 
 export async function upgradeCustomerRows(pool: Pool): Promise<unknown[][]> {

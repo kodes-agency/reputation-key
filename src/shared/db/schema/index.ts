@@ -48,7 +48,6 @@ export * from './policy.schema'
 export * from './merchant-ai-authorization.schema'
 export * from './google-content-control.schema'
 export * from './recovery.schema'
-export * from './dashboard.schema'
 
 export * from './merchant-ai-notice-update.schema'
 export * from './product-updates.schema'

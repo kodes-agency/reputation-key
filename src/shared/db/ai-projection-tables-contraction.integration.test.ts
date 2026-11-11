@@ -12,7 +12,7 @@ import {
 import manifest from '../../../test-fixtures/populated-upgrade/manifest.json'
 import { migrateJournal } from './migrate-journal.server'
 
-const CONTRACTION = '0128_drop_retired_ai_projection_tables'
+const CONTRACTION = '0129_drop_retired_ai_projection_tables'
 
 let maintenance: TestLease
 let target: TestLease | undefined

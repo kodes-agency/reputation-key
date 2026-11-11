@@ -129,9 +129,6 @@ async function clean() {
   await db.execute(
     sql`DELETE FROM outbox_events WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
   )
-  await db.execute(
-    sql`DELETE FROM portal_metric_lifetime_aggregates WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
-  )
 }
 
 beforeAll(async () => {
@@ -193,11 +190,6 @@ describe.sequential('All Time from retained effective readings', () => {
       propertyId: OTHER_PROPERTY,
       portalId: OTHER_PORTAL,
     })
-    await db.execute(sql`
-      INSERT INTO portal_metric_lifetime_aggregates (organization_id, property_id, portal_id, qualified_scan_count)
-      VALUES (${ORG}, ${PROPERTY}, ${PORTAL}, 999)
-      ON CONFLICT (organization_id, property_id, portal_id) DO UPDATE SET qualified_scan_count = 999
-    `)
 
     const result = await read()
     expect(result.kpis.scans.value).toBe(1)
