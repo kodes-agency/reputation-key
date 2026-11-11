@@ -32,10 +32,7 @@ type GuestOrganizationExportPayload = Readonly<{
   experienceSnapshots: readonly ExportRecord[]
   /** Guest-authored private text that is still inside its 90-day window. */
   privateFeedback: readonly ExportRecord[]
-  legacyFeedbackText: readonly ExportRecord[]
   /** Legacy rows with no canonical successor, so nothing is double-counted. */
-  legacyRatings: readonly ExportRecord[]
-  legacyFeedbackFacts: readonly ExportRecord[]
   legacyScanEvents: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
     recordClass: string
@@ -63,7 +60,7 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  * - Network-pressure records are abuse controls; bullet 7 excludes rate-limit
  *   and abuse internals.
  * - Legacy `session_id`/`ip_hash` columns are pseudonym linkage, so the legacy
- *   collections carry the rating/click facts without them.
+ *   scan-event collection carries the click facts without them.
  */
 const EXCLUDED_RECORD_CLASSES = Object.freeze([
   {
@@ -332,49 +329,8 @@ async function readPayload(
               AND expires_at > ${asOfIso}::timestamptz`,
       )
 
-      // A legacy row is exported only when no canonical row succeeded it: the
-      // migration reconciliation treats a canonical row sharing the legacy id
-      // as the same response, so exporting both would double-count it.
-      const legacyRatings = await readRows(
-        snapshot,
-        sql`SELECT legacy.id::text AS id, legacy.portal_id::text AS portal_id,
-                   legacy.property_id AS property_id, legacy.value, legacy.source,
-                   ${utc('legacy.created_at')} AS created_at
-            FROM ratings AS legacy
-            WHERE legacy.organization_id = ${organizationId}
-              AND NOT EXISTS (
-                SELECT 1 FROM guest_responses AS canonical
-                WHERE canonical.organization_id = legacy.organization_id
-                  AND canonical.id = legacy.id
-              )`,
-      )
-      const legacyFeedbackFacts = await readRows(
-        snapshot,
-        sql`SELECT legacy.id::text AS id, legacy.portal_id::text AS portal_id,
-                   legacy.property_id AS property_id,
-                   legacy.rating_id::text AS rating_id, legacy.source,
-                   ${utc('legacy.created_at')} AS created_at
-            FROM feedback AS legacy
-            WHERE legacy.organization_id = ${organizationId}
-              AND NOT EXISTS (
-                SELECT 1 FROM guest_responses AS canonical
-                WHERE canonical.organization_id = legacy.organization_id
-                  AND canonical.id = legacy.id
-              )`,
-      )
-      const legacyFeedbackText = await readRows(
-        snapshot,
-        sql`SELECT legacy.id::text AS id, legacy.portal_id::text AS portal_id,
-                   legacy.property_id AS property_id, legacy.comment AS body,
-                   ${utc('legacy.created_at')} AS created_at
-            FROM feedback AS legacy
-            WHERE legacy.organization_id = ${organizationId}
-              AND NOT EXISTS (
-                SELECT 1 FROM guest_responses AS canonical
-                WHERE canonical.organization_id = legacy.organization_id
-                  AND canonical.id = legacy.id
-              )`,
-      )
+      // A legacy row is exported only when no canonical row succeeded it, so
+      // exporting both would not double-count it.
       const legacyScanEvents = await readRows(
         snapshot,
         sql`SELECT legacy.id::text AS id, legacy.portal_id::text AS portal_id,
@@ -402,9 +358,6 @@ async function readPayload(
         ]),
         experienceSnapshots: sortRecords(experienceSnapshots, ['response_id']),
         privateFeedback: sortRecords(privateFeedback, ['response_id']),
-        legacyFeedbackText: sortRecords(legacyFeedbackText, ['id']),
-        legacyRatings: sortRecords(legacyRatings, ['id']),
-        legacyFeedbackFacts: sortRecords(legacyFeedbackFacts, ['id']),
         legacyScanEvents: sortRecords(legacyScanEvents, ['id']),
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
       }
@@ -423,13 +376,10 @@ function entriesFor(
     ['experience_snapshot', payload.experienceSnapshots],
   ]
   const legacyCollections: readonly [string, readonly ExportRecord[]][] = [
-    ['legacy_rating', payload.legacyRatings],
-    ['legacy_feedback', payload.legacyFeedbackFacts],
     ['legacy_scan_event', payload.legacyScanEvents],
   ]
   const textCollections: readonly [string, readonly ExportRecord[]][] = [
     ['private_feedback', payload.privateFeedback],
-    ['legacy_private_feedback', payload.legacyFeedbackText],
   ]
   const hasRows = (collections: readonly [string, readonly ExportRecord[]][]) =>
     collections.some(([, records]) => records.length > 0)
@@ -460,8 +410,6 @@ function entriesFor(
           csv('guest/legacy-responses.csv', 'tenant_visible', legacyCollections),
           json('guest/legacy-responses.json', 'tenant_visible', {
             ...shared,
-            legacyRatings: payload.legacyRatings,
-            legacyFeedbackFacts: payload.legacyFeedbackFacts,
             legacyScanEvents: payload.legacyScanEvents,
           }),
         ]
@@ -472,7 +420,6 @@ function entriesFor(
           json('guest/private-feedback.json', 'permitted_guest_content', {
             ...shared,
             privateFeedback: payload.privateFeedback,
-            legacyFeedbackText: payload.legacyFeedbackText,
           }),
         ]
       : []),

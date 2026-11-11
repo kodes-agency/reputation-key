@@ -111,16 +111,8 @@ function ruleFor(subject: string): RetentionRule {
   return rule
 }
 
-/**
- * Rules with no index for their batch, each for a stated reason.
- * `ratings` and `feedback` are pre-beta inventory with no writer (the Guest
- * Response tables replaced them), so their scans do not grow.
- */
+/** Rules with no index for their batch, each for a stated reason. */
 const NOT_LED_BY_TIMESTAMP: Readonly<Record<string, string>> = {
-  'ratings.abuse_pseudonym': 'pre-beta inventory, no writer',
-  'ratings.guest_session_pseudonym': 'pre-beta inventory, no writer',
-  'feedback.abuse_pseudonym': 'pre-beta inventory, no writer',
-  'feedback.guest_session_pseudonym': 'pre-beta inventory, no writer',
   // The rule reads two states by equality, then the timestamp.
   notification_digest_batches:
     'served by notification_digest_batches_retention_idx (state, updated_at)',

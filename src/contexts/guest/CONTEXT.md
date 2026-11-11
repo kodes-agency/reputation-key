@@ -125,8 +125,7 @@ The visit itself is kept for 24 months, the figure the Privacy Notice gives for 
 visit facts. The retention sweep deletes the counted visit (`guest_qualified_scans`) and
 the visit record (`scan_events`) 24 UTC calendar months after the visit, and the rating
 fact on the `retention_deadline` stamped when it was submitted. `scan_events` is deleted
-on age because every visit still writes it; `ratings` and `feedback`, which nothing writes
-any more, are not. Deleting the Guest row does not remove the fact: Reporting recorded a
+on age because every visit still writes it. Deleting the Guest row does not remove the fact: Reporting recorded a
 reading from each visit, rating, private feedback and destination selection, with the same
 Portal, instant and source event, and no rule deletes a reading. For those copies the 24
 months are unenforced (`docs/obligations.md` §3).
@@ -201,7 +200,7 @@ Linktree taps are unchanged. Legacy schema versions 1 and 2 ignore the switch.
 11. Signed-session correctness is never replaced by network pressure: session bindings and destination/Qualified Scan receipts remain the dedupe and mutation authorities. Rating and private-feedback admission fail closed when either pressure store is unavailable; qualified-scan observation reports a retryable failure; an approved destination URL remains available when observation fails, without recording analytics.
 12. True fail-open observation loss is durable and visible across replicas/process restarts through one global Cache Redis hash: a continuity epoch plus five-minute `scan`/`review_link` counters in a trailing 24-hour window, pruned on every access with a 24-hour-plus-one-bucket key TTL. Coverage and counters share the same evictable unit, so reset/eviction cannot silently remove one counter while leaving evidence that the window is complete. The key, fields, logs, and alerts contain no tenant, Portal, destination, session, network pseudonym, content, or analytics identity. If the monitor is absent, unreadable, reset, or still warming through its first full window, OperationsSnapshot marks `guest.observationLoss` degraded and the alert reports completeness as unknown rather than zero. Private rating is explicitly `not_applicable_durable`/zero here because its canonical response fact and outbox row commit atomically; retryable rating commands are never reclassified as analytics loss.
 13. Missing historical lineage fails closed rather than adding a second reading or leaving a stale one.
-14. `ratings`, `feedback` and `scan_events` are purged as **row deletes only**. `ratings` and `feedback` are compatibility mirrors nothing writes any more; `scan_events` is the live visit record. All three are physical-drop-blocked: the rows are guest content and must go, the tables must not. No phase issues a DROP or TRUNCATE. Inbox snippets, notification attribution and exports retain legacy readers until fresh read-only beta counts prove both `ratings` and `feedback` contain zero rows; an unavailable count is not proof of emptiness. Current-response consent checks and private-feedback expiry remain independent of this prerequisite.
+14. `scan_events` is purged as **row deletes only**: it is the live visit record, and it is physical-drop-blocked, so the rows are guest content and must go while the table must not. No phase issues a DROP or TRUNCATE. The legacy `ratings` and `feedback` tables are empty, nothing writes or reads them, and no runtime code references them; only the schema and migrations still name them. Current-response consent checks and private-feedback expiry are unaffected.
 
 ## Verification
 
