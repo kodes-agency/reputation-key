@@ -15,15 +15,11 @@ import {
   aiExecutionControlHeads,
   aiExecutionControlTransitions,
   aiOperations,
-  aiPropertyAggregateContributionAspects,
   aiPropertyAggregateContributions,
   aiPropertyAggregateHeads,
   aiPropertyAggregateSettlements,
-  aiPropertyDailyAspectAggregates,
-  aiPropertyDailyAggregates,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
-  aiReviewAnalysisAspects,
   eventConsumerReceipts,
   materialReviewRevisions,
   merchantAiConsentEvidence,
@@ -47,6 +43,7 @@ import { createAiOperationExecutionReaper } from '../../application/ai-operation
 import { AI_REVIEW_ANALYSIS_CONSUMER } from '../outbox-consumers'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
+import { seedReviewContent } from '../testing/review-content-fixture'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createAiReviewAnalysisReceiptWriter } from './ai-review-analysis-receipt.adapter'
 import { REVIEW_ANALYSIS_NORMALIZATION_DIGEST } from '#/shared/review-analysis-v3-normalizer'
@@ -192,32 +189,6 @@ function requireControl(
   const control = controls.find((candidate) => candidate.scopeKey === scopeKey)
   if (!control) throw new Error(`AI execution control ${scopeKey} is not seeded`)
   return control
-}
-
-/** Gives seeded Reviews their content rows; they go with their Reviews. */
-async function seedSourceContents(
-  db: ReturnType<typeof getDb>,
-  reviewIds: readonly string[],
-) {
-  await db.execute(sql`
-    INSERT INTO review_source_contents (
-      review_id, organization_id, property_id, platform, external_id,
-      external_location_id, reviewer_name, rating, text, language_code,
-      reviewed_at, first_fetched_at, last_fetched_at, content_expires_at,
-      source_epoch, source_revision, ai_source_byte_length, ai_source_digest
-    )
-    SELECT id, organization_id, property_id, platform, external_id,
-           COALESCE(external_location_id, 'locations/ai-output-store'),
-           reviewer_name, rating, text, language_code, reviewed_at,
-           COALESCE(first_fetched_at, reviewed_at),
-           COALESCE(last_fetched_at, reviewed_at), content_expires_at,
-           source_epoch, source_revision, ai_source_byte_length, ai_source_digest
-    FROM reviews
-    WHERE id IN (${sql.join(
-      reviewIds.map((id) => sql`${id}::uuid`),
-      sql`, `,
-    )})
-  `)
 }
 
 async function readDailyProjection(db: ReturnType<typeof getDb>) {
@@ -397,7 +368,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       lifecycleState: 'active',
       updatedAt: NOW,
     })
-    await db.insert(reviews).values([
+    await seedReviewContent([
       {
         id: REVIEW_A_ID,
         organizationId: ORGANIZATION_ID,
@@ -435,7 +406,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aiSourceDigest: REVIEW_B_SOURCE_DIGEST,
       },
     ])
-    await seedSourceContents(db, [REVIEW_A_ID, REVIEW_B_ID])
     await db.insert(materialReviewRevisions).values([
       {
         reviewId: REVIEW_A_ID,
@@ -539,9 +509,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         ),
       )
     await db
-      .delete(aiPropertyDailyAggregates)
-      .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
-    await db
       .delete(aiPropertyAggregateHeads)
       .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
     await db
@@ -633,17 +600,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       issueLabel: 'helpful service',
       generatedAt: COMPLETED_AT,
       expiresAt: ANALYSIS_EXPIRES_AT,
-    })
-    await db.insert(aiReviewAnalysisAspects).values({
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      reviewId: REVIEW_A_ID,
-      sourceEpoch: SOURCE_EPOCH,
-      sourceRevision: SOURCE_REVISION,
-      analysisSequence: 1,
-      aspect: ASPECT_TAXONOMY_V1[0],
-      polarity: 'positive',
-      intensity: 75,
     })
     await db
       .update(aiOperations)
@@ -821,22 +777,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       attention: 'low',
       issueLabel: null,
     })
-    const aspects = await db
-      .select({
-        aspect: aiReviewAnalysisAspects.aspect,
-        polarity: aiReviewAnalysisAspects.polarity,
-        intensity: aiReviewAnalysisAspects.intensity,
-      })
-      .from(aiReviewAnalysisAspects)
-      .where(
-        and(
-          eq(aiReviewAnalysisAspects.organizationId, ORGANIZATION_ID),
-          eq(aiReviewAnalysisAspects.propertyId, PROPERTY_ID),
-          eq(aiReviewAnalysisAspects.reviewId, REVIEW_A_ID),
-        ),
-      )
-    expect(aspects).toEqual([])
-
     const [operation] = await db
       .select({ state: aiOperations.state, updatedAt: aiOperations.updatedAt })
       .from(aiOperations)
@@ -950,7 +890,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         profileVersion: 1,
         sourceEpoch: SOURCE_EPOCH,
       })
-      await db.insert(reviews).values({
+      await seedReviewContent({
         id: SECOND_REVIEW_ID,
         organizationId: SECOND_ORGANIZATION_ID,
         propertyId: SECOND_PROPERTY_ID,
@@ -968,7 +908,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aiSourceByteLength: SOURCE_BYTE_COUNT,
         aiSourceDigest: REVIEW_A_SOURCE_DIGEST,
       })
-      await seedSourceContents(db, [SECOND_REVIEW_ID])
       const [baseOperation] = await db
         .select()
         .from(aiOperations)
@@ -1245,9 +1184,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       .update(aiReviewAnalyses)
       .set({ analysisProfileVersion: 'review-analysis-v1' })
       .where(eq(aiReviewAnalyses.reviewId, REVIEW_A_ID))
-    await db
-      .delete(aiReviewAnalysisAspects)
-      .where(eq(aiReviewAnalysisAspects.reviewId, REVIEW_A_ID))
 
     await expect(
       outputs.readAnalysisForDelivery(
@@ -1274,7 +1210,37 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     })
   })
 
-  it('derives v2 aspect and day reads without reviving retired writers', async () => {
+  it('still delivers and aggregates a stored ready v2 result, without its retired aspect rows', async () => {
+    await seedStoredReviewA()
+    await expect(readReviewA()).resolves.toMatchObject({
+      status: 'ready',
+      sentiment: 'positive',
+      primaryCategory: ASPECT_TAXONOMY_V1[0],
+      attention: 'low',
+      aspects: [],
+    })
+    await expect(
+      createAiPropertyAggregateStoreAdapter(db).applyReviewAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 1,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        calendarProfileVersion: 'property-calendar-v1',
+      }),
+    ).resolves.toEqual({ status: 'applied', aggregateRevision: 1 })
+    expect(
+      await db
+        .select()
+        .from(aiPropertyAggregateContributions)
+        .where(eq(aiPropertyAggregateContributions.reviewId, REVIEW_A_ID)),
+    ).toHaveLength(1)
+  })
+
+  it('derives scalar day reads without reviving retired aspect writers', async () => {
     await seedStoredReviewA()
     const aggregates = createAiPropertyAggregateStoreAdapter(db)
     const windowRequest = {
@@ -1321,25 +1287,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       }),
     ).resolves.toEqual({ status: 'applied', aggregateRevision: 2 })
 
-    const contributionAspects = await db
-      .select({
-        aspect: aiPropertyAggregateContributionAspects.aspect,
-        polarity: aiPropertyAggregateContributionAspects.polarity,
-        intensity: aiPropertyAggregateContributionAspects.intensity,
-      })
-      .from(aiPropertyAggregateContributionAspects)
-      .where(eq(aiPropertyAggregateContributionAspects.reviewId, REVIEW_A_ID))
-    expect(contributionAspects).toEqual([])
-    const dailyAspects = await db
-      .select({
-        aspect: aiPropertyDailyAspectAggregates.aspect,
-        polarity: aiPropertyDailyAspectAggregates.polarity,
-        mentionCount: aiPropertyDailyAspectAggregates.mentionCount,
-      })
-      .from(aiPropertyDailyAspectAggregates)
-      .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
-    expect(dailyAspects).toEqual([])
-
     const window = await aggregates.readWindow(windowRequest)
     expect(window?.coverage).toEqual({
       settledAnalysisCount: 2,
@@ -1349,13 +1296,13 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     expect(window?.days).toEqual([
       expect.objectContaining({
         localDate: '2026-09-07',
-        aspectCounts: [{ aspect: 'service', polarity: 'positive', count: 1 }],
+        aspectCounts: [],
       }),
     ])
     expect(window?.analyzedReviews).toEqual([
       expect.objectContaining({
         reviewId: REVIEW_A_ID,
-        aspects: [{ aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', intensity: 75 }],
+        aspects: [],
       }),
     ])
   })
@@ -1450,15 +1397,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       .update(aiReviewAnalyses)
       .set({ analysisProfileVersion: 'review-analysis-v1' })
       .where(eq(aiReviewAnalyses.reviewId, REVIEW_A_ID))
-    await db
-      .delete(aiReviewAnalysisAspects)
-      .where(eq(aiReviewAnalysisAspects.reviewId, REVIEW_A_ID))
-    await db
-      .delete(aiPropertyAggregateContributionAspects)
-      .where(eq(aiPropertyAggregateContributionAspects.reviewId, REVIEW_A_ID))
-    await db
-      .delete(aiPropertyDailyAspectAggregates)
-      .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
 
     await expect(
       aggregates.readWindow({
@@ -1510,7 +1448,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         intensity: index % 3 === 0 ? 70 : index % 3 === 1 ? 0 : -70,
       }
     })
-    await db.insert(reviews).values(
+    await seedReviewContent(
       fixture.map((row) => ({
         id: row.reviewId,
         organizationId: ORGANIZATION_ID,
@@ -1529,10 +1467,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aiSourceByteLength: SOURCE_BYTE_COUNT,
         aiSourceDigest: REVIEW_A_SOURCE_DIGEST,
       })),
-    )
-    await seedSourceContents(
-      db,
-      fixture.map((row) => row.reviewId),
     )
     await db.insert(materialReviewRevisions).values(
       fixture.map((row) => ({
@@ -1581,19 +1515,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         expiresAt: ANALYSIS_EXPIRES_AT,
       })),
     )
-    await db.insert(aiReviewAnalysisAspects).values(
-      fixture.map((row) => ({
-        organizationId: ORGANIZATION_ID,
-        propertyId: PROPERTY_ID,
-        reviewId: row.reviewId,
-        sourceEpoch: SOURCE_EPOCH,
-        sourceRevision: SOURCE_REVISION,
-        analysisSequence: row.sequence,
-        aspect: row.aspect,
-        polarity: row.polarity,
-        intensity: row.intensity,
-      })),
-    )
 
     const aggregates = createAiPropertyAggregateStoreAdapter(db)
     const apply = async (row: (typeof fixture)[number]) =>
@@ -1609,12 +1530,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         calendarProfileVersion: 'property-calendar-v1',
       })
     const resetAggregate = async () => {
-      await db
-        .delete(aiPropertyDailyAspectAggregates)
-        .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
-      await db
-        .delete(aiPropertyDailyAggregates)
-        .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
       await db
         .delete(aiPropertyAggregateContributions)
         .where(eq(aiPropertyAggregateContributions.propertyId, PROPERTY_ID))
@@ -1672,12 +1587,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
   })
 
   it('keeps the latest analysis when the same review settles out of order', async () => {
-    await db
-      .delete(aiPropertyDailyAspectAggregates)
-      .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
-    await db
-      .delete(aiPropertyDailyAggregates)
-      .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
     await db
       .delete(aiPropertyAggregateContributions)
       .where(eq(aiPropertyAggregateContributions.propertyId, PROPERTY_ID))
@@ -1756,30 +1665,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         attention: 'urgent',
         generatedAt: COMPLETED_AT,
         expiresAt: ANALYSIS_EXPIRES_AT,
-      },
-    ])
-    await db.insert(aiReviewAnalysisAspects).values([
-      {
-        organizationId: ORGANIZATION_ID,
-        propertyId: PROPERTY_ID,
-        reviewId: REVIEW_A_ID,
-        sourceEpoch: SOURCE_EPOCH,
-        sourceRevision: SOURCE_REVISION,
-        analysisSequence: 9,
-        aspect: 'service',
-        polarity: 'positive',
-        intensity: 75,
-      },
-      {
-        organizationId: ORGANIZATION_ID,
-        propertyId: PROPERTY_ID,
-        reviewId: REVIEW_A_ID,
-        sourceEpoch: SOURCE_EPOCH,
-        sourceRevision: SOURCE_REVISION,
-        analysisSequence: 5,
-        aspect: 'quality',
-        polarity: 'negative',
-        intensity: -75,
       },
     ])
 
@@ -1932,17 +1817,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         generatedAt: COMPLETED_AT,
         expiresAt: ANALYSIS_EXPIRES_AT,
       })
-      await db.insert(aiReviewAnalysisAspects).values({
-        organizationId: ORGANIZATION_ID,
-        propertyId: PROPERTY_ID,
-        reviewId: review,
-        sourceEpoch: SOURCE_EPOCH,
-        sourceRevision: SOURCE_REVISION,
-        analysisSequence: sequence,
-        aspect: 'service',
-        polarity: 'positive',
-        intensity: 75,
-      })
     }
 
     /** The review as its source now stands, and how far the Property has allocated. */
@@ -2051,9 +1925,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
 
     beforeEach(async () => {
       await db
-        .delete(aiPropertyDailyAspectAggregates)
-        .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
-      await db
         .delete(aiPropertyAggregateContributions)
         .where(eq(aiPropertyAggregateContributions.propertyId, PROPERTY_ID))
     })
@@ -2137,7 +2008,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       await expect(dailyTotals()).resolves.toEqual({
         reviewCount: 1,
         ratingSum: 5,
-        serviceMentions: 1,
+        serviceMentions: 0,
       })
     })
 
@@ -2150,7 +2021,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       await expect(dailyTotals()).resolves.toEqual({
         reviewCount: 2,
         ratingSum: 9,
-        serviceMentions: 2,
+        serviceMentions: 0,
       })
 
       // Google deletes review A: its next sequence settles with no result.
@@ -2163,7 +2034,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       await expect(dailyTotals()).resolves.toEqual({
         reviewCount: 1,
         ratingSum: 4,
-        serviceMentions: 1,
+        serviceMentions: 0,
       })
       const window = await aggregates.readWindow(WINDOW)
       expect(window?.analyzedReviews.map((review) => review.reviewId)).toEqual([
@@ -2192,7 +2063,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       await expect(dailyTotals()).resolves.toEqual({
         reviewCount: 2,
         ratingSum: 9,
-        serviceMentions: 2,
+        serviceMentions: 0,
       })
       const window = await aggregates.readWindow(WINDOW)
       expect(window?.analyzedReviews.map((review) => review.reviewId).sort()).toEqual(
@@ -2216,7 +2087,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       await expect(dailyTotals()).resolves.toEqual({
         reviewCount: 1,
         ratingSum: 5,
-        serviceMentions: 1,
+        serviceMentions: 0,
       })
     })
 

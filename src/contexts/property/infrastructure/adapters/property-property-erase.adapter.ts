@@ -24,7 +24,7 @@ import type {
   PropertyEraseContributor,
   PropertyEraseInventoryEntry,
   PropertyEraseScope,
-} from '../../application/ports/property-erase-contributor.port'
+} from '#/shared/ops/rights/property-erasure'
 import type { Tx } from '#/shared/outbox/commit'
 
 /** The note an erased Property's tombstone carries. */

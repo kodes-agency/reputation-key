@@ -96,11 +96,19 @@ beforeAll(async () => {
   for (const [id, externalId, rating, reviewedAt, contentExpiresAt] of reviews) {
     await client.query(
       `INSERT INTO reviews (
-         id, organization_id, property_id, platform, external_id,
-         external_location_id, rating, reviewed_at, expires_at, content_expires_at,
-         source_epoch, source_revision, analysis_sequence,
+         id, organization_id, property_id, platform, first_fetched_at,
+         source_epoch, source_revision, analysis_sequence
+       ) VALUES ($1, $2, $3, 'google', $4, 0, 0, 0)`,
+      [id, ORG, first.propertyId, reviewedAt],
+    )
+    if (contentExpiresAt === null) continue
+    await client.query(
+      `INSERT INTO review_source_contents (
+         review_id, organization_id, property_id, platform, external_id,
+         external_location_id, rating, reviewed_at, content_expires_at,
+         first_fetched_at, last_fetched_at, source_epoch, source_revision,
          ai_source_byte_length, ai_source_digest
-       ) VALUES ($1, $2, $3, 'google', $4, 'locations/fleet', $5, $6, $7, $8, 0, 0, 0, 1, repeat('0', 64))`,
+       ) VALUES ($1, $2, $3, 'google', $4, 'locations/fleet', $5, $6, $7, $6, $6, 0, 0, 1, repeat('0', 64))`,
       [
         id,
         ORG,
@@ -108,7 +116,6 @@ beforeAll(async () => {
         `fleet-${externalId}`,
         rating,
         reviewedAt,
-        contentExpiresAt ?? '2026-09-01T00:00:00.000Z',
         contentExpiresAt,
       ],
     )
@@ -165,14 +172,14 @@ beforeAll(async () => {
   for (const [ordinal, versionId, property, value, eventAt] of [
     [
       1,
-      METRIC_VERSION_IDS.propertyReviewDashboard,
+      METRIC_VERSION_IDS.portalRatingAnalytics,
       first.propertyId,
       4,
       '2026-08-01T12:00:00Z',
     ],
     [
       2,
-      METRIC_VERSION_IDS.propertyReviewDashboard,
+      METRIC_VERSION_IDS.portalRatingAnalytics,
       first.propertyId,
       5,
       '2026-06-20T12:00:00Z',
@@ -193,28 +200,28 @@ beforeAll(async () => {
     ],
     [
       5,
-      METRIC_VERSION_IDS.propertyReviewDashboard,
+      METRIC_VERSION_IDS.portalRatingAnalytics,
       properties[1]!.propertyId,
       2,
       '2026-02-18T16:30:00Z',
     ],
     [
       6,
-      METRIC_VERSION_IDS.propertyReviewDashboard,
+      METRIC_VERSION_IDS.portalRatingAnalytics,
       properties[2]!.propertyId,
       3,
       '2026-02-18T16:30:00Z',
     ],
     [
       7,
-      METRIC_VERSION_IDS.propertyReviewDashboard,
+      METRIC_VERSION_IDS.portalRatingAnalytics,
       properties[1]!.propertyId,
       1,
       '2026-02-18T17:30:00Z',
     ],
     [
       8,
-      METRIC_VERSION_IDS.propertyReviewDashboard,
+      METRIC_VERSION_IDS.portalRatingAnalytics,
       properties[2]!.propertyId,
       5,
       '2026-02-18T18:00:00Z',

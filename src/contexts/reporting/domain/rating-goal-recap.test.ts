@@ -30,7 +30,7 @@ const due = (
     timezone: SOFIA,
   })
 
-describe('when the Monday check-in shows (Q4, E29)', () => {
+describe('when the Monday check-in shows', () => {
   it('shows all week, from Monday 00:00 to Sunday 23:59 in the Property’s zone', () => {
     // Monday 19 Oct 00:00 in Sofia (UTC+3) is 21:00 UTC on Sunday.
     expect(due('2026-10-18T21:00:00.000Z')).toEqual({

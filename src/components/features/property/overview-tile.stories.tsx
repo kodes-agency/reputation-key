@@ -2,11 +2,8 @@
 // the previous 30 days". The dot between the two has to behave: on one line it
 // stands between them, and when the change drops to its own line it must not be
 // left dangling at the end of the line above. The two stories show both widths;
-// the Vitest story runner compiles no Tailwind, so where the dot and the baseline
-// land is measured against Storybook proper, in
-// `e2e/storybook-metrics/overview-tile-caption.metrics.ts`
-// (`pnpm test:storybook:metrics`). What a reader and a screen reader get is
-// checked here.
+// the Vitest story runner compiles no Tailwind, so what a reader and a screen
+// reader get is what is checked here.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect } from 'storybook/test'
 import { MetricDelta } from '#/components/ui/metric-delta'

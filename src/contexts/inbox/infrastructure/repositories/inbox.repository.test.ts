@@ -103,18 +103,27 @@ function createInboxRepository(database: Database, ports: RepositoryPorts) {
       }
 
       await pool.query(
-        `INSERT INTO reviews (
-           id, organization_id, property_id, platform, external_id,
-           external_location_id, rating, reviewed_at, expires_at,
-           source_epoch, source_revision, source_observation_sequence,
-           analysis_sequence, ai_source_byte_length, ai_source_digest,
-           source_content_state, created_at, updated_at
-         ) VALUES (
-           $1, $2, $3, 'google', $4, 'locations/inbox-repository-test',
+        `WITH identity AS (
+           INSERT INTO reviews (
+             id, organization_id, property_id, platform, external_id,
+             external_location_id, expires_at, first_fetched_at,
+             source_epoch, source_revision, source_observation_sequence,
+             analysis_sequence, source_content_state, created_at, updated_at
+           ) VALUES (
+             $1, $2, $3, 'google', $4, 'locations/inbox-repository-test',
+             $5::timestamptz + INTERVAL '1 year', $5::timestamptz,
+             0, 1, 0, 1, 'active', $5::timestamptz, $5::timestamptz
+           ) ON CONFLICT (id) DO NOTHING
+           RETURNING id
+         ) INSERT INTO review_source_contents (
+           review_id, organization_id, property_id, platform, external_id,
+           external_location_id, rating, reviewed_at, content_expires_at,
+           first_fetched_at, last_fetched_at, source_epoch, source_revision,
+           ai_source_byte_length, ai_source_digest
+         ) SELECT id, $2, $3, 'google', $4, 'locations/inbox-repository-test',
            4, $5::timestamptz, $5::timestamptz + INTERVAL '1 year',
-           0, 1, 0, 1, 1, repeat('a', 64), 'active',
-           $5::timestamptz, $5::timestamptz
-         ) ON CONFLICT (id) DO NOTHING`,
+           $5::timestamptz, $5::timestamptz, 0, 1, 1, repeat('a', 64)
+           FROM identity`,
         [
           item.sourceId,
           item.organizationId,
@@ -254,18 +263,26 @@ async function seedProperties(pool: Pool) {
 
 async function seedReviews(pool: Pool) {
   await pool.query(
-    `INSERT INTO reviews (
-       id, organization_id, property_id, external_id, external_location_id,
-       platform, rating, text, reviewer_name, reviewed_at, expires_at,
-       source_epoch, source_revision, analysis_sequence,
-       ai_source_byte_length, ai_source_digest, created_at, updated_at
-     )
-     VALUES (
-       $1, $2, $3, 'ext-rev-001', 'ext-loc-001',
-       'google', 4, 'Great service', 'John Doe', NOW(), NOW() + INTERVAL '1 year',
-       0, 0, 0, 1, repeat('0', 64), NOW(), NOW()
-     )
-     ON CONFLICT (platform, external_id, organization_id) DO NOTHING`,
+    `WITH identity AS (
+       INSERT INTO reviews (
+         id, organization_id, property_id, external_id, external_location_id,
+         platform, expires_at, first_fetched_at,
+         source_epoch, source_revision, analysis_sequence, created_at, updated_at
+       ) VALUES (
+         $1, $2, $3, 'ext-rev-001', 'ext-loc-001',
+         'google', NOW() + INTERVAL '1 year', NOW(),
+         0, 0, 0, NOW(), NOW()
+       )
+       ON CONFLICT (platform, external_id, organization_id) DO NOTHING
+       RETURNING id
+     ) INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, rating, text, reviewer_name, reviewed_at,
+       content_expires_at, first_fetched_at, last_fetched_at,
+       source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+     ) SELECT id, $2, $3, 'google', 'ext-rev-001', 'ext-loc-001',
+       4, 'Great service', 'John Doe', NOW(), NOW() + INTERVAL '1 year',
+       NOW(), NOW(), 0, 0, 1, repeat('0', 64) FROM identity`,
     [REVIEW_ID_A, ORG_A as string, PROP_A as string],
   )
 }
@@ -1234,7 +1251,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const enrichedRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1266,7 +1282,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const enrichedRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1361,7 +1376,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1419,7 +1433,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1444,7 +1457,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention: vi.fn(async (input: AttentionLookup) =>
         input.attention.includes('urgent') ? [downgraded.sourceId as never] : [],
       ),
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1475,27 +1487,27 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     expect(result.items.map((item) => item.id)).toEqual([set.id])
   })
 
-  it('aspect and polarity filters intersect with attention through the AI projection', async () => {
+  it('an issue and polarity intersect with attention through the AI projection', async () => {
     const srcBoth = reviewId(crypto.randomUUID())
     const srcAttentionOnly = reviewId(crypto.randomUUID())
-    const srcAspectOnly = reviewId(crypto.randomUUID())
-    for (const sourceId of [srcBoth, srcAttentionOnly, srcAspectOnly]) {
+    const srcIssueOnly = reviewId(crypto.randomUUID())
+    for (const sourceId of [srcBoth, srcAttentionOnly, srcIssueOnly]) {
       await repo.seedItem(makeInboxItem({ sourceId }))
     }
-    const findCurrentReviewIdsByAspect = vi.fn(async () => [srcBoth, srcAspectOnly])
+    const findCurrentReviewIdsByIssue = vi.fn(async () => [srcBoth, srcIssueOnly])
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => [srcBoth, srcAttentionOnly]),
-      findCurrentReviewIdsByAspect,
-      findCurrentReviewIdsByIssue: vi.fn(async () => []),
+      findCurrentReviewIdsByIssue,
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const issueId = 'a0000000-0000-4000-8000-000000000001'
 
     const result = await filteredRepo.findFilteredPaginated(
       {
         propertyId: PROP_A,
         attention: ['urgent'],
-        aspect: ['wait_time'],
+        issueId,
         polarity: ['negative'],
       },
       ORG_A,
@@ -1503,10 +1515,10 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       50,
     )
 
-    expect(findCurrentReviewIdsByAspect).toHaveBeenCalledWith({
+    expect(findCurrentReviewIdsByIssue).toHaveBeenCalledWith({
       organizationId: ORG_A,
       propertyIds: [PROP_A],
-      aspects: ['wait_time'],
+      issueId,
       polarities: ['negative'],
     })
     // Intersection, not union: only the review in BOTH id sets survives.
@@ -1519,12 +1531,10 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     for (const sourceId of [named, other]) {
       await repo.seedItem(makeInboxItem({ sourceId }))
     }
-    const findCurrentReviewIdsByAspect = vi.fn(async () => [other])
     const findCurrentReviewIdsByIssue = vi.fn(async () => [named])
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByAspect,
       findCurrentReviewIdsByIssue,
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1544,8 +1554,32 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       polarities: ['negative'],
     })
     // A v3 analysis has issues and no aspects: the polarity belongs to the issue's mention.
-    expect(findCurrentReviewIdsByAspect).not.toHaveBeenCalled()
     expect(result.items.map((item) => item.sourceId)).toEqual([named])
+  })
+
+  it('an old aspect or polarity link without an issue matches nothing and asks the AI nothing', async () => {
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }))
+    const findCurrentReviewIdsByIssue = vi.fn(async () => [])
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
+      findCurrentReviewIdsByAttention: vi.fn(async () => []),
+      findCurrentReviewIdsByIssue,
+    }
+    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+
+    for (const filters of [
+      { propertyId: PROP_A, aspect: ['service' as const] },
+      { propertyId: PROP_A, polarity: ['negative' as const] },
+    ]) {
+      const result = await filteredRepo.findFilteredPaginated(
+        filters,
+        ORG_A,
+        undefined,
+        50,
+      )
+      expect(result.items).toHaveLength(0)
+    }
+    expect(findCurrentReviewIdsByIssue).not.toHaveBeenCalled()
   })
 
   it('an issue nobody names means no review matches, never no filter', async () => {
@@ -1553,7 +1587,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1582,7 +1615,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1590,7 +1622,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     for (const filters of [
       {
         propertyId: PROP_A,
-        aspect: ['service' as const],
+        issueId: 'a0000000-0000-4000-8000-000000000001',
         polarity: ['negative' as const],
       },
       { propertyId: PROP_A, attention: ['urgent' as const] },
@@ -1606,7 +1638,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     }
   })
 
-  it('aspect still narrows to reviews: a set level on feedback does not satisfy it', async () => {
+  it('an issue still narrows to reviews: a set level on feedback does not satisfy it', async () => {
     const feedback = await repo.seedItem(
       makeInboxItem({
         sourceType: 'feedback',
@@ -1621,13 +1653,12 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByAspect: vi.fn(async () => [review.sourceId as never]),
-      findCurrentReviewIdsByIssue: vi.fn(async () => []),
+      findCurrentReviewIdsByIssue: vi.fn(async () => [review.sourceId as never]),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
 
     const result = await filteredRepo.findFilteredPaginated(
-      { attention: ['urgent'], aspect: ['service'] },
+      { attention: ['urgent'], issueId: 'a0000000-0000-4000-8000-000000000001' },
       ORG_A,
     )
 
@@ -1668,7 +1699,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
         async (input: AttentionLookup) =>
           input.attention.flatMap((level) => suggestions[level] ?? []) as never,
       ),
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })

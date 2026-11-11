@@ -24,7 +24,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
 import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
-import { eraseReviewSourceContent } from '#/contexts/review/infrastructure/review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createReplyObservationAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-observation-authority.adapter'
 import { createSourceTransitionAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/source-transition-authority.adapter'
 import type { CurrentReplyObservationPermit } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
@@ -178,16 +178,24 @@ async function seed(
     [PROPERTY, ORG],
   )
   await pool.query(
-    `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id,
-       external_location_id, rating, reviewed_at, expires_at,
-       source_epoch, source_revision, source_observation_sequence,
-       analysis_sequence, ai_source_byte_length, ai_source_digest,
-       source_content_state, created_at, updated_at
-     ) VALUES (
-       $1, $2, $3, 'google', $4, 'locations/inbox-reply-observation', 5,
-       $5, $6, 0, 1, 0, 1, 1, $7, 'active', $5, $5
-     )`,
+    `WITH identity AS (
+       INSERT INTO reviews (
+         id, organization_id, property_id, platform, external_id,
+         external_location_id, expires_at, first_fetched_at,
+         source_epoch, source_revision, source_observation_sequence,
+         analysis_sequence, source_content_state, created_at, updated_at
+       ) VALUES (
+         $1, $2, $3, 'google', $4, 'locations/inbox-reply-observation', $6, $5,
+         0, 1, 0, 1, 'active', $5, $5
+       )
+       RETURNING id
+     ) INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, rating, reviewed_at, content_expires_at,
+       first_fetched_at, last_fetched_at, source_epoch, source_revision,
+       ai_source_byte_length, ai_source_digest
+     ) SELECT id, $2, $3, 'google', $4, 'locations/inbox-reply-observation', 5, $5,
+       $6, $5, $5, 0, 1, 1, $7 FROM identity`,
     [REVIEW, ORG, PROPERTY, `external-${REVIEW}`, OPENED_AT, EXPIRES_AT, '0'.repeat(64)],
   )
   await pool.query(

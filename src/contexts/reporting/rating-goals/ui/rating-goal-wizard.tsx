@@ -167,7 +167,7 @@ function useWizardFlow(props: RatingGoalWizardProps) {
   }
   return {
     step,
-    /** "Raise it anyway" at a shown 4.7 or 4.8: from Keep to the climb (X1). */
+    /** "Raise it anyway" at a shown 4.7 or 4.8: from Keep to the climb. */
     raise: () => setStep('plan'),
     draft,
     setDraft,
@@ -198,7 +198,7 @@ function keepSave(
 
 type Flow = ReturnType<typeof useWizardFlow>
 
-/** The keep step, with "Raise it anyway" where a climb is still possible (X1). */
+/** The keep step, with "Raise it anyway" where a climb is still possible. */
 function KeepStep({
   props,
   flow,

@@ -17,6 +17,7 @@
 import { createJobQueue } from '../../src/shared/jobs/queue'
 import { jobEnqueueOptions } from '../../src/shared/jobs/job-policy'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
+import { exitIfHelp } from './command-help'
 import { runOperatorCommand } from './operator-command'
 
 const TARGETS = {
@@ -33,6 +34,7 @@ function usage(): never {
 }
 
 async function main(): Promise<void> {
+  exitIfHelp(process.argv.slice(2), USAGE)
   const [target] = positionalArgs(process.argv.slice(2))
   if (!target || !(target in TARGETS)) usage()
   const { jobName, capability } = TARGETS[target as Target]

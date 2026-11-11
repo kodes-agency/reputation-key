@@ -126,9 +126,7 @@ export const Default: Story = {
     })
     // 36 px tall below md (the top bar's compact density, through the Button),
     // and a square of that height where the "Feedback" label is hidden (below
-    // sm). Tailwind is not compiled in this runner, so the geometry is the
-    // Playwright metrics gate's; this pins the classes. The real check is
-    // `inbox-phone-chrome.metrics.ts` ("feedback launcher").
+    // sm). Tailwind is not compiled in this runner, so this pins the classes.
     expect(trigger).toHaveClass(
       'max-md:min-h-(--control-touch)',
       'max-sm:w-(--control-touch)',

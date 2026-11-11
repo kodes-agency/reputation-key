@@ -15,28 +15,33 @@ const fakes = vi.hoisted(() => ({
   env: {} as Record<string, string | undefined>,
   getDb: vi.fn(),
   createContainer: vi.fn(() => ({
-    shutdown: { run: vi.fn(async () => {}) },
-    opsQueues: {},
+    shutdown: { run: fakes.shutdown },
+    opsQueues: { background: { close: fakes.closeQueue } },
   })),
   runCore: vi.fn(async () => ({ exitCode: 0 })),
+  closePool: vi.fn(async () => {}),
+  closeJobQueueConnections: vi.fn(async () => {}),
+  releaseProcessContainer: vi.fn(),
+  shutdown: vi.fn(async () => {}),
+  closeQueue: vi.fn(async () => {}),
 }))
 
 vi.mock('../../src/shared/config/env', () => ({ getEnv: () => fakes.env }))
 vi.mock('../../src/shared/db', () => ({ getDb: fakes.getDb }))
-vi.mock('../../src/shared/db/pool', () => ({ closePool: vi.fn(async () => {}) }))
+vi.mock('../../src/shared/db/pool', () => ({ closePool: fakes.closePool }))
 vi.mock('../../src/shared/observability/logger', () => ({ getLogger: vi.fn() }))
 vi.mock('../../src/contexts/identity/infrastructure/policy-store-init', () => ({
   buildCapabilityPolicyHandle: () => ({ refresh: vi.fn(async () => {}) }),
 }))
 vi.mock('../../src/composition', () => ({
   claimProcessContainer: vi.fn(),
-  releaseProcessContainer: vi.fn(),
+  releaseProcessContainer: fakes.releaseProcessContainer,
 }))
 vi.mock('../../src/composition/operator-container', () => ({
   createOperatorContainer: fakes.createContainer,
 }))
 vi.mock('../../src/shared/jobs/queue', () => ({
-  closeJobQueueConnections: vi.fn(async () => {}),
+  closeJobQueueConnections: fakes.closeJobQueueConnections,
 }))
 vi.mock('../../src/shared/auth/process-policy-binding', () => ({
   bindProcessPolicies: vi.fn(),
@@ -127,7 +132,7 @@ describe.each([RESTORE_PREFLIGHT_SPEC, RESTORE_VERIFY_SPEC])(
       expect(action).not.toHaveBeenCalled()
     })
 
-    it('refuses --help too: the runtime opens before the help text is printed', async () => {
+    it('refuses --help too: the environment check runs before the help text', async () => {
       fakes.env.QUEUE_REDIS_URL = 'redis://queues.railway.internal:6379'
 
       await expect(runOperatorCommand(spec, action, ['--help'])).rejects.toThrow(
@@ -158,6 +163,64 @@ describe('a command that is not a restore command', () => {
       exitCode: 0,
     })
     expect(fakes.createContainer).toHaveBeenCalledOnce()
+  })
+})
+
+describe('--help', () => {
+  it('prints usage and opens no settings, database or container', async () => {
+    vi.clearAllMocks()
+    fakes.env = {}
+    const spec = {
+      name: 'ops:inspect',
+      scope: 'global' as const,
+      usage: 'ops:inspect <id>',
+    }
+    const io = { out: vi.fn(), err: vi.fn() }
+
+    expect(await runOperatorCommand(spec, vi.fn(), ['--help'], io)).toEqual({
+      exitCode: 0,
+    })
+    expect(io.out).toHaveBeenCalledWith('usage: ops:inspect <id>')
+    expect(fakes.getDb).not.toHaveBeenCalled()
+    expect(fakes.createContainer).not.toHaveBeenCalled()
+    expect(fakes.runCore).not.toHaveBeenCalled()
+    expect(fakes.closePool).not.toHaveBeenCalled()
+  })
+})
+
+describe('a command that runs', () => {
+  const spec = {
+    name: 'ops:inspect',
+    scope: 'global' as const,
+    usage: 'ops:inspect <id>',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fakes.env = {}
+  })
+
+  it.each([0, 1, 2])(
+    'passes exit code %i through and closes everything',
+    async (exitCode) => {
+      fakes.runCore.mockResolvedValueOnce({ exitCode })
+
+      expect(await runOperatorCommand(spec, vi.fn(), ['x'])).toEqual({ exitCode })
+      expect(fakes.shutdown).toHaveBeenCalledOnce()
+      expect(fakes.closeQueue).toHaveBeenCalledOnce()
+      expect(fakes.releaseProcessContainer).toHaveBeenCalledOnce()
+      expect(fakes.closeJobQueueConnections).toHaveBeenCalledOnce()
+      expect(fakes.closePool).toHaveBeenCalledOnce()
+    },
+  )
+
+  it('still closes the queues and pool when the command throws', async () => {
+    fakes.runCore.mockRejectedValueOnce(new Error('boom'))
+
+    await expect(runOperatorCommand(spec, vi.fn(), ['x'])).rejects.toThrow('boom')
+    expect(fakes.releaseProcessContainer).toHaveBeenCalledOnce()
+    expect(fakes.closeJobQueueConnections).toHaveBeenCalledOnce()
+    expect(fakes.closePool).toHaveBeenCalledOnce()
   })
 })
 

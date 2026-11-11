@@ -22,7 +22,7 @@ import {
 } from '#/shared/domain/ids'
 import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
 import type { RightsRequestPlan } from '#/shared/ops/rights/rights-request-command'
-import { createPrimaryStaffAttributionResolver } from '../primary-staff-attribution'
+import { createPrimaryStaffAttributionResolver } from '../../staff/primary-staff-attribution.server'
 import { FORMER_STAFF_LABEL } from './staff-participant-erasure'
 import { createStaffParticipantErasureReplayer } from './staff-participant-erasure-replayer.adapter'
 import { createStaffParticipantRightsExecutor } from './staff-participant-rights.adapter'
@@ -186,7 +186,6 @@ async function removeEverything(): Promise<void> {
       'staff_participations',
       'staff_onboardings',
       'staff_participants',
-      'property_access_grants',
       'portals',
       'properties',
     ]) {

@@ -227,9 +227,6 @@ async function clean(): Promise<void> {
     DELETE FROM metric_corrections
     WHERE reading_id IN (SELECT id FROM metric_readings WHERE organization_id = ${ORG})
   `)
-  await db.execute(
-    sql`DELETE FROM portal_metric_lifetime_aggregates WHERE organization_id = ${ORG}`,
-  )
   await db.execute(sql`DELETE FROM metric_readings WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
 }

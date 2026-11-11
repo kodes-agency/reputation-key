@@ -141,6 +141,9 @@ block only for platform rules, law and broken text; Q16 the release plan.
     wording; the one profile becomes property voice overrides. Legacy
     `template_id`/`template_version` pairs on replies stay as legacy provenance.
 
+    Amended 2026-11-10: remove the legacy pair and its check only when neither
+    column holds a value. Layered template provenance and its check stay.
+
 ## Amended 2026-11-01: an AI draft does not admit
 
 An AI draft on a review of 1-3 stars never states what the guest reports as fact: nobody

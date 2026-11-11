@@ -22,7 +22,6 @@ import {
   aiPropertyAggregateSettlements,
   aiPropertyIssueGroups,
   aiPropertyIssueMembers,
-  aiPropertyDailyAggregates,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
   aiReviewAnalysisMentions,
@@ -31,6 +30,7 @@ import {
   merchantAiConsentEvidence,
   merchantAiEnablement,
   properties,
+  reviewSourceContents,
   reviews,
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
@@ -207,37 +207,40 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
         organizationId: ORGANIZATION_ID,
         propertyId: PROPERTY_ID,
         platform: 'google',
-        externalId: `ai-v3-flow-${id}`,
-        reviewerName: 'Synthetic reviewer',
-        rating: 2,
-        text: 'Synthetic review',
-        languageCode: 'en',
-        reviewedAt: REVIEWED_AT,
-        contentExpiresAt: CONTENT_EXPIRES_AT,
+        firstFetchedAt: REVIEWED_AT,
         sourceEpoch: SOURCE_EPOCH,
         sourceRevision,
         analysisSequence,
-        aiSourceByteLength: SOURCE_BYTE_COUNT,
-        aiSourceDigest: DIGEST,
       })
       .onConflictDoUpdate({
         target: reviews.id,
         set: { analysisSequence, sourceRevision },
       })
-    await db.execute(sql`
-      INSERT INTO review_source_contents (
-        review_id, organization_id, property_id, platform, external_id,
-        external_location_id, reviewer_name, rating, text, language_code,
-        reviewed_at, last_fetched_at, content_expires_at, source_epoch,
-        source_revision, ai_source_byte_length, ai_source_digest
-      )
-      SELECT id, organization_id, property_id, platform, external_id,
-             'locations/ai-v3-flow', reviewer_name, rating, text, language_code,
-             reviewed_at, reviewed_at, content_expires_at, source_epoch,
-             source_revision, ai_source_byte_length, ai_source_digest
-      FROM reviews WHERE id = ${id}::uuid
-      ON CONFLICT (review_id) DO UPDATE SET source_revision = EXCLUDED.source_revision
-    `)
+    await db
+      .insert(reviewSourceContents)
+      .values({
+        reviewId: id,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        platform: 'google',
+        externalId: `ai-v3-flow-${id}`,
+        externalLocationId: 'locations/ai-v3-flow',
+        reviewerName: 'Synthetic reviewer',
+        rating: 2,
+        text: 'Synthetic review',
+        languageCode: 'en',
+        reviewedAt: REVIEWED_AT,
+        lastFetchedAt: REVIEWED_AT,
+        contentExpiresAt: CONTENT_EXPIRES_AT,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision,
+        aiSourceByteLength: SOURCE_BYTE_COUNT,
+        aiSourceDigest: DIGEST,
+      })
+      .onConflictDoUpdate({
+        target: reviewSourceContents.reviewId,
+        set: { sourceRevision },
+      })
     await db
       .insert(materialReviewRevisions)
       .values({
@@ -317,8 +320,9 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
 
   const store = (
     overrides: Partial<Parameters<typeof outputs.storeAnalysisV3>[0]> = {},
+    outputStore = outputs,
   ) =>
-    outputs.storeAnalysisV3({
+    outputStore.storeAnalysisV3({
       operationId: OPERATION_ID,
       providerCompletion: {
         expectedAttempt: 1,
@@ -343,8 +347,8 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       ...overrides,
     })
 
-  const apply = (analysisSequence: number) =>
-    aggregates.applyReviewAnalysis({
+  const apply = (analysisSequence: number, aggregateStore = aggregates) =>
+    aggregateStore.applyReviewAnalysis({
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
       reviewId: REVIEW_ID,
@@ -356,8 +360,8 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       calendarProfileVersion: 'property-calendar-v1',
     })
 
-  const read = (analysisSequence = 1) =>
-    outputs.readAnalysisForDelivery(
+  const read = (analysisSequence = 1, outputStore = outputs) =>
+    outputStore.readAnalysisForDelivery(
       {
         organizationId: ORGANIZATION_ID,
         actorUserId: userId(ACTOR_USER_ID),
@@ -488,9 +492,6 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       .delete(aiPropertyAggregateContributions)
       .where(eq(aiPropertyAggregateContributions.propertyId, PROPERTY_ID))
     await db
-      .delete(aiPropertyDailyAggregates)
-      .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
-    await db
       .delete(aiPropertyAggregateHeads)
       .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
     await db
@@ -512,6 +513,34 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       for (const control of initialControls) {
         await transitionControl(control.scopeKey, control)
       }
+    }
+  })
+
+  it('stores, delivers and aggregates v3', async () => {
+    {
+      const outputStore = createAiOutputStoreAdapter(db)
+      const aggregateStore = createAiPropertyAggregateStoreAdapter(db)
+      await expect(store({}, outputStore)).resolves.toBe(true)
+      await expect(apply(1, aggregateStore)).resolves.toEqual({
+        status: 'applied',
+        aggregateRevision: 1,
+      })
+      await expect(read(1, outputStore)).resolves.toMatchObject({
+        status: 'ready_v3',
+        sentiment: DERIVATIVE.sentiment,
+        mentions: DERIVATIVE.mentions.map((mention) => expect.objectContaining(mention)),
+      })
+      const window = await aggregateStore.readWindow({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        startLocalDate: '2026-10-19',
+        endLocalDate: '2026-10-19',
+      })
+      expect(window?.coverage.settledAnalysisCount).toBe(1)
+      expect(window?.analyzedReviews).toEqual([])
     }
   })
 
@@ -904,12 +933,6 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       { ordinal: 0, topic: 'speed_waiting', strength: 'clear', thing: 'check-in' },
       { ordinal: 1, topic: 'facilities_equipment', strength: 'mild', thing: null },
     ])
-    await expect(
-      db
-        .select()
-        .from(aiPropertyDailyAggregates)
-        .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID)),
-    ).resolves.toEqual([])
   })
 
   it('replays an applied sequence without writing it twice', async () => {

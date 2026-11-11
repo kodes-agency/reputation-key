@@ -23,12 +23,12 @@ import type {
   ProvisionOrganizationInput,
   ProvisionOrganizationResult,
 } from '../dto/platform-console.dto'
-import type { PlatformOrganizationStore } from '../ports/platform-organization-store.port'
+import type { PlatformOrganizationStore } from '../../operator/platform-organization-store.port.server'
 import {
   adminInvitationCommand,
   sendAdminInvitationEmail,
   type AdminInvitationEmailDeps,
-} from '../platform-admin-invitation'
+} from '../../operator/platform-admin-invitation.server'
 
 export type ProvisionOrganizationDeps = AdminInvitationEmailDeps &
   Readonly<{

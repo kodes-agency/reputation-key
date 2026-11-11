@@ -98,16 +98,24 @@ async function seedScope(): Promise<void> {
     [PROPERTY_ID, ORG_ID],
   )
   await pool.query(
-    `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id,
-       external_location_id, rating, reviewed_at, expires_at,
-       source_epoch, source_revision, source_observation_sequence,
-       analysis_sequence, ai_source_byte_length, ai_source_digest,
-       source_content_state, created_at, updated_at
-     ) VALUES (
-       $1, $2, $3, 'google', $4, $5, 4, $6, $7,
-       0, 1, 0, 1, 1, $8, 'active', $6, $6
-     )`,
+    `WITH identity AS (
+       INSERT INTO reviews (
+         id, organization_id, property_id, platform, external_id,
+         external_location_id, expires_at, first_fetched_at,
+         source_epoch, source_revision, source_observation_sequence,
+         analysis_sequence, source_content_state, created_at, updated_at
+       ) VALUES (
+         $1, $2, $3, 'google', $4, $5, $7, $6,
+         0, 1, 0, 1, 'active', $6, $6
+       )
+       RETURNING id
+     ) INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, rating, reviewed_at, content_expires_at,
+       first_fetched_at, last_fetched_at, source_epoch, source_revision,
+       ai_source_byte_length, ai_source_digest
+     ) SELECT id, $2, $3, 'google', $4, $5, 4, $6, $7, $6, $6, 0, 1, 1, $8
+       FROM identity`,
     [
       REVIEW_ID,
       ORG_ID,

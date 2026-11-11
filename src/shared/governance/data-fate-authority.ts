@@ -28,9 +28,6 @@ function rows(group: DataFateGroup): readonly DataFateRow[] {
   )
 }
 
-const CONTRACT_AFTER_EXPORT =
-  'Inventory and reconcile every row, retain an export/restore proof, prove zero active readers and writers, then contract through an expand/backfill/contract migration.'
-
 const ERASE_WITH_OWNER =
   'The owning lifecycle command must hide, erase, or expire the content with content-free completion evidence and restore-boundary verification.'
 
@@ -143,29 +140,13 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'AI-01/AI-02/AI-04',
   }),
   ...rows({
-    schemaFile: 'ai-property-trend.schema.ts',
-    exportNames: ['aiPropertyTrendSchedulerHeads', 'aiPropertyTrendSchedules'],
-    owner: 'ai',
-    disposition: 'active_authority',
-    authority: 'AI-01/AI-02/AI-04',
-  }),
-  ...rows({
     schemaFile: 'ai.schema.ts',
     exportNames: [
       'aiPropertyAggregateContributions',
       'aiPropertyAggregateHeads',
       'aiPropertyAggregateSettlements',
-      'aiPropertyDailyAggregates',
       'aiReviewAnalyses',
     ],
-    owner: 'ai',
-    disposition: 'erasable_source_content',
-    authority: 'AI-01/AI-02/AI-04',
-    exitCriteria: ERASE_WITH_OWNER,
-  }),
-  ...rows({
-    schemaFile: 'ai-property-trend.schema.ts',
-    exportNames: ['aiPropertyTrendOutcomes'],
     owner: 'ai',
     disposition: 'erasable_source_content',
     authority: 'AI-01/AI-02/AI-04',
@@ -175,7 +156,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     schemaFile: 'ai-review-analysis-v3.schema.ts',
     exportNames: [
       'aiPropertyAggregateContributionMentions',
-      'aiPropertyReviewPopulationDaily',
       'aiReviewAnalysisMentionSentences',
       'aiReviewAnalysisMentions',
     ],
@@ -183,7 +163,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'erasable_source_content',
     authority: 'AI-01/AI-02/AI-04',
     exitCriteria:
-      'Review Analysis v3 derivatives: the owning lifecycle command hides and erases them, and the retention sweep deletes them 24 months after the analysis (the mention tables with the analysis or contribution they cascade from) or after the day they count (the daily star counts).',
+      'Review Analysis v3 derivatives: the owning lifecycle command hides and erases them, and the retention sweep deletes them 24 months after the analysis (the mention tables with the analysis or contribution they cascade from).',
   }),
   ...rows({
     schemaFile: 'ai-property-issue-groups.schema.ts',
@@ -227,7 +207,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'invitation',
       'member',
       'organization',
-      'organizationRole',
       'session',
       'user',
       'verification',
@@ -238,17 +217,10 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'dac.schema.ts',
-    exportNames: ['organizationRolePolicy', 'permissionVersion'],
+    exportNames: ['permissionVersion'],
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'SAFE-02/PPL-01',
-  }),
-  ...rows({
-    schemaFile: 'dashboard.schema.ts',
-    exportNames: ['setupChecklistMilestones'],
-    owner: 'reporting',
-    disposition: 'active_authority',
-    authority: 'EXP-01',
   }),
   ...rows({
     schemaFile: 'goal.schema.ts',
@@ -441,7 +413,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'metricCorrections',
       'metricReadings',
       'metricCurrentGoogleReputationSnapshots',
-      'portalMetricLifetimeAggregates',
     ],
     owner: 'reporting',
     disposition: 'active_authority',
@@ -502,40 +473,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'Content-free evidence that must OUTLIVE the data it describes: the restore resurrection fence replays these entries before a restored cell may be declared verified, so erasing the ledger would let purged data come back through a restore. Retained until counsel approves a retention horizon that is strictly longer than the longest backup retention window.',
   }),
   ...rows({
-    schemaFile: 'property-erase.schema.ts',
-    exportNames: ['propertyEraseAuthorities'],
-    owner: 'property',
-    disposition: 'recoverable_archive',
-    authority: 'LIF-01',
-    exitCriteria:
-      'Content-free authority for an irreversible erase is the proof that the erase was independently authorized, so it outlives the erased Property. Contract only after counsel approves an evidence retention horizon.',
-  }),
-  ...rows({
-    schemaFile: 'privacy-request.schema.ts',
-    exportNames: ['privacyRequests'],
-    owner: 'identity',
-    disposition: 'recoverable_archive',
-    authority: 'LIF-01',
-    exitCriteria:
-      'Content-free privacy-request authority names the subject only by the SHA-256 of a verified identifier, never in the clear. Retained until counsel approves a data-subject-request evidence horizon.',
-  }),
-  ...rows({
-    schemaFile: 'organization-lifecycle.schema.ts',
-    exportNames: ['organizationExports', 'organizationLifecycleAuthority'],
-    owner: 'identity',
-    disposition: 'active_authority',
-    authority: 'LIF-01',
-  }),
-  ...rows({
-    schemaFile: 'organization-lifecycle.schema.ts',
-    exportNames: ['organizationExportRetrievalIssuances'],
-    owner: 'identity',
-    disposition: 'recoverable_archive',
-    authority: 'LIF-01',
-    exitCriteria:
-      'Digest-only export retrieval issuances permanently retire old token authorities through retry/recovery and the approved evidence horizon. No destructive issuance lifecycle is active.',
-  }),
-  ...rows({
     schemaFile: 'outbox.schema.ts',
     exportNames: ['eventConsumerReceipts', 'idempotencyReceipts', 'outboxEvents'],
     owner: 'platform',
@@ -563,16 +500,8 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'PPL-01',
   }),
   ...rows({
-    schemaFile: 'people-access.schema.ts',
-    exportNames: ['propertyAccessGrants'],
-    owner: 'identity',
-    disposition: 'bounded_contraction',
-    authority: 'PPL-01/CNV-01',
-    exitCriteria: CONTRACT_AFTER_EXPORT,
-  }),
-  ...rows({
     schemaFile: 'policy.schema.ts',
-    exportNames: ['policyConsent', 'propertyAccessGrant'],
+    exportNames: ['propertyAccessGrant'],
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'SAFE-02/PPL-01',
@@ -645,15 +574,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'recoverable_archive',
     authority: 'POR-01',
     exitCriteria: RETAINED_HISTORY,
-  }),
-  ...rows({
-    schemaFile: 'portal.schema.ts',
-    exportNames: ['portalGroupMembers'],
-    owner: 'portal',
-    disposition: 'bounded_contraction',
-    authority: 'POR-01/PPL-01/CNV-01',
-    exitCriteria:
-      'No reader or writer remains: group membership is portal_group_memberships. The lifecycle purge still deletes its rows; drop the table only through a separate expand/backfill/contract migration the owner approves.',
   }),
   ...rows({
     schemaFile: 'portal.schema.ts',

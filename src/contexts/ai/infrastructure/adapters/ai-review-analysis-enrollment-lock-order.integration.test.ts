@@ -1,3 +1,4 @@
+import { seedReviewContent } from '../testing/review-content-fixture'
 // The enrollment replay must take the Property fence before anything a
 // concurrent writer takes after it.
 //
@@ -26,6 +27,7 @@ import {
   properties,
   reviewAiAnalysisHeads,
   reviews,
+  reviewSourceContents,
 } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -141,7 +143,7 @@ async function seedQueuedEnrollment(): Promise<string> {
     })
   })
   for (const id of REVIEWS) {
-    await db.insert(reviews).values({
+    await seedReviewContent({
       id,
       organizationId: ORG,
       propertyId: PROPERTY,
@@ -425,31 +427,29 @@ describe('Review Analysis authorization lifecycle lock order', () => {
 describe('Review Analysis history replay recovery', () => {
   async function addReviews(count: number): Promise<void> {
     for (let offset = 0; offset < count; offset += 1_000) {
-      await getDb()
-        .insert(reviews)
-        .values(
-          Array.from({ length: Math.min(1_000, count - offset) }, () => {
-            const id = randomUUID()
-            return {
-              id,
-              organizationId: ORG,
-              propertyId: PROPERTY,
-              platform: 'google' as const,
-              externalId: id,
-              reviewerName: 'Synthetic reviewer',
-              rating: 4,
-              text: 'Synthetic review content',
-              languageCode: 'en',
-              reviewedAt: NOW,
-              contentExpiresAt: new Date('2027-09-29T00:00:00.000Z'),
-              sourceEpoch: 0,
-              sourceRevision: 1,
-              analysisSequence: 0,
-              aiSourceByteLength: 24,
-              aiSourceDigest: 'a'.repeat(64),
-            }
-          }),
-        )
+      await seedReviewContent(
+        Array.from({ length: Math.min(1_000, count - offset) }, () => {
+          const id = randomUUID()
+          return {
+            id,
+            organizationId: ORG,
+            propertyId: PROPERTY,
+            platform: 'google' as const,
+            externalId: id,
+            reviewerName: 'Synthetic reviewer',
+            rating: 4,
+            text: 'Synthetic review content',
+            languageCode: 'en',
+            reviewedAt: NOW,
+            contentExpiresAt: new Date('2027-09-29T00:00:00.000Z'),
+            sourceEpoch: 0,
+            sourceRevision: 1,
+            analysisSequence: 0,
+            aiSourceByteLength: 24,
+            aiSourceDigest: 'a'.repeat(64),
+          }
+        }),
+      )
     }
   }
 
@@ -491,9 +491,9 @@ describe('Review Analysis history replay recovery', () => {
 
   it('catches up an empty refreshed snapshot instead of stalling on expired sources', async () => {
     await getDb()
-      .update(reviews)
+      .update(reviewSourceContents)
       .set({ contentExpiresAt: new Date(0) })
-      .where(eq(reviews.propertyId, PROPERTY))
+      .where(eq(reviewSourceContents.propertyId, PROPERTY))
     await expect(reconcile()).resolves.toMatchObject({
       status: 'caught_up',
       eligibleRevisionCount: 0,
@@ -506,7 +506,7 @@ describe('Review Analysis history replay recovery', () => {
       { length: AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE },
       () => randomUUID(),
     )
-    await db.insert(reviews).values(
+    await seedReviewContent(
       additionalIds.map((id) => ({
         id,
         organizationId: ORG,

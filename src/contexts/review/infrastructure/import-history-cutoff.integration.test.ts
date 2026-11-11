@@ -303,8 +303,8 @@ async function revisionsOf(review: GoogleReview): Promise<readonly RevisionRow[]
     SELECT m.revision, m.response_target_eligibility AS eligibility,
       m.response_target_start_at AS start_at
     FROM material_review_revisions m
-    JOIN reviews r ON r.id = m.review_id
-    WHERE r.organization_id = ${ORG} AND r.external_id = ${review.externalId}
+    JOIN review_source_contents c ON c.review_id = m.review_id AND c.organization_id = m.organization_id
+    WHERE c.organization_id = ${ORG} AND c.external_id = ${review.externalId}
     ORDER BY m.revision
   `)
   return result.rows.map((row) => ({
@@ -318,10 +318,10 @@ async function createdEventOrigin(review: GoogleReview): Promise<string | null> 
   const result = await db.execute(sql`
     SELECT e.payload->>'observationOrigin' AS origin
     FROM outbox_events e
-    JOIN reviews r ON r.id::text = e.payload->>'reviewId'
+    JOIN review_source_contents c ON c.review_id::text = e.payload->>'reviewId' AND c.organization_id = e.organization_id
     WHERE e.organization_id = ${ORG}
       AND e.event_type = 'review.created'
-      AND r.external_id = ${review.externalId}
+      AND c.external_id = ${review.externalId}
   `)
   const row = result.rows[0]
   return row?.origin == null ? null : String(row.origin)
@@ -347,8 +347,11 @@ type StoredSource = Readonly<{
 
 async function storedSource(review: GoogleReview): Promise<StoredSource> {
   const result = await db.execute(sql`
-    SELECT id, ai_source_byte_length, ai_source_digest, source_revision, analysis_sequence
-    FROM reviews WHERE organization_id = ${ORG} AND external_id = ${review.externalId}
+    SELECT r.id, c.ai_source_byte_length, c.ai_source_digest, r.source_revision, r.analysis_sequence
+    FROM reviews r
+    JOIN review_source_contents c ON c.review_id = r.id AND c.organization_id = r.organization_id
+      AND c.property_id = r.property_id
+    WHERE c.organization_id = ${ORG} AND c.external_id = ${review.externalId}
   `)
   const row = result.rows[0]
   if (row == null) throw new Error(`${review.externalId} was not stored`)

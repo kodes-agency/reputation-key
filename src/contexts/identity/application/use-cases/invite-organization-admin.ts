@@ -20,13 +20,13 @@ import type {
   InviteOrganizationAdminResult,
   PlatformOperatorActor,
 } from '../dto/platform-console.dto'
-import type { PlatformOrganizationStore } from '../ports/platform-organization-store.port'
-import { assertOperatorMayAdminister } from '../platform-administration'
+import type { PlatformOrganizationStore } from '../../operator/platform-organization-store.port.server'
+import { assertOperatorMayAdminister } from '../../operator/platform-administration.server'
 import {
   adminInvitationCommand,
   sendAdminInvitationEmail,
   type AdminInvitationEmailDeps,
-} from '../platform-admin-invitation'
+} from '../../operator/platform-admin-invitation.server'
 
 export type InviteOrganizationAdminDeps = AdminInvitationEmailDeps &
   Readonly<{
@@ -46,7 +46,7 @@ export const inviteOrganizationAdmin =
   async (input, operator) => {
     const organizationId = toOrganizationId(input.organizationId)
     const administration = await deps.store.readAdministration(organizationId)
-    assertOperatorMayAdminister(administration, { requireActive: true })
+    assertOperatorMayAdminister(administration)
 
     const invitationId = deps.idGen()
     await deps.store.inviteAdmin(

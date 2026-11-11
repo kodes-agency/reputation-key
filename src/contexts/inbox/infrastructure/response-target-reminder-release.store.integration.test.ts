@@ -35,6 +35,14 @@ const OPENED_AT = new Date('2026-08-28T08:00:00.000Z')
 const HALFWAY = new Date(OPENED_AT.getTime() + 30 * MINUTE)
 const DUE = new Date(OPENED_AT.getTime() + 60 * MINUTE)
 
+const OTHER_TENANT: Tenant = {
+  org: organizationId('org-reminder-release-pg-0000000002'),
+  property: propertyId('7a000000-0000-4000-8000-000000000011'),
+  item: inboxItemId('7a000000-0000-4000-8000-000000000012'),
+  review: reviewId('7a000000-0000-4000-8000-000000000013'),
+  startAt: new Date(OPENED_AT.getTime() + 31 * MINUTE),
+}
+
 const db = getDb()
 let pool: Pool
 const targets = createResponseTargetStore(db)
@@ -42,12 +50,21 @@ const targets = createResponseTargetStore(db)
 const allowAll: InboxCommandAuthority = async () => ({ allowed: true })
 const commandStore = () => createAtomicInboxCommandStore(db, allowAll, () => OPENED_AT)
 
-const reviewItem = (): InboxItem => ({
-  id: ITEM,
-  organizationId: ORG,
-  propertyId: PROPERTY,
+type Tenant = Readonly<{
+  org: typeof ORG
+  property: typeof PROPERTY
+  item: typeof ITEM
+  review: typeof REVIEW
+  startAt?: Date
+}>
+const BASE_TENANT: Tenant = { org: ORG, property: PROPERTY, item: ITEM, review: REVIEW }
+
+const reviewItem = (t: Tenant = BASE_TENANT): InboxItem => ({
+  id: t.item,
+  organizationId: t.org,
+  propertyId: t.property,
   sourceType: 'review',
-  sourceId: REVIEW,
+  sourceId: t.review,
   status: 'open',
   isEscalated: false,
   escalatedAt: null,
@@ -79,47 +96,65 @@ async function clean(): Promise<void> {
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
   await deleteTestOrganizations(pool, [ORG])
+  const other = OTHER_TENANT.org
+  await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [other])
+  await pool.query(
+    'DELETE FROM inbox_response_target_organization_policies WHERE organization_id = $1',
+    [other],
+  )
+  await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [other])
+  await pool.query('DELETE FROM reviews WHERE organization_id = $1', [other])
+  await pool.query('DELETE FROM properties WHERE organization_id = $1', [other])
+  await deleteTestOrganizations(pool, [other])
 }
 
-async function seedBase(): Promise<void> {
+async function seedBase(t: Tenant = BASE_TENANT): Promise<void> {
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
-     VALUES ($1, 'Reminder Release Test', 'reminder-release-test', NOW())`,
-    [ORG],
+     VALUES ($1, 'Reminder Release Test', 'reminder-release-' || $2::text, NOW())`,
+    [t.org, t.org.slice(-4)],
   )
   await pool.query(
     `INSERT INTO properties (
        id, organization_id, name, slug, timezone, source_epoch, created_at, updated_at
-     ) VALUES ($1, $2, 'Release Property', 'release-property', 'America/New_York', 0, NOW(), NOW())`,
-    [PROPERTY, ORG],
+     ) VALUES ($1, $2, 'Release Property', 'release-property-' || $3::text, 'America/New_York', 0, NOW(), NOW())`,
+    [t.property, t.org, t.org.slice(-4)],
   )
 }
 
 /** A Google-review cycle with a 60 minute target: halfway at +30, due at +60. */
-async function seedGoogleReviewCycle(): Promise<void> {
-  await seedBase()
+async function seedGoogleReviewCycle(t: Tenant = BASE_TENANT): Promise<void> {
+  await seedBase(t)
   await pool.query(
     `INSERT INTO inbox_response_target_organization_policies (
        organization_id, target_kind, duration_minutes, policy_version,
        updated_by, created_at, updated_at
      ) VALUES ($1, 'google_review_response', 60, 1, 'user-reminder-release-00001', $2, $2)`,
-    [ORG, OPENED_AT],
+    [t.org, OPENED_AT],
   )
   await pool.query(
-    `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id,
-       external_location_id, rating, reviewed_at, expires_at,
-       source_epoch, source_revision, source_observation_sequence,
-       analysis_sequence, ai_source_byte_length, ai_source_digest,
-       source_content_state, created_at, updated_at
-     ) VALUES (
-       $1, $2, $3, 'google', 'external-reminder-release', 'locations/release-test',
-       4, $4, $5, 0, 1, 0, 1, 1, $6, 'active', $4, $4
-     )`,
+    `WITH identity AS (
+       INSERT INTO reviews (
+         id, organization_id, property_id, platform, external_id,
+         external_location_id, expires_at, first_fetched_at,
+         source_epoch, source_revision, source_observation_sequence,
+         analysis_sequence, source_content_state, created_at, updated_at
+       ) VALUES (
+         $1, $2, $3, 'google', 'external-reminder-release', 'locations/release-test', $5, $4,
+         0, 1, 0, 1, 'active', $4, $4
+       )
+       RETURNING id
+     ) INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, rating, reviewed_at, content_expires_at,
+       first_fetched_at, last_fetched_at, source_epoch, source_revision,
+       ai_source_byte_length, ai_source_digest
+     ) SELECT id, $2, $3, 'google', 'external-reminder-release', 'locations/release-test', 4, $4,
+       $5, $4, $4, 0, 1, 1, $6 FROM identity`,
     [
-      REVIEW,
-      ORG,
-      PROPERTY,
+      t.review,
+      t.org,
+      t.property,
       OPENED_AT,
       new Date('2027-08-28T08:00:00.000Z'),
       '0'.repeat(64),
@@ -135,9 +170,9 @@ async function seedGoogleReviewCycle(): Promise<void> {
        $1, 1, $2, $3, 0, 'review-material-v1', $4, $4, 4,
        'reminder release review', 'measured', $5, 'active', $5, $5
      )`,
-    [REVIEW, ORG, PROPERTY, '1'.repeat(64), OPENED_AT],
+    [t.review, t.org, t.property, '1'.repeat(64), t.startAt ?? OPENED_AT],
   )
-  await commandStore().createItem(reviewItem(), null, {
+  await commandStore().createItem(reviewItem(t), null, {
     sourceRevision: 1,
     openedReason: 'review_observed',
     actorType: 'provider',
@@ -146,13 +181,13 @@ async function seedGoogleReviewCycle(): Promise<void> {
     responseTarget: {
       reviewAuthority: {
         authority: 'review.current-response-target.v1',
-        organizationId: ORG,
-        propertyId: PROPERTY,
-        reviewId: REVIEW,
+        organizationId: t.org,
+        propertyId: t.property,
+        reviewId: t.review,
         sourceEpoch: 0,
         materialReviewRevision: 1,
         eligibility: 'measured',
-        responseTargetStartAt: OPENED_AT,
+        responseTargetStartAt: t.startAt ?? OPENED_AT,
         rating: null,
       },
       targetStart: { basis: 'review_provenance' },
@@ -274,6 +309,23 @@ describe.sequential('Reminder release in two steps (PostgreSQL)', () => {
     await expect(
       targets.listDueReminderCandidates({ now: DUE, limit: 0 }),
     ).rejects.toThrow('Reminder batch limit must be 1–100')
+  })
+
+  it("keeps the oldest slots first and in order, then adds each other Organization's slots after them", async () => {
+    await seedGoogleReviewCycle()
+    await seedGoogleReviewCycle(OTHER_TENANT)
+    const now = new Date(DUE.getTime() + 2 * MINUTE)
+    const everything = await targets.listDueReminderCandidates({ now, limit: 100 })
+    expect(everything.map((c) => c.organizationId)).toContain(OTHER_TENANT.org)
+
+    const listed = await targets.listDueReminderCandidates({ now, limit: 1, extra: 3 })
+
+    expect(listed[0]?.key).toEqual(everything[0]?.key)
+    expect(listed.length).toBeGreaterThan(1)
+    expect(listed.map((c) => c.organizationId)).toContain(OTHER_TENANT.org)
+    for (const candidate of everything) {
+      expect(listed.map((c) => c.key)).toContainEqual(candidate.key)
+    }
   })
 
   it('takes no lock while listing: a writer holding the target row neither blocks it nor is blocked', async () => {

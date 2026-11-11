@@ -107,8 +107,6 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     organizationId: organizationId(IDS.organization),
     text: REPLY_TEXT,
     replyLanguageTag: 'en-Latn',
-    templateId: null,
-    templateVersion: null,
     status: 'pending_approval',
     source: 'internal',
     createdBy: userId(IDS.author),

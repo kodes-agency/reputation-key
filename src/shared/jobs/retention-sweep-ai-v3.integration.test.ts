@@ -1,10 +1,8 @@
-// Decision 16 of the v3 contract, against real PostgreSQL: the retention sweep
-// deletes a Review Analysis v3 derivative 24 months after it was generated, takes
-// every row that hangs from it in the same statement, spares a derivative that
-// has not expired and the v2 analyses that still wait for their own rule, and
-// deletes a day's star counts 24 calendar months after the day they count. The
-// rules are the production ones, confined to this suite's tenant.
+// The production retention rule deletes expired v3 analyses with all dependent
+// mentions, corrections and contributions, while keeping unexpired and v2 rows.
+// Queries are confined to this suite's tenant.
 
+import { sql } from 'drizzle-orm'
 import type { Job } from 'bullmq'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -23,19 +21,15 @@ const PROPERTY_ID = '7a300000-0000-4000-8000-000000000002'
 const RUN_AT = new Date('2026-10-29T12:00:00.000Z')
 const GENERATED_AT = new Date('2026-09-08T10:00:00.000Z')
 const DAY_MS = 24 * 60 * 60 * 1000
-const SUBJECTS = [
-  'ai_review_analyses.v3_expired',
-  'ai_property_review_population_daily.expired',
-] as const
 
 let lease: TestLease
 let db: Database
 let fixture: AiAnalysisFixture
 let sequence = 0
 
-/** The two production AI rules, confined to this suite's Organization. */
+/** The production analysis rule, confined to this suite's Organization. */
 const confinedRules = RETENTION_RULES.filter((rule) =>
-  (SUBJECTS as readonly string[]).includes(rule.subject),
+  rule.subject.startsWith('ai_'),
 ).map((rule) => ({
   ...rule,
   extraWhere: `${rule.extraWhere === undefined ? '' : `(${rule.extraWhere}) AND `}organization_id = '${ORGANIZATION_ID}'`,
@@ -146,27 +140,6 @@ const WHOLE = {
 } as const
 const GONE = Object.fromEntries(TABLES.map((table) => [table, 0]))
 
-async function insertDay(localDate: string, updatedAt: Date): Promise<void> {
-  await lease.pool.query(
-    `INSERT INTO ai_property_review_population_daily
-       (organization_id, property_id, local_date, source_epoch, property_profile_version,
-        calendar_profile_version, review_count, text_review_count, rating_1_count,
-        rating_2_count, rating_3_count, rating_4_count, rating_5_count,
-        population_revision, updated_at)
-     VALUES ($1, $2, $3, 0, 1, 'property-calendar-v1', 3, 1, 1, 0, 0, 0, 2, 1, $4)`,
-    [ORGANIZATION_ID, PROPERTY_ID, localDate, updatedAt],
-  )
-}
-
-async function daysLeft(): Promise<readonly string[]> {
-  const result = await lease.pool.query(
-    `SELECT local_date::text AS local_date FROM ai_property_review_population_daily
-     WHERE organization_id = $1 ORDER BY local_date`,
-    [ORGANIZATION_ID],
-  )
-  return result.rows.map((row) => row.local_date as string)
-}
-
 describe.sequential('Review Analysis v3 retention sweep (real PostgreSQL)', () => {
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL)
@@ -181,10 +154,6 @@ describe.sequential('Review Analysis v3 retention sweep (real PostgreSQL)', () =
 
   beforeEach(async () => {
     await fixture.reset()
-    await lease.pool.query(
-      `DELETE FROM ai_property_review_population_daily WHERE organization_id = $1`,
-      [ORGANIZATION_ID],
-    )
     await lease.pool.query(`DELETE FROM retention_runs WHERE started_at = $1`, [RUN_AT])
   })
 
@@ -192,6 +161,34 @@ describe.sequential('Review Analysis v3 retention sweep (real PostgreSQL)', () =
     await lease.pool.query(`DELETE FROM retention_runs WHERE started_at = $1`, [RUN_AT])
     await fixture?.remove()
     await lease?.release()
+  })
+
+  it('sweeps retained analysis derivatives', async () => {
+    const expired = await seedAnalysis(
+      'review-analysis-v3',
+      new Date(RUN_AT.getTime() - DAY_MS),
+    )
+    await seedMentions(expired)
+    {
+      const handler = createRetentionSweepHandler({
+        db,
+        clock: () => RUN_AT,
+        rules: confinedRules,
+      })
+      await handler({} as Job)
+      const result = await db.execute<{ count: number }>(
+        sql`SELECT count(*)::int AS count FROM ai_review_analyses WHERE review_id = ${expired.reviewId}::uuid`,
+      )
+      expect(result.rows[0]?.count).toBe(0)
+      const runs = await db.execute(
+        sql`SELECT subject, outcome FROM retention_runs WHERE started_at = ${RUN_AT} ORDER BY subject`,
+      )
+      expect(runs.rows).toEqual([
+        { subject: 'ai_property_issue_groups.expired', outcome: 'completed' },
+        { subject: 'ai_review_analyses.v3_expired', outcome: 'completed' },
+      ])
+    }
+    expect(await rowsLeft(expired)).toEqual(GONE)
   })
 
   it('deletes an expired v3 analysis with every row that hangs from it', async () => {
@@ -269,19 +266,7 @@ describe.sequential('Review Analysis v3 retention sweep (real PostgreSQL)', () =
     ])
   })
 
-  it('deletes the star counts of a day 24 calendar months on, whenever they were last updated', async () => {
-    await insertDay('2024-10-27', RUN_AT)
-    await insertDay('2024-10-30', GENERATED_AT)
-    await insertDay('2026-10-28', GENERATED_AT)
-
-    await sweep()
-
-    expect(await daysLeft()).toEqual(['2024-10-30', '2026-10-28'])
-  })
-
-  it('records content-free evidence for both subjects, and nothing else in a clean run', async () => {
-    await insertDay('2024-01-01', RUN_AT)
-
+  it('records content-free evidence for analysis and issue retention, and nothing else in a clean run', async () => {
     await sweep()
 
     const runs = await lease.pool.query(
@@ -291,7 +276,7 @@ describe.sequential('Review Analysis v3 retention sweep (real PostgreSQL)', () =
     )
     expect(runs.rows).toEqual([
       {
-        subject: 'ai_property_review_population_daily.expired',
+        subject: 'ai_property_issue_groups.expired',
         outcome: 'completed',
         error_code: null,
       },

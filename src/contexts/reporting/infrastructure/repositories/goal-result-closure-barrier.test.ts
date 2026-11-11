@@ -31,7 +31,6 @@ import { createGoalProgramRepository } from './goal-program.repository'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createAtomicMetricCommandStore } from '../../readings/metric-command-store.server'
 import { createReading } from '../../domain/metric-reading'
-import { createGoalOrganizationLifecycleAdapter } from '../adapters/goal-organization-lifecycle.adapter'
 
 const START = new Date('2026-09-01T00:00:00Z')
 const NOW = new Date('2026-10-04T00:00:00Z')
@@ -472,80 +471,4 @@ describe.sequential('Goal result closure barriers (integration)', () => {
       })
     },
   )
-
-  it('retries a concurrent organization hold, then drains the month to reach purge readiness', async () => {
-    const f = await fixture()
-    const closureLineageId = randomUUID()
-    const recoverableUntil = new Date('2026-11-01T00:00:00Z')
-    const closing = f.startClosure()
-    const suspender = await lease.pool.connect()
-    let committed = false
-    try {
-      await closing.reached
-      await suspender.query('BEGIN')
-      await suspender.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
-        `organization-lifecycle:${f.org}`,
-      ])
-      const updated = await suspender.query(
-        `UPDATE organization_lifecycle_authority SET state = 'closure_requested',
-          revision = revision + 1, closure_lineage_id = $2, closure_requested_at = $3,
-          recoverable_until = $4, reactivation_required = true, requested_by = 'operator',
-          request_reason_code = 'test_workspace', request_support_evidence_ref = 'test:closure',
-          last_transition_at = $3, last_actor_id = 'operator', last_reason_code = 'test_workspace',
-          last_support_evidence_ref = 'test:closure'
-         WHERE organization_id = $1`,
-        [f.org, closureLineageId, NOW, recoverableUntil],
-      )
-      expect(updated.rowCount).toBe(1)
-      closing.resume()
-      await expect(closing.pending).rejects.toMatchObject({ code: 'revision_conflict' })
-      await expect(f.persisted()).resolves.toMatchObject({
-        status: 'reconciling',
-        closureFacts: 0,
-      })
-      await suspender.query('COMMIT')
-      committed = true
-    } finally {
-      if (!committed) await suspender.query('ROLLBACK')
-      closing.resume()
-      await closing.pending.catch(() => undefined)
-      suspender.release()
-    }
-    const contributor = createGoalOrganizationLifecycleAdapter(getDb())
-    const request = {
-      organizationId: f.org,
-      closureLineageId,
-      lifecycleRevision: 1,
-      recoverableUntil,
-      occurredAt: NOW,
-    }
-    await expect(contributor.prepareClosing(request)).resolves.toMatchObject({
-      outcome: 'complete',
-    })
-    await lease.pool.query(
-      `UPDATE organization_lifecycle_authority SET state = 'closing',
-        revision = revision + 1, last_transition_at = $2,
-        last_actor_id = 'system', last_reason_code = 'closing_prepared',
-        last_support_evidence_ref = 'test:closing'
-       WHERE organization_id = $1`,
-      [f.org, NOW],
-    )
-    const readinessRequest = { ...request, lifecycleRevision: 2 }
-    await expect(contributor.verifyPurgeReadiness(readinessRequest)).rejects.toThrow(
-      'goal purge readiness blocked: 0 active program(s), 1 reconciling result(s)',
-    )
-    await expect(f.service.reconcileResult(f.reference)).resolves.toMatchObject({
-      status: 'closed',
-      evaluation: { value: 1, achieved: false },
-    })
-    await expect(f.persisted()).resolves.toMatchObject({
-      status: 'closed',
-      closureFacts: 1,
-    })
-    await expect(
-      contributor.verifyPurgeReadiness(readinessRequest),
-    ).resolves.toMatchObject({
-      outcome: 'complete',
-    })
-  })
 })

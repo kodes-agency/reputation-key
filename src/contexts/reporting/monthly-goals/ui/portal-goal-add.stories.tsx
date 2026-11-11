@@ -1,4 +1,4 @@
-// "Add a portal goal" under a manager's hands (PLAN PG-20; copy deck M-1…M-14):
+// "Add a portal goal" under a manager's hands:
 // the choice (with the average closed under 10 private ratings), a goal for one
 // portal from its number step (Reception · December, 20 · 22 · 24), each portal
 // (a new Spa unticked, and a row the save could not keep), a group, the average,
@@ -153,7 +153,7 @@ async function expectTheChoice(sheet: Sheet) {
   await expect(sheet.getByRole('button', { name: 'Next' })).toBeDisabled()
 }
 
-/** M-2…M-8: what to add; Next waits for a choice; Cancel hands the focus back. */
+/** What to add; Next waits for a choice; Cancel hands the focus back. */
 export const Choose: Story = {
   play: async ({ canvasElement }) => {
     const { sheet, in: inSheet } = await openSheet(canvasElement)
@@ -198,7 +198,7 @@ export const ChooseLight: Story = {
   parameters: { theme: 'light' },
 }
 
-/** M-6: under 10 private ratings in 4 weeks the average is closed, and says why. */
+/** Under 10 private ratings in 4 weeks the average is closed, and says why. */
 export const AverageDisabled: Story = {
   args: { options: ADD_AVERAGE_DISABLED },
   play: async ({ canvasElement }) => {
@@ -218,7 +218,7 @@ async function choose(sheet: Sheet, name: RegExp) {
   await userEvent.click(sheet.getByRole('button', { name: 'Next' }))
 }
 
-/** M-9, M-10, M-12: one portal, its own usual, and 22 set as recommended. */
+/** One portal, its own usual, and 22 set as recommended. */
 export const OnePortal: Story = {
   play: async ({ canvasElement }) => {
     const { in: sheet } = await openSheet(canvasElement)
@@ -274,7 +274,7 @@ export const Phone320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
-/** M-11, M-12: each portal; Spa is new and unticked, so 2 goals are sent. */
+/** Each portal; Spa is new and unticked, so 2 goals are sent. */
 export const EachPortal: Story = {
   args: { options: ADD_EACH_OCT_23 },
   play: async ({ canvasElement }) => {
@@ -308,7 +308,7 @@ export const EachPortal: Story = {
   },
 }
 
-/** M-13: a row the save could not keep says so; the sheet stays for it. */
+/** A row the save could not keep says so; the sheet stays for it. */
 export const EachPortalRowFailed: Story = {
   args: { options: ADD_EACH_OCT_23 },
   play: async ({ canvasElement }) => {
@@ -359,7 +359,7 @@ export const EachPortalAfterOneFailed: Story = {
   },
 }
 
-/** M-5: a group's own number, from its members' usual. */
+/** A group's own number, from its members' usual. */
 export const Group: Story = {
   play: async ({ canvasElement }) => {
     const { in: sheet } = await openSheet(canvasElement)
@@ -382,7 +382,7 @@ export const Group: Story = {
   },
 }
 
-/** M-14: the average's box starts empty; 4.5 typed is the manager's own. */
+/** The average's box starts empty; 4.5 typed is the manager's own. */
 export const Average: Story = {
   play: async ({ canvasElement }) => {
     const { in: sheet } = await openSheet(canvasElement)
@@ -419,7 +419,7 @@ export const OldLinkOpensOnAPortal: Story = {
   },
 }
 
-/** M-9: a closed card says "Has a goal" and links to the goal that holds it. */
+/** A closed card says "Has a goal" and links to the goal that holds it. */
 async function expectHeld(
   sheet: Sheet,
   radio: RegExp,
@@ -438,7 +438,7 @@ const RECEPTION_GOAL = {
   programId: 'c0000000-0000-4000-8000-000000000001',
 }
 
-/** M-9: a portal that has a goal is closed, with a link to that goal. */
+/** A portal that has a goal is closed, with a link to that goal. */
 export const PortalHasAGoal: Story = {
   args: { options: ADD_RECEPTION_HELD },
   play: async ({ canvasElement }) => {
@@ -465,7 +465,7 @@ function ReadAgainHarness() {
   )
 }
 
-/** M-9 after a race: Reception was taken while its number step was open. */
+/** After a race: Reception was taken while its number step was open. */
 export const PortalTakenAMomentAgo: Story = {
   render: () => <ReadAgainHarness />,
   play: async ({ canvasElement }) => {
@@ -493,7 +493,7 @@ const AVERAGE_GOAL = {
   programId: 'c0000000-0000-4000-8000-000000000002',
 }
 
-/** M-9 on the choice: an average that has a goal is closed, with a link to it. */
+/** On the choice: an average that has a goal is closed, with a link to it. */
 export const AverageHasAGoal: Story = {
   args: {
     options: {

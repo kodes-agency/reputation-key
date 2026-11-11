@@ -3,7 +3,7 @@ import type { Database } from '#/shared/db'
 import type {
   StaffSelfReader,
   StaffSelfParticipation,
-} from '../../application/ports/staff-self-reader.port'
+} from '../../staff/staff-self-reader.port.server'
 
 export const createStaffSelfReader = (
   db: Database,

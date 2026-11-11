@@ -10,7 +10,7 @@ export type PortalGoalRatio = Readonly<{ num: string; den: string }>
 
 export type Choices = Readonly<{
   usual: number
-  /** The recommended number (P-3). */
+  /** The recommended number. */
   aBitMore: number
   stretch: number
   /**

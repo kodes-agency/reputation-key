@@ -101,13 +101,13 @@ describe('operational tooling quality coverage', () => {
     // 2 === "error". A script that no element pattern matches must fail the
     // lint, otherwise it silently escapes the dependency policy entirely.
     await expect(
-      ruleSeverity('scripts/ops/privacy-request.ts', 'boundaries/no-unknown-files'),
+      ruleSeverity('scripts/ops/rights-request.ts', 'boundaries/no-unknown-files'),
     ).resolves.toBe(2)
   })
 
   it('enforces the boundary dependency policy on production scripts', async () => {
     await expect(
-      ruleSeverity('scripts/ops/privacy-request.ts', 'boundaries/dependencies'),
+      ruleSeverity('scripts/ops/rights-request.ts', 'boundaries/dependencies'),
     ).resolves.toBe(2)
   })
 

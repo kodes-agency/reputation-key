@@ -5,6 +5,7 @@
 // an Account Admin with Portals writes on, and a refusal is shown in place.
 
 import { useState } from 'react'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Button } from '#/components/ui/button'
 
 const TAKEDOWN_FAILED = 'The photo could not be taken down. Try again.'
@@ -78,11 +79,7 @@ export function PhotoTakedown({ onTakeDown, onDone, onBusyChange, disabled }: Pr
           Keep it
         </Button>
       </div>
-      {message ? (
-        <p role="alert" className="text-sm text-negative">
-          {message}
-        </p>
-      ) : null}
+      <FormErrorBanner error={message} />
     </div>
   )
 }

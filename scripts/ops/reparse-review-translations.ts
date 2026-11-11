@@ -5,8 +5,8 @@
 //
 //   (Translated by Google) <translation>\n\n(Original)\n<original>
 //
-// The provider adapter stored that raw, so `reviews.text` held a two-language
-// blob. `reviews.language_code` is NULL for every row (Google sends no language
+// The provider adapter stored that raw, so `review_source_contents.text` held a two-language
+// blob. `review_source_contents.language_code` is NULL for every row (Google sends no language
 // field), which makes local cld3 detection the ONLY language signal — and it was
 // reading Google's English translation instead of the guest's words. Measured on
 // the closed-beta property: 8 Bulgarian reviews scored as reliable English (an
@@ -107,8 +107,8 @@ function createReviewTranslationStore(db: Database): ReviewTranslationStore {
       // truncated comment from being mistaken for an envelope.
       (
         await db.execute(sql`
-          SELECT id, property_id, rating, text, reviewer_name, language_code, reviewed_at
-          FROM reviews
+          SELECT review_id AS id, property_id, rating, text, reviewer_name, language_code, reviewed_at
+          FROM review_source_contents
           WHERE text LIKE '(Translated by Google)%'
             AND position('(Original)' IN text) > 0
             ${propertyId === null ? sql`` : sql`AND property_id = ${propertyId}::uuid`}
@@ -117,13 +117,13 @@ function createReviewTranslationStore(db: Database): ReviewTranslationStore {
       ).rows as unknown as readonly WrappedReviewRow[],
     repair: async (reviewId, repair) => {
       await db.execute(sql`
-        UPDATE reviews
+        UPDATE review_source_contents
         SET text = ${repair.text},
             translated_text = ${repair.translatedText},
             content_hash = ${repair.contentHash},
             ai_source_digest = ${repair.aiSourceDigest},
             ai_source_byte_length = ${repair.aiSourceByteLength}
-        WHERE id = ${reviewId}::uuid
+        WHERE review_id = ${reviewId}::uuid
       `)
     },
   }

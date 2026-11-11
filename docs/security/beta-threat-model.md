@@ -129,7 +129,7 @@
    it names in quotation marks; every other message is replaced whole.
    Better Auth `APIError`s surface the library's own message or a status-keyed
    fallback. Invited registration returns fixed copy only
-   (`src/contexts/identity/application/use-cases/register-invited-user.ts`);
+   (`src/contexts/identity/members/register-invited-user.server.ts`);
    provider and driver text never reaches the client.
    The invitation preview (`getInvitationPreview`) is an anonymous,
    rate-limited read keyed by the invitation ID, which is a bearer secret

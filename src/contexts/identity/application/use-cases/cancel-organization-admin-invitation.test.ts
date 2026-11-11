@@ -3,7 +3,7 @@ import { invitationId, organizationId, userId } from '#/shared/domain/ids'
 import type {
   OrganizationAdministration,
   PlatformOrganizationStore,
-} from '../ports/platform-organization-store.port'
+} from '../../operator/platform-organization-store.port.server'
 import type { PlatformOperatorActor } from '../dto/platform-console.dto'
 import { cancelOrganizationAdminInvitation } from './cancel-organization-admin-invitation'
 
@@ -13,7 +13,6 @@ const OPERATOR: PlatformOperatorActor = { userId: userId('user-operator'), name:
 const ownerless: OrganizationAdministration = {
   organizationId: organizationId('org-new'),
   name: 'Hotel Riviera',
-  lifecycleState: 'active',
   accountAdminCount: 0,
   openAdminInvitationIds: [invitationId('inv-open')],
 }
@@ -68,17 +67,6 @@ describe('cancelOrganizationAdminInvitation', () => {
       },
       'user-operator',
     )
-  })
-
-  it('still cancels on an ownerless Organization that is no longer active', async () => {
-    const { cancel, cancelAdminInvitation } = setup({
-      ...ownerless,
-      lifecycleState: 'closure_requested',
-    })
-
-    await cancel(INPUT, OPERATOR)
-
-    expect(cancelAdminInvitation).toHaveBeenCalledOnce()
   })
 
   it('logs the cancellation content-free: no identifiers, no address', async () => {

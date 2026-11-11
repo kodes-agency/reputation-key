@@ -1,5 +1,5 @@
 // The Monthly portal goal's set sheet as its host opens it on the goal's own
-// page, `/goals/portals` (PLAN PG-13): the page drawn as the route draws it,
+// page, `/goals/portals`: the page drawn as the route draws it,
 // with the host's sheet and the page's title handed in as the goal's title. The
 // card draws no title there, so a goal set from the sheet (from "Change" on the
 // ready card, or "Set a number anyway" after a stop) leaves the focus on the

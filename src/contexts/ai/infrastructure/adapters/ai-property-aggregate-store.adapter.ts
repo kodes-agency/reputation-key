@@ -1,10 +1,10 @@
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   aiPropertyAggregateContributions,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
-  aiReviewAnalysisAspects,
   reviews,
 } from '#/shared/db/schema'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
@@ -131,12 +131,20 @@ export const createAiPropertyAggregateStoreAdapter = (
         }
         const [currentReview] = await tx
           .select({
-            rating: sql<number>`${reviews.rating}`,
+            rating: sql<number>`${reviewSourceContents.rating}`,
             localDate: sql<string | null>`ai_property_local_date_v1(
-              ${reviews.reviewedAt}, ${analysis.timezone}
+              ${reviewSourceContents.reviewedAt}, ${analysis.timezone}
             )::text`,
           })
           .from(reviews)
+          .innerJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),
@@ -146,8 +154,8 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(reviews.sourceRevision, input.sourceRevision),
               eq(reviews.analysisSequence, input.analysisSequence),
               eq(reviews.sourceContentState, 'active'),
-              isNotNull(reviews.rating),
-              isNotNull(reviews.reviewedAt),
+              isNotNull(reviewSourceContents.rating),
+              isNotNull(reviewSourceContents.reviewedAt),
             ),
           )
           .limit(1)
@@ -171,31 +179,7 @@ export const createAiPropertyAggregateStoreAdapter = (
           primaryCategory: analysis.primaryCategory,
           attention: analysis.attention,
         }
-        // A v3 analysis has mentions, not aspects (migration 0078).
         const mentions = analysis.analysisProfileVersion === 'review-analysis-v3'
-        if (analysis.status === 'ready' && !mentions) {
-          const aspects = await tx
-            .select({ aspect: aiReviewAnalysisAspects.aspect })
-            .from(aiReviewAnalysisAspects)
-            .where(
-              and(
-                eq(aiReviewAnalysisAspects.organizationId, input.organizationId),
-                eq(aiReviewAnalysisAspects.propertyId, input.propertyId),
-                eq(aiReviewAnalysisAspects.reviewId, input.reviewId),
-                eq(aiReviewAnalysisAspects.sourceEpoch, input.sourceEpoch),
-                eq(aiReviewAnalysisAspects.sourceRevision, input.sourceRevision),
-                eq(aiReviewAnalysisAspects.analysisSequence, input.analysisSequence),
-              ),
-            )
-            .for('share')
-          if (
-            aspects.length > 5 ||
-            (aspects.length === 0 &&
-              analysis.analysisProfileVersion !== 'review-analysis-v1')
-          ) {
-            throw new Error('Property analysis aspect rows are invalid')
-          }
-        }
         const head = await lockAggregateHead(tx, input)
         if (settlement === 'replayed') {
           return { status: 'replayed', aggregateRevision: head.aggregateRevision }
@@ -312,23 +296,7 @@ export const createAiPropertyAggregateStoreAdapter = (
             latest.sentiment AS sentiment,
             latest.attention AS attention,
             analysis.issue_label AS "issueLabel",
-            COALESCE((
-              SELECT jsonb_agg(
-                jsonb_build_object(
-                  'aspect', contribution_aspect.aspect,
-                  'polarity', contribution_aspect.polarity,
-                  'intensity', contribution_aspect.intensity
-                )
-                ORDER BY contribution_aspect.aspect
-              )
-              FROM ai_review_analysis_aspects AS contribution_aspect
-              WHERE contribution_aspect.organization_id = latest.organization_id
-                AND contribution_aspect.property_id = latest.property_id
-                AND contribution_aspect.review_id = latest.review_id
-                AND contribution_aspect.source_epoch = latest.source_epoch
-                AND contribution_aspect.source_revision = latest.source_revision
-                AND contribution_aspect.analysis_sequence = latest.analysis_sequence
-            ), '[]'::jsonb) AS aspects,
+            '[]'::jsonb AS aspects,
             analysis.analysis_profile_version AS "analysisProfileVersion",
             ${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}::text AS "providerDeploymentProfileVersion",
             ${OPENAI_MODEL_SNAPSHOT}::text AS "modelSnapshot"

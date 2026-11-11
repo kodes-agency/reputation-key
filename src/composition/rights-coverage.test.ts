@@ -19,22 +19,10 @@ const executors = composeRightsExecutors(
   false,
 )
 
-/** Tables a cascade removes that the schema barrel does not export. */
-const CASCADE_ONLY_TABLES: ReadonlySet<string> = new Set([
-  'ai_review_analysis_aspects',
-  'ai_property_aggregate_contribution_aspects',
-  'ai_property_daily_aspect_aggregates',
-])
-
 /** Tables an erasure keeps on purpose, with the reason. */
 const RETAINED: Readonly<Record<string, string>> = {
   organization_lifecycle_events: 'lifecycle evidence',
-  organization_lifecycle_authority: 'lifecycle authority; erasure requires its state',
   backup_erasure_ledger: 'erasure evidence',
-  privacy_requests: 'erasure evidence',
-  property_erase_authorities: 'erasure evidence',
-  organization_exports: 'export evidence',
-  organization_export_retrieval_issuances: 'export evidence',
   merchant_ai_consent_evidence: 'append-only consent proof; a guard refuses deletes',
   merchant_ai_enablement: 'deletable only by the Identity transition function',
   operational_action_history_heads: 'legal-hold evidence, never touched',
@@ -63,12 +51,10 @@ const KNOWN_GAPS: Readonly<Record<TenantScope, ReadonlyArray<string>>> = {
     'merchant_ai_decision_deferrals',
     'merchant_ai_notice_update_receipts',
     'outbox_events',
-    'policy_consent',
     'product_update_receipts',
     'product_update_settings',
     'properties',
     'property_access_grant',
-    'property_access_grants',
     'property_responsible_managers',
     'work_items',
   ],
@@ -118,7 +104,7 @@ describe('rights coverage', () => {
     const unknown = executors.flatMap((executor) =>
       Object.values(executor.tables)
         .flat()
-        .filter((table) => !known.has(table) && !CASCADE_ONLY_TABLES.has(table))
+        .filter((table) => !known.has(table))
         .map((table) => `${executor.name}: ${table}`),
     )
 

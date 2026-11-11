@@ -1,5 +1,6 @@
 import {
   GetBucketLifecycleConfigurationCommand,
+  GetBucketVersioningCommand,
   GetObjectCommand,
   ListObjectsV2Command,
   PutBucketLifecycleConfigurationCommand,
@@ -59,7 +60,9 @@ const JOURNAL_EXPIRY_RULE: LifecycleRule = {
   NoncurrentVersionExpiration: { NoncurrentDays: ERASURE_JOURNAL_EXPIRY_DAYS },
 }
 
-function journalExpiryIsConfigured(rules: readonly LifecycleRule[]): boolean {
+function findJournalExpiryRule(
+  rules: readonly LifecycleRule[],
+): LifecycleRule | undefined {
   const existing = rules.find(({ ID }) => ID === EXPIRY_RULE_ID)
   if (
     existing &&
@@ -67,12 +70,19 @@ function journalExpiryIsConfigured(rules: readonly LifecycleRule[]): boolean {
   ) {
     throw new Error('Journal expiry rule ID is already used by another filter')
   }
+  return existing
+}
+
+function hasCurrentExpiry(rule: LifecycleRule | undefined): boolean {
   return (
-    existing?.Status === 'Enabled' &&
-    existing.Expiration?.Days === ERASURE_JOURNAL_EXPIRY_DAYS &&
-    !existing.Expiration.Date &&
-    existing.NoncurrentVersionExpiration?.NoncurrentDays === ERASURE_JOURNAL_EXPIRY_DAYS
+    rule?.Status === 'Enabled' &&
+    rule.Expiration?.Days === ERASURE_JOURNAL_EXPIRY_DAYS &&
+    !rule.Expiration.Date
   )
+}
+
+function hasNoncurrentExpiry(rule: LifecycleRule | undefined): boolean {
+  return rule?.NoncurrentVersionExpiration?.NoncurrentDays === ERASURE_JOURNAL_EXPIRY_DAYS
 }
 
 function nextListingCursor(
@@ -114,7 +124,13 @@ export class ErasureJournalBucket {
       rules = []
     }
     assertJournalRetention(rules)
-    if (journalExpiryIsConfigured(rules)) return transitionSize
+    const existing = findJournalExpiryRule(rules)
+    if (
+      hasCurrentExpiry(existing) &&
+      (hasNoncurrentExpiry(existing) || !(await this.isVersioned()))
+    ) {
+      return transitionSize
+    }
     if (!apply) throw new Error('Erasure journal 45-day expiry is not configured')
     await this.client.send(
       new PutBucketLifecycleConfigurationCommand({
@@ -133,6 +149,16 @@ export class ErasureJournalBucket {
     if (transitionSize !== undefined && afterTransitionSize !== transitionSize)
       throw new Error('Bucket transition size policy was not preserved')
     return afterTransitionSize
+  }
+
+  // Providers drop the noncurrent clause on an unversioned bucket, so it is
+  // required only where old versions can exist.
+  private async isVersioned(): Promise<boolean> {
+    const response = await this.client.send(
+      new GetBucketVersioningCommand({ Bucket: this.bucket }),
+      { abortSignal: AbortSignal.timeout(DEADLINE_MS) },
+    )
+    return response.Status === 'Enabled' || response.Status === 'Suspended'
   }
 
   async put(key: string, bytes: string): Promise<void> {

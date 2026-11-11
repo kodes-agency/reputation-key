@@ -15,7 +15,7 @@ type Box = Readonly<{
   onStep: (to: number) => void
 }>
 
-/** M-10: a goal for one Portal or one group. */
+/** A goal for one Portal or one group. */
 export function PortalGoalAddNumber({
   model,
   ...box
@@ -48,7 +48,7 @@ export function PortalGoalAddNumber({
   )
 }
 
-/** M-6, M-14: the Property's average private rating. */
+/** The Property's average private rating. */
 export function PortalGoalAddAverage({
   model,
   ...box

@@ -58,3 +58,15 @@ the declared-capability deploy step, the AI control, restore-verify and purge
 scripts; there is no global binding. An entry point built without it refuses at
 the first purge or fence, and `composition/reply-scope-effects.test.ts` proves
 each one passes it.
+
+## Provider content
+
+`content/store.server.ts` writes the stable Review identity and the independently
+expiring `review_source_contents` row in the observation transaction. Provider
+values and renewable fetch clocks are written only to that content row; the nullable old
+columns remain in the schema and erasure still clears retained copies. Review's
+observation repository keeps material-revision comparison and history, including
+the observation text comparison needs. Serving, AI freshness, sync and lifecycle
+reads use the content row. Only a provider fetch can renew its expiry. The Review retains its connection
+for the database publication guard and its first-fetch history for re-observation
+after erasure; neither is served as provider content.

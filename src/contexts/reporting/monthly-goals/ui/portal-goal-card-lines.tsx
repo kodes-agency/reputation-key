@@ -23,7 +23,7 @@ export function SheetLink({
   )
 }
 
-/** G-30 and G-31: the month before, met with a check, otherwise in neutral words. */
+/** The month before, met with a check, otherwise in neutral words. */
 export function LastMonthLine({
   words,
 }: Readonly<{ words: NonNullable<ReturnType<typeof lastMonthWords>> }>) {
@@ -42,7 +42,7 @@ export function LastMonthLine({
   )
 }
 
-/** K-7: December keeps the recommended number it has, and "Change" to the sheet. */
+/** December keeps the recommended number it has, and "Change" to the sheet. */
 export function SameNumberLine({
   goal,
   openSheet,
@@ -62,7 +62,7 @@ export function SameNumberLine({
   )
 }
 
-/** G-28: the goal's page, as a tap target like the first goal's. */
+/** The goal's page, as a tap target like the first goal's. */
 export function Details({ propertyId }: Readonly<{ propertyId: string }>) {
   return (
     <GoalCardActions>

@@ -21,16 +21,13 @@ import type {
 } from '#/shared/ops/rights/rights-executor'
 import type { StoragePort } from '../../application/ports/storage.port'
 import { createPortalOrganizationExportContributor } from './portal-organization-export.adapter'
-import { PORTAL_PURGE_PLAN } from './portal-organization-lifecycle.adapter'
+import { PORTAL_PURGE_PLAN } from './portal-organization-erasure'
 
 const CONTEXT = 'portal'
 const LOCK_TIMEOUT = '5s'
 
 /** Tables that carry no `property_id`: they hang off a Portal or a group. */
-const PORTAL_KEYED_TABLES: ReadonlySet<string> = new Set([
-  'portal_link_categories',
-  'portal_group_members',
-])
+const PORTAL_KEYED_TABLES: ReadonlySet<string> = new Set(['portal_link_categories'])
 
 export type PortalRightsScope = Readonly<{
   organizationId: string
@@ -122,7 +119,7 @@ async function erasePortalScopeInTx(
 
 async function assertReady(tx: Tx, scope: PortalRightsScope): Promise<void> {
   if (scope.propertyId) return
-  await assertOrganizationHeld(tx, scope.organizationId)
+  assertOrganizationHeld(scope.organizationId)
   await assertNothingLive(tx, scope.organizationId)
 }
 

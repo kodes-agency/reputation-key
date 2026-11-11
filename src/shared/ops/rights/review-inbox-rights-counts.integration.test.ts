@@ -66,7 +66,7 @@ const REVIEW_PROBES: ReadonlyArray<Probe> = [
     where: DIRECT,
     scrub: {
       key: 't.id::text',
-      done: `t.source_content_state <> 'active' AND t.text IS NULL`,
+      done: `t.source_content_state <> 'active'`,
     },
   },
   {
@@ -201,7 +201,7 @@ function planFor(argv: string[]) {
     dryRun: !parsed.args.apply,
     batchSize: parsed.args.batchSize,
   } as unknown as OperatorContext
-  return planRightsRequest(ctx, parsed.args, { production: false })
+  return planRightsRequest(ctx, parsed.args)
 }
 
 const quietStore: RightsJournalStore = { put: async () => {}, alert: () => {} }

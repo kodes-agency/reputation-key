@@ -1315,9 +1315,7 @@ const UTILITY_LAYER = `@layer utilities {
  * The two goal rows at each story viewport: both drawn, both named, each with
  * its two switches. This runner compiles no Tailwind, so the widths read here
  * are unstyled block layout: they show no fixed size forces a row wider than
- * its frame, not that the styled row fits. Whether "Google rating goal", the
- * longest label the rows have had, pushes a control out on a phone is measured
- * with compiled Tailwind in `e2e/storybook-metrics/notification-goal-rows.metrics.ts`.
+ * its frame, not that the styled row fits.
  */
 const goalRowsAt = (
   viewport: 'mobileNarrow' | 'mobileStaff' | 'tablet' | 'desktopManager',

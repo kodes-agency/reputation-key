@@ -15,12 +15,6 @@ import { createDisplayNameLookupAdapter } from '../infrastructure/adapters/displ
 import { buildOrganizationPayload } from '../infrastructure/notification-payload-facts'
 import { createNotificationDbUserLookupAdapter } from '../infrastructure/adapters/notification-db-user-lookup.adapter'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../infrastructure/jobs/insert-notification.job'
-import { createNotificationOrganizationEmailStopReader } from '../infrastructure/repositories/notification-organization-email-stop.repository'
-import {
-  isEmailStopped,
-  type OrganizationEmailStop,
-} from '../domain/organization-email-stop'
-import type { NotificationCategory } from '../domain/notification-types'
 import {
   getFormerMemberRemovals,
   getNotificationHistory,
@@ -64,7 +58,6 @@ export type NotificationRightsPort = Readonly<{
   formerMembers: (organizationId: string) => Promise<readonly ScopedRightsRow[]>
   accountAdmins: (organizationId: string) => Promise<readonly string[]>
   rowCounts: (scope: NotificationRightsScope) => Promise<NotificationPurgeCounts>
-  emailStop: (organizationId: string) => Promise<OrganizationEmailStop>
   /** The Organization's name, so the notice can say which one it is about. */
   organizationPayload: (organizationId: string) => Promise<NotificationPayload>
   purge: (
@@ -91,11 +84,6 @@ export type NotificationRightsResult = Readonly<{
   /** The access export, present for report and access runs; never printed. */
   exportJson?: string
 }>
-
-const SAMPLE_CATEGORIES: readonly NotificationCategory[] = [
-  'mandatory',
-  'workflow_collaboration',
-]
 
 function scopeOf(request: NotificationRightsRequest): NotificationRightsScope {
   return {
@@ -208,15 +196,10 @@ async function report(
   request: NotificationRightsRequest,
 ): Promise<NotificationRightsResult> {
   const data = await readAll(port, request)
-  const stop = await port.emailStop(request.organizationId)
-  const held = SAMPLE_CATEGORIES.filter((category) => isEmailStopped(stop, category))
   const lines = [
     `notifications: ${data.history.length}`,
     `preferences: ${data.preferences.length}`,
     `user settings: ${data.userSettings.length}`,
-    `optional mail: ${stop === 'none' ? 'flowing' : 'held'} (stop=${stop}; mandatory mail ${
-      held.includes('mandatory') ? 'held' : 'still sent'
-    })`,
   ]
   if (request.scope !== 'access') {
     const held = await port.rowCounts(scopeOf(request))
@@ -321,7 +304,6 @@ export function createNotificationRightsPort(
       (await users.findByRole(brandOrganization(organizationId), 'AccountAdmin')).map(
         unbrand,
       ),
-    emailStop: createNotificationOrganizationEmailStopReader(db),
     organizationPayload: (organizationId) =>
       buildOrganizationPayload(names, brandOrganization(organizationId)),
     rowCounts: (scope) => countNotificationRightsData(db, scope),

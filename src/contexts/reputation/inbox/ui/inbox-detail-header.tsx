@@ -66,8 +66,7 @@ type Props = Readonly<{
  * 320 — 390 less the sheet's 1 px `border-l`, 40 padding, 36 back + 36 copy
  * menu, 16 for the two `gap-2`s, plus the 10 px the back button's `-ml-2.5`
  * hands back. `scrollWidth === innerWidth` at both widths, before and after.
- * The committed gate for the rule behind them (every control >= 36 px, no
- * overflow) is `e2e/storybook-metrics/inbox-detail.metrics.ts`.
+ * The rule behind them is every control >= 36 px and no overflow.
  *
  * Phone grid since then: a 44 px bar with a 16 px gutter (`max-md:h-11
  * max-md:px-4`), and no `border-l` on the sheet below `sm`. The same sum is

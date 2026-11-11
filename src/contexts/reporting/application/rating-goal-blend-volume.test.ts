@@ -1,11 +1,9 @@
-// Property Google rating goal — the notice-volume check of the blend (round 4,
-// owner X3, condition d).
+// Property Google rating goal — the notice-volume check of the blend.
 //
-// Twenty-four representative goals (the four golden Properties of rounds 3
-// and 4, each with new reviews as planned, 0.3★ below plan or too low for the
+// Twenty-four representative goals (four representative Properties, each with new reviews as planned, 0.3★ below plan or too low for the
 // target, at the chosen pace or half of it) run through the daily evaluation
 // for 26 weeks on a seeded review stream. Before the blend a goal's numbers
-// switched from the plan to the since-set average at the tenth review (R2-5);
+// switched from the plan to the since-set average at the tenth review;
 // now they blend from the first. The check pins what that changes:
 //   - the notices: none, by construction. The evaluation and its notices never
 //     read the forecast average (neither imports trackingMix, asserted below),
@@ -17,7 +15,7 @@
 //     as reachable on many days (the built one returns their own average then,
 //     condition a, so its zero is a regression guard), and before the tenth
 //     review it would read a goal that is not too low as unreachable, a verdict
-//     R2-5 holds to ten (20 goal-days, against 0 for the switch); the built one
+//     the ten-review hold (20 goal-days, against 0 for the switch); the built one
 //     holds the blend at the target's minimum quality then, so it never does.
 // docs/plan/google-rating-goal.md quotes these numbers.
 import { readFileSync } from 'node:fs'
@@ -241,7 +239,7 @@ function disagreements(days: readonly Day[]): Disagreements {
 
 const ALWAYS_STORED = { recordEvaluation: async () => true }
 
-/** The R2-5 switch this PR replaced, as the reference. */
+/** The earlier switch, as the reference. */
 const switchedMix = (plan: number, sinceSet: RatingTotals): Ratio =>
   sinceSet.count >= QUALITY_VERDICT_MIN_REVIEWS
     ? ratio(sinceSet.sum, sinceSet.count)

@@ -103,7 +103,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/identity/infrastructure/repositories/merchant-ai-standing-renewal.repository.ts',
+    file: 'src/contexts/identity/consent/merchant-ai-standing-renewal.repository.server.ts',
     symbol: 'listLapsed',
     reason:
       'The standing-renewal sweep lists enabled heads on a lapsed notice across tenants with one indexed read; each Property is then renewed in its own transaction, which re-reads the head by organization and Property and rechecks its state version.',
@@ -250,13 +250,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/property/infrastructure/property-erase-command-store.ts',
-    symbol: 'nextAdvanceable',
-    reason:
-      'The globally serialized erase worker intentionally claims exactly one advanceable authority across tenants and returns its complete tenant identity.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/review/infrastructure/repositories/reply.repository.ts',
     symbol: 'findDuePublicationBatch',
     reason:
@@ -297,13 +290,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     reason:
       'The daily retention sweep blanks superseded observation copies past their content clock across tenants, oldest clock first in bounded batches, joining each row to its Review on Organization; it returns a count only.',
     category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts',
-    symbol: 'findCurrentReviewIdsByAspect',
-    reason:
-      "The EXISTS subquery ties aspect mentions to the analysis row on Organization and Property; findCurrentAnalysisReviewIds, which embeds it, restricts the analysis rows to the caller's Organization.",
-    category: 'TENANT-CORRELATED',
   },
   {
     file: 'src/contexts/ai/replay/backlog-store.server.ts',
@@ -373,6 +359,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     symbol: 'reopenSpentReviewAnalyses',
     reason:
       'The operator command ops:ai-reopen-analyses finds Properties with spent review analysis, for one Property or with `all` across tenants, and reopens each one inside transactions scoped to its Organization and Property, as reopenAbandoned does.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/reporting/infrastructure/adapters/retired-readings-erasure.adapter.ts',
+    symbol: 'count',
+    reason:
+      'The operator command ops:erase-retired-readings counts the retired property.review readings and their corrections, for one Organization or across tenants in a dry run; it returns the Organization id and two numbers per row and no reading content.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {

@@ -57,20 +57,19 @@ async function seedProperty(
     await q(
       `INSERT INTO reviews (
          id, organization_id, property_id, platform, external_id, external_location_id,
-         reviewer_name, rating, text, language_code, reviewed_at, expires_at,
-         content_expires_at, source_epoch, source_revision, source_observation_sequence,
-         analysis_sequence, ai_source_byte_length, ai_source_digest, source_content_state,
-         created_at, updated_at
-       ) VALUES ($1, $2, $3, 'google', $4, 'locations/counts', 'REVIEWER', 4, 'TEXT', 'en',
-                 $5, $6, $6, 0, 1, 1, 1, 24, $7, 'active', $5, $5)`,
-      [reviewId, org, propertyId, `external-${reviewId}`, AT, EXPIRES_AT, DIGEST],
+         expires_at, source_epoch, source_revision, source_observation_sequence,
+         analysis_sequence, source_content_state, created_at, updated_at
+       ) VALUES ($1, $2, $3, 'google', $4, 'locations/counts', $6, 0, 1, 1, 1, 'active', $5, $5)`,
+      [reviewId, org, propertyId, `external-${reviewId}`, AT, EXPIRES_AT],
     )
     await q(
       `INSERT INTO review_source_contents (
          review_id, organization_id, property_id, platform, external_id, external_location_id,
-         rating, reviewed_at, last_fetched_at, content_expires_at, source_epoch,
-         source_revision, ai_source_byte_length, ai_source_digest)
-       VALUES ($1, $2, $3, 'google', $4, 'locations/counts', 4, $5, $5, $6, 0, 1, 24, $7)`,
+         reviewer_name, rating, text, language_code, reviewed_at, last_fetched_at,
+         content_expires_at, source_epoch, source_revision, ai_source_byte_length,
+         ai_source_digest)
+       VALUES ($1, $2, $3, 'google', $4, 'locations/counts', 'REVIEWER', 4, 'TEXT', 'en',
+               $5, $5, $6, 0, 1, 24, $7)`,
       [reviewId, org, propertyId, `content-${reviewId}`, AT, EXPIRES_AT, DIGEST],
     )
     await q(

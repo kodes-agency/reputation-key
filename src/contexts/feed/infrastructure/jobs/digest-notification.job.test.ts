@@ -1139,53 +1139,6 @@ describe('a frozen digest that loses a row', () => {
   })
 })
 
-describe('an Organization that has asked to close', () => {
-  it('suppresses its due digest rows instead of mailing them', async () => {
-    const deps = baseDeps()
-    deps.organizationEmailStop.mockResolvedValue('optional')
-
-    await runHandler(deps)
-
-    expect(deps.organizationEmailStop).toHaveBeenCalledWith(ORG)
-    expect(deps.emailSender.send).not.toHaveBeenCalled()
-    expect(deps.emailRepo.prepareDigestBatch).not.toHaveBeenCalled()
-    for (const property of [PROP_A, PROP_B]) {
-      expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
-        entryFor(property).id,
-        organizationId(ORG),
-        property,
-        'organization_closing',
-        NOW,
-      )
-    }
-  })
-
-  it('closes an open batch instead of retrying it', async () => {
-    const first = baseDeps()
-    await runHandler(first)
-    const openBatch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)
-      .batch
-    const deps = baseDeps({
-      openBatch,
-      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
-    })
-    deps.organizationEmailStop.mockResolvedValue('optional')
-
-    await runHandler(deps)
-
-    expect(deps.emailSender.send).not.toHaveBeenCalled()
-    expect(deps.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        batchId: openBatch.id,
-        settlement: expect.objectContaining({
-          kind: 'invalidated',
-          reason: 'organization_closing',
-        }),
-      }),
-    )
-  })
-})
-
 describe('due rows whose work is no longer waiting', () => {
   // A digest gathers a day of rows. "Follow-up reopened" handled at noon must
   // not still be asking for attention in the next morning's digest.

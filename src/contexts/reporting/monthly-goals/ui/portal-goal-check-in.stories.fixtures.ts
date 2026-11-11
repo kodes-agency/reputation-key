@@ -1,4 +1,4 @@
-// The month-start check-in's story fixtures (PLAN PG-15, golden G4): Seaview's
+// The month-start check-in's story fixtures: Seaview's
 // goal of 40 private ratings a month, running since November, read on Dec 1 to
 // 8. The 4 weeks to Nov 30 at Reception, Restaurant and Spa brought in 34, so a
 // 31-day December gets about 38: Use 45, Keep 40. On Dec 3 the offer is the
@@ -22,7 +22,7 @@ import {
   OFFER_SCANS,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
 
-/** K-10: December as a whole month, from the 4 weeks to Nov 30. */
+/** December as a whole month, from the 4 weeks to Nov 30. */
 const DECEMBER_WHOLE: PortalGoalOffer = {
   ...OFFER_NOVEMBER,
   month: '2026-12',
@@ -45,7 +45,7 @@ const DECEMBER_WHOLE: PortalGoalOffer = {
   newPortals: [],
 }
 
-/** W-5 on Dec 3: the 29 days left on top of the 3 that count, from the 4 weeks to Dec 2. */
+/** Dec 3: the 29 days left on top of the 3 that count, from the 4 weeks to Dec 2. */
 const DECEMBER_REST: PortalGoalOffer = {
   ...DECEMBER_WHOLE,
   current: true,
@@ -58,7 +58,7 @@ const DECEMBER_REST: PortalGoalOffer = {
 
 const DECEMBER = { month: '2026-12', measure: 'portal_rating_count', target: 40 } as const
 
-/** G4: Use 45, Keep 40. */
+/** Use 45, Keep 40. */
 export const CHECK_IN_OFFER: Extract<PortalGoalCheckIn, { kind: 'offer' }> = {
   ...DECEMBER,
   kind: 'offer',
@@ -113,7 +113,7 @@ function withGoal(
   }
 }
 
-/** K-1: November while it is read, 36 of 40 so far, final on Dec 2. */
+/** November while it is read, 36 of 40 so far, final on Dec 2. */
 const NOVEMBER_SO_FAR: PortalGoalLastMonth = {
   key: '2026-11',
   measure: 'portal_rating_count',
@@ -129,7 +129,7 @@ export const CARD_CHECK_IN = withGoal(CARD_LAST_MONTH_UPDATING, {
   checkIn: CHECK_IN_OFFER,
 })
 
-/** Dec 3: November closed, met (K-6, G-31), and December still asks. */
+/** Dec 3: November closed, met, and December still asks. */
 export const CARD_CHECK_IN_CLOSED_MET = withGoal(CARD_LAST_MONTH_MET, {
   checkIn: CHECK_IN_OFFER_DEC_3,
 })

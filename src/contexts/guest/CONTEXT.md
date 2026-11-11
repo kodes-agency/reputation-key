@@ -18,8 +18,8 @@ and the separately consented but inactive Contact Request backend.
 - Rating/feedback bodies, contact material, session/network pseudonyms, and media
   remain Guest-owned. Inbox consumes identifier-only lifecycle facts.
 - Contact Request has no domain event, log value, notification value, analytics dimension, Inbox field, AI input, or search field. Only content-free scope, lifecycle, authority basis, and reveal timestamps are retained.
-- Lifecycle export and purge contributors remain outside `publicApi`; irreversible
-  purge is reachable only through the reviewed Identity lifecycle coordinator.
+- Export and purge run through the manual rights request command
+  (`docs/operations/rights-requests.md`); neither is on `publicApi`.
 - Not exported, and not queried: `guest_contact_requests` and its reveal audits (`portal.guest_contact` is safety-blocked, so exporting them would be an activation by the back door), `guest_response_session_bindings`, the `guest_qualified_scan` and `guest_destination_action` scopes in `idempotency_receipts`, `guest_network_pressure_records`, legacy `session_id`/`ip_hash` columns, and the rating/feedback source event ids.
 
 ## Model
@@ -173,7 +173,6 @@ takes its actor as data and decides nothing about who may use it, so no server f
 may expose it to a manager.
 
 Cleanup remains live even while `portal.guest_contact` is hard-blocked; it cannot submit, read, reveal, or withdraw a request.
-Organization closure waits for Guest outbox publication before scrubbing guest-authored values.
 
 ## Published direct Google journey
 

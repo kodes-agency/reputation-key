@@ -132,14 +132,11 @@ describe('which notices a settling fact retires', () => {
     expect(settled.filter((type) => !ACTIONABLE_NOTIFICATION_TYPES.has(type))).toEqual([])
   })
 
-  it('takes back the final deletion warning, the one warning a later fact retracts', () => {
-    expect(settledNotificationTypes('organization.purge_cancelled')).toEqual([
-      'account.organization_purge_pending',
-    ])
-    expect(isSettleableNotificationType('account.organization_purge_pending')).toBe(true)
+  it('settles only actionable and retractable types', () => {
     expect(isSettleableNotificationType('account.organization_access_removed')).toBe(
       false,
     )
+    expect(isSettleableNotificationType('account.organization_purge_pending')).toBe(true)
   })
 
   it('names only real notification types as actionable', () => {

@@ -11,7 +11,7 @@ import {
 import {
   appendBackupErasureHoldReleaseEvent,
   readBackupErasureHoldReleaseEvents,
-} from './organization-lifecycle-receipt-store'
+} from './backup-erasure-hold-release'
 import type { Tx } from '#/shared/outbox/commit'
 
 export type { BackupErasureLedgerContext, BackupErasureSubjectClass }

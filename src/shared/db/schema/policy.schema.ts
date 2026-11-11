@@ -3,7 +3,6 @@
 // property_access_grant: user ↔ property access with scope/source/lifecycle —
 //   the authoritative grant model used by execution-policy decisions. Tenant
 //   consistency is enforced by a composite FK to properties(organization_id, id).
-// policy_consent: governed consent state.
 
 import { sql } from 'drizzle-orm'
 import {
@@ -16,7 +15,7 @@ import {
   check,
   foreignKey,
 } from 'drizzle-orm/pg-core'
-import { organization, user } from './auth'
+import { user } from './auth'
 import { properties } from './property.schema'
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
@@ -55,33 +54,5 @@ export const propertyAccessGrant = pgTable(
     index('property_access_grant_user_idx')
       .on(t.organizationId, t.userId)
       .where(sql`${t.revokedAt} IS NULL`),
-  ],
-)
-
-export const policyConsent = pgTable(
-  'policy_consent',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: text('organization_id')
-      .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
-    subjectType: text('subject_type').notNull(),
-    subjectId: text('subject_id').notNull(),
-    purpose: text('purpose').notNull(),
-    state: text('state').notNull().default('granted'),
-    recordedBy: text('recorded_by'),
-    recordedAt: timestamptz('recorded_at').notNull().defaultNow(),
-    expiresAt: timestamptz('expires_at'),
-    revokedAt: timestamptz('revoked_at'),
-  },
-  (t) => [
-    check(
-      'policy_consent_subject_check',
-      sql`${t.subjectType} IN ('organization', 'property', 'user')`,
-    ),
-    check('policy_consent_state_check', sql`${t.state} IN ('granted', 'revoked')`),
-    uniqueIndex('policy_consent_active_unique')
-      .on(t.organizationId, t.subjectType, t.subjectId, t.purpose)
-      .where(sql`${t.state} = 'granted'`),
   ],
 )

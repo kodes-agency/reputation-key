@@ -1,5 +1,5 @@
-// What the card read says a change to the Monthly portal goal is made against
-// (PLAN PG-14): the running month while its number can still change, the month
+// What the card read says a change to the Monthly portal goal is made against:
+// the running month while its number can still change, the month
 // a change from a coming month starts with, and the month the sheet opens on;
 // and, once the goal was stopped, the month a new goal can start in.
 import { describe, expect, it } from 'vitest'

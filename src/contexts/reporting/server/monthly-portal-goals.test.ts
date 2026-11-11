@@ -304,7 +304,6 @@ describe('setMonthlyPortalGoal', () => {
   it.each([
     ['subject_has_goal', 409],
     ['start_month_changed', 409],
-    ['organization_closing', 409],
     ['invalid_target', 400],
   ] as const)('answers %s with HTTP %i', async (code, status) => {
     mocks.set.mockRejectedValue(new GoalProgramError(code))
@@ -315,7 +314,7 @@ describe('setMonthlyPortalGoal', () => {
   })
 })
 
-describe('Add a portal goal (PG-20)', () => {
+describe('Add a portal goal', () => {
   const PORTAL_ID = '00000000-0000-4000-8000-000000000003'
   const one = {
     propertyId: PROPERTY_ID,
@@ -426,7 +425,7 @@ describe('Add a portal goal (PG-20)', () => {
   })
 })
 
-describe('the change and stop commands (PG-14)', () => {
+describe('the change and stop commands', () => {
   const PROGRAM_ID = '00000000-0000-4000-8000-000000000003'
   const goal = { propertyId: PROPERTY_ID, programId: PROGRAM_ID }
   const now = {
@@ -542,7 +541,7 @@ describe('the change and stop commands (PG-14)', () => {
     expect(changeMonthlyPortalGoalNowSchema.safeParse(now).success).toBe(true)
     expect(reviseMonthlyPortalGoalSchema.safeParse(fromNext).success).toBe(true)
     expect(stopMonthlyPortalGoalSchema.safeParse(goal).success).toBe(true)
-    // The average's level, in tenths, now or from its next month (PG-21); a
+    // The average's level, in tenths, now or from its next month; a
     // count's whole number is the engine's to require, by what the goal measures.
     expect(
       changeMonthlyPortalGoalNowSchema.safeParse({ ...now, targetValue: 4.6 }).success,
@@ -578,7 +577,7 @@ describe('the change and stop commands (PG-14)', () => {
   })
 })
 
-describe("the month-start check-in's Keep (PG-15)", () => {
+describe("the month-start check-in's Keep", () => {
   const keep = {
     propertyId: PROPERTY_ID,
     programId: '00000000-0000-4000-8000-000000000003',
@@ -639,7 +638,7 @@ describe("the month-start check-in's Keep (PG-15)", () => {
   })
 })
 
-describe("the Overview prompt's Not now and a Portal's Results line (PG-16)", () => {
+describe("the Overview prompt's Not now and a Portal's Results line", () => {
   const notNow = { propertyId: PROPERTY_ID, month: '2026-11' } as const
   const line = {
     propertyId: PROPERTY_ID,
@@ -724,7 +723,7 @@ describe("the Overview prompt's Not now and a Portal's Results line (PG-16)", ()
   })
 })
 
-describe('getPortalGoalSinglePage (PG-21)', () => {
+describe('getPortalGoalSinglePage', () => {
   const PROGRAM_ID = '00000000-0000-4000-8000-000000000004'
   const ofTheGoal = { propertyId: PROPERTY_ID, programId: PROGRAM_ID }
 

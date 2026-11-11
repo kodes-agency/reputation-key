@@ -119,7 +119,7 @@ type GoalShape = Readonly<{
   open?: Readonly<{ start: Date; end: Date; target?: number }>
   /** Its other months, earlier ones first. */
   months?: readonly MonthShape[]
-  /** Whom it counts: the Property unless said (a Portal's or a group's goal, PG-21). */
+  /** Whom it counts: the Property unless said (a Portal's or a group's goal). */
   subject?: GoalSubject
   /** What it is called: "Monthly portal goal" unless said. */
   name?: string

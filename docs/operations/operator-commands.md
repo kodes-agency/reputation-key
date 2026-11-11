@@ -66,21 +66,6 @@ The commands:
      AND l.updated_at > t.updated_at;
   ```
 
-  ```sql
-  -- portal-group-members-without-membership: a row of the legacy
-  -- portal_group_members mirror with no matching active
-  -- portal_group_memberships row. The Organization Export no longer carries the
-  -- mirror, so each row must be represented in the membership table (which the
-  -- Staff export carries); no rows means nothing is dropped.
-  SELECT m.organization_id, m.portal_group_id, m.portal_id
-    FROM portal_group_members m
-    LEFT JOIN portal_group_memberships g
-      ON g.organization_id = m.organization_id
-     AND g.portal_group_id = m.portal_group_id
-     AND g.portal_id = m.portal_id AND g.effective_to IS NULL
-   WHERE g.id IS NULL;
-  ```
-
 - Legacy avatar and logo addresses (round 4, slice 47j) — one read-only SQL query, run against the database of each environment. Migration 0053 clears them at deploy (before new code serves); run it before and after, and expect no rows after. A cleared picture shows the person's initials until they upload again.
 
   ```sql
@@ -139,7 +124,7 @@ The commands:
 - `ops:restore-preflight` — guided runbook §8 restore preflight (isolated-target check, journal readability, backup-window checklist); NOT a PITR executor — restore is platform-owned. Refuses to start unless `RESTORE_MODE=isolated` is set and no Redis, queue or bucket setting is carried. §8
 - `ops:restore-verify` — isolated restore report and recovery apply (requires `RESTORE_MODE=isolated` plus an attested loopback/Railway PITR sibling target, and refuses every Redis, queue or bucket setting). Dry-run emits bounded aggregate inventories. Apply requires `--reason <text> --apply --yes closed-beta-v2`; missing or wrong confirmation refuses before runtime boot. It logs the environment, operator and time, then reserves or resumes durable Review checkpoints before retention and the recovery fence. See `review-lifecycle-recovery-approval.md`. It takes `journal=<file>` (the local erasure journal export), refuses a malformed or altered file before any work, and on apply re-applies the journaled erasures through the resurrection fence; apply without a journal refuses. §8
 - Current on Google has no operator mutation or standalone rebuild command. Review publishes its content-minimal aggregate only after a double-scan-verified provider run and bounded reconciliation; Metric stores it outside bounded-period readings and hides it after a source-epoch rebind.
-- Organization lifecycle has an Identity-owned request/status/recoverable-cancel application seam, quarantined bounded worker families, and a read-only `ops:report-organization-lifecycle` diagnostic. It still has no manager route, mutating independently authorized operator command, reviewed contributor set, cleanup/export/purge apply, or reactivation command. Follow `organization-lifecycle.md`. Never clear the Organization suspension merely because a lifecycle request was canceled.
+- Organization closure has no in-app runtime or operator command. Suspend an Organization with `BETA_SUSPENDED_ORGS`; export and erase its data with `ops:rights-request`. Follow `organization-lifecycle.md`.
 
 ### Operator console (web)
 

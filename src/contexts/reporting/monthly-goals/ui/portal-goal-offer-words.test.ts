@@ -86,7 +86,7 @@ describe('the ready card, in words', () => {
       asksEveryGuest: false,
       use: 'Use 55 scans',
       setToast: 'November goal set: 55 scans',
-      // P-2: scans come first, and private ratings are one tap away.
+      // scans come first, and private ratings are one tap away.
       door: { label: 'Set a private ratings number', measure: 'portal_rating_count' },
     })
   })

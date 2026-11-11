@@ -10,7 +10,7 @@ import {
   createIdentityPropertyRightsExecutor,
   createStaffOrganizationRightsExecutor,
 } from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
-import { STAFF_LIFECYCLE_TABLES } from '#/contexts/identity/infrastructure/adapters/staff-organization-lifecycle.adapter'
+import { STAFF_LIFECYCLE_TABLES } from '#/contexts/identity/infrastructure/adapters/staff-organization-erasure'
 import { createPropertyRightsExecutor } from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
@@ -23,6 +23,7 @@ import { createGoogleRightsExecutor } from './google-rights-executor'
 import { runRightsExecutors, type RightsExecutor } from './rights-executor'
 import { createRightsJournal, type RightsJournalStore } from './rights-journal'
 import { planRightsRequest, rightsRequestCommandSpec } from './rights-request-command'
+import { holdRightsOrganization } from '#/shared/db/testing/rights-isolation-fixture'
 
 const CREATED_AT = new Date('2026-08-01T00:00:00.000Z')
 const NOW = new Date('2026-11-09T12:00:00.000Z')
@@ -119,12 +120,6 @@ async function seedTenant(): Promise<Tenant> {
       [tenant.organizationId, propertyId, tenant.userId, CREATED_AT],
     )
     await q(
-      `INSERT INTO property_access_grants
-         (organization_id, property_id, user_id, kind, granted_by)
-       VALUES ($1, $2, $3, 'manage', $3)`,
-      [tenant.organizationId, propertyId, tenant.userId],
-    )
-    await q(
       `INSERT INTO property_access_grant
          (organization_id, property_id, user_id, source, created_by)
        VALUES ($1, $2, $3, 'operator', $3)`,
@@ -137,7 +132,6 @@ async function seedTenant(): Promise<Tenant> {
 const PROPERTY_TABLES = [
   ['properties', 'id'],
   ['property_responsible_managers', 'property_id'],
-  ['property_access_grants', 'property_id'],
   ['property_access_grant', 'property_id'],
 ] as const
 
@@ -220,7 +214,6 @@ async function cleanup(tenant: Tenant): Promise<void> {
   const q = lease.pool.query.bind(lease.pool)
   for (const table of [
     'property_access_grant',
-    'property_access_grants',
     'property_responsible_managers',
     ...[...STAFF_LIFECYCLE_TABLES],
     'properties',
@@ -264,7 +257,7 @@ async function runScript(
     dryRun: !parsed.args.apply,
     batchSize: parsed.args.batchSize,
   } as unknown as OperatorContext
-  const planned = planRightsRequest(ctx, parsed.args, { production: false })
+  const planned = planRightsRequest(ctx, parsed.args)
   const out: string[] = []
   const err: string[] = []
   if (!planned.ok) return { exit: 1, out, err: [planned.error] }
@@ -333,7 +326,7 @@ describe.sequential('Property and Staff rights executors', () => {
       const out = result.out.join('\n')
       expect(out).toContain('property: properties 1')
       expect(out).toContain('property: property_responsible_managers 1')
-      expect(out).toContain('identity-grants: property_access_grants 1')
+      expect(out).toContain('identity-grants: property_access_grant 1')
       expect(await stringify(asked)).toBe(before)
     })
 
@@ -469,27 +462,6 @@ describe.sequential('Property and Staff rights executors', () => {
   })
 
   describe('organization scope', () => {
-    const lineage = new Map<string, string>()
-
-    async function closeOrganization(organizationId: string): Promise<void> {
-      const closureLineageId = randomUUID()
-      lineage.set(organizationId, closureLineageId)
-      await lease.pool.query(
-        `UPDATE organization_lifecycle_authority
-         SET state = 'closure_requested', revision = 1,
-             closure_lineage_id = $2, closure_requested_at = $3,
-             recoverable_until = $4, reactivation_required = true,
-             requested_by = 'admin:rights-test',
-             request_reason_code = 'test_workspace',
-             request_support_evidence_ref = 'test:closure-request',
-             last_transition_at = $3, last_actor_id = 'admin:rights-test',
-             last_reason_code = 'test_workspace',
-             last_support_evidence_ref = 'test:closure-request'
-         WHERE organization_id = $1`,
-        [organizationId, closureLineageId, CREATED_AT, NOW],
-      )
-    }
-
     async function seedStaff(tenant: Tenant): Promise<void> {
       const q = lease.pool.query.bind(lease.pool)
       const participantId = randomUUID()
@@ -570,7 +542,7 @@ describe.sequential('Property and Staff rights executors', () => {
       const other = await seedTenant()
       for (const tenant of [asked, other]) {
         await seedStaff(tenant)
-        await closeOrganization(tenant.organizationId)
+        holdRightsOrganization(tenant.organizationId)
       }
       const before = await staffRows(asked.organizationId)
       const otherBefore = await staffRows(other.organizationId)
@@ -641,7 +613,7 @@ describe.sequential('Property and Staff rights executors', () => {
     it('changes nothing when the journal write is rejected', async () => {
       const asked = await seedTenant()
       await seedStaff(asked)
-      await closeOrganization(asked.organizationId)
+      holdRightsOrganization(asked.organizationId)
       const before = await staffRows(asked.organizationId)
 
       const result = await runScript(

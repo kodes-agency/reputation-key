@@ -1,3 +1,4 @@
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import { adoptDraftMeasurement } from '#/shared/db/ai/draft-measurement-lineage'
 import { replyAiFrameReservations } from '#/shared/db/schema'
 import { isExecutionCompatibleWithConsent } from '#/shared/ai-runtime-capability-contract'
@@ -176,10 +177,18 @@ export const createAiSuggestedDraftStore = (
             sourceEpoch: reviews.sourceEpoch,
             sourceRevision: reviews.sourceRevision,
             sourceContentState: reviews.sourceContentState,
-            contentExpiresAt: reviews.contentExpiresAt,
+            contentExpiresAt: reviewSourceContents.contentExpiresAt,
             replyStateRevision: reviews.replyStateRevision,
           })
           .from(reviews)
+          .leftJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),
@@ -187,7 +196,7 @@ export const createAiSuggestedDraftStore = (
             ),
           )
           .limit(1)
-          .for('update')
+          .for('update', { of: reviews })
 
         const [existing] = await tx
           .select()
@@ -385,8 +394,6 @@ export const createAiSuggestedDraftStore = (
             {
               text: input.text,
               replyLanguageTag: provenance.concreteLanguageTag,
-              templateId: null,
-              templateVersion: null,
               templateLayer: null,
               templateRef: null,
               templateRevision: null,
@@ -421,8 +428,6 @@ export const createAiSuggestedDraftStore = (
             organizationId: input.organizationId,
             text: input.text,
             replyLanguageTag: provenance.concreteLanguageTag,
-            templateId: null,
-            templateVersion: null,
             voiceDigest: replyVoiceDigest ?? null,
             voiceChoices: replyV2VoiceChoices(provenance, bodyFrame),
             status: 'draft',
@@ -473,6 +478,14 @@ export const createAiSuggestedDraftStore = (
         const [adoptedReview] = await tx
           .select({ replyStateRevision: reviews.replyStateRevision })
           .from(reviews)
+          .leftJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),

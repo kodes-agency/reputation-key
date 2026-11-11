@@ -24,8 +24,8 @@ Reply publication, Portal/Guest data, metrics, goals, or notifications.
   `forbidden`. The permission is the one the read's surface is gated on:
   `dashboard.read` for `readReviewAnalysisProgress` and `inbox.read` for `readReviewAnalysis`, which Inbox calls through its
   `AiReviewInsightsPort` after it has authorized the item.
-- Not reader-authorized inside the context: the two review-id filters
-  (`findCurrentReviewIdsByAttention`, `findCurrentReviewIdsByAspect`), which
+- Not reader-authorized inside the context: the review-id filters
+  (`findCurrentReviewIdsByAttention`, `findCurrentReviewIdsByIssue`), which
   return identifiers only and which Inbox intersects with its own authorized
   item query; the Organization spend read; and the two commands
   (`generateReplySuggestion`, `requestReviewAnalysisNow`), whose only
@@ -89,9 +89,9 @@ the approval command and orphan-sequence release retain their existing roles.
 
 The active per-Property capabilities are Review Analysis and Reply Drafting.
 Guest voice reads completed Review Analysis. Property Trends has no scheduler,
-worker job, provider preparation or delivery endpoint. Its tables, recorded
-consent vocabulary and operation-profile attestations remain for retention,
-export and stored provenance; they confer no execution authority.
+worker job, provider preparation or delivery endpoint. Its empty tables remain declared pending schema contraction, with no runtime
+readers, writers or lifecycle entries. Recorded consent vocabulary and
+operation-profile attestations remain as stored provenance; they confer no execution authority.
 
 Both active capabilities require AccountAdmin authorization, live access, notice
 coverage, provider policy, platform gates and runtime admission controls.
@@ -149,7 +149,7 @@ rules, the epoch bump is the lever (it moves with a Merchant AI authorization
 transition, not a deploy); the options and their cost are listed in the pull
 request that carried the change.
 
-Changing what the canonicalizer produces is not a patch. The Review row stores a
+Changing what the canonicalizer produces is not a patch. The Review's source content row stores a
 digest and a byte length of the canonical text (`ai_source_digest`,
 `ai_source_byte_length`), `readForAi` recomputes them from the raw row, and the
 output store refuses a result whose operation digest differs from the Review's.
@@ -186,8 +186,8 @@ one byte over the limit (`REFUSED_AI_SOURCE_BYTE_LENGTH`) and a digest of the ra
 fields, so every AI reader denies it as `source_too_large` and analysis settles
 it as not analysable, exactly as for any oversize source. The review stays out
 of the aggregates and the Trend. Nothing logs, counts or alerts on it: the
-marker is the only trace, and `SELECT count(*) FROM reviews WHERE
-ai_source_byte_length = 16385 AND source_content_state = 'active'` sizes the
+marker is the only trace, and `SELECT count(*) FROM review_source_contents WHERE
+ai_source_byte_length = 16385` sizes the
 decision. A reply suggestion for such a review answers `source_changed`
 (`reply/generate-suggestion.server.ts` maps every status but `available` to it), which
 the author sees as a retryable failure, so the Inbox shows a suggestion button
@@ -365,8 +365,7 @@ Storage for it (migration 0078, `ai-review-analysis-v3.schema.ts`) is written by
 below, which the runtime catalogue has selected since the switch-on (2026-10-30):
 `ai_review_analysis_mentions` and `ai_review_analysis_mention_sentences` for the analysis,
 `ai_property_aggregate_contribution_mentions` for the same mentions under the contribution
-that retracts with them, `ai_property_review_population_daily` for the reviews of a local
-day by stars (star-only reviews included; nothing writes it yet, see "Not built" below),
+that retracts with them,
 `ai_review_analyses.urgent_reason`, and lineage
 columns on `ai_operations` (provider, model, request profile, vocabulary hint set,
 normalizer, and once settled the closed flags it raised). `ai_review_analyses_result_valid`
@@ -377,8 +376,7 @@ execution-control scopes also admit `provider` (`provider:openai`, `provider:ant
 nothing reads or seeds them yet (see "Left for the slices that need it" below).
 Every v3 derivative expires 24 months after it was generated: the sweep deletes the analysis
 on `expires_at` (`ai_review_analyses.v3_expired`, v3 rows only) and the three mention tables
-go with it by cascade; the daily star counts have a rule of their own, counted from the day
-they are for (`ai_property_review_population_daily.expired`). Nothing in them is a quote, a
+go with it by cascade. Nothing in them is a quote, a
 sentence, a name or a provider response.
 
 Vocabulary hints steer the `thing` of a v3 mention (`review-vocabulary-hints.ts`,
@@ -626,15 +624,11 @@ sentence. The Inbox reads it: `composition/inbox-ai-insights.ts` turns it into t
 manager's correction beside it), which the pane draws as cause chips and underlines in the guest's
 own words (`src/contexts/inbox/CONTEXT.md`).
 
-Not built: the `ai_property_review_population_daily` projection. Nothing writes the table; the
-turn-off, revoke and erasure paths and the 24-month sweep delete from it. It would follow a
-review's observation, update and deletion whether or not the review is analysed, so the analysis
-flow does not write it, and it needs a backfill of at least the earlier 12 months of reviews
-before any percentage or "worth up to" figure reads it. Guest voice does not read it: it counts
-from the live review population (`readTrendPopulation`), so no figure on a page is wrong for want
-of it. The merchant notice of 2026-10-30 and Privacy Notice 3.0 nevertheless say that daily
-counts of reviews by star rating are kept for 24 months, which holds only once this projector
-exists. Also left: including v3 derivatives in an organization export. The statistics that read
+The unused daily star-count projection remains declared only for schema contraction.
+Guest voice counts from the live review population (`readTrendPopulation`). Legacy
+aspect children and their daily projections have no runtime readers or writers;
+ready v2 output is not delivered or aggregated without its retired evidence.
+The child-free v1 scalar read remains available. Also left: including v3 derivatives in an organization export. The statistics that read
 the mentions (the Guest voice read model) and the wiring of `AiProviderChoicePort`, the runtime
 catalogue row and the served-contract constants (`isCurrentAuthorizedEffect`, the deployment
 profile string) serve the current analysis contract. Property issue assignment and its

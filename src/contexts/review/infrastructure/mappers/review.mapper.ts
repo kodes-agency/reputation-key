@@ -5,7 +5,6 @@ import type { reviews } from '#/shared/db/schema/review.schema'
 import type { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import type { Review } from '../../domain/types'
 import {
-  unbrand,
   reviewId,
   organizationId,
   propertyId,
@@ -14,13 +13,34 @@ import {
 import { reviewError } from '../../domain/errors'
 
 type ReviewRow = typeof reviews.$inferSelect
-type ReviewInsertRow = typeof reviews.$inferInsert
 type ReviewContentRow = typeof reviewSourceContents.$inferSelect
+
+/** The provider-content values a Review is built from. They live on the
+ * content row, not on the identity row. */
+export type ReviewContentFields = Readonly<{
+  reviewerName: string | null
+  reviewerProfilePhotoUrl: string | null
+  googleReviewUrl: string | null
+  rating: number | null
+  text: string | null
+  translatedText: string | null
+  languageCode: string | null
+  reviewedAt: Date | null
+  sourceCreatedAt: Date | null
+  sourceUpdatedAt: Date | null
+  lastFetchedAt: Date | null
+  contentExpiresAt: Date | null
+  contentHash: string | null
+  aiSourceByteLength: number | null
+  aiSourceDigest: string | null
+}>
+
+export type ReviewHeadRow = ReviewRow & ReviewContentFields
 
 const VALID_PLATFORMS = new Set<string>(['google'])
 const VALID_RATINGS = new Set<number>([1, 2, 3, 4, 5])
 
-export const reviewFromRow = (row: ReviewRow): Review => {
+export const reviewFromRow = (row: ReviewHeadRow): Review => {
   // F040: Validate platform and rating from DB rows instead of bare type assertions
   if (!VALID_PLATFORMS.has(row.platform)) {
     throw reviewError('invalid_row', `Invalid review platform from DB: ${row.platform}`, {
@@ -99,58 +119,45 @@ export const reviewFromRows = (row: ReviewRow, content: ReviewContentRow): Revie
     externalId: content.externalId,
     externalLocationId: content.externalLocationId,
     googleConnectionId: content.googleConnectionId,
-    reviewerName: content.reviewerName,
-    reviewerProfilePhotoUrl: content.reviewerProfilePhotoUrl,
-    googleReviewUrl: content.googleReviewUrl,
-    rating: content.rating,
-    text: content.text,
-    translatedText: content.translatedText,
-    languageCode: content.languageCode,
-    reviewedAt: content.reviewedAt,
-    sourceCreatedAt: content.sourceCreatedAt,
-    sourceUpdatedAt: content.sourceUpdatedAt,
+    expiresAt: content.contentExpiresAt,
     firstFetchedAt: content.firstFetchedAt,
-    lastFetchedAt: content.lastFetchedAt,
-    contentExpiresAt: content.contentExpiresAt,
-    contentHash: content.contentHash,
-    aiSourceByteLength: content.aiSourceByteLength,
-    aiSourceDigest: content.aiSourceDigest,
+    ...contentFields(content),
   })
 
-export const reviewToRow = (
-  review: Omit<Review, 'createdAt' | 'updatedAt'>,
-): ReviewInsertRow => ({
-  id: unbrand(review.id),
-  organizationId: unbrand(review.organizationId),
-  propertyId: unbrand(review.propertyId),
-  platform: review.platform,
-  externalId: review.externalId,
-  externalLocationId: review.externalLocationId,
-  googleConnectionId:
-    review.googleConnectionId != null ? unbrand(review.googleConnectionId) : null,
-  reviewerName: review.reviewerName,
-  reviewerProfilePhotoUrl: review.reviewerProfilePhotoUrl,
-  googleReviewUrl: review.googleReviewUrl,
-  rating: review.rating,
-  text: review.text,
-  translatedText: review.translatedText,
-  languageCode: review.languageCode,
-  reviewedAt: review.reviewedAt,
-  expiresAt: review.expiresAt,
-  sentimentLabel: review.sentimentLabel,
-  sentimentScore: review.sentimentScore,
-  sourceCreatedAt: review.sourceCreatedAt,
-  sourceUpdatedAt: review.sourceUpdatedAt,
-  firstFetchedAt: review.firstFetchedAt,
-  lastFetchedAt: review.lastFetchedAt,
-  contentExpiresAt: review.contentExpiresAt,
-  contentHash: review.contentHash,
-  sourceSeenGeneration: review.sourceSeenGeneration,
-  sourceEpoch: review.sourceEpoch,
-  sourceRevision: review.sourceRevision,
-  analysisSequence: review.analysisSequence,
-  aiSourceByteLength: review.aiSourceByteLength,
-  aiSourceDigest: review.aiSourceDigest,
-  sourceContentState: 'active',
-  sourceContentErasedAt: null,
+const contentFields = (content: ReviewContentRow): ReviewContentFields => ({
+  reviewerName: content.reviewerName,
+  reviewerProfilePhotoUrl: content.reviewerProfilePhotoUrl,
+  googleReviewUrl: content.googleReviewUrl,
+  rating: content.rating,
+  text: content.text,
+  translatedText: content.translatedText,
+  languageCode: content.languageCode,
+  reviewedAt: content.reviewedAt,
+  sourceCreatedAt: content.sourceCreatedAt,
+  sourceUpdatedAt: content.sourceUpdatedAt,
+  lastFetchedAt: content.lastFetchedAt,
+  contentExpiresAt: content.contentExpiresAt,
+  contentHash: content.contentHash,
+  aiSourceByteLength: content.aiSourceByteLength,
+  aiSourceDigest: content.aiSourceDigest,
+})
+
+/** A Review row whose content row is gone: every provider value is absent. */
+export const reviewHeadWithoutContent = (row: ReviewRow): ReviewHeadRow => ({
+  ...row,
+  reviewerName: null,
+  reviewerProfilePhotoUrl: null,
+  googleReviewUrl: null,
+  rating: null,
+  text: null,
+  translatedText: null,
+  languageCode: null,
+  reviewedAt: null,
+  sourceCreatedAt: null,
+  sourceUpdatedAt: null,
+  lastFetchedAt: null,
+  contentExpiresAt: null,
+  contentHash: null,
+  aiSourceByteLength: null,
+  aiSourceDigest: null,
 })

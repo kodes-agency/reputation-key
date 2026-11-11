@@ -36,16 +36,21 @@ async function insertReview(
   rating: number,
 ): Promise<void> {
   await db.execute(sql`
-    INSERT INTO reviews (
-      id, organization_id, property_id, platform, external_id,
+    INSERT INTO reviews (id, organization_id, property_id, platform,
+      source_epoch, source_revision, analysis_sequence)
+    VALUES (${id}, ${ORG}, ${property}, 'google', 0, 0, 0)
+  `)
+  await db.execute(sql`
+    INSERT INTO review_source_contents (
+      review_id, organization_id, property_id, platform, external_id,
       external_location_id, reviewer_name, rating, text, reviewed_at,
-      expires_at, content_expires_at, first_fetched_at, last_fetched_at,
-      source_epoch, source_revision, analysis_sequence,
+      content_expires_at, first_fetched_at, last_fetched_at,
+      source_epoch, source_revision,
       ai_source_byte_length, ai_source_digest
     ) VALUES (
       ${id}, ${ORG}, ${property}, 'google', ${`ext-${id.slice(-4)}`},
       ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, 'Jane', ${rating}, 'Stay', ${reviewedAt}::timestamptz,
-      now(), now() + interval '10 days', now(), now(), 0, 0, 0, 1, ${'0'.repeat(64)}
+      now() + interval '10 days', now(), now(), 0, 0, 1, ${'0'.repeat(64)}
     )
   `)
 }

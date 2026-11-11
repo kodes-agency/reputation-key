@@ -1,29 +1,28 @@
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { inboxItemId, organizationId, unbrand, userId } from '#/shared/domain/ids'
+import { inboxItemId, organizationId, userId } from '#/shared/domain/ids'
 import type { EscalationResolutionLookupPort } from '../application/ports/escalation-resolution-lookup.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import { resolveEscalationResolutionRecipients } from '../application/escalation-resolution-recipients'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 
 export const ON_INBOX_ESCALATION_RESOLVED_CONSUMER =
   'notification.on-inbox-escalation-resolved' as const
 
-export type EscalationResolutionNotificationConsumerDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  escalationResolutions: EscalationResolutionLookupPort
-  responsibleManagers: ResponsibleManagerLookupPort
-  userLookup: Pick<UserLookupPort, 'findByRole'>
-  /** The evidence of who was told the escalation was raised. */
-  notifications: Pick<NotificationRepositoryPort, 'findRecipientsOfNotice'>
-  /** Which scope the escalation went to, so the resolution follows it. */
-  inboxItemLookup: Pick<InboxItemLookupPort, 'findInboxItemFacts'>
-  receipts: Pick<OutboxRepository, 'insertReceipt'>
-}>
+export type EscalationResolutionNotificationConsumerDeps = NoticeDeliveryDeps &
+  Readonly<{
+    escalationResolutions: EscalationResolutionLookupPort
+    responsibleManagers: ResponsibleManagerLookupPort
+    userLookup: Pick<UserLookupPort, 'findByRole'>
+    /** The evidence of who was told the escalation was raised. */
+    notifications: Pick<NotificationRepositoryPort, 'findRecipientsOfNotice'>
+    /** Which scope the escalation went to, so the resolution follows it. */
+    inboxItemLookup: Pick<InboxItemLookupPort, 'findInboxItemFacts'>
+  }>
 
 type Payload = Readonly<{
   inboxItemId: string
@@ -67,7 +66,7 @@ function parse(event: ConsumerEvent): Parsed {
 export async function handleNotificationInboxEscalationResolved(
   deps: EscalationResolutionNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<ConsumerResult> {
   const payload = parse(event)
   const orgId = organizationId(payload.organizationId)
   const itemId = inboxItemId(payload.inboxItemId)
@@ -89,12 +88,9 @@ export async function handleNotificationInboxEscalationResolved(
     facts.resolvedAt?.getTime() !== payload.occurredAt.getTime() ||
     facts.resolvedBy !== resolvedBy
   ) {
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      ON_INBOX_ESCALATION_RESOLVED_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
+    return deliverNotices(deps, event, ON_INBOX_ESCALATION_RESOLVED_CONSUMER, [], {
+      status: 'obsolete',
+    })
   }
 
   const recipients = await resolveEscalationResolutionRecipients(deps, {
@@ -110,39 +106,26 @@ export async function handleNotificationInboxEscalationResolved(
     ? { propertyName: facts.propertyName }
     : {}
 
-  await Promise.all(
-    recipients.map((recipient) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipient,
-          organizationId: orgId,
-          propertyId: facts.propertyId,
-          type: 'inbox.escalation_resolved' as const,
-          resourceType: 'inbox_item' as const,
-          resourceId: itemId,
-          eventId: event.eventId,
-          payload: notificationPayload,
-          audience: {
-            kind: 'escalation_resolution' as const,
-            inboxItemId: itemId,
-            resolvedAt,
-            resolvedBy: facts.resolvedBy,
-          },
-        },
-        { jobId: `${event.eventId}-${unbrand(recipient)}` },
-      ),
-    ),
-  )
-
-  // The receipt is deliberately last. Any enqueue failure leaves the event
-  // retryable; stable job ids converge the successful subset on replay.
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  return deliverNotices(
+    deps,
+    event,
     ON_INBOX_ESCALATION_RESOLVED_CONSUMER,
-    'applied',
+    recipients.map((recipient) => ({
+      userId: recipient,
+      organizationId: orgId,
+      propertyId: facts.propertyId,
+      type: 'inbox.escalation_resolved' as const,
+      resourceType: 'inbox_item' as const,
+      resourceId: itemId,
+      payload: notificationPayload,
+      audience: {
+        kind: 'escalation_resolution' as const,
+        inboxItemId: itemId,
+        resolvedAt,
+        resolvedBy: facts.resolvedBy,
+      },
+    })),
   )
-  return { status: 'applied' }
 }
 
 export function registerEscalationResolutionNotificationConsumer(

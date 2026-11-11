@@ -8,6 +8,10 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import {
+  isOrganizationSuspended,
+  ORGANIZATION_NOT_SUSPENDED,
+} from '#/shared/db/lifecycle/assert-organization-held'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type { Tx } from '#/shared/outbox/commit'
 import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
@@ -16,13 +20,12 @@ import {
   assertStaffOutboxSettled,
   deleteStaffTenantRows,
   STAFF_LIFECYCLE_TABLES,
-} from './staff-organization-lifecycle.adapter'
+} from './staff-organization-erasure'
 
 const grants = createIdentityPropertyEraseContributor()
 
 const IDENTITY_GRANT_TABLES = Object.freeze([
   'merchant_ai_decision_deferrals',
-  'property_access_grants',
   'property_access_grant',
 ])
 
@@ -81,17 +84,9 @@ async function staffRowCounts(
   return lines
 }
 
-/** The Organization must be closing or later, and Staff must have nothing unpublished. */
+/** The Organization must be suspended, and Staff must have nothing unpublished. */
 async function staffPurgeRefusal(tx: Tx, organizationId: string): Promise<string | null> {
-  const state = await tx.execute(sql`
-    SELECT state FROM organization_lifecycle_authority
-    WHERE organization_id = ${organizationId}
-  `)
-  const current = (state.rows[0] as { state?: string } | undefined)?.state
-  if (current === undefined) return 'Organization has no lifecycle record'
-  if (current === 'active') {
-    return 'Organization is still active; suspend it before a purge'
-  }
+  if (!isOrganizationSuspended(organizationId)) return ORGANIZATION_NOT_SUSPENDED
   try {
     await assertStaffOutboxSettled(tx, organizationId)
     return null

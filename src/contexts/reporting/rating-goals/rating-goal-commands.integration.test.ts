@@ -4,7 +4,6 @@ import {
   activeGoal,
   dependencies,
   exampleWorld,
-  holdOrganization,
   NOW,
   PROPERTY,
   type FakeWorld,
@@ -40,7 +39,7 @@ const keep49 = {
   paceTenthsPerWeek: null,
 } as const
 
-/** Google shows 4.9 (3980 / 812 = 4.9015): no climb is left, only Keep (R2-9, X1). */
+/** Google shows 4.9 (3980 / 812 = 4.9015): no climb is left, only Keep. */
 function showingFourNine(at: FakeWorld): void {
   at.snapshot = { ...at.snapshot!, averageRating: Math.fround(4.9) }
   at.summary = { ...at.summary, all: { count: 812, sum: 3980 } }
@@ -212,7 +211,7 @@ describe('setting a rating goal', () => {
     })
   })
 
-  it('keeps 4.7 once Google shows it (X1: Keep first from 4.7)', async () => {
+  it('keeps 4.7 once Google shows it', async () => {
     world.snapshot = { ...world.snapshot!, averageRating: Math.fround(4.7) }
     world.summary = { ...world.summary, all: { count: 812, sum: 3817 } }
 
@@ -226,14 +225,6 @@ describe('setting a rating goal', () => {
       setRatingGoal(dependencies(world), { ...keep49, targetTenths: 43 }, actor),
     ).rejects.toMatchObject({ code: 'invalid_target' })
     expect(world.goals).toEqual([])
-  })
-
-  it('sets nothing while the Organization closure holds it', async () => {
-    await holdOrganization()
-
-    await expect(setRatingGoal(dependencies(world), climb, actor)).rejects.toMatchObject({
-      code: 'organization_closing',
-    })
   })
 
   it('sets nothing for an archived or suspended Property', async () => {

@@ -5,8 +5,7 @@
 // provider is now told `null`, the only value that clears the column.
 //
 // The server function calls the request the Identity build publishes. The container
-// here offers that request as the build wires it (`buildOrganizationSettingsUseCases`)
-// over mocked ports: the provider save, the logo read and the object store.
+// here offers that request over the use case and mocked ports: the provider save, the logo read and the object store.
 
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,14 +31,20 @@ vi.mock('#/shared/observability/traced-server-fn', () => ({
   tracedHandler: (handler: unknown) => handler,
 }))
 vi.mock('#/composition', async () => {
-  const { buildOrganizationSettingsUseCases } =
-    await import('../build-organization-settings')
-  const requests = buildOrganizationSettingsUseCases({
-    saveOrganization: mocks.saveOrganization,
-    assetReferences: { currentOrganizationLogo: mocks.currentOrganizationLogo },
-    deleteAssetObject: mocks.deleteObject,
-    logger: { warn: vi.fn() },
-  })
+  const { updateOrganization } =
+    await import('../application/use-cases/update-organization')
+  const { retireReplacedIdentityAsset } =
+    await import('../application/retire-replaced-identity-asset')
+  const requests = {
+    updateOrganization: updateOrganization({
+      updateOrg: mocks.saveOrganization,
+      currentLogo: mocks.currentOrganizationLogo,
+      retireReplaced: retireReplacedIdentityAsset({
+        storage: { deleteObject: mocks.deleteObject },
+        logger: { warn: vi.fn() },
+      }),
+    }),
+  }
   return { getContainer: () => ({ identityPublicApi: { requests } }) }
 })
 

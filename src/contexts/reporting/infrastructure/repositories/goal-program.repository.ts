@@ -30,10 +30,6 @@ import { goalSubjectIdentity } from '../../domain/goal-program'
 import { createGoalMonthTargetRepository } from './goal-month-target.repository'
 import { createGoalMonthlyResultRepository } from './goal-monthly-result.repository'
 import {
-  isOrganizationHeldByLifecycle,
-  organizationLifecycleHoldsProgram,
-} from './goal-organization-lifecycle-hold'
-import {
   assignmentValues,
   GoalProgramRevisionConflict,
   hasPostgresErrorCode,
@@ -357,14 +353,12 @@ export const createGoalProgramRepository = (
     list: currentReads.listSummaries,
 
     async listOperational(after) {
-      // A closing Organization gets no new Goal work (see the hold's header).
       const rows = await db
         .select()
         .from(goalPrograms)
         .where(
           and(
             inArray(goalPrograms.status, ['scheduled', 'active']),
-            sql`NOT ${organizationLifecycleHoldsProgram}`,
             after
               ? sql`(${goalPrograms.organizationId}, ${goalPrograms.propertyId}, ${goalPrograms.id})
                   > (${after.organizationId}, ${after.propertyId}::uuid, ${after.id}::uuid)`
@@ -378,10 +372,6 @@ export const createGoalProgramRepository = (
         )
         .limit(GOAL_MAINTENANCE_PAGE_SIZE)
       return hydrateBundles(db, rows)
-    },
-
-    isOrganizationHeld(organizationId) {
-      return isOrganizationHeldByLifecycle(db, organizationId)
     },
 
     async changeStatus(input) {
@@ -665,10 +655,6 @@ export const createGoalProgramRepository = (
               eq(goalPrograms.id, input.bundle.program.id),
               eq(goalPrograms.currentVersion, input.bundle.version.version),
               eq(goalPrograms.status, 'scheduled'),
-              // A closure request that lands after maintenance listed this
-              // program still stops it: the Closing fence cannot pause a
-              // scheduled program, so this is the only place that can.
-              sql`NOT ${organizationLifecycleHoldsProgram}`,
             ),
           )
           .returning()

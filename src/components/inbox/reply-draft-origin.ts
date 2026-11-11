@@ -39,13 +39,7 @@ export type ReplyDraftAdoption = Readonly<{
  * `Local safe starting point`. It has no library id, so no title.
  *
  * Provenance lives in this mount only; after a reload there is no template
- * tag, and that is intended rather than a gap. The server does keep a
- * `templateId` on the reply (`reply-operations.ts`'s draft upsert, and
- * `ReplyView.templateId` carries it to the client), but it is not the
- * draft's provenance: a hand-typed save sends no `templateId`
- * (`useReplyActions`' `saveDraft`), the update spreads it only when present, and so
- * the id survives every later edit — it names the template the draft last
- * started from, whatever the text now says. The AI tag, by contrast, does
+ * tag, and that is intended rather than a gap. The AI tag, by contrast, does
  * survive a reload: every save that is not an AI acceptance writes
  * `aiGenerated: false` (the `ends_adoption` rule of a draft save, applied by
  * `reputation/replies/store.server.ts`), so a saved `true` still describes the text, and

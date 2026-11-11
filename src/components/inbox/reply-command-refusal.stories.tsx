@@ -74,8 +74,6 @@ const AWAITING_APPROVAL: Reply = {
   organizationId: organizationId('77777777-7777-4777-8777-777777777777'),
   text: 'Thank you for the kind words. We are glad the sea view lived up to the photos.',
   replyLanguageTag: 'en-Latn',
-  templateId: null,
-  templateVersion: null,
   status: 'pending_approval',
   source: 'internal',
   createdBy: userId('88888888-8888-4888-8888-888888888888'),

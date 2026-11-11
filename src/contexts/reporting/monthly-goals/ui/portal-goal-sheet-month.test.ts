@@ -12,7 +12,7 @@ import {
   SHEET_READY as READY,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
 
-// The set sheet's month (copy deck S-2): what the box keeps when the manager
+// The set sheet's month: what the box keeps when the manager
 // picks the other month, and the month in effect once the read offers others.
 // Seaview's Oct 23 (40 recommended for November, nothing for October in one
 // case), and the first weeks on Oct 17, when nothing is recommended yet.

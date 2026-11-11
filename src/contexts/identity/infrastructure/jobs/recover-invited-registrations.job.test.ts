@@ -12,7 +12,7 @@ vi.mock('#/shared/observability/trace', () => ({
 
 import { organizationId } from '#/shared/domain/ids'
 import { JOB_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
-import type { RecoverInvitedRegistrationsRun } from '../../application/use-cases/recover-invited-registrations'
+import type { RecoverInvitedRegistrationsRun } from '../../members/recover-invited-registrations.server'
 import {
   createRecoverInvitedRegistrationsHandler,
   JOB_NAME,

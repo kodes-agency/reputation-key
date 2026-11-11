@@ -11,10 +11,10 @@ import { lastMonthWords } from './portal-goal-running-view'
 import { dayWords, monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'
 
 /**
- * U-K1: the strip's headline, the month before. K-1 while it is read: what it
+ * The strip's headline, the month before. While it is read: what it
  * has so far, and the day its final figure is due (until that day has gone); with
- * no figure to say yet, the card's own line (G-30). K-6: once it has closed, met
- * or not met (G-31), as the card says it, without a check: the strip has its own
+ * no figure to say yet, the card's own line. Once it has closed, met
+ * or not met, as the card says it, without a check: the strip has its own
  * icon. None where the month before has nothing to say.
  */
 function checkInHeadline(lastMonth: PortalGoalLastMonth | null): string | null {
@@ -32,22 +32,22 @@ const buttonNumber = (measure: PortalGoalMeasure, n: number): string =>
   measure === 'portal_rating_count' ? formatNumber(n) : portalGoalCount(measure, n)
 
 export type PortalGoalCheckInWords = Readonly<{
-  /** K-2: the strip's name, "For December". */
+  /** The strip's name, "For December". */
   label: string
-  /** U-K1: the month before in one line; none where there is nothing to say of it. */
+  /** The month before in one line; none where there is nothing to say of it. */
   headline: string | null
   /**
-   * U-K2 with an offer: the goal, the number recommended and what it stands on
-   * (the way to "How we worked this out" follows it). K-8 without one: why not.
+   * With an offer: the goal, the number recommended and what it stands on
+   * (the way to "How we worked this out" follows it); without one: why not.
    */
   sub: string
-  /** U-K3 and K-9: "Use 45", the number it sends and its toast; none with nothing to offer. */
+  /** "Use 45", the number it sends and its toast; none with nothing to offer. */
   use: Readonly<{ label: string; targetValue: number; toast: string }> | null
-  /** U-K3 and K-9: "Keep 40", and its toast. */
+  /** "Keep 40", and its toast. */
   keep: Readonly<{ label: string; toast: string }>
-  /** U-K3: the way to another number, through the change sheet. */
+  /** The way to another number, through the change sheet. */
   other: string
-  /** K-5 */
+  /** The line under the buttons. */
   note: string
 }>
 
@@ -85,7 +85,7 @@ export function checkInWords(
   }
 }
 
-/** K-7: the recommended number is the month's already. */
+/** The recommended number is the month's already. */
 export function sameNumberWords(
   checkIn: Extract<PortalGoalCheckIn, { kind: 'same' }>,
 ): Readonly<{ text: string; change: string }> {

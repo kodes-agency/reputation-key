@@ -252,6 +252,14 @@ receipt authorization. The three retired tables must be empty under exclusive
 locks before contraction; their enum types remain. Construct parity checks cover
 these forward-only exceptions explicitly.
 
+`0129` drops the retired account tables, their guard functions and the grant enums.
+`db-constructs.sql` stays a byte-for-byte copy of `0001`, so it still states the
+triggers and functions that went with them; `structure.sql` is the authority for
+what a migrated database holds. `organization_lifecycle_events` stays: backup
+erasure hold releases read and write it. `auth-cli.ts` stops asking Better Auth for
+`organizationRole` once the auth tables exist without it, so `auth:migrate` does not
+recreate the table; `scripts/verify-auth-schema.mjs` fails if it reappears.
+
 Never run `pnpm db:push` against a shared database; it bypasses the journal.
 
 ## Seed and auth mirror

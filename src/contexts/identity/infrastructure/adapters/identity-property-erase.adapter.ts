@@ -1,8 +1,7 @@
 // LIF-01-T19 — Identity's contribution to a permanent Property Erase.
 //
-// Identity owns two live authority tables scoped to a Property:
-// `property_access_grants` (legacy people access) and
-// `property_access_grant` (current access). Both are erased.
+// Identity owns one live authority table scoped to a Property:
+// `property_access_grant` (current access). It is erased.
 //
 // It also erases `merchant_ai_decision_deferrals`, the standing "not now" AI
 // decision that only Identity's defer command writes. The data-fate authority
@@ -10,20 +9,16 @@
 // decision state that names the deferring manager, not consent evidence: the
 // consent history in `merchant_ai_consent_evidence` is retained and untouched.
 //
-// THE TWO DELIBERATE EXCLUSIONS, and why each would be wrong to erase:
+// THE DELIBERATE EXCLUSION, and why it would be wrong to erase:
 //
 //   backup_erasure_ledger  is the evidence that an erasure happened. Destroying
 //                          it as part of the erasure it records would remove the
 //                          only proof the work was done.
-//   privacy_requests       records data-subject access/erasure requests. The
-//                          proof that a request was honoured has to outlive the
-//                          data it was about.
 //
-// Both are `recoverable_archive`, and their retention classes are
-// counsel-approved work that is still open.
-// Engineering deciding unilaterally to delete data-subject-request evidence
-// during an erasure is exactly the call this program does not let engineering
-// make alone.
+// It is `recoverable_archive`, and its retention class is counsel-approved work
+// that is still open. Engineering deciding unilaterally to delete erasure
+// evidence during an erasure is exactly the call this program does not let
+// engineering make alone.
 //
 // Property-scoped, not Organization-scoped: every statement is bound to one
 // property_id, so erasing a Property leaves its siblings byte-identical.
@@ -33,9 +28,8 @@ import type {
   PropertyEraseContributor,
   PropertyEraseInventoryEntry,
   PropertyEraseScope,
-} from '#/contexts/property/application/ports/property-erase-contributor.port'
+} from '#/shared/ops/rights/property-erasure'
 import { merchantAiDecisionDeferrals } from '#/shared/db/schema/merchant-ai-authorization.schema'
-import { propertyAccessGrants } from '#/shared/db/schema/people-access.schema'
 import { propertyAccessGrant } from '#/shared/db/schema/policy.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
@@ -51,11 +45,6 @@ const IDENTITY_PROPERTY_ERASE_PLAN = Object.freeze([
   {
     table: merchantAiDecisionDeferrals,
     name: 'merchant_ai_decision_deferrals',
-    organizationScoped: true,
-  },
-  {
-    table: propertyAccessGrants,
-    name: 'property_access_grants',
     organizationScoped: true,
   },
   { table: propertyAccessGrant, name: 'property_access_grant', organizationScoped: true },

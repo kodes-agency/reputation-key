@@ -1,5 +1,5 @@
 // What the card and the detail say about when a goal arrives: durations from
-// today in the setup's words, never a month (round 5, PLAN-D E1).
+// today in the setup's words, never a month.
 import { describe, expect, it } from 'vitest'
 import { arrivalSentence, shortArrival } from './rating-goal-arrival-words'
 import { CARD, CARD_KEEP } from './rating-goal.stories.fixtures'

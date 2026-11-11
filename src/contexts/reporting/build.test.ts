@@ -206,9 +206,8 @@ describe('buildReportingContext', () => {
   })
 
   it('builds no Organization export or lifecycle contributor of its own', () => {
-    // LIF-01: the metric, goal and dashboard contributors are built by
-    // composition/organization-export-contributors.ts, never by this build: a
-    // second instance here would be read by nothing.
+    // Export and erasure run through the rights request executors, never from
+    // this build.
     const context = build()
 
     expect(Object.keys(context).sort()).toEqual(['internal', 'publicApi', 'worker'])

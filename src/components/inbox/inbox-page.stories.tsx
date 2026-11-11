@@ -242,8 +242,6 @@ const approvedDetail: InboxItemDetailResult = {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: true,
-    templateId: null,
-    templateVersion: null,
     stateRevision: 1,
     submittedAt: null,
     approvedAt: null,

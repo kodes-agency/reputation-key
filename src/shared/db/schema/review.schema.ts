@@ -71,32 +71,10 @@ export const reviews = pgTable(
       () => googleConnections.id,
       { onDelete: 'set null' },
     ),
-    reviewerName: varchar('reviewer_name', { length: 255 }),
-    reviewerProfilePhotoUrl: varchar('reviewer_profile_photo_url', { length: 1000 }),
-    // Google's per-review Business Profile page (`reviewReplyUrl`), migration
-    // 0065. Provider cache data like the columns around it: dual-written with
-    // review_source_contents, erased with them, never part of a digest.
-    googleReviewUrl: varchar('google_review_url', { length: 2048 }),
-    rating: integer('rating'),
-    // Google concatenates its machine translation and the guest's original into
-    // one `comment` field: "(Translated by Google) <en>\n\n(Original) <src>".
-    // `text` holds the ORIGINAL — the AI language verifier must detect the
-    // guest's language, not Google's English. The translation is kept for
-    // display (migration 0061).
-    text: text('text'),
-    translatedText: text('translated_text'),
-    languageCode: varchar('language_code', { length: 10 }),
-    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     sentimentLabel: varchar('sentiment_label', { length: 20 }),
     sentimentScore: real('sentiment_score'),
-    // PRE17B / BQR-1.1: Review source lifecycle (migration 0006)
-    sourceCreatedAt: timestamp('source_created_at', { withTimezone: true }),
-    sourceUpdatedAt: timestamp('source_updated_at', { withTimezone: true }),
     firstFetchedAt: timestamp('first_fetched_at', { withTimezone: true }),
-    lastFetchedAt: timestamp('last_fetched_at', { withTimezone: true }),
-    contentExpiresAt: timestamp('content_expires_at', { withTimezone: true }),
-    contentHash: text('content_hash'),
     sourceSeenGeneration: uuid('source_seen_generation'),
     sourceEpoch: integer('source_epoch').notNull(),
     sourceRevision: bigint('source_revision', { mode: 'number' }).notNull(),
@@ -111,8 +89,6 @@ export const reviews = pgTable(
     materialSourceDigest: varchar('material_source_digest', { length: 64 }),
     materialNormalizedDigest: varchar('material_normalized_digest', { length: 64 }),
     analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
-    aiSourceByteLength: integer('ai_source_byte_length'),
-    aiSourceDigest: varchar('ai_source_digest', { length: 64 }),
     sourceContentState: varchar('source_content_state', { length: 24 })
       .notNull()
       .default('active'),
@@ -145,31 +121,11 @@ export const reviews = pgTable(
     index('reviews_property_idx').on(t.propertyId),
     index('reviews_org_idx').on(t.organizationId),
     index('reviews_expires_idx').on(t.expiresAt),
-    // Composite index for dashboard review aggregation queries
-    index('reviews_org_property_reviewed_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.reviewedAt,
-    ),
     index('reviews_google_connection_idx').on(t.googleConnectionId),
-    // Migration 0006: incremental sync cursors (no text in covering indexes)
-    index('reviews_property_updated_cursor_idx').on(
-      t.propertyId,
-      t.sourceUpdatedAt.desc(),
-      t.id.desc(),
-    ),
-    index('reviews_property_created_cursor_idx').on(
-      t.propertyId,
-      t.sourceCreatedAt.desc(),
-      t.id.desc(),
-    ),
     // REV-01: global stable-identity lifecycle pages freeze by created_at and
     // resume by UUID. Without this exact keyset index, every bounded page
     // re-sorts the indefinitely retained Review identity table.
     index('reviews_lifecycle_cursor_idx').on(t.createdAt, t.id),
-    index('reviews_content_expires_idx')
-      .on(t.contentExpiresAt, t.id)
-      .where(sql`content_expires_at IS NOT NULL`),
     check('reviews_source_epoch_safe', sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647`),
     check(
       'reviews_source_revision_safe',
@@ -202,11 +158,6 @@ export const reviews = pgTable(
       sql`${t.analysisSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
     ),
     check(
-      'reviews_ai_source_byte_length_valid',
-      sql`${t.aiSourceByteLength} BETWEEN 1 AND '4294967295'::bigint`,
-    ),
-    check('reviews_ai_source_digest_valid', sql`${t.aiSourceDigest} ~ '^[0-9a-f]{64}$'`),
-    check(
       'reviews_reply_state_revision_safe',
       sql`${t.replyStateRevision} BETWEEN 0 AND '9007199254740991'::bigint`,
     ),
@@ -221,19 +172,6 @@ export const reviews = pgTable(
         AND ${t.externalId} IS NULL
         AND ${t.externalLocationId} IS NULL
         AND ${t.googleConnectionId} IS NULL
-        AND ${t.reviewerName} IS NULL
-        AND ${t.reviewerProfilePhotoUrl} IS NULL
-        AND ${t.googleReviewUrl} IS NULL
-        AND ${t.rating} IS NULL
-        AND ${t.text} IS NULL
-        AND ${t.translatedText} IS NULL
-        AND ${t.languageCode} IS NULL
-        AND ${t.reviewedAt} IS NULL
-        AND ${t.sourceCreatedAt} IS NULL
-        AND ${t.sourceUpdatedAt} IS NULL
-        AND ${t.contentHash} IS NULL
-        AND ${t.aiSourceByteLength} IS NULL
-        AND ${t.aiSourceDigest} IS NULL
       )`,
     ),
   ],
@@ -819,10 +757,6 @@ export const replies = pgTable(
     // Canonical language selected for this reply's public text. Nullable for
     // legacy/provider-mirrored replies that predate language selection.
     replyLanguageTag: varchar('reply_language_tag', { length: 35 }),
-    // Informational provenance for a property-authored library template. These
-    // fields do not make the reply AI-authored and are deliberately not fences.
-    templateId: uuid('template_id'),
-    templateVersion: integer('template_version'),
     ...replyParts.columns(),
     status: replyStatusEnum('status').notNull(),
     source: replySourceEnum('source').notNull(),
@@ -909,7 +843,6 @@ export const replies = pgTable(
       'replies_reply_language_tag_valid',
       sql`${t.replyLanguageTag} IS NULL OR ${t.replyLanguageTag} ~ ${sql.raw(`'${REPLY_LANGUAGE_TAG_SQL_PATTERN}'`)}`,
     ),
-    check('replies_template_provenance_valid', replyParts.legacyProvenanceCheck),
     check('replies_layered_template_provenance_valid', replyParts.layeredProvenanceCheck),
     check('replies_voice_digest_valid', replyParts.voiceDigestCheck),
     uniqueIndex('replies_origin_operation_unique')

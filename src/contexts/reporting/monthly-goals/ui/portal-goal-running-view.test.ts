@@ -129,7 +129,7 @@ describe('the running Monthly portal goal, in words', () => {
     })
   })
 
-  it('never says the pace in a word: the pill says it (Q-5)', () => {
+  it('never says the pace in a word: the pill says it', () => {
     // Behind, on the way, not judged and in the quiet days read the same.
     const spoken = (patch: Partial<PortalGoalRunningMonth>) => runningWords(month(patch))
 

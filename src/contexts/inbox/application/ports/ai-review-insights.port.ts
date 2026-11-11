@@ -100,14 +100,4 @@ export type AiReviewInsightsPort = Readonly<{
       polarities?: readonly ReviewAspectPolarity[]
     }>,
   ): Promise<readonly ReviewId[]>
-  /** Review ids whose current analysis contains a matching aspect mention.
-   * When both arrays are supplied, a single mention must satisfy both. */
-  findCurrentReviewIdsByAspect(
-    input: Readonly<{
-      organizationId: OrganizationId
-      propertyIds?: readonly PropertyId[]
-      aspects?: readonly ReviewAspect[]
-      polarities?: readonly ReviewAspectPolarity[]
-    }>,
-  ): Promise<readonly ReviewId[]>
 }>

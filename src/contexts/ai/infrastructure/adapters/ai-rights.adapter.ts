@@ -1,5 +1,6 @@
 // AI's executor for the manual rights script: Property and Organization
-// erasure of the retained AI derivatives.
+// erasure of the retained AI derivatives, and the Organization export of the
+// served review analysis and its manager corrections.
 //
 // The Organization body is the lifecycle purge's own delete loop. The Property
 // body retires every derivative the Property holds (the same erasure an
@@ -22,7 +23,8 @@ import type { AiAuthorizationLifecycleTrigger } from '../../replay/contracts'
 import {
   AI_PURGE_DELETE_TABLES,
   eraseAiOrganizationRows,
-} from './ai-organization-lifecycle.adapter'
+} from './ai-organization-erasure'
+import { readAiOrganizationExport } from './ai-organization-export'
 import { eraseRetiredDerivatives } from './ai-review-analysis-erasure'
 
 const CONTEXT = 'ai'
@@ -36,13 +38,10 @@ const ORGANIZATION_ONLY_TABLES: ReadonlySet<string> = new Set([
 /** Rows that go with their parent by cascade; the report counts them too. */
 const CASCADE_TABLES = Object.freeze([
   'ai_draft_measurement_links',
-  'ai_review_analysis_aspects',
   'ai_review_analysis_mentions',
   'ai_review_analysis_mention_sentences',
   'ai_review_analysis_mention_corrections',
-  'ai_property_aggregate_contribution_aspects',
   'ai_property_aggregate_contribution_mentions',
-  'ai_property_daily_aspect_aggregates',
 ] as const)
 
 /** The tables the AI report counts and erasure changes, per request scope. */
@@ -106,7 +105,7 @@ async function assertReady(
   property: string | null,
 ): Promise<void> {
   await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`))
-  if (property === null) await assertOrganizationHeld(tx, organization)
+  if (property === null) assertOrganizationHeld(organization)
   await assertNothingLive(tx, organization, property)
 }
 
@@ -275,7 +274,10 @@ export function createAiRightsExecutor(db: Database, now: () => Date): RightsExe
       return refusal ? { ok: false, error: refusal } : { ok: true }
     },
     report: (plan) => reportCounts(db, plan.organizationId, propertyScope(plan)),
-    exportFiles: async () => [],
+    exportFiles: async (plan) =>
+      plan.scope === 'organization'
+        ? readAiOrganizationExport(db, plan.organizationId, now())
+        : [],
     async apply(plan) {
       if (plan.scope !== 'organization' && plan.scope !== 'property') {
         return { ok: false, error: `no ${CONTEXT} erasure for ${plan.scope}` }

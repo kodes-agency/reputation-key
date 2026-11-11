@@ -193,28 +193,6 @@ CREATE TYPE "public"."google_subject_authority_guard_state" AS ENUM (
 
 
 --
--- Name: grant_kind; Type: TYPE; Schema: public; Owner: -
---
-
-CREATE TYPE "public"."grant_kind" AS ENUM (
-    'full_access',
-    'manage',
-    'respond',
-    'view'
-);
-
-
---
--- Name: grant_status; Type: TYPE; Schema: public; Owner: -
---
-
-CREATE TYPE "public"."grant_status" AS ENUM (
-    'active',
-    'revoked'
-);
-
-
---
 -- Name: inbox_assignment_reason; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -1844,189 +1822,6 @@ $$;
 
 
 --
--- Name: guard_organization_export_retrieval_issuance_v1(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION "public"."guard_organization_export_retrieval_issuance_v1"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO 'pg_catalog', 'public'
-    AS $$
-DECLARE
-  authority public.organization_exports%ROWTYPE;
-BEGIN
-  SELECT * INTO authority
-  FROM public.organization_exports
-  WHERE id = NEW.export_id
-  FOR UPDATE;
-
-  IF NOT FOUND
-     OR NEW.organization_id IS DISTINCT FROM authority.organization_id
-     OR NEW.export_revision IS DISTINCT FROM authority.revision + 1 THEN
-    RAISE EXCEPTION 'organization export retrieval issuance authority changed';
-  END IF;
-
-  IF NOT (
-    authority.state = 'ready'
-    OR (
-      authority.state = 'retrieval_issued'
-      AND authority.retrieval_expires_at <= NEW.issued_at
-    )
-  ) THEN
-    RAISE EXCEPTION 'organization export retrieval issuance state is unavailable';
-  END IF;
-
-  IF NEW.expires_at > authority.object_expires_at THEN
-    RAISE EXCEPTION 'organization export retrieval issuance exceeds object expiry';
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: guard_organization_export_revision_v1(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION "public"."guard_organization_export_revision_v1"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-BEGIN
-  IF NEW."id" IS DISTINCT FROM OLD."id"
-     OR NEW."organization_id" IS DISTINCT FROM OLD."organization_id"
-     OR NEW."requested_by" IS DISTINCT FROM OLD."requested_by"
-     OR NEW."format_version" IS DISTINCT FROM OLD."format_version"
-     OR NEW."as_of" IS DISTINCT FROM OLD."as_of"
-     OR NEW."object_expires_at" IS DISTINCT FROM OLD."object_expires_at"
-     OR NEW."created_at" IS DISTINCT FROM OLD."created_at" THEN
-    RAISE EXCEPTION 'organization export immutable request binding changed';
-  END IF;
-
-  IF NEW."revision" IS DISTINCT FROM OLD."revision" + 1 THEN
-    RAISE EXCEPTION 'organization export revision must advance by exactly one';
-  END IF;
-
-  IF NOT (
-    (OLD."state" = 'requested' AND NEW."state" IN ('generating', 'failed'))
-    OR (OLD."state" = 'generating' AND NEW."state" IN ('generating', 'egress_pending', 'failed'))
-    OR (OLD."state" = 'egress_pending' AND NEW."state" IN ('egress_pending', 'ready', 'failed'))
-    OR (OLD."state" = 'ready' AND NEW."state" IN ('retrieval_issued', 'delete_pending'))
-    OR (
-      OLD."state" = 'retrieval_issued'
-      AND NEW."state" = 'retrieval_issued'
-      AND OLD."retrieval_expires_at" <= NEW."retrieval_issued_at"
-      AND NEW."retrieval_operation_id" IS DISTINCT FROM OLD."retrieval_operation_id"
-      AND NEW."retrieval_token_digest" IS DISTINCT FROM OLD."retrieval_token_digest"
-    )
-    OR (OLD."state" = 'retrieval_issued' AND NEW."state" IN ('retrieved', 'delete_pending'))
-    OR (OLD."state" = 'retrieved' AND NEW."state" = 'delete_pending')
-    OR (OLD."state" = 'delete_pending' AND NEW."state" = 'deleted')
-  ) THEN
-    RAISE EXCEPTION 'invalid organization export state transition: % -> %', OLD."state", NEW."state";
-  END IF;
-
-  IF NEW."state" = 'retrieval_issued' AND NOT EXISTS (
-    SELECT 1
-    FROM "organization_export_retrieval_issuances" AS issuance
-    WHERE issuance."export_id" = NEW."id"
-      AND issuance."organization_id" = NEW."organization_id"
-      AND issuance."export_revision" = NEW."revision"
-      AND issuance."operation_id" = NEW."retrieval_operation_id"
-      AND issuance."token_digest" = NEW."retrieval_token_digest"
-      AND issuance."issued_at" = NEW."retrieval_issued_at"
-      AND issuance."expires_at" = NEW."retrieval_expires_at"
-  ) THEN
-    RAISE EXCEPTION 'organization export retrieval issuance evidence is missing';
-  END IF;
-
-  -- Pre-egress evidence is write-once. A recovery pass may only READ these
-  -- values; any attempt to rewrite a digest, key, or the moment they were
-  -- committed is a rebuild in disguise.
-  IF (OLD."object_key" IS NOT NULL AND NEW."object_key" IS DISTINCT FROM OLD."object_key")
-     OR (OLD."coverage_sha256" IS NOT NULL AND NEW."coverage_sha256" IS DISTINCT FROM OLD."coverage_sha256")
-     OR (OLD."manifest_sha256" IS NOT NULL AND NEW."manifest_sha256" IS DISTINCT FROM OLD."manifest_sha256")
-     OR (OLD."archive_sha256" IS NOT NULL AND NEW."archive_sha256" IS DISTINCT FROM OLD."archive_sha256")
-     OR (OLD."pre_egress_recorded_at" IS NOT NULL AND NEW."pre_egress_recorded_at" IS DISTINCT FROM OLD."pre_egress_recorded_at")
-     OR (OLD."encryption_evidence_ref" IS NOT NULL AND NEW."encryption_evidence_ref" IS DISTINCT FROM OLD."encryption_evidence_ref") THEN
-    RAISE EXCEPTION 'organization export immutable archive evidence changed';
-  END IF;
-
-  IF NEW."egress_recovery_attempts" < OLD."egress_recovery_attempts" THEN
-    RAISE EXCEPTION 'organization export egress recovery evidence cannot be rewound';
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: guard_organization_lifecycle_revision_v1(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION "public"."guard_organization_lifecycle_revision_v1"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-BEGIN
-  IF NEW."organization_id" IS DISTINCT FROM OLD."organization_id" THEN
-    RAISE EXCEPTION 'organization lifecycle authority cannot change tenant';
-  END IF;
-
-  IF NEW."revision" IS DISTINCT FROM OLD."revision" + 1 THEN
-    RAISE EXCEPTION 'organization lifecycle revision must advance by exactly one';
-  END IF;
-
-  IF NOT (
-    (OLD."state" = 'active' AND NEW."state" = 'closure_requested')
-    OR (OLD."state" = 'closure_requested' AND NEW."state" IN ('active', 'closing'))
-    OR (OLD."state" = 'closing' AND NEW."state" IN ('active', 'purge_pending'))
-    OR (OLD."state" = 'purge_pending' AND NEW."state" IN ('active', 'purging'))
-    OR (OLD."state" = 'purging' AND NEW."state" = 'closed')
-  ) THEN
-    RAISE EXCEPTION 'invalid organization lifecycle state transition: % -> %', OLD."state", NEW."state";
-  END IF;
-
-  IF NOT (
-    (OLD."state" = 'active' AND NEW."state" = 'closure_requested' AND NEW."last_reason_code" IN ('account_admin_request', 'contract_ended', 'duplicate_workspace', 'privacy_request', 'test_workspace'))
-    OR (OLD."state" = 'closure_requested' AND NEW."state" = 'active' AND NEW."last_reason_code" IN ('closure_cancelled', 'request_created_in_error', 'retention_needed'))
-    OR (OLD."state" = 'closure_requested' AND NEW."state" = 'closing' AND NEW."last_reason_code" = 'closing_prepared')
-    OR (OLD."state" = 'closing' AND NEW."state" = 'active' AND NEW."last_reason_code" IN ('closure_cancelled', 'request_created_in_error', 'retention_needed'))
-    OR (OLD."state" = 'closing' AND NEW."state" = 'purge_pending' AND NEW."last_reason_code" IN ('recovery_window_elapsed', 'recovery_window_waived'))
-    OR (OLD."state" = 'purge_pending' AND NEW."state" = 'active' AND NEW."last_reason_code" = 'purge_cancelled_before_irreversible')
-    OR (OLD."state" = 'purge_pending' AND NEW."state" = 'purging' AND NEW."last_reason_code" = 'irreversible_purge_authorized')
-    OR (OLD."state" = 'purging' AND NEW."state" = 'closed' AND NEW."last_reason_code" = 'context_purge_complete')
-  ) THEN
-    RAISE EXCEPTION 'organization lifecycle reason does not match state transition';
-  END IF;
-
-  IF OLD."state" = 'active' AND OLD."reactivation_required" = true THEN
-    RAISE EXCEPTION 'organization lifecycle requires explicit reactivation before a new closure';
-  END IF;
-
-  IF OLD."state" <> 'active' AND (
-    NEW."closure_lineage_id" IS DISTINCT FROM OLD."closure_lineage_id"
-    OR NEW."closure_requested_at" IS DISTINCT FROM OLD."closure_requested_at"
-    OR NEW."recoverable_until" IS DISTINCT FROM OLD."recoverable_until"
-    OR NEW."requested_by" IS DISTINCT FROM OLD."requested_by"
-    OR NEW."request_reason_code" IS DISTINCT FROM OLD."request_reason_code"
-    OR NEW."request_support_evidence_ref" IS DISTINCT FROM OLD."request_support_evidence_ref"
-  ) THEN
-    RAISE EXCEPTION 'organization lifecycle closure request evidence is immutable';
-  END IF;
-
-  IF OLD."irreversible_at" IS NOT NULL
-     AND NEW."irreversible_at" IS DISTINCT FROM OLD."irreversible_at" THEN
-    RAISE EXCEPTION 'organization lifecycle irreversible boundary is immutable';
-  END IF;
-
-  IF NEW."last_transition_at" < OLD."last_transition_at" THEN
-    RAISE EXCEPTION 'organization lifecycle transition time cannot move backwards';
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
---
 -- Name: guard_review_lifecycle_recovery_execution_v1(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2708,27 +2503,6 @@ $$;
 
 
 --
--- Name: provision_organization_lifecycle_authority_v1(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION "public"."provision_organization_lifecycle_authority_v1"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-BEGIN
-  INSERT INTO "organization_lifecycle_authority" (
-    "organization_id", "state", "revision", "reactivation_required",
-    "last_transition_at", "last_actor_id", "last_reason_code",
-    "last_support_evidence_ref"
-  ) VALUES (
-    NEW."id", 'active', 0, false, NEW."createdAt", 'system:organization',
-    'provisioned', 'organization:create'
-  );
-  RETURN NEW;
-END;
-$$;
-
-
---
 -- Name: reject_ai_execution_control_head_mutation_v1(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2784,22 +2558,6 @@ $$;
 
 
 --
--- Name: reject_identity_lifecycle_evidence_mutation_v1(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION "public"."reject_identity_lifecycle_evidence_mutation_v1"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO 'pg_catalog', 'public'
-    AS $$
-BEGIN
-  RAISE EXCEPTION USING
-    ERRCODE = '55000',
-    MESSAGE = TG_TABLE_NAME || ' is append-only';
-END;
-$$;
-
-
---
 -- Name: reject_organization_lifecycle_event_mutation_v1(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2811,120 +2569,6 @@ BEGIN
   RAISE EXCEPTION USING
     ERRCODE = '55000',
     MESSAGE = 'organization_lifecycle_events is append-only';
-END;
-$$;
-
-
---
--- Name: reject_privacy_request_mutation_v1(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION "public"."reject_privacy_request_mutation_v1"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO 'pg_catalog', 'public'
-    AS $$
-DECLARE
-  allowed boolean;
-BEGIN
-  IF TG_OP = 'TRUNCATE' THEN
-    RAISE EXCEPTION USING ERRCODE = '55000',
-      MESSAGE = TG_TABLE_NAME || ' evidence cannot be truncated';
-  END IF;
-  IF TG_OP = 'DELETE' THEN
-    RAISE EXCEPTION USING ERRCODE = '55000',
-      MESSAGE = TG_TABLE_NAME || ' evidence cannot be deleted';
-  END IF;
-
-  IF NEW.id <> OLD.id
-     OR NEW.organization_id <> OLD.organization_id
-     OR NEW.property_id <> OLD.property_id
-     OR NEW.subject_ref <> OLD.subject_ref
-     OR NEW.subject_type <> OLD.subject_type
-     OR NEW.request_kind <> OLD.request_kind
-     OR NEW.received_at <> OLD.received_at THEN
-    RAISE EXCEPTION USING ERRCODE = '55000',
-      MESSAGE = 'privacy request subject binding is immutable';
-  END IF;
-
-  IF NEW.state = OLD.state THEN
-    RETURN NEW;
-  END IF;
-
-  allowed := CASE OLD.state
-    WHEN 'received' THEN NEW.state IN ('verified', 'refused')
-    WHEN 'verified' THEN NEW.state IN ('in_progress', 'refused')
-    WHEN 'in_progress' THEN NEW.state IN ('fulfilled', 'refused')
-    ELSE false
-  END;
-
-  IF NOT allowed THEN
-    RAISE EXCEPTION USING ERRCODE = '55000',
-      MESSAGE = 'invalid privacy request transition ' || OLD.state || ' -> ' || NEW.state;
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: reject_property_erase_authority_mutation_v1(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION "public"."reject_property_erase_authority_mutation_v1"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO 'pg_catalog', 'public'
-    AS $$
-DECLARE
-  allowed boolean;
-BEGIN
-  IF TG_OP = 'TRUNCATE' THEN
-    RAISE EXCEPTION USING ERRCODE = '55000',
-      MESSAGE = TG_TABLE_NAME || ' evidence cannot be truncated';
-  END IF;
-  IF TG_OP = 'DELETE' THEN
-    RAISE EXCEPTION USING ERRCODE = '55000',
-      MESSAGE = TG_TABLE_NAME || ' evidence cannot be deleted';
-  END IF;
-
-
-  IF NEW.id <> OLD.id
-     OR NEW.organization_id <> OLD.organization_id
-     OR NEW.property_id <> OLD.property_id
-     OR NEW.requested_by_user_id <> OLD.requested_by_user_id
-     OR NEW.support_authorization_ref <> OLD.support_authorization_ref
-     OR NEW.identity_verification_ref <> OLD.identity_verification_ref
-     OR NEW.requested_at <> OLD.requested_at THEN
-    RAISE EXCEPTION USING ERRCODE = '55000',
-      MESSAGE = 'property erase authorization binding is immutable';
-  END IF;
-
-  IF NEW.state = OLD.state THEN
-    RETURN NEW;
-  END IF;
-
-  -- Cancellation is impossible once the purge has started. This is the whole
-  -- point of the boundary.
-  IF OLD.state IN ('purging', 'purged') AND NEW.state = 'cancelled' THEN
-    RAISE EXCEPTION USING ERRCODE = '55000',
-      MESSAGE = 'property erase is irreversible once purging has begun';
-  END IF;
-
-  allowed := CASE OLD.state
-    WHEN 'requested' THEN NEW.state IN ('previewed', 'cancelled')
-    WHEN 'previewed' THEN NEW.state IN ('previewed', 'confirmed', 'cancelled')
-    WHEN 'confirmed' THEN NEW.state IN ('purge_pending', 'cancelled')
-    WHEN 'purge_pending' THEN NEW.state IN ('purging', 'cancelled')
-    WHEN 'purging' THEN NEW.state = 'purged'
-    ELSE false
-  END;
-
-  IF NOT allowed THEN
-    RAISE EXCEPTION USING ERRCODE = '55000',
-      MESSAGE = 'invalid property erase transition ' || OLD.state || ' -> ' || NEW.state;
-  END IF;
-
-  RETURN NEW;
 END;
 $$;
 
@@ -4073,34 +3717,6 @@ $$;
 
 
 --
--- Name: verify_organization_export_retrieval_issuance_v1(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION "public"."verify_organization_export_retrieval_issuance_v1"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO 'pg_catalog', 'public'
-    AS $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.organization_exports AS authority
-    WHERE authority.id = NEW.export_id
-      AND authority.organization_id = NEW.organization_id
-      AND authority.state = 'retrieval_issued'
-      AND authority.revision = NEW.export_revision
-      AND authority.retrieval_operation_id = NEW.operation_id
-      AND authority.retrieval_token_digest = NEW.token_digest
-      AND authority.retrieval_issued_at = NEW.issued_at
-      AND authority.retrieval_expires_at = NEW.expires_at
-  ) THEN
-    RAISE EXCEPTION 'organization export retrieval issuance was not co-committed';
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-
---
 -- Name: __drizzle_migrations; Type: TABLE; Schema: drizzle; Owner: -
 --
 
@@ -4394,25 +4010,6 @@ CREATE TABLE "public"."ai_organization_cost_windows" (
 
 
 --
--- Name: ai_property_aggregate_contribution_aspects; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_aggregate_contribution_aspects" (
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "review_id" "uuid" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "source_revision" bigint NOT NULL,
-    "analysis_sequence" bigint NOT NULL,
-    "aspect" character varying(40) NOT NULL,
-    "polarity" character varying(20) NOT NULL,
-    "intensity" integer NOT NULL,
-    CONSTRAINT "ai_property_aggregate_contribution_aspects_aspect_valid" CHECK ((("aspect")::"text" = ANY ((ARRAY['service'::character varying, 'staff'::character varying, 'quality'::character varying, 'value'::character varying, 'cleanliness'::character varying, 'wait_time'::character varying, 'atmosphere'::character varying, 'location'::character varying, 'accessibility'::character varying, 'other'::character varying, 'room'::character varying, 'food_and_drink'::character varying, 'noise'::character varying, 'wifi_and_tech'::character varying, 'check_in_out'::character varying, 'parking'::character varying, 'amenities'::character varying, 'events'::character varying])::"text"[]))),
-    CONSTRAINT "ai_property_contribution_aspects_polarity_intensity_valid" CHECK ((((("polarity")::"text" = 'positive'::"text") AND (("intensity" >= 20) AND ("intensity" <= 100))) OR ((("polarity")::"text" = 'neutral'::"text") AND ("abs"("intensity") <= 19)) OR ((("polarity")::"text" = 'negative'::"text") AND ("intensity" < 0) AND (("abs"("intensity") >= 20) AND ("abs"("intensity") <= 100)))))
-);
-
-
---
 -- Name: ai_property_aggregate_contribution_mentions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4499,55 +4096,6 @@ CREATE TABLE "public"."ai_property_aggregate_settlements" (
 
 
 --
--- Name: ai_property_daily_aggregates; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_daily_aggregates" (
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "local_date" "date" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "review_analysis_epoch" integer NOT NULL,
-    "property_profile_version" integer NOT NULL,
-    "calendar_profile_version" character varying(100) NOT NULL,
-    "aggregate_revision" bigint NOT NULL,
-    "terminal_analysis_sequence" bigint NOT NULL,
-    "review_count" integer NOT NULL,
-    "rating_sum" integer NOT NULL,
-    "positive_count" integer NOT NULL,
-    "neutral_count" integer NOT NULL,
-    "negative_count" integer NOT NULL,
-    "mixed_count" integer NOT NULL,
-    "urgent_count" integer NOT NULL,
-    "high_count" integer NOT NULL,
-    "medium_count" integer NOT NULL,
-    "low_count" integer NOT NULL,
-    "updated_at" timestamp with time zone NOT NULL,
-    CONSTRAINT "ai_property_daily_aggregates_count_sums_valid" CHECK (((((("positive_count" + "neutral_count") + "negative_count") + "mixed_count") = "review_count") AND (((("urgent_count" + "high_count") + "medium_count") + "low_count") = "review_count") AND ("rating_sum" <= ("review_count" * 5)))),
-    CONSTRAINT "ai_property_daily_aggregates_counts_nonnegative" CHECK ((("review_count" >= 0) AND ("rating_sum" >= 0) AND ("positive_count" >= 0) AND ("neutral_count" >= 0) AND ("negative_count" >= 0) AND ("mixed_count" >= 0) AND ("urgent_count" >= 0) AND ("high_count" >= 0) AND ("medium_count" >= 0) AND ("low_count" >= 0))),
-    CONSTRAINT "ai_property_daily_aggregates_versions_valid" CHECK ((("source_epoch" >= 0) AND ("review_analysis_epoch" >= 1) AND ("property_profile_version" >= 1) AND (("aggregate_revision" >= 0) AND ("aggregate_revision" <= '9007199254740991'::bigint)) AND (("terminal_analysis_sequence" >= 0) AND ("terminal_analysis_sequence" <= '9007199254740991'::bigint))))
-);
-
-
---
--- Name: ai_property_daily_aspect_aggregates; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_daily_aspect_aggregates" (
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "local_date" "date" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "review_analysis_epoch" integer NOT NULL,
-    "property_profile_version" integer NOT NULL,
-    "aspect" character varying(40) NOT NULL,
-    "polarity" character varying(20) NOT NULL,
-    "mention_count" integer NOT NULL,
-    CONSTRAINT "ai_property_daily_aspect_aggregates_values_valid" CHECK ((("source_epoch" >= 0) AND ("review_analysis_epoch" >= 1) AND ("property_profile_version" >= 1) AND (("aspect")::"text" = ANY ((ARRAY['service'::character varying, 'staff'::character varying, 'quality'::character varying, 'value'::character varying, 'cleanliness'::character varying, 'wait_time'::character varying, 'atmosphere'::character varying, 'location'::character varying, 'accessibility'::character varying, 'other'::character varying, 'room'::character varying, 'food_and_drink'::character varying, 'noise'::character varying, 'wifi_and_tech'::character varying, 'check_in_out'::character varying, 'parking'::character varying, 'amenities'::character varying, 'events'::character varying])::"text"[])) AND (("polarity")::"text" = ANY ((ARRAY['positive'::character varying, 'neutral'::character varying, 'negative'::character varying])::"text"[])) AND ("mention_count" >= 0)))
-);
-
-
---
 -- Name: ai_property_issue_groups; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4621,103 +4169,6 @@ CREATE TABLE "public"."ai_property_processing_profiles" (
 
 
 --
--- Name: ai_property_review_population_daily; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_review_population_daily" (
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "local_date" "date" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "property_profile_version" integer NOT NULL,
-    "calendar_profile_version" character varying(100) NOT NULL,
-    "review_count" integer NOT NULL,
-    "text_review_count" integer NOT NULL,
-    "rating_1_count" integer NOT NULL,
-    "rating_2_count" integer NOT NULL,
-    "rating_3_count" integer NOT NULL,
-    "rating_4_count" integer NOT NULL,
-    "rating_5_count" integer NOT NULL,
-    "population_revision" bigint NOT NULL,
-    "updated_at" timestamp with time zone NOT NULL,
-    CONSTRAINT "ai_property_review_population_daily_counts_valid" CHECK ((("review_count" >= 0) AND ("text_review_count" >= 0) AND ("text_review_count" <= "review_count") AND ("rating_1_count" >= 0) AND ("rating_2_count" >= 0) AND ("rating_3_count" >= 0) AND ("rating_4_count" >= 0) AND ("rating_5_count" >= 0) AND ((((("rating_1_count" + "rating_2_count") + "rating_3_count") + "rating_4_count") + "rating_5_count") = "review_count"))),
-    CONSTRAINT "ai_property_review_population_daily_versions_valid" CHECK ((("source_epoch" >= 0) AND ("property_profile_version" >= 1) AND (("char_length"(("calendar_profile_version")::"text") >= 1) AND ("char_length"(("calendar_profile_version")::"text") <= 100)) AND (("population_revision" >= 1) AND ("population_revision" <= '9007199254740991'::bigint))))
-);
-
-
---
--- Name: ai_property_trend_outcomes; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_trend_outcomes" (
-    "schedule_id" "uuid" NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "disposition" character varying(32) NOT NULL,
-    "operation_id" "uuid",
-    "selected_signal_ids" "jsonb",
-    "signal_key" character varying(64),
-    "direction" character varying(20),
-    "confidence_basis_points" integer,
-    "supporting_review_count" integer,
-    "headline" character varying(80),
-    "sentences" "jsonb",
-    "summary" "text",
-    "render_profile_version" character varying(100),
-    "render_profile_digest" character varying(64),
-    "definition_version" character varying(100),
-    "definition_digest" character varying(64),
-    "evidence" "jsonb",
-    "provider_selection_recorded_at" timestamp with time zone,
-    "recorded_at" timestamp with time zone NOT NULL,
-    "expires_at" timestamp with time zone,
-    CONSTRAINT "ai_property_trend_outcomes_valid" CHECK ((((("disposition")::"text" = 'ready'::"text") AND (("operation_id" IS NOT NULL) OR ("provider_selection_recorded_at" IS NULL)) AND ("jsonb_typeof"("selected_signal_ids") = 'array'::"text") AND (("jsonb_array_length"("selected_signal_ids") >= 1) AND ("jsonb_array_length"("selected_signal_ids") <= 4)) AND (("signal_key")::"text" ~ '^[a-z][a-z0-9_.]{2,63}$'::"text") AND (("direction")::"text" = ANY ((ARRAY['improving'::character varying, 'stable'::character varying, 'declining'::character varying])::"text"[])) AND (("confidence_basis_points" >= 0) AND ("confidence_basis_points" <= 10000)) AND ("supporting_review_count" >= 0) AND (("headline")::"text" = ANY ((ARRAY['Review signals improved'::character varying, 'Review signals need attention'::character varying, 'Notable review changes'::character varying])::"text"[])) AND ("jsonb_typeof"("sentences") = 'array'::"text") AND (("jsonb_array_length"("sentences") >= 1) AND ("jsonb_array_length"("sentences") <= 4)) AND (("length"("summary") >= 1) AND ("length"("summary") <= 1000)) AND (("render_profile_version")::"text" = 'trend-render-v1'::"text") AND (("render_profile_digest")::"text" ~ '^[0-9a-f]{64}$'::"text") AND ((("definition_version" IS NULL) AND ("definition_digest" IS NULL) AND ("evidence" IS NULL)) OR ((("definition_version")::"text" = 'property-trend-definition-v1'::"text") AND (("definition_digest")::"text" ~ '^[0-9a-f]{64}$'::"text") AND ("jsonb_typeof"("evidence") = 'object'::"text"))) AND ((("operation_id" IS NOT NULL) AND ("provider_selection_recorded_at" IS NOT NULL) AND ("recorded_at" = "provider_selection_recorded_at")) OR (("operation_id" IS NULL) AND ("provider_selection_recorded_at" IS NULL))) AND ("expires_at" > "recorded_at")) OR ((("disposition")::"text" = ANY ((ARRAY['updating'::character varying, 'insufficient_data'::character varying, 'no_material_change'::character varying])::"text"[])) AND ("operation_id" IS NULL) AND ("selected_signal_ids" IS NULL) AND ("signal_key" IS NULL) AND ("direction" IS NULL) AND ("confidence_basis_points" IS NULL) AND ("supporting_review_count" IS NULL) AND ("headline" IS NULL) AND ("sentences" IS NULL) AND ("summary" IS NULL) AND ("render_profile_version" IS NULL) AND ("render_profile_digest" IS NULL) AND ((("definition_version" IS NULL) AND ("definition_digest" IS NULL) AND ("evidence" IS NULL) AND ("expires_at" IS NULL)) OR ((("definition_version")::"text" = 'property-trend-definition-v1'::"text") AND (("definition_digest")::"text" ~ '^[0-9a-f]{64}$'::"text") AND ("jsonb_typeof"("evidence") = 'object'::"text") AND ("expires_at" > "recorded_at"))) AND ("provider_selection_recorded_at" IS NULL))))
-);
-
-
---
--- Name: ai_property_trend_scheduler_heads; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_trend_scheduler_heads" (
-    "scheduler_key" character varying(64) NOT NULL,
-    "generation" bigint NOT NULL,
-    "cursor_organization_id" character varying(255),
-    "cursor_property_id" "uuid",
-    "lease_owner" "uuid",
-    "claimed_at" timestamp with time zone,
-    "lease_expires_at" timestamp with time zone,
-    "updated_at" timestamp with time zone NOT NULL,
-    CONSTRAINT "ai_property_trend_scheduler_heads_valid" CHECK (((("scheduler_key")::"text" = 'property-trend-v1'::"text") AND (("generation" >= 0) AND ("generation" <= '9007199254740991'::bigint)) AND ((("cursor_organization_id" IS NULL) AND ("cursor_property_id" IS NULL)) OR (("cursor_organization_id" IS NOT NULL) AND ("cursor_property_id" IS NOT NULL))) AND ((("lease_owner" IS NULL) AND ("claimed_at" IS NULL) AND ("lease_expires_at" IS NULL)) OR (("lease_owner" IS NOT NULL) AND ("claimed_at" IS NOT NULL) AND ("lease_expires_at" > "claimed_at")))))
-);
-
-
---
--- Name: ai_property_trend_schedules; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_trend_schedules" (
-    "id" "uuid" NOT NULL,
-    "outbox_event_id" "uuid" NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "due_local_date" "date" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "review_analysis_epoch" integer NOT NULL,
-    "property_trends_epoch" integer NOT NULL,
-    "property_profile_version" integer NOT NULL,
-    "terminal_analysis_sequence" bigint NOT NULL,
-    "aggregate_revision" bigint NOT NULL,
-    "timezone" character varying(64) NOT NULL,
-    "calendar_profile_version" character varying(100) NOT NULL,
-    "report_profile_version" character varying(100) NOT NULL,
-    "scheduler_generation" bigint NOT NULL,
-    "scheduled_at" timestamp with time zone NOT NULL,
-    CONSTRAINT "ai_property_trend_schedules_versions_valid" CHECK ((("source_epoch" >= 0) AND ("review_analysis_epoch" >= 1) AND ("property_trends_epoch" >= 1) AND ("property_profile_version" >= 1) AND (("terminal_analysis_sequence" >= 0) AND ("terminal_analysis_sequence" <= '9007199254740991'::bigint)) AND (("aggregate_revision" >= 0) AND ("aggregate_revision" <= '9007199254740991'::bigint)) AND (("scheduler_generation" >= 1) AND ("scheduler_generation" <= '9007199254740991'::bigint)) AND (("timezone")::"text" ~ '^(UTC|[A-Za-z_]+(/[A-Za-z0-9_+-]+)+)$'::"text")))
-);
-
-
---
 -- Name: ai_review_analyses; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4745,25 +4196,6 @@ CREATE TABLE "public"."ai_review_analyses" (
     CONSTRAINT "ai_review_analyses_result_valid" CHECK ((((("analysis_profile_version")::"text" <> 'review-analysis-v3'::"text") AND ("urgent_reason" IS NULL) AND (((("status")::"text" = 'ready'::"text") AND ("unavailable_reason" IS NULL) AND (("sentiment")::"text" = ANY ((ARRAY['positive'::character varying, 'neutral'::character varying, 'negative'::character varying, 'mixed'::character varying])::"text"[])) AND (("primary_category")::"text" = ANY ((ARRAY['service'::character varying, 'staff'::character varying, 'quality'::character varying, 'value'::character varying, 'cleanliness'::character varying, 'wait_time'::character varying, 'atmosphere'::character varying, 'location'::character varying, 'accessibility'::character varying, 'other'::character varying, 'room'::character varying, 'food_and_drink'::character varying, 'noise'::character varying, 'wifi_and_tech'::character varying, 'check_in_out'::character varying, 'parking'::character varying, 'amenities'::character varying, 'events'::character varying])::"text"[])) AND (("attention")::"text" = ANY ((ARRAY['urgent'::character varying, 'high'::character varying, 'medium'::character varying, 'low'::character varying])::"text"[])) AND (("issue_label" IS NULL) OR (("issue_label")::"text" ~ '^[a-z]+( [a-z]+){0,3}$'::"text"))) OR ((("status")::"text" = 'unavailable'::"text") AND (("unavailable_reason")::"text" = 'language_not_supported'::"text") AND ("sentiment" IS NULL) AND ("primary_category" IS NULL) AND ("attention" IS NULL) AND ("issue_label" IS NULL)))) OR ((("analysis_profile_version")::"text" = 'review-analysis-v3'::"text") AND (((("status")::"text" = 'ready'::"text") AND ("unavailable_reason" IS NULL) AND ("sentiment" IS NOT NULL) AND (("sentiment")::"text" = ANY ((ARRAY['positive'::character varying, 'neutral'::character varying, 'negative'::character varying, 'mixed'::character varying])::"text"[])) AND ("primary_category" IS NULL) AND ("issue_label" IS NULL) AND ("attention" IS NOT NULL) AND (("attention")::"text" = ANY ((ARRAY['urgent'::character varying, 'high'::character varying, 'medium'::character varying, 'low'::character varying])::"text"[])) AND (((("attention")::"text" = 'urgent'::"text") AND ("urgent_reason" IS NOT NULL) AND (("urgent_reason")::"text" = ANY ((ARRAY['safety'::character varying, 'health'::character varying, 'discrimination'::character varying, 'legal_threat'::character varying])::"text"[]))) OR ((("attention")::"text" <> 'urgent'::"text") AND ("urgent_reason" IS NULL)))) OR ((("status")::"text" = 'unavailable'::"text") AND ("unavailable_reason" IS NOT NULL) AND (("unavailable_reason")::"text" = 'language_not_supported'::"text") AND ("sentiment" IS NULL) AND ("primary_category" IS NULL) AND ("attention" IS NULL) AND ("issue_label" IS NULL) AND ("urgent_reason" IS NULL)))))),
     CONSTRAINT "ai_review_analyses_retention_valid" CHECK (("expires_at" > "generated_at")),
     CONSTRAINT "ai_review_analyses_versions_valid" CHECK ((("source_epoch" >= 0) AND (("source_revision" >= 1) AND ("source_revision" <= '9007199254740991'::bigint)) AND (("analysis_sequence" >= 1) AND ("analysis_sequence" <= '9007199254740991'::bigint)) AND ("review_analysis_epoch" >= 1) AND ("property_profile_version" >= 1)))
-);
-
-
---
--- Name: ai_review_analysis_aspects; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_review_analysis_aspects" (
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "review_id" "uuid" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "source_revision" bigint NOT NULL,
-    "analysis_sequence" bigint NOT NULL,
-    "aspect" character varying(40) NOT NULL,
-    "polarity" character varying(20) NOT NULL,
-    "intensity" integer NOT NULL,
-    CONSTRAINT "ai_review_analysis_aspects_aspect_valid" CHECK ((("aspect")::"text" = ANY ((ARRAY['service'::character varying, 'staff'::character varying, 'quality'::character varying, 'value'::character varying, 'cleanliness'::character varying, 'wait_time'::character varying, 'atmosphere'::character varying, 'location'::character varying, 'accessibility'::character varying, 'other'::character varying, 'room'::character varying, 'food_and_drink'::character varying, 'noise'::character varying, 'wifi_and_tech'::character varying, 'check_in_out'::character varying, 'parking'::character varying, 'amenities'::character varying, 'events'::character varying])::"text"[]))),
-    CONSTRAINT "ai_review_analysis_aspects_polarity_intensity_valid" CHECK ((((("polarity")::"text" = 'positive'::"text") AND (("intensity" >= 20) AND ("intensity" <= 100))) OR ((("polarity")::"text" = 'neutral'::"text") AND ("abs"("intensity") <= 19)) OR ((("polarity")::"text" = 'negative'::"text") AND ("intensity" < 0) AND (("abs"("intensity") >= 20) AND ("abs"("intensity") <= 100)))))
 );
 
 
@@ -6713,114 +6145,6 @@ CREATE TABLE "public"."organization" (
 
 
 --
--- Name: organizationRole; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."organizationRole" (
-    "id" "text" NOT NULL,
-    "organizationId" "text" NOT NULL,
-    "role" "text" NOT NULL,
-    "permission" "text" NOT NULL,
-    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp with time zone
-);
-
-
---
--- Name: organization_export_retrieval_issuances; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."organization_export_retrieval_issuances" (
-    "export_id" "uuid" NOT NULL,
-    "organization_id" "text" NOT NULL,
-    "export_revision" integer NOT NULL,
-    "operation_id" "uuid" NOT NULL,
-    "token_digest" character(64) NOT NULL,
-    "issued_at" timestamp with time zone NOT NULL,
-    "expires_at" timestamp with time zone NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "organization_export_retrieval_issuances_digest_valid" CHECK (("token_digest" ~ '^[a-f0-9]{64}$'::"text")),
-    CONSTRAINT "organization_export_retrieval_issuances_expiry_valid" CHECK ((("expires_at" > "issued_at") AND ("expires_at" <= ("issued_at" + '24:00:00'::interval)))),
-    CONSTRAINT "organization_export_retrieval_issuances_revision_positive" CHECK (("export_revision" > 0))
-);
-
-
---
--- Name: organization_exports; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."organization_exports" (
-    "id" "uuid" NOT NULL,
-    "organization_id" "text" NOT NULL,
-    "requested_by" character varying(255) NOT NULL,
-    "state" "text" DEFAULT 'requested'::"text" NOT NULL,
-    "revision" integer DEFAULT 1 NOT NULL,
-    "format_version" character varying(64) DEFAULT 'organization-export/v1'::character varying NOT NULL,
-    "as_of" timestamp with time zone NOT NULL,
-    "object_expires_at" timestamp with time zone NOT NULL,
-    "generation_lease_expires_at" timestamp with time zone,
-    "coverage_sha256" character varying(64),
-    "manifest_sha256" character varying(64),
-    "archive_sha256" character varying(64),
-    "object_key" character varying(200),
-    "encryption_evidence_ref" character varying(200),
-    "pre_egress_recorded_at" timestamp with time zone,
-    "egress_recovery_attempts" integer DEFAULT 0 NOT NULL,
-    "retrieval_operation_id" "uuid",
-    "retrieval_token_digest" character varying(64),
-    "retrieval_issued_at" timestamp with time zone,
-    "retrieval_expires_at" timestamp with time zone,
-    "retrieved_at" timestamp with time zone,
-    "deletion_evidence_ref" character varying(200),
-    "deleted_at" timestamp with time zone,
-    "last_error_code" character varying(64),
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "organization_export_deletion_shape" CHECK (((("state" = 'deleted'::"text") AND ("deleted_at" IS NOT NULL) AND ("deletion_evidence_ref" IS NOT NULL)) OR (("state" <> 'deleted'::"text") AND ("deleted_at" IS NULL) AND ("deletion_evidence_ref" IS NULL)))),
-    CONSTRAINT "organization_export_digest_shape" CHECK (((("coverage_sha256" IS NULL) OR (("coverage_sha256")::"text" ~ '^[a-f0-9]{64}$'::"text")) AND (("manifest_sha256" IS NULL) OR (("manifest_sha256")::"text" ~ '^[a-f0-9]{64}$'::"text")) AND (("archive_sha256" IS NULL) OR (("archive_sha256")::"text" ~ '^[a-f0-9]{64}$'::"text")) AND (("retrieval_token_digest" IS NULL) OR (("retrieval_token_digest")::"text" ~ '^[a-f0-9]{64}$'::"text")))),
-    CONSTRAINT "organization_export_error_code_shape" CHECK ((("last_error_code" IS NULL) OR (("last_error_code")::"text" ~ '^[a-z][a-z0-9_]{0,63}$'::"text"))),
-    CONSTRAINT "organization_export_evidence_ref_shape" CHECK (((("encryption_evidence_ref" IS NULL) OR (("encryption_evidence_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text")) AND (("deletion_evidence_ref" IS NULL) OR (("deletion_evidence_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text")))),
-    CONSTRAINT "organization_export_object_expiry_bounded" CHECK ((("object_expires_at" > "created_at") AND ("object_expires_at" <= ("created_at" + '7 days'::interval)))),
-    CONSTRAINT "organization_export_recovery_attempts_nonnegative" CHECK (("egress_recovery_attempts" >= 0)),
-    CONSTRAINT "organization_export_retrieval_shape" CHECK (((("state" = 'retrieval_issued'::"text") AND ("retrieval_operation_id" IS NOT NULL) AND ("retrieval_token_digest" IS NOT NULL) AND ("retrieval_issued_at" IS NOT NULL) AND ("retrieval_expires_at" > "retrieval_issued_at") AND ("retrieval_expires_at" <= ("retrieval_issued_at" + '24:00:00'::interval)) AND ("retrieval_expires_at" <= "object_expires_at") AND ("retrieved_at" IS NULL)) OR (("state" = 'retrieved'::"text") AND ("retrieval_operation_id" IS NOT NULL) AND ("retrieval_token_digest" IS NULL) AND ("retrieval_issued_at" IS NOT NULL) AND ("retrieval_expires_at" IS NULL) AND ("retrieved_at" IS NOT NULL)) OR (("state" <> ALL (ARRAY['retrieval_issued'::"text", 'retrieved'::"text"])) AND ("retrieval_operation_id" IS NULL) AND ("retrieval_token_digest" IS NULL) AND ("retrieval_issued_at" IS NULL) AND ("retrieval_expires_at" IS NULL) AND ("retrieved_at" IS NULL)))),
-    CONSTRAINT "organization_export_revision_positive" CHECK (("revision" >= 1)),
-    CONSTRAINT "organization_export_state_shape" CHECK (((("state" = 'requested'::"text") AND ("generation_lease_expires_at" IS NULL) AND ("coverage_sha256" IS NULL) AND ("manifest_sha256" IS NULL) AND ("archive_sha256" IS NULL) AND ("object_key" IS NULL) AND ("encryption_evidence_ref" IS NULL) AND ("pre_egress_recorded_at" IS NULL) AND ("last_error_code" IS NULL)) OR (("state" = 'generating'::"text") AND ("generation_lease_expires_at" IS NOT NULL) AND ("coverage_sha256" IS NULL) AND ("manifest_sha256" IS NULL) AND ("archive_sha256" IS NULL) AND ("object_key" IS NULL) AND ("encryption_evidence_ref" IS NULL) AND ("pre_egress_recorded_at" IS NULL) AND ("last_error_code" IS NULL)) OR (("state" = 'egress_pending'::"text") AND ("generation_lease_expires_at" IS NOT NULL) AND ("coverage_sha256" IS NOT NULL) AND ("manifest_sha256" IS NOT NULL) AND ("archive_sha256" IS NOT NULL) AND ("object_key" IS NOT NULL) AND ("encryption_evidence_ref" IS NULL) AND ("pre_egress_recorded_at" IS NOT NULL) AND ("last_error_code" IS NULL)) OR (("state" = ANY (ARRAY['ready'::"text", 'retrieval_issued'::"text", 'retrieved'::"text", 'delete_pending'::"text", 'deleted'::"text"])) AND ("generation_lease_expires_at" IS NULL) AND ("coverage_sha256" IS NOT NULL) AND ("manifest_sha256" IS NOT NULL) AND ("archive_sha256" IS NOT NULL) AND ("object_key" IS NOT NULL) AND ("encryption_evidence_ref" IS NOT NULL) AND ("last_error_code" IS NULL)) OR (("state" = 'failed'::"text") AND ("generation_lease_expires_at" IS NULL) AND ("encryption_evidence_ref" IS NULL) AND ("last_error_code" IS NOT NULL) AND ((("coverage_sha256" IS NULL) AND ("manifest_sha256" IS NULL) AND ("archive_sha256" IS NULL) AND ("object_key" IS NULL) AND ("pre_egress_recorded_at" IS NULL)) OR (("coverage_sha256" IS NOT NULL) AND ("manifest_sha256" IS NOT NULL) AND ("archive_sha256" IS NOT NULL) AND ("object_key" IS NOT NULL) AND ("pre_egress_recorded_at" IS NOT NULL)))))),
-    CONSTRAINT "organization_export_state_valid" CHECK (("state" = ANY (ARRAY['requested'::"text", 'generating'::"text", 'egress_pending'::"text", 'ready'::"text", 'retrieval_issued'::"text", 'retrieved'::"text", 'delete_pending'::"text", 'deleted'::"text", 'failed'::"text"]))),
-    CONSTRAINT "organization_export_version_fixed" CHECK ((("format_version")::"text" = 'organization-export/v1'::"text"))
-);
-
-
---
--- Name: organization_lifecycle_authority; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."organization_lifecycle_authority" (
-    "organization_id" "text" NOT NULL,
-    "state" "text" DEFAULT 'active'::"text" NOT NULL,
-    "revision" integer DEFAULT 0 NOT NULL,
-    "closure_lineage_id" "uuid",
-    "closure_requested_at" timestamp with time zone,
-    "recoverable_until" timestamp with time zone,
-    "irreversible_at" timestamp with time zone,
-    "closed_at" timestamp with time zone,
-    "reactivation_required" boolean DEFAULT false NOT NULL,
-    "requested_by" character varying(255),
-    "request_reason_code" character varying(64),
-    "request_support_evidence_ref" character varying(200),
-    "last_transition_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "last_actor_id" character varying(255) NOT NULL,
-    "last_reason_code" character varying(64) NOT NULL,
-    "last_support_evidence_ref" character varying(200) NOT NULL,
-    CONSTRAINT "organization_lifecycle_evidence_ref_valid" CHECK (((("last_support_evidence_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text") AND (("request_support_evidence_ref" IS NULL) OR (("request_support_evidence_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text")))),
-    CONSTRAINT "organization_lifecycle_reason_code_valid" CHECK ((("last_reason_code")::"text" ~ '^[a-z][a-z0-9_]{0,63}$'::"text")),
-    CONSTRAINT "organization_lifecycle_request_reason_valid" CHECK ((("request_reason_code" IS NULL) OR (("request_reason_code")::"text" = ANY ((ARRAY['account_admin_request'::character varying, 'contract_ended'::character varying, 'duplicate_workspace'::character varying, 'privacy_request'::character varying, 'test_workspace'::character varying])::"text"[])))),
-    CONSTRAINT "organization_lifecycle_revision_nonnegative" CHECK (("revision" >= 0)),
-    CONSTRAINT "organization_lifecycle_state_shape" CHECK (((("state" = 'active'::"text") AND ("irreversible_at" IS NULL) AND ("closed_at" IS NULL) AND ((("closure_lineage_id" IS NULL) AND ("closure_requested_at" IS NULL) AND ("recoverable_until" IS NULL) AND ("requested_by" IS NULL) AND ("request_reason_code" IS NULL) AND ("request_support_evidence_ref" IS NULL) AND ("reactivation_required" = false)) OR (("closure_lineage_id" IS NOT NULL) AND ("closure_requested_at" IS NOT NULL) AND ("recoverable_until" > "closure_requested_at") AND ("requested_by" IS NOT NULL) AND ("request_reason_code" IS NOT NULL) AND ("request_support_evidence_ref" IS NOT NULL) AND ("reactivation_required" = true)))) OR (("state" = ANY (ARRAY['closure_requested'::"text", 'closing'::"text", 'purge_pending'::"text"])) AND ("closure_lineage_id" IS NOT NULL) AND ("closure_requested_at" IS NOT NULL) AND ("recoverable_until" > "closure_requested_at") AND ("requested_by" IS NOT NULL) AND ("request_reason_code" IS NOT NULL) AND ("request_support_evidence_ref" IS NOT NULL) AND ("irreversible_at" IS NULL) AND ("closed_at" IS NULL) AND ("reactivation_required" = true)) OR (("state" = 'purging'::"text") AND ("closure_lineage_id" IS NOT NULL) AND ("closure_requested_at" IS NOT NULL) AND ("recoverable_until" > "closure_requested_at") AND ("requested_by" IS NOT NULL) AND ("request_reason_code" IS NOT NULL) AND ("request_support_evidence_ref" IS NOT NULL) AND ("irreversible_at" IS NOT NULL) AND ("closed_at" IS NULL) AND ("reactivation_required" = true)) OR (("state" = 'closed'::"text") AND ("closure_lineage_id" IS NOT NULL) AND ("closure_requested_at" IS NOT NULL) AND ("recoverable_until" > "closure_requested_at") AND ("requested_by" IS NOT NULL) AND ("request_reason_code" IS NOT NULL) AND ("request_support_evidence_ref" IS NOT NULL) AND ("irreversible_at" IS NOT NULL) AND ("closed_at" IS NOT NULL) AND ("reactivation_required" = true)))),
-    CONSTRAINT "organization_lifecycle_state_valid" CHECK (("state" = ANY (ARRAY['active'::"text", 'closure_requested'::"text", 'closing'::"text", 'purge_pending'::"text", 'purging'::"text", 'closed'::"text"])))
-);
-
-
---
 -- Name: organization_lifecycle_events; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6867,24 +6191,6 @@ CREATE TABLE "public"."organization_reply_voices" (
 
 
 --
--- Name: organization_role_policy; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."organization_role_policy" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" "text" NOT NULL,
-    "role" "text" NOT NULL,
-    "data_scope" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "organization_role_policy_data_scope_check" CHECK (("data_scope" = ANY (ARRAY['organization'::"text", 'assigned-properties'::"text", 'none'::"text"]))),
-    CONSTRAINT "organization_role_policy_role_format_check" CHECK (("role" ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::"text")),
-    CONSTRAINT "organization_role_policy_role_no_comma_check" CHECK ((POSITION((','::"text") IN ("role")) = 0)),
-    CONSTRAINT "organization_role_policy_role_not_reserved_check" CHECK (("role" <> ALL (ARRAY['owner'::"text", 'admin'::"text", 'member'::"text"])))
-);
-
-
---
 -- Name: outbox_events; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6920,26 +6226,6 @@ CREATE TABLE "public"."permission_version" (
     "organization_id" "text" NOT NULL,
     "version" bigint DEFAULT 0 NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
---
--- Name: policy_consent; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."policy_consent" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" "text" NOT NULL,
-    "subject_type" "text" NOT NULL,
-    "subject_id" "text" NOT NULL,
-    "purpose" "text" NOT NULL,
-    "state" "text" DEFAULT 'granted'::"text" NOT NULL,
-    "recorded_by" "text",
-    "recorded_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "expires_at" timestamp with time zone,
-    "revoked_at" timestamp with time zone,
-    CONSTRAINT "policy_consent_state_check" CHECK (("state" = ANY (ARRAY['granted'::"text", 'revoked'::"text"]))),
-    CONSTRAINT "policy_consent_subject_check" CHECK (("subject_type" = ANY (ARRAY['organization'::"text", 'property'::"text", 'user'::"text"])))
 );
 
 
@@ -7042,19 +6328,6 @@ CREATE TABLE "public"."portal_group_history" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "portal_group_history_kind_valid" CHECK ((("kind")::"text" = ANY ((ARRAY['created'::character varying, 'renamed'::character varying, 'archived'::character varying, 'portal_added'::character varying, 'portal_removed'::character varying, 'portal_moved_in'::character varying, 'portal_moved_out'::character varying])::"text"[]))),
     CONSTRAINT "portal_group_history_shape" CHECK ((((("kind")::"text" = 'created'::"text") AND ("name" IS NOT NULL) AND ("previous_name" IS NULL) AND ("portal_id" IS NULL) AND ("other_group_id" IS NULL)) OR ((("kind")::"text" = 'renamed'::"text") AND ("name" IS NOT NULL) AND ("previous_name" IS NOT NULL) AND ("portal_id" IS NULL) AND ("other_group_id" IS NULL)) OR ((("kind")::"text" = 'archived'::"text") AND ("name" IS NULL) AND ("previous_name" IS NULL) AND ("portal_id" IS NULL) AND ("other_group_id" IS NULL)) OR ((("kind")::"text" = ANY ((ARRAY['portal_added'::character varying, 'portal_removed'::character varying])::"text"[])) AND ("name" IS NULL) AND ("previous_name" IS NULL) AND ("portal_id" IS NOT NULL) AND ("other_group_id" IS NULL)) OR ((("kind")::"text" = ANY ((ARRAY['portal_moved_in'::character varying, 'portal_moved_out'::character varying])::"text"[])) AND ("name" IS NULL) AND ("previous_name" IS NULL) AND ("portal_id" IS NOT NULL) AND ("other_group_id" IS NOT NULL))))
-);
-
-
---
--- Name: portal_group_members; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."portal_group_members" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "portal_group_id" "uuid" NOT NULL,
-    "portal_id" "uuid" NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -7318,51 +6591,6 @@ CREATE TABLE "public"."portal_media_assets" (
 
 
 --
--- Name: portal_metric_lifetime_aggregates; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."portal_metric_lifetime_aggregates" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "portal_id" "uuid" NOT NULL,
-    "qualified_scan_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_sum" bigint DEFAULT 0 NOT NULL,
-    "private_rating_1_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_2_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_3_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_4_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_5_count" bigint DEFAULT 0 NOT NULL,
-    "private_feedback_count" bigint DEFAULT 0 NOT NULL,
-    "google_review_selection_count" bigint DEFAULT 0 NOT NULL,
-    "secondary_link_selection_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_qualified_scan_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_sum" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_1_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_2_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_3_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_4_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_5_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_feedback_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_google_review_selection_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_secondary_link_selection_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_through_local_date" character varying(10),
-    "projection_revision" bigint DEFAULT 0 NOT NULL,
-    "last_rebuilt_at" timestamp with time zone,
-    "last_sealed_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "portal_metric_lifetime_nonnegative_check" CHECK ((("qualified_scan_count" >= 0) AND ("private_rating_count" >= 0) AND ("private_rating_sum" >= 0) AND ("private_rating_1_count" >= 0) AND ("private_rating_2_count" >= 0) AND ("private_rating_3_count" >= 0) AND ("private_rating_4_count" >= 0) AND ("private_rating_5_count" >= 0) AND ("private_feedback_count" >= 0) AND ("google_review_selection_count" >= 0) AND ("secondary_link_selection_count" >= 0))),
-    CONSTRAINT "portal_metric_lifetime_rating_check" CHECK ((((((("private_rating_1_count" + "private_rating_2_count") + "private_rating_3_count") + "private_rating_4_count") + "private_rating_5_count") = "private_rating_count") AND (("private_rating_sum" >= "private_rating_count") AND ("private_rating_sum" <= ("private_rating_count" * 5))))),
-    CONSTRAINT "portal_metric_lifetime_sealed_boundary_check" CHECK ((("sealed_through_local_date" IS NULL) OR (("sealed_through_local_date")::"text" ~ '^\d{4}-\d{2}-\d{2}$'::"text"))),
-    CONSTRAINT "portal_metric_lifetime_sealed_nonnegative_check" CHECK ((("sealed_qualified_scan_count" >= 0) AND ("sealed_private_rating_count" >= 0) AND ("sealed_private_rating_sum" >= 0) AND ("sealed_private_rating_1_count" >= 0) AND ("sealed_private_rating_2_count" >= 0) AND ("sealed_private_rating_3_count" >= 0) AND ("sealed_private_rating_4_count" >= 0) AND ("sealed_private_rating_5_count" >= 0) AND ("sealed_private_feedback_count" >= 0) AND ("sealed_google_review_selection_count" >= 0) AND ("sealed_secondary_link_selection_count" >= 0))),
-    CONSTRAINT "portal_metric_lifetime_sealed_rating_check" CHECK ((((((("sealed_private_rating_1_count" + "sealed_private_rating_2_count") + "sealed_private_rating_3_count") + "sealed_private_rating_4_count") + "sealed_private_rating_5_count") = "sealed_private_rating_count") AND (("sealed_private_rating_sum" >= "sealed_private_rating_count") AND ("sealed_private_rating_sum" <= ("sealed_private_rating_count" * 5)))))
-);
-
-
---
 -- Name: portal_page_edits; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7608,46 +6836,6 @@ CREATE TABLE "public"."portals" (
 
 
 --
--- Name: privacy_requests; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."privacy_requests" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "subject_type" character varying(24) NOT NULL,
-    "subject_ref" character(64) NOT NULL,
-    "request_kind" character varying(24) NOT NULL,
-    "state" character varying(24) NOT NULL,
-    "verification_ref" character varying(200),
-    "refusal_reason_code" character varying(64),
-    "target_field" character varying(64),
-    "content_classification" character varying(24) NOT NULL,
-    "package_ref" character varying(200),
-    "package_expires_at" timestamp with time zone,
-    "evidence_ref" character varying(200) NOT NULL,
-    "correlation_id" character varying(255) NOT NULL,
-    "received_at" timestamp with time zone NOT NULL,
-    "verified_at" timestamp with time zone,
-    "started_at" timestamp with time zone,
-    "completed_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "privacy_requests_classification_valid" CHECK ((("content_classification")::"text" = ANY ((ARRAY['content_free'::character varying, 'personal'::character varying, 'sensitive'::character varying])::"text"[]))),
-    CONSTRAINT "privacy_requests_completion_valid" CHECK (((("state")::"text" = ANY ((ARRAY['fulfilled'::character varying, 'refused'::character varying])::"text"[])) = ("completed_at" IS NOT NULL))),
-    CONSTRAINT "privacy_requests_kind_valid" CHECK ((("request_kind")::"text" = ANY ((ARRAY['access'::character varying, 'correction'::character varying, 'withdrawal'::character varying, 'erasure'::character varying])::"text"[]))),
-    CONSTRAINT "privacy_requests_package_valid" CHECK ((("package_ref" IS NULL) OR ((("request_kind")::"text" = 'access'::"text") AND ("package_expires_at" IS NOT NULL) AND ("package_expires_at" > "received_at")))),
-    CONSTRAINT "privacy_requests_refs_valid" CHECK (((("evidence_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text") AND (("verification_ref" IS NULL) OR (("verification_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text")) AND (("package_ref" IS NULL) OR (("package_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text")) AND (("refusal_reason_code" IS NULL) OR (("refusal_reason_code")::"text" ~ '^[a-z][a-z0-9_]{0,63}$'::"text")) AND (("target_field" IS NULL) OR (("target_field")::"text" ~ '^[a-z][a-z0-9_]{0,63}$'::"text")))),
-    CONSTRAINT "privacy_requests_refusal_reason_required" CHECK (((("state")::"text" = 'refused'::"text") = ("refusal_reason_code" IS NOT NULL))),
-    CONSTRAINT "privacy_requests_state_valid" CHECK ((("state")::"text" = ANY ((ARRAY['received'::character varying, 'verified'::character varying, 'in_progress'::character varying, 'fulfilled'::character varying, 'refused'::character varying])::"text"[]))),
-    CONSTRAINT "privacy_requests_subject_ref_valid" CHECK (("subject_ref" ~ '^[a-f0-9]{64}$'::"text")),
-    CONSTRAINT "privacy_requests_subject_type_valid" CHECK ((("subject_type")::"text" = ANY ((ARRAY['guest'::character varying, 'participant'::character varying])::"text"[]))),
-    CONSTRAINT "privacy_requests_target_field_valid" CHECK ((("target_field" IS NULL) OR (("request_kind")::"text" = ANY ((ARRAY['correction'::character varying, 'withdrawal'::character varying])::"text"[])))),
-    CONSTRAINT "privacy_requests_verification_required" CHECK (((("state")::"text" = 'received'::"text") OR (("verified_at" IS NOT NULL) AND ("verification_ref" IS NOT NULL))))
-);
-
-
---
 -- Name: product_update_receipts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7745,64 +6933,6 @@ CREATE TABLE "public"."property_access_grant" (
     "revoked_at" timestamp with time zone,
     "revoke_reason" "text",
     CONSTRAINT "property_access_grant_source_check" CHECK (("source" = ANY (ARRAY['operator'::"text", 'migration'::"text", 'invitation'::"text"])))
-);
-
-
---
--- Name: property_access_grants; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."property_access_grants" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "user_id" character varying(255) NOT NULL,
-    "kind" "public"."grant_kind" NOT NULL,
-    "status" "public"."grant_status" DEFAULT 'active'::"public"."grant_status" NOT NULL,
-    "granted_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "revoked_at" timestamp with time zone,
-    "granted_by" character varying(255) NOT NULL,
-    "revoked_by" character varying(255),
-    "reason" "text"
-);
-
-
---
--- Name: property_erase_authorities; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."property_erase_authorities" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "state" character varying(24) NOT NULL,
-    "requested_by_user_id" character varying(255) NOT NULL,
-    "identity_verification_ref" character varying(200) NOT NULL,
-    "support_operator_id" character varying(255) NOT NULL,
-    "support_authorization_ref" character varying(200) NOT NULL,
-    "retention_preview_ref" character varying(200),
-    "export_evidence_ref" character varying(200),
-    "inventory_revision" integer DEFAULT 0 NOT NULL,
-    "inventory_digest" character(64),
-    "confirmation_digest" character(64),
-    "grace_expires_at" timestamp with time zone,
-    "confirmed_at" timestamp with time zone,
-    "purge_started_at" timestamp with time zone,
-    "purged_at" timestamp with time zone,
-    "cancelled_at" timestamp with time zone,
-    "cancel_reason_code" character varying(64),
-    "evidence_ref" character varying(200) NOT NULL,
-    "correlation_id" character varying(255) NOT NULL,
-    "requested_at" timestamp with time zone NOT NULL,
-    "state_changed_at" timestamp with time zone NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "property_erase_authorities_confirmation_complete" CHECK (((("state")::"text" = ANY ((ARRAY['requested'::character varying, 'previewed'::character varying, 'cancelled'::character varying])::"text"[])) OR (("confirmation_digest" IS NOT NULL) AND ("inventory_digest" IS NOT NULL) AND ("retention_preview_ref" IS NOT NULL) AND ("confirmed_at" IS NOT NULL)))),
-    CONSTRAINT "property_erase_authorities_digests_valid" CHECK (((("inventory_digest" IS NULL) OR ("inventory_digest" ~ '^[a-f0-9]{64}$'::"text")) AND (("confirmation_digest" IS NULL) OR ("confirmation_digest" ~ '^[a-f0-9]{64}$'::"text")))),
-    CONSTRAINT "property_erase_authorities_refs_valid" CHECK (((("identity_verification_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text") AND (("support_authorization_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text") AND (("evidence_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text") AND (("retention_preview_ref" IS NULL) OR (("retention_preview_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text")) AND (("export_evidence_ref" IS NULL) OR (("export_evidence_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text")) AND (("cancel_reason_code" IS NULL) OR (("cancel_reason_code")::"text" ~ '^[a-z][a-z0-9_]{0,63}$'::"text")))),
-    CONSTRAINT "property_erase_authorities_revision_valid" CHECK (("inventory_revision" >= 0)),
-    CONSTRAINT "property_erase_authorities_state_valid" CHECK ((("state")::"text" = ANY ((ARRAY['requested'::character varying, 'previewed'::character varying, 'confirmed'::character varying, 'purge_pending'::character varying, 'purging'::character varying, 'purged'::character varying, 'cancelled'::character varying])::"text"[]))),
-    CONSTRAINT "property_erase_authorities_terminal_valid" CHECK ((((("state")::"text" = 'purged'::"text") = ("purged_at" IS NOT NULL)) AND ((("state")::"text" = 'cancelled'::"text") = ("cancelled_at" IS NOT NULL)) AND ((("state")::"text" <> ALL ((ARRAY['purging'::character varying, 'purged'::character varying])::"text"[])) OR ("purge_started_at" IS NOT NULL))))
 );
 
 
@@ -8132,8 +7262,6 @@ CREATE TABLE "public"."replies" (
     "reconcile_due_at" timestamp(3) with time zone,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "template_id" "uuid",
-    "template_version" integer,
     "submitted_by" character varying(255),
     "template_layer" character varying(20),
     "template_ref" "text",
@@ -8149,7 +7277,6 @@ CREATE TABLE "public"."replies" (
     CONSTRAINT "replies_publication_state_check" CHECK (("publication_state" = ANY (ARRAY['requested'::"text", 'authorized'::"text", 'sending'::"text", 'pending_observation'::"text", 'published'::"text", 'terminal'::"text", 'ambiguous'::"text", 'cancelled'::"text"]))),
     CONSTRAINT "replies_reply_language_tag_valid" CHECK ((("reply_language_tag" IS NULL) OR (("reply_language_tag")::"text" ~ '^(en-Latn|es-Latn|fr-Latn|de-Latn|pt-Latn|it-Latn|nl-Latn|pl-Latn|tr-Latn|uk-Cyrl|ru-Cyrl|ar-Arab|he-Hebr|hi-Deva|bn-Beng|ta-Taml|th-Thai|vi-Latn|id-Latn|zh-Hans|zh-Hant|ja-Jpan|ko-Kore|bg-Cyrl)(-(001|002|003|005|009|011|013|014|015|017|018|019|021|029|030|034|035|039|053|054|057|061|142|143|145|150|151|154|155|202|419|AC|AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BV|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CP|CQ|CR|CU|CV|CW|CX|CY|CZ|DE|DG|DJ|DK|DM|DO|DZ|EA|EC|EE|EG|EH|ER|ES|ET|EU|EZ|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HM|HN|HR|HT|HU|IC|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|QO|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TA|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|UN|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|XA|XB|XK|YE|YT|ZA|ZM|ZW))?$'::"text"))),
     CONSTRAINT "replies_state_revision_safe" CHECK ((("state_revision" >= 1) AND ("state_revision" <= '9007199254740991'::bigint))),
-    CONSTRAINT "replies_template_provenance_valid" CHECK (((("template_id" IS NULL) AND ("template_version" IS NULL)) OR (("template_id" IS NOT NULL) AND ("template_version" >= 1)))),
     CONSTRAINT "replies_voice_digest_valid" CHECK ((("voice_digest" IS NULL) OR (("voice_digest")::"text" ~ '^[0-9a-f]{64}$'::"text")))
 );
 
@@ -8752,22 +7879,10 @@ CREATE TABLE "public"."reviews" (
     "external_id" character varying(500),
     "external_location_id" character varying(500),
     "google_connection_id" "uuid",
-    "reviewer_name" character varying(255),
-    "reviewer_profile_photo_url" character varying(1000),
-    "rating" integer,
-    "text" "text",
-    "translated_text" "text",
-    "language_code" character varying(10),
-    "reviewed_at" timestamp with time zone,
     "expires_at" timestamp with time zone,
     "sentiment_label" character varying(20),
     "sentiment_score" real,
-    "source_created_at" timestamp with time zone,
-    "source_updated_at" timestamp with time zone,
     "first_fetched_at" timestamp with time zone,
-    "last_fetched_at" timestamp with time zone,
-    "content_expires_at" timestamp with time zone,
-    "content_hash" "text",
     "source_seen_generation" "uuid",
     "source_epoch" integer NOT NULL,
     "source_revision" bigint NOT NULL,
@@ -8776,20 +7891,15 @@ CREATE TABLE "public"."reviews" (
     "material_source_digest" character varying(64),
     "material_normalized_digest" character varying(64),
     "analysis_sequence" bigint NOT NULL,
-    "ai_source_byte_length" integer,
-    "ai_source_digest" character varying(64),
     "source_content_state" character varying(24) DEFAULT 'active'::character varying NOT NULL,
     "source_content_erased_at" timestamp with time zone,
     "reply_state_revision" bigint DEFAULT 0 NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "google_review_url" character varying(2048),
-    CONSTRAINT "reviews_ai_source_byte_length_valid" CHECK ((("ai_source_byte_length" >= 1) AND ("ai_source_byte_length" <= '4294967295'::bigint))),
-    CONSTRAINT "reviews_ai_source_digest_valid" CHECK ((("ai_source_digest")::"text" ~ '^[0-9a-f]{64}$'::"text")),
     CONSTRAINT "reviews_analysis_sequence_safe" CHECK ((("analysis_sequence" >= 0) AND ("analysis_sequence" <= '9007199254740991'::bigint))),
     CONSTRAINT "reviews_material_comparison_head_valid" CHECK (((("material_normalization_version" IS NULL) AND ("material_source_digest" IS NULL) AND ("material_normalized_digest" IS NULL)) OR ((("material_normalization_version")::"text" = 'legacy-unverified-v0'::"text") AND ("material_source_digest" IS NULL) AND ("material_normalized_digest" IS NULL)) OR ((("material_normalization_version")::"text" = 'review-material-v1'::"text") AND ("material_source_digest" IS NOT NULL) AND (("material_source_digest")::"text" ~ '^[0-9a-f]{64}$'::"text") AND ("material_normalized_digest" IS NOT NULL) AND (("material_normalized_digest")::"text" ~ '^[0-9a-f]{64}$'::"text")))),
     CONSTRAINT "reviews_reply_state_revision_safe" CHECK ((("reply_state_revision" >= 0) AND ("reply_state_revision" <= '9007199254740991'::bigint))),
-    CONSTRAINT "reviews_source_content_state_valid" CHECK ((((("source_content_state")::"text" = 'active'::"text") AND ("source_content_erased_at" IS NULL)) OR ((("source_content_state")::"text" = ANY ((ARRAY['source_expired'::character varying, 'provider_deleted'::character varying])::"text"[])) AND ("source_content_erased_at" IS NOT NULL) AND ("external_id" IS NULL) AND ("external_location_id" IS NULL) AND ("google_connection_id" IS NULL) AND ("reviewer_name" IS NULL) AND ("reviewer_profile_photo_url" IS NULL) AND ("google_review_url" IS NULL) AND ("rating" IS NULL) AND ("text" IS NULL) AND ("translated_text" IS NULL) AND ("language_code" IS NULL) AND ("reviewed_at" IS NULL) AND ("source_created_at" IS NULL) AND ("source_updated_at" IS NULL) AND ("content_hash" IS NULL) AND ("ai_source_byte_length" IS NULL) AND ("ai_source_digest" IS NULL)))),
+    CONSTRAINT "reviews_source_content_state_valid" CHECK ((((("source_content_state")::"text" = 'active'::"text") AND ("source_content_erased_at" IS NULL)) OR ((("source_content_state")::"text" = ANY ((ARRAY['source_expired'::character varying, 'provider_deleted'::character varying])::"text"[])) AND ("source_content_erased_at" IS NOT NULL) AND ("external_id" IS NULL) AND ("external_location_id" IS NULL) AND ("google_connection_id" IS NULL)))),
     CONSTRAINT "reviews_source_epoch_safe" CHECK ((("source_epoch" >= 0) AND ("source_epoch" <= 2147483647))),
     CONSTRAINT "reviews_source_observation_sequence_safe" CHECK ((("source_observation_sequence" >= 0) AND ("source_observation_sequence" <= '9007199254740991'::bigint))),
     CONSTRAINT "reviews_source_revision_safe" CHECK ((("source_revision" >= 0) AND ("source_revision" <= '9007199254740991'::bigint)))
@@ -8826,19 +7936,6 @@ CREATE TABLE "public"."session" (
     "userAgent" "text",
     "userId" "text" NOT NULL,
     "activeOrganizationId" "text"
-);
-
-
---
--- Name: setup_checklist_milestones; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."setup_checklist_milestones" (
-    "organization_id" character varying(255) NOT NULL,
-    "step" character varying(40) NOT NULL,
-    "first_completed_at" timestamp with time zone NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "setup_checklist_milestones_step_valid" CHECK ((("step")::"text" = ANY ((ARRAY['google_connection'::character varying, 'initial_review_sync'::character varying, 'published_portal'::character varying, 'responsible_managers'::character varying])::"text"[])))
 );
 
 
@@ -9084,14 +8181,6 @@ ALTER TABLE ONLY "public"."ai_organization_cost_windows"
 
 
 --
--- Name: ai_property_aggregate_contribution_aspects ai_property_aggregate_contribution_aspects_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_aggregate_contribution_aspects"
-    ADD CONSTRAINT "ai_property_aggregate_contribution_aspects_pk" PRIMARY KEY ("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence", "aspect");
-
-
---
 -- Name: ai_property_aggregate_contribution_mentions ai_property_aggregate_contribution_mentions_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9121,22 +8210,6 @@ ALTER TABLE ONLY "public"."ai_property_aggregate_heads"
 
 ALTER TABLE ONLY "public"."ai_property_aggregate_settlements"
     ADD CONSTRAINT "ai_property_aggregate_settlements_pk" PRIMARY KEY ("organization_id", "property_id", "source_epoch", "review_analysis_epoch", "analysis_sequence");
-
-
---
--- Name: ai_property_daily_aggregates ai_property_daily_aggregates_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_daily_aggregates"
-    ADD CONSTRAINT "ai_property_daily_aggregates_pk" PRIMARY KEY ("organization_id", "property_id", "local_date", "source_epoch", "review_analysis_epoch", "property_profile_version");
-
-
---
--- Name: ai_property_daily_aspect_aggregates ai_property_daily_aspect_aggregates_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_daily_aspect_aggregates"
-    ADD CONSTRAINT "ai_property_daily_aspect_aggregates_pk" PRIMARY KEY ("organization_id", "property_id", "local_date", "source_epoch", "review_analysis_epoch", "property_profile_version", "aspect", "polarity");
 
 
 --
@@ -9172,51 +8245,11 @@ ALTER TABLE ONLY "public"."ai_property_processing_profiles"
 
 
 --
--- Name: ai_property_review_population_daily ai_property_review_population_daily_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_review_population_daily"
-    ADD CONSTRAINT "ai_property_review_population_daily_pk" PRIMARY KEY ("organization_id", "property_id", "source_epoch", "property_profile_version", "local_date");
-
-
---
--- Name: ai_property_trend_outcomes ai_property_trend_outcomes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_outcomes"
-    ADD CONSTRAINT "ai_property_trend_outcomes_pkey" PRIMARY KEY ("schedule_id");
-
-
---
--- Name: ai_property_trend_scheduler_heads ai_property_trend_scheduler_heads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_scheduler_heads"
-    ADD CONSTRAINT "ai_property_trend_scheduler_heads_pkey" PRIMARY KEY ("scheduler_key");
-
-
---
--- Name: ai_property_trend_schedules ai_property_trend_schedules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_schedules"
-    ADD CONSTRAINT "ai_property_trend_schedules_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: ai_review_analyses ai_review_analyses_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY "public"."ai_review_analyses"
     ADD CONSTRAINT "ai_review_analyses_pk" PRIMARY KEY ("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence");
-
-
---
--- Name: ai_review_analysis_aspects ai_review_analysis_aspects_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_review_analysis_aspects"
-    ADD CONSTRAINT "ai_review_analysis_aspects_pk" PRIMARY KEY ("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence", "aspect");
 
 
 --
@@ -9972,38 +9005,6 @@ ALTER TABLE ONLY "public"."operational_action_history_records"
 
 
 --
--- Name: organizationRole organizationRole_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."organizationRole"
-    ADD CONSTRAINT "organizationRole_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: organization_export_retrieval_issuances organization_export_retrieval_issuances_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."organization_export_retrieval_issuances"
-    ADD CONSTRAINT "organization_export_retrieval_issuances_pk" PRIMARY KEY ("export_id", "export_revision");
-
-
---
--- Name: organization_exports organization_exports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."organization_exports"
-    ADD CONSTRAINT "organization_exports_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: organization_lifecycle_authority organization_lifecycle_authority_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."organization_lifecycle_authority"
-    ADD CONSTRAINT "organization_lifecycle_authority_pkey" PRIMARY KEY ("organization_id");
-
-
---
 -- Name: organization_lifecycle_events organization_lifecycle_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10025,14 +9026,6 @@ ALTER TABLE ONLY "public"."organization"
 
 ALTER TABLE ONLY "public"."organization_reply_voices"
     ADD CONSTRAINT "organization_reply_voices_pkey" PRIMARY KEY ("organization_id");
-
-
---
--- Name: organization_role_policy organization_role_policy_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."organization_role_policy"
-    ADD CONSTRAINT "organization_role_policy_pkey" PRIMARY KEY ("id");
 
 
 --
@@ -10065,14 +9058,6 @@ ALTER TABLE ONLY "public"."permission_version"
 
 ALTER TABLE ONLY "public"."portal_group_memberships"
     ADD CONSTRAINT "pgm_no_overlapping_portal_intervals" EXCLUDE USING "gist" ("organization_id" WITH =, "property_id" WITH =, "portal_id" WITH =, "tstzrange"("effective_from", "effective_to", '[)'::"text") WITH &&);
-
-
---
--- Name: policy_consent policy_consent_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."policy_consent"
-    ADD CONSTRAINT "policy_consent_pkey" PRIMARY KEY ("id");
 
 
 --
@@ -10113,14 +9098,6 @@ ALTER TABLE ONLY "public"."portal_goal_prompt_deferrals"
 
 ALTER TABLE ONLY "public"."portal_group_history"
     ADD CONSTRAINT "portal_group_history_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: portal_group_members portal_group_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."portal_group_members"
-    ADD CONSTRAINT "portal_group_members_pkey" PRIMARY KEY ("id");
 
 
 --
@@ -10201,14 +9178,6 @@ ALTER TABLE ONLY "public"."portal_look_overrides"
 
 ALTER TABLE ONLY "public"."portal_media_assets"
     ADD CONSTRAINT "portal_media_assets_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: portal_metric_lifetime_aggregates portal_metric_lifetime_aggregates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."portal_metric_lifetime_aggregates"
-    ADD CONSTRAINT "portal_metric_lifetime_aggregates_pkey" PRIMARY KEY ("id");
 
 
 --
@@ -10300,14 +9269,6 @@ ALTER TABLE ONLY "public"."portal_responsibilities"
 
 
 --
--- Name: privacy_requests privacy_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."privacy_requests"
-    ADD CONSTRAINT "privacy_requests_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: product_update_receipts product_update_receipts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10337,22 +9298,6 @@ ALTER TABLE ONLY "public"."properties"
 
 ALTER TABLE ONLY "public"."property_access_grant"
     ADD CONSTRAINT "property_access_grant_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: property_access_grants property_access_grants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_access_grants"
-    ADD CONSTRAINT "property_access_grants_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: property_erase_authorities property_erase_authorities_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_erase_authorities"
-    ADD CONSTRAINT "property_erase_authorities_pkey" PRIMARY KEY ("id");
 
 
 --
@@ -10700,14 +9645,6 @@ ALTER TABLE ONLY "public"."session"
 
 
 --
--- Name: setup_checklist_milestones setup_checklist_milestones_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."setup_checklist_milestones"
-    ADD CONSTRAINT "setup_checklist_milestones_pk" PRIMARY KEY ("organization_id", "step");
-
-
---
 -- Name: staff_onboardings staff_onboardings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10921,20 +9858,6 @@ CREATE INDEX "ai_property_aggregate_settlements_review_idx" ON "public"."ai_prop
 
 
 --
--- Name: ai_property_daily_aggregates_window_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_daily_aggregates_window_idx" ON "public"."ai_property_daily_aggregates" USING "btree" ("organization_id", "property_id", "source_epoch", "review_analysis_epoch", "local_date");
-
-
---
--- Name: ai_property_daily_aspect_aggregates_window_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_daily_aspect_aggregates_window_idx" ON "public"."ai_property_daily_aspect_aggregates" USING "btree" ("organization_id", "property_id", "source_epoch", "review_analysis_epoch", "local_date");
-
-
---
 -- Name: ai_property_issue_groups_canonical_active_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10967,55 +9890,6 @@ CREATE INDEX "ai_property_issue_members_group_idx" ON "public"."ai_property_issu
 --
 
 CREATE INDEX "ai_property_profiles_org_idx" ON "public"."ai_property_processing_profiles" USING "btree" ("organization_id", "updated_at" DESC NULLS LAST);
-
-
---
--- Name: ai_property_review_population_daily_retention_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_review_population_daily_retention_idx" ON "public"."ai_property_review_population_daily" USING "btree" ("local_date");
-
-
---
--- Name: ai_property_trend_outcomes_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_trend_outcomes_expiry_idx" ON "public"."ai_property_trend_outcomes" USING "btree" ("expires_at") WHERE ("expires_at" IS NOT NULL);
-
-
---
--- Name: ai_property_trend_outcomes_operation_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "ai_property_trend_outcomes_operation_unique" ON "public"."ai_property_trend_outcomes" USING "btree" ("operation_id") WHERE ("operation_id" IS NOT NULL);
-
-
---
--- Name: ai_property_trend_outcomes_property_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_trend_outcomes_property_idx" ON "public"."ai_property_trend_outcomes" USING "btree" ("organization_id", "property_id", "recorded_at" DESC NULLS LAST);
-
-
---
--- Name: ai_property_trend_schedules_generation_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "ai_property_trend_schedules_generation_unique" ON "public"."ai_property_trend_schedules" USING "btree" ("organization_id", "property_id", "due_local_date", "source_epoch", "review_analysis_epoch", "property_trends_epoch", "property_profile_version", "terminal_analysis_sequence", "aggregate_revision");
-
-
---
--- Name: ai_property_trend_schedules_outbox_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "ai_property_trend_schedules_outbox_unique" ON "public"."ai_property_trend_schedules" USING "btree" ("outbox_event_id");
-
-
---
--- Name: ai_property_trend_schedules_property_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_trend_schedules_property_idx" ON "public"."ai_property_trend_schedules" USING "btree" ("organization_id", "property_id", "due_local_date" DESC NULLS LAST);
 
 
 --
@@ -12349,69 +11223,6 @@ CREATE INDEX "operational_action_history_resource_idx" ON "public"."operational_
 
 
 --
--- Name: organizationRole_organizationId_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "organizationRole_organizationId_idx" ON "public"."organizationRole" USING "btree" ("organizationId");
-
-
---
--- Name: organizationRole_role_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "organizationRole_role_idx" ON "public"."organizationRole" USING "btree" ("role");
-
-
---
--- Name: organization_export_retrieval_issuances_digest_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "organization_export_retrieval_issuances_digest_idx" ON "public"."organization_export_retrieval_issuances" USING "btree" ("export_id", "token_digest");
-
-
---
--- Name: organization_export_retrieval_issuances_operation_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "organization_export_retrieval_issuances_operation_idx" ON "public"."organization_export_retrieval_issuances" USING "btree" ("export_id", "operation_id");
-
-
---
--- Name: organization_export_retrieval_issuances_org_time_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "organization_export_retrieval_issuances_org_time_idx" ON "public"."organization_export_retrieval_issuances" USING "btree" ("organization_id", "issued_at" DESC);
-
-
---
--- Name: organization_exports_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "organization_exports_expiry_idx" ON "public"."organization_exports" USING "btree" ("state", "object_expires_at");
-
-
---
--- Name: organization_exports_generation_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "organization_exports_generation_idx" ON "public"."organization_exports" USING "btree" ("state", "generation_lease_expires_at", "created_at");
-
-
---
--- Name: organization_exports_one_open_per_org_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "organization_exports_one_open_per_org_idx" ON "public"."organization_exports" USING "btree" ("organization_id") WHERE ("state" = ANY (ARRAY['requested'::"text", 'generating'::"text", 'egress_pending'::"text", 'ready'::"text", 'retrieval_issued'::"text"]));
-
-
---
--- Name: organization_exports_pre_egress_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "organization_exports_pre_egress_idx" ON "public"."organization_exports" USING "btree" ("state", "pre_egress_recorded_at");
-
-
---
 -- Name: organization_lifecycle_events_idempotency_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12423,34 +11234,6 @@ CREATE UNIQUE INDEX "organization_lifecycle_events_idempotency_unique" ON "publi
 --
 
 CREATE INDEX "organization_lifecycle_events_org_time_idx" ON "public"."organization_lifecycle_events" USING "btree" ("organization_id", "recorded_at" DESC);
-
-
---
--- Name: organization_lifecycle_state_deadline_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "organization_lifecycle_state_deadline_idx" ON "public"."organization_lifecycle_authority" USING "btree" ("state", "recoverable_until");
-
-
---
--- Name: organization_lifecycle_transition_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "organization_lifecycle_transition_idx" ON "public"."organization_lifecycle_authority" USING "btree" ("last_transition_at" DESC);
-
-
---
--- Name: organization_role_org_role_lower_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "organization_role_org_role_lower_unique" ON "public"."organizationRole" USING "btree" ("organizationId", "lower"("role"));
-
-
---
--- Name: organization_role_policy_org_role_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "organization_role_policy_org_role_unique" ON "public"."organization_role_policy" USING "btree" ("organization_id", "role");
 
 
 --
@@ -12503,20 +11286,6 @@ CREATE INDEX "outbox_events_unpublished_idx" ON "public"."outbox_events" USING "
 
 
 --
--- Name: pag_org_prop_user_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "pag_org_prop_user_idx" ON "public"."property_access_grants" USING "btree" ("organization_id", "property_id", "user_id");
-
-
---
--- Name: pag_unique_active; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "pag_unique_active" ON "public"."property_access_grants" USING "btree" ("organization_id", "property_id", "user_id", "kind") WHERE ("status" = 'active'::"public"."grant_status");
-
-
---
 -- Name: pgm_org_portal_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12528,13 +11297,6 @@ CREATE INDEX "pgm_org_portal_idx" ON "public"."portal_group_memberships" USING "
 --
 
 CREATE UNIQUE INDEX "pgm_unique_active" ON "public"."portal_group_memberships" USING "btree" ("organization_id", "portal_id") WHERE ("effective_to" IS NULL);
-
-
---
--- Name: policy_consent_active_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "policy_consent_active_unique" ON "public"."policy_consent" USING "btree" ("organization_id", "subject_type", "subject_id", "purpose") WHERE ("state" = 'granted'::"text");
 
 
 --
@@ -12591,20 +11353,6 @@ CREATE INDEX "portal_goal_prompt_deferrals_org_idx" ON "public"."portal_goal_pro
 --
 
 CREATE INDEX "portal_group_history_group_idx" ON "public"."portal_group_history" USING "btree" ("organization_id", "portal_group_id", "occurred_at");
-
-
---
--- Name: portal_group_members_group_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "portal_group_members_group_idx" ON "public"."portal_group_members" USING "btree" ("portal_group_id");
-
-
---
--- Name: portal_group_members_portal_id_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "portal_group_members_portal_id_unique" ON "public"."portal_group_members" USING "btree" ("portal_id");
 
 
 --
@@ -12717,20 +11465,6 @@ CREATE UNIQUE INDEX "portal_media_assets_object_key_unique" ON "public"."portal_
 --
 
 CREATE UNIQUE INDEX "portal_media_assets_org_property_id_key" ON "public"."portal_media_assets" USING "btree" ("organization_id", "property_id", "id");
-
-
---
--- Name: portal_metric_lifetime_property_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "portal_metric_lifetime_property_idx" ON "public"."portal_metric_lifetime_aggregates" USING "btree" ("organization_id", "property_id");
-
-
---
--- Name: portal_metric_lifetime_scope_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "portal_metric_lifetime_scope_unique" ON "public"."portal_metric_lifetime_aggregates" USING "btree" ("organization_id", "property_id", "portal_id");
 
 
 --
@@ -12909,20 +11643,6 @@ CREATE UNIQUE INDEX "pr_unique_active_primary" ON "public"."portal_responsibilit
 
 
 --
--- Name: privacy_requests_scope_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "privacy_requests_scope_idx" ON "public"."privacy_requests" USING "btree" ("organization_id", "property_id", "state");
-
-
---
--- Name: privacy_requests_subject_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "privacy_requests_subject_idx" ON "public"."privacy_requests" USING "btree" ("subject_ref", "received_at");
-
-
---
 -- Name: prm_org_portal_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12997,27 +11717,6 @@ CREATE UNIQUE INDEX "property_access_grant_active_unique" ON "public"."property_
 --
 
 CREATE INDEX "property_access_grant_user_idx" ON "public"."property_access_grant" USING "btree" ("organization_id", "user_id") WHERE ("revoked_at" IS NULL);
-
-
---
--- Name: property_erase_authorities_live_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "property_erase_authorities_live_unique" ON "public"."property_erase_authorities" USING "btree" ("property_id") WHERE (("state")::"text" <> ALL ((ARRAY['purged'::character varying, 'cancelled'::character varying])::"text"[]));
-
-
---
--- Name: property_erase_authorities_org_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "property_erase_authorities_org_idx" ON "public"."property_erase_authorities" USING "btree" ("organization_id", "property_id");
-
-
---
--- Name: property_erase_authorities_state_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "property_erase_authorities_state_idx" ON "public"."property_erase_authorities" USING "btree" ("state", "state_changed_at");
 
 
 --
@@ -13546,13 +12245,6 @@ CREATE INDEX "review_sync_state_lease_expired_idx" ON "public"."review_sync_stat
 
 
 --
--- Name: reviews_content_expires_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "reviews_content_expires_idx" ON "public"."reviews" USING "btree" ("content_expires_at", "id") WHERE ("content_expires_at" IS NOT NULL);
-
-
---
 -- Name: reviews_expires_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13588,13 +12280,6 @@ CREATE INDEX "reviews_org_idx" ON "public"."reviews" USING "btree" ("organizatio
 
 
 --
--- Name: reviews_org_property_reviewed_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "reviews_org_property_reviewed_idx" ON "public"."reviews" USING "btree" ("organization_id", "property_id", "reviewed_at");
-
-
---
 -- Name: reviews_platform_external_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13602,24 +12287,10 @@ CREATE UNIQUE INDEX "reviews_platform_external_unique" ON "public"."reviews" USI
 
 
 --
--- Name: reviews_property_created_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "reviews_property_created_cursor_idx" ON "public"."reviews" USING "btree" ("property_id", "source_created_at" DESC NULLS LAST, "id" DESC NULLS LAST);
-
-
---
 -- Name: reviews_property_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX "reviews_property_idx" ON "public"."reviews" USING "btree" ("property_id");
-
-
---
--- Name: reviews_property_updated_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "reviews_property_updated_cursor_idx" ON "public"."reviews" USING "btree" ("property_id", "source_updated_at" DESC NULLS LAST, "id" DESC NULLS LAST);
 
 
 --
@@ -14005,48 +12676,6 @@ CREATE TRIGGER "operational_action_history_records_truncate_guard" BEFORE TRUNCA
 
 
 --
--- Name: organization_export_retrieval_issuances organization_export_retrieval_issuance_commit_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER "organization_export_retrieval_issuance_commit_guard" AFTER INSERT ON "public"."organization_export_retrieval_issuances" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "public"."verify_organization_export_retrieval_issuance_v1"();
-
-
---
--- Name: organization_export_retrieval_issuances organization_export_retrieval_issuance_insert_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "organization_export_retrieval_issuance_insert_guard" BEFORE INSERT ON "public"."organization_export_retrieval_issuances" FOR EACH ROW EXECUTE FUNCTION "public"."guard_organization_export_retrieval_issuance_v1"();
-
-
---
--- Name: organization_export_retrieval_issuances organization_export_retrieval_issuances_truncate_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "organization_export_retrieval_issuances_truncate_guard" BEFORE TRUNCATE ON "public"."organization_export_retrieval_issuances" FOR EACH STATEMENT EXECUTE FUNCTION "public"."reject_identity_lifecycle_evidence_mutation_v1"();
-
-
---
--- Name: organization_export_retrieval_issuances organization_export_retrieval_issuances_update_delete_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "organization_export_retrieval_issuances_update_delete_guard" BEFORE DELETE OR UPDATE ON "public"."organization_export_retrieval_issuances" FOR EACH ROW EXECUTE FUNCTION "public"."reject_identity_lifecycle_evidence_mutation_v1"();
-
-
---
--- Name: organization_exports organization_export_revision_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "organization_export_revision_guard" BEFORE UPDATE ON "public"."organization_exports" FOR EACH ROW EXECUTE FUNCTION "public"."guard_organization_export_revision_v1"();
-
-
---
--- Name: organization organization_lifecycle_authority_provision; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "organization_lifecycle_authority_provision" AFTER INSERT ON "public"."organization" FOR EACH ROW EXECUTE FUNCTION "public"."provision_organization_lifecycle_authority_v1"();
-
-
---
 -- Name: organization_lifecycle_events organization_lifecycle_events_append_only; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14054,61 +12683,10 @@ CREATE TRIGGER "organization_lifecycle_events_append_only" BEFORE DELETE OR UPDA
 
 
 --
--- Name: organization_lifecycle_authority organization_lifecycle_revision_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "organization_lifecycle_revision_guard" BEFORE UPDATE ON "public"."organization_lifecycle_authority" FOR EACH ROW EXECUTE FUNCTION "public"."guard_organization_lifecycle_revision_v1"();
-
-
---
--- Name: organizationRole organization_role_perm_ver_iud; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "organization_role_perm_ver_iud" AFTER INSERT OR DELETE OR UPDATE ON "public"."organizationRole" FOR EACH ROW EXECUTE FUNCTION "public"."tgr_bump_perm_ba"();
-
-
---
--- Name: organization_role_policy organization_role_policy_perm_ver_iud; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "organization_role_policy_perm_ver_iud" AFTER INSERT OR DELETE OR UPDATE ON "public"."organization_role_policy" FOR EACH ROW EXECUTE FUNCTION "public"."tgr_bump_perm_app"();
-
-
---
--- Name: privacy_requests privacy_requests_transition_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "privacy_requests_transition_guard" BEFORE DELETE OR UPDATE ON "public"."privacy_requests" FOR EACH ROW EXECUTE FUNCTION "public"."reject_privacy_request_mutation_v1"();
-
-
---
--- Name: privacy_requests privacy_requests_truncate_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "privacy_requests_truncate_guard" BEFORE TRUNCATE ON "public"."privacy_requests" FOR EACH STATEMENT EXECUTE FUNCTION "public"."reject_privacy_request_mutation_v1"();
-
-
---
 -- Name: property_access_grant property_access_grant_perm_ver_iud; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER "property_access_grant_perm_ver_iud" AFTER INSERT OR DELETE OR UPDATE ON "public"."property_access_grant" FOR EACH ROW EXECUTE FUNCTION "public"."tgr_bump_perm_app"();
-
-
---
--- Name: property_erase_authorities property_erase_authorities_transition_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "property_erase_authorities_transition_guard" BEFORE DELETE OR UPDATE ON "public"."property_erase_authorities" FOR EACH ROW EXECUTE FUNCTION "public"."reject_property_erase_authority_mutation_v1"();
-
-ALTER TABLE "public"."property_erase_authorities" ENABLE ALWAYS TRIGGER "property_erase_authorities_transition_guard";
-
-
---
--- Name: property_erase_authorities property_erase_authorities_truncate_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "property_erase_authorities_truncate_guard" BEFORE TRUNCATE ON "public"."property_erase_authorities" FOR EACH STATEMENT EXECUTE FUNCTION "public"."reject_property_erase_authority_mutation_v1"();
 
 
 --
@@ -14242,14 +12820,6 @@ ALTER TABLE ONLY "public"."ai_operations"
 
 
 --
--- Name: ai_property_aggregate_contribution_aspects ai_property_aggregate_contribution_aspects_contribution_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_aggregate_contribution_aspects"
-    ADD CONSTRAINT "ai_property_aggregate_contribution_aspects_contribution_fk" FOREIGN KEY ("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence") REFERENCES "public"."ai_property_aggregate_contributions"("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence") ON DELETE CASCADE;
-
-
---
 -- Name: ai_property_aggregate_contribution_mentions ai_property_aggregate_contribution_mentions_contribution_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14298,22 +12868,6 @@ ALTER TABLE ONLY "public"."ai_property_aggregate_settlements"
 
 
 --
--- Name: ai_property_daily_aggregates ai_property_daily_aggregates_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_daily_aggregates"
-    ADD CONSTRAINT "ai_property_daily_aggregates_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: ai_property_daily_aspect_aggregates ai_property_daily_aspect_aggregates_daily_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_daily_aspect_aggregates"
-    ADD CONSTRAINT "ai_property_daily_aspect_aggregates_daily_fk" FOREIGN KEY ("organization_id", "property_id", "local_date", "source_epoch", "review_analysis_epoch", "property_profile_version") REFERENCES "public"."ai_property_daily_aggregates"("organization_id", "property_id", "local_date", "source_epoch", "review_analysis_epoch", "property_profile_version") ON DELETE CASCADE;
-
-
---
 -- Name: ai_property_issue_groups ai_property_issue_groups_merged_into_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14346,46 +12900,6 @@ ALTER TABLE ONLY "public"."ai_property_processing_profiles"
 
 
 --
--- Name: ai_property_review_population_daily ai_property_review_population_daily_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_review_population_daily"
-    ADD CONSTRAINT "ai_property_review_population_daily_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: ai_property_trend_outcomes ai_property_trend_outcomes_operation_id_ai_operations_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_outcomes"
-    ADD CONSTRAINT "ai_property_trend_outcomes_operation_id_ai_operations_id_fk" FOREIGN KEY ("operation_id") REFERENCES "public"."ai_operations"("id") ON DELETE RESTRICT;
-
-
---
--- Name: ai_property_trend_outcomes ai_property_trend_outcomes_schedule_id_ai_property_trend_schedu; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_outcomes"
-    ADD CONSTRAINT "ai_property_trend_outcomes_schedule_id_ai_property_trend_schedu" FOREIGN KEY ("schedule_id") REFERENCES "public"."ai_property_trend_schedules"("id") ON DELETE CASCADE;
-
-
---
--- Name: ai_property_trend_outcomes ai_property_trend_outcomes_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_outcomes"
-    ADD CONSTRAINT "ai_property_trend_outcomes_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: ai_property_trend_schedules ai_property_trend_schedules_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_schedules"
-    ADD CONSTRAINT "ai_property_trend_schedules_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
-
-
---
 -- Name: ai_review_analyses ai_review_analyses_material_review_revision_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14415,14 +12929,6 @@ ALTER TABLE ONLY "public"."ai_review_analyses"
 
 ALTER TABLE ONLY "public"."ai_review_analyses"
     ADD CONSTRAINT "ai_review_analyses_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: ai_review_analysis_aspects ai_review_analysis_aspects_analysis_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_review_analysis_aspects"
-    ADD CONSTRAINT "ai_review_analysis_aspects_analysis_fk" FOREIGN KEY ("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence") REFERENCES "public"."ai_review_analyses"("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence") ON DELETE CASCADE;
 
 
 --
@@ -15290,43 +13796,11 @@ ALTER TABLE ONLY "public"."notifications"
 
 
 --
--- Name: organizationRole organizationRole_organizationId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."organizationRole"
-    ADD CONSTRAINT "organizationRole_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "public"."organization"("id") ON DELETE CASCADE;
-
-
---
--- Name: organization_export_retrieval_issuances organization_export_retrieval_issuances_export_id_organization_; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."organization_export_retrieval_issuances"
-    ADD CONSTRAINT "organization_export_retrieval_issuances_export_id_organization_" FOREIGN KEY ("export_id") REFERENCES "public"."organization_exports"("id");
-
-
---
 -- Name: outbox_events outbox_events_recovery_fence_run_id_recovery_runs_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY "public"."outbox_events"
     ADD CONSTRAINT "outbox_events_recovery_fence_run_id_recovery_runs_id_fk" FOREIGN KEY ("recovery_fence_run_id") REFERENCES "public"."recovery_runs"("id") ON DELETE RESTRICT;
-
-
---
--- Name: property_access_grants pag_property_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_access_grants"
-    ADD CONSTRAINT "pag_property_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE RESTRICT;
-
-
---
--- Name: policy_consent policy_consent_organization_id_organization_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."policy_consent"
-    ADD CONSTRAINT "policy_consent_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE CASCADE;
 
 
 --
@@ -15375,22 +13849,6 @@ ALTER TABLE ONLY "public"."portal_goal_prompt_deferrals"
 
 ALTER TABLE ONLY "public"."portal_group_history"
     ADD CONSTRAINT "portal_group_history_group_tenant_fk" FOREIGN KEY ("organization_id", "property_id", "portal_group_id") REFERENCES "public"."portal_groups"("organization_id", "property_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: portal_group_members portal_group_members_portal_group_id_portal_groups_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."portal_group_members"
-    ADD CONSTRAINT "portal_group_members_portal_group_id_portal_groups_id_fk" FOREIGN KEY ("portal_group_id") REFERENCES "public"."portal_groups"("id") ON DELETE CASCADE;
-
-
---
--- Name: portal_group_members portal_group_members_portal_id_portals_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."portal_group_members"
-    ADD CONSTRAINT "portal_group_members_portal_id_portals_id_fk" FOREIGN KEY ("portal_id") REFERENCES "public"."portals"("id") ON DELETE CASCADE;
 
 
 --
@@ -15567,14 +14025,6 @@ ALTER TABLE ONLY "public"."portal_look_overrides"
 
 ALTER TABLE ONLY "public"."portal_media_assets"
     ADD CONSTRAINT "portal_media_assets_property_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE RESTRICT;
-
-
---
--- Name: portal_metric_lifetime_aggregates portal_metric_lifetime_portal_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."portal_metric_lifetime_aggregates"
-    ADD CONSTRAINT "portal_metric_lifetime_portal_fk" FOREIGN KEY ("organization_id", "property_id", "portal_id") REFERENCES "public"."portals"("organization_id", "property_id", "id") ON DELETE CASCADE;
 
 
 --
@@ -15759,14 +14209,6 @@ ALTER TABLE ONLY "public"."property_access_grant"
 
 ALTER TABLE ONLY "public"."property_access_grant"
     ADD CONSTRAINT "property_access_grant_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE CASCADE;
-
-
---
--- Name: property_access_grants property_access_grants_property_id_properties_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_access_grants"
-    ADD CONSTRAINT "property_access_grants_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE RESTRICT;
 
 
 --

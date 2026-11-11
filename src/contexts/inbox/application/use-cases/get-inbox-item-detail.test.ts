@@ -107,8 +107,6 @@ function makeReply(): ReplyView {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
-    templateId: null,
-    templateVersion: null,
     stateRevision: 1,
     submittedAt: null,
     approvedAt: null,
@@ -398,7 +396,6 @@ describe('getInboxItemDetail', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis,
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
 

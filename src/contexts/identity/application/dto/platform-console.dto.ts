@@ -3,7 +3,6 @@
 
 import { z } from 'zod/v4'
 import type { UserId } from '#/shared/domain/ids'
-import type { OrganizationLifecycleState } from '../../domain/organization-lifecycle'
 
 /** The slug rule Identity's validateSlug enforces, for inline form feedback. */
 const ORGANIZATION_SLUG_INPUT_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/
@@ -82,7 +81,6 @@ export type PlatformOrganizationView = Readonly<{
   slug: string
   /** ISO timestamp. */
   createdAt: string
-  lifecycleState: OrganizationLifecycleState
   memberCount: number
   accountAdminCount: number
   /** Invitations of any role still pending and not past their expiry. */

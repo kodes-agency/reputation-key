@@ -103,7 +103,7 @@ export type ThisWeekView =
 export const weekdayName = (weekday: number): string => WEEKDAYS[weekday - 1] ?? 'Today'
 
 /**
- * This week against the plan (R3-7: counted per week, "2 of 7"), with the day
+ * This week against the plan (counted per week, "2 of 7"), with the day
  * and, once the goal works at its actual pace, the last four weeks; while the
  * goal is new, the aim per day instead. Null for a goal with no pace.
  */

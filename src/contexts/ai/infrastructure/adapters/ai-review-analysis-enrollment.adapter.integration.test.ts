@@ -1,3 +1,4 @@
+import { seedReviewContent } from '../testing/review-content-fixture'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -9,7 +10,6 @@ import {
   aiOperations,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
-  aiReviewAnalysisAspects,
   aiReviewAnalysisEnrollments,
   eventConsumerReceipts,
   materialReviewRevisions,
@@ -18,7 +18,6 @@ import {
   outboxEvents,
   properties,
   reviewAiAnalysisHeads,
-  reviews,
 } from '#/shared/db/schema'
 import {
   organizationId,
@@ -277,7 +276,7 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
           eq(outboxEvents.eventType, 'ai.review_analysis.backfill_requested'),
         ),
       )
-    await db.insert(reviews).values({
+    await seedReviewContent({
       id: reviewId,
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
@@ -493,17 +492,6 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       attention: 'low',
       generatedAt: completedAt,
       expiresAt: new Date(completedAt.getTime() + 365 * 24 * 60 * 60_000),
-    })
-    await db.insert(aiReviewAnalysisAspects).values({
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      reviewId,
-      sourceEpoch: 0,
-      sourceRevision: 1,
-      analysisSequence: 1,
-      aspect: 'service',
-      polarity: 'positive',
-      intensity: 80,
     })
     await db.insert(eventConsumerReceipts).values({
       eventId: TRIGGER_EVENT_ID,

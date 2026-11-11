@@ -151,9 +151,8 @@ describe('Review context build', () => {
   })
 
   it('builds no Organization export or lifecycle contributor of its own', () => {
-    // LIF-01: both contributors are built by
-    // composition/organization-export-contributors.ts, never by this build: a
-    // second instance here would be read by nothing.
+    // Export and erasure run through the rights request executors, never from
+    // this build.
     const { api } = setup()
 
     expect(Object.keys(api)).not.toContain('organizationExport')

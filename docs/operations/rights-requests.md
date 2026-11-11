@@ -25,13 +25,17 @@ Scopes: `access`, `guest-response`, `participant`, `property`, `organization`.
   Organization is never listed.
 - **apply**: `--apply` with `verified=<iso>`, `verification=<ref>`, `--reason`,
   `--ticket`, `--yes ops:rights-request` and the exact
-  `confirm=ERASE <SCOPE> <id>` text. Refused whenever the database is not
-  local, whatever `NODE_ENV` says. On a local database it is still refused until
-  an erasure journal store is configured, because every erasure is journaled
-  before it runs; only the final warning, which deletes nothing, needs no
-  journal. It also refuses a request whose Organization does not exist or whose
-  Property belongs to another Organization, and `--property` is not accepted for
-  `access` or `organization`.
+  `confirm=ERASE <SCOPE> <id>` text. Every erasure is journaled before it runs:
+  the command writes one IDs-only journal object per context to the private
+  bucket first, and when that write fails nothing is deleted and an alert
+  fires. Only the final warning, which deletes nothing, needs no journal.
+  Work runs in bounded batches and a stopped run resumes by running the same
+  command again. Each run, whatever its outcome, records one audit event
+  naming the operator, the scope, the Organization and Property and the
+  verification reference. The command refuses a request whose Organization does
+  not exist or whose Property belongs to another Organization, and `--property`
+  is not accepted for `access` or `organization`. Each one-off erasure needs the
+  owner's approval at the time.
 
 `access` and `organization` reports accept `out=<dir>`, which writes each
 executor's export files under that directory (mode 0600). Upload them to the
@@ -49,14 +53,14 @@ private bucket by hand and delete the local copy.
   Disconnect in Settings, Integrations, which revokes the grant.
 - **reporting** (`access`, `organization`): covers goal, metric and dashboard records (goal programs, versions,
   assignments, monthly results and revisions, rating goals, metric readings and
-  corrections, Google snapshots, Portal lifetime totals, setup milestones).
+  corrections, Google snapshots).
 
   - **Access**: `access` or `organization` with `out=<dir>` writes one JSON file
     per table under `<dir>/reporting/`, plus a manifest of row
     counts. Only allowlisted columns leave; a row from another Organization
     aborts the export. Upload the files to the private bucket by hand.
   - **Organization purge**: `organization --apply` refuses an Organization that is
-    still active (suspend it first), pauses its active goals, refuses while a
+    not suspended (add its ID to `BETA_SUSPENDED_ORGS` in the environment the command runs with), pauses its active goals, refuses while a
     goal is being evaluated or Portal source facts have not settled, then deletes
     its rows in one transaction and prints an erasure record (context, evidence
     line, rows per table, no content). The monthly-result delete guard is off
@@ -64,6 +68,19 @@ private bucket by hand and delete the local copy.
     rollback restores it. Property, guest-response and participant scopes have no
     Reporting executor.
 
+- **ai** (`property`, `organization`): on closure it retires and deletes the
+  retained AI derivatives (analyses, mentions, aggregates, issue groups,
+  operations, draft measurements, cost windows); the merchant consent evidence
+  stays. Apply refuses while an AI authorization is enabled, an enrollment is
+  active or an AI operation is in flight. `organization` with `out=<dir>` writes
+  two files under `<dir>/ai/`: `review-analysis-mentions.json` (topic, polarity,
+  strength, cause phrases and the sentence numbers that state each) and
+  `review-analysis-mention-corrections.json` (the manager corrections). Only
+  allowlisted columns leave, never review text. Only the analysis the product
+  still serves is exported: retired, revoked or expired generations are left
+  out. `access` does not run this executor: an access request covers the
+  requester's own records, and this analysis is the Organization's derived
+  data.
 - **review** (`access`, `organization`): exports manager-authored replies with
   their template and AI provenance, publication authorizations and attempts,
   and the layered reply library (voices, templates, revisions, wordings,
@@ -85,10 +102,9 @@ private bucket by hand and delete the local copy.
 
 ### Notifications
 
-- **report** counts notification history, preferences and settings, says
-  whether suspension is holding optional mail (mandatory mail is never held),
-  and, for an Organization, how many account admins and former members a final
-  warning would reach. For `access` and `organization`, `out=<dir>` writes
+- **report** counts notification history, preferences and settings and, for an
+  Organization, how many account admins and former members a final warning
+  would reach. For `access` and `organization`, `out=<dir>` writes
   `notification/notification-rights.json`; the export is never printed.
 - Reads are named and use explicit field allowlists. Delivery queues, digest
   batches and source event ids are not exported. A row of another Organization
@@ -104,6 +120,3 @@ private bucket by hand and delete the local copy.
   `verification` reference.
 
 Closing an Organization erases every Property in it: export first.
-
-The older `privacy-request` and `property-erase` commands stay until apply is
-activated.

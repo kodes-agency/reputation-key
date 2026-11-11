@@ -18,7 +18,6 @@ const EXPECTED_TABLES = [
   // Business tables (created by db:migrate)
   'properties',
   'permission_version',
-  'organization_role_policy',
   'audit_logs',
   'organization_lifecycle_events',
   'portals',
@@ -50,10 +49,6 @@ const EXPECTED_TABLES = [
   'ai_review_analyses',
   'ai_property_aggregate_heads',
   'ai_property_aggregate_settlements',
-  'ai_property_daily_aggregates',
-  'ai_property_trend_scheduler_heads',
-  'ai_property_trend_schedules',
-  'ai_property_trend_outcomes',
   'ai_property_aggregate_contributions',
   // Migration 0007 (BQR-1.1)
   'review_sync_state',

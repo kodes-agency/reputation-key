@@ -31,7 +31,7 @@ export type PortalGoalStopFacts = Pick<
 /** Which goal a Stop is for: the Monthly portal goal, or one with a page of its own. */
 export type PortalGoalStopKind = 'monthly' | 'single'
 
-/** F-5 (and F-1): a Stop refused because the page is behind. */
+/** A Stop refused because the page is behind. */
 export const PORTAL_STOP_REFUSALS: GoalRefusalSentences = {
   invalid_transition: PORTAL_GOAL_ALREADY_STOPPED,
   revision_conflict: PORTAL_SHEET_REFUSALS.revision_conflict,
@@ -62,7 +62,7 @@ function keptMonthOf(goal: PortalGoalStopFacts): string | undefined {
   return goal.lastMonth?.outcome === 'updating' ? goal.lastMonth.key : undefined
 }
 
-/** X-1…X-4: the question, what happens, and the two buttons. */
+/** The question, what happens, and the two buttons. */
 export function stopWords(
   goal: PortalGoalStopFacts,
   kind: PortalGoalStopKind = 'monthly',

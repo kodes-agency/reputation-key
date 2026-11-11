@@ -715,11 +715,9 @@ and `portal.health_attention`. The settling facts are:
   notice still asking for work there and cancels its mail. The Google
   reconnect request is left: the connection is the Organization's. A Restore
   unsettles nothing.
-- A cancelled purge (`identity.organization_lifecycle.changed` back to
-  `active`) takes back `account.organization_purge_pending`, the first
-  RETRACTABLE type: it asks for no work, so reading it never holds its
-  mandatory email back, but once it is no longer true it stops standing and
-  its queued mail is cancelled as `purge_cancelled`.
+- `account.organization_purge_pending` is defined and still rendered, but no
+  fact triggers or settles it: the Organization lifecycle fact is gone, so
+  notices already stored still read and no new one is queued.
 - A report reaching the outcome it last reached (accepted, reproducing,
   accepted) is not announced again.
 

@@ -4,6 +4,7 @@
 // is the witness that nothing else moves. Rows are compared as canonical JSON.
 
 import { randomUUID } from 'node:crypto'
+import { holdRightsOrganization } from '#/shared/db/testing/rights-isolation-fixture'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { getEnv } from '#/shared/config/env'
@@ -31,7 +32,7 @@ import {
 } from './reporting-rights.adapter'
 
 const AT = new Date('2026-08-01T00:00:00.000Z')
-const PROPERTY_REVIEW_DASHBOARD_VERSION = '11111111-1111-4111-8111-111111111205'
+const PORTAL_RATING_VERSION = '11111111-1111-4111-8111-111111111202'
 const JOURNAL_CONTEXTS: ReadonlyArray<BackupErasureLedgerContext> = [
   'goal',
   'metric',
@@ -59,11 +60,6 @@ async function seedOrganization(query: Query, properties: number): Promise<Seede
     propertyIds.push(propertyId)
     await seedProperty(query, organizationId, propertyId)
   }
-  await query(
-    `INSERT INTO setup_checklist_milestones (organization_id, step, first_completed_at, created_at)
-     VALUES ($1, 'published_portal', $2, $2)`,
-    [organizationId, AT],
-  )
   return { organizationId, propertyIds }
 }
 
@@ -91,14 +87,14 @@ async function seedProperty(
        id, organization_id, property_id, metric_key, value, definition_version_id,
        source_event_id, source_policy, exact_value, sample_count, attribution_quality,
        recorded_at, event_at, property_local_date, data_quality, retention_class
-     ) VALUES ($1::uuid, $2, $3::uuid, 'property.review', 5::real, $4, $5,
-               'google_property_derivative', 5::numeric, 1, 'exact', $6, $6,
+     ) VALUES ($1::uuid, $2, $3::uuid, 'portal.rating', 5::real, $4, $5,
+               'first_party_guest_private', 5::numeric, 1, 'exact', $6, $6,
                '2026-08-01', 'exact', 'guest_gateway_metric')`,
     [
       readingId,
       organizationId,
       propertyId,
-      PROPERTY_REVIEW_DASHBOARD_VERSION,
+      PORTAL_RATING_VERSION,
       `rights-${readingId}`,
       AT,
     ],
@@ -115,35 +111,6 @@ async function seedProperty(
      VALUES ($1::uuid, $2::uuid, $3, 'replace', 'fixture', 'system', 'system:test', 4::numeric, $4::uuid, $5, $5)`,
     [headId, readingId, `head-${headId}`, rootId, AT],
   )
-}
-
-async function hold(query: Query, organizationId: string): Promise<void> {
-  const lineage = randomUUID()
-  await query(
-    `UPDATE organization_lifecycle_authority
-     SET state = 'closure_requested', revision = revision + 1,
-         closure_lineage_id = $2, closure_requested_at = $3,
-         recoverable_until = $4, reactivation_required = true,
-         requested_by = 'admin:rights-test', request_reason_code = 'test_workspace',
-         request_support_evidence_ref = 'test:closure-request',
-         last_transition_at = $3, last_actor_id = 'admin:rights-test',
-         last_reason_code = 'test_workspace', last_support_evidence_ref = 'test:closure-request'
-     WHERE organization_id = $1`,
-    [organizationId, lineage, AT, new Date('2026-08-31T00:00:00.000Z')],
-  )
-  for (const [next, reason] of [
-    ['closing', 'closing_prepared'],
-    ['purge_pending', 'recovery_window_elapsed'],
-  ] as const) {
-    await query(
-      `UPDATE organization_lifecycle_authority
-       SET state = $2, revision = revision + 1,
-           last_transition_at = $3, last_actor_id = 'system:rights-test',
-           last_reason_code = $4, last_support_evidence_ref = 'test:advance'
-       WHERE organization_id = $1`,
-      [organizationId, next, AT, reason],
-    )
-  }
 }
 
 function tenantRows(table: string): string {
@@ -289,7 +256,6 @@ describe('reporting rights isolation', () => {
         'reporting: goal_programs 2',
         'reporting: metric_readings 2',
         'reporting: metric_corrections 4',
-        'reporting: setup_checklist_milestones 1',
       ]),
     )
     expect(await lines(other.organizationId)).toEqual(
@@ -297,7 +263,6 @@ describe('reporting rights isolation', () => {
         'reporting: goal_programs 1',
         'reporting: metric_readings 1',
         'reporting: metric_corrections 2',
-        'reporting: setup_checklist_milestones 1',
       ]),
     )
   })
@@ -305,7 +270,7 @@ describe('reporting rights isolation', () => {
   it('purges Properties A and B together and leaves the other Organization byte-identical', async () => {
     const first = await seedTracked(2)
     const other = await seedTracked(1)
-    await hold(poolQuery, first.organizationId)
+    holdRightsOrganization(first.organizationId)
     const propertiesBefore = (await snapshot(poolQuery, first.organizationId)).split(
       '"properties":',
     )[1]
@@ -326,7 +291,7 @@ describe('reporting rights isolation', () => {
   it('removes resurrected rows again when the journal is replayed after a restore', async () => {
     const first = await seedTracked(2)
     const other = await seedTracked(1)
-    await hold(poolQuery, first.organizationId)
+    holdRightsOrganization(first.organizationId)
     const firstBefore = await snapshot(poolQuery, first.organizationId)
     const otherBefore = await snapshot(poolQuery, other.organizationId)
     const { store, entries } = recordingStore()
@@ -357,7 +322,7 @@ describe('reporting rights isolation', () => {
   it('erases nothing and raises the alert when the journal write rejects', async () => {
     const first = await seedTracked(2)
     const other = await seedTracked(1)
-    await hold(poolQuery, first.organizationId)
+    holdRightsOrganization(first.organizationId)
     const firstBefore = await snapshot(poolQuery, first.organizationId)
     const otherBefore = await snapshot(poolQuery, other.organizationId)
     const alert = vi.fn()
@@ -401,7 +366,7 @@ describe('reporting rights isolation', () => {
           programStatus: 'active',
           monthStatus: 'reconciling',
         })
-        await hold(query, organizationId)
+        holdRightsOrganization(organizationId)
         const before = await snapshot(query, organizationId)
         const statuses = () =>
           query(
@@ -436,7 +401,7 @@ describe('reporting rights isolation', () => {
           programStatus: 'active',
           monthStatus: 'open',
         })
-        await hold(query, organizationId)
+        holdRightsOrganization(organizationId)
         const before = await snapshot(query, organizationId)
 
         const outcome = await createReportingRightsExecutor(fixture.db, () => AT)

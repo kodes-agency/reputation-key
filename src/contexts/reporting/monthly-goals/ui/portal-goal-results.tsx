@@ -34,7 +34,7 @@ const ANCHOR_MARGIN = '6rem'
 declare module '@tanstack/react-router' {
   interface HistoryState {
     /**
-     * Set by the Portal goals section's "Ended portal goals (n)" (R-4): the
+     * Set by the Portal goals section's "Ended portal goals (n)": the
      * list's title takes the focus once the page is drawn, so a keyboard or a
      * screen reader arrives where the link said, not at the top of the page.
      */

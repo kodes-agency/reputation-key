@@ -46,7 +46,6 @@ import { createNotificationRecipientStanding } from './application/notification-
 import { createGroupedReopenStore } from './infrastructure/repositories/notification-grouped-reopen.repository'
 import { createActivePropertyLookup } from './infrastructure/repositories/active-property'
 import { createNotificationWorkState } from './application/notification-work-state'
-import { createNotificationOrganizationLifecycleStateReader } from './infrastructure/repositories/notification-organization-email-stop.repository'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
@@ -140,10 +139,7 @@ import {
 } from './application/ports/notification-delivery-lag.repository'
 import { registerPortalHealthNotificationConsumer } from './infrastructure/portal-health-outbox-consumers'
 import { createOrganizationAccountNotificationAuthority } from './infrastructure/adapters/organization-account-notification-authority.adapter'
-import {
-  registerIdentityAccountNotificationConsumers,
-  registerOrganizationPurgePendingNoticeConsumer,
-} from './infrastructure/identity-account-outbox-consumers'
+import { registerIdentityAccountNotificationConsumers } from './infrastructure/identity-account-outbox-consumers'
 import { createNotificationOrganizationScopeResolver } from './infrastructure/repositories/notification-organization-scope.repository'
 import { createNotificationUserSettings } from './preferences/user-settings.server'
 import type {
@@ -345,7 +341,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     replyStates: input.replyStates,
     portalHealthLookup: input.portalHealthLookup,
     destinationLookup: input.destinationLookup,
-    organizationState: createNotificationOrganizationLifecycleStateReader(input.db),
     responsibleManagers: input.responsibleManagers,
   })
   // Asked again immediately before every Property-scoped email is sent.
@@ -438,8 +433,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     enqueueImmediateEmail,
   })
 
-  // The account, integration, Portal and Property routes write their notices
-  // in the transaction that claims their receipt.
+  // The consumer routes write their notices in the transaction that claims
+  // their receipt.
   const noticeWriter = createNoticeWriter({
     db: input.db,
     clock: input.clock,
@@ -690,57 +685,42 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       displayNames,
       logger: input.logger,
     })
-    // LIF-01 program bullet 5 — the mandatory final notice at Purge Pending.
-    // Registering it does NOT arm the lifecycle: the transition that produces
-    // the fact is still driven by a quarantined schedule.
-    registerOrganizationPurgePendingNoticeConsumer(consumerRegistry, {
+    registerNotificationConsumers(consumerRegistry, {
+      ...fanoutReads,
+      ...notices,
+    })
+    registerWorkflowNotificationConsumers(consumerRegistry, {
+      ...fanoutReads,
+      ...notices,
+      retireMovedAssignment: createRetireMovedAssignment({
+        notifications: notificationRepo,
+        emails: emailRepo,
+      }),
+    })
+    registerBulkAssignmentNotificationConsumer(consumerRegistry, {
       ...notices,
       userLookup,
       displayNames,
       logger: input.logger,
     })
-    registerNotificationConsumers(consumerRegistry, {
-      ...fanoutReads,
-      queue,
-      receipts: input.outboxRepo,
-    })
-    registerWorkflowNotificationConsumers(consumerRegistry, {
-      ...fanoutReads,
-      queue,
-      retireMovedAssignment: createRetireMovedAssignment({
-        notifications: notificationRepo,
-        emails: emailRepo,
-      }),
-      receipts: input.outboxRepo,
-    })
-    registerBulkAssignmentNotificationConsumer(consumerRegistry, {
-      queue,
-      userLookup,
-      displayNames,
-      logger: input.logger,
-      receipts: input.outboxRepo,
-    })
     registerAssignmentReleaseNotificationConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       responsibleManagers: input.responsibleManagers,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerEscalationResolutionNotificationConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       escalationResolutions,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       notifications: notificationRepo,
       inboxItemLookup,
-      receipts: input.outboxRepo,
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, {
       ...fanoutReads,
-      queue,
-      receipts: input.outboxRepo,
+      ...notices,
     })
     // The counterpart of the routes above: the facts that finish the work
     // they announced retire their notices and cancel the mail behind them.
@@ -756,8 +736,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     })
     registerResponseTargetNotificationConsumer(consumerRegistry, {
       ...fanoutReads,
-      queue,
-      receipts: input.outboxRepo,
+      ...notices,
     })
     registerGoalNotificationConsumer(consumerRegistry, {
       ...notices,
@@ -883,7 +862,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       createProcessors: (worker: NotificationDeliveryWorkerInput) =>
         createNotificationDeliveryProcessors(
           {
-            db: input.db,
             notificationRepo,
             emailRepo,
             preferenceRepo: prefRepo,

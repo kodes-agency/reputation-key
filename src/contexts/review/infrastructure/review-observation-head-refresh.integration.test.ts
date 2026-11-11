@@ -10,7 +10,7 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createReviewRepository } from './repositories/review.repository'
 import { createReviewSourceContentLifecycleStore } from './repositories/source-content-lifecycle-store.repository'
-import { eraseReviewSourceContent } from './review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 
 // Each snapshot pass reads every review of a Property twice. Until 2026-10-24
 // each read wrote a full-text `review_source_observations` row, so a review
@@ -166,7 +166,7 @@ const storedReview = async () =>
       sourceClock: Date
     }>(
       `SELECT r.source_observation_sequence::int AS sequence,
-              r.last_fetched_at AS "lastFetchedAt", r.content_expires_at AS "contentExpiresAt",
+              c.last_fetched_at AS "lastFetchedAt", c.content_expires_at AS "contentExpiresAt",
               c.content_expires_at AS "sourceClock"
          FROM reviews r JOIN review_source_contents c ON c.review_id = r.id
         WHERE r.organization_id = $1 AND r.id = $2`,

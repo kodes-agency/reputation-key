@@ -52,10 +52,10 @@ until a successful write, including when the person returns to the initial value
 - AI Reply Brand Authority is content-minimal. Generation may read only the exact display name, profile version, and derived display-name digest; transaction-bound callers receive only a boolean exact-current answer. Image URLs, colors, localized content, Portal overrides, links, Guest ratings, and Private Feedback are never exposed through it.
 - Responsible-manager assignment never grants property access, portal access, or staff attribution.
 - Portal, Group, Link, Token, and Health repositories are read-only production ports. Authoritative mutations are available only through Portal command stores and Health reconciliation; direct PostgreSQL seeding/mutation lives under explicit test scaffolding and is guarded from production wiring by an architecture test.
-- Lifecycle export and purge contributors stay outside `publicApi`; irreversible
-  phases are composed only through the reviewed Identity lifecycle coordinator.
+- Export and purge run through the manual rights request command
+  (`docs/operations/rights-requests.md`); neither is on `publicApi`.
 - Not exported, and not queried: `portal_tokens` (the address-token hash, the sealed raw address and the print code hashes) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret. `portal_address_downloads` is exported without the token id. An exported artifact's `status` is the state of its code at the export snapshot (`published` while the code resolves, `retiring` through a rotation's grace window, `retired` after it, `revoked` when it was stopped), read from `portal_tokens` without exposing the join key. The stored column stays `published`: the scan path reads it, and moving it with the code would end scan counting inside a grace window. In the CSV summary `portal_id` names the Portal a record belongs to (its own id on a Portal row) and is empty for a group, an approved destination, a media asset and the Property's look and wording. A Portal's own look row (`portalLookOverrides`, ADR 0070) names its Portal in `portal_id`; its columns are listed one by one and the photo's descriptions are written as text.
-- Not touched by any phase: `portal_metric_lifetime_aggregates` (Metric's anonymous aggregate), `properties`, and the Staff-owned people rows. Each is another owner's receipt.
+- Not touched by any phase: `properties`, and the Staff-owned people rows. Each is another owner's receipt.
 
 ## Model
 
@@ -435,7 +435,7 @@ hidden in a segment do not survive, and the original is never stored.
   Portal look override, link or publication snapshot refers to (object, then row, in
   one transaction with the row locked). A snapshot's reference keeps an asset for as
   long as the snapshot exists.
-- **Purge**: the Organization lifecycle contributor removes the objects of the
+- **Purge**: the rights request command removes the objects of the
   Organization's assets before it deletes their rows. `portal_look_overrides` is
   scrubbed ahead of the rows it points at (after `portal_localized_overrides`, before
   the brand contents, profiles, media assets and Portals), because its RESTRICT foreign
@@ -938,9 +938,8 @@ goes quiet (`s3-storage.adapter.endpoints.test.ts`).
 11. An image enters the Portal only through the server-side ingest, which stores a re-encoded WebP and never the upload; no Portal request issues a presigned upload or writes `portals.hero_image_url`, and a published Portal with a null value remains valid. A Portal's own photo and logo are such images: `portal_look_overrides` only references an ingested asset of the Portal's Property (ADR 0070).
 12. The POR-01 report never copies names, localized content, raw URLs, token material, themes, or print-batch values and never infers creator, ownership, translation, brand, or destination provenance. Reported ambiguous Portal rows remain Disabled or Archived; raw secondary links are treated as quarantined and excluded from publication until a separately reviewed command resolves them.
 13. Closing is a **stop, not a delete**, and it is reversible: the immutable publication snapshot survives and `portals.publication_state` keeps the tenant's own published/draft intent, so explicit reactivation re-points a new activation at the same snapshot rather than guessing what each Portal used to be. Ordinary closure cancellation does not itself reactivate Portals — see `docs/operations/organization-lifecycle.md`.
-14. `portal_group_members` is purged as a **row delete only**. It is a physical-drop-blocked compatibility mirror that nothing reads or writes any more (membership is `portal_group_memberships`, and the Organization Export no longer carries the mirror): the rows are tenant content and must go, the table must not. No phase issues a DROP or TRUNCATE; dropping the table is a separate expand/backfill/contract decision. The Organization Export dropped the `portalGroupMembers` collection while keeping the format id `portal-organization-export/v1`: nothing parses the id (the export is a file for people), and a mirror row is expected to have its `portal_group_memberships` row (the Staff export carries those). `portal-group-members-without-membership` in `docs/operations/operator-commands.md` is the one query that confirms it; run it in each environment before the deploy.
-15. Linktree edits (link texts, the section title, the switch) take the Portal fence like any content command and record `portal_links` pending changes under structured keys: `link:<id>:text:<locale>`, `linktree:title:<locale>` and `linktree:enabled`. Only a value that actually changed records one, and their facts carry identifiers, never the wording.
-16. A group's history starts at the deploy of migration 0046; earlier changes are not reconstructed, because earlier names were never kept. History rows are never updated or deleted while their group exists, and a purge removes them with the group.
+14. Linktree edits (link texts, the section title, the switch) take the Portal fence like any content command and record `portal_links` pending changes under structured keys: `link:<id>:text:<locale>`, `linktree:title:<locale>` and `linktree:enabled`. Only a value that actually changed records one, and their facts carry identifiers, never the wording.
+15. A group's history starts at the deploy of migration 0046; earlier changes are not reconstructed, because earlier names were never kept. History rows are never updated or deleted while their group exists, and a purge removes them with the group.
 
 ## Verification
 

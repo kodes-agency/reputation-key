@@ -28,6 +28,8 @@ import {
 } from '#/contexts/feed/rights/executor.server'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import { writeAuditEvent } from '#/contexts/feed/audit/write.server'
+import type { RightsAudit } from './rights-audit'
 import { runRightsExecutors, type RightsExecutor } from './rights-executor'
 import { createRightsJournal } from './rights-journal'
 
@@ -52,12 +54,19 @@ async function seedProperty(organizationId: string, propertyId: string) {
   await query(
     `INSERT INTO reviews (
        id, organization_id, property_id, platform, external_id, external_location_id,
-       reviewer_name, rating, text, language_code, reviewed_at, expires_at,
-       content_expires_at, source_epoch, source_revision, source_observation_sequence,
-       analysis_sequence, ai_source_byte_length, ai_source_digest, source_content_state,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, 'google', $4, 'locations/rights', 'Reviewer', 4, 'Text', 'en', $5, $6, $6,
-               0, 1, 1, 1, 24, $7, 'active', $5, $5)`,
+       expires_at, source_epoch, source_revision, source_observation_sequence,
+       analysis_sequence, source_content_state, created_at, updated_at
+     ) VALUES ($1, $2, $3, 'google', $4, 'locations/rights', $6, 0, 1, 1, 1, 'active', $5, $5)`,
+    [reviewId, organizationId, propertyId, `external-${reviewId}`, at, EXPIRES_AT],
+  )
+  await query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id, external_location_id,
+       reviewer_name, rating, text, language_code, reviewed_at, last_fetched_at,
+       content_expires_at, source_epoch, source_revision, ai_source_byte_length,
+       ai_source_digest)
+     VALUES ($1, $2, $3, 'google', $4, 'locations/rights', 'Reviewer', 4, 'Text', 'en', $5, $5,
+             $6, 0, 1, 24, $7)`,
     [
       reviewId,
       organizationId,
@@ -189,6 +198,7 @@ async function run(
   scope: 'property' | 'organization',
   organizationId: string,
   propertyId?: string,
+  audit?: RightsAudit,
 ) {
   const out: string[] = []
   const err: string[] = []
@@ -199,6 +209,7 @@ async function run(
     journal: createRightsJournal(store),
     io: { out: (line) => out.push(line), err: (line) => err.push(line) },
     writeExportFile: async () => {},
+    ...(audit ? { audit } : {}),
   })
   return { code, out, err }
 }
@@ -293,10 +304,48 @@ describe('composed rights executors', () => {
     expect(await snapshot(tables, other.organizationId)).toBe(before.other)
   })
 
+  it('records the apply as one audit event that names the Property and no content', async () => {
+    const first = await seedOrganization(2)
+    const [a] = first.propertyIds as [string, string]
+    const audit: RightsAudit = {
+      operatorId: 'ops:rights-tester',
+      write: async (event) => {
+        await writeAuditEvent(db, event)
+      },
+    }
+
+    try {
+      const result = await run('property', first.organizationId, a, audit)
+
+      expect(result.err).toEqual([])
+      expect(result.code).toBe(0)
+      const rows = await query(
+        `SELECT action, outcome, actor_type, actor_id, property_id, source_kind, resource_type
+         FROM audit_events WHERE organization_id = $1`,
+        [first.organizationId],
+      )
+      expect(rows.rows).toEqual([
+        {
+          action: 'rights.erase.property',
+          outcome: 'succeeded',
+          actor_type: 'operator',
+          actor_id: 'ops:rights-tester',
+          property_id: a,
+          source_kind: 'operator_command',
+          resource_type: 'rights_request',
+        },
+      ])
+    } finally {
+      await query('DELETE FROM audit_events WHERE organization_id = $1', [
+        first.organizationId,
+      ])
+    }
+  })
+
   it('erases the Organization across every executor and leaves the other one byte-identical', async () => {
     const first = await seedOrganization(2)
     const other = await seedOrganization(1)
-    await holdRightsOrganization(query, first.organizationId)
+    holdRightsOrganization(first.organizationId)
     const tables = await declaredTables(executorsFor('organization'), 'organization')
     const otherBefore = await snapshot(tables, other.organizationId)
 
@@ -311,11 +360,7 @@ describe('composed rights executors', () => {
     const left = Object.entries(after)
       .filter(([table, rows]) => rows.length > 0 && !KEPT_IN_PLACE.has(table))
       .map(([table]) => table)
-    expect(left).toEqual(
-      ['organization_lifecycle_authority'].filter(
-        (table) => table in after && after[table]!.length > 0,
-      ),
-    )
+    expect(left).toEqual([])
     expect(await snapshot(tables, other.organizationId)).toBe(otherBefore)
   })
 

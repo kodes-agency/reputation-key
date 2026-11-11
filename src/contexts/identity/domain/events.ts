@@ -8,7 +8,6 @@ import { assert } from '#/shared/domain/assert'
 import type { OrganizationId, UserId, InvitationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import type { MerchantAiState } from './merchant-ai-authorization'
-import type { OrganizationLifecycleState } from './organization-lifecycle'
 
 type IdentityEventArgs<T> = Omit<T, '_tag' | 'eventId' | 'correlationId'> &
   Readonly<{ correlationId?: string | null }>
@@ -250,58 +249,6 @@ export const identityMerchantAiChanged = (
   }
 }
 
-export type IdentityOrganizationLifecycleChanged = Readonly<{
-  _tag: 'identity.organization_lifecycle.changed'
-  eventId: string
-  organizationId: OrganizationId
-  closureLineageId: string
-  state: OrganizationLifecycleState
-  revision: number
-  reactivationRequired: boolean
-  recoverableUntil: Date
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-export const identityOrganizationLifecycleChanged = (
-  args: IdentityEventArgs<IdentityOrganizationLifecycleChanged>,
-): IdentityOrganizationLifecycleChanged => {
-  assert(
-    args.occurredAt instanceof Date && !Number.isNaN(args.occurredAt.getTime()),
-    'occurredAt must be a valid Date',
-  )
-  assert(
-    args.recoverableUntil instanceof Date &&
-      !Number.isNaN(args.recoverableUntil.getTime()),
-    'recoverableUntil must be a valid Date',
-  )
-  assert(args.organizationId !== '', 'organizationId required')
-  assert(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      args.closureLineageId,
-    ),
-    'closureLineageId must be UUID',
-  )
-  assert(
-    Number.isSafeInteger(args.revision) && args.revision > 0,
-    'revision must be a positive safe integer',
-  )
-  // Every closure-direction transition raises the fence. LIF-01-T18
-  // reactivation is the ONE fact that lowers it, and it can only be reported
-  // from `active` — a fence cleared from any other state would mean a closing
-  // or purging Organization silently resumed.
-  assert(
-    args.reactivationRequired || args.state === 'active',
-    'lifecycle transition must require reactivation',
-  )
-  return {
-    _tag: 'identity.organization_lifecycle.changed',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
 /**
  * A beta report reached an outcome its reporter should hear about (ADR 0059).
  *
@@ -343,5 +290,4 @@ export type IdentityEvent =
   | IdentityMemberRoleChanged
   | IdentityMemberPropertyAccessChanged
   | IdentityMerchantAiChanged
-  | IdentityOrganizationLifecycleChanged
   | IdentityBetaFeedbackOutcomeReached

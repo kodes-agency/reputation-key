@@ -84,7 +84,7 @@ export function planNeeds(
 }
 
 /**
- * Keep is offered first from a shown 4.7 (X1, owner 2026-10-16; R2-9 said 4.9):
+ * Keep is offered first from a shown 4.7:
  * at 4.7 the next tenth needs new reviews averaging 4.9★ or more, at 4.8 every
  * one to be 5★. A goal to keep may be set from there, and a climb only with an
  * average the manager types.

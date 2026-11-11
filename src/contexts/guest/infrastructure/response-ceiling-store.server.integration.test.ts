@@ -8,7 +8,7 @@ import {
   createResponseCeilingStore,
   RESPONSE_PRESSURE_MARKERS,
 } from './response-ceiling-store.server'
-import { drizzleGuestLifecycleWorkbench } from './adapters/guest-organization-lifecycle.adapter'
+import { drizzleGuestLifecycleWorkbench } from './adapters/guest-organization-erasure'
 
 const ORG = organizationId('org-response-ceiling-test')
 const OTHER_ORG = organizationId('org-response-ceiling-other')

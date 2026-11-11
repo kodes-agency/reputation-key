@@ -18,8 +18,18 @@ adapter; no other context reads its tables directly.
   Staff Participation to a Portal; `primary` is the single metric-credit relation.
 - **Property Access Grant** — the only explicit Property-scope authority.
 - **Invitation** — a pending Organization membership request with a built-in role.
-- **Organization Lifecycle Authority** — the revisioned closure, recovery, purge,
-  and terminal-state control plane.
+
+## Feature folders
+
+Server-side code for these features lives beside its tests in
+`consent/` (merchant AI authorization, notices, deferral, renewal; its settings screens are in `consent/ui/`),
+`updates/` (product updates), `feedback/` (beta feedback submission and delivery),
+`operator/` (platform console), `staff/` (staff accounts, invitations and
+address checks) and `members/` (member invitations, role changes, removal and
+Property access grants). Files there are `*.server.ts`; server functions stay under
+`server/`. The member directory screens (members, invitations, role change, removal,
+Property access) sit in `members/ui/`; routes import them from there. Anything a screen, route, script or another context imports, and the
+rights, erasure and export contributors, stay in the layer folders.
 
 ## Invariants
 
@@ -69,8 +79,6 @@ adapter; no other context reads its tables directly.
   not multiply metrics or select notification recipients.
 - Member, role, grant, policy, and lifecycle mutations advance their governing
   revision in the same transaction; stale command authority denies.
-- Organization closure and export require a current, transactionally rechecked
-  AccountAdmin. Purging is irreversible and Closed is terminal.
 - Exports are deterministic, encrypted, time-bounded, and assembled from exactly one
   contribution per stable data-owner slot; raw retrieval tokens are never stored.
   No CSV cell may start a spreadsheet formula: contributors write cells with
@@ -92,10 +100,11 @@ adapter; no other context reads its tables directly.
 ## Runtime seams
 
 `buildIdentityContext` constructs the People surface first, then the remaining
-Identity repositories and request APIs. The composition root publishes one
-`IdentityPublicApi`; its nested `people` surface supplies `StaffPublicApi` facts,
+Identity repositories and request APIs. The composition root publishes the
+Identity context; its `people` surface supplies `StaffPublicApi` facts,
 primary attribution resolution, and participation management. Cross-context code
-imports only `#/contexts/identity/application/public-api`.
+imports only `#/contexts/identity/application/public-api`, which exports just
+what other contexts use.
 
 Server functions for Organizations, settings, invitations, registration, policy,
 feedback, and Staff Participation live in `server/`. Application code owns use
@@ -150,7 +159,7 @@ atomically with one `identity.member.property_access_changed` fact (identifiers
 only), and a change that alters nothing records none. A grant from a person uses
 `source='operator'` with `createdBy` = that person, and takes the same per-Property
 lock and the same grant write as the operator's grant
-(`infrastructure/property-grant-write.ts`; the rule is `decidePropertyGrant` in
+(`members/property-grant-write.server.ts`; the rule is `decidePropertyGrant` in
 `domain/property-access-grant.ts`): a lapsed grant still holds the one-active-grant
 slot, so it is retired as `superseded` before the new one is written. The Members edit
 names no expiry and leaves a grant that already gives access alone. An invitation's
@@ -174,12 +183,11 @@ lifecycle facts through the durable outbox. It subscribes to no foreign events.
 `identity.organization.created` is legacy: nothing has emitted it since `/register` was
 deleted, and Recent Activity keeps projecting and replaying the facts recorded before.
 
-## Lifecycle and export compatibility
+## Lifecycle compatibility
 
-People rows are Identity-owned, but durable lifecycle receipt context `staff` and
-export paths under `staff/` remain stable persisted identifiers. The moved
-`staff-organization-lifecycle` and `staff-organization-export` adapters therefore
-retain those keys while living under Identity infrastructure. Purge order is `staff_onboardings`, `staff_property_settings`,
+People rows are Identity-owned, but durable lifecycle receipt context `staff`
+remains a stable persisted identifier. The moved `staff-organization-lifecycle`
+adapter therefore retains that key while living under Identity infrastructure. Purge order is `staff_onboardings`, `staff_property_settings`,
 Portal Responsibilities, Portal Group memberships, Staff Participations, Staff user
 links, then Staff Participants; it never deletes users, memberships, sessions, or
 Property access grants.

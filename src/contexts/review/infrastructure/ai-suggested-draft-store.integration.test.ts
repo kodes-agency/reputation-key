@@ -43,7 +43,7 @@ import {
 } from '#/shared/merchant-ai-notice-contract'
 import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/infrastructure/adapters/property-processing-profile.adapter'
 import { createReviewRepository } from './repositories/review.repository'
-import { eraseReviewSourceContent } from './review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createReplyRepository } from './repositories/reply.repository'
 import { createAiSuggestedDraftStore } from './ai-suggested-draft-store'
 import { createAtomicReplyCommandStore } from './reply-command-store'

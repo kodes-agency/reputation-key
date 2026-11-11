@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { deleteTestOrganizations } from './integration-helpers'
 
 describe('integration Organization fixture cleanup', () => {
-  it('deletes lifecycle/export tombstones before the Better Auth Organization', async () => {
+  it('deletes lifecycle events before the Better Auth Organization', async () => {
     const query = vi.fn(async () => ({ rows: [] }))
 
     await deleteTestOrganizations(
@@ -20,14 +20,6 @@ describe('integration Organization fixture cleanup', () => {
       ],
       [
         'ALTER TABLE organization_lifecycle_events ENABLE TRIGGER organization_lifecycle_events_append_only',
-      ],
-      [
-        'DELETE FROM organization_exports WHERE organization_id = ANY($1::text[])',
-        [['org-b', 'org-a']],
-      ],
-      [
-        'DELETE FROM organization_lifecycle_authority WHERE organization_id = ANY($1::text[])',
-        [['org-b', 'org-a']],
       ],
       ['DELETE FROM organization WHERE id = ANY($1::text[])', [['org-b', 'org-a']]],
     ])

@@ -9,7 +9,7 @@ import type pino from 'pino'
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
-import { createAlertAuxReader } from './alert-aux-reads'
+import { ALERT_AUX_READ_TIMEOUT_MS, createAlertAuxReader } from './alert-aux-reads'
 import { ALERT_DEFINITIONS } from './alert-definitions'
 
 type RetentionRow = Readonly<{ subject: string; outcome: string }>
@@ -91,5 +91,23 @@ describe('the retention run read', () => {
     expect(observed.retention).toEqual({ monitorAvailable: true, failedSubjects: [] })
     expect(observed.betaFeedbackTriage.monitorAvailable).toBe(false)
     expect(observed.reviewAnalysis.monitorAvailable).toBe(false)
+  })
+})
+
+describe('a read that never answers', () => {
+  it('reads as unavailable once the time budget passes', async () => {
+    vi.useFakeTimers()
+    try {
+      const { aux } = reader(databaseAnswering(() => new Promise(() => {})))
+      const pending = aux.read()
+      await vi.advanceTimersByTimeAsync(ALERT_AUX_READ_TIMEOUT_MS)
+
+      expect((await pending).retention).toEqual({
+        monitorAvailable: false,
+        failedSubjects: [],
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

@@ -4,6 +4,7 @@
 // is the control, so every case proves what stays untouched.
 
 import { randomUUID } from 'node:crypto'
+import { holdRightsOrganization } from '#/shared/db/testing/rights-isolation-fixture'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
@@ -24,7 +25,7 @@ import {
   planRightsRequest,
   rightsRequestCommandSpec,
 } from '#/shared/ops/rights/rights-request-command'
-import { PORTAL_PURGE_PLAN } from './portal-organization-lifecycle.adapter'
+import { PORTAL_PURGE_PLAN } from './portal-organization-erasure'
 import {
   createPortalErasureReplayers,
   createPortalRightsExecutor,
@@ -88,11 +89,6 @@ async function seedProperty(organizationId: string): Promise<Property> {
                           publication_state, created_at, updated_at)
      VALUES ($1, $2, $3, $4, 'Front Desk', 'front-desk', 'published', now(), now())`,
     [fixture.portalId, organizationId, fixture.propertyId, fixture.propertyId],
-  )
-  await q(
-    `INSERT INTO portal_group_members (id, portal_group_id, portal_id, organization_id, created_at)
-     VALUES ($1, $2, $3, $4, now())`,
-    [randomUUID(), fixture.portalGroupId, fixture.portalId, organizationId],
   )
   const mediaAssetId = randomUUID()
   await q(
@@ -357,36 +353,6 @@ async function restoreRows(
   }
 }
 
-async function hold(organizationId: string): Promise<void> {
-  const lineage = randomUUID()
-  const at = new Date()
-  await lease.pool.query(
-    `UPDATE organization_lifecycle_authority
-     SET state = 'closure_requested', revision = revision + 1,
-         closure_lineage_id = $2, closure_requested_at = $3,
-         recoverable_until = $4, reactivation_required = true,
-         requested_by = 'admin:rights-test', request_reason_code = 'test_workspace',
-         request_support_evidence_ref = 'test:closure-request',
-         last_transition_at = $3, last_actor_id = 'admin:rights-test',
-         last_reason_code = 'test_workspace', last_support_evidence_ref = 'test:closure-request'
-     WHERE organization_id = $1`,
-    [organizationId, lineage, at, new Date(at.getTime() + 30 * 86_400_000)],
-  )
-  for (const [next, reason] of [
-    ['closing', 'closing_prepared'],
-    ['purge_pending', 'recovery_window_elapsed'],
-  ] as const) {
-    await lease.pool.query(
-      `UPDATE organization_lifecycle_authority
-       SET state = $2, revision = revision + 1,
-           last_transition_at = $3, last_actor_id = 'system:rights-test',
-           last_reason_code = $4, last_support_evidence_ref = 'test:advance'
-       WHERE organization_id = $1`,
-      [organizationId, next, at, reason],
-    )
-  }
-}
-
 async function takeOffTheAir(organizationId: string): Promise<void> {
   await lease.pool.query(
     `UPDATE portal_publication_activations
@@ -432,7 +398,7 @@ async function runScript(argv: string[], journalStoreOverride?: RightsJournalSto
     dryRun: !parsed.args.apply,
     batchSize: parsed.args.batchSize,
   } as unknown as OperatorContext
-  const planned = planRightsRequest(ctx, parsed.args, { production: false })
+  const planned = planRightsRequest(ctx, parsed.args)
   const out: string[] = []
   const err: string[] = []
   const files = new Map<string, string>()
@@ -538,7 +504,6 @@ describe.sequential('Portal rights executor through the rights-request command',
     const org = await runScript(organizationArgs(tenant.organizationId, false))
     expect(org.exit).toBe(0)
     expect(org.out).toContain('portal: portals 2')
-    expect(org.out).toContain('portal: portal_group_members 2')
     expect(other.organizationId).not.toBe(tenant.organizationId)
   })
 
@@ -613,7 +578,7 @@ describe.sequential('Portal rights executor through the rights-request command',
     const tenant = await seedTenant()
     const other = await seedTenant()
     await takeOffTheAir(tenant.organizationId)
-    await hold(tenant.organizationId)
+    holdRightsOrganization(tenant.organizationId)
     const otherBefore = await organizationSnapshot(other.organizationId)
     const journal = journalStore()
 

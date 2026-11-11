@@ -1,12 +1,12 @@
+import { reviewIdentityValues } from '#/contexts/reputation/application/public-api'
 // Review context — review mapper tests
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect } from 'vitest'
-import { reviewFromRow, reviewToRow } from './review.mapper'
-import type { reviews } from '#/shared/db/schema/review.schema'
+import { reviewFromRow, type ReviewHeadRow } from './review.mapper'
 import { isReviewError } from '../../domain/errors'
 
-type ReviewRow = typeof reviews.$inferSelect
+type ReviewRow = ReviewHeadRow
 
 const now = new Date('2025-06-01T12:00:00Z')
 const reviewedAt = new Date('2025-05-27T12:00:00Z')
@@ -112,7 +112,7 @@ describe('reviewFromRow', () => {
     expect(review.sentimentScore).toBeNull()
   })
 
-  it('carries the stored Google translation in both directions', () => {
+  it('reads the stored Google translation without copying it to the identity', () => {
     // `text` holds the guest's original words; the machine translation is a
     // separate column so the review display can show both without ever feeding
     // the translation to language detection.
@@ -121,13 +121,13 @@ describe('reviewFromRow', () => {
     const review = reviewFromRow(row)
     expect(review.text).toBe('Ок')
     expect(review.translatedText).toBe('Ok')
-    expect(reviewToRow(review).translatedText).toBe('Ok')
+    expect(reviewIdentityValues(review)).not.toHaveProperty('translatedText')
   })
 
-  it('keeps a missing translation null in both directions', () => {
+  it('reads a missing translation as null without adding an identity copy', () => {
     const review = reviewFromRow(sampleRow)
     expect(review.translatedText).toBeNull()
-    expect(reviewToRow(review).translatedText).toBeNull()
+    expect(reviewIdentityValues(review)).not.toHaveProperty('translatedText')
   })
 
   it('throws a tagged ReviewError (not bare Error) for an invalid platform', () => {
@@ -159,52 +159,68 @@ describe('reviewFromRow', () => {
   })
 })
 
-describe('reviewToRow', () => {
-  it('round-trips through fromRow → toRow', () => {
+describe('reviewIdentityValues', () => {
+  it('writes the stable identity and fences without provider content', () => {
     const review = reviewFromRow(sampleRow)
-    const row = reviewToRow(review)
+    const row = reviewIdentityValues(review)
 
     expect(row.id).toBe(sampleRow.id)
     expect(row.organizationId).toBe(sampleRow.organizationId)
     expect(row.propertyId).toBe(sampleRow.propertyId)
     expect(row.platform).toBe(sampleRow.platform)
-    expect(row.externalId).toBe(sampleRow.externalId)
-    expect(row.externalLocationId).toBe(sampleRow.externalLocationId)
+    expect(row.externalId).toBeUndefined()
+    expect(row.externalLocationId).toBeUndefined()
     expect(row.googleConnectionId).toBe(sampleRow.googleConnectionId)
-    expect(row.reviewerName).toBe(sampleRow.reviewerName)
-    expect(row.reviewerProfilePhotoUrl).toBe(sampleRow.reviewerProfilePhotoUrl)
-    expect(row.googleReviewUrl).toBe(sampleRow.googleReviewUrl)
-    expect(row.rating).toBe(sampleRow.rating)
-    expect(row.text).toBe(sampleRow.text)
-    expect(row.languageCode).toBe(sampleRow.languageCode)
-    expect(row.reviewedAt).toBe(sampleRow.reviewedAt)
-    expect(row.expiresAt).toBe(sampleRow.expiresAt)
+    const written: Record<string, unknown> = row
+    for (const field of [
+      'reviewerName',
+      'reviewerProfilePhotoUrl',
+      'googleReviewUrl',
+      'rating',
+      'text',
+      'languageCode',
+      'reviewedAt',
+      'expiresAt',
+      'sourceCreatedAt',
+      'sourceUpdatedAt',
+      'lastFetchedAt',
+      'contentExpiresAt',
+      'contentHash',
+      'aiSourceByteLength',
+      'aiSourceDigest',
+    ]) {
+      expect(written[field]).toBeUndefined()
+    }
+    expect(row.firstFetchedAt).toBe(sampleRow.firstFetchedAt)
+    expect(row.sourceEpoch).toBe(sampleRow.sourceEpoch)
+    expect(row.sourceRevision).toBe(sampleRow.sourceRevision)
+    expect(row.analysisSequence).toBe(sampleRow.analysisSequence)
     expect(row.sentimentLabel).toBe(sampleRow.sentimentLabel)
     expect(row.sentimentScore).toBe(sampleRow.sentimentScore)
   })
 
   it('excludes createdAt and updatedAt', () => {
     const review = reviewFromRow(sampleRow)
-    const row = reviewToRow(review)
+    const row = reviewIdentityValues(review)
     expect('createdAt' in row).toBe(false)
     expect('updatedAt' in row).toBe(false)
   })
 
-  it('round-trips null googleConnectionId (fromRow → toRow)', () => {
+  it('keeps an absent routing connection null', () => {
     const rowWithNull = { ...sampleRow, googleConnectionId: null }
     const review = reviewFromRow(rowWithNull)
     expect(review.googleConnectionId).toBeNull()
 
-    const row = reviewToRow(review)
+    const row = reviewIdentityValues(review)
     expect(row.googleConnectionId).toBeNull()
   })
 
-  it('round-trips non-null googleConnectionId (fromRow → toRow)', () => {
+  it('preserves the connection used by the database publication guard', () => {
     const review = reviewFromRow(sampleRow)
     expect(review.googleConnectionId).not.toBeNull()
     expect(String(review.googleConnectionId)).toBe('conn-uuid-001')
 
-    const row = reviewToRow(review)
+    const row = reviewIdentityValues(review)
     expect(row.googleConnectionId).toBe('conn-uuid-001')
   })
 })

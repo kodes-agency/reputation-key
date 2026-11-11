@@ -7,7 +7,7 @@
 // has already committed and is the part that matters. Each failure keeps its
 // error code, so the caller can say why, and is handed to monitoring.
 
-import type { SaveMemberAccessInput } from '#/components/features/identity'
+import type { SaveMemberAccessInput } from '#/contexts/identity/members/ui/member-access-sheet'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 
 type Ids = ReadonlyArray<string>

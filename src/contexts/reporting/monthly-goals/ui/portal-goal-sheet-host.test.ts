@@ -7,7 +7,7 @@ import {
 } from './portal-goal-check-in.stories.fixtures'
 import { afresh, openedAs, portalGoalDoorShown } from './portal-goal-sheet-host'
 
-// The sheet's chunk is fetched only while a door to it is drawn (PLAN PG-14).
+// The sheet's chunk is fetched only while a door to it is drawn.
 
 describe('portalGoalDoorShown', () => {
   it('every arm before a goal opens the sheet; no card, no portal: none', () => {

@@ -68,14 +68,31 @@ async function seedReview(
   const reviewedAt = new Date(Date.now() - (overrides.daysAgo ?? 0) * MS_PER_DAY)
   const expiresAt = new Date(reviewedAt.getTime() + 30 * MS_PER_DAY)
 
+  const contentExpiresAt =
+    // BQC-1.4: serving reads require eligible content — seed a live fetch clock.
+    overrides.contentExpiresAt === undefined
+      ? new Date(Date.now() + 30 * MS_PER_DAY)
+      : overrides.contentExpiresAt
+
   await pool.query(
     `INSERT INTO reviews (
        id, organization_id, property_id, platform, external_id, external_location_id,
-       rating, text, reviewed_at, expires_at, content_expires_at,
-       source_epoch, source_revision, analysis_sequence,
+       expires_at, first_fetched_at, source_epoch, source_revision, analysis_sequence
+     )
+     VALUES ($1, $2, $3, 'google', $4, $5, $6, $7, 0, 0, 0)`,
+    [id, orgId, propId, `ext-${id}`, `loc-${id}`, expiresAt, reviewedAt],
+  )
+  // A Review without a content clock holds no content row.
+  if (contentExpiresAt === null) return id
+  await pool.query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, rating, text, reviewed_at, first_fetched_at,
+       last_fetched_at, content_expires_at, source_epoch, source_revision,
        ai_source_byte_length, ai_source_digest
      )
-     VALUES ($1, $2, $3, 'google', $4, $5, $6, $7, $8, $9, $10, 0, 0, 0, 1, repeat('0', 64))`,
+     VALUES ($1, $2, $3, 'google', $4, $5, $6, $7, $8, $8, $8, $9, 0, 0, 1,
+             repeat('0', 64))`,
     [
       id,
       orgId,
@@ -85,27 +102,8 @@ async function seedReview(
       rating,
       text,
       reviewedAt,
-      expiresAt,
-      // BQC-1.4: serving reads require eligible content — seed a live fetch clock.
-      overrides.contentExpiresAt === undefined
-        ? new Date(Date.now() + 30 * MS_PER_DAY)
-        : overrides.contentExpiresAt,
+      contentExpiresAt,
     ],
-  )
-  // A Review without a content clock holds no content row.
-  await pool.query(
-    `INSERT INTO review_source_contents (
-       review_id, organization_id, property_id, platform, external_id,
-       external_location_id, rating, text, reviewed_at, first_fetched_at,
-       last_fetched_at, content_expires_at, source_epoch, source_revision,
-       ai_source_byte_length, ai_source_digest
-     )
-     SELECT id, organization_id, property_id, platform, external_id,
-            external_location_id, rating, text, reviewed_at, reviewed_at,
-            reviewed_at, content_expires_at, source_epoch, source_revision,
-            ai_source_byte_length, ai_source_digest
-     FROM reviews WHERE id = $1 AND content_expires_at IS NOT NULL`,
-    [id],
   )
   return id
 }

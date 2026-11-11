@@ -86,6 +86,22 @@ export function changedDescriptions(
   })
 }
 
+/**
+ * The languages a replacement clears or rewrites: the offered ones and any other
+ * the old photograph was described in, which would otherwise keep describing a
+ * picture that is gone.
+ */
+export function replacementLocales(
+  locales: readonly OfferedGuestLocale[],
+  saved: PhotoDescriptions,
+): readonly OfferedGuestLocale[] {
+  const others = Object.keys(saved).filter(
+    (locale): locale is OfferedGuestLocale =>
+      isOfferedGuestLocale(locale) && !locales.includes(locale),
+  )
+  return [...locales, ...others]
+}
+
 export type PhotoDialogState = Readonly<{
   /** The photograph the Property has now, if any. */
   hasPhoto: boolean

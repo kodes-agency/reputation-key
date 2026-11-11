@@ -74,6 +74,9 @@ describe('job operational catalogue', () => {
     'published-event-redelivery',
     'schedule-property-ai-trends',
     'generate-property-ai-trend',
+    'generate-organization-export',
+    'purge-expired-organization-exports',
+    'advance-organization-lifecycle',
   ])('retains a removal tombstone for the retired %s scheduler', (jobName) => {
     const plan = createOperationalSchedulerPlan()
 

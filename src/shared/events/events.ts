@@ -16,7 +16,6 @@ export type {
   IdentityMemberRoleChanged,
   IdentityMemberPropertyAccessChanged,
   IdentityMerchantAiChanged,
-  IdentityOrganizationLifecycleChanged,
 } from '#/contexts/identity/domain/events'
 
 // Property context events

@@ -456,8 +456,7 @@ export function InboxCaseToolbar({
     // `lg:px-6`. `[Open] [owner] [Priority] [Escalate]` for a long name is
     // 57 + 226 + 108 + 95 = 486 px, and the status, then the only member that gave,
     // was squeezed to its dot: the `inbox-triage` journey could not see `Open`.
-    // Three rules hold it, each measured at that floor by
-    // `inbox-case-toolbar-floor.metrics.ts`: this section is the `@container` the
+    // Three rules hold it at that floor: this section is the `@container` the
     // Priority control sizes itself by (below 32rem Medium, Low and Not set are the
     // 36 px glyph square, and Urgent and High keep their word without the chevron
     // or the tag); the owner's name gives next (`md:flex-1`, in

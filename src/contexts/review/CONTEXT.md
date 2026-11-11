@@ -116,11 +116,9 @@ A Review's own page on Google (`googleReviewUrl`, Google's output-only
 adapter keeps it only in the one shape Google sends for the review's own
 location (`#/shared/domain/google-review-links`) and reads anything else as
 none; a refused value never fails the page. Every applied fetch writes it to
-`review_source_contents` and its compatibility copy on `reviews` (the quiet
-same-content refresh that extends the content clock included, so existing
-Reviews fill in on their next sync with no backfill), the shadow-parity
-inspection compares the two copies, and erasure nulls it, with the tombstone
-CHECK refusing a tombstone that keeps one. It is in no observation, material
+`review_source_contents` (the quiet same-content refresh that extends the content
+clock included). `reviews` holds no provider content; the column exists only on
+`review_source_contents`. It is in no observation, material
 or normalized digest, no `review_source_observations` row, no AI input and no
 export, so a link Google starts or stops sending never reads as a guest edit.
 It is served only through the eligible reads (`getReviewSnippetById`,

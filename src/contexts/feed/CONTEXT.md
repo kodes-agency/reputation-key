@@ -110,11 +110,7 @@ notice depends on it: it carries no Property, and refusing it for that reason
 dropped the last warning before an irreversible deletion. Every other audience
 still fails closed without a Property.
 
-The Organization's lifecycle authority is read when an email is queued and
-again before it is sent. From a closure request, and until a cancelled
-closure is explicitly reactivated, no optional email is queued or sent and
-queued rows are suppressed as `organization_closing`; mandatory notices stop
-only at the irreversible boundary. Rows for a Property that is not active are
+Rows for a Property that is not active are
 held, by the digest and the urgent path alike.
 
 The browser receives a `NotificationView`, never the stored row: the event
@@ -508,9 +504,7 @@ the settlement consumers retire every recipient's still-waiting row for a
 mail behind them. `property.archived` settles by Property instead, every
 actionable notice there except the Organization's Google reconnect request. A
 grouped reopen is settled by row id, once none of the cycles it stands for is
-still its item's open head. The one retractable type,
-`account.organization_purge_pending`, is taken back when the purge is
-cancelled, its mail cancelled as `purge_cancelled`. Settling stamps
+still its item's open head. Settling stamps
 `resolvedAt` and leaves `status` alone, because read is not resolved: a
 settled row leaves the unread count and the Unread tab and stays in the feed
 under a "Done" marker; a repeat on the resource is a new row. The work itself
@@ -732,9 +726,12 @@ database isolation still requires the integration project.
 `infrastructure/inbox-workflow-acceptance.test.ts` checks producer-to-dispatcher
 payload/copy parity, note audience precedence, bulk/per-item arrival order and
 receipt-last retries for assignment, note and escalation fanout. Those single-item
-routes share `enqueueInboxWorkflowNotifications` in
+routes share `inboxWorkflowNotices` in
 `infrastructure/inbox-notification-fanout.ts`; grouped routes keep their
-per-Property job identities. Database concurrency and assignment-generation
+per-Property identities. The Inbox and reply consumers return their notices to
+`deliverNotices`, so on the worker each notice commits with its receipt;
+`notify/consumers.server.integration.test.ts` runs every producer route, the
+Low ratings routing of arrivals and a stale assignee through PostgreSQL. Database concurrency and assignment-generation
 fences require separate PostgreSQL coverage.
 
 `infrastructure/notification-family-acceptance.test.ts` preserves recipients,

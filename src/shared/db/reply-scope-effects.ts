@@ -9,6 +9,11 @@ import type { Tx } from '#/shared/outbox/commit'
  */
 export type ReplyScopeEffects = Readonly<{
   withdrawAiDrafts(tx: Tx, scope: SQL): Promise<void>
+  /** Removes the provider-mirror Replies of one Review; returns how many. */
+  deleteGoogleSyncMirrors(
+    tx: Tx,
+    scope: Readonly<{ organizationId: string; reviewId: string }>,
+  ): Promise<number>
   fenceReplyPublicationsAfterRestore(
     tx: Tx,
   ): Promise<Readonly<{ cancelled: number; ambiguous: number }>>

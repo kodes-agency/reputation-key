@@ -23,7 +23,7 @@ import type {
   BetaFeedbackSubmissionStore,
   BetaFeedbackTriageRecord,
   PreparedBetaFeedbackTriage,
-} from '../application/ports/beta-feedback-submission.port'
+} from '../feedback/beta-feedback-submission.port.server'
 import type { BetaFeedbackReporter } from './beta-feedback-reporter'
 
 /** The transaction handle drizzle hands the callback; narrower than Database. */

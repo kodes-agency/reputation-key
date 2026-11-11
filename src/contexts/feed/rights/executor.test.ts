@@ -12,11 +12,8 @@ import {
   type RightsRequestEffects,
 } from '#/shared/ops/rights/run-rights-request'
 import { rightsRequestCommandSpec } from '#/shared/ops/rights/rights-request-command'
+import type { RightsAuditEvent } from '#/shared/ops/rights/rights-audit'
 import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
-import {
-  isEmailStopped,
-  type OrganizationEmailStop,
-} from '../domain/organization-email-stop'
 import {
   buildManualFinalWarningJobs,
   runNotificationRights,
@@ -52,7 +49,6 @@ type Store = {
   userSettings: ScopedRightsRow[]
   removals: ScopedRightsRow[]
   admins: Record<string, string[]>
-  stop: Record<string, OrganizationEmailStop>
 }
 
 function seed(): Store {
@@ -76,7 +72,6 @@ function seed(): Store {
       row(ORG_B, null, { userId: 'former-b', eventId: 'removal-b', createdAt: 't' }),
     ],
     admins: { [ORG_A]: ['admin-a'], [ORG_B]: ['admin-b'] },
-    stop: { [ORG_A]: 'optional', [ORG_B]: 'none' },
   }
 }
 
@@ -92,7 +87,6 @@ function fakePort(store: Store, enqueued: ManualFinalWarningJob[], deleted: stri
       s.propertyId ? [] : inScope(store.userSettings, s.organizationId),
     formerMembers: async (org) => inScope(store.removals, org),
     accountAdmins: async (org) => store.admins[org] ?? [],
-    emailStop: async (org) => store.stop[org] ?? 'none',
     organizationPayload: async (org) => ({ organizationName: `Name of ${org}` }),
     rowCounts: async (s) => ({
       notifications: inScope(store.history, s.organizationId, s.propertyId).length,
@@ -113,13 +107,11 @@ async function runScript(
   org: string,
   argv: string[],
   {
-    production = false,
-    environment,
     tamper,
+    auditFails,
   }: {
-    production?: boolean
-    environment?: Readonly<Record<string, string | undefined>>
     tamper?: boolean
+    auditFails?: boolean
   } = {},
 ) {
   const enqueued: ManualFinalWarningJob[] = []
@@ -128,6 +120,7 @@ async function runScript(
   const out: string[] = []
   const err: string[] = []
   const journalWrites: string[] = []
+  const audits: RightsAuditEvent[] = []
   const basePort = fakePort(store, enqueued, deleted)
   const port: NotificationRightsPort = tamper
     ? { ...basePort, history: async () => store.history }
@@ -147,10 +140,6 @@ async function runScript(
   } as unknown as OperatorContext
   const io: OperatorIO = { out: (l) => out.push(l), err: (l) => err.push(l) }
   const effects: RightsRequestEffects = {
-    environment: environment ?? {
-      NODE_ENV: production ? 'production' : 'test',
-      DATABASE_URL: 'postgresql://u:p@localhost/test_rights',
-    },
     readFile: async () => '',
     writeExportFile: async (_path, bytes) => {
       exports.push(Buffer.from(bytes).toString('utf8'))
@@ -161,6 +150,10 @@ async function runScript(
       },
       alert: () => {},
     }),
+    auditWrite: async (event) => {
+      if (auditFails) throw new Error('audit store down')
+      audits.push(event)
+    },
     subjectRefusal: async () => null,
     executors: (finalWarning) => [
       createNotificationRightsExecutor({
@@ -171,7 +164,7 @@ async function runScript(
     ],
   }
   const code = await handleRightsRequest(effects, ctx, parsed.args, io)
-  return { code, out, err, enqueued, deleted, exports, journalWrites }
+  return { code, out, err, enqueued, deleted, exports, journalWrites, audits }
 }
 
 describe('notification: rights through the rights-request handler', () => {
@@ -201,17 +194,6 @@ describe('notification: rights through the rights-request handler', () => {
     await expect(
       runScript(seed(), ORG_A, ['access', 'out=/tmp/a'], { tamper: true }),
     ).rejects.toThrow('another Organization')
-  })
-
-  it('reports that suspension holds optional mail but not mandatory mail', async () => {
-    const suspended = await runScript(seed(), ORG_A, ['access'])
-    const active = await runScript(seed(), ORG_B, ['access'])
-    expect(suspended.out.join('\n')).toContain(
-      'optional mail: held (stop=optional; mandatory mail still sent)',
-    )
-    expect(active.out.join('\n')).toContain('optional mail: flowing')
-    expect(isEmailStopped('optional', 'workflow_collaboration')).toBe(true)
-    expect(isEmailStopped('optional', 'mandatory')).toBe(false)
   })
 
   it('plans final warnings with no Property for admins and former members', async () => {
@@ -259,27 +241,60 @@ describe('notification: rights through the rights-request handler', () => {
     }
   })
 
-  it('refuses apply in production and changes nothing', async () => {
+  const CLOSURE = [
+    'organization',
+    '--apply',
+    '--reason',
+    'closure',
+    '--ticket',
+    'T-1',
+    '--yes',
+    'ops:rights-request',
+    ...VERIFIED,
+  ]
+
+  it('records one audit event for an applied closure, naming no content', async () => {
+    const result = await runScript(seed(), ORG_A, [
+      ...CLOSURE,
+      `confirm=ERASE ORGANIZATION ${ORG_A}`,
+    ])
+
+    expect(result.code).toBe(0)
+    expect(result.audits).toHaveLength(1)
+    expect(result.audits[0]).toMatchObject({
+      organizationId: ORG_A,
+      propertyId: null,
+      actorType: 'operator',
+      actorId: 'op',
+      action: 'rights.erase.organization',
+      outcome: 'succeeded',
+      sourceKind: 'operator_command',
+    })
+  })
+
+  it('records a final warning as queued, not as an erasure', async () => {
+    const result = await runScript(seed(), ORG_A, [
+      ...CLOSURE,
+      'final-warning',
+      `confirm=ERASE ORGANIZATION ${ORG_A}`,
+    ])
+
+    expect(result.code).toBe(0)
+    expect(result.audits.map((event) => event.action)).toEqual([
+      'rights.final_warning.queued',
+    ])
+  })
+
+  it('exits non-zero when the audit event cannot be written', async () => {
     const result = await runScript(
       seed(),
       ORG_A,
-      [
-        'organization',
-        '--apply',
-        '--reason',
-        'closure',
-        '--ticket',
-        'T-1',
-        '--yes',
-        'ops:rights-request',
-        ...VERIFIED,
-        `confirm=ERASE ORGANIZATION ${ORG_A}`,
-      ],
-      { production: true },
+      [...CLOSURE, `confirm=ERASE ORGANIZATION ${ORG_A}`],
+      { auditFails: true },
     )
+
     expect(result.code).toBe(1)
-    expect(result.deleted).toEqual([])
-    expect(result.enqueued).toEqual([])
+    expect(result.err.join('\n')).toContain('audit event could not be written')
   })
 
   it('purges only the named tenant, and a Property apply stays on its Property', async () => {
@@ -308,53 +323,6 @@ describe('notification: rights through the rights-request handler', () => {
     expect(org.deleted).toEqual([`${ORG_B}/*`])
     expect(property.deleted).toEqual([`${ORG_A}/${PROPERTY_A1}`])
   })
-
-  it.each([
-    [
-      'remote host without NODE_ENV',
-      { DATABASE_URL: 'postgresql://u:p@db.example.invalid/test_rights' },
-    ],
-    [
-      'tunnel to a deployed database',
-      { DATABASE_URL: 'postgresql://u:p@localhost/railway' },
-    ],
-    [
-      'driver host override',
-      { DATABASE_URL: 'postgresql://u:p@localhost/test_rights?host=db.example.invalid' },
-    ],
-    [
-      'Railway shell with a local address',
-      { DATABASE_URL: 'postgresql://u:p@localhost/test_rights', RAILWAY_PROJECT_ID: '' },
-    ],
-    ['missing database address', {}],
-  ])(
-    'refuses apply for %s even with a configured journal',
-    async (_name, environment) => {
-      const result = await runScript(
-        seed(),
-        ORG_A,
-        [
-          'organization',
-          '--apply',
-          '--reason',
-          'closure',
-          '--ticket',
-          'T-1',
-          '--yes',
-          'ops:rights-request',
-          ...VERIFIED,
-          `confirm=ERASE ORGANIZATION ${ORG_A}`,
-        ],
-        { environment },
-      )
-
-      expect(result.code).toBe(1)
-      expect(result.err.join('\n')).toContain('database that is not local')
-      expect(result.journalWrites).toEqual([])
-      expect(result.deleted).toEqual([])
-      expect(result.enqueued).toEqual([])
-    },
-  )
 
   it('exports every Property for an Organization scope despite a stray Property id', async () => {
     const result = await runNotificationRights(fakePort(seed(), [], []), {

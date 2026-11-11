@@ -47,7 +47,7 @@ export {
   ownPaceTenths,
   perMonthOf,
 } from '../domain/rating-goal-pace-chips'
-/** The planned average counts like this many reviews as real ones arrive (X3). */
+/** The planned average counts like this many reviews as real ones arrive. */
 export { PLANNED_AVERAGE_WEIGHT_REVIEWS } from '../domain/rating-goal-status'
 export { ownAverageTenths } from '../domain/rating-goal-average'
 export {
@@ -164,7 +164,7 @@ function goalOf(
   }
 }
 
-/** Reviews a goal needs at an average; a goal in range always needs some (D28). */
+/** Reviews a goal needs at an average; a goal in range always needs some. */
 function needed(
   numbers: RatingGoalNumbers,
   targetTenths: number,

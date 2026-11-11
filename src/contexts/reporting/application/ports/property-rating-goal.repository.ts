@@ -160,8 +160,6 @@ export type RatingGoalNotNow = Readonly<{
 }>
 
 export type PropertyRatingGoalRepository = Readonly<{
-  /** True when the Organization lifecycle holds the Organization (closure). */
-  isOrganizationHeld(organizationId: string): Promise<boolean>
   findActive(
     organizationId: string,
     propertyId: string,

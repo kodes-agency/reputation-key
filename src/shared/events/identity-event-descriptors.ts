@@ -98,33 +98,6 @@ const betaFeedbackOutcomeReachedSchema = z.object({
   outcome: z.enum(['accepted', 'declined', 'resolved']),
 })
 
-const organizationLifecycleChangedSchema = z
-  .object({
-    organizationId: z.string().trim().min(1).max(255),
-    closureLineageId: databaseUuidSchema,
-    state: z.enum([
-      'active',
-      'closure_requested',
-      'closing',
-      'purge_pending',
-      'purging',
-      'closed',
-    ]),
-    revision: z.number().int().safe().positive(),
-    reactivationRequired: z.boolean(),
-    recoverableUntil: z.iso.datetime(),
-    occurredAt: z.iso.datetime(),
-  })
-  // LIF-01-T18: explicit reactivation is the only fact that lowers the fence,
-  // and it is only reachable from `active`. Any other state reporting
-  // `reactivationRequired: false` would mean a closing or purging
-  // Organization silently resumed, so the literal is kept as a refinement
-  // rather than dropped.
-  .refine(
-    (event) => event.reactivationRequired || event.state === 'active',
-    'reactivationRequired may only be false for an active Organization',
-  )
-
 export const identityEventDescriptors = [
   {
     type: 'identity.member.invited',
@@ -167,11 +140,5 @@ export const identityEventDescriptors = [
     aggregate: { type: 'user', id: 'userId' },
     version: 1,
     schema: betaFeedbackOutcomeReachedSchema,
-  },
-  {
-    type: 'identity.organization_lifecycle.changed',
-    aggregate: { type: 'closure_lineage', id: 'closureLineageId' },
-    version: 1,
-    schema: organizationLifecycleChangedSchema,
   },
 ] as const satisfies readonly EventDescriptor[]

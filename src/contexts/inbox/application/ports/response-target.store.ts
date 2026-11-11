@@ -133,12 +133,14 @@ export type ResponseTargetStore = Readonly<{
     }>,
   ): Promise<Readonly<{ released: number }>>
   /**
-   * The reminder slots due at `now`, oldest first, with NO lock and no
-   * transaction held afterwards: the caller may read Google between this and
-   * `releaseReminderSlot`.
+   * The reminder slots due at `now`, with NO lock and no transaction held
+   * afterwards: the caller may read Google between this and
+   * `releaseReminderSlot`. The oldest `limit` come first, oldest first. With
+   * `extra`, when they fill the batch up to `extra` more follow in turns across
+   * Organizations, so one Organization's pending slots cannot hide another's.
    */
   listDueReminderCandidates(
-    input: Readonly<{ now: Date; limit: number }>,
+    input: Readonly<{ now: Date; limit: number; extra?: number }>,
   ): Promise<ReadonlyArray<DueReminderCandidate>>
   /**
    * Release one due slot in its own short transaction: the same selection, the

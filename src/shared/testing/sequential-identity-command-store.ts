@@ -6,7 +6,7 @@
 // its own in-memory better-auth tables without a real transaction.
 //
 // Not for production — production must use createAtomicIdentityCommandStore
-// (src/contexts/identity/infrastructure/identity-command-store.ts).
+// (src/contexts/identity/members/identity-command-store.server.ts).
 
 import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import { isOwnerToken } from '#/shared/domain/roles'

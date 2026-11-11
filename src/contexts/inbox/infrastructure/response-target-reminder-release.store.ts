@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, lte, type SQL } from 'drizzle-orm'
+import { and, asc, eq, isNull, lte, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notExcludedFromResponseTargetReporting } from '#/shared/db/inbox-response-target-exclusions'
 import {
@@ -55,6 +55,10 @@ const reminderKindOf = (kind: string): ReminderSlotKey['reminderKind'] =>
  * reporting (an excluded cycle's clock measures nothing, so it prompts no one).
  * Oldest first.
  *
+ * With `after`, only the slots strictly later than that one in this order are
+ * taken. With `fair`, they are taken in turns across Organizations (each one's
+ * oldest, then each one's next) instead of strictly oldest first.
+ *
  * With `lock`, the target rows are taken FOR UPDATE SKIP LOCKED. The target is
  * locked before its reminder, matching completion and cancellation, so "still
  * active" and reminder release are one ordered decision: a concurrently
@@ -62,7 +66,14 @@ const reminderKindOf = (kind: string): ReminderSlotKey['reminderKind'] =>
  */
 const selectDueSlots = (
   executor: Database | Tx,
-  input: Readonly<{ now: Date; limit: number; key?: ReminderSlotKey; lock: boolean }>,
+  input: Readonly<{
+    now: Date
+    limit: number
+    key?: ReminderSlotKey
+    lock: boolean
+    fair?: boolean
+    after?: DueSlotRow['reminder']
+  }>,
 ): Promise<ReadonlyArray<DueSlotRow>> => {
   const conditions: SQL[] = [
     lte(inboxResponseTargetReminders.scheduledFor, input.now),
@@ -79,6 +90,11 @@ const selectDueSlots = (
       eq(inboxResponseTargetReminders.inboxItemId, input.key.inboxItemId),
       eq(inboxResponseTargetReminders.cycleNumber, input.key.cycleNumber),
       eq(inboxResponseTargetReminders.reminderKind, input.key.reminderKind),
+    )
+  }
+  if (input.after) {
+    conditions.push(
+      sql`(${inboxResponseTargetReminders.scheduledFor}, ${inboxResponseTargetReminders.inboxItemId}, ${inboxResponseTargetReminders.reminderKind}) > (${input.after.scheduledFor}, ${input.after.inboxItemId}, ${input.after.reminderKind})`,
     )
   }
   const query = executor
@@ -121,6 +137,16 @@ const selectDueSlots = (
     )
     .where(and(...conditions))
     .orderBy(
+      ...(input.fair
+        ? [
+            sql`row_number() over (
+              partition by ${inboxResponseTargetReminders.organizationId}
+              order by ${inboxResponseTargetReminders.scheduledFor},
+                ${inboxResponseTargetReminders.inboxItemId},
+                ${inboxResponseTargetReminders.reminderKind}
+            )`,
+          ]
+        : []),
       asc(inboxResponseTargetReminders.scheduledFor),
       asc(inboxResponseTargetReminders.inboxItemId),
       asc(inboxResponseTargetReminders.reminderKind),
@@ -214,11 +240,27 @@ export const createReminderReleaseStore = (db: Database): ReminderReleaseStore =
       return { released }
     }),
 
-  listDueReminderCandidates: async ({ now, limit }) =>
+  listDueReminderCandidates: async ({ now, limit, extra = 0 }) =>
     trace('inbox.responseTarget.listDueReminderCandidates', async () => {
       assertBatchLimit(limit)
-      const due = await selectDueSlots(db, { now, limit, lock: false })
-      return due.map(toCandidate)
+      // The oldest `limit` slots come first and in their usual order, so no
+      // slot is ever reached later than it was. When they fill the batch, slots
+      // one Organization keeps pending could hide every other Organization's,
+      // so up to `extra` more follow in turns across Organizations; they come
+      // after the oldest, so they only use what the tick has left over.
+      const oldest = await selectDueSlots(db, { now, limit, lock: false })
+      const last = oldest.at(-1)
+      const rest =
+        extra < 1 || oldest.length < limit || !last
+          ? []
+          : await selectDueSlots(db, {
+              now,
+              limit: extra,
+              lock: false,
+              fair: true,
+              after: last.reminder,
+            })
+      return [...oldest, ...rest].map(toCandidate)
     }),
 
   releaseReminderSlot: async ({ key, now }) =>

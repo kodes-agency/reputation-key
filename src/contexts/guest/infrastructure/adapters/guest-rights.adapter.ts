@@ -12,6 +12,10 @@
 
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import {
+  isOrganizationSuspended,
+  ORGANIZATION_NOT_SUSPENDED,
+} from '#/shared/db/lifecycle/assert-organization-held'
 import { guestResponses } from '#/shared/db/schema/guest.schema'
 import {
   guestResponseId,
@@ -32,7 +36,7 @@ import {
   drizzleGuestLifecycleWorkbench,
   GUEST_PURGE_PLAN,
   GUEST_PURGE_READINESS_BLOCKED,
-} from './guest-organization-lifecycle.adapter'
+} from './guest-organization-erasure'
 import { createGuestPropertyEraseContributor } from './guest-property-erase.adapter'
 import {
   countGuestLegacyPropertyRows,
@@ -129,14 +133,7 @@ export function createGuestRightsExecutor(deps: GuestRightsExecutorDeps): Rights
   }
 
   async function organizationRefusal(organization: string): Promise<string | null> {
-    const result = await db.execute(
-      sql`SELECT state FROM organization_lifecycle_authority WHERE organization_id = ${organization}`,
-    )
-    const state = (result.rows[0] as { state?: string } | undefined)?.state
-    if (state === undefined) return 'Organization has no lifecycle record'
-    if (state === 'active') {
-      return 'Organization is still active; suspend it before a purge'
-    }
+    if (!isOrganizationSuspended(organization)) return ORGANIZATION_NOT_SUSPENDED
     return (await undeliveredFacts(organization)) > 0
       ? GUEST_PURGE_READINESS_BLOCKED
       : null

@@ -12,7 +12,7 @@ import { createReviewRepository } from './review.repository'
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
 import { createRestatedRevisionQuery } from './restated-revision.repository'
 import { selectRevisionBindingComparisons } from '../source-epoch-carry'
-import { eraseReviewSourceContent } from '../review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createObservationRetention } from './observation-retention.repository'
 
 // The rows the writer stored before 2026-10-24, one per read, are rebuilt here
@@ -162,10 +162,9 @@ async function appendRepeat(id: ReviewId, at: Date): Promise<void> {
   )
   await getPool().query(
     `UPDATE reviews
-        SET source_observation_sequence = source_observation_sequence + 1,
-            last_fetched_at = $2, content_expires_at = $3
-      WHERE id = $1 AND organization_id = $4`,
-    [id, at, until, ORG],
+        SET source_observation_sequence = source_observation_sequence + 1
+      WHERE id = $1 AND organization_id = $2`,
+    [id, ORG],
   )
   await getPool().query(
     `UPDATE review_source_contents SET last_fetched_at = $2, content_expires_at = $3

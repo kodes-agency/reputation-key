@@ -57,7 +57,6 @@ import type {
   RatingGoalPropertyFactsReader,
   RatingGoalWriteResult,
 } from '../../application/ports/property-rating-goal.repository'
-import { isOrganizationHeldByLifecycle } from './goal-organization-lifecycle-hold'
 
 type GoalRow = typeof propertyRatingGoals.$inferSelect
 type ChangeRow = typeof propertyRatingGoalChanges.$inferSelect
@@ -227,9 +226,6 @@ async function insertNoticeFacts(
 export const createPropertyRatingGoalRepository = (
   db: Database,
 ): PropertyRatingGoalRepository => ({
-  isOrganizationHeld: (organizationId) =>
-    isOrganizationHeldByLifecycle(db, organizationId),
-
   findActive: async (organizationId, propertyId) => {
     const [row] = await db
       .select()
@@ -355,7 +351,7 @@ export const createPropertyRatingGoalRepository = (
             paceSince: change.paceSince,
             // The status the new plan puts the goal in is the manager's own
             // doing: the next evaluation stores it without a notice. A new
-            // pace alone keeps it: the fresh start compares with it (Q3).
+            // pace alone keeps it: the fresh start compares with it.
             ...(change.forgetsKnownStatus ? { lastKnownStatus: null } : {}),
             version: sql`${propertyRatingGoals.version} + 1`,
             updatedAt: change.changedAt,

@@ -6,7 +6,7 @@ export type { PortalGoalChangeFacts } from '../../monthly-goals/contracts'
 
 import type { PortalGoalMeasure, PortalGoalRatio } from './goal-recommendation.types'
 
-/** One published Portal's steps before the number is ready (P-4). */
+/** One published Portal's steps before the number is ready. */
 export type PortalReadinessRow = Readonly<{
   portalId: string
   name: string
@@ -67,9 +67,9 @@ export type PortalGoalNewPortal = Readonly<{
 }>
 
 /**
- * The number the ready card offers, for one month and one measure (P-3, P-4):
+ * The number the ready card offers, for one month and one measure:
  * this month through the 20th, else the next; private ratings, or scans when
- * the Portals had scans but no private ratings (P-2).
+ * the Portals had scans but no private ratings.
  */
 export type PortalGoalOffer = Readonly<{
   /** The month offered, `YYYY-MM`. */
@@ -128,9 +128,9 @@ export type PortalGoalSheetFacts = Readonly<{
 }>
 
 /**
- * The month a goal is counting, as its card draws it (copy deck G-21…G-25,
- * G-32): the governed figure against the month's own number, the days, and
- * the pace, all decided by the read.
+ * The month a goal is counting, as its card draws it: the governed figure
+ * against the month's own number, the days, and the pace, all decided by the
+ * read.
  */
 export type PortalGoalRunningMonth = Readonly<{
   /** `YYYY-MM`. */
@@ -152,7 +152,7 @@ export type PortalGoalRunningMonth = Readonly<{
   daysAfterToday: number
   /**
    * `goalPace` says behind (true) or on pace (false); null when the month is
-   * not judged: its first days, fewer than 5 expected by today (P-6), or no
+   * not judged: its first days, fewer than 5 expected by today, or no
    * figure.
    */
   belowPace: boolean | null
@@ -169,7 +169,7 @@ export type PortalGoalPortalCount = Readonly<{
 }>
 
 /**
- * What the Portals brought in this month (P-1): plain counts in name order,
+ * What the Portals brought in this month: plain counts in name order,
  * never sorted by count. Each published Portal with what the others leave
  * (draft, disabled, archived and deleted Portals and readings with no Portal,
  * "Other portals"); one Portal that brought in all of it; or, from 5 Portals,

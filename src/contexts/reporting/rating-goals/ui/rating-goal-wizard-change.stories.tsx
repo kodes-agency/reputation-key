@@ -1,6 +1,6 @@
 // The Google rating goal wizard around the one screen: Change plan opening on
 // the goal's own plan and sending only what differs (the plan's earlier
-// average kept, D30), a change refused because the goal moved, keeping a 5.0,
+// average kept), a change refused because the goal moved, keeping a 5.0,
 // the setup still reading or failed, what was picked surviving a phone turned
 // to landscape, and the focus going back to what opened the wizard.
 import type { Meta, StoryObj } from '@storybook/react-vite'
@@ -64,7 +64,7 @@ export const ChangePlanPrefilled: Story = {
   },
 }
 
-/** A stored average that is not today's automatic one stays, as the plan's (D30). */
+/** A stored average that is not today's automatic one stays, as the plan's. */
 export const ChangeKeepsThePlansAverage: Story = {
   args: {
     intent: { kind: 'change', goal: { ...CARD, qualityTenths: 48 } },

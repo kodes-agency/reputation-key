@@ -1,17 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { createStaffInvitationBudget } from '#/contexts/identity/build-staff-accounts'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import { createTanstackRequestContext } from '#/shared/auth/tanstack-request-context'
 import { createBetterAuthSessionPort } from '#/shared/auth/better-auth-session'
-import { buildPlatformConsole } from '#/contexts/identity/build-platform'
 import { isOrgInAllowlist } from '#/shared/auth/beta-capabilities'
-import { buildIdentityContext } from '#/contexts/identity/build'
+import { buildIdentityContext, buildPlatformConsole } from '#/contexts/identity/build'
+import { createStaffInvitationBudget } from '#/contexts/identity/infrastructure/staff-invitation-budget'
 import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
 import { sendInvitationEmail, sendStaffCodeReadyEmail } from '#/shared/auth/emails'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
-import { composeOrganizationLifecycle } from './organization-export-contributors'
 import type { CompositionRuntime, ContextWiringInput } from './runtime'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
@@ -169,10 +167,6 @@ export function wireIdentity(
     releaseMemberAuthorities: memberAuthorityLifecycle.port.releaseMemberAuthorities,
     reconcileResponsibleManagerEligibility:
       memberAuthorityLifecycle.port.reconcileResponsibleManagerEligibility,
-    organizationLifecycle: composeOrganizationLifecycle(
-      db,
-      options?.organizationLifecycle,
-    ),
   })
 
   return identity

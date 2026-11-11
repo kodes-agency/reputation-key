@@ -295,16 +295,12 @@ describe('Review lifecycle recovery execution repository (integration)', () => {
         await transaction.execute(sql`
           INSERT INTO reviews (
             id, organization_id, property_id, platform, external_id,
-            external_location_id, reviewer_name, rating, text, reviewed_at,
-            source_created_at, first_fetched_at, last_fetched_at,
-            content_expires_at, content_hash, source_epoch, source_revision,
+            external_location_id, first_fetched_at, source_epoch, source_revision,
             analysis_sequence, source_content_state, created_at, updated_at
           ) VALUES (
             ${ATOMIC_REVIEW_ID}::uuid, ${organizationId},
             ${ATOMIC_PROPERTY_ID}::uuid, 'google', 'atomic-provider-review',
-            'locations/atomic-proof', 'Private reviewer', 2, 'Private review text',
-            ${createdAt}, ${createdAt}, ${createdAt}, ${createdAt},
-            ${contentExpiresAt}, 'atomic-content-hash', 0, 1, 0, 'active',
+            'locations/atomic-proof', ${createdAt}, 0, 1, 0, 'active',
             ${createdAt}, ${createdAt}
           )
         `)
@@ -381,7 +377,7 @@ describe('Review lifecycle recovery execution repository (integration)', () => {
         const proof = await transaction.execute(sql`
           SELECT execution.state, execution.pages, execution.scanned,
                  execution.rows_redacted, execution.checkpoint_created_at,
-                 review.source_content_state, review.text,
+                 review.source_content_state,
                  (SELECT count(*)::int FROM review_source_contents AS source
                   WHERE source.review_id = ${ATOMIC_REVIEW_ID}::uuid) AS source_count
           FROM review_lifecycle_recovery_executions AS execution
@@ -395,7 +391,6 @@ describe('Review lifecycle recovery execution repository (integration)', () => {
           rows_redacted: 1,
           checkpoint_created_at: null,
           source_content_state: 'source_expired',
-          text: null,
           source_count: 0,
         })
 

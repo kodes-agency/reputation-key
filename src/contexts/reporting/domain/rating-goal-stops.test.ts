@@ -24,7 +24,7 @@ describe('what a plan needs', () => {
 })
 
 describe('when Keep is offered first', () => {
-  it('is offered from 4.7, where a higher number needs new reviews of nearly 5★ (X1)', () => {
+  it('is offered from 4.7, where a higher number needs new reviews of nearly 5★', () => {
     expect(offerKeepFirst(50)).toBe(true)
     expect(offerKeepFirst(49)).toBe(true)
     expect(offerKeepFirst(48)).toBe(true)

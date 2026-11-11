@@ -109,21 +109,6 @@ describe('assertJobReadiness (BQC-3.6)', () => {
         capability: 'none',
         registration: 'quarantined',
       },
-      {
-        jobName: 'advance-organization-lifecycle',
-        capability: 'none',
-        registration: 'quarantined',
-      },
-      {
-        jobName: 'generate-organization-export',
-        capability: 'none',
-        registration: 'quarantined',
-      },
-      {
-        jobName: 'purge-expired-organization-exports',
-        capability: 'none',
-        registration: 'quarantined',
-      },
     ])
   })
 

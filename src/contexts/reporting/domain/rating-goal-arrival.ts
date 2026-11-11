@@ -130,7 +130,7 @@ export type NextUp = Readonly<{
 }>
 
 /**
- * The number above the goal, "possible in about N" (R4-4): offered while it is
+ * The number above the goal, "possible in about N": offered while it is
  * a target at all, the average clears it by 0.15★ and there is a pace.
  */
 export function nextUpAbove(
@@ -149,7 +149,7 @@ export function nextUpAbove(
 
 /**
  * The highest tenth the exact average already clears (Google lags behind the
- * cache, D28), else the shown one. A goal there needs no review, so none is.
+ * cache), else the shown one. A goal there needs no review, so none is.
  */
 export function earnedTenths(numbers: RatingGoalNumbers): number {
   let earned = numbers.displayedTenths

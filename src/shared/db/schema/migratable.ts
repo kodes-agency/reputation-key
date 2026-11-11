@@ -2,9 +2,9 @@
 //
 // drizzle.config.ts points HERE, not at schema/index.ts: this barrel exports
 // Every app-owned table across every module is exported here (no
-// tablesFilter whitelist — the barrel itself is the boundary). The 8
-// session, account, verification, organization, member, invitation,
-// organizationRole) live in ./auth.ts, are managed by `pnpm auth:migrate`
+// tablesFilter whitelist — the barrel itself is the boundary). The auth tables
+// (user, session, account, verification, organization, member, invitation)
+// live in ./auth.ts, are managed by `pnpm auth:migrate`
 // (the Better Auth schema API), and are deliberately NOT exported here.
 //
 // Keep this barrel in lockstep with ./index.ts minus ./auth.ts — the semantic
@@ -13,7 +13,6 @@
 
 export * from './ai.schema'
 export * from './ai-draft-measurements.schema'
-export * from './ai-property-trend.schema'
 export * from './ai-review-analysis-v3.schema'
 export * from './ai-property-issue-groups.schema'
 export * from './ai-review-analysis-corrections.schema'
@@ -34,8 +33,6 @@ export * from './inbox-triage-history.schema'
 export * from './inbox-response-target-exclusions.schema'
 export * from './organization-lifecycle.schema'
 export * from './backup-erasure-ledger.schema'
-export * from './property-erase.schema'
-export * from './privacy-request.schema'
 export * from './metric.schema'
 export * from './notification.schema'
 export * from './outbox.schema'
@@ -53,7 +50,6 @@ export * from './portal-print-wording.schema'
 export * from './portal-look.schema'
 export * from './property.schema'
 export * from './recovery.schema'
-export * from './dashboard.schema'
 export * from './review.schema'
 export * from './review-analysis-released-sequences.schema'
 export * from './review-source-content.schema'

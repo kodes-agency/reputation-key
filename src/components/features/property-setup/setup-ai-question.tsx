@@ -12,7 +12,7 @@ import {
   QuestionnaireTitle,
 } from '#/components/ui/questionnaire'
 import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
-import { toggleAiCapability } from '#/components/features/settings/merchant-ai-capability-selection'
+import { toggleAiCapability } from '#/contexts/identity/consent/ui/merchant-ai-capability-selection'
 import { ApplyToAllOverride, ApplyToAllToggle } from './apply-to-all-toggle'
 import type { AiAnswer, SetupPropertyFacts } from './setup-plan'
 

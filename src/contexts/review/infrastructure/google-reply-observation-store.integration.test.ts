@@ -31,7 +31,7 @@ import { createAtomicReplyCommandStore } from './reply-command-store'
 import { createAtomicReviewCommandStore } from './review-command-store'
 import { createGoogleReplyObservationStore } from './google-reply-observation-store'
 import { createEligibleGoogleReplyReads } from '../application/eligible-reads'
-import { eraseReviewSourceContent } from './review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import type { RecordGoogleReplyObservation } from '../application/ports/google-reply-observation-store.port'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
@@ -119,8 +119,6 @@ function makeReply(
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
-    templateId: null,
-    templateVersion: null,
     stateRevision: 1,
     submittedAt: NOW,
     approvedAt: null,

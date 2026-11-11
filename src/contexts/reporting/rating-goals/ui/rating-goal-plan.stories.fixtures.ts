@@ -1,4 +1,4 @@
-// The beta Property of round 2 (2026-10-15), as the reads hand it to the page,
+// The beta Property (2026-10-15), as the reads hand it to the page,
 // for stories and tests: Google shows 3.9 from 261 reviews (1,021 stars, exact
 // 3.9119) and 2024 had 26 reviews at 4.46 (Harborline Suites, the quiet hotel
 // of the approved setup). The setup works its plan out from these inputs, as
@@ -41,8 +41,8 @@ const BEFORE_TEN_PLAN: NonNullable<RatingGoalDetailView['plan']> = {
 
 /**
  * The beta Property's goal (4.0 at 4.5★, 2 a week) a fortnight in: four reviews
- * since it was set, so no verdict on their stars yet (R2-5); the numbers assume
- * the plan's 4.5★ mixed with them (round 4, X3).
+ * since it was set, so no verdict on their stars yet; the numbers assume
+ * the plan's 4.5★ mixed with them.
  */
 export const DETAIL_BEFORE_TEN: RatingGoalDetailView = {
   ...DETAIL,

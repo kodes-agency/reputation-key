@@ -1,5 +1,5 @@
-// The Portal goals section's foot on the Goals page (PLAN PG-18, copy deck R-3
-// and R-4), Seaview Hotel on Dec 3, 2026: once a month has closed and goals
+// The Portal goals section's foot on the Goals page, Seaview Hotel on Dec 3,
+// 2026: once a month has closed and goals
 // have ended, both ways to the Portal goal results page; with every month
 // still counting and nothing ended, none. In the section they come last, under
 // the running card and the way to add a goal. At 320, 390, 820 and 1440 px and
@@ -89,7 +89,7 @@ export const Light: Story = {
 /**
  * The foot as the Goals page draws it: last in the Portal goals section, under
  * the running card and the way to add a goal (`footer`: the door that opens
- * "Add a portal goal" in place, PG-20), as wide as the page draws the section.
+ * "Add a portal goal" in place), as wide as the page draws the section.
  */
 export const InThePortalGoalsSection: Story = {
   render: (args) => (

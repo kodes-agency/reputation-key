@@ -1,12 +1,11 @@
 import { isCurrentAuthorizedEffect } from './ai-authorized-effect'
-import { and, eq, exists, gt, inArray, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import {
   aiOperations,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
-  aiReviewAnalysisAspects,
   merchantAiEnablement,
   reviews,
   reviewSourceContents,
@@ -115,7 +114,7 @@ type AnalysisWriteFacts = Readonly<{
   propertyProfileVersion: number
 }>
 
-/** The key every row of one analysis (root, aspects, mentions) is filed under. */
+/** The key every row of one analysis (root and mentions) is filed under. */
 const analysisRootKey = (input: AnalysisWriteFacts) => ({
   organizationId: input.organizationId,
   propertyId: input.propertyId,
@@ -330,42 +329,24 @@ export const createAiOutputStoreAdapter = (
 ): AiOutputStorePort => {
   return {
     async storeAnalysis(input) {
+      const result = input.result
+      if (result.status === 'ready') return false
       return db.transaction(async (tx) => {
         const verified = await verifyAnalysisWrite(tx, input, () => [
           input.analysisProfileVersion === 'review-analysis-v2',
-          input.result.status !== 'ready' ||
-            input.result.derivative.issueLabel === null ||
-            isAiIssueLabel(input.result.derivative.issueLabel),
         ])
         if (!verified) return false
 
         const inserted = await insertAnalysisRoot(tx, input, {
-          status: input.result.status,
-          unavailableReason:
-            input.result.status === 'unavailable' ? input.result.reason : null,
-          sentiment:
-            input.result.status === 'ready' ? input.result.derivative.sentiment : null,
-          primaryCategory:
-            input.result.status === 'ready'
-              ? input.result.derivative.primaryCategory
-              : null,
-          issueLabel:
-            input.result.status === 'ready' ? input.result.derivative.issueLabel : null,
-          attention:
-            input.result.status === 'ready' ? input.result.derivative.attention : null,
+          status: 'unavailable',
+          unavailableReason: result.reason,
+          sentiment: null,
+          primaryCategory: null,
+          issueLabel: null,
+          attention: null,
           urgentReason: null,
         })
         if (!inserted) return false
-        if (input.result.status === 'ready') {
-          await tx.insert(aiReviewAnalysisAspects).values(
-            input.result.derivative.aspects.map((aspect) => ({
-              ...analysisRootKey(input),
-              aspect: aspect.aspect,
-              polarity: aspect.polarity,
-              intensity: aspect.intensity,
-            })),
-          )
-        }
         await completeAnalysisOperation(tx, input, verified, {})
         return true
       })
@@ -494,38 +475,6 @@ export const createAiOutputStoreAdapter = (
         gt(aiReviewAnalyses.expiresAt, now),
       ])
     },
-    async findCurrentReviewIdsByAspect(input) {
-      if (
-        input.aspects?.length === 0 ||
-        input.polarities?.length === 0 ||
-        (input.aspects === undefined && input.polarities === undefined)
-      ) {
-        return []
-      }
-      const mentionConditions = [
-        eq(aiReviewAnalysisAspects.organizationId, aiReviewAnalyses.organizationId),
-        eq(aiReviewAnalysisAspects.propertyId, aiReviewAnalyses.propertyId),
-        eq(aiReviewAnalysisAspects.reviewId, aiReviewAnalyses.reviewId),
-        eq(aiReviewAnalysisAspects.sourceEpoch, aiReviewAnalyses.sourceEpoch),
-        eq(aiReviewAnalysisAspects.sourceRevision, aiReviewAnalyses.sourceRevision),
-        eq(aiReviewAnalysisAspects.analysisSequence, aiReviewAnalyses.analysisSequence),
-        ...(input.aspects
-          ? [inArray(aiReviewAnalysisAspects.aspect, [...input.aspects])]
-          : []),
-        ...(input.polarities
-          ? [inArray(aiReviewAnalysisAspects.polarity, [...input.polarities])]
-          : []),
-      ]
-      return findCurrentAnalysisReviewIds(db, input, (now) => [
-        exists(
-          db
-            .select({ one: sql`1` })
-            .from(aiReviewAnalysisAspects)
-            .where(and(...mentionConditions)),
-        ),
-        gt(aiReviewAnalyses.expiresAt, now),
-      ])
-    },
 
     async readAnalysisForDelivery(input, deliver) {
       // fallow-ignore-next-line complexity -- complexity unchanged from main; the finding moved with earlier code (ADR 0074 refactor)
@@ -610,12 +559,20 @@ export const createAiOutputStoreAdapter = (
             analysisSequence: reviews.analysisSequence,
           })
           .from(reviews)
+          .innerJoin(
+            reviewSourceContents,
+            and(
+              eq(reviewSourceContents.reviewId, reviews.id),
+              eq(reviewSourceContents.organizationId, reviews.organizationId),
+              eq(reviewSourceContents.propertyId, reviews.propertyId),
+            ),
+          )
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),
               eq(reviews.propertyId, input.propertyId),
               eq(reviews.id, input.reviewId),
-              gt(reviews.contentExpiresAt, now),
+              gt(reviewSourceContents.contentExpiresAt, now),
             ),
           )
           .limit(1)
@@ -731,30 +688,8 @@ export const createAiOutputStoreAdapter = (
         ) {
           throw new Error('Ready AI analysis row is incomplete')
         }
-        const aspects = await tx
-          .select({
-            aspect: aiReviewAnalysisAspects.aspect,
-            polarity: aiReviewAnalysisAspects.polarity,
-            intensity: aiReviewAnalysisAspects.intensity,
-          })
-          .from(aiReviewAnalysisAspects)
-          .where(
-            and(
-              eq(aiReviewAnalysisAspects.organizationId, input.organizationId),
-              eq(aiReviewAnalysisAspects.propertyId, input.propertyId),
-              eq(aiReviewAnalysisAspects.reviewId, input.reviewId),
-              eq(aiReviewAnalysisAspects.sourceEpoch, input.sourceEpoch),
-              eq(aiReviewAnalysisAspects.sourceRevision, input.sourceRevision),
-              eq(aiReviewAnalysisAspects.analysisSequence, input.analysisSequence),
-            ),
-          )
-          .orderBy(aiReviewAnalysisAspects.aspect)
         if (
           !isAspectTaxonomyV1Id(analysis.primaryCategory) ||
-          (aspects.length < 1 &&
-            analysis.analysisProfileVersion !== 'review-analysis-v1') ||
-          aspects.length > 5 ||
-          aspects.some(({ aspect }) => !isAspectTaxonomyV1Id(aspect)) ||
           (analysis.issueLabel !== null && !isAiIssueLabel(analysis.issueLabel))
         ) {
           throw new Error('Ready AI analysis aspects or issue label are invalid')
@@ -766,10 +701,7 @@ export const createAiOutputStoreAdapter = (
             ReviewAnalysisReadV1,
             { status: 'ready' }
           >['primaryCategory'],
-          aspects: aspects as Extract<
-            ReviewAnalysisReadV1,
-            { status: 'ready' }
-          >['aspects'],
+          aspects: [],
           issueLabel: analysis.issueLabel,
           attention: analysis.attention as 'urgent' | 'high' | 'medium' | 'low',
           generatedAtEpochMillis: analysis.generatedAt.getTime(),

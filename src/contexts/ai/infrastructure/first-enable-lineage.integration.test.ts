@@ -8,7 +8,6 @@ import {
   merchantAiEnablement,
   outboxEvents,
   properties,
-  reviews,
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -21,6 +20,7 @@ import {
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { seedReviewContent } from './testing/review-content-fixture'
 import {
   createAnalyzeReviewEvent,
   settleReviewAnalysisWithoutResult,
@@ -228,7 +228,7 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
       profileVersion: 1,
       sourceEpoch: 0,
     })
-    await db.insert(reviews).values(
+    await seedReviewContent(
       REVIEW_IDS.slice(0, IMPORTED_REVIEWS).map((id, index) => ({
         id,
         organizationId: ORGANIZATION_ID,

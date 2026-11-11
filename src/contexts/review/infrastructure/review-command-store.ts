@@ -1,3 +1,4 @@
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 // Atomic review command store (BQR-2.3).
 //
 // One PostgreSQL transaction commits each Review mutation with its outbox
@@ -8,7 +9,10 @@ import type { Database } from '#/shared/db'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
-import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
+import {
+  requireReplyScopeEffects,
+  type ReplyScopeEffects,
+} from '#/shared/db/reply-scope-effects'
 import { releaseAnalysisSequence } from '#/shared/db/review-analysis-released-sequences'
 import {
   replies,
@@ -31,7 +35,7 @@ import {
   reviewUpdated,
 } from '../domain/events'
 import { replyFromRow } from './mappers/reply.mapper'
-import { eraseReviewSourceContent } from './review-source-content-store'
+import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { organizationId, propertyId, replyId, reviewId } from '#/shared/domain/ids'
 import {
   persistReviewObservation,
@@ -302,7 +306,11 @@ async function lockExpiredReviewRow(
         AND ${reviews.sourceEpoch} <= ${review.sourceEpoch}
         AND (
           ${reviews.sourceContentState} IN ('source_expired', 'provider_deleted')
-          OR ${reviews.contentExpiresAt} <= transaction_timestamp()
+          OR EXISTS (SELECT 1 FROM ${reviewSourceContents} AS expired_source
+            WHERE expired_source.review_id = ${reviews.id}
+              AND expired_source.organization_id = ${reviews.organizationId}
+              AND expired_source.property_id = ${reviews.propertyId}
+              AND expired_source.content_expires_at <= transaction_timestamp())
         )`,
     )
     .for('update')
@@ -360,7 +368,7 @@ async function redactJustExpiredSourceContent(
       expectedSourceRevision: identity.sourceRevision,
       state: 'source_expired',
     },
-    replyEffects,
+    requireReplyScopeEffects(replyEffects),
   )
   if (!erased) {
     throw reviewError('repo_upsert_failed', 'Expired Review redaction failed')

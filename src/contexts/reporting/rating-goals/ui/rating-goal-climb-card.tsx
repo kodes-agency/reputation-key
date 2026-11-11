@@ -65,7 +65,7 @@ function Story(props: Omit<Props, 'propertyId'>) {
   const { card } = props
   if (card.status === 'waiting_for_google') return <Waiting {...props} />
   if (card.status === 'reviews_too_low') {
-    // What helps: the approved words on how guests are asked (R2-12).
+    // What helps: the approved words on how guests are asked.
     return (
       <p className="text-sm">
         {reviewsTooLowSentence(card.target)} {PLAN_POLICY_LINE}

@@ -1,4 +1,4 @@
-// "Keep" in the Monday check-in (round 5, PLAN-D D-3, owner answer Q4): a
+// "Keep" in the Monday check-in: a
 // manager keeps the pace for this week. It answers the check-in for every
 // manager, moves no version and logs no change, and is refused once the
 // check-in it answers has closed. With a Raise or Ease from another tab

@@ -1,11 +1,11 @@
-// The Monthly portal goal's change and Stop on PostgreSQL (ADR 0068, PLAN
-// PG-14), through the engine's own commands: "now" changes the running month
+// The Monthly portal goal's change and Stop on PostgreSQL (ADR 0068), through
+// the engine's own commands: "now" changes the running month
 // and the months after it, and still does on the month's last day (a month's
 // number locks only once it has ended); "from next month" and "Count scans
 // instead" write a version from the next month, and only from the month the
 // sheet said; Stop keeps the running month, with its result, and frees the
 // months after it, while a goal that has not started frees its month at once;
-// a second Stop is refused. A goal for one Portal (PLAN PG-21) takes the same
+// a second Stop is refused. A goal for one Portal takes the same
 // changes with its Portal kept as its subject, and the same Stop; so does the
 // average private rating, its level in tenths and always its own; and a goal
 // for several subjects, made by an older form, takes Stop.
@@ -299,7 +299,7 @@ describe.sequential('Monthly portal goal change and stop (integration)', () => {
     ).rejects.toMatchObject({ code: 'invalid_transition' })
   })
 
-  it('a goal for one portal changes now and from next month with its portal kept, and stops (PG-21)', async () => {
+  it('a goal for one portal changes now and from next month with its portal kept, and stops', async () => {
     const propertyId = await propertyFixture()
     const portalId = randomUUID()
     await held?.client.query(
@@ -355,7 +355,7 @@ describe.sequential('Monthly portal goal change and stop (integration)', () => {
     ).resolves.toMatchObject({ status: 'ended', endedBy: 'elena' })
   })
 
-  it('the average changes its level now and from next month in tenths, its own, and stops (PG-21)', async () => {
+  it('the average changes its level now and from next month in tenths, its own, and stops', async () => {
     const propertyId = await propertyFixture()
     clock = new Date()
     const { program } = await service.create(

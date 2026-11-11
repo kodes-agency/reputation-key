@@ -24,7 +24,7 @@ const headlineOf = (lastMonth: PortalGoalLastMonth | null) =>
 
 describe('the month-start check-in, worded', () => {
   it('the headline: last month so far, then met, or not met neutral, without a check', () => {
-    // K-1 while November is read.
+    // While November is read.
     expect(headlineOf(NOVEMBER_UPDATING)).toBe(
       'November: 36 of 40 so far. Final figure on Dec 2.',
     )
@@ -32,11 +32,11 @@ describe('the month-start check-in, worded', () => {
     expect(headlineOf({ ...NOVEMBER_UPDATING, finalOn: null })).toBe(
       'November: 36 of 40 so far.',
     )
-    // No figure to say yet: the card's own updating line (G-30).
+    // No figure to say yet: the card's own updating line.
     expect(headlineOf({ ...NOVEMBER_UPDATING, value: null })).toBe(
       'November: counting the last ratings. Final figure on Dec 2.',
     )
-    // K-6: once it has closed, G-31.
+    // Once it has closed.
     expect(headlineOf({ ...NOVEMBER_UPDATING, value: 41, outcome: 'met' })).toBe(
       'November met: 41 of 40',
     )
@@ -64,7 +64,7 @@ describe('the month-start check-in, worded', () => {
       other: 'Other number',
       note: 'Nothing changes unless you choose. December counts against 40 until then.',
     })
-    // The same number is no choice: one line under the card, and Change (K-7).
+    // The same number is no choice: one line under the card, and Change.
     expect(sameNumberWords(CHECK_IN_SAME)).toEqual({
       text: 'December stays at 45. It is still the recommended number.',
       change: 'Change',

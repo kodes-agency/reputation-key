@@ -47,15 +47,14 @@ import {
   resendInvitation,
   cancelInvitation,
 } from '#/contexts/identity/server/organizations'
+import { ChangeRoleDialog } from '#/contexts/identity/members/ui/change-role-dialog'
+import { InviteMemberForm } from '#/contexts/identity/members/ui/invite-member-form'
+import { MemberTable, type MemberRow } from '#/contexts/identity/members/ui/member-table'
+import { InvitationTable } from '#/contexts/identity/members/ui/invitation-table'
 import {
-  ChangeRoleDialog,
-  InviteMemberForm,
-  MemberTable,
-  InvitationTable,
   memberRowsWithProperties,
   propertyIdsByUser,
-} from '#/components/features/identity'
-import type { MemberRow } from '#/components/features/identity'
+} from '#/contexts/identity/members/ui/member-rows'
 import { createKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { MemberAccessContainer } from './-member-access-container'

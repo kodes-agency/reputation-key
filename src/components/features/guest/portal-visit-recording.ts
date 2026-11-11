@@ -111,6 +111,19 @@ export async function settlePortalVisitFromStorage({
 }
 
 /**
+ * The in-memory once-guard, kept per visit key: a rotated session ("Start
+ * over") is a new visit and claims again; a re-render with the same key does not.
+ */
+export function claimPortalVisit(
+  claimed: { current: string | null },
+  visitKey: string,
+): boolean {
+  if (claimed.current === visitKey) return false
+  claimed.current = visitKey
+  return true
+}
+
+/**
  * Records the portal visit once per mount. It reads nothing about the visit
  * notice: acknowledging, dismissing or never seeing the notice cannot change
  * whether a visit is counted. Both guest renderers call this, whatever notice
@@ -125,11 +138,11 @@ export function usePortalVisitRecording({
   sessionKey: string
   onPortalVisit: PortalVisitRecorder
 }>): void {
-  const notifiedThisMount = useRef(false)
+  const notifiedKey = useRef<string | null>(null)
 
   const recordPortalVisit = useCallback(() => {
-    if (notifiedThisMount.current) return
-    notifiedThisMount.current = true
+    if (!claimPortalVisit(notifiedKey, portalVisitStorageKey(scopeKey, sessionKey)))
+      return
     void settlePortalVisitFromStorage({ scopeKey, sessionKey, onPortalVisit })
   }, [scopeKey, sessionKey, onPortalVisit])
 

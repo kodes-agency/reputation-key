@@ -1,803 +1,438 @@
 # Reporting Context
 
-Reporting owns the product's governed metrics, Goal Programs, and dashboard read models.
-The three capabilities share one build, one application interface, and one standard layer
-set because Goal evaluation and dashboard presentation are downstream views of the same
-metric authority.
+Reporting owns the governed metrics, the Goal Programs and the Property Google rating
+goal, and the dashboard read models. They share one build, one application interface and
+one layer set because goal evaluation and dashboard presentation are views of the same
+metric authority. Sub-maps: [monthly goals](monthly-goals/CONTEXT.md) and
+[Portal results](portal-results/CONTEXT.md).
 
-`PortalRatingGoalReadApi.findPortalRatingGoalBlockInTransaction` reads running
-rating assignments and their published collectors inside the caller's transaction.
-Portal holds the shared Property goal fence before this read and its mutation;
-Goal definition and membership writers use the same fence. The preflight and
-commit read share the rating-subject decision, including a current rating version
-while a future scans version waits. Ended goals do not hold a collector.
+## Where things live
 
-## Responsibilities
+| Area                                    | Location                                                                                              |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Cross-context interface                 | `application/public-api.ts` (the only one)                                                            |
+| Request boundary                        | `server/*.ts`: the paths routes import, kept stable                                                   |
+| Metric catalogue and reading commands   | `readings/` (`contracts.ts` is browser-safe)                                                          |
+| Monthly goal commands, cards, pages     | `monthly-goals/*.server.ts`, screens in `monthly-goals/ui/`                                           |
+| Google rating goal                      | `rating-goals/*.server.ts`, `rating-goals/contracts.ts` (browser-safe), screens in `rating-goals/ui/` |
+| Portal Results                          | `portal-results/` (`contracts.ts`, `get-portal-analytics.server.ts`, SQL in `*.repository.server.ts`) |
+| Rules without I/O                       | `domain/`                                                                                             |
+| Use cases and read views                | `application/` (components import values only from here, never from `infrastructure/`)                |
+| Repositories, adapters, jobs, consumers | `infrastructure/`                                                                                     |
+| Tables                                  | `src/shared/db/schema/` (central; not moved)                                                          |
 
-- Record version-pinned metric readings and append-only corrections.
-- Individual Google review stars are not recorded as metric readings; current
-  Google figures come from verified snapshots. Stored `property.review` readings
-  and their registry entry remain until those rows are erased.
-- Compute Portal totals from effective readings and maintain Current on Google snapshots. A Current on Google snapshot is ordered, and `verifiedAt` dated, by when Google's numbers were READ (the event's `numbersObservedAt`, falling back to `evaluatedAt`), so a long snapshot that completes after a fresher head fact does not replace the newer numbers.
-- Resolve governed metric availability, provenance, completeness, and correction impact.
-- Create, revise, assign, schedule, evaluate, and close monthly Goal Programs.
-- Produce property, fleet, staff, Portal analytics, Portals overview results, attention, and
-  per-Property setup reads.
-- Register metric projection consumers, Goal correction consumers, Goal maintenance, and the
-  daily evaluation of every Property Google rating goal.
-- Contribute Reporting-owned records to organization export and lifecycle operations.
+Reporting depends on the public interfaces of Property, Portal, Staff, Review, Inbox and
+Guest, never on their repositories. `buildReportingContext` returns one public interface,
+one outbox registration function, goal maintenance and the rights adapter. Root
+composition may keep the aliases `metricPublicApi`, `goalPublicApi` and
+`dashboardPublicApi`; they point at the same interface. Clocks, identifiers, logging,
+storage and upstream reads are injected by composition
+(`infrastructure/runtime-dependency-injection.test.ts`).
 
-The Properties list's fleet read pages Google snapshots at the current binding,
-stored rating goals, and current Inbox attention. It accepts a cursor without a
-historical period and reads no historical analytics for the list cells. Monthly
-goals behind pace still use the shared running-month readings. Setup summaries
-remain a separate read, and Property overview period metrics are unchanged.
-
-Guest voice's independent Google headline uses `readPropertyGoogleNumbers`
-(`getPropertyGoogleNumbersFn`), a narrow `dashboard.read` Property read that
-requires same-Organization current access before snapshot/binding reads. It
-reuses `readGoogleNumbers` / `GoogleNumbersView` unchanged, with the real `asOf`
-and stale/disconnected `current` flag; no snapshot is null. It needs neither an
-active goal nor goal/fleet permission and performs no goal setup/history scans.
-The caller isolates a failed side read from the primary Guest voice page.
-
-The [monthly goals map](monthly-goals/CONTEXT.md) locates subject-assignment rules
-and goal-detail pages.
+Jobs, registered in `src/shared/governance/event-job-catalogue-goal.ts`:
+`goal-program-maintenance.job.ts` (hourly, opens due months and closes finished ones) and
+`rating-goal-evaluation.job.ts` (`rating-goal.evaluate`, daily, evaluates every active
+rating goal). Outbox consumers: guest facts into readings
+(`readings/guest-outbox-consumers.server.ts`), metric corrections into goal results
+(`infrastructure/metric-correction-outbox-consumers.ts`), Current on Google snapshots
+(`infrastructure/current-google-reputation-outbox-consumers.ts`), rating goal evaluation on
+verified Google numbers and rating goal end on Property archive
+(`infrastructure/rating-goal-*-consumers.ts`).
 
 ## Core model
 
-- **Metric definition/version**: frozen code-reviewed measurement policy.
+- **Metric definition/version**: frozen, code-reviewed measurement policy. A reading is
+  eligible only under its immutable version and source policy.
 - **Metric reading**: immutable, version-pinned fact with event-time attribution.
-- **Metric correction**: append-only retraction, replacement, or adjustment. A fact that
-  is projected into several measures is corrected measure by measure: a correction's source
-  key is `<fact id>:<definition version id>`, so a corrected rating retracts its private
-  rating, its rating count and its rating average, and a Goal on either Goal measure finds
-  the retraction of its own reading. The key `<fact id>:retract` of the earlier code, one
-  for the first reading only, is still read.
-- **Goal Program**: versioned monthly target over an approved metric and subject set. A month
-  still running can carry its own target; once its period ends that target is locked. A
-  version and a month target change keep where their number came from (`target_source`:
-  `recommended` or `own`, none when the command was not told), and an ended Program who ended
-  it and when (`ended_at`, `ended_by`, none for an end before migration 0062). The month whose
-  check-in a manager kept (`check_in_answered_month`) and the Overview's "Not now" for a
-  Monthly portal goal (`portal_goal_prompt_deferrals`, one row per Property, cascading with it)
-  are kept for the Monthly portal goal (ADR 0068).
+  Individual Google review stars are not recorded; Google figures come from verified
+  snapshots.
+- **Metric correction**: append-only retraction, replacement or adjustment. A fact projected
+  into several measures is corrected measure by measure: the correction's source key is
+  `<fact id>:<definition version id>`, so a corrected rating retracts its private rating,
+  count and average. The older key `<fact id>:retract` (first reading only) is still read
+  because stored corrections carry it.
+- **Goal Program**: versioned monthly target over an approved metric and subject set. A
+  month still running can carry its own target; once its period ends the target is locked.
+  Versions and month targets keep where the number came from (`target_source`:
+  `recommended` or `own`; none when unknown). An ended Program keeps who ended it and when
+  (`ended_at`, `ended_by`; none for an end before migration 0062).
 - **Goal monthly result**: evaluation head with append-only revision evidence.
-- **Goal progress**: the live month to date of the goals that target one subject (a Portal
-  Group's goal card), read through the Program list's own authorisation and visibility and
-  the same governed metric the monthly result uses, over the whole calendar month in the
-  Program's time zone. Its target is the one the running month is judged against, with who
-  changed it when it is no longer the one the month started with. It is never a result: it evaluates nothing, is never stored, and an
-  average under the metric's minimum sample or a reading that cannot be trusted is shown as
-  such, never as a zero.
-- **Goals list progress**: the month so far of every active goal of a Property, read in one
-  request for the Goals list (`getGoalListProgress`, `createGoalListProgressReader`): one Program
-  list read, then each goal through the same `progressOf` as its own page. One subject gets its
-  figure against the running month's target and the days left, and on a count whose pace `goalPace`
-  judged the shared pace pill (ADR 0068, amended 2026-10-19): "On pace" for `belowPace` 0, "Below pace"
-  for 1, after the days left where the row's cell has room, beside the bar where it has not
-  (`belowPace` is 1 or 0 for one subject, null when nothing was judged, the same figures and the same
-  `goalPace` as several subjects; null draws no pill, and "Getting started" is the card's and the
-  page's alone, since a row's read carries no flag for the quiet days); several
-  subjects on a count get how many are below pace, as words, and no pill; an average with several subjects, or more
-  subjects than a goal's page reads, gets the count of subjects alone. A scheduled, paused or
-  ended goal has no line. Each figure is the governed read of the goal's own page, so the list
-  and the page cannot disagree: one server call but several statements, a deliberate departure
-  from one set-based read because the set-based count below leaves out the outbox completeness
-  proof. A page is bounded instead:
-  at most 60 figures, three in flight (two queries each, six of the web pool's ten connections),
-  and the goals past that carry no line. While the figures are first read, an active row keeps
-  the room its line will take (`GoalLiveLinePending`), so the rows below do not move; whether a
-  count has a pill, and which, is known only with its figure, so the pill adds no height at any
-  cell width: the row it sits in (the sentence's from 24 rem of cell, the bar's below it, where it
-  sits beside the bar) is as high as the pill whether it is there or not.
-- **Goal pace** (`domain/goal-pace.ts`): how far a count goal's running month should have got. A
-  count measure expects the month's target times the share of the month gone, in whole
-  Property-local calendar days with today included (the Results window's convention). It is
-  behind pace below 90% of that, and exactly 90% is on pace. The first three days of a month are
-  not judged, nor is a month that expects fewer than `GOAL_PACE_MINIMUM_EXPECTED` (5) by today
-  (`too_few_expected`: `target x days gone < 5 x days in the month`, owner decision 2026-10-17);
-  an average has no pace. So a target of 10 in a 30-day month is judged from day 15, one of 8 in
-  a 31-day month from day 20, and one of 4 never. One rule feeds the Goals list ("below pace" on
-  a row with one subject, "N below pace" on one with several), the Overview chip and the
-  Properties list. The guard is integer only and lives in `goalPace` alone, so the set-based read
-  below needs no change, and a parity test (`application/goal-pace-parity.test.ts`) holds the
-  three to the same verdict on small months. This is the Portal goals' pace only: the Google
-  rating goal's pace (`domain/rating-goal-pace*`) is a separate rule and is untouched. The chip
-  and the list count the figure from the readings of every running month of an
-  active count goal in one statement
-  (`infrastructure/adapters/goal-running-months.ts`), because a month still running stores no
-  value: its result row stays `updating` until it closes. That read sums what the goal's own page
-  sums and reads a goal only where the page could: a Portal or Portal Group that was deleted, or
-  a metric version not in effect for the whole month (`goalVersionIsUsable`, the governed read's
-  own rule), leaves a goal uncounted. It leaves out only the outbox completeness proof, and a
-  month with a reading the governed read would quarantine has no figure and is not counted. An
-  integration test holds its sum to `queryGoalAggregate` on the same readings. A goal counts once
-  however many subjects are behind.
-- **Goal recommendation** (Monthly portal goal, ADR 0068; `domain/goal-recommendation.ts`,
-  read by `application/use-cases/goal-recommendation-read.ts`): the number a Property's
-  monthly portal goal is offered, never a result. The basis W is the 28 whole
-  Property-local days ending yesterday. A Portal's live days are the days of W, from the
-  goal versions' first day (2026-08-01) on, on which a publication activation was open for
-  any part of the day (the go-live day is day 1; a short disable drops only the whole days
-  it covers). A Portal joins the rate when it is published, live and has 14 live days;
-  draft, disabled, archived and deleted Portals never do, though their readings count in
-  the month. The rate R is the sum of each joined Portal's readings on its live days over
-  its live days, as an exact BigInt rational. For a month of D days, x = R × D: "your
-  usual" `roundUp(x)`, "a bit more" (recommended) `max(roundUp(1.1x), up(usual))`,
-  "stretch" `max(roundUp(1.2x), up(a bit more))`; for the rest of the current month, with
-  S counted so far and L days left (both with today), the same over S + R × L, the first
-  at least `up(S)`. `roundUp` and `up` share one grid (`domain/goal-number-steps.ts`):
-  1–29, then fives to 100, tens to 500, fifties above. Each measure has its own state:
-  `unreadable` when a reading the governed read would quarantine is in this month (any
-  Portal or none; S then reads null) or on a live day of a joined Portal in the basis (one
-  that touches neither, last month's on a draft for one, changes nothing), `nothing` when
-  R = 0 (no choices), else `ready`. The Property's state is `no_live_portal`, then
-  `getting_ready` (no joined Portal; `readyOn` is the day the closest live one joins),
-  then from the measures: ratings `ready` → `ready`; ratings `nothing` with scans `ready` →
-  `scans_only` (scans offered first); both `nothing` → `nothing_counted`; else
-  `unreadable`. S counts every reading of the Property, a Portal's or not; what the listed
-  published Portals do not account for is `elsewhere`. Each Portal also gets its readiness
-  steps and at most one quiet fact (`domain/goal-portal-readiness.ts`): no scans since a
-  day once its own usual would have brought 5, or no scan in the 14 or more days since its
-  code was made. The read authorizes `goal.create`, then reads the time zone and Portal's
-  facts together, then the readings in one statement
-  (`infrastructure/adapters/goal-recommendation-readings.ts`): the basis and this month as
-  one range on versions …1301 and …1302, grouped by Portal (none kept), measure and local
-  day, at the latest correction, with the unreadable flag, plus each published Portal's
-  last unretracted scan from its code's date (at most a year back; a disabled Portal's
-  scans are not looked for). Like the behind-pace count
-  it skips only the outbox completeness proof; both spell a counted reading once, in
-  `infrastructure/adapters/goal-count-readings.sql.ts`. An integration test holds its
-  month to `queryGoalAggregate` for the Property, readings with no Portal and an archived
-  Portal's included.
-- **Monthly portal goal** (ADR 0068; `application/monthly-portal-goal-identity.ts`): not a
-  kind of Program but the Property's count goal, the one whose subject is the Property alone
-  and whose measure is private ratings or scans. Writes serialize this identity under the
-  Property definition lock. Reads choose by Program in `monthlyPortalGoalOf`: the
-  earliest-created one that has not ended, else the
-  most recently ended one that still counts a month (its window holds days after now, or a
-  month of it is still open or reconciling: a goal stopped on Nov 12 is still it until
-  November closes). An average and a goal for a Portal or a Portal Group never are. The
-  Goals page card (`monthly-goals/monthly-portal-goal-card.server.ts`) is one composed
-  read: it authorizes `goal.create`, reads the clock once, then the Programs the actor may
-  see and the recommendation together (`gatherPortalGoalRecommendation`, which asks the
-  policy nothing itself), and answers the goal by Program or the state before one: no
-  Portal (or none live and no draft), draft Portals only, the first weeks (today, this
-  month so far, the ready day and each published Portal's steps; a disabled Portal takes
-  no row), the number ready to use, nothing counted (with the basis weeks) or an unreadable
-  recommendation. The number offered (`monthly-goals/monthly-portal-goal-offer.server.ts`) is
-  the recommendation's own for its default month and measure (this month through the 20th
-  with what already counts, else the next; scans first when only scans came in), with what
-  it stands on: the Portals in it with their counts and live days, and the live Portals that
-  join later. With a goal the card shows it: a scheduled goal's first day and this month so
-  far, or an active goal's running month with its own target and the governed figure
-  (`progressOf`), never the recommendation's count, or a paused or stopped goal's month it
-  still counts (on Dec 1 a goal stopped in November names November). The set command
-  (`monthly-goals/monthly-portal-goal.server.ts`) makes an ordinary Program named "Monthly
-  portal goal" with the Property as its one subject, from the month the card named. It
-  authorizes `goal.create`, then refuses `subject_has_goal` while any Property count goal that
-  has not ended exists on either measure. The repository repeats the identity check under
-  the Property definition lock for all creates and revisions, including a month-target
-  change's following version; status changes take the same lock before the Program row.
-  Averages and several-subject Programs do not reserve this identity. Existing conflicts
-  are kept for inspection, never automatically ended. The command records the number's
-  source as `recommended` only when the number is the one the card would
-  offer for that month and measure now, else `own`. Every Property count goal's `$goalId`
-  page sends the reader to the card (`isPropertyCountGoal`), and the old new-goal form no
-  longer offers the Property as a subject. Its types are
-  `application/dto/monthly-portal-goal.types.ts`; its server functions are in
-  `server/monthly-portal-goals.ts`, a module no other module imports statically.
-  The set sheet needs no read of its own: every card arm once a Portal is live (the first
-  weeks, the number ready, scans first, nothing counted, an unreadable recommendation) also
-  carries what it works from (`portalGoalSheetFactsOf`): the month the card offers, this
-  month and the next with this month so far, and each measure's offers for both months,
-  each with the exact usual an own number is measured against: the one its "your usual"
-  is rounded from, so this month's is what already counts plus the days left at the usual
-  (`usualFromToday`), never the whole month's. The sheet's steps and its
-  note on an own number (about how many times the usual, half up, once it is three times
-  or more; or under half) are `goalStepDown` and `ownNumberNote` of the one grid, which
-  `application/goal-number-steps.ts` hands to components with `goalStepUp`.
-- **Monthly portal goal, running** (ADR 0068;
-  `monthly-goals/monthly-portal-goal-running.server.ts`): the card's goal once it runs.
-  Its month is the governed read of the Property's month so far (`progressOf`; a stopped
-  goal still counts to the end of the month it was stopped in, so that month is read the
-  same way, `readSubjectMonth`, and the card says the day it was stopped, from `ended_at`,
-  none for an end before 0062). The server decides the month's days (today counted), its
-  first three quiet days (no pace word, no tick) and `belowPace` (`goalPace`, P-6
-  included: true only when behind; null when not judged). Each published Portal's count
-  of the month comes from the recommendation's one set read, in name order, never sorted,
-  with what the rest bring in (draft, disabled, archived and deleted Portals and readings
-  with no Portal) as "Other portals"; the counts are drawn only when they add up to the
-  governed figure, so a race or a pending fact draws none rather than rows that disagree
-  with the headline. One Portal that brought in all of it is named (not while the month
-  has nothing in: then it is a row on 0); from 5 Portals the card says how many. The month
-  before is shown while its result is read (its governed figure so far; final a day and an
-  hour after it ends, and no day is named once that day has gone) and, once closed, met,
-  not met or with no usable result, through the 7th. Each month carries the measure of the
-  version it opened under, and is worded and its counts drawn in that measure: a change
-  from a coming month ("Count scans instead") leaves the month already counting as it was.
-- **Monthly portal goal, its page** (ADR 0068;
-  `monthly-goals/monthly-portal-goal-page.server.ts`, `/goals/portals`): the card's read
-  once more, authorised for `goal.create` the same way, with what the page shows beside
-  it. The **line of succession** is the goal itself, then every earlier Property count goal
-  of the Property that has ended, newest end first (`monthly-portal-goal-history.server.ts`); with
-  no Monthly portal goal now (a stopped goal whose last month has closed) it is those ended
-  goals alone, drawn under the card before a goal, so a notice or a link about one lands on
-  its months. Its months are theirs together, one per month, newest first, up to 24: every
-  month still counting or being read with its governed figure (the card's for a month it
-  shows, else read the same way, as a stopped goal's November is while the next goal waits
-  for December; its final day named only until it has passed), a closed month with its
-  result after any correction. Its changes are dated facts from versions (a new number or
-  measure from a month, with its source and note; a version that only changed subjects, or
-  that a month's change wrote for the months after it, is not one of its own; a version's
-  default reason is told from a note by `application/goal-version-reasons.ts`), month
-  target changes, the stop (`ended_at`, `ended_by`) and each published Portal's current
-  live run. The tiles' usual is the month they stand beside (next month's days for a goal
-  that starts then). Every published Portal's count of the running month is listed (up to 100) when they add up to the governed figure; an established Portal gone quiet carries
-  its fact. The other Portal goals come with their month so far (`listProgressOf`, the
-  Goals list's own) and their subjects' names, side reads: a failure there is logged and
-  leaves the page whole (`progress: null`, a name left out). Its types are
-  `application/dto/monthly-portal-goal-page.types.ts`.
-- **Monthly portal goal, its month-start check-in** (ADR 0068 decision 8;
-  `domain/portal-goal-check-in.ts`, `monthly-goals/monthly-portal-goal-check-in.server.ts`):
-  on local days 1 to 7 of a month that is not the goal's first, while the goal runs, the
-  card asks once whether the month keeps its number. It is asked only while its month is
-  open (the month a change now is made against) and until a manager answers: Keep writes
-  `goal_programs.check_in_answered_month` alone (`answerCheckIn`, `goal.update`; no version,
-  no change row, no new `updated_at`; the same again when pressed twice; `check_in_closed`
-  outside the running month's days 1 to 7, cut in the zone the month was cut in), and a
-  change of this month's own number since it began (Use, or another number through the
-  sheet) answers it as well. Its number is the month's one recommended number in the
-  measure the month counts, the one the change sheet offers for it now: the rest of the
-  month on top of what already counts (PLAN E6), worked out as a whole month only on its
-  first day with nothing in yet (G4: Use 45, Keep 40 for a 31-day December). With that
-  number the month's already it is one line, with nothing of the measure over the basis it
-  offers no number (Keep and another number, with the basis weeks), and with no
-  recommendation that can be read it asks nothing. Use is the change now
-  (`changeMonthlyPortalGoalNow`), recorded as `recommended` as any change to that number
-  is. Nothing is automatic and nothing is sent: an ignored check-in keeps the number and
-  folds away after the 7th.
-- **Monthly portal goal, on the Overview and a Portal's Results tab** (ADR 0068; PLAN
-  PG-16): the card's number ready to use also carries the Overview's prompt for it, the
-  month offered and its recommended number, put off while a manager's "Not now" names that
-  month or a later one (`portal_goal_prompt_deferrals`, read only for that arm). "Not now"
-  (`deferMonthlyPortalGoalPrompt`, `goal.create`) records the month the prompt named, by
-  whom and when, in the Property's one row, which only moves on: a later month replaces it,
-  an earlier or the same month (a tab left open since) changes nothing, and a month after
-  next month's, which no prompt names, is refused `start_month_changed`. It sets no goal: the
-  Goals page's card still offers the number, and next month's prompt is shown. A Portal's
-  Results line (`monthly-goals/monthly-portal-goal-line.server.ts`, `goal.create`) is the
-  card's read once more, for one Portal this month: its count toward the Monthly portal goal
-  while that goal counts the month (active, or stopped with the month still counting), from
-  the set read and only when every Portal's count adds up to the governed figure, as the
-  card's rows are (a disabled Portal's readings still count, so it has one too); and the
-  goal for that Portal alone when one runs, with its own governed figure against the month's
-  number (none when that figure cannot be read). A draft Portal, a Portal neither goal
-  counts this month, and a Portal with nothing yet toward the Monthly portal goal (every
-  Portal on the 1st) and no goal of its own, have no line (`null`).
-- **Goals for several subjects**: one save that creates one Goal Program per row, each for
-  one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
-  rows). It is authorised once and its start month is resolved once, so every goal of a save
-  starts in the same month; each goal is its own transaction and is named after its subject
-  and measure. A row that cannot be saved is reported with its reason and never holds back
-  the others, and a row reached after the chosen month has ended is not written. There is no
-  target that subjects share and no Property total.
-- **Add a portal goal** (ADR 0068, PLAN PG-20; `application/use-cases/portal-goal-add-options.ts`,
-  `portal-goal-add-numbers.ts`, `portal-goal-add.ts`): one click deeper than the Monthly
-  portal goal, a goal for one Portal, for each Portal (both from 2 live Portals), for a
-  Portal Group (one with a live Portal), or the Property's average private rating (from 10
-  private ratings in the last 4 weeks). The read is authorised for `goal.create` and offers
-  the recommendation's month and measure; each Portal and group gets the Monthly portal
-  goal's rule on its own: a Portal's rate its own, a group's its members' now summed, and
-  this month on top of its own month so far, a group's being every reading recorded with the
-  group (`group_id`, the Portal's group at source-event time, from the recommendation's one
-  statement), so a Portal that moved counts in its old group before the move and its new one
-  after. A subject with a goal on the measure from that month is "Has a goal", and a choice
-  whose every subject has one is not offered (the M-rule counts only open choices). The commands
-  are the engine's own: `createGoal` for one Portal, one group or the average (named
-  "Reception · Private ratings", "Average private rating"), and the save for several
-  subjects for each Portal; each number is stored as recommended only when it is the one the
-  read offers that subject now. Saves over 50 rows run in batches. If a later batch is
-  refused, completed outcomes are returned and remaining rows are reported unsaved, so
-  the sheet refreshes saved goals and keeps the failed rows available. A new submission
-  clears the preceding submission's error. A count goal for the Property alone is never
-  made here.
-- **Property Google rating goal**: a Property's target for the one-decimal rating Google
-  shows, with a planned quality (the average stars it assumes new Google reviews bring) and
-  a chosen weekly pace of new Google reviews (a climb goal), or a watch that
-  Google keeps showing a tenth it shows now (a keep goal). At most one is active per
-  Property (ADR 0067, [`docs/plan/google-rating-goal.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/plan/google-rating-goal.md)). It is not a Goal Program: it has
-  no months, subjects, metric readings or monthly results, no deadline and no "missed". It
-  is worked out from Google's own rating and review count (the Current on Google snapshot)
-  and from counts and star sums of the Property's cached Google reviews, read through
-  Review's public API, and it is reached only when Google itself shows the target. Only
-  AccountAdmins and PropertyManagers with access to the Property see, set, change or end it.
-- **Property Google rating goal (implementation)**: One active goal per Property (`property_rating_goals`, a partial unique index); a
-  climb goal names a tenth from 1.1 to 4.9, a planned quality in tenths (`quality_tenths`,
-  migration 0059: at least 0.15★ above the target's threshold in the domain, at least the
-  target in the database) and a pace in tenths of a review a week (`pace_tenths_per_week`,
-  migration 0060: 10 to 3500, 1 a week to 50 a day; `pace_per_week` is its whole weekly
-  mirror for one release, held equal to it by the CHECK, and the set and change schemas
-  map a legacy whole weekly `pacePerWeek` × 10 for that release), a keep goal a tenth Google shows
-  now and neither, set only while Google shows 4.7 or more (X1, 2026-10-16, amending R2-9:
-  the next tenth needs new reviews of nearly five stars there; the commands refuse a keep
-  goal below, as the screens offer none). The plan (target, quality, pace) is version-checked as a whole. There is no deadline and no "missed": a goal runs
-  until Google shows the target (reached), or it is ended by a manager, by its Google
-  location changing (the Property's binding epoch moved) or by its Property being archived.
-  Changes of target, quality, pace or mode are logged with who, when, old and new value,
-  and no reason (`property_rating_goal_changes`). A manager's "Not now" for a Property's goal is
-  kept apart (`property_rating_goal_deferrals`): it only lets the setup checklist count the
-  step as decided, and sets, changes or blocks no goal. The maths is pure and exact
-  (`domain/rating-goal-*.ts`, BigInt rationals): Google's number rounds half up (4.45
-  shows 4.5, one named rule), so a target's threshold is five hundredths below it; the exact
-  average is the cache's sum over count when the cache holds every review Google counts,
-  otherwise Google's figure; the recent mix is the last 90 days at ten reviews or more,
-  else the most recent 25; reviews needed is ceil(N(θ − E)/(q − θ)) at a quality q; when a
-  goal arrives is one rule for setup and tracking in exact days (`domain/rating-goal-arrival.ts`,
-  round 5): a central time and a likely range (quality ± 0.1, pace ± 10%), never a month.
-  The card read also hands on the climb (`application/rating-goal-tracking-views.ts`): the
-  next number Google can show (skipping a tenth it should show soon), what the goal still
-  needs, the number above it as possible, the last four weeks and the day of the Property
-  week, all from the numbers it already reads. The detail read adds the climb's chart
-  (`application/rating-goal-detail-views.ts`, `domain/rating-goal-climb.ts`, round 5 D-2):
-  the exact average at each Property-local Monday from four weeks before the set's week (a
-  year back at most), the plan as a cone from the set or the latest plan change, the
-  likely band from the card's own arrival, a line for each tenth and Google's own moves,
-  in whole days from today and thousandths; the pace in the four weeks before the goal;
-  and what the goal was set with, from each field's first logged change.
-  A goal's pace is judged from when it came into force (`pace_since`, migration 0061,
-  round 5 D-3, owner answer Q3): the set, or the latest change of the pace, after which
-  the goal is getting started again for 14 days and its window runs from the change;
-  the card's time uses the chosen pace until the pace is 28 days old. The card read
-  also carries the Monday check-in while it is due (`domain/rating-goal-recap.ts`,
-  `application/rating-goal-recap-views.ts`, Q4): from Monday to Sunday of the
-  Property's week, for a climbing goal getting started, on pace or below pace, last
-  week's count (its average only from ten reviews: Review gives no window sum under
-  ten), the plan's reviews a week when last week had one plan, and the paces Raise and
-  Ease move to (1 a week, 3 a week, 1 … 50 a day). Keep (`keepRatingGoalPace`,
-  goal.update) stores the week it answers (`recap_answered_week`) for every manager,
-  with no version and no change-log row, and refuses a closed check-in
-  (`recap_closed`); a change of the pace this week answers it too. It is a card on the
-  page, never a notice.
-  The setup (rounds 3 and 4, 2026-10-16) is one screen worked out on the page from the
-  setup read's exact inputs (`application/rating-goal-setup-plan.ts`, `workOutRatingGoal`,
-  client-safe, never throwing on what a manager typed): the planned average is automatic
-  (`domain/rating-goal-average.ts`: the better tenth of the best month and year, or halfway
-  to five stars, at most 4.8; a typed one from two tenths above the shown number to 5.0),
-  the pace chips come from the proven pace (`domain/rating-goal-pace-chips.ts`: 1.5 times
-  the busier of the last 90 days and the busiest 30, to a nice pace a day, at least 1), and
-  the recommended goal is the highest within six months at 0.1★ below plan, with a central
-  time and a likely range in exact day fractions (`domain/rating-goal-duration.ts`). A tenth
-  the cache already clears while Google lags is never a goal. Keep comes first from 4.7.
-  Components import these values only from `application/` (the components boundary).
-  A goal's numbers (forecast, still needed, next number) assume the planned quality
-  blended with the reviews since it was set from the first one, the plan counted as 15
-  reviews (`trackingMix`, round 4 X3); the verdict still waits for ten reviews and judges
-  their own average: `reviews_too_low` (that average at or below the threshold) replaced
-  `cant_reach_at_mix`, and while a goal is too low its numbers use that average too, so the
-  chip and the numbers agree; before the tenth review the blend is held at
-  `minimumQualityTenths`, so a goal that is not too low never reads "not reachable"
-  before the verdict either. The evaluation and its notices read no forecast average
-  (`application/rating-goal-blend-volume.test.ts` pins the notice volume). The review cache is read only through Review's
-  `ReviewGoogleRatingReads` (counts and star sums, the serving eligibility, the current
-  binding epoch; also since a goal was set, per calendar year, per calendar month with ten
-  reviews and per local date, counts only; for the detail, the exact average at each
-  local week's end, which Review works out with the week sums kept inside, and Google's
-  own number over time from Review's verified snapshot facts; and, by the owner's two
-  per-review exceptions for the detail (ADR 0067, 2026-10-17), the low reviews since the
-  set, below the threshold and at most 4★ (from the most stars that still set the goal
-  back half a review, `lowReviewReadBelow`), and this week's star split, read live and kept
-  nowhere: the server function turns the review ids into Inbox item ids after the policy
-  allows `inbox.read`, so the browser never sees one); Google's own numbers
-  come from the Current on Google snapshot. A goal may be set only on an active Property with at least ten Google
-  reviews (Google's count decides that first, current or not) and current numbers; a
-  reading waits for Google while its numbers are not current, show no tenth or give no
-  exact average, or the review cache holds no review (an empty or expired cache). The setup
-  read also returns `setupInputs` (`rating-goals/contracts.ts`, rounds 3
-  and 4): Google's numbers, the exact average, the best calendar month of the last twelve
-  and the best year with ten reviews, the reviews of the last 90 days and the busiest 30
-  local dates of the last 365 (`domain/rating-goal-evidence.ts`), from which the one-screen
-  setup works its plan out on the page; the server runs no planning maths for it (the
-  view's `offersClimb` says whether a climb can be planned at all: eligible, with inputs,
-  and the reviews have earned less than 4.9, so no climb is offered while Google catches
-  up with an earned 4.9). A set
-  goal stores the tenth Google showed and the status it starts in. A goal is evaluated by
-  its card and detail reads and by `goal.google-rating-evaluation` when Review verifies
-  Google's numbers, through one evaluation (`application/rating-goal-evaluation.ts`) that
-  stores the tenth and status it saw only when they change, only onto the plan version it
-  read and never over a newer evaluation, so the next evaluation can tell a transition
-  from a repeat. `goal.on-property-archived` ends the goal of an archived Property
-  (`property_archived`) when it was set under an earlier binding epoch than the archive's,
-  so a late fact never ends a goal set after a Restore.
-- **Property Google rating goal notices**: five, change-only (ADR 0067 decision 6; ADR
-  0046, amended 2026-10-14, 2026-10-15 and 2026-10-16): reached (offering Keep from 4.7);
-  Google showing another tenth; entered Below pace, at most once in 14 days, read per day
-  when the payload carries the pace in tenths a week; entered New reviews too low (ten or more reviews
-  since the set, averaging at or below the threshold), also at most once in 14 days and
-  with no star figure; a keep goal dropped below.
-  `domain/rating-goal-notices.ts` decides them from what the goal last stored: the tenth
-  Google showed, the last status that was not a wait for Google (`last_known_status`,
-  migration 0057) and when it last told Below pace (`below_pace_noticed_at`) and New
-  reviews too low (`cant_reach_noticed_at`, the retired Can't reach notice's column, kept
-  under its name by migration 0059). Reached replaces the tenth gained, a keep goal's drop
-  replaces the tenth lost, an ended goal tells nobody, and a status the goal was set in or
-  that a manager's change of plan put it in (a plan change clears the known status) is
-  stored without a notice; a change of the pace alone keeps it, and the fresh start after
-  it never stores one, so leaving that start tells Below pace only when the goal was not
-  below before the change ("since the pace changed", round 5 D-3, Q3). The
-  evaluation write is one transaction that also compares the tenth, known status and
-  notice times it read, and writes one identifier-only `goal.rating_goal.transitioned`
-  fact per notice, so the same change is told once whichever evaluation stores it first.
-  Below pace moves with the calendar, so `rating-goal.evaluate`
-  (`infrastructure/jobs/rating-goal-evaluation.job.ts`, daily, `goal.use`) evaluates every
-  active goal; it lists goals across tenants by identifier only and asks its scope
-  authorizer about each goal's Organization and Property before reading anything. Feed
-  turns the facts into notices for the Property's responsible managers.
+- **Goal progress**: the live month to date of a goal's subject, through the same
+  authorization, visibility and governed metric as the monthly result, over the whole
+  calendar month in the Program's time zone. It is never a result and is never stored; an
+  average under the minimum sample, or a reading that cannot be trusted, is shown as such,
+  never as zero.
 - **Dashboard read model**: content-minimal presentation assembled from governed sources.
-- **Google's own numbers** (`domain/google-numbers.ts`): every headline rating (the Property
-  Overview's Rating tile, the Properties list's Rating and Reviews, the rating goal) is the
-  number and count Google shows, from the Current on Google snapshot at the Property's current
-  binding epoch, never RepKey's average of the reviews it holds (ADR 0067, decision 16).
-  Numbers more than a day old, or read while the Google binding is not active, are Google's
-  last ones, shown with their date; none at all only when Google never sent numbers for the
-  current binding. The overview read returns them beside the dashboard (`google`); the fleet
-  read joins them, and the Property's active rating goal as stored (target, mode, last status,
-  never a live evaluation), for its page only. RepKey's period averages stay for the Ratings
-  page and the rating drop signal.
-- **Portal All Time**: governed effective-reading totals, without a comparison or series.
-  From October 2028 the label is "Last 24 months" as Guest facts begin expiring.
-- **Portal results measures**: the five shared measures: Scans (server-verified, not raw page opens; counted from August 2026),
-  Ratings, Average rating, Went to Google (Google review link opens
-  only; a secondary link is not one), and private notes. The reading floors live in
-  `domain/portal-results-thresholds.ts`.
-- **Results window**: a bounded range is that many whole Property-local calendar days ending with
-  today, opening at local midnight (`localDaysWindow`); the period before is the same number of
-  days before that, cut at the same time of day so both are equally long (today is still in
-  progress). "Last 30 days" on 30 Sep is 1-30 Sep against 2-31 Aug. A Portal's Results tab
-  and the Portals overview read the same window, so a Portal's row and its own tab agree.
-- **Results series**: a Portal’s window cut into days for up to seven local days, otherwise weeks anchored to its own first day
-  (`domain/portal-results-series.ts`). A bucket carries qualified scans, the prior window's scans
-  in the same position, and an average computed as sum over count of that bucket's own ratings,
-  held back below the average floor. Versions that went live inside the window (Portal's
-  `listPublicationActivationsBetween`) are placed on their local day. All Time has no series.
-- **Portal check-in**: Results answers four questions in shared check-in cards: use, happiness,
-  Google opens and secondary link taps. One scan-only chart, comparison in words, detail collapsed.
-  Page updates sit below the chart. Short ranges never collapse into a single weekly bar.
-- **Link taps**: governed, corrected `portal.review_link_click` readings for `secondary_link`
-  with a recorded `portal_link_id`, grouped by link. Current primary-language labels and order
-  come from Portal’s `listResultsLinks`; removed links count separately. Counting began
-  `PORTAL_LINK_TAPS_COUNTED_SINCE` (1 November 2026). All Time has no lower bound. The editor
-  reads the same counts over 30 Property-local days through an independently authorised side read.
-- **Scan patterns**: Guest’s public read groups unretracted qualified scans by artifact channel,
-  Property-local hour and Monday-zero weekday in one statement. Reporting returns only channels
-  and a busiest-times summary, never hourly counts. From 30 scans: the best two-hour interval,
-  a non-overlapping runner-up at 80% of it, and a weekday at 1.2 times the mean day.
-  All Time has no scan patterns.
-- **Guests by language**: private ratings (not scans) counted by the language of the page the
-  guest saw, read from Guest (`getPortalRatingLanguages`). A rating with no recorded language is
-  counted on its own line, never guessed.
-- **Portals overview results**: the same five measures for every Portal at once, then per Portal
-  Group, per Property for its Portals in no group, per Property as a subtotal, and in total
-  (`getPortalResultsOverview`, read in a fixed number of statements per distinct time zone however
-  many Portals are asked about). Every row is assembled by the code that assembles a single
-  Portal's Results, and each Property is read through its own window (its time zone, built the way a
-  Portal's Results view builds it), so a Portal's row says what its own Results view says. The total
-  adds Property readings and has no window of its own. All Time is not read here. A group's figures
-  are its readings under the group each Portal had when the guest acted (ADR 0040), so a Portal that
-  moves keeps its earlier results with its old group. A group's evidence is the weakest of the
-  Portals with readings under it, whether they are in the group today (`memberPortalIds`) or only
-  contributed (`contributingPortalIds`). The caller supplies the roster (Portal owns the list and
-  each Portal's current group) and each Property's time zone; Reporting supplies the numbers.
-  The server function reads one Property, or, with none named, the whole Organization (the All
-  properties page): then the roster is every Portal of every Property the caller may read for both
-  `portal.read` and `dashboard.read` and is assigned to. Roster filtering reads one
-  Accounts grant snapshot for both permissions and keeps each permission's own
-  scope; execution checks still run per Property, and the downstream Portal and
-  Reporting reads retain their live authorization. A Property with no time zone
-  on record is left out of the results rather than read in a
-  guessed zone, and the one-read limit of 1000 Portals applies to the whole Organization (past it
-  the page shows its list without results; each Property's own page still reads its own).
+- **Google's own numbers** (`domain/google-numbers.ts`): every headline rating (Overview
+  Rating tile, Properties list, rating goal) is the number and count Google shows, from the
+  Current on Google snapshot at the Property's current binding epoch, never RepKey's average
+  of the reviews it holds. Numbers older than a day, or read while the binding is not
+  active, are Google's last ones, shown with their date; none only when Google never sent
+  numbers for the current binding. A snapshot is ordered and dated by when Google's numbers
+  were read (`numbersObservedAt`, else `evaluatedAt`), so a slow snapshot finishing late
+  does not replace fresher numbers. RepKey's period averages stay for the Ratings page and
+  the rating drop signal. `readPropertyGoogleNumbers` (`getPropertyGoogleNumbersFn`) is the
+  narrow `dashboard.read` read Guest voice uses; it needs no goal permission and the
+  caller isolates its failure from the page.
+
+## Monthly goals
+
+Semantics that stay fixed:
+
+- A goal starts in the current local month or the next, chosen at creation; the metric
+  counts the whole month either way. A month is judged against its own target when it has
+  one, else its version's. A month's target changes only while the month is open; every
+  change logs who, when, old and new value. A version's target is never updated in place:
+  a different target for the running month is that month's own, for later months a new
+  version.
+- A revision starts at the first local month beginning at or after the end of every month
+  still open or reconciling. After a time zone moves east, that can be one month later, and
+  the skipped month is evaluated under neither version; dialogs state the start date
+  before saving.
+- A version with no monthly result (a goal that has not started, even after its planned
+  start passed) may be replaced by the next change; the replaced version keeps an empty
+  window holding no subject. Ended in that state, the subject is free at once; ended after
+  it started, the goal holds its subject until the month still open ends.
+- Revisions keep at least one subject and never rewrite history. Corrections append; they
+  never change the original reading or a closed result.
+- Goal periods are half-open Property-local months. Stopping a Program locks its row,
+  opens due months per assignment and ends it in one transaction; the last month still
+  reconciles and closes.
+- Goal pace (`domain/goal-pace.ts`) applies to count goals only. Expected = target × share
+  of the month gone, in whole Property-local days with today included; behind pace is below
+  90% of that (exactly 90% is on pace). Not judged in the first three days or when fewer
+  than `GOAL_PACE_MINIMUM_EXPECTED` (5) are expected by today (`target × days gone < 5 ×
+days in the month`); averages have no pace. One rule feeds the Goals list, the Overview
+  chip and the Properties list; `application/goal-pace-parity.test.ts` holds them to one
+  verdict. The chip and list count behind-pace goals from the readings of every running
+  month in one statement (`infrastructure/adapters/goal-running-months.ts`) because a
+  running month stores no value; it sums what the goal's own page sums, skips only the
+  outbox completeness proof, and leaves out a goal whose Portal or Portal Group was
+  deleted, whose metric version was not in effect the whole month
+  (`goalVersionIsUsable`), or whose month holds a reading the governed read would
+  quarantine. An integration test holds its sum to `queryGoalAggregate`.
+- Goals list progress (`getGoalListProgress`) reads each active goal through the same
+  `progressOf` as its own page, so list and page cannot disagree. It is bounded: at most 60
+  figures, three in flight, and goals past that carry no line. Rows hold the room their
+  line takes while figures load.
+
+**Monthly portal goal** (ADR 0068; `application/monthly-portal-goal-identity.ts`): not a
+Program kind but the Property's count goal whose subject is the Property alone and whose
+measure is private ratings or scans. Writes serialize this identity under the Property
+definition lock, including month-target changes and status changes. Reads choose in
+`monthlyPortalGoalOf`: the earliest-created Program that has not ended, else the most
+recently ended one that still counts a month. Averages and goals for a Portal or Portal
+Group never are it. Setting one refuses `subject_has_goal` while any Property count goal
+that has not ended exists on either measure; existing conflicts are kept for inspection,
+never ended automatically. Every Property count goal's `$goalId` page sends the reader to
+the card (`isPropertyCountGoal`).
+
+- _Recommendation_ (`domain/goal-recommendation.ts`, read by
+  `application/use-cases/goal-recommendation-read.ts`): the number offered, never a result.
+  Basis W is the 28 whole Property-local days ending yesterday, from the goal versions'
+  first day (2026-08-01) on. A Portal's live days are those on which a publication
+  activation was open for any part of the day. A Portal joins the rate when published,
+  live and at 14 live days; draft, disabled, archived and deleted Portals never join, though
+  their readings count in the month. R is the sum of joined Portals' readings on their live
+  days over their live days, an exact BigInt rational. For a month of D days, x = R × D:
+  "your usual" `roundUp(x)`, "a bit more" (recommended) `max(roundUp(1.1x), up(usual))`,
+  "stretch" `max(roundUp(1.2x), up(a bit more))`; for the rest of the current month, with S
+  counted so far and L days left, the same over S + R × L, the first at least `up(S)`. The
+  grid (`domain/goal-number-steps.ts`): 1–29, fives to 100, tens to 500, fifties above.
+  Each measure is `unreadable` (a reading the governed read would quarantine in this month
+  or on a joined Portal's live day in the basis), `nothing` (R = 0) or `ready`. The
+  Property state is `no_live_portal`, `getting_ready`, then `ready`, `scans_only`,
+  `nothing_counted` or `unreadable`. The readings come from one statement
+  (`infrastructure/adapters/goal-recommendation-readings.ts`), sharing the counted-reading
+  SQL with the behind-pace count (`goal-count-readings.sql.ts`); an integration test holds
+  it to `queryGoalAggregate`.
+- _Card_ (`monthly-goals/monthly-portal-goal-card.server.ts`): authorizes `goal.create`,
+  reads the clock once, then Programs and the recommendation together, and answers the goal
+  or the state before one (no Portal, draft only, first weeks, number ready, nothing
+  counted, unreadable). The offered number is in `monthly-portal-goal-offer.server.ts`. The
+  set sheet's facts ride on the card (`portalGoalSheetFactsOf`); its steps and own-number
+  note come from the one grid.
+- _Running_ (`monthly-portal-goal-running.server.ts`): the month is the governed read
+  (`progressOf`; a stopped goal still counts to the end of the month it stopped in,
+  `readSubjectMonth`). The server decides the month's days, the first three quiet days and
+  `belowPace`. Per-Portal counts come from the recommendation's set read and are drawn only
+  when they add up to the governed figure. Each month carries the measure of the version it
+  opened under; a coming-month change leaves the running month as it was.
+- _Page_ (`monthly-portal-goal-page.server.ts`, `/goals/portals`): the card's read plus a
+  line of succession (this goal, then earlier ended Property count goals, newest first;
+  `monthly-portal-goal-history.server.ts`) with up to 24 months, dated changes, the stop
+  and each published Portal's live run. Side reads (other goals' progress, subject names)
+  fail soft: the page stays whole.
+- _Month-start check-in_ (`domain/portal-goal-check-in.ts`,
+  `monthly-portal-goal-check-in.server.ts`): on local days 1–7 of a month that is not the
+  goal's first, while it runs, the card asks once whether the month keeps its number. Keep
+  writes `goal_programs.check_in_answered_month` only (`goal.update`; no version, no change
+  row; refused `check_in_closed` outside days 1–7); changing the month's own number answers
+  it too. Use is the change now. Nothing is sent or automatic.
+- _Overview prompt and Results line_: the card's number ready also feeds the Overview
+  prompt, put off while "Not now" names that month or a later one
+  (`portal_goal_prompt_deferrals`, one row per Property, only moves on; a month past next
+  month's is refused `start_month_changed`). A Portal's Results line
+  (`monthly-portal-goal-line.server.ts`, `goal.create`) shows that Portal's count toward the
+  goal when every Portal's count adds up to the governed figure, and the Portal's own goal
+  when one runs.
+- _Add a portal goal_ (`application/use-cases/portal-goal-add-*.ts`): a goal for one Portal,
+  each Portal (from 2 live), a Portal Group (with a live Portal) or the Property's average
+  private rating (from 10 private ratings in 4 weeks). Offers follow the recommendation's
+  month and measure; a group counts readings recorded under the group at source-event time
+  (`group_id`), so a moved Portal counts in its old group before the move. A subject with a
+  goal on that measure is "Has a goal". `/goals/new` only redirects to the add sheet. Commands are `createGoal` and
+  `createGoalsForSubjects` (at most 50 rows per save, each its own transaction, one start
+  month; saves over 50 run in batches and report unsaved rows). Numbers are stored
+  `recommended` only when they equal what the read offers that subject now. A count goal for
+  the Property alone is never made here.
+- _Single-subject pages_ (`monthly-goals/get-portal-goal-page.server.ts`,
+  `programs.portalGoalSingle.page`): authorizes `goal.create`, applies visibility and says
+  which page the Program has before reading more. A Portal's or group's count goal is read
+  from the recommendation narrowed to its subject (`narrowedRecommendation`); the average
+  reads none (`averageMeasureOf`). A goal for several subjects made by the earlier form has
+  a plain page with Stop. The change commands accept one-Portal and one-group goals and the
+  average (always `own`, never turned into a count); Stop takes every goal naming a subject.
+  No command changes a goal's subjects alone; the engine keeps rename and month-target
+  commands.
+- Server functions for these live in `server/monthly-portal-goals.ts`, which the Goals
+  route reaches only through its own `import()` so they stay out of first paint
+  (`route-server-fn-bundles.test.ts`).
+- Staff targets: personal Portal and Portal Group subjects holding people admit only
+  qualified scans, with every member collecting private ratings; checks apply to creation,
+  subject changes, target changes and resume, under Portal's Property fence. The Add picker
+  offers staff subjects only while `STAFF_SCAN_TARGETS_ENABLED` is on; a person gets an empty
+  number and no recommendation. Off, existing staff targets read Paused without changing
+  storage. Recommendations still include personal Portals in the Property number; goal
+  contribution lists show them as "Staff portals: N".
+
+`PortalRatingGoalReadApi.findPortalRatingGoalBlockInTransaction` reads running rating
+assignments and their published collectors inside the caller's transaction. Portal holds the
+shared Property goal fence before this read and its mutation; goal definition and
+membership writers use the same fence. Ended goals hold no collector.
+
+## Property Google rating goal
+
+A Property's target for the one-decimal rating Google shows, with a planned quality and a
+weekly pace of new Google reviews (climb) or a watch that Google keeps showing a tenth it
+shows now (keep). At most one is active per Property (`property_rating_goals`, partial
+unique index; ADR 0067). It is not a Goal Program: no months, subjects, readings, results,
+deadline or "missed". It runs until Google shows the target (reached), a manager ends it,
+its Google location changes (binding epoch moved) or its Property is archived. Only
+AccountAdmins and PropertyManagers with access to the Property see, set, change or end it.
+It is never split across Portals, Groups or people, never shown to staff, and never a
+quota, ranking, incentive or employment input.
+
+- Stored plan: a climb names a tenth from 1.1 to 4.9, a planned quality in tenths
+  (`quality_tenths`: at least 0.15★ above the target's threshold in the domain, at least the
+  target in the database) and a pace in tenths of a review a week (`pace_tenths_per_week`,
+  10 to 3500). `pace_per_week` is the whole-number weekly mirror, still stored and held
+  equal by a CHECK, and still carried on the `goal.rating_goal.transitioned` payload
+  (1 to 350). A keep goal names the tenth shown now and neither, and is set only while
+  Google shows 4.7 or more. The plan is version-checked as a whole. Changes log who, when,
+  old and new value, no reason (`property_rating_goal_changes`). "Not now" is kept apart
+  (`property_rating_goal_deferrals`): it only lets the setup read count the step as decided.
+- Maths is pure and exact (`domain/rating-goal-*.ts`, BigInt rationals). Google's number
+  rounds half up, so a target's threshold is five hundredths below it. The exact average is
+  the cache's sum over count when the cache holds every review Google counts, else Google's
+  figure. The recent mix is the last 90 days at ten reviews or more, else the latest 25.
+  Reviews needed is ceil(N(θ − E)/(q − θ)); arrival is one rule for setup and tracking in
+  exact days (`domain/rating-goal-arrival.ts`): a central time and a likely range (quality
+  ± 0.1, pace ± 10%), never a month.
+- Tracking: numbers assume the planned quality blended with reviews since the set, the plan
+  counted as 15 reviews (`trackingMix`). The verdict waits for ten reviews and judges their
+  own average: `reviews_too_low` (that average at or below the threshold) uses it for the
+  numbers too; before the tenth review the blend is held at `minimumQualityTenths`. Pace is
+  judged from when it came into force (`pace_since`): after a set or pace change the goal is
+  getting started for 14 days and its window runs from the change; the card's time uses the
+  chosen pace until the pace is 28 days old. The card also carries the climb (next number
+  Google can show, what is still needed, last four weeks), the detail adds the climb chart
+  and, by exception, low reviews since the set and this week's star split (read live, kept
+  nowhere; the server function turns review ids into Inbox item ids after `inbox.read`).
+- Monday check-in (`domain/rating-goal-recap.ts`): from Monday to Sunday of the Property's
+  week, for a climbing goal getting started, on pace or below pace. Keep
+  (`keepRatingGoalPace`, `goal.update`) stores `recap_answered_week` for every manager with
+  no version and no change row, and refuses a closed check-in (`recap_closed`); a pace
+  change this week answers it too. It is a card, never a notice.
+- Setup is one screen worked out on the page from the setup read's exact inputs
+  (`rating-goals/contracts.ts` `setupInputs`; `application/rating-goal-setup-plan.ts`
+  `workOutRatingGoal`, client-safe, never throwing on typed input): planned average
+  (`domain/rating-goal-average.ts`), pace chips (`rating-goal-pace-chips.ts`), recommended
+  goal and time range (`rating-goal-duration.ts`). Keep comes first from 4.7. A tenth the
+  cache already clears while Google lags is never a goal. A goal may be set only on an
+  active Property with at least ten Google reviews and current numbers; a read waits for
+  Google while its numbers are not current, show no tenth, or the cache holds no review.
+- The review cache is read only through Review's `ReviewGoogleRatingReads` (counts and star
+  sums, serving eligibility, binding epoch, per-year, per-month and per-date counts, the
+  exact average at each week's end, Google's own numbers over time). Google's own numbers
+  come from the Current on Google snapshot.
+- Evaluation (`application/rating-goal-evaluation.ts`) runs from the card and detail reads,
+  from `goal.google-rating-evaluation` when Review verifies Google's numbers (a completed
+  snapshot's, or a head check's under `REVIEW_HEAD_CHECKS=persist`: the fact only says when
+  to look, and the evaluation reads the current numbers itself), and daily from
+  `rating-goal.evaluate` (lists goals across tenants by identifier only and asks its scope
+  authorizer about each goal's Organization and Property before reading anything). It stores
+  the tenth and status only when they change, onto the plan version it read and never over
+  a newer evaluation. `goal.on-property-archived` ends only a goal set under an earlier
+  binding epoch than the archive's, so a late fact never ends a goal set after a Restore.
+- Notices (ADR 0067, ADR 0046), change-only, decided by `domain/rating-goal-notices.ts`
+  from the stored tenth, the last status that was not a wait for Google
+  (`last_known_status`) and when Below pace and New reviews too low last told
+  (`below_pace_noticed_at`, `cant_reach_noticed_at`; the second column keeps its older
+  name): reached (offering Keep from 4.7), Google showing another tenth, entered Below pace
+  (at most once in 14 days), entered New reviews too low (ten or more reviews since the set,
+  at most once in 14 days, no star figure), and a keep goal dropped below. Reached replaces
+  the tenth gained, a keep goal's drop replaces the tenth lost, an ended goal tells nobody,
+  and a status the goal was set in or a plan change put it in is stored without a notice.
+  The evaluation write is one transaction that compares what it read and writes one
+  identifier-only `goal.rating_goal.transitioned` fact per notice; Feed's
+  `notification.on-rating-goal-transitioned` consumes it.
+- Goal Programs and this goal never feed each other: no goal measure reads Google data
+  (`GOAL_METRICS` and the metric CHECKs on `goal_program_versions` and
+  `goal_subject_assignments`), and this goal reads no metric reading or goal result.
+
+## Portal Results and the dashboard
+
+- Portal results measures: Scans (server-verified, counted from August 2026), Ratings,
+  Average rating, Went to Google (Google review link opens only), and private notes.
+  Reading floors are in `domain/portal-results-thresholds.ts`. An average private rating is
+  held back below five ratings and compared with the prior period only at ten in each; Google
+  opens are `insufficient` (`destination_unattributed`) while any click in the period never
+  recorded which link opened; a funnel step that out-counts the step before it is shown as
+  counts only; qualified scans have no history before their registry `effectiveFrom`
+  (`qualifiedScansSince`): a prior window that opens before it has no prior figure
+  (`measure_not_yet_counted`) and a current one that does carries
+  `measure_started_mid_period`.
+- Results window: a bounded range is that many whole Property-local calendar days ending
+  with today, from local midnight (`localDaysWindow`); the period before is as long, cut at
+  the same time of day. A Portal's Results tab and the Portals overview read the same
+  window. Series (`domain/portal-results-series.ts`): days up to seven local days, otherwise
+  weeks anchored to the Portal's first day; a bucket's average is sum over count of its own
+  ratings, held back below the floor. All Time has no comparison, series or scan patterns.
+- Retention boundary: Guest-derived readings are deleted 24 calendar months after they were
+  recorded, with their corrections, by the rule `metric_readings.expired`, once scheduled
+  retention is activated (`docs/security/data-inventory.md`). All Time totals are computed
+  from the effective readings, so they shrink with that deletion; the label is "All time"
+  until retention is active and "Last 24 months" after
+  (`portal-results/ui/portal-results-window.ts`).
+- Link taps: governed, corrected `portal.review_link_click` readings for `secondary_link`
+  with a recorded `portal_link_id`, grouped by link; labels and order come from Portal's
+  `listResultsLinks`, removed links count separately. Counting began
+  `PORTAL_LINK_TAPS_COUNTED_SINCE` (2026-11-01).
+- Scan patterns: Guest's public read groups unretracted qualified scans by channel,
+  Property-local hour and weekday in one statement; Reporting returns channels and a
+  busiest-times summary, never hourly counts (from 30 scans: best two-hour interval, a
+  runner-up at 80% of it, a weekday at 1.2 times the mean day). Guests by language counts
+  private ratings by the language of the page the guest saw; no recorded language is its
+  own line.
+- Portals overview results (`getPortalResultsOverview`): the five measures per Portal, Group,
+  Property subtotal and total, in a fixed number of statements per distinct time zone. Rows
+  are assembled by the code that assembles one Portal's Results, each Property through its
+  own window; a Property with no time zone is left out. A group's figures are its readings
+  under the group each Portal had when the guest acted (ADR 0040); its evidence is the
+  weakest of the Portals with readings under it. The caller supplies the roster (Portal owns
+  the list) and time zones. With no Property named it reads the whole Organization: the
+  roster is every Portal of every Property the caller may read for both `portal.read` and
+  `dashboard.read` and is assigned to, from one Accounts grant snapshot; the limit is 1000
+  Portals.
+- Properties list: the fleet read pages Google snapshots at the current binding, stored
+  rating goals and current Inbox attention; it accepts a cursor without a historical period
+  and reads no historical analytics for list cells. Monthly goals behind pace use the shared
+  running-month readings.
+- Property setup (`domain/property-setup.ts`): seven steps derived at read time (Google
+  binding, first sync, reply language, AI decision, responsible manager, reply voice,
+  published Portal) and an eighth, "Set a Google rating goal", on an active Property where
+  Google counts ten reviews and the viewer has `goal.create` while `goal.use` is on. It is
+  done once a manager decided it: a goal set (active, reached or ended by a manager; a
+  goal ended by location change or archive decided nothing) or "Not now". No milestone
+  history: a step that stops being true needs attention again.
 - Portal link-check facts remain Portal-owned and are not projected into Reporting.
-  Existing workflow readings and corrections remain stored until their data contraction.
-- **Property setup**: seven per-Property steps derived at read time from current facts
-  (Google binding, first sync, reply language, AI decision, responsible manager, reply
-  voice, published Portal), and an eighth, "Set a Google rating goal", where a goal can be
-  set: an active Property Google counts ten reviews for (the Current on Google snapshot at
-  the current binding), seen by a viewer with `goal.create` while `goal.use` is on. The
-  eighth counts toward "n of m done": it is done once a manager decided it, by setting a
-  goal (active, reached, or ended by a manager; a goal its Google location or an archive
-  ended decided nothing) or by choosing "Not now" (`property_rating_goal_deferrals`, one
-  row per Property, written by the rating goal's "Not now" command), which counts as
-  decided the way a deferred AI decision does. A Property that is not active shows no
-  eighth step, even with a goal. It records no milestones, unlike the Organization
-  checklist.
 
-## Invariants
+### Dashboard authorization
 
-1. A metric read is eligible only under its immutable definition version and source policy.
-2. Goal evaluation uses half-open property-local monthly periods and approved Goal metrics.
-   A goal starts in the current local month or the next one, chosen at creation; the metric
-   counts the whole month either way. A month is judged against its own target when it has
-   one, otherwise its version's. A month's target may change only while the month is open and
-   before its period ends; every change is logged with who, when, old and new value. A
-   revision starts at the first local month that begins at or after the end of every month
-   still open or reconciling, so that month stays inside its version's window. After the Property's timezone moves east, the next local month
-   begins before the open month ends, so the revision starts one local month later and the
-   skipped local month is not evaluated under either version. The dialogs state the start
-   date before a change is saved, and the saved change states its own. A version with no monthly result (a goal that has not started,
-   or a change still waiting for its month) may be replaced by the next change; the replaced
-   version and its assignments keep an empty window, which holds no subject. A goal that has
-   not started is one still scheduled with no month, even after its planned start has passed.
-   Ended in that state it keeps the same empty window, so its subject is free at once; ended
-   after it started, it holds its subject until the month still open ends. While a goal is
-   scheduled its status reason says what its plan waits for (its metric source, or only its
-   first month), and a revision before the start states it again for the measure it now has.
-3. Goal revisions preserve at least one subject and never rewrite history.
-4. Corrections append; they never mutate the original reading or closed Goal result.
-5. Dashboard values preserve unavailable/updating/insufficient states instead of showing zero.
-   A Portal's average private rating is held back below five ratings (with the true n and
-   the reason), and compared with the prior period only at ten ratings in each period. Google
-   opens are `insufficient` (`destination_unattributed`) while any click in the period never
-   recorded which link was opened. A funnel step that out-counts the step before it is shown
-   as counts only, never as a percentage over 100. Qualified scans have no history before
-   their registry `effectiveFrom`, which the read model hands over as `qualifiedScansSince`:
-   a prior window that opens before it has no prior figure (`measure_not_yet_counted`), and a
-   current one that does carries the `measure_started_mid_period` note.
-6. Every tenant read includes organization and property scope or an explicit global authority.
-7. Clocks, identifiers, logging, storage, and upstream reads are injected by composition.
-8. A version's target is never updated in place. A different target for a month still
-   running is that month's own; a different target for the months after is a new version
-   (ADR 0066).
-9. Nothing puts a Goal Program into `active` in an Organization the lifecycle holds: one with a
-   closure requested or in progress, or one whose closure was cancelled and awaits
-   reactivation (the Closing phase can pause only active programs; the database has no
-   scheduled -> paused edge). Maintenance neither lists nor activates its programs, and the
-   commands that would start one are refused with `organization_closing`: creating a goal (one
-   or several), and changing a goal's status to `active` (starting a scheduled goal, resuming a
-   paused one). Pausing and ending are never refused. A month already open still reconciles
-   and closes, which is how Goal's purge-readiness check comes to find none left.
-10. The Property Google rating goal and Goal Programs never feed each other. No Goal measure
-    reads Google data (`GOAL_METRICS`, and the metric CHECKs on `goal_program_versions` and
-    `goal_subject_assignments`), no Goal Program target or result is derived from the rating
-    goal, and the rating goal reads no metric reading and no Goal result. The rating goal is
-    never split across Portals, Portal Groups or people, never shown to staff, and never a
-    quota, ranking, incentive or employment input (ADR 0067).
-
-## Portal results
-
-The [Portal results map](portal-results/CONTEXT.md) follows the workspace Results
-screen to its browser contract, authenticated server function and governed SQL.
-The Google rating goal commands and reads live in `rating-goals/*.server.ts`, with
-browser-safe types in `rating-goals/contracts.ts` and screens, policies and stories
-in `rating-goals/ui/`. Existing `server/` RPC paths stay fixed. Other Reporting
-features retain their existing paths.
-
-## Interfaces and dependencies
-
-`application/public-api.ts` is the only cross-context application interface. Server functions
-under `server/` are the request boundary used by routes. Reporting depends on public
-interfaces from Property, Portal, Staff, Review, Inbox, and Guest; none of their repositories
-are imported. Metric-to-Goal and Metric-to-Dashboard collaboration is internal and follows
-the normal domain/application/infrastructure layer rules.
-
-The Monthly portal goal's recommendation reads Portal's `listGoalReadinessFacts`
-(`PortalPublicApi`): each non-archived Portal's state, live since and live intervals, code
-date and marker, in name order, including every non-archived Portal. Its request surface is the Monthly portal
-goal's card (`programs.monthlyPortalGoal.card`, `getMonthlyPortalGoalCard`), which gathers
-it after its own `goal.create` check, and its set command
-(`programs.monthlyPortalGoal.set`, `setMonthlyPortalGoal`), which reads it only to check a
-number sent as recommended; the reporting context also composes the authorized
-read on its own as `internal.useCases.goalRecommendation`. The Goals route reaches
-`server/monthly-portal-goals.ts` only by its own `import()` (`-portal-goal-queries.ts`),
-so its server functions stay out of first paint (`route-server-fn-bundles.test.ts`).
-
-"Add a portal goal" reads Portal's `listGoalReadinessFacts` too (each Portal's group now)
-and names the Property's Portal Groups through the Goal Program subject reader. Its request
-surface is `programs.portalGoalAdd` (`options`, `one`, `each`), reached through
-`getPortalGoalAddOptions`, `addPortalGoal` and `addPortalGoals` in the same lazy server module.
-The New goal page and its table that set goals for several portals are gone; `/goals/new`
-only redirects to the goal page's add sheet.
-
-A goal for one Portal, one Portal Group or the average has a page of its own on `$goalId`
-(PLAN PG-21): `programs.portalGoalSingle.page`, reached through `getPortalGoalSinglePage` in
-the same lazy server module, asks `goal.create`, reads the one Program asked for (visibility
-applied) and says which page it has before anything else is read. A Property count goal
-answers `monthly` (its page is `/goals/portals`) with nothing more read. A Portal's or a
-group's count goal is read as the Monthly portal goal's page is, from its own subject
-(`monthly-goals/get-portal-goal-page.server.ts`): the Property's recommendation narrowed
-to the subject (`narrowedRecommendation`) gives its usual, its change sheet's offers and its
-go-lives, the governed read of the subject its months, and the Property's other goals whether
-the subject already holds the other measure from next month (`otherMeasureHeld`: no "Count
-scans instead"). The average reads no recommendation: its level, this month's governed
-average or the ratings it still needs, and its own months and changes in its averages
-(`averageMeasureOf`). A goal for several subjects, made by an older form, has a plain page:
-whom it counts, this month as the Goals list reads it, and Stop. The Monthly portal goal's
-change commands take a goal for one Portal or one group too, its subject kept and its number
-recorded as recommended against its own numbers, and the average, its level in tenths and
-always `own`, never turned into a count or back; Stop takes every goal that names a subject.
-Goal revisions are used by the Monthly portal goal change commands; no command changes a
-goal's subjects on its own. The engine retains rename and month-target commands.
-
-The Property-scoped dashboard reads authorize their own reader. `getDashboardData`,
-`getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
-`getPortalResultsOverview` take the caller's `AuthContext` beside their input and first ask
+`getDashboardData`, `getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
+`getPortalResultsOverview` take the caller's `AuthContext` and first ask
 `application/dashboard-property-access.ts`: the reader belongs to the Organization, holds
-`dashboard.read`, and reaches every Property the read names (an Organization-wide holder
-all of them, a manager only those currently granted). A refusal is a tagged `DashboardError`
-`forbidden`, raised before anything is read. `getPropertyOverview` and `getAttentionSignals`
-ask for more: their attention band is work state (reply targets past due, items to triage,
-escalations), so the reader must also hold `dashboard.fleet_read` and reach the Property with
-it. A Member holds no `dashboard.read` and reaches no manager reporting function; its separate staff self door is governed by ADR 0076. `getDashboardData` also hides reply state from a
-reader without `reply.manage` (`domain/reply-workflow-redaction.ts`); that covers the
-`dashboard` half of the overview, and the `dashboard.fleet_read` requirement covers its
-`signals` half. The server functions still ask the execution policy first, with the same
-permissions and the Property (capability, suspension, kill switch, and the policy's own grant
-check); the use case's decision is the one a caller that is not a server function cannot skip.
+`dashboard.read` and reaches every Property named (Organization-wide holders all, managers
+only those granted). A refusal is a tagged `DashboardError` `forbidden` raised before
+anything is read. `getPropertyOverview` and `getAttentionSignals` also need
+`dashboard.fleet_read`, because the attention band is work state. `getDashboardData` hides
+reply state from a reader without `reply.manage` (`domain/reply-workflow-redaction.ts`).
+Server functions still ask the execution policy first; the use case's check is the one a
+non-server caller cannot skip. Every tenant read includes Organization and Property scope or
+an explicit global authority. A Member holds no `dashboard.read`; the staff self door is
+governed by ADR 0076.
 
-The Property page and the dashboard-governance and review-expiry e2e specs use
-`getPropertyOverviewFn`. Its `dashboard` field carries the governed dashboard read;
-grant filtering and expired-Review exclusion are checked through this boundary.
-Reply redaction has no session that can ask for it in the beta (both interactive roles may
-manage replies), so that e2e case is parked and `get-dashboard-data.test.ts` holds the rule.
+`getPropertyOverview` carries the governed dashboard read in `dashboard` and grant filtering
+and expired-Review exclusion are checked through it by the dashboard-governance and
+review-expiry e2e specs. Reply redaction has no session that can ask for it in the beta, so
+`get-dashboard-data.test.ts` holds that rule.
 
-The unified `buildReportingContext` returns one public interface, one combined outbox
-registration function, Goal maintenance and named lifecycle/export
-contributors. Root composition may continue exposing capability-specific aliases such as
-`metricPublicApi`, `goalPublicApi`, and `dashboardPublicApi`; they reference the same Reporting
-interface.
+### Staff self reads (ADR 0076)
 
-## Persistence
+`staff-self-results.ts` reads only the session's own personal Portal, under `staff.self` and
+`staff.accounts`. DTOs allow scans, delayed rating count and average, scan-only targets or
+an enabled colleague list; no Google fact, private note or manager field. Colleagues are one
+accepted active roster and one batch scan read in name order; the default-off Property
+setting gates it. Periods use the Property calendar (US Sunday, otherwise Monday); last
+month is the previous complete local month; goals stay in the current month. Rating events
+end at the start of today (or the previous month's end) and use only readings and
+corrections recorded before that cutoff, so a late projection cannot move the same day's
+figure; today has no rating fields and averages under five ratings are absent.
+`staff_self` is a permitted consumer of qualified scans, numeric private ratings, rating
+count and rating average only; their retention stays with the 24-month Guest facts. Only
+qualified scans may drive a staff target (`STAFF_SCAN_TARGETS_ENABLED`, default off).
 
-`readings/contracts.ts` owns the immutable metric catalogue, stable definition
-and version IDs, source policies, consumer permissions, precision and sample
-floors. It is browser-safe and remains available through the public API's named
-exports. `readings/guest-outbox-consumers.server.ts` validates Guest facts before
-`record-portal-metric.server.ts` projects them into readings. Retractions use the
-same measure definitions as recording, so withdrawing a rating retracts its
-private value, count and average together. `metric-command-store.server.ts`
-commits readings, corrections, attribution and source receipts
-atomically. Staff-attribution column conversion lives beside that store.
+## Persistence and durable facts
 
-`infrastructure/readings/effective-readings.server.ts` owns correction-tip
-selection, effective values and retracted sample counts for dashboard, Goal and Portal reads. Raw SQL
-uses its `readings`/`tip` aliases. Staff reads keep their as-of variant: only
-readings and corrections recorded strictly before the daily cutoff contribute,
-with the latest visible correction ordered by recording time and ID. Source
-status and Portal evidence still check every required projection and retraction;
-those completeness checks are independent of the effective value. Portal All Time
-uses these same effective readings and completeness checks. The retired aggregate
-table remains only for export and tenant cleanup until schema contraction.
-
-Period reads use the concurrent index on Organization, Property, metric version
-and event time, declared in `shared/db/concurrent-index-registry.ts`. Recording
-time remains a separate cutoff for staff figures and late-arrival evidence.
-
-Reporting owns the metric, Goal Program, Property Google rating goal, dashboard
-setup-checklist milestones, Portal lifetime, and Current on Google tables declared in the shared schema
-package. Repositories remain split by
-aggregate and read purpose even though they share a bounded context.
-
-Monthly goal totals and their source/receipt completeness proof are read in one
-read-only repeatable-read transaction (`goal-metric-snapshot.ts`). Stopping an
-active Program locks its row, opens due months per current assignment, and ends
-it in the same transaction; the last month still reconciles and closes.
-Single-goal page DTOs carry the latest month Stop retains, using that same due-month
-planner before hourly maintenance opens it. This calendar fact is independent of
-live progress reads and change availability, including for several subjects.
-
-Maintenance reads Programs and due results in keyset pages of 100. Programs
-advance by Organization, Property and Program id; due results by period end and
-result id. Denied, failed and raced work still advances the cursor within the
-pass and remains eligible for the next hourly run. Maintenance hydrates only the
-head, its assignments and each assignment's latest month. Request lists and cards
-use summaries: the head, the preceding effective version, the latest assignment
-of each historical subject and their two latest months, plus the latest closed and
-unsettled month of the Program, with latest revisions and target provenance. The explicit history read uses chronological keyset pages of
-at most 100 results with their pinned versions, assignments, target changes and
-latest revisions. Detail pages, the results matrix and older notification links compose those pages;
-the paged RPC applies
-the same tenant, Property and subject visibility as other Goal reads.
-
-The Goals list batches up to 60 governed live figures in one database statement,
-including subject ownership, correction tips and source completeness. Historical
-Portal Group membership is resolved inside the completeness statement; captured
-attribution, including an explicit null group, takes precedence. Single-result
-closure reads retain their repeatable-read snapshot and source-head fence.
-`goal-completeness-volume.test.ts` compares membership intervals and archive
-boundaries with Portal's real group API; `goal-list-progress-volume.test.ts`
-compares batched subject eligibility with Portal's named context and group reads.
-These parity checks keep the set-based predicates tied to Portal's authority.
-
-Closure compares the snapshot's source head in the result update, covering source
-facts, consumer receipts, readings and corrections. Guest fact commits and metric
-commands share a Property fence; closure holds it exclusively through the result
-and outbox commit. A changed head leaves the month reconciling for a fresh read.
-Contended closure fences skip the month for retry so one held tenant cannot stall maintenance.
-Closure also holds the Organization lifecycle fence and rechecks execution policy
-inside its transaction, including before commit. A concurrent lifecycle transition
-defers closure for retry; a committed hold still lets existing months drain so
-purge readiness can clear. `goal-result-closure-barrier.test.ts` covers late source
-changes, concurrent suspension, and draining a month during Organization closure.
-`scripts/ops/find-stale-goal-results.sql` lists closed heads
-whose values or samples differ from current effective readings, including the
-latest revision. It is read-only and conservative, not a completeness proof.
-Changed outcomes require owner review and the existing result-revision command;
-the query authorizes no repair.
-
-Organization setup milestones have no product reader or writer. Their schema,
-export and lifecycle contributors, and purge-table declaration remain for existing data.
-Per-Property setup reads remain active.
-
-## Durable facts
-
-Metric and Goal event modules are named `metric-events.ts` and `goal-events.ts`. Their event
-tags remain stable for outbox replay compatibility. Reporting consumes Guest, Review,
-and metric-correction facts through the shared durable consumer registry. New readings
-commit with their source receipt, without emitting
-`metric.recorded`; both stored versions of that event remain decodable. Replacements
-and retractions still emit `metric.corrected` atomically. Each
-consumer holds a receipt for a fact it has finished. A fact that yields no reading is
-finished too: when the registry refuses it by design (a fact that cannot be attributed, or one
-from before its measure took effect), the store commits an `obsolete` receipt and no reading, so it is not redelivered for nothing. A refusal
-that a registry or policy change would undo (`source_policy_not_allowed`, `scope_not_allowed`,
-`definition_not_approved`, `unknown_definition_version`) fails the delivery instead, and the
-retry applies once the change is deployed. The Goal correction consumer
-writes its receipt after a complete reconciliation pass, outside the result
-transactions, which is the second form the consumer contract allows
-(`ConsumerRegistration.handler` in `src/shared/outbox/consumer-registry.ts`):
-each closed result is revised by its own compare-and-set, so a delivery repeated
-after a crash finds every result unchanged and only adds the receipt. A pending
-result throws before the receipt, and the fact is delivered again
-(`metric-correction-outbox-consumers.integration.test.ts`).
-`goal.google-rating-evaluation` takes the same second form on
-`review.google_reputation_snapshot.verified` (a completed snapshot's, or a head
-check's when `REVIEW_HEAD_CHECKS=persist`: Google's count and average from one read
-of its newest page, ADR 0055 note 2026-10-21 (d)): the fact only says when to look, the
-evaluation reads the current snapshot, cache and Property as a page read does and writes
-only what changes the stored goal, so a repeat finds nothing to write and adds the receipt.
-`goal.on-property-archived` (`rating-goal-property-lifecycle-consumers.ts`, ungated) does
-the same on `property.archived`: it ends only an active goal set before the archive's
-epoch, so a repeat ends nothing and adds the receipt.
-
-Reporting writes `goal.rating_goal.transitioned` (`domain/goal-events.ts`), one per rating
-goal notice, inside the evaluation's own write (a read, `goal.google-rating-evaluation` or
-the daily `rating-goal.evaluate`). Its payload is identifiers, closed enums and the
-Property-level figures the notice states (Google's shown tenth, the target, the pace in
-tenths a week `paceTenthsPerWeek` beside its whole weekly legacy mirror `pacePerWeek`, 1 to
-350, and the recent pace), never a review or a figure RepKey works out from review ratings; Feed's
-`notification.on-rating-goal-transitioned` consumes it.
+- `readings/contracts.ts` owns the immutable metric catalogue: definition and version ids,
+  source policies, consumer permissions, precision and sample floors. Retractions use the
+  measure definitions of recording, so withdrawing a rating retracts its value, count and
+  average together. `metric-command-store.server.ts` commits readings, corrections,
+  attribution and source receipts atomically.
+- `infrastructure/readings/effective-readings.server.ts` owns correction-tip selection,
+  effective values and retracted sample counts for dashboard, goal and Portal reads (raw SQL
+  uses its `readings`/`tip` aliases). Staff reads use the as-of variant. Source status and
+  Portal evidence still check every required projection and retraction independently of the
+  effective value. Period reads use the concurrent index on Organization, Property, metric
+  version and event time (`shared/db/concurrent-index-registry.ts`).
+- Monthly goal totals and their completeness proof are read in one read-only
+  repeatable-read transaction (`goal-metric-snapshot.ts`). The Goals list batches up to 60
+  figures in one statement; historical Portal Group membership is resolved inside it,
+  captured attribution (including an explicit null group) taking precedence.
+  `goal-completeness-volume.test.ts` and `goal-list-progress-volume.test.ts` hold those
+  set-based predicates to Portal's own group API.
+- Maintenance reads Programs and due results in keyset pages of 100 (by Organization,
+  Property and Program id; by period end and result id). Denied, failed and raced work
+  advances the cursor and stays eligible next hour. Request lists use summaries; the history
+  read uses chronological keyset pages of at most 100 results with the same tenant, Property
+  and subject visibility as other goal reads.
+- Closure holds the Property fence exclusively through the result and outbox commit and
+  compares the snapshot's source head, so a changed head leaves the month reconciling. A
+  contended fence skips the month for retry. Closure also holds the Organization lifecycle
+  fence and rechecks execution policy inside its transaction; a committed hold still lets
+  existing months drain (`goal-result-closure-barrier.test.ts`).
+  `scripts/ops/find-stale-goal-results.sql` lists closed heads whose values differ from
+  current effective readings; it is read-only and authorizes no repair.
+- Metric and goal event tags (`metric-events.ts`, `goal-events.ts`) stay stable for outbox
+  replay; both stored versions of `metric.recorded` remain decodable although new readings
+  commit with their source receipt without emitting it. Replacements and retractions emit
+  `metric.corrected` atomically. A consumer holds a receipt for a fact it finished; a fact the
+  registry refuses by design (cannot be attributed, or from before its measure took effect)
+  commits an `obsolete` receipt and no reading. A refusal a registry or policy change would
+  undo (`source_policy_not_allowed`, `scope_not_allowed`, `definition_not_approved`,
+  `unknown_definition_version`) fails the delivery so the retry applies after deploy. The
+  goal correction consumer writes its receipt after a complete reconciliation pass, outside
+  the result transactions (the second form in `ConsumerRegistration.handler`,
+  `src/shared/outbox/consumer-registry.ts`); a pending result throws before the receipt.
+- Rights: `infrastructure/adapters/reporting-rights.adapter.ts` is Reporting's executor for
+  the manual rights script (access export and Organization purge of goal, metric and
+  dashboard records). `retired-readings-erasure.adapter.ts` serves the command that erases
+  the retired `property.review` readings.
 
 ## Verification
 
 - `build.test.ts` pins the unified interface and worker contributions.
-- `infrastructure/runtime-dependency-injection.test.ts` rejects ambient runtime state.
-- Unit tests remain beside their domain, use-case, repository, adapter, and server subjects.
-- Integration tests exercise PostgreSQL constraints, projections, lifecycle, and exports.
-
-## Staff self reads — 2026-11-01 (ADR 0076)
-
-The dormant Property-wide staff dashboard is removed. `staff-self-results.ts` reads only the session's own personal Portal, under `staff.self` and `staff.accounts` (controlled beta). DTOs allow scans, delayed rating count and average, scan-only targets, or an enabled colleague list. No Google fact, private note or manager field is returned. Colleagues are one accepted active roster and one batch scan read, including zeroes, in name order. The default-off Property setting gates that read.
-
-Today, week, month and last month use the Property calendar (US Sunday, otherwise Monday). Last month is the previous complete local month, for own and colleague counts; goals always stay in the current month. Scans are current in the other periods. Rating events end at the start of today (or the previous month’s end for Last month) and use only readings and corrections recorded before that cutoff, so late projection or correction cannot move the same day's figure. Today has no rating fields and averages below five ratings are absent. Staff query keys are separate and name participation, period and rating cutoff.
-
-`staff_self` is a permitted consumer of qualified scans, numeric private ratings, rating count and rating average. Their worker-data metadata marks the new person-linked audience; retention stays with their 24-month Guest facts and metric formulae, version ids and source rules are unchanged. No click, note or Google metric gains this consumer. It is a read audience, not a gamification consumer. Only qualified scans may drive a target on a personal Portal or a Group holding one; `STAFF_SCAN_TARGETS_ENABLED` is default off and gates new targets and staff goal reads.
-
-## Manager staff scan targets
-
-Personal Portal and Group subjects holding people admit only qualified scans,
-with every member collecting private ratings. Tagged refusals are explained by
-the server boundary. The same checks apply to creation, subject changes, target
-changes and resuming a goal; commit checks share Portal's Property fence.
-
-The Add picker offers staff subjects only while STAFF_SCAN_TARGETS_ENABLED is
-on. A person gets an empty number field and no recommendation; Groups may use a
-scan recommendation. Change sheets retain the same restriction. Off projects
-existing staff targets as Paused in manager reads without changing stored goals;
-the separate staff read exposes no progress. Employment-decision eligibility and
-all staff metric allowlists remain unchanged.
-
-Recommendations still include personal Portals in the Property number. Monthly
-goal contribution lists combine them into "Staff portals: N", retaining their
-sum. The Portals overview's manager-only high-rating hint is presentation over
-the displayed Property window; it produces no event, notice, order or count.
+- Unit tests sit beside their domain, use-case, repository, adapter and server subjects;
+  integration tests (`*.integration.test.ts`) exercise PostgreSQL constraints, projections
+  and rights.

@@ -18,7 +18,6 @@ const suffix = randomUUID()
 const USER_ID = `asset-user-${suffix}`
 const OTHER_USER_ID = `asset-other-user-${suffix}`
 const ORG_ID = `asset-org-${suffix}`
-const PURGING_ORG_ID = `asset-purging-org-${suffix}`
 const AT = new Date('2026-08-01T00:00:00.000Z')
 
 const avatarKey = (userId = USER_ID) => `avatars/${userId}/${randomUUID()}`
@@ -43,87 +42,19 @@ const setLogo = (id: string, logo: string | null) =>
 const setImage = (id: string, image: string | null) =>
   lease.pool.query(`UPDATE "user" SET image = $2 WHERE id = $1`, [id, image])
 
-/** Walks the live authority to `purging` the way the coordinator would. */
-const advanceToPurging = async (organizationId: string): Promise<void> => {
-  const lineage = randomUUID()
-  await lease.pool.query(
-    `UPDATE organization_lifecycle_authority
-     SET state = 'closure_requested', revision = 1,
-         closure_lineage_id = $2, closure_requested_at = $3,
-         recoverable_until = $4, reactivation_required = true,
-         requested_by = 'admin:asset-test', request_reason_code = 'test_workspace',
-         request_support_evidence_ref = 'test:closure-request',
-         last_transition_at = $3, last_actor_id = 'admin:asset-test',
-         last_reason_code = 'test_workspace',
-         last_support_evidence_ref = 'test:closure-request'
-     WHERE organization_id = $1`,
-    [organizationId, lineage, AT, new Date('2026-08-31T00:00:00.000Z')],
-  )
-  const steps = [
-    ['closing', 'closing_prepared', 2],
-    ['purge_pending', 'recovery_window_elapsed', 3],
-    ['purging', 'irreversible_purge_authorized', 4],
-  ] as const
-  for (const [state, reason, revision] of steps) {
-    await lease.pool.query(
-      `UPDATE organization_lifecycle_authority
-       SET state = $2, revision = $3, last_transition_at = $4,
-           last_actor_id = 'system:lifecycle', last_reason_code = $5,
-           last_support_evidence_ref = 'test:phase',
-           irreversible_at = CASE WHEN $2 = 'purging' THEN $4 ELSE irreversible_at END
-       WHERE organization_id = $1`,
-      [
-        organizationId,
-        state,
-        revision,
-        new Date(AT.getTime() + revision * 86_400_000),
-        reason,
-      ],
-    )
-  }
-}
-
-/** Receipts are append-only in production; test cleanup fences the guard. */
-const deleteReceipts = async (organizationIds: readonly string[]): Promise<void> => {
-  const client = await lease.pool.connect()
-  try {
-    await client.query('BEGIN')
-    await client.query(
-      `ALTER TABLE organization_lifecycle_events
-       DISABLE TRIGGER organization_lifecycle_events_append_only`,
-    )
-    await client.query(
-      `DELETE FROM organization_lifecycle_events WHERE organization_id = ANY($1::text[])`,
-      [organizationIds],
-    )
-    await client.query(
-      `ALTER TABLE organization_lifecycle_events
-       ENABLE TRIGGER organization_lifecycle_events_append_only`,
-    )
-    await client.query('COMMIT')
-  } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
-  } finally {
-    client.release()
-  }
-}
-
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL, 2)
   db = drizzle(lease.pool) as Database
   await seedUser(USER_ID, null)
   await seedUser(OTHER_USER_ID, null)
   await seedOrganization(ORG_ID, null)
-  await seedOrganization(PURGING_ORG_ID, null)
 })
 
 afterAll(async () => {
   await lease.pool.query(`DELETE FROM "user" WHERE id = ANY($1)`, [
     [USER_ID, OTHER_USER_ID],
   ])
-  await deleteReceipts([ORG_ID, PURGING_ORG_ID])
-  await deleteTestOrganizations(lease.pool, [ORG_ID, PURGING_ORG_ID])
+  await deleteTestOrganizations(lease.pool, [ORG_ID])
   await lease.release()
 })
 
@@ -192,17 +123,6 @@ describe('identity asset references', () => {
 
     expect(await references.isReferenced(first)).toBe(false)
     expect(await references.isReferenced(second)).toBe(true)
-  })
-
-  it('stops serving a logo once the organization is being purged', async () => {
-    const references = createIdentityAssetReferences(db)
-    const key = logoKey(PURGING_ORG_ID)
-    await setLogo(PURGING_ORG_ID, identityAssetPath(key))
-    expect(await references.isReferenced(key)).toBe(true)
-
-    await advanceToPurging(PURGING_ORG_ID)
-
-    expect(await references.isReferenced(key)).toBe(false)
   })
 
   it('serves nothing for a key of another shape', async () => {

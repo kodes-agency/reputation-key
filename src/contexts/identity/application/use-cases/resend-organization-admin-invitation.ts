@@ -17,12 +17,12 @@ import type {
   PlatformOperatorActor,
   ResendOrganizationAdminInvitationResult,
 } from '../dto/platform-console.dto'
-import type { PlatformOrganizationStore } from '../ports/platform-organization-store.port'
-import { readPermittedInvitation } from '../platform-administration'
+import type { PlatformOrganizationStore } from '../../operator/platform-organization-store.port.server'
+import { readPermittedInvitation } from '../../operator/platform-administration.server'
 import {
   sendAdminInvitationEmail,
   type AdminInvitationEmailDeps,
-} from '../platform-admin-invitation'
+} from '../../operator/platform-admin-invitation.server'
 
 export type ResendOrganizationAdminInvitationDeps = AdminInvitationEmailDeps &
   Readonly<{
@@ -40,7 +40,7 @@ export const resendOrganizationAdminInvitation =
   (deps: ResendOrganizationAdminInvitationDeps): ResendOrganizationAdminInvitation =>
   async (input, operator) => {
     const { organizationId, invitationId, administration } =
-      await readPermittedInvitation(deps.store, input, { requireActive: true })
+      await readPermittedInvitation(deps.store, input)
 
     const now = deps.clock()
     const renewed = await deps.store.renewAdminInvitation(
