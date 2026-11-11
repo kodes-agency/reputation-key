@@ -23,7 +23,7 @@ import type {
   PortalCommandStore,
   SavePortalLinkTextsCommand,
   SavePortalLinktreeSettingsCommand,
-} from '../application/ports/portal-command-store.port'
+} from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { portalPageEditKey } from '../domain/portal-page-edit'
 import { fencePortalContent } from '../infrastructure/portal-aggregate-fence'
