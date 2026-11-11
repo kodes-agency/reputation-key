@@ -119,19 +119,6 @@ function observation(
   }
 }
 
-async function legacyCopy() {
-  const result = await pool().query(
-    `SELECT reviewer_name, reviewer_profile_photo_url, google_review_url,
-            rating, text, translated_text, language_code, reviewed_at, expires_at,
-            source_created_at, source_updated_at, last_fetched_at,
-            content_expires_at, content_hash, ai_source_byte_length, ai_source_digest
-     FROM reviews WHERE id = $1 AND organization_id = $2`,
-    [REVIEW, ORG],
-  )
-  expect(result.rows).toHaveLength(1)
-  return result.rows[0]
-}
-
 async function firstFetchHistory(): Promise<Date | null> {
   const result = await pool().query<{ first_fetched_at: Date | null }>(
     'SELECT first_fetched_at FROM reviews WHERE id = $1 AND organization_id = $2',
@@ -154,26 +141,12 @@ async function assertServedText(text: string): Promise<void> {
 }
 
 describe.sequential('provider content writes and serving', () => {
-  it('ingests and edits content in its source row while leaving the reviews copy unwritten', async () => {
+  it('ingests and edits content in its source row', async () => {
     const ingested = await repo.upsert(observation(), NOW)
     expect(ingested.text).toBe(ORIGINAL)
     await assertServedText(ORIGINAL)
-    expect(Object.values(await legacyCopy())).toEqual(
-      Array.from({ length: 16 }, () => null),
-    )
     expect(await firstFetchHistory()).toEqual(NOW)
 
-    // An old row can still hold a cache copy until the schema contraction.
-    // Advancing live content must neither read from nor refresh that copy.
-    await pool().query(
-      `UPDATE reviews SET text = 'An obsolete copy', rating = 1,
-         reviewer_name = 'An obsolete name',
-         last_fetched_at = $2, content_expires_at = $3,
-         ai_source_byte_length = 1, ai_source_digest = $4
-       WHERE id = $1`,
-      [REVIEW, REVIEWED_AT, EXPIRES_AT, 'f'.repeat(64)],
-    )
-    const beforeEdit = await legacyCopy()
     const editedAt = new Date(NOW.getTime() + DAY)
     const edited = await repo.upsert(
       observation(EDITED, {
@@ -188,7 +161,6 @@ describe.sequential('provider content writes and serving', () => {
 
     expect(edited.sourceRevision).toBe(ingested.sourceRevision + 1)
     await assertServedText(EDITED)
-    expect(await legacyCopy()).toEqual(beforeEdit)
     expect(await firstFetchHistory()).toEqual(NOW)
     const history = await pool().query<{ original_text: string }>(
       `SELECT original_text FROM review_source_observations
@@ -214,9 +186,6 @@ describe.sequential('provider content writes and serving', () => {
     expect(restated.lastFetchedAt).toEqual(fetchedAt)
     expect(restated.contentExpiresAt).toEqual(renewedUntil)
     await assertServedText('The room was clean. It was quiet.')
-    expect(Object.values(await legacyCopy())).toEqual(
-      Array.from({ length: 16 }, () => null),
-    )
     expect(await firstFetchHistory()).toEqual(NOW)
 
     // Replaying an already recorded provider read is no new fetch authority.
@@ -271,7 +240,7 @@ describe.sequential('provider content writes and serving', () => {
     expect(await firstFetchHistory()).toEqual(NOW)
   })
 
-  it('uses the source expiry across snippets, filters, AI and every stats read despite a future legacy clock', async () => {
+  it('uses the source expiry across snippets, filters, AI and every stats read', async () => {
     await repo.upsert(observation(), NOW)
     const from = new Date(REVIEWED_AT.getTime() - DAY)
     const to = new Date(NOW.getTime() + DAY)
@@ -286,10 +255,6 @@ describe.sequential('provider content writes and serving', () => {
         countSince: [from],
       }),
     ).toMatchObject({ all: { count: 1, sum: 4 } })
-    await pool().query(
-      `UPDATE reviews SET content_expires_at = $2, rating = 5, reviewed_at = $3 WHERE id = $1`,
-      [REVIEW, EXPIRES_AT, REVIEWED_AT],
-    )
     await pool().query(
       'UPDATE review_source_contents SET content_expires_at = $2 WHERE review_id = $1',
       [REVIEW, new Date(NOW.getTime() - DAY)],

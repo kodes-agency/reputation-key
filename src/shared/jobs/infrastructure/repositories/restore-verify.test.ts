@@ -109,17 +109,27 @@ function memoryIO(): OperatorIO & { outLines: string[]; errLines: string[] } {
 
 async function seedReview(id: string, contentExpiresAt: Date): Promise<void> {
   await db.execute(sql`
-    INSERT INTO reviews (
-      id, organization_id, property_id, platform, external_id,
-      external_location_id, rating, reviewed_at, expires_at, content_expires_at,
-      source_epoch, source_revision, analysis_sequence,
+    WITH identity AS (
+      INSERT INTO reviews (
+        id, organization_id, property_id, platform, external_id,
+        external_location_id, expires_at, first_fetched_at,
+        source_epoch, source_revision, analysis_sequence
+      ) VALUES (
+        ${id}, ${ORG}, ${PROPERTY}, 'google', ${'ext-' + id},
+        ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, now(), now(), 0, 0, 0
+      )
+      ON CONFLICT (id) DO NOTHING
+      RETURNING id
+    ) INSERT INTO review_source_contents (
+      review_id, organization_id, property_id, platform, external_id,
+      external_location_id, rating, reviewed_at, content_expires_at,
+      first_fetched_at, last_fetched_at, source_epoch, source_revision,
       ai_source_byte_length, ai_source_digest
-    ) VALUES (
-      ${id}, ${ORG}, ${PROPERTY}, 'google', ${'ext-' + id},
-      ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, 4, now(), now(), ${contentExpiresAt},
-      0, 0, 0, 1, ${'0'.repeat(64)}
-    )
-    ON CONFLICT (id) DO NOTHING
+    ) SELECT
+      id, ${ORG}, ${PROPERTY}, 'google', ${'ext-' + id},
+      ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, 4, now(), ${contentExpiresAt},
+      now(), now(), 0, 0, 1, ${'0'.repeat(64)}
+    FROM identity
   `)
 }
 

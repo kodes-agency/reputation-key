@@ -7,6 +7,7 @@ import { getEnv } from '#/shared/config/env'
 import { getDb, type Database } from '#/shared/db'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { seedReviewContent } from '#/contexts/ai/infrastructure/testing/review-content-fixture'
 import { createReplyLibraryRepository } from './reply-library.repository'
 
 const ORG = organizationId('org-reply-library-repository-0001')
@@ -374,7 +375,7 @@ describe.sequential('AI frame reservations (PostgreSQL)', () => {
       '81000000-0000-4000-8000-000000000032',
     ]
     for (const [index, id] of ids.entries()) {
-      await db.insert(reviews).values({
+      await seedReviewContent({
         id,
         organizationId: ORG,
         propertyId: PROPERTY,
@@ -384,6 +385,7 @@ describe.sequential('AI frame reservations (PostgreSQL)', () => {
         rating: 1,
         text: 'The review now has a low rating.',
         reviewedAt: NOW,
+        contentExpiresAt: new Date(NOW.getTime() + 30 * 86_400_000),
         sourceEpoch: 0,
         sourceRevision: 1,
         analysisSequence: 1,

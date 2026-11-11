@@ -129,11 +129,8 @@ async function storedReviewContent(reviewIds: string[]) {
     text: string
     source_content_state: string
     content_expires_at: Date
-    legacy_text: string | null
-    legacy_deadline: Date | null
   }>(
-    `SELECT r.id, c.text, r.source_content_state, c.content_expires_at,
-            r.text AS legacy_text, r.content_expires_at AS legacy_deadline
+    `SELECT r.id, c.text, r.source_content_state, c.content_expires_at
      FROM reviews r
      JOIN review_source_contents c ON c.review_id = r.id
      WHERE r.organization_id = $1 AND r.id = ANY($2::uuid[])
@@ -273,8 +270,6 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     for (const row of contentBeforeDisconnect) {
       expect(row.source_content_state).toBe('active')
       expect(row.text).toBeTruthy()
-      expect(row.legacy_text).toBeNull()
-      expect(row.legacy_deadline).toBeNull()
       expect(row.content_expires_at.getTime()).toBeGreaterThan(Date.now())
     }
 

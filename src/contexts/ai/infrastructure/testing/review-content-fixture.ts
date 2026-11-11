@@ -1,13 +1,32 @@
 import { getDb } from '#/shared/db'
 import { reviews, reviewSourceContents } from '#/shared/db/schema'
 
-type ReviewSeed = typeof reviews.$inferInsert & {
-  id: string
-  externalId: string
-  rating: number
-  reviewedAt: Date
-  contentExpiresAt: Date
-}
+type ContentInsert = typeof reviewSourceContents.$inferInsert
+
+type ReviewSeed = typeof reviews.$inferInsert &
+  Partial<
+    Pick<
+      ContentInsert,
+      | 'reviewerName'
+      | 'reviewerProfilePhotoUrl'
+      | 'googleReviewUrl'
+      | 'text'
+      | 'translatedText'
+      | 'languageCode'
+      | 'sourceCreatedAt'
+      | 'sourceUpdatedAt'
+      | 'lastFetchedAt'
+      | 'contentHash'
+      | 'aiSourceByteLength'
+      | 'aiSourceDigest'
+    >
+  > & {
+    id: string
+    externalId: string
+    rating: number
+    reviewedAt: Date
+    contentExpiresAt: Date
+  }
 
 /** A stable Review and its provider row, without a second provider copy. */
 export async function seedReviewContent(input: ReviewSeed | ReviewSeed[]): Promise<void> {

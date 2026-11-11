@@ -5,8 +5,8 @@
 //
 //   (Translated by Google) <translation>\n\n(Original)\n<original>
 //
-// The provider adapter stored that raw, so `reviews.text` held a two-language
-// blob. `reviews.language_code` is NULL for every row (Google sends no language
+// The provider adapter stored that raw, so `review_source_contents.text` held a two-language
+// blob. `review_source_contents.language_code` is NULL for every row (Google sends no language
 // field), which makes local cld3 detection the ONLY language signal — and it was
 // reading Google's English translation instead of the guest's words. Measured on
 // the closed-beta property: 8 Bulgarian reviews scored as reliable English (an

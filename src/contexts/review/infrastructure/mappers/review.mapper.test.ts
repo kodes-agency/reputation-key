@@ -3,11 +3,10 @@ import { reviewIdentityValues } from '#/contexts/reputation/application/public-a
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect } from 'vitest'
-import { reviewFromRow } from './review.mapper'
-import type { reviews } from '#/shared/db/schema/review.schema'
+import { reviewFromRow, type ReviewHeadRow } from './review.mapper'
 import { isReviewError } from '../../domain/errors'
 
-type ReviewRow = typeof reviews.$inferSelect
+type ReviewRow = ReviewHeadRow
 
 const now = new Date('2025-06-01T12:00:00Z')
 const reviewedAt = new Date('2025-05-27T12:00:00Z')
@@ -122,13 +121,13 @@ describe('reviewFromRow', () => {
     const review = reviewFromRow(row)
     expect(review.text).toBe('Ок')
     expect(review.translatedText).toBe('Ok')
-    expect(reviewIdentityValues(review).translatedText).toBeUndefined()
+    expect(reviewIdentityValues(review)).not.toHaveProperty('translatedText')
   })
 
   it('reads a missing translation as null without adding an identity copy', () => {
     const review = reviewFromRow(sampleRow)
     expect(review.translatedText).toBeNull()
-    expect(reviewIdentityValues(review).translatedText).toBeUndefined()
+    expect(reviewIdentityValues(review)).not.toHaveProperty('translatedText')
   })
 
   it('throws a tagged ReviewError (not bare Error) for an invalid platform', () => {
@@ -172,15 +171,16 @@ describe('reviewIdentityValues', () => {
     expect(row.externalId).toBeUndefined()
     expect(row.externalLocationId).toBeUndefined()
     expect(row.googleConnectionId).toBe(sampleRow.googleConnectionId)
-    expect(row.reviewerName).toBeUndefined()
-    expect(row.reviewerProfilePhotoUrl).toBeUndefined()
-    expect(row.googleReviewUrl).toBeUndefined()
-    expect(row.rating).toBeUndefined()
-    expect(row.text).toBeUndefined()
-    expect(row.languageCode).toBeUndefined()
-    expect(row.reviewedAt).toBeUndefined()
-    expect(row.expiresAt).toBeUndefined()
+    const written: Record<string, unknown> = row
     for (const field of [
+      'reviewerName',
+      'reviewerProfilePhotoUrl',
+      'googleReviewUrl',
+      'rating',
+      'text',
+      'languageCode',
+      'reviewedAt',
+      'expiresAt',
       'sourceCreatedAt',
       'sourceUpdatedAt',
       'lastFetchedAt',
@@ -188,8 +188,8 @@ describe('reviewIdentityValues', () => {
       'contentHash',
       'aiSourceByteLength',
       'aiSourceDigest',
-    ] as const) {
-      expect(row[field]).toBeUndefined()
+    ]) {
+      expect(written[field]).toBeUndefined()
     }
     expect(row.firstFetchedAt).toBe(sampleRow.firstFetchedAt)
     expect(row.sourceEpoch).toBe(sampleRow.sourceEpoch)

@@ -439,11 +439,7 @@ describe.sequential('Review source event delivery-order convergence', () => {
     await pool.query(
       `UPDATE reviews SET
          external_id = NULL, external_location_id = NULL,
-         google_connection_id = NULL, reviewer_name = NULL,
-         reviewer_profile_photo_url = NULL, rating = NULL, text = NULL,
-         translated_text = NULL, language_code = NULL, reviewed_at = NULL,
-         source_created_at = NULL, source_updated_at = NULL, content_hash = NULL,
-         ai_source_byte_length = NULL, ai_source_digest = NULL,
+         google_connection_id = NULL,
          source_content_state = 'source_expired', source_content_erased_at = $2,
          updated_at = $2
        WHERE organization_id = $1`,

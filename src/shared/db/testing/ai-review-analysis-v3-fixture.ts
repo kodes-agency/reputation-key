@@ -15,6 +15,7 @@ import {
   aiReviewAnalyses,
   materialReviewRevisions,
   properties,
+  reviewSourceContents,
   reviews,
 } from '#/shared/db/schema'
 import { deleteTestOrganizationsWithExecutor } from './test-organization-cleanup'
@@ -135,21 +136,34 @@ export async function installAiAnalysisFixture(
       const operationId = randomUUID()
       const isV3 = seed.profile === 'review-analysis-v3'
       const attention = seed.attention ?? 'high'
+      const contentExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
       await db.insert(reviews).values({
         id: reviewId,
         organizationId,
         propertyId,
         platform: 'google',
+        firstFetchedAt: now,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: seed.analysisSequence,
+      })
+      await db.insert(reviewSourceContents).values({
+        reviewId,
+        organizationId,
+        propertyId,
+        platform: 'google',
         externalId: `ai-v3-fixture-${reviewId}`,
+        externalLocationId: 'locations/ai-v3-fixture',
         reviewerName: 'Synthetic reviewer',
         rating: 2,
         text: 'Synthetic review',
         languageCode: 'en',
         reviewedAt: now,
-        contentExpiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+        firstFetchedAt: now,
+        lastFetchedAt: now,
+        contentExpiresAt,
         sourceEpoch: SOURCE_EPOCH,
         sourceRevision: SOURCE_REVISION,
-        analysisSequence: seed.analysisSequence,
         aiSourceByteLength: 16,
         aiSourceDigest: SYNTHETIC_DIGEST,
       })

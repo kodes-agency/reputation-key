@@ -67,7 +67,7 @@ UNENFORCED). A stored row past that age goes when a later fetch re-observes the
 Review (the expired content is erased and what Google returned replaces it),
 when Google confirms the Review deleted, or with an Organization purge.
 
-**ADR 0031 compliance:** During the rolling expand phase, writers atomically dual-write `review_source_contents` and nullable compatibility fields on `reviews`. Expiry/provider deletion deletes the source-content row and nulls every raw compatibility field; the stable Review ID and RepKey-owned Replies remain. Reader cutover and compatibility-column contraction require the governed parity seal.
+**ADR 0031 compliance:** Provider content lives only in `review_source_contents`; `reviews` keeps identity and state. Expiry/provider deletion deletes the source-content row; the stable Review ID and RepKey-owned Replies remain.
 
 ### 4. User-Authored Content
 

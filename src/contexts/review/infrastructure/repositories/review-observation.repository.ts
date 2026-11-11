@@ -37,7 +37,12 @@ import type {
   ReviewProviderObservationOrigin,
   ReviewResponseTargetEligibility,
 } from '../../application/ports/response-target-authority.port'
-import { reviewFromRow, reviewFromRows } from '../mappers/review.mapper'
+import {
+  reviewFromRow,
+  reviewFromRows,
+  reviewHeadWithoutContent,
+  type ReviewHeadRow,
+} from '../mappers/review.mapper'
 import {
   upsertReviewSourceContent,
   writeObservedReviewIdentity,
@@ -78,7 +83,7 @@ function fallbackObservationKey(observationDigest: string, observedAt: Date): st
   )
 }
 
-function currentMaterial(row: ReviewRow) {
+function currentMaterial(row: ReviewHeadRow) {
   return {
     materialRevision: Math.max(1, row.sourceRevision),
     normalizationVersion: row.materialNormalizationVersion ?? 'legacy-unverified-v0',
@@ -240,7 +245,7 @@ type ObservationInput = Readonly<{
 /** Google's updateTime for the stored head and for this read, the latter null
  * when Google sent none. An unmoved one is no guest edit. */
 function providerUpdateTimes(
-  existing: ReviewRow | null,
+  existing: ReviewHeadRow | null,
   input: ObservationInput,
 ): ProviderUpdateTimes {
   const reported =
@@ -292,7 +297,7 @@ async function lockStableIdentity(
 async function readObservationHead(
   tx: Tx,
   existing: ReviewRow | null,
-): Promise<ReviewRow | null> {
+): Promise<ReviewHeadRow | null> {
   if (existing == null) return null
   const [content] = await tx
     .select()
@@ -304,20 +309,7 @@ async function readObservationHead(
         eq(reviewSourceContents.propertyId, existing.propertyId),
       ),
     )
-  if (!content)
-    return {
-      ...existing,
-      rating: null,
-      text: null,
-      reviewedAt: null,
-      sourceCreatedAt: null,
-      sourceUpdatedAt: null,
-      firstFetchedAt: null,
-      lastFetchedAt: null,
-      contentExpiresAt: null,
-      aiSourceDigest: null,
-      aiSourceByteLength: null,
-    }
+  if (!content) return reviewHeadWithoutContent(existing)
   return { ...existing, ...reviewFromRows(existing, content) }
 }
 
@@ -361,7 +353,7 @@ async function assertProviderIdentityScope(
  * historical reply/publication foreign-key targets.
  */
 function bindMaterialRevisionToSourceEpoch(
-  existing: ReviewRow | null,
+  existing: ReviewHeadRow | null,
   sourceEpoch: number,
   material: MaterialReviewComparisonResult,
 ): MaterialReviewComparisonResult {
@@ -389,7 +381,7 @@ function bindMaterialRevisionToSourceEpoch(
 async function findReplayedObservation(
   tx: Tx,
   input: ObservationInput,
-  existing: ReviewRow | null,
+  existing: ReviewHeadRow | null,
   observationKey: string,
   observationDigest: string,
 ): Promise<PersistedReviewObservation | null> {
@@ -446,7 +438,7 @@ const aiDraftScope = (review: ReviewRow) => ({
 async function recordOutOfOrderObservation(
   tx: Tx,
   input: ObservationInput,
-  existing: ReviewRow,
+  existing: ReviewHeadRow,
   material: ReturnType<typeof compareMaterialReviewRevision>,
   observationSequence: number,
   observationKey: string,
@@ -502,7 +494,7 @@ async function recordOutOfOrderObservation(
  */
 async function rereadsHeadObservation(
   tx: Tx,
-  existing: ReviewRow,
+  existing: ReviewHeadRow,
   input: ObservationInput,
   material: MaterialReviewComparisonResult,
   observationDigest: string,
@@ -550,7 +542,7 @@ async function rereadsHeadObservation(
  * time this content was seen; `updated_at` is the latest fetch that returned it. */
 async function refreshHeadObservation(
   tx: Tx,
-  existing: ReviewRow,
+  existing: ReviewHeadRow,
   observedReview: Omit<Review, 'createdAt' | 'updatedAt'>,
   observationDigest: string,
   observedAt: Date,

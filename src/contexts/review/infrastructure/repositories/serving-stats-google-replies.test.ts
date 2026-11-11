@@ -61,19 +61,15 @@ async function insertReview(id: string, seed: ReviewSeed = {}): Promise<void> {
   await pool.query(
     `INSERT INTO reviews (
        id, organization_id, property_id, platform, external_id,
-       external_location_id, reviewer_name, rating, text, reviewed_at,
-       expires_at, content_expires_at, first_fetched_at, last_fetched_at,
-       source_epoch, source_revision, analysis_sequence,
-       ai_source_byte_length, ai_source_digest
-     ) VALUES ($1, $2, $3, 'google', $4, $5, 'Guest', 4, 'A good stay', $6,
-               $7, $7, $8, $8, 0, 1, 0, 1, repeat('0', 64))`,
+       external_location_id, expires_at, first_fetched_at,
+       source_epoch, source_revision, analysis_sequence
+     ) VALUES ($1, $2, $3, 'google', $4, $5, $6, $7, 0, 1, 0)`,
     [
       id,
       org,
       prop,
       `ext-${id}`,
       GOOGLE_LOCATION_PRIMARY_RESOURCE,
-      seed.reviewedAt ?? new Date('2026-10-05T00:00:00.000Z'),
       seed.contentExpiresAt ?? SERVABLE_UNTIL,
       NOW,
     ],
@@ -86,11 +82,11 @@ async function insertReview(id: string, seed: ReviewSeed = {}): Promise<void> {
        source_epoch, source_revision, ai_source_byte_length, ai_source_digest
      )
      SELECT id, organization_id, property_id, platform, external_id,
-            external_location_id, reviewer_name, rating, text, reviewed_at,
-            first_fetched_at, last_fetched_at, content_expires_at,
-            source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+            external_location_id, 'Guest', 4, 'A good stay', $2,
+            first_fetched_at, first_fetched_at, expires_at,
+            source_epoch, source_revision, 1, repeat('0', 64)
      FROM reviews WHERE id = $1`,
-    [id],
+    [id, seed.reviewedAt ?? new Date('2026-10-05T00:00:00.000Z')],
   )
   // The material revision every reply observation binds to.
   await pool.query(
