@@ -1,8 +1,24 @@
-import { describe, it, expect } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, it, expect } from 'vitest'
+import type { Pool } from 'pg'
 import { resolveEscalation } from './resolve-escalation'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import {
+  dropInboxUseCaseTenant,
+  runScopedId,
+} from '../../infrastructure/inbox-database-fixtures-use-case-ids'
+import {
+  clearInboxUseCaseRows,
+  createUseCaseCommandStore,
+  createUseCaseDatabase,
+  createUseCaseInboxRepository,
+  openFixturePool,
+  readCommittedFacts,
+} from '../../infrastructure/inbox-database-fixtures-use-cases'
+import {
+  seedInboxItem,
+  seedInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures'
 import { isInboxError } from '../../domain/errors'
 import {
   inboxItemId,
@@ -20,9 +36,13 @@ import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
-const ORG_ID = organizationId('org-1')
-const ITEM_ID = inboxItemId('ii-1')
+const ORG_ID = organizationId('org-resolve-escalation-test')
+const ITEM_ID = inboxItemId(runScopedId('7d000000-0000-4000-8000-000000000011'))
 const USER_ID = userId('user-1')
+const PROP_1 = propertyId(runScopedId('7d000000-0000-4000-8000-000000000001'))
+const PROP_OTHER = propertyId(runScopedId('7d000000-0000-4000-8000-000000000002'))
+const REVIEW_ID = reviewId(runScopedId('7d000000-0000-4000-8000-000000000021'))
+const FEEDBACK_ID = feedbackId(runScopedId('7d000000-0000-4000-8000-000000000022'))
 
 const ctxFor = (role: Role): AuthContext =>
   ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
@@ -41,19 +61,19 @@ function seedEscalated(overrides?: Partial<InboxItem>): InboxItem {
   return {
     id: ITEM_ID,
     organizationId: ORG_ID,
-    propertyId: propertyId('prop-1'),
+    propertyId: PROP_1,
     sourceType: 'review',
-    sourceId: reviewId('rev-1'),
+    sourceId: REVIEW_ID,
     status: 'open',
     rating: 4,
-    sourceDate: new Date('2026-04-10'),
+    sourceDate: new Date('2026-04-10T00:00:00Z'),
     platform: 'google',
     snippet: 'Great!',
     assignedTo: null,
     reviewerName: null,
     propertyName: null,
     isEscalated: true,
-    escalatedAt: new Date('2026-04-11'),
+    escalatedAt: new Date('2026-04-11T00:00:00Z'),
     escalatedBy: USER_ID,
     escalationResolvedAt: null,
     escalationResolvedBy: null,
@@ -72,71 +92,88 @@ const allAccess: StaffPublicApi = {
   getAssignedPortals: async () => [],
 }
 
-const setup = (staffPublicApi: StaffPublicApi = allAccess) => {
-  const repo = createInMemoryInboxRepo()
-  const events = createRecordedOutbox()
-  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
-  const execute = resolveEscalation({
-    repo,
-    commandStore,
-    clock: () => FIXED_TIME,
-    staffPublicApi,
-  })
-  type CommandInput = Parameters<typeof execute>[0]
-  const useCase = (
-    input: Omit<CommandInput, 'expectedCommandRevision'> &
-      Partial<Pick<CommandInput, 'expectedCommandRevision'>>,
-    ctx: AuthContext,
-  ) =>
-    execute(
-      {
-        ...input,
-        expectedCommandRevision:
-          input.expectedCommandRevision ??
-          repo.items.find((item) => item.id === input.inboxItemId)?.commandRevision ??
-          1,
-      },
-      ctx,
-    )
-  return { useCase, repo, events }
-}
+describe.sequential('resolveEscalation', () => {
+  const db = createUseCaseDatabase()
+  let pool: Pool
 
-describe('resolveEscalation', () => {
+  const setup = (staffPublicApi: StaffPublicApi = allAccess) => {
+    const repo = createUseCaseInboxRepository(db, () => FIXED_TIME)
+    const execute = resolveEscalation({
+      repo,
+      commandStore: createUseCaseCommandStore(db, () => FIXED_TIME),
+      clock: () => FIXED_TIME,
+      staffPublicApi,
+    })
+    type CommandInput = Parameters<typeof execute>[0]
+    const useCase = async (
+      input: Omit<CommandInput, 'expectedCommandRevision'> &
+        Partial<Pick<CommandInput, 'expectedCommandRevision'>>,
+      ctx: AuthContext,
+    ) =>
+      execute(
+        {
+          ...input,
+          expectedCommandRevision:
+            input.expectedCommandRevision ??
+            (await repo.findById(input.inboxItemId, ORG_ID))?.commandRevision ??
+            1,
+        },
+        ctx,
+      )
+    const seed = (item: InboxItem) => seedInboxItem(pool, db, item, () => FIXED_TIME)
+    return { useCase, seed }
+  }
+
+  beforeAll(async () => {
+    pool = openFixturePool()
+    clearEventSchemas()
+    registerAllEventSchemas()
+    await seedInboxOrganization(pool, ORG_ID, [PROP_1, PROP_OTHER])
+  })
+
+  beforeEach(() => clearInboxUseCaseRows(pool, ORG_ID))
+
+  afterAll(async () => {
+    clearEventSchemas()
+    await dropInboxUseCaseTenant(pool, ORG_ID, [PROP_1, PROP_OTHER])
+    await pool.end()
+  })
+
   it('clears the escalation flag', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedEscalated())
+    const { useCase, seed } = setup()
+    await seed(seedEscalated())
 
     const updated = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(updated.isEscalated).toBe(false)
-    expect(updated.escalationResolvedAt).toBe(FIXED_TIME)
+    expect(updated.escalationResolvedAt).toEqual(FIXED_TIME)
     expect(updated.escalationResolvedBy).toBe(USER_ID)
     expect(updated.commandRevision).toBe(2)
   })
 
   it('records the escalation_resolved fact', async () => {
-    const { useCase, repo, events } = setup()
-    repo.items.push(seedEscalated())
+    const { useCase, seed } = setup()
+    await seed(seedEscalated())
 
     await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
-    const facts = events.facts
+    const facts = await readCommittedFacts(pool, ORG_ID)
     expect(facts).toHaveLength(1)
-    expect(facts[0]._tag).toBe('inbox.inbox_item.escalation_resolved')
+    expect(facts[0]!.eventType).toBe('inbox.inbox_item.escalation_resolved')
   })
 
   it('is idempotent when not actively escalated', async () => {
-    const { useCase, repo, events } = setup()
-    repo.items.push(seedEscalated({ isEscalated: false }))
+    const { useCase, seed } = setup()
+    await seed(seedEscalated({ isEscalated: false }))
 
     await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
-    expect(events.facts).toHaveLength(0)
+    expect(await readCommittedFacts(pool, ORG_ID)).toHaveLength(0)
   })
 
   it('does not change status', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedEscalated({ status: 'closed' }))
+    const { useCase, seed } = setup()
+    await seed(seedEscalated({ status: 'closed' }))
 
     const updated = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
@@ -152,10 +189,8 @@ describe('resolveEscalation', () => {
   })
 
   it('requires feedback.handle to resolve private-feedback escalation', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(
-      seedEscalated({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
-    )
+    const { useCase, seed } = setup()
+    await seed(seedEscalated({ sourceType: 'feedback', sourceId: FEEDBACK_ID }))
 
     await expect(
       useCase({ inboxItemId: ITEM_ID }, ctxWith('inbox.write', 'feedback.read')),
@@ -165,13 +200,11 @@ describe('resolveEscalation', () => {
   })
 
   it('intersects feedback.handle scope before resolving escalation', async () => {
-    const { useCase, repo } = setup({
+    const { useCase, seed } = setup({
       ...allAccess,
-      getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+      getAccessiblePropertyIds: async () => [PROP_OTHER],
     })
-    repo.items.push(
-      seedEscalated({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
-    )
+    await seed(seedEscalated({ sourceType: 'feedback', sourceId: FEEDBACK_ID }))
 
     await expect(
       useCase(
