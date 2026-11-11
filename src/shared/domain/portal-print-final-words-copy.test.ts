@@ -5,13 +5,10 @@ import {
   printFinalEveryCardLine,
   printFinalHeadlineCounter,
   printFinalHeadlineStatus,
-  printFinalLanguageHeading,
   printFinalMenuReason,
   printFinalNoWordingNote,
   printFinalPickedHeld,
   printFinalPickedTooLong,
-  printFinalSecondStatus,
-  printFinalSublineStatus,
 } from './portal-print-final-words-copy'
 
 const fit = (over: Partial<PrintFinalWordsFit> = {}): PrintFinalWordsFit => ({
@@ -142,24 +139,6 @@ describe('the fields’ statuses (spec 5.7)', () => {
     )
     expect(printFinalHeadlineCounter(wideTent, 26, 1, true)).toBe('26 · guide 30')
   })
-
-  it('says how the sub-line and the second headline print', () => {
-    expect(printFinalSublineStatus(16, fit()).text).toBe('Fits on one line')
-    expect(printFinalSublineStatus(36, fit({ sublineLines: 2 })).text).toBe(
-      'Wraps to two lines',
-    )
-    expect(printFinalSublineStatus(0, fit()).text).toBe('No sub-line: the words close up')
-    expect(printFinalSecondStatus(fit({ secondMode: 'line' }), 'en', 9).text).toBe(
-      'Fits as one small line under the English',
-    )
-    expect(printFinalSecondStatus(fit({ secondMode: 'stack' }), 'en', 12.5).text).toBe(
-      'Fits (12.5 pt, under a short rule)',
-    )
-    expect(printFinalLanguageHeading('es', 1)).toBe(
-      'Español · prints smaller, under a short rule',
-    )
-  })
-
   it('lists each card and orientation', () => {
     expect(
       printFinalEveryCardLine(

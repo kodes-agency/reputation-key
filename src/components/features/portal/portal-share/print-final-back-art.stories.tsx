@@ -7,14 +7,18 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect } from 'storybook/test'
 import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
-import { printKitFaces } from '#/shared/domain/portal-print-kit'
 import type { PrintFinalFace } from '#/shared/domain/portal-print-final'
 import { choosePrintFinalTile } from '#/shared/domain/portal-print-final-code'
 import { printFinalLiveArea } from '#/shared/domain/portal-print-final-measures'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
-import { pointsToPixels } from './print-kit-code-block-layout'
 import { PrintFinalDrawnBackArt } from './print-final-back-art'
-import { BADGE_LOGO, DARK_LOGO, PHOTO } from './print-final-story-fixtures'
+import {
+  BADGE_LOGO,
+  DARK_LOGO,
+  PHOTO,
+  pointsToPixels,
+  storyFrontBlocks,
+} from './print-final-story-fixtures'
 import { usePrintFinalDrawnBack } from './use-print-final-drawn-back'
 import { usePrintFinalDrawnFace } from './use-print-final-drawn-face'
 
@@ -41,14 +45,10 @@ function Back({
     address: 'short',
     symbolModules: 29,
   })._unsafeUnwrap()
-  const [front] = printKitFaces(
-    { piece: 'counter_card', languages: ['en'], callToAction: 'rate' },
-    { en: 'Review us on Google' },
-    'Reception',
-  )
+  const blocks = storyFrontBlocks(['en'], { en: 'Review us on Google' }, 'Reception')
   const drawnFront = usePrintFinalDrawnFace({
     face,
-    blocks: front?.blocks ?? [],
+    blocks,
     look: print,
     tile,
   })
