@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { testEnvironment } from '#/shared/testing/test-environment'
-import { parseEnvironment } from './env'
+import { getDatabaseOperatorEnv, parseEnvironment, resetEnv } from './env'
 
 const productionEnvironment = {
   ...testEnvironment({}),
@@ -329,5 +329,39 @@ describe('STAFF_SCAN_TARGETS_ENABLED', () => {
   })
   it.each(['True', '1', 'yes', 'on', ' true', ''])('refuses %j', (value) => {
     expect(() => parse(value)).toThrow('STAFF_SCAN_TARGETS_ENABLED')
+  })
+})
+
+describe('getDatabaseOperatorEnv', () => {
+  const sign = ['BETTER_AUTH_SECRET', 'RESEND_API_KEY', 'ENCRYPTION_KEY'] as const
+  const saved = { ...process.env }
+
+  afterEach(() => {
+    process.env = { ...saved }
+    resetEnv()
+  })
+
+  it('needs no sign-in or mail settings, only the database', () => {
+    const { DATABASE_URL } = testEnvironment({})
+    process.env = { DATABASE_URL }
+    resetEnv()
+
+    expect(getDatabaseOperatorEnv().DATABASE_URL).toBe(DATABASE_URL)
+    expect(() => parseEnvironment(process.env)).toThrow(/BETTER_AUTH_SECRET/)
+  })
+
+  it('keeps the sign-in and mail settings the environment carries', () => {
+    process.env = { ...testEnvironment({}) }
+    resetEnv()
+
+    const env = getDatabaseOperatorEnv()
+    for (const name of sign) expect(env[name]).toBe(process.env[name])
+  })
+
+  it('still refuses a database setting that is not valid', () => {
+    process.env = { DATABASE_URL: 'not a url' }
+    resetEnv()
+
+    expect(() => getDatabaseOperatorEnv()).toThrow(/DATABASE_URL/)
   })
 })

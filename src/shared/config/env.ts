@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { z } from 'zod/v4'
 import { printOriginProblem } from '#/shared/config/print-origin'
 import { isRailwayPitrDatabaseUrl } from '#/shared/config/restore-mode'
@@ -628,6 +629,37 @@ export function parseEnvironment(
 export function getEnv(): Env {
   if (!_env) {
     _env = parseEnvironment(process.env)
+  }
+  return _env
+}
+
+/**
+ * Settings for an operator command that reads and writes the database and the
+ * queue Redis and nothing else. The settings only the web and mail paths use
+ * (sign-in, mail, Google OAuth, token encryption) are not required: when
+ * absent they are filled with a throwaway value no such command reads, random
+ * per process so nothing encrypted or signed with it can be used later. The
+ * rest of the schema is still checked in full. A command that sends mail,
+ * signs anyone in or calls Google boots through `getEnv`.
+ */
+export function getDatabaseOperatorEnv(): Env {
+  if (!_env) {
+    const throwaway = (bytes: number) => randomBytes(bytes).toString('hex')
+    const unused: Readonly<Record<string, string>> = {
+      BETTER_AUTH_SECRET: throwaway(32),
+      BETTER_AUTH_URL: 'http://localhost',
+      RESEND_API_KEY: throwaway(16),
+      GOOGLE_CLIENT_ID: throwaway(16),
+      GOOGLE_CLIENT_SECRET: throwaway(16),
+      ENCRYPTION_KEY: throwaway(32),
+      OAUTH_STATE_SECRET: throwaway(32),
+    }
+    _env = parseEnvironment({
+      ...unused,
+      ...Object.fromEntries(
+        Object.entries(process.env).filter(([, value]) => value !== undefined),
+      ),
+    })
   }
   return _env
 }
