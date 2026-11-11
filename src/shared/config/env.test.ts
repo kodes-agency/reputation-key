@@ -8,46 +8,6 @@ const productionEnvironment = {
   BETTER_AUTH_URL: 'https://app.reputationkey.app',
 }
 
-describe('environment parsing', () => {
-  it('admits Review recovery approval authority only as a complete isolated-restore tuple', () => {
-    const authority = {
-      REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON: '{}\n',
-      REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256: 'a'.repeat(64),
-      REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON: '{"key":"value"}',
-    }
-    expect(() => parseEnvironment({ ...testEnvironment({}), ...authority })).toThrow(
-      /allowed only in restore-isolated mode/,
-    )
-    expect(() =>
-      parseEnvironment({
-        ...testEnvironment({}),
-        RESTORE_MODE: 'isolated',
-        ...authority,
-      }),
-    ).not.toThrow()
-    expect(() =>
-      parseEnvironment({
-        ...testEnvironment({}),
-        RESTORE_MODE: 'isolated',
-        REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON:
-          authority.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON,
-      }),
-    ).toThrow(/must be configured together/)
-  })
-
-  it('refuses empty Review recovery approval artifacts', () => {
-    expect(() =>
-      parseEnvironment({
-        ...testEnvironment({}),
-        RESTORE_MODE: 'isolated',
-        REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON: '',
-        REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256: 'a'.repeat(64),
-        REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON: '',
-      }),
-    ).toThrow(/REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON: Too small/)
-  })
-})
-
 describe('Portal address keyring', () => {
   const KEY = (digit: string) => digit.repeat(64)
 

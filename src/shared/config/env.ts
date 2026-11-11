@@ -445,22 +445,6 @@ const baseEnvSchema = z.object({
   // name to DATABASE_URL's private Railway hostname and refuse public/source
   // targets. Loopback drills must also name their explicit disposable target.
   RESTORE_DATABASE_SERVICE_NAME: z.string().min(1).optional(),
-  // Restore-only, one-shot Review lifecycle recovery authority. These three
-  // values are all-or-none and are refused outside RESTORE_MODE=isolated.
-  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON: z
-    .string()
-    .min(1)
-    .max(128 * 1024)
-    .optional(),
-  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256: z
-    .string()
-    .regex(/^[0-9a-f]{64}$/)
-    .optional(),
-  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON: z
-    .string()
-    .min(1)
-    .max(64 * 1024)
-    .optional(),
   // REG-04: permanent serving attestation for a Railway PITR sibling. The
   // isolated verifier prints this exact recovery run/generation pair. Once
   // RESTORE_MODE is removed, web and worker boot query the sibling database
@@ -570,26 +554,6 @@ const envSchema = baseEnvSchema.superRefine((env, context) => {
       code: 'custom',
       path: ['RECOVERY_CUTOVER_RUN_ID'],
       message: 'Recovery cutover run ID and generation must be configured together',
-    })
-  }
-  const reviewRecoveryApprovalConfigured = [
-    env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON,
-    env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256,
-    env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON,
-  ].filter((value) => value !== undefined).length
-  if (reviewRecoveryApprovalConfigured !== 0 && reviewRecoveryApprovalConfigured !== 3) {
-    context.addIssue({
-      code: 'custom',
-      path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
-      message:
-        'Review lifecycle recovery approval bundle, digest, and public keys must be configured together',
-    })
-  } else if (reviewRecoveryApprovalConfigured === 3 && env.RESTORE_MODE !== 'isolated') {
-    context.addIssue({
-      code: 'custom',
-      path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
-      message:
-        'Review lifecycle recovery approval authority is allowed only in restore-isolated mode',
     })
   }
   if (
