@@ -271,7 +271,7 @@ async function createHarness(
     },
     operations: persistence.operations,
     outputs: {
-      storeAnalysis: vi.fn(),
+      storeAnalysisV3: vi.fn(),
       settleEphemeralReply,
       findCurrentReviewIdsByAttention: vi.fn(),
       readAnalysisForDelivery: vi.fn(),

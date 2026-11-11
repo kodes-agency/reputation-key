@@ -561,22 +561,17 @@ Nothing can run on Anthropic until it is selected, so nothing is exposed today.
 ### Analysing, storing and aggregating v3
 
 `analyze-review-event.ts` is one skeleton (authorize, read the source, claim, call the provider,
-store, settle). The v2 and v3 analysis differ at six points of it, and a
-`ReviewAnalysisContract` (`review-analysis-contract.ts`) names them: the profile facts the binding
-and the authorization gate compare, whether the source read also returns the numbered sentences,
-what is prepared before the claim, what the provider request carries beyond the review, whether a
-Property's authorization was recorded under the contract this one serves, and how the answer is
-accepted and stored. The use case knows none of it. The v2 contract
-(`review-analysis-contract-v2.ts`) is everything that used to run inline there, moved without
-change (profile facts, answer schema, the issue-label refusal, the attention formula, the call
-that stores the analysis), and is the default of the use case: a v2 claim and provider request
-are byte-for-byte what they were. `review-analysis-runtime.ts` builds v3 only when the live
-runtime catalogue names `review-analysis-v3` for `review_analysis`; since the switch-on
-(2026-10-30) the catalogue holds v3 alone and its parser refuses anything else, so every build
-runs v3 and the v2 contract is the retired form, kept so an operation claimed before the deploy
-can still be read and settled.
+store, settle). A `ReviewAnalysisContract` (`review-analysis-contract.ts`) names the points that
+depend on the analysis profile: the profile facts the binding and the authorization gate compare,
+whether the source read also returns the numbered sentences, what is prepared before the claim,
+what the provider request carries beyond the review, whether a Property's authorization was
+recorded under the contract this one serves, and how the answer is accepted and stored. The use
+case takes the contract as a dependency and knows none of it; `build.ts` always builds v3. The
+runtime catalogue holds `review-analysis-v3` alone for `review_analysis` and its parser refuses
+anything else. The v2 analysis code is gone; rows and operations it left behind stay readable
+through the profile catalogue and the stored-provenance readers.
 
-What the v3 contract (`review-analysis-contract-v3.ts`) does that v2 does not:
+What the v3 contract (`review-analysis-contract-v3.ts`) does:
 
 - Before the claim it reads the Property's Google primary category through
   `PropertyVocabularyContextPort`, resolves the vocabulary hints, and asks `AiProviderChoicePort`
@@ -591,12 +586,12 @@ What the v3 contract (`review-analysis-contract-v3.ts`) does that v2 does not:
   sentences, the hints (never the Property's name) and the provider it was claimed under, so the
   gateway can end it with `provider_profile_changed` after a switch.
 - The answer is the gateway's normalized one, checked by `reviewAnalysisV3GatewayResultSchema`
-  and never the provider's own. Attention is derived with the v2 formula
+  and never the provider's own. Attention is derived with the attention formula
   (`deriveReviewAttentionV2`) from the stored answer and the star rating, then the analysis is
   stored through `AiOutputStorePort.storeAnalysisV3`. An answer that fails the schema is a
-  charged `output_invalid`, exactly as a v2 answer that fails its schema is.
+  charged `output_invalid`.
 
-`storeAnalysisV3` writes, in the transaction the v2 write uses and under the same guards (the
+`storeAnalysisV3` writes, in one transaction and under guards (the
 source epoch and revision, the authorization lineage, the review analysis epoch, the operation's
 attempt), one `ai_review_analyses` row (`ready`, no primary category, its Urgent reason when its
 attention is urgent), the mention rows and the sentence numbers each cites
@@ -994,11 +989,11 @@ for an event that is gone.
 
 ## Reply drafting v2 contract — registered dark (B1, 2026-10-31)
 
-The served drafting selection remains `reply-drafting-runtime-v1` / `reply-suggestion-v1`.
-The notice, UI, historical profile readers and v1 wire pins are unchanged. The registered
-v2 catalogue row still has `served: false`. B2 registers its streaming execution as
-compatible with the notice already in force (ADR 0074); only a later serving selection
-can admit it through the gateway. No new notice or consent write accompanies B2.
+The served drafting selection is `reply-drafting-runtime-v2` / `reply-suggestion-v2`; the
+`reply-drafting-runtime-v1` / `reply-suggestion-v1` row is `served: false` and stays in the
+catalogue for historical operations. The notice, UI, historical profile readers and v1 wire
+pins are unchanged. B2 registered the streaming execution as compatible with the notice
+already in force (ADR 0074). No new notice or consent write accompanied B2.
 
 The new identities are operation `reply-suggestion-v2`, profile `reply-draft-v4`, runtime
 `reply-drafting-runtime-v2`, prompt `reply-suggestion-prompt-v2` and provenance v4.
