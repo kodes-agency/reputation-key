@@ -12,7 +12,7 @@ import type {
   PropertyLifecycleCommandStore,
   PropertyLifecycleTransitionCommand,
 } from '../application/ports/property-lifecycle-command-store.port'
-import { propertyFromRow } from './mappers/property.mapper'
+import { propertyFromRow } from '../infrastructure/mappers/property.mapper'
 
 const assertCommandIntegrity = (command: PropertyLifecycleTransitionCommand): void => {
   assertValidTransition(command.from, command.to)

@@ -7,47 +7,14 @@ import { properties } from '#/shared/db/schema/property.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { propertyError } from '../domain/errors'
-import type { Property } from '../domain/types'
-import { propertyFromRow } from './mappers/property.mapper'
+import {
+  buildPropertySetClause,
+  propertyFromRow,
+} from '../infrastructure/mappers/property.mapper'
 import type {
   PropertyCommandStore,
   UpdatePropertyCommand,
 } from '../application/ports/property-command-store.port'
-
-/** The columns a property patch may set — never identity columns. */
-const SETTABLE_PROPERTY_KEYS = [
-  'updatedAt',
-  'name',
-  'slug',
-  'timezone',
-  'defaultReplyLanguage',
-  'address',
-  'gbpLocationId',
-  'gbpAccountId',
-  'googleConnectionId',
-  'profileVersion',
-  'googleBindingState',
-  'profileSource',
-  'profileConfirmedAt',
-  'profileConfirmedBy',
-  'countryCode',
-  'countrySource',
-  'timezoneSource',
-  'timezoneResolvedAt',
-  'sourceEpoch',
-] as const satisfies ReadonlyArray<keyof Property>
-
-type PropertySetValues = Partial<Pick<Property, (typeof SETTABLE_PROPERTY_KEYS)[number]>>
-
-/** Never sets identity columns. */
-function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySetValues {
-  return Object.fromEntries(
-    SETTABLE_PROPERTY_KEYS.filter((key) => patch[key] !== undefined).map((key) => [
-      key,
-      patch[key],
-    ]),
-  ) as PropertySetValues
-}
 
 export const createAtomicPropertyCommandStore = (db: Database): PropertyCommandStore => {
   return {

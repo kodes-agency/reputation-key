@@ -8,7 +8,7 @@ import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
-import { createPropertyGoogleBindingStore } from './property-google-binding-store'
+import { createPropertyGoogleBindingStore } from './google-binding-store.server'
 import { buildGoogleImportedProperty } from '../application/build-google-imported-property'
 
 vi.mock('#/shared/outbox/commit', () => ({ insertOutboxRow: vi.fn() }))

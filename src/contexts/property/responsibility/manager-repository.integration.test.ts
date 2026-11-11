@@ -6,11 +6,13 @@ import { getDb } from '#/shared/db'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { propertyResponsibilityNeeded } from '../../domain/events'
-import { createPropertyResponsibleManagerRepository } from './property-responsible-manager.repository'
+import { propertyResponsibilityNeeded } from '../domain/events'
+import { createPropertyResponsibleManagerRepository } from './manager-repository.server'
 
 const ORG = 'org-property-responsible-manager'
+const OTHER_ORG = 'org-property-responsible-manager-other'
 const PROPERTY = 'c9100000-0000-4000-8000-000000000001'
+const OTHER_PROPERTY = 'c9100000-0000-4000-8000-000000000002'
 const START = new Date('2026-08-25T10:00:00.000Z')
 const CHANGE = new Date('2026-08-25T11:00:00.000Z')
 const UNASSIGNED = new Date('2026-08-25T12:00:00.000Z')
@@ -22,30 +24,31 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
-     VALUES ($1, $1, $1, NOW()) ON CONFLICT (id) DO NOTHING`,
-    [ORG],
+     VALUES ($1, $1, $1, NOW()), ($2, $2, $2, NOW()) ON CONFLICT (id) DO NOTHING`,
+    [ORG, OTHER_ORG],
   )
 })
 
+async function clearTenants(): Promise<void> {
+  for (const org of [ORG, OTHER_ORG]) {
+    await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [org])
+    await pool.query(
+      'DELETE FROM property_responsible_managers WHERE organization_id = $1',
+      [org],
+    )
+    await pool.query('DELETE FROM properties WHERE organization_id = $1', [org])
+  }
+}
+
 afterAll(async () => {
-  await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
-  await pool.query(
-    'DELETE FROM property_responsible_managers WHERE organization_id = $1',
-    [ORG],
-  )
-  await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
-  await deleteTestOrganizations(pool, [ORG])
+  await clearTenants()
+  await deleteTestOrganizations(pool, [ORG, OTHER_ORG])
   await pool.end()
   clearEventSchemas()
 })
 
 beforeEach(async () => {
-  await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
-  await pool.query(
-    'DELETE FROM property_responsible_managers WHERE organization_id = $1',
-    [ORG],
-  )
-  await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
+  await clearTenants()
   await pool.query(
     `INSERT INTO properties
        (id, organization_id, name, slug, timezone, created_at, updated_at,
@@ -64,6 +67,86 @@ const recoveryEvent = (at: Date) =>
   })
 
 describe('Property responsible manager repository', () => {
+  it("never lists, edits or releases another Organization's managers", async () => {
+    await pool.query(
+      `INSERT INTO properties
+         (id, organization_id, name, slug, timezone, created_at, updated_at,
+          responsible_manager_revision, responsibility_needed_since)
+       VALUES ($1, $2, 'Other Property', 'property-responsible-manager-other',
+         'UTC', $3, $3, 1, $3)`,
+      [OTHER_PROPERTY, OTHER_ORG, START],
+    )
+    const repo = createPropertyResponsibleManagerRepository(getDb())
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: ['shared-user'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+      responsibilityNeededEvent: recoveryEvent(CHANGE),
+    })
+    await repo.replace({
+      organizationId: OTHER_ORG,
+      propertyId: OTHER_PROPERTY,
+      managerUserIds: ['shared-user'],
+      expectedRevision: 1,
+      actorId: 'admin-2',
+      at: CHANGE,
+      responsibilityNeededEvent: propertyResponsibilityNeeded({
+        organizationId: organizationId(OTHER_ORG),
+        propertyId: propertyId(OTHER_PROPERTY),
+        occurredAt: CHANGE,
+      }),
+    })
+
+    expect(await repo.listActive(OTHER_ORG, PROPERTY)).toEqual([])
+    expect(
+      (await repo.listActiveForUser(ORG, 'shared-user')).map((r) => r.propertyId),
+    ).toEqual([PROPERTY])
+    await expect(
+      repo.replace({
+        organizationId: OTHER_ORG,
+        propertyId: PROPERTY,
+        managerUserIds: [],
+        expectedRevision: 2,
+        actorId: 'admin-2',
+        at: UNASSIGNED,
+        responsibilityNeededEvent: recoveryEvent(UNASSIGNED),
+      }),
+    ).rejects.toMatchObject({ code: 'property_not_found' })
+    expect(
+      await repo.releaseForUser({
+        organizationId: OTHER_ORG,
+        userId: 'shared-user',
+        propertyIds: [PROPERTY],
+        at: UNASSIGNED,
+        endReason: 'manager_offboarded',
+      }),
+    ).toEqual({ released: 0 })
+
+    expect((await repo.listActive(ORG, PROPERTY)).map((row) => row.userId)).toEqual([
+      'shared-user',
+    ])
+    const held = await pool.query(
+      'SELECT responsible_manager_revision AS revision FROM properties WHERE id = $1',
+      [PROPERTY],
+    )
+    expect(held.rows).toEqual([{ revision: 2 }])
+
+    expect(
+      await repo.releaseForUser({
+        organizationId: OTHER_ORG,
+        userId: 'shared-user',
+        at: UNASSIGNED,
+        endReason: 'manager_offboarded',
+      }),
+    ).toEqual({ released: 1 })
+    expect((await repo.listActive(ORG, PROPERTY)).map((row) => row.userId)).toEqual([
+      'shared-user',
+    ])
+  })
+
   it('offboarding ends only the departing manager and raises recovery only for the last one', async () => {
     const repo = createPropertyResponsibleManagerRepository(getDb())
     await repo.replace({

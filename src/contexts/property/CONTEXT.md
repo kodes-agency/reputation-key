@@ -51,6 +51,13 @@ store commits state, `sourceEpoch`, revision, responsibility, destination state,
 and identifier-only facts atomically. `isPropertyActive` is the request-time gate
 used before provider and public Portal effects.
 
+The writers live beside the feature they serve: `profile/` (the profile update
+store and the Google binding store with its receipts), `lifecycle/` (the
+transition store) and `responsibility/` (the Responsible Manager repository).
+A Property's fields are listed once, in `infrastructure/mappers/property.mapper.ts`:
+reading a row, writing one and the columns a patch may set all derive from that
+list, and a field added to `Property` does not compile until it is listed there.
+
 The server functions retain their paths and validators and use
 `shared/commands/command.server.ts` for the common request shell. Property owns
 the action, target Property, error/status mapping in `server/property-shared.ts`

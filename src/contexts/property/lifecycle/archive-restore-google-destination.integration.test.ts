@@ -41,7 +41,7 @@ import { snapshotToRow } from '#/contexts/portal/infrastructure/portal-publicati
 import { createPortalPublicationRepository } from '#/contexts/portal/infrastructure/repositories/portal-publication.repository'
 import { buildGoogleImportedProperty } from '../application/build-google-imported-property'
 import { buildPropertyContext } from '../build'
-import { createPropertyRepository } from './repositories/property.repository'
+import { createPropertyRepository } from '../infrastructure/repositories/property.repository'
 
 const ORG = organizationId('org-property-archive-restore-google')
 const ADMIN = userId('admin-archive-restore-google')
