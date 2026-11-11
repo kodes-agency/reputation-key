@@ -112,29 +112,3 @@ alongside session deletion, binding release, membership deletion and the
 that transaction, so they still run before it — deliberately, because a fenced
 connector with a surviving membership is repairable while a deleted membership
 with a live provider grant is not.
-
-### Repairing a partial offboarding
-
-A crash between the provider fence and the Identity transaction leaves exactly
-one shape: every grant revoked with reason `member_offboarded`, no live grant
-left, and a membership row that should not exist.
-
-```sh
-# Report the whole candidate set (always report-only)
-pnpm ops repair-partial-offboarding --operator <id>
-
-# Report one user
-pnpm ops repair-partial-offboarding <organization-id> <user-id> --operator <id>
-
-# Converge one reviewed user
-pnpm ops repair-partial-offboarding <organization-id> <user-id> \
-  --operator <id> --ticket <ref> --reason <text> \
-  --apply --yes ops:repair-partial-offboarding
-```
-
-The repair converges by COMPLETING the offboarding through the same atomic
-command a clean removal uses. It never re-grants access: the fence was an
-authorized decision, and resurrecting access to undo a crash would hand back
-authority somebody already removed. To let the person keep working, re-invite
-them — that has its own audit trail. Retries are idempotent: after convergence
-the same user classifies as `already_offboarded`.
