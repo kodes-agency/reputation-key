@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-07
+amended_on: 2026-11-11
 ---
 
 # Closed Beta Participation Agreement — Reputation Key
 
 **Status:** Accepted for publication and invited-beta use
-**Effective date:** 2026-11-07
-**Version:** 2.7
+**Effective date:** 2026-11-11
+**Version:** 2.8
 **Accountable owner:** Bozhidar Denev
 
 ## 1. Parties and beta purpose
@@ -47,7 +47,7 @@ release readiness, the core product includes:
 
 Core analytics are part of the Service. There is no product option to decline
 the affected operational metrics while continuing to use the workflow. The
-accepted [Privacy Notice version 3.6](/privacy), effective 2026-11-07, forms part
+accepted [Privacy Notice version 3.7](/privacy), effective 2026-11-11, forms part
 of this agreement and states the applicable roles, legal bases, and rights
 process.
 
@@ -64,9 +64,8 @@ and each feature's release evidence permit it:
 - Contact Request, only after its separate privacy/handling gate closes;
 - Property, Portal Group, and individual Portal Goal Programs;
 - the Property Google rating goal;
-- Review Analysis;
-- Reply Drafting; and
-- Property Trends, which also depends on Review Analysis.
+- Review Analysis; and
+- Reply Drafting.
 
 Code presence is not activation. The activated-capability schedule is maintained in `src/shared/governance/capability-fate.ts`. Its policy and release gates determine what the cohort may use.
 
@@ -149,8 +148,8 @@ forms part of this agreement.
 
 ## 5. AI capability boundaries
 
-Review Analysis, Reply Drafting, and Property Trends are independent,
-off-by-default Property capabilities. Each requires deliberate merchant
+Review Analysis and Reply Drafting are independent, off-by-default Property
+capabilities. Each requires deliberate merchant
 authorization plus the accepted notice, provider, source-content, and release
 controls.
 
@@ -256,7 +255,7 @@ agreement does not create them.
 
 ## 9. Data handling, retention, and providers
 
-The accepted [Privacy Notice version 3.6](/privacy), effective 2026-11-07, and
+The accepted [Privacy Notice version 3.7](/privacy), effective 2026-11-11, and
 its retention and provider schedules form part of this agreement. They cover
 Participant, Google source, Portal and Guest, manager-authored, AI-derived,
 monitoring, export, backup, and independently retained evidence classes.
@@ -282,16 +281,17 @@ where applicable. It sets the channel, identity verification, 30-day response
 period, escalation path, and backup effects.
 
 Property Archive and recovery-window Restore are distinct from permanent
-erasure. Permanent Property erasure is AccountAdmin-requested and support-
-mediated. Organization closure uses a staged recoverable-to-irreversible
-lifecycle and must not silently reactivate Google, Portals, AI, notifications,
-or schedules after cancellation.
-
-Organization Export foundations use context-owned contributions, encrypted
-private storage, single-use retrieval authority, and bounded expiry. The full
-17-context workflow remains inactive until every contributor and live storage
-gate is complete. This agreement does not promise unavailable self-service
-export or deletion.
+erasure. Permanent Property erasure is requested by an AccountAdmin and handled by the
+Operator. Organization export, closure and privacy requests are handled by the
+owner at denev@kodes.agency with the operator script after identity and
+authority checks. The Operator answers within 30 days and provides an export on
+request within seven days from verified identity. Exports are delivered as
+a 24-hour download link to a file in the private bucket, deleted after download and after seven days at the latest, never as an email attachment.
+Closure includes suspension, mandatory warnings, an export on request and a
+typed confirmation before irreversible erasure. Cancelling a closure does not
+silently reactivate Google, Portals, AI, notifications or schedules.
+Self-service Organization export, closure and permanent Property erasure are
+unavailable.
 
 ## 11. Term, suspension, and exit
 
@@ -309,8 +309,8 @@ capability schedule are available.
 
 This agreement is accepted together with:
 
-- Privacy Notice version 3.6, effective 2026-11-07, at `/privacy`;
-- Google Business Profile Access Disclosure version 2.6, effective 2026-11-07,
+- Privacy Notice version 3.7, effective 2026-11-11, at `/privacy`;
+- Google Business Profile Access Disclosure version 2.7, effective 2026-11-11,
   at `/privacy/google-access-disclosure`;
 - the activated-capability schedule maintained in `src/shared/governance/capability-fate.ts`; and
 - the retention, provider, transfer, rights, deployment, and change rules in
@@ -323,7 +323,7 @@ invited Participant accepts the Participant obligations by joining.
 
 ## 13. Changes
 
-This agreement takes effect on 2026-11-07 and is version 2.7. It replaces version 2.6, effective 2026-11-06, which replaced version 2.5, effective 2026-11-03, which replaced version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
+This agreement takes effect on 2026-11-11 and is version 2.8. It replaces version 2.7, effective 2026-11-07, which replaced version 2.6, effective 2026-11-06, which replaced version 2.5, effective 2026-11-03, which replaced version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -394,3 +394,5 @@ publication without a waiting period, on the accountable owner's decision for
 the two closed-beta Organizations the owner controls. Existing users are not
 asked to accept again; new members continue to accept through the invitation
 flow.
+
+Version 2.8 (2026-11-11) states that Property Trends has ended, so Review Analysis and Reply Drafting are the two Property AI choices, and describes the manual procedure for Organization export, closure, permanent Property erasure and privacy requests, with an export provided within seven days from verified identity as a 24-hour download link deleted after download and after seven days at the latest. It names Privacy Notice 3.7 and Google Business Profile Access Disclosure 2.7, both effective 2026-11-11. It takes effect on publication without a waiting period, on the accountable owner's decision for the two closed-beta Organizations the owner controls. Existing users are not asked to accept again; new members continue to accept through the invitation flow.
