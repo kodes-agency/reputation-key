@@ -77,7 +77,7 @@ not run in.
   data (`archive_timeout` is 60 seconds). The time grows with the log since the
   last full backup, so expect longer late in a backup cycle; a worst case was
   not measured. The rehearsal tested the data restore only: erasure replay (§8)
-  was not tested and does not run today.
+  was not tested then; `restore-verify` runs it now.
 - **Restored copies.** The private host of a restored service is not its service
   name: read it from the service's `PGHOST`. A restored copy holds the archive
   bucket's credential, so a copy made to rehearse a restore is deleted when the
@@ -94,8 +94,8 @@ not run in.
   `RESTORE_MODE=isolated` is set and the process carries no Redis, queue or
   bucket setting (step 4), and they run with no Redis or queue connection. The
   signed Review approval of step 7 and the durable recovery checkpoints are
-  unchanged. `restore-verify` does not run erasure replay (§8) and says so on
-  every run. A full restore to operational state remains unmeasured
+  unchanged. `restore-verify` runs erasure replay (§8) from `journal=<file>`, and apply
+  refuses without it. A full restore to operational state remains unmeasured
   (`docs/BETA.md` §7).
 - **Where to check it.** In Railway under `reputation-key` → `closed-beta-v2` →
   `Postgres` → **Backups**.
@@ -168,14 +168,14 @@ cutover mechanism. This procedure uses the PITR sibling described by
    (`pnpm db:migrate-deploy`, advisory-locked and idempotent). Re-run preflight
    and schema parity. If the migration is not forward-safe, stop; do not repair
    the production source or reverse DDL from this workflow.
-6. Run `pnpm ops restore-verify --operator <id>` first as a dry run. Review and
+6. Run `pnpm ops restore-verify --operator <id> journal=<file>` first as a dry run. Review and
    retain its canonical aggregate Review report and exact approval request,
    together with the content-free retention, Google-import, and
    external-effect-authority inventories. Follow
    [review-lifecycle-recovery-approval](review-lifecycle-recovery-approval.md)
    for typed confirmation and durable recovery progress.
 7. Confirm the beta environment by typing its exact name:
-   `pnpm ops restore-verify --operator <id> --reason <change-ref> --apply --yes closed-beta-v2`.
+   `pnpm ops restore-verify --operator <id> journal=<file> --reason <change-ref> --apply --yes closed-beta-v2`.
    A missing or different name refuses before runtime boot or mutation. The
    command logs the environment, operator, time and correlation ID before
    reserving or resuming the durable Review recovery receipt. No signed Review
