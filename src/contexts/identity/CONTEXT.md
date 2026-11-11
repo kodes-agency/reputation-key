@@ -88,10 +88,11 @@ adapter; no other context reads its tables directly.
 ## Runtime seams
 
 `buildIdentityContext` constructs the People surface first, then the remaining
-Identity repositories and request APIs. The composition root publishes one
-`IdentityPublicApi`; its nested `people` surface supplies `StaffPublicApi` facts,
+Identity repositories and request APIs. The composition root publishes the
+Identity context; its `people` surface supplies `StaffPublicApi` facts,
 primary attribution resolution, and participation management. Cross-context code
-imports only `#/contexts/identity/application/public-api`.
+imports only `#/contexts/identity/application/public-api`, which exports just
+what other contexts use.
 
 Server functions for Organizations, settings, invitations, registration, policy,
 feedback, and Staff Participation live in `server/`. Application code owns use

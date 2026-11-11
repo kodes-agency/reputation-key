@@ -6,11 +6,24 @@
 import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { organization, user } from '#/shared/db/schema/auth'
-import type { IdentityAssetReferencesPort } from '../../application/ports/identity-asset-references.port'
 import {
   identityAssetPath,
   parseIdentityAssetKey,
 } from '../../application/identity-assets'
+
+export type IdentityAssetReferencesPort = Readonly<{
+  /**
+   * True when the user the key is scoped to still has it as their image, or the
+   * organization it is scoped to still has it as its logo and has not entered
+   * the irreversible part of closure. False for any other key, including one
+   * that was uploaded and never saved.
+   */
+  isReferenced: (key: string) => Promise<boolean>
+  /** The stored image address of a user, or null. */
+  currentUserImage: (userId: string) => Promise<string | null>
+  /** The stored logo address of an organization, or null. */
+  currentOrganizationLogo: (organizationId: string) => Promise<string | null>
+}>
 
 export const createIdentityAssetReferences = (
   db: Database,

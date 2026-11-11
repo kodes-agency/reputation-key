@@ -103,7 +103,7 @@ export type BetaFeedbackActor = Readonly<{
  */
 export type BetaFeedbackReporterContact = Readonly<{ name: string | null; email: string }>
 
-export type BetaFeedbackDeliveryResult =
+type BetaFeedbackDeliveryResult =
   | Readonly<{ status: 'delivered'; providerReference: string }>
   | Readonly<{
       status: 'failed'

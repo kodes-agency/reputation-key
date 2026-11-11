@@ -5,12 +5,31 @@
 // Every refusal is a tagged IdentityError, here and in the command store: the
 // server adapter maps it by its code, never by the wording of a message.
 
-import type { PolicyAdminExplanation } from '../ports/property-access-grant.port'
 import type { PolicyAdminCommandStore } from '../ports/policy-admin-command-store.port'
 import type { Permission } from '#/shared/domain/permissions'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { identityError } from '../../domain/errors'
 import { identityMemberPropertyAccessChanged } from '../../domain/events'
+
+/**
+ * Mirror of the PolicyDecisionExplanation in shared/auth/policy-diagnostic
+ * (same shape, separate home: shared/auth types are unreachable from
+ * application under the boundary rules). Structural typing keeps them
+ * interchangeable at the composition seam.
+ */
+export type PolicyAdminExplanation = Readonly<{
+  allowed: boolean
+  reason: string
+  action: string
+  capability: string
+  checks: Readonly<{
+    capability: Readonly<{ allowed: boolean; reason: string }>
+    permission: Readonly<{ allowed: boolean }>
+    scope: Readonly<{
+      outcome: 'not_applicable' | 'organization' | 'granted' | 'missing_grant' | 'none'
+    }>
+  }>
+}>
 
 export type PolicyAdminDeps = Readonly<{
   explainPolicyDecision: (input: {

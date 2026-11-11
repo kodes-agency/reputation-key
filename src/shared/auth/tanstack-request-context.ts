@@ -12,9 +12,9 @@
 
 /**
  * The shape shared/auth provides, named here rather than imported from the
- * Identity context: shared may not depend on a context. Identity declares its
- * own RequestContextPort with the same shape, and the composition root wires
- * the two together — so if either side drifts, the root stops compiling, which
+ * Identity context: shared may not depend on a context. The container
+ * options declare the same shape, and the composition root wires the two
+ * together — so if either side drifts, the root stops compiling, which
  * is exactly the contract check this seam needs.
  */
 export type RequestHeadersProvider = Readonly<{

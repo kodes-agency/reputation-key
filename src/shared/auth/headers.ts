@@ -5,7 +5,8 @@
 // ARC-03-T13: the implementation now lives in the ONE request-context adapter
 // (tanstack-request-context.ts). This stays as the ergonomic call shape for
 // request-scoped server functions, which already run inside a request; anything
-// that is composed into a container takes the RequestContextPort instead.
+// that is composed into a container takes the container's requestContext
+// option instead.
 
 import { createTanstackRequestContext } from './tanstack-request-context'
 
