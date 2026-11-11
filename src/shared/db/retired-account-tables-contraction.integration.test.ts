@@ -12,7 +12,7 @@ import {
 import manifest from '../../../test-fixtures/populated-upgrade/manifest.json'
 import { migrateJournal } from './migrate-journal.server'
 
-const CONTRACTION = '0127_drop_retired_account_tables'
+const CONTRACTION = '0128_drop_retired_account_tables'
 const DROPPED = [
   'organizationRole',
   'organization_role_policy',

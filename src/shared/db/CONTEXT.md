@@ -252,7 +252,7 @@ receipt authorization. The three retired tables must be empty under exclusive
 locks before contraction; their enum types remain. Construct parity checks cover
 these forward-only exceptions explicitly.
 
-`0127` drops the retired account tables, their guard functions and the grant enums.
+`0128` drops the retired account tables, their guard functions and the grant enums.
 `db-constructs.sql` stays a byte-for-byte copy of `0001`, so it still states the
 triggers and functions that went with them; `structure.sql` is the authority for
 what a migrated database holds. `organization_lifecycle_events` stays: backup

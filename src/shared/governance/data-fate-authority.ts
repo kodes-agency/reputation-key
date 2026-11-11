@@ -602,15 +602,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'portal.schema.ts',
-    exportNames: ['portalGroupMembers'],
-    owner: 'portal',
-    disposition: 'bounded_contraction',
-    authority: 'POR-01/PPL-01/CNV-01',
-    exitCriteria:
-      'No reader or writer remains: group membership is portal_group_memberships. The lifecycle purge still deletes its rows; drop the table only through a separate expand/backfill/contract migration the owner approves.',
-  }),
-  ...rows({
-    schemaFile: 'portal.schema.ts',
     exportNames: [
       'portalLocalizedOverrides',
       'propertyPortalBrandContents',
