@@ -113,7 +113,6 @@ export type SystemAction =
   | 'system:notification.email_urgent'
   | 'system:notification.email_mandatory'
   | 'system:notification.email_digest'
-  | 'system:notification.reconcile'
   | 'system:notification.settle'
   | 'system:inbox.update'
   | 'system:inbox.project_review'
@@ -222,12 +221,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
   ),
   job('refresh-expiring-reviews', 'system:review.refresh_sweep', 'none', 'tenant_cross'),
-  job(
-    'reconcile-missing-notifications',
-    'system:notification.reconcile',
-    'none',
-    'tenant_cross',
-  ),
   // Reads a Google review from Google once before it releases a reminder for
   // it, so the action has an external effect and takes a fresh policy read.
   job(
@@ -707,12 +700,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   schedule(
     'discover-new-reviews-recurring',
     'system:review.discovery_sweep',
-    'none',
-    'tenant_cross',
-  ),
-  schedule(
-    'reconcile-missing-notifications-recurring',
-    'system:notification.reconcile',
     'none',
     'tenant_cross',
   ),

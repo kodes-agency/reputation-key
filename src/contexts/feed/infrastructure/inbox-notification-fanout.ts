@@ -1,17 +1,15 @@
 // Feed notification surface — the ONE fan-out path from "an inbox item exists" to
-// "an insert-notification job is queued for every recipient".
+// "a notice is written for every recipient".
 //
-// The durable outbox consumer owns this definition, and the delivery repair
-// replays that consumer, so recipient resolution, AccountAdmin fallback,
-// source-to-type mapping, the payload allowlist, and the rule that Google
-// history is never announced cannot drift.
+// The durable outbox consumer owns this definition, so recipient resolution,
+// AccountAdmin fallback, source-to-type mapping, the payload allowlist, and the
+// rule that Google history is never announced cannot drift.
 //
-// Content-free by construction: the job data carries identifiers plus the
+// Content-free by construction: the notice carries identifiers plus the
 // ADR 0046 r.8 fact allowlist that buildInboxItemPayload assembles, never
 // review text, guest names or media.
 
-import type { JobsOptions } from 'bullmq'
-import type { Notice } from '../notify/consumers.server'
+import type { Notice, NoticeDeliveryDeps } from '../notify/consumers.server'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -31,15 +29,6 @@ import {
 } from '../application/responsible-recipients'
 import type { NotificationAudience } from '../application/notification-audience'
 
-/**
- * The enqueue surface the fan-out needs. A bullmq `Queue` satisfies it, and so
- * does the catalogue-policy wrapper (`withCatalogueJobOptions`) the composition
- * root installs — which is why the fan-out never sets retry options itself.
- */
-export type NotificationJobEnqueuePort = Readonly<{
-  add(name: string, data: unknown, opts?: JobsOptions): Promise<unknown>
-}>
-
 /** One item's workflow fact, with each recipient's reason for admission intact. */
 export const inboxWorkflowNotices = (
   common: Pick<Notice, 'organizationId' | 'propertyId' | 'resourceId' | 'payload'>,
@@ -51,14 +40,14 @@ export const inboxWorkflowNotices = (
     resourceType: 'inbox_item',
   }))
 
-export type InboxFanoutDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  userLookup: UserLookupPort
-  responsibleManagers: ResponsibleManagerLookupPort
-  inboxItemLookup: InboxItemLookupPort
-  clock: () => Date
-  logger: LoggerPort
-}>
+export type InboxFanoutDeps = NoticeDeliveryDeps &
+  Readonly<{
+    userLookup: UserLookupPort
+    responsibleManagers: ResponsibleManagerLookupPort
+    inboxItemLookup: InboxItemLookupPort
+    clock: () => Date
+    logger: LoggerPort
+  }>
 
 /**
  * `inbox_items.source_type` → the notification type. A review and a piece of

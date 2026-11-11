@@ -7,7 +7,10 @@ import {
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, userId } from '#/shared/domain/ids'
-import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from './notification-consumer-test-fixtures'
 import {
   handleNotificationAssignmentsReleased,
   ON_INBOX_ASSIGNMENTS_RELEASED_CONSUMER,
@@ -58,13 +61,15 @@ const event = (
 const makeDeps = () => {
   const fakes = createNotificationConsumerDeps()
   fakes.responsibleManagers.findForProperty.mockResolvedValue([MANAGER])
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
     queue: fakes.queue,
     userLookup: fakes.userLookup,
     responsibleManagers: fakes.responsibleManagers,
     displayNames: fakes.displayNames,
     logger: fakes.logger,
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     fakes,
   }
 }
