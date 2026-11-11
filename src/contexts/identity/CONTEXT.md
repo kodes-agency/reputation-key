@@ -93,6 +93,12 @@ rights, erasure and export contributors, stay in the layer folders.
   still advance every previously or newly enabled capability epoch. A
   drafting-only notice preserves Review Analysis and trends epochs. Reads and
   delivery of existing outputs retain their previous rules. Lineage, state, source and control fences remain exact.
+- Every Merchant AI write (a single-Property command, each Property of a consent
+  ceremony, a standing renewal) runs `transitionMerchantAi` in
+  `consent/merchant-ai-transition.server.ts`: one lock order (provider source,
+  Property, membership, head), one set of fences, and the commit in
+  `consent/merchant-ai-transition-commit.server.ts`. A restore reset has no actor
+  and starts a new lineage, so it shares only that commit.
 - A Merchant AI decision deferral ("not now") is a per-Property marker, not consent:
   it records no evidence, notice or epoch, is refused while AI is enabled, keeps the
   first deferral on a repeat, and is deleted in the same transaction as an enable.

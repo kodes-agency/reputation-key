@@ -1,150 +1,75 @@
-import { nextMerchantAiCapabilityEpochs } from '../domain/merchant-ai-capability-epochs'
-import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice-change'
 import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { resolveAiRuntimeCapabilitySet } from '#/shared/ai-runtime-capability-contract'
 import {
-  CURRENT_MERCHANT_AI_CAPABILITIES,
   RECORDED_RUNTIME_PROFILE_VERSIONS,
   type CapabilityRuntimeProfileVersions,
   type MerchantAiCapability,
 } from '#/shared/domain/merchant-ai-capability'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
-import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
-import { organizationId } from '#/shared/domain/ids'
+import type { Tx } from '#/shared/outbox/commit'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
-import {
-  purgeAiDraftsForAuthorization,
-  purgeAiDraftsForProfile,
-} from '#/shared/db/ai/ai-draft-purge'
-import { identityMerchantAiChanged } from '../domain/events'
-import {
-  STANDING_RENEWAL_REASON,
-  standingRenewalKeepsSavedDrafts,
-} from '../domain/merchant-ai-standing-renewal'
+import { STANDING_RENEWAL_REASON } from '../domain/merchant-ai-standing-renewal'
 import {
   isMerchantAiGrantCurrent,
-  type MerchantAiCapabilityEpochs,
+  planMerchantAiConsentTransition,
   type MerchantAiSnapshot,
   type MerchantAiState,
 } from '../domain/merchant-ai-authorization'
 import { decideMemberPropertyAuthority } from '../infrastructure/repositories/member-property-authority'
-import { deleteMerchantAiDecisionDeferral } from './merchant-ai-decision.repository.server'
 import {
   MerchantAiAuthorizationStoreError,
   type MerchantAiMutationInput,
 } from './merchant-ai-authorization.server'
+import {
+  lockMerchantAiHead,
+  mapSnapshot,
+  readIdempotentEvidence,
+  readInteger,
+  type SnapshotRow,
+} from './merchant-ai-snapshot.server'
+import { commitGrantTransition } from './merchant-ai-transition-commit.server'
 
-// The steps of one Merchant AI transition, in lock order. A single-property
-// command runs them all in its own transaction; they are separate so a later
-// command can run them for several Properties inside one transaction without
-// a second copy of the fences.
+// Every Merchant AI write goes through `transitionMerchantAi` inside the
+// caller's transaction: a single-Property command, a standing renewal, and
+// each Property of a consent ceremony. It takes the locks in one order
+// (provider source, Property, membership, head), applies the source, runtime
+// and lineage fences, then commits through merchant-ai-transition-commit.
 
-export type SnapshotRow = Record<string, unknown>
+type MerchantAiOperation = MerchantAiMutationInput['operation']
 
-export type MerchantAiTransitionTarget = Readonly<{
+type MerchantAiTransitionTarget = Readonly<{
   organizationId: string
   propertyId: string
   actorUserId: string
   now: Date
 }>
 
-type MerchantAiOperation = MerchantAiMutationInput['operation']
+/** A ceremony's grant for one Property: the locked head decides enable, change or nothing. */
+export type MerchantAiConsentGrant = Omit<
+  MerchantAiMutationInput,
+  'operation' | 'state' | 'expectedStateVersion'
+>
 
-function failInvalidRecord(message: string): never {
-  throw new MerchantAiAuthorizationStoreError('invalid_record', message)
-}
+export type MerchantAiTransitionRequest =
+  | Readonly<{
+      kind: 'command'
+      command: MerchantAiMutationInput
+      /** A replayed key answers `no_op` instead of the committed snapshot. */
+      replayIsNoOp?: boolean
+    }>
+  | Readonly<{
+      kind: 'consent'
+      grant: MerchantAiConsentGrant
+      /** The ceremony's hash, shared by every evidence row it writes. */
+      requestHash: string
+    }>
 
-function readInteger(row: SnapshotRow, column: string, minimum: number): number {
-  const value = Number(row[column])
-  if (!Number.isSafeInteger(value) || value < minimum) {
-    failInvalidRecord(`Invalid Merchant AI ${column} row`)
-  }
-  return value
-}
-
-function readSafeBigint(row: SnapshotRow, column: string, minimum: number): number {
-  const raw = row[column]
-  if (typeof raw === 'number') {
-    if (!Number.isSafeInteger(raw) || raw < minimum) {
-      failInvalidRecord(`Invalid Merchant AI ${column} row`)
-    }
-    return raw
-  }
-  if (typeof raw !== 'string' || !/^(0|[1-9][0-9]*)$/.test(raw)) {
-    failInvalidRecord(`Invalid Merchant AI ${column} row`)
-  }
-  let value: bigint
-  try {
-    value = BigInt(raw)
-  } catch {
-    failInvalidRecord(`Invalid Merchant AI ${column} row`)
-  }
-  if (value < BigInt(minimum) || value > BigInt(Number.MAX_SAFE_INTEGER)) {
-    failInvalidRecord(`Invalid Merchant AI ${column} row`)
-  }
-  return Number(value)
-}
-
-function readNonEmptyString(row: SnapshotRow, column: string): string {
-  const value = row[column]
-  if (typeof value !== 'string' || value.length === 0) {
-    failInvalidRecord(`Invalid Merchant AI ${column} row`)
-  }
-  return value
-}
-
-function normalizeCapabilities(value: unknown): ReadonlyArray<MerchantAiCapability> {
-  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
-    failInvalidRecord('Invalid capabilities row')
-  }
-  const values = new Set(value)
-  const normalized = CURRENT_MERCHANT_AI_CAPABILITIES.filter((capability) =>
-    values.has(capability),
-  )
-  if (normalized.length !== value.length) {
-    failInvalidRecord('Invalid capabilities row')
-  }
-  if (values.has('property_trends') && !values.has('review_analysis')) {
-    failInvalidRecord('Invalid capability dependency row')
-  }
-  return normalized
-}
-
-function readRuntimeProfiles(
-  row: SnapshotRow,
-  capabilities: ReadonlyArray<MerchantAiCapability>,
-): CapabilityRuntimeProfileVersions {
-  const actual = row.capability_runtime_profile_versions
-  if (!actual || typeof actual !== 'object' || Array.isArray(actual)) {
-    failInvalidRecord('Invalid capability runtime profile row')
-  }
-  // The recorded map is what the grant was made under, which may be an earlier
-  // profile than the one served (RECORDED_RUNTIME_PROFILE_VERSIONS): it must name
-  // exactly the grant's capabilities, each under a version some grant has held. The
-  // served map is `runtimeProfilesFor`, and a grant that differs from it is the one
-  // an AccountAdmin's next consent replaces.
-  const recorded = actual as Readonly<Record<string, unknown>>
-  const keys = Object.keys(recorded)
-  if (
-    keys.length !== capabilities.length ||
-    capabilities.some((capability) => {
-      const version = recorded[capability]
-      return (
-        typeof version !== 'string' ||
-        !RECORDED_RUNTIME_PROFILE_VERSIONS[capability].includes(version)
-      )
-    })
-  ) {
-    failInvalidRecord('Invalid capability runtime profile row')
-  }
-  return Object.freeze(
-    Object.fromEntries(
-      capabilities.map((capability) => [capability, String(recorded[capability])]),
-    ),
-  ) as CapabilityRuntimeProfileVersions
-}
+export type MerchantAiTransitionResult = Readonly<{
+  operation: MerchantAiOperation | 'unchanged'
+  snapshot: MerchantAiSnapshot
+}>
 
 /** A revoke carries no capabilities; the resolver refuses an empty set. */
 export function runtimeProfilesFor(
@@ -160,53 +85,6 @@ export function runtimeProfilesFor(
           : {}),
       })
     : Object.freeze({})
-}
-
-export function mapSnapshot(row: SnapshotRow): MerchantAiSnapshot {
-  const state = row.state
-  if (state !== 'disabled' && state !== 'enabled' && state !== 'revoked') {
-    failInvalidRecord('Invalid Merchant AI state row')
-  }
-  const providerDeploymentProfileVersion = row.provider_deployment_profile_version
-  if (
-    providerDeploymentProfileVersion !== 'private-beta-global-v1' &&
-    providerDeploymentProfileVersion !== 'private-beta-global-v2' &&
-    providerDeploymentProfileVersion !== 'private-beta-global-v3'
-  ) {
-    failInvalidRecord('Invalid Merchant AI deployment profile row')
-  }
-  if (row.processing_region !== 'global') {
-    failInvalidRecord('Invalid processing region row')
-  }
-
-  const capabilities = normalizeCapabilities(row.capabilities)
-  const capabilityRuntimeProfileVersions = readRuntimeProfiles(row, capabilities)
-  const capabilityEpochs = Object.freeze({
-    review_analysis: readInteger(row, 'review_analysis_epoch', 1),
-    reply_drafting: readInteger(row, 'reply_drafting_epoch', 1),
-    property_trends: readInteger(row, 'property_trends_epoch', 1),
-  }) satisfies MerchantAiCapabilityEpochs
-
-  return Object.freeze({
-    organizationId: readNonEmptyString(row, 'organization_id'),
-    propertyId: readNonEmptyString(row, 'property_id'),
-    authorizationLineageId: readNonEmptyString(row, 'authorization_lineage_id'),
-    state,
-    capabilities,
-    capabilityRuntimeProfileVersions,
-    capabilityEpochs,
-    // 0-based, unlike the capability epochs and state version below.
-    authorizedSourceEpoch: readInteger(row, 'authorized_source_epoch', 0),
-    analysisStartSequence: readSafeBigint(row, 'analysis_start_sequence', 0),
-    stateVersion: readInteger(row, 'state_version', 1),
-    noticeVersion: readNonEmptyString(row, 'notice_version'),
-    noticeDigest: readNonEmptyString(row, 'notice_digest'),
-    sourcePolicyId: readNonEmptyString(row, 'source_policy_id'),
-    routingPolicyVersion: readInteger(row, 'routing_policy_version', 1),
-    processingRegion: 'global',
-    providerDeploymentProfileVersion,
-    redactionProfileFamily: readNonEmptyString(row, 'redaction_profile_family'),
-  })
 }
 
 function canonicalRequestHash(input: MerchantAiMutationInput): string {
@@ -239,7 +117,7 @@ function canonicalRequestHash(input: MerchantAiMutationInput): string {
  * provider-source advisory lock. A revoke fences the epoch it authorized; any
  * other transition fences the Property's current epoch.
  */
-export async function lockProviderSource(
+async function lockProviderSource(
   tx: Tx,
   target: MerchantAiTransitionTarget,
   operation: MerchantAiOperation,
@@ -283,25 +161,11 @@ export async function lockProviderSource(
   return discoveredSourceEpoch
 }
 
-async function readIdempotentEvidence(
-  tx: Tx,
-  input: Readonly<{ organizationId: string; idempotencyKey: string }>,
-): Promise<SnapshotRow | undefined> {
-  const replayResult = await tx.execute(sql`
-    SELECT *
-    FROM merchant_ai_consent_evidence
-    WHERE organization_id = ${input.organizationId}
-      AND idempotency_key = ${input.idempotencyKey}
-    LIMIT 1
-  `)
-  return replayResult.rows[0] as SnapshotRow | undefined
-}
-
 /**
  * Lock the Property row and re-check it under the lock. Returns the locked
  * source epoch.
  */
-export async function lockTransitionProperty(
+async function lockTransitionProperty(
   tx: Tx,
   target: MerchantAiTransitionTarget,
   operation: MerchantAiOperation,
@@ -343,7 +207,7 @@ export async function lockTransitionProperty(
  * Re-check the actor's current membership and AI management authority for the
  * Property while holding the membership row. Returns the membership role.
  */
-export async function requireManagementAuthority(
+async function requireManagementAuthority(
   tx: Tx,
   target: MerchantAiTransitionTarget,
 ): Promise<string> {
@@ -381,191 +245,21 @@ export async function requireManagementAuthority(
   return memberRole
 }
 
-export async function lockMerchantAiHead(
+async function requireStandingRenewalOwner(
   tx: Tx,
-  target: Pick<MerchantAiTransitionTarget, 'organizationId' | 'propertyId'>,
-): Promise<MerchantAiSnapshot | null> {
-  const currentResult = await tx.execute(sql`
-    SELECT *
-    FROM merchant_ai_enablement
-    WHERE organization_id = ${target.organizationId}
-      AND property_id = ${target.propertyId}::uuid
-    FOR UPDATE
-  `)
-  const currentRow = currentResult.rows[0] as SnapshotRow | undefined
-  return currentRow ? mapSnapshot(currentRow) : null
-}
-
-/**
- * Write one validated transition: the Review analysis frontier, the evidence
- * row and head (through `apply_merchant_ai_transition_v1`), the draft purge,
- * and the identifier-only outbox fact. The caller has already locked the
- * Property, the membership row, and the head in that order.
- */
-export async function commitMerchantAiTransition(
-  tx: Tx,
-  input: MerchantAiMutationInput,
-  facts: Readonly<{
-    current: MerchantAiSnapshot | null
-    runtimeProfiles: CapabilityRuntimeProfileVersions
-    authorizedSourceEpoch: number
-    requestHash: string
-  }>,
-  idGen: () => string,
-  replyEffects: ReplyScopeEffects | undefined,
-): Promise<MerchantAiSnapshot> {
-  const { current, runtimeProfiles, authorizedSourceEpoch, requestHash } = facts
-  const sourceRebound =
-    current !== null && current.authorizedSourceEpoch !== authorizedSourceEpoch
-  const materiallyChanged =
-    current === null ? [] : materiallyChangedMerchantAiCapabilities(current, input)
-
-  let currentAnalysisHeadSequence: number | null = null
-  if (input.operation !== 'revoke') {
-    // A Property with no Reviews has no allocator row yet: Review creates
-    // it lazily when the first material revision receives a sequence.
-    // Merchant authorization still needs an exact frontier, so create the
-    // explicit zero head while the Property row is locked, but only when
-    // the source epoch truly has no Review identity. A missing head next
-    // to an existing Review is corruption and must remain unavailable.
-    // The Review allocator takes that same lock before incrementing,
-    // making 0 an honest "no material revisions allocated" authority
-    // rather than synthetic analyzed work or an inferred default.
-    await tx.execute(sql`
-      INSERT INTO review_ai_analysis_heads (
-        organization_id, property_id, source_epoch, head_sequence
-      )
-      SELECT ${input.organizationId}, ${input.propertyId}::uuid,
-             ${authorizedSourceEpoch}, 0
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM reviews
-        WHERE organization_id = ${input.organizationId}
-          AND property_id = ${input.propertyId}::uuid
-          AND source_epoch = ${authorizedSourceEpoch}
-      )
-      ON CONFLICT (organization_id, property_id, source_epoch) DO NOTHING
-    `)
-    const analysisHeadResult = await tx.execute(sql`
-      SELECT head_sequence
-      FROM review_ai_analysis_heads
-      WHERE organization_id = ${input.organizationId}
-        AND property_id = ${input.propertyId}::uuid
-        AND source_epoch = ${authorizedSourceEpoch}
-      FOR SHARE
-    `)
-    const analysisHead = analysisHeadResult.rows[0] as SnapshotRow | undefined
-    if (!analysisHead) {
-      throw new MerchantAiAuthorizationStoreError(
-        'property_inactive',
-        'Current Review analysis source head is unavailable',
-      )
-    }
-    currentAnalysisHeadSequence = readSafeBigint(analysisHead, 'head_sequence', 0)
-  }
-
-  const authorizationLineageId = current?.authorizationLineageId ?? idGen()
-  const stateVersion = (current?.stateVersion ?? 0) + 1
-  const capabilityEpochs = nextMerchantAiCapabilityEpochs(
-    current,
-    input,
-    sourceRebound,
-    materiallyChanged,
+  input: Pick<MerchantAiMutationInput, 'actorUserId' | 'reasonCode'>,
+  role: string,
+) {
+  if (input.reasonCode !== STANDING_RENEWAL_REASON) return
+  const liveUser = await tx.execute(
+    sql`SELECT id FROM "user" WHERE id = ${input.actorUserId} FOR SHARE`,
   )
-  const analysisWillBeEnabled = input.capabilities.includes('review_analysis')
-  const previousReviewAnalysisEpoch = current?.capabilityEpochs.review_analysis ?? 0
-  const resetsAnalysisWatermark =
-    analysisWillBeEnabled &&
-    capabilityEpochs.review_analysis > previousReviewAnalysisEpoch
-  const analysisStartSequence = resetsAnalysisWatermark
-    ? currentAnalysisHeadSequence
-    : (current?.analysisStartSequence ?? 0)
-  if (analysisStartSequence === null) {
+  if (role !== 'owner' || liveUser.rows.length !== 1) {
     throw new MerchantAiAuthorizationStoreError(
-      'property_inactive',
-      'Current Review analysis source head is unavailable',
+      'membership_denied',
+      'A live account admin is required',
     )
   }
-  const runtimeProfilesJson = canonicalizeRfc8785(runtimeProfiles)
-  const capabilityArray =
-    input.capabilities.length === 0
-      ? sql`ARRAY[]::text[]`
-      : sql`ARRAY[${sql.join(
-          input.capabilities.map((capability) => sql`${capability}`),
-          sql`, `,
-        )}]::text[]`
-
-  const evidenceResult = await tx.execute(sql`
-    SELECT (
-      apply_merchant_ai_transition_v1(
-        ${authorizationLineageId}::uuid,
-        ${input.expectedStateVersion},
-        ${stateVersion},
-        ${input.organizationId},
-        ${input.propertyId}::uuid,
-        ${input.operation},
-        ${input.state},
-        ${capabilityArray},
-        ${runtimeProfilesJson}::jsonb,
-        ${capabilityEpochs.review_analysis},
-        ${capabilityEpochs.reply_drafting},
-        ${capabilityEpochs.property_trends},
-        ${authorizedSourceEpoch},
-        ${analysisStartSequence},
-        ${input.noticeVersion},
-        ${input.noticeDigest},
-        ${input.sourcePolicyId},
-        ${input.routingPolicyVersion},
-        'global',
-        ${input.providerDeploymentProfileVersion},
-        ${input.redactionProfileFamily},
-        ${input.actorUserId},
-        ${input.reasonCode},
-        ${input.idempotencyKey},
-        ${requestHash},
-        ${input.now},
-        ${input.ceremonyId}::uuid
-      )
-    ).*
-  `)
-  const evidence = evidenceResult.rows[0] as SnapshotRow
-
-  await withdrawStaleDrafts(
-    tx,
-    input,
-    current,
-    {
-      capabilityEpochs,
-      runtimeProfiles,
-      providerDeploymentProfileVersion: input.providerDeploymentProfileVersion,
-    },
-    replyEffects,
-  )
-  if (input.state === 'enabled') {
-    // The decision is made: a standing "not now" ends with the enable that
-    // supersedes it, in the same transaction (a change starts from an enabled
-    // head, so this deletes nothing there).
-    await deleteMerchantAiDecisionDeferral(tx, {
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-    })
-  }
-  const snapshot = mapSnapshot(evidence)
-  const event = identityMerchantAiChanged({
-    organizationId: organizationId(input.organizationId),
-    propertyId: input.propertyId,
-    authorizationLineageId,
-    state: input.state,
-    reviewAnalysisEpoch: capabilityEpochs.review_analysis,
-    replyDraftingEpoch: capabilityEpochs.reply_drafting,
-    propertyTrendsEpoch: capabilityEpochs.property_trends,
-    authorizedSourceEpoch,
-    analysisStartSequence,
-    stateVersion,
-    occurredAt: input.now,
-  })
-  await insertOutboxRow(tx, event)
-  return snapshot
 }
 
 function allowsTransition(
@@ -582,80 +276,22 @@ function allowsTransition(
   )
 }
 
-/** Withdraw the saved AI drafts this transition leaves stale, unless a standing renewal keeps them. */
-async function withdrawStaleDrafts(
-  tx: Tx,
+type Decision =
+  | Readonly<{ kind: 'unchanged'; current: MerchantAiSnapshot }>
+  | Readonly<{
+      kind: 'write'
+      input: MerchantAiMutationInput
+      runtimeProfiles: CapabilityRuntimeProfileVersions
+      authorizedSourceEpoch: number
+    }>
+
+/** An explicit command: its operation and expected version must fit the locked head. */
+function decideCommand(
   input: MerchantAiMutationInput,
   current: MerchantAiSnapshot | null,
-  next: Parameters<typeof standingRenewalKeepsSavedDrafts>[2],
-  replyEffects: ReplyScopeEffects | undefined,
-): Promise<void> {
-  if (standingRenewalKeepsSavedDrafts(input.reasonCode, current, next)) return
-  const purgeDrafts =
-    input.state !== 'enabled' || !input.capabilities.includes('reply_drafting')
-      ? purgeAiDraftsForAuthorization
-      : purgeAiDraftsForProfile
-  await purgeDrafts(
-    tx,
-    {
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-    },
-    replyEffects,
-  )
-}
-
-async function requireStandingRenewalOwner(
-  tx: Tx,
-  input: MerchantAiMutationInput,
-  role: string,
-) {
-  if (input.reasonCode !== STANDING_RENEWAL_REASON) return
-  const liveUser = await tx.execute(
-    sql`SELECT id FROM "user" WHERE id = ${input.actorUserId} FOR SHARE`,
-  )
-  if (role !== 'owner' || liveUser.rows.length !== 1) {
-    throw new MerchantAiAuthorizationStoreError(
-      'membership_denied',
-      'A live account admin is required',
-    )
-  }
-}
-
-/** One single-property enable, change, or revoke inside the caller's transaction. */
-export async function runMerchantAiMutation(
-  tx: Tx,
-  input: MerchantAiMutationInput,
-  idGen: () => string,
-  replyEffects: ReplyScopeEffects | undefined,
-  replayIsNoOp = false,
-): Promise<MerchantAiSnapshot> {
-  const requestHash = canonicalRequestHash(input)
-  const discoveredSourceEpoch = await lockProviderSource(tx, input, input.operation)
-
-  const replay = await readIdempotentEvidence(tx, input)
-  if (replay) {
-    if (replay.request_hash !== requestHash) {
-      throw new MerchantAiAuthorizationStoreError(
-        'idempotency_conflict',
-        'Idempotency key was already used for a different command',
-      )
-    }
-    if (replayIsNoOp)
-      throw new MerchantAiAuthorizationStoreError('no_op', 'Already renewed')
-    return mapSnapshot(replay)
-  }
-
-  const lockedPropertySourceEpoch = await lockTransitionProperty(
-    tx,
-    input,
-    input.operation,
-    discoveredSourceEpoch,
-  )
-  const memberRole = await requireManagementAuthority(tx, input)
-  await requireStandingRenewalOwner(tx, input, memberRole)
-
-  const current = await lockMerchantAiHead(tx, input)
+  lockedPropertySourceEpoch: number,
+  discoveredSourceEpoch: number,
+): Decision {
   if (!allowsTransition(input.operation, current?.state)) {
     throw new MerchantAiAuthorizationStoreError(
       'invalid_transition',
@@ -711,12 +347,104 @@ export async function runMerchantAiMutation(
       'Merchant AI settings did not change',
     )
   }
+  return { kind: 'write', input, runtimeProfiles, authorizedSourceEpoch }
+}
 
-  return commitMerchantAiTransition(
+/** A ceremony's grant: enable a head that is not enabled, re-grant one that differs. */
+function decideConsent(
+  grant: MerchantAiConsentGrant,
+  current: MerchantAiSnapshot | null,
+  lockedPropertySourceEpoch: number,
+): Decision {
+  const runtimeProfiles = runtimeProfilesFor(grant.capabilities)
+  const plan = planMerchantAiConsentTransition(current, {
+    ...grant,
+    capabilityRuntimeProfileVersions: runtimeProfiles,
+    authorizedSourceEpoch: lockedPropertySourceEpoch,
+  })
+  if (plan.kind === 'unchanged') return { kind: 'unchanged', current: plan.current }
+  return {
+    kind: 'write',
+    input: {
+      ...grant,
+      operation: plan.kind,
+      state: 'enabled',
+      expectedStateVersion: current?.stateVersion ?? 0,
+    },
+    runtimeProfiles,
+    authorizedSourceEpoch: lockedPropertySourceEpoch,
+  }
+}
+
+/**
+ * The one Merchant AI transition for a Property, inside the caller's
+ * transaction. A command replays by its idempotency key; a ceremony replays
+ * as a whole before it reaches here.
+ */
+export async function transitionMerchantAi(
+  tx: Tx,
+  request: MerchantAiTransitionRequest,
+  idGen: () => string,
+  replyEffects: ReplyScopeEffects | undefined,
+): Promise<MerchantAiTransitionResult> {
+  const target = request.kind === 'command' ? request.command : request.grant
+  // A ceremony never revokes, and the lock steps only distinguish a revoke, so
+  // it fences as an enable before the locked head decides enable or change.
+  const lockOperation = request.kind === 'command' ? request.command.operation : 'enable'
+  const requestHash =
+    request.kind === 'command'
+      ? canonicalRequestHash(request.command)
+      : request.requestHash
+  const discoveredSourceEpoch = await lockProviderSource(tx, target, lockOperation)
+
+  if (request.kind === 'command') {
+    const replay = await readIdempotentEvidence(tx, target)
+    if (replay) {
+      if (replay.request_hash !== requestHash) {
+        throw new MerchantAiAuthorizationStoreError(
+          'idempotency_conflict',
+          'Idempotency key was already used for a different command',
+        )
+      }
+      if (request.replayIsNoOp)
+        throw new MerchantAiAuthorizationStoreError('no_op', 'Already renewed')
+      return { operation: request.command.operation, snapshot: mapSnapshot(replay) }
+    }
+  }
+
+  const lockedPropertySourceEpoch = await lockTransitionProperty(
     tx,
-    input,
-    { current, runtimeProfiles, authorizedSourceEpoch, requestHash },
+    target,
+    lockOperation,
+    discoveredSourceEpoch,
+  )
+  const memberRole = await requireManagementAuthority(tx, target)
+  await requireStandingRenewalOwner(tx, target, memberRole)
+  const current = await lockMerchantAiHead(tx, target)
+
+  const decision =
+    request.kind === 'command'
+      ? decideCommand(
+          request.command,
+          current,
+          lockedPropertySourceEpoch,
+          discoveredSourceEpoch,
+        )
+      : decideConsent(request.grant, current, lockedPropertySourceEpoch)
+  if (decision.kind === 'unchanged') {
+    return { operation: 'unchanged', snapshot: decision.current }
+  }
+  const snapshot = await commitGrantTransition(
+    tx,
+    decision.input,
+    {
+      current,
+      runtimeProfiles: decision.runtimeProfiles,
+      authorizedSourceEpoch: decision.authorizedSourceEpoch,
+      requestHash,
+    },
     idGen,
     replyEffects,
   )
+  return { operation: decision.input.operation, snapshot }
 }

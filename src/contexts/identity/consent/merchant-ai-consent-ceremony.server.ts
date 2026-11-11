@@ -4,25 +4,16 @@ import type { Database } from '#/shared/db/index'
 import type { Tx } from '#/shared/outbox/commit'
 import { toDomainRole } from '#/shared/domain/roles'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import { planMerchantAiConsentTransition } from '../domain/merchant-ai-authorization'
 import {
   MerchantAiAuthorizationStoreError,
   type MerchantAiConsentCeremonyInput,
   type MerchantAiPropertyConsentResult,
 } from './merchant-ai-authorization.server'
-import {
-  commitMerchantAiTransition,
-  lockMerchantAiHead,
-  lockProviderSource,
-  lockTransitionProperty,
-  mapSnapshot,
-  requireManagementAuthority,
-  runtimeProfilesFor,
-  type SnapshotRow,
-} from './merchant-ai-transition.server'
+import { mapSnapshot, type SnapshotRow } from './merchant-ai-snapshot.server'
+import { transitionMerchantAi } from './merchant-ai-transition.server'
 
 // One consent ceremony over several Properties (decision 3). Each Property
-// runs the single-Property steps and fences; the whole ceremony is one
+// runs the one Merchant AI transition and its fences; the whole ceremony is one
 // transaction, so its enablement rows, evidence rows and outbox facts commit
 // together or not at all. Every evidence row it writes shares the ceremony id
 // and the ceremony's request hash.
@@ -173,6 +164,12 @@ async function requireCurrentAccountAdmin(
   }
 }
 
+const CONSENT_OUTCOME = {
+  enable: 'enabled',
+  change: 'changed',
+  unchanged: 'unchanged',
+} as const
+
 async function consentForProperty(
   tx: Tx,
   input: MerchantAiConsentCeremonyInput,
@@ -181,68 +178,41 @@ async function consentForProperty(
   idGen: () => string,
   replyEffects: ReplyScopeEffects | undefined,
 ): Promise<MerchantAiPropertyConsentResult> {
-  const target = {
-    organizationId: input.organizationId,
-    propertyId,
-    actorUserId: input.actorUserId,
-    now: input.now,
-  }
-  // A ceremony never revokes, and the lock steps only distinguish a revoke, so
-  // it fences as an enable before the locked head decides enable or change.
-  const discoveredSourceEpoch = await lockProviderSource(tx, target, 'enable')
-  const lockedPropertySourceEpoch = await lockTransitionProperty(
-    tx,
-    target,
-    'enable',
-    discoveredSourceEpoch,
-  )
-  await requireManagementAuthority(tx, target)
-  const current = await lockMerchantAiHead(tx, target)
-
-  const runtimeProfiles = runtimeProfilesFor(input.capabilities)
-  const plan = planMerchantAiConsentTransition(current, {
-    ...input,
-    capabilityRuntimeProfileVersions: runtimeProfiles,
-    authorizedSourceEpoch: lockedPropertySourceEpoch,
-  })
-  if (plan.kind === 'unchanged') {
-    return { propertyId, outcome: 'unchanged', snapshot: plan.current }
-  }
-
-  const snapshot = await commitMerchantAiTransition(
+  const result = await transitionMerchantAi(
     tx,
     {
-      organizationId: input.organizationId,
-      propertyId,
-      actorUserId: input.actorUserId,
-      idempotencyKey: `${facts.keyPrefix}${propertyId}`,
-      expectedStateVersion: current?.stateVersion ?? 0,
-      operation: plan.kind,
-      state: 'enabled',
-      capabilities: input.capabilities,
-      reasonCode: input.reasonCode,
-      noticeVersion: input.noticeVersion,
-      noticeDigest: input.noticeDigest,
-      sourcePolicyId: input.sourcePolicyId,
-      routingPolicyVersion: input.routingPolicyVersion,
-      providerDeploymentProfileVersion: input.providerDeploymentProfileVersion,
-      redactionProfileFamily: input.redactionProfileFamily,
-      now: input.now,
-      ceremonyId: input.ceremonyId,
-    },
-    {
-      current,
-      runtimeProfiles,
-      authorizedSourceEpoch: lockedPropertySourceEpoch,
+      kind: 'consent',
+      grant: {
+        organizationId: input.organizationId,
+        propertyId,
+        actorUserId: input.actorUserId,
+        idempotencyKey: `${facts.keyPrefix}${propertyId}`,
+        capabilities: input.capabilities,
+        reasonCode: input.reasonCode,
+        noticeVersion: input.noticeVersion,
+        noticeDigest: input.noticeDigest,
+        sourcePolicyId: input.sourcePolicyId,
+        routingPolicyVersion: input.routingPolicyVersion,
+        providerDeploymentProfileVersion: input.providerDeploymentProfileVersion,
+        redactionProfileFamily: input.redactionProfileFamily,
+        now: input.now,
+        ceremonyId: input.ceremonyId,
+      },
       requestHash: facts.requestHash,
     },
     idGen,
     replyEffects,
   )
+  if (result.operation === 'revoke') {
+    throw new MerchantAiAuthorizationStoreError(
+      'invalid_transition',
+      'A consent ceremony never revokes',
+    )
+  }
   return {
     propertyId,
-    outcome: plan.kind === 'enable' ? 'enabled' : 'changed',
-    snapshot,
+    outcome: CONSENT_OUTCOME[result.operation],
+    snapshot: result.snapshot,
   }
 }
 
