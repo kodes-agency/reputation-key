@@ -1175,6 +1175,30 @@ describe('publish-reply job handler', () => {
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
 
+  it('a provider failure on the readback fails the job with the review API message', async () => {
+    const deps = makeDeps()
+    const sending = {
+      ...approvedReply,
+      publicationState: 'sending',
+      publicationAttempts: 1,
+    }
+    deps.replyRepo.findById.mockResolvedValue(sending)
+    deps.googleReviewApi.getReview.mockRejectedValue(
+      Object.assign(new Error('GBP API getReview failed (answered; status 403)'), {
+        _tag: 'GbpApiError',
+        code: 'upstream_error',
+        dispatch: 'answered',
+        providerStatus: 403,
+      }),
+    )
+    const handler = createPublishReplyHandler(deps as never)
+
+    await expect(handler(makeJob(1))).rejects.toMatchObject({
+      _tag: 'GoogleReviewApiError',
+      message: 'Google review API request failed (upstream_error; answered; status 403)',
+    })
+  })
+
   it('a failed targeted readback past the grace becomes ambiguous on the ladder', async () => {
     const deps = makeDeps()
     const sending = {

@@ -1,7 +1,10 @@
-import type {
-  GoogleReviewApiError,
-  GoogleReviewApiPort,
-  GoogleReviewPageRequest,
+import {
+  executorErrorToReviewApiError,
+  isGoogleReviewApiError,
+  reviewApiError,
+  type GoogleReviewApiError,
+  type GoogleReviewApiPort,
+  type GoogleReviewPageRequest,
 } from '#/contexts/review/application/public-api'
 import type { GoogleReviewHeadRequest } from '#/contexts/review/application/ports/google-review-api.port'
 import { REVIEW_LIST_NEWEST_UPDATED_FIRST } from '#/shared/google-provider-control/review-route-descriptors'
@@ -31,13 +34,11 @@ import {
   providerStatusError,
 } from '../../provider/google-client.server'
 import {
-  executorErrorToReviewApiError,
   invalidRequest,
   isAcceptedNonJsonWrite,
-  isGoogleReviewApiError,
+  readFailure,
   replyAuthorizationRefusal,
   replyPreReadAuthorizationRefusal,
-  reviewApiError,
 } from './google-review-api-errors'
 import {
   googleReviewCursorAuthorization,
@@ -371,7 +372,7 @@ export const createGoogleReviewApiAdapter = (
         }),
       )
     } catch (error) {
-      throw executorErrorToReviewApiError(error)
+      throw readFailure(error)
     }
   }
 
@@ -548,8 +549,7 @@ export const createGoogleReviewApiAdapter = (
         result.body.fill(0)
       }
     } catch (error) {
-      if (isGoogleReviewApiError(error)) throw error
-      throw executorErrorToReviewApiError(error)
+      throw readFailure(error)
     }
     await assertAuthorizationCurrent(input, context.cursorAuthorization, resolve)
     const review = parseReview(raw, input.locationName, deps.logger)
