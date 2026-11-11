@@ -4,7 +4,6 @@
 // A size only names `--dialog-w`; the cap turns it into `min(--dialog-w, window - 1rem
 // a side)` at every width. A bare `sm:max-w-4xl` would sit flush with both edges in a
 // 768px window, and the margin is the one thing no size may give up.
-// `dialog.metrics.ts` measures every size from a phone to a desktop.
 
 /** The width of a fixed, centred dialog: its size, or the window less 1rem a side. */
 export const DIALOG_WIDTH_CAP = 'max-w-[min(var(--dialog-w),calc(100%-2rem))]'

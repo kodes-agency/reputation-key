@@ -260,8 +260,7 @@ export const MissingLanguageChipHasAnIcon: Story = {
 
 // All six guest languages on one Portal, with a tile that has text in English
 // only: five tabs read "XX missing". The label tabs must wrap, not run past the
-// editor; the width is measured in `e2e/storybook-metrics/linktree-six-languages.metrics.ts`
-// (the Vitest story runner compiles no Tailwind, so it cannot see overflow).
+// editor (the Vitest story runner compiles no Tailwind, so it cannot see overflow).
 export const SixLanguagesWrapTheLanguageTabs: Story = {
   args: {
     view: view({

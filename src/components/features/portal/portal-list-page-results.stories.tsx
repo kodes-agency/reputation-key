@@ -321,8 +321,7 @@ export const NotOfferedToThisReader: Story = {
 
 // Both lines are in the document whatever the width: the Vitest story runner compiles no
 // Tailwind, so this story proves the summary line's words, not that it is the one shown at
-// 390 px. Which of the two layouts shows at which width is held in
-// `e2e/storybook-metrics/portal-overview.metrics.ts`, where Tailwind is compiled.
+// 390 px.
 export const Phone: Story = {
   args: withResults,
   decorators: [

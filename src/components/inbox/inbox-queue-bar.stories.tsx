@@ -6,10 +6,7 @@
 // resize the runner window (see the header of `inbox-mobile-390.stories.tsx`),
 // but no Tailwind is compiled in that runner. What these stories assert is
 // behaviour: what the button and the chip say, what the sheet lists, and which
-// queue a choice reports. Where things sit (the 44 px bar on the 16 px gutter,
-// 36 px controls, the 44 px sheet rows, nothing past the edge at 320 px) is
-// asserted by the Playwright metrics gate, which runs against a real Tailwind
-// build (`e2e/storybook-metrics/inbox-phone.metrics.ts`).
+// queue a choice reports.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { InboxQueueCounts } from '#/contexts/inbox/application/public-api'

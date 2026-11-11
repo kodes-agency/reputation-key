@@ -2,9 +2,7 @@
 // container's own width. Dark is the default theme; the light variant renders the
 // same table on the light surface (axe runs on both). The Storybook Vitest project
 // compiles no Tailwind, so these plays pin structure (names, sort state, columns).
-// Which width stacks and which tables, and how the frame is drawn, is read in a real
-// browser by `e2e/storybook-metrics/data-table.metrics.ts`. The `Narrow` and `Wide`
-// stories draw the same table in a 22rem and a 56rem column for that.
+// The `Narrow` and `Wide` stories draw the same table in a 22rem and a 56rem column.
 import { useState, type ReactNode } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
