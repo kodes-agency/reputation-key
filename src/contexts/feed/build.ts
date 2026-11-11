@@ -139,10 +139,7 @@ import {
 } from './application/ports/notification-delivery-lag.repository'
 import { registerPortalHealthNotificationConsumer } from './infrastructure/portal-health-outbox-consumers'
 import { createOrganizationAccountNotificationAuthority } from './infrastructure/adapters/organization-account-notification-authority.adapter'
-import {
-  registerIdentityAccountNotificationConsumers,
-  registerOrganizationPurgePendingNoticeConsumer,
-} from './infrastructure/identity-account-outbox-consumers'
+import { registerIdentityAccountNotificationConsumers } from './infrastructure/identity-account-outbox-consumers'
 import { createNotificationOrganizationScopeResolver } from './infrastructure/repositories/notification-organization-scope.repository'
 import { createNotificationUserSettings } from './preferences/user-settings.server'
 import type {
@@ -685,15 +682,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     const notices = { queue, noticeWriter, receipts: input.outboxRepo }
     registerIdentityAccountNotificationConsumers(consumerRegistry, {
       ...notices,
-      displayNames,
-      logger: input.logger,
-    })
-    // LIF-01 program bullet 5 — the mandatory final notice at Purge Pending.
-    // Registering it does NOT arm the lifecycle: the transition that produces
-    // the fact is still driven by a quarantined schedule.
-    registerOrganizationPurgePendingNoticeConsumer(consumerRegistry, {
-      ...notices,
-      userLookup,
       displayNames,
       logger: input.logger,
     })

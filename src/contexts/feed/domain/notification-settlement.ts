@@ -91,7 +91,6 @@ export type SettlingFact =
   | 'google_connection.reconnected'
   | 'google_connection.disconnected'
   | 'portal_health.recovered'
-  | 'organization.purge_cancelled'
   | 'property.archived'
 
 /**
@@ -146,7 +145,6 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
   // Health that recovered, or moved to a state nobody has to fix (a draft,
   // an archived Property), no longer needs the manager it asked.
   'portal_health.recovered': ['portal.health_attention'],
-  'organization.purge_cancelled': ['account.organization_purge_pending'],
   // An archived Property is outside the workspace: nothing can be answered,
   // approved or published there, so every notice asking for work on it is
   // finished. This one fact settles by Property rather than by resource. A
@@ -262,13 +260,6 @@ export const isStillActionable = (notification: ActionableNotificationState): bo
 
 /** The reason a queued email is cancelled because its work was settled. */
 export const SETTLED_EMAIL_REASON = 'work_settled' as const
-
-/**
- * The reason the final deletion warning's queued email is cancelled: the
- * purge it announced was called off. Its own code, so an operator can tell a
- * withdrawn warning from finished work.
- */
-export const PURGE_CANCELLED_EMAIL_REASON = 'purge_cancelled' as const
 
 /**
  * The reason a queued email is retired at send time: by then its notice was

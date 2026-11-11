@@ -5,19 +5,12 @@
 // shapes and factories live in ./event-job-catalogue-rows.ts: this module must
 // not import the catalogue back.
 
-import {
-  durable,
-  ev,
-  type EventConsumerRef,
-  type EventFamilyRow,
-} from './event-job-catalogue-rows'
+import { durable, ev, type EventFamilyRow } from './event-job-catalogue-rows'
 
 const ACTIVITY_OUTBOX = 'src/contexts/feed/infrastructure/activity-outbox-consumers.ts'
 const AI_OUTBOX = 'src/contexts/ai/infrastructure/outbox-consumers.ts'
 const NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX =
   'src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts'
-const NOTIFICATION_SETTLEMENT_OUTBOX =
-  'src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts'
 const IDENTITY_MEMBER_ROLE_OUTBOX =
   'src/contexts/identity/infrastructure/member-role-outbox-consumers.ts'
 const INBOX_MEMBER_OFFBOARDING_OUTBOX =
@@ -28,10 +21,6 @@ const PORTAL_MEMBER_OFFBOARDING_OUTBOX =
   'src/contexts/portal/infrastructure/member-offboarding-outbox-consumers.ts'
 const PROPERTY_MEMBER_OFFBOARDING_OUTBOX =
   'src/contexts/property/infrastructure/member-offboarding-outbox-consumers.ts'
-
-/** A Feed route that retires notices rather than raising them (ADR 0046). */
-const settles = (name: string): EventConsumerRef =>
-  durable(name, NOTIFICATION_SETTLEMENT_OUTBOX)
 
 export const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('identity.organization.created', []),
@@ -87,12 +76,5 @@ export const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('identity.merchant_ai.changed', [
     durable('ai.enroll-review-analysis', AI_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
-  ]),
-  ev('identity.organization_lifecycle.changed', [
-    durable(
-      'notification.on-identity-organization-purge-pending',
-      NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
-    ),
-    settles('notification.settle-on-organization-purge-cancelled'),
   ]),
 ]

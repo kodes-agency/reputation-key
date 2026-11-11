@@ -26,10 +26,7 @@ import { registerBulkAssignmentNotificationConsumer } from '#/contexts/feed/infr
 import { registerEscalationResolutionNotificationConsumer } from '#/contexts/feed/infrastructure/escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
 import { registerHandlingCycleNotificationConsumers } from '#/contexts/feed/infrastructure/handling-cycle-outbox-consumers'
-import {
-  registerIdentityAccountNotificationConsumers,
-  registerOrganizationPurgePendingNoticeConsumer,
-} from '#/contexts/feed/infrastructure/identity-account-outbox-consumers'
+import { registerIdentityAccountNotificationConsumers } from '#/contexts/feed/infrastructure/identity-account-outbox-consumers'
 import type { GoogleConnectionPropertyLookup } from '#/contexts/feed/infrastructure/integration-outbox-consumers'
 import { registerIntegrationNotificationConsumers } from '#/contexts/feed/infrastructure/integration-outbox-consumers'
 import { type InsertNotificationJobData } from '#/contexts/feed/infrastructure/jobs/insert-notification.job'
@@ -164,7 +161,6 @@ export function registerNotificationRoutes(
 ): ConsumerRegistry {
   const registry = createConsumerRegistry()
   registerIdentityAccountNotificationConsumers(registry, deps)
-  registerOrganizationPurgePendingNoticeConsumer(registry, deps)
   registerNotificationConsumers(registry, deps)
   registerWorkflowNotificationConsumers(registry, deps)
   registerBulkAssignmentNotificationConsumer(registry, deps)
