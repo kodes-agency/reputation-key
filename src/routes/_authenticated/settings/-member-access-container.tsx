@@ -13,13 +13,15 @@ import type { Action } from '#/components/hooks/use-action'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   MemberAccessSheet,
-  joinNames,
   type MemberAccessTarget,
-  type PropertyRef,
   type ResponsibilityState,
   type SaveMemberAccessInput,
+} from '#/contexts/identity/members/ui/member-access-sheet'
+import {
   grantsOnListedProperties,
-} from '#/components/features/identity'
+  joinNames,
+} from '#/contexts/identity/members/ui/member-access-diff'
+import type { PropertyRef } from '#/contexts/identity/members/ui/member-table'
 import {
   listPropertyResponsibleManagers,
   updatePropertyResponsibleManagers,
