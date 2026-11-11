@@ -6,7 +6,6 @@
 // image are one symbol.
 
 import QRCode from 'qrcode'
-import { PRINT_KIT_QR_QUIET_ZONE_MODULES } from '#/shared/domain/portal-print-kit'
 
 export type QrMatrix = Readonly<{
   /** Modules along one side, the quiet zone not included. */
@@ -21,9 +20,6 @@ export function qrMatrix(address: string): QrMatrix {
     isDark: (row, column) => modules.get(row, column) === 1,
   }
 }
-
-/** The QR version of a symbol `size` modules wide: a version N symbol is 17 + 4N across. */
-export const qrSymbolVersion = (matrix: QrMatrix): number => (matrix.size - 17) / 4
 
 export type QrRun = Readonly<{ row: number; column: number; length: number }>
 
@@ -42,9 +38,4 @@ export function qrDarkRuns(matrix: QrMatrix): readonly QrRun[] {
     }
   }
   return runs
-}
-
-/** Modules along one side of the light plate: the symbol and its quiet zone. */
-export function qrPlateModules(symbolModules: number): number {
-  return symbolModules + 2 * PRINT_KIT_QR_QUIET_ZONE_MODULES
 }

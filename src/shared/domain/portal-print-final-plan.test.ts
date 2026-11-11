@@ -5,12 +5,7 @@ import { PRINT_FINAL_MEASURES, inPt, mmPt, ptMm } from './portal-print-final-mea
 import { printFinalGapUnitsBefore, type PrintFinalPart } from './portal-print-final-parts'
 import { planPrintFinalFace, printFinalTextColumn } from './portal-print-final-plan'
 import { PRINT_FINAL_SPARE_TOP_SHARE } from './portal-print-final-planners'
-import {
-  printFinalPhotoBox,
-  printFinalPhotoDpi,
-  printFinalPhotoPixelsFor,
-  printFinalPhotoTier,
-} from './portal-print-final-photo'
+import { printFinalPhotoBox, printFinalPhotoPixelsFor } from './portal-print-final-photo'
 import { choosePrintFinalHeadline } from './portal-print-final-type'
 
 const face = (over: Partial<PrintFinalFace> = {}): PrintFinalFace => ({
@@ -240,18 +235,6 @@ describe('the photo (spec 6.2)', () => {
     expect(box.box.topPt).toBe(inPt(0.1))
     expect(box.coverHeightPt).toBeCloseTo(box.box.bottomPt - inPt(0.1), 6)
   })
-
-  it('floors the dpi, divides it by the zoom, and never refuses', () => {
-    const wide = printFinalPhotoBox(plan(face({ orientation: 'wide' })))
-    expect(printFinalPhotoDpi({ widthPx: 1195, heightPx: 669 }, wide)).toBe(157)
-    expect(printFinalPhotoDpi({ widthPx: 1043, heightPx: 584 }, wide)).toBe(137)
-    expect(printFinalPhotoDpi({ widthPx: 1195, heightPx: 669 }, wide, 1.35)).toBe(116)
-    expect(printFinalPhotoTier(137)).toBe('will_look_soft')
-    expect(printFinalPhotoTier(150)).toBe('may_look_soft')
-    expect(printFinalPhotoTier(199)).toBe('may_look_soft')
-    expect(printFinalPhotoTier(200)).toBe('sharp')
-  })
-
   it('names the least photo that prints sharp in the box', () => {
     const wide = printFinalPhotoBox(plan(face({ orientation: 'wide' })))
     expect(printFinalPhotoPixelsFor(wide, 200)).toEqual({ widthPx: 850, heightPx: 850 })

@@ -21,10 +21,6 @@ export type PrintKitPiece = (typeof PRINT_KIT_PIECES)[number]
 /** The short name of each piece, in captions and in file names. */
 export const PRINT_KIT_PIECE_NOUNS: Readonly<Record<PrintKitPiece, string>> =
   Object.freeze({ table_tent: 'table tent', counter_card: 'counter card' })
-
-export const PRINT_KIT_CALLS_TO_ACTION = Object.freeze(['rate', 'tell'] as const)
-export type PrintKitCallToAction = (typeof PRINT_KIT_CALLS_TO_ACTION)[number]
-
 /**
  * The two looks a print can take. Paper is ink on the customer's own paper, for
  * any printer; Immersive is the guest page's dark field, for a print shop.
@@ -100,20 +96,6 @@ export function defaultPrintKitPaper(countryCode: string | null): PrintKitPaper 
  */
 export const PRINT_KIT_SIZES = Object.freeze(['large', 'table', 'mini'] as const)
 export type PrintKitSize = (typeof PRINT_KIT_SIZES)[number]
-
-/**
- * The sizes a manager may choose today. Table and Mini wait for the short print
- * address, and for a real print of each to pass a phone test, so they are drawn
- * and tested but reachable only from tests and stories. Once a size travels in
- * the choice, the server refuses one that is not listed here.
- */
-export const PRINT_KIT_SELECTABLE_SIZES: readonly PrintKitSize[] = Object.freeze([
-  'large',
-])
-
-export const isSelectablePrintKitSize = (size: PrintKitSize): boolean =>
-  PRINT_KIT_SELECTABLE_SIZES.includes(size)
-
 /**
  * The print a download asks for: its look and the paper it prints on, and,
  * from round 3, its size and output (Large, and the style's own output, unless
@@ -159,97 +141,6 @@ export const PRINT_KIT_QR_QUIET_ZONE_MODULES = 4
 
 export type PrintKitCopy = Readonly<{ headline: string; subline: string }>
 
-export const PRINT_KIT_CALL_TO_ACTION_LABELS: Readonly<
-  Record<PrintKitCallToAction, string>
-> = Object.freeze({
-  rate: 'Rate your visit — private, about 30 seconds',
-  tell: 'How was your visit? About 30 seconds',
-})
-
-/** What each call to action says on the print, per language. */
-export const PRINT_KIT_COPY: Readonly<
-  Record<GuestLocale, Readonly<Record<PrintKitCallToAction, PrintKitCopy>>>
-> = Object.freeze({
-  en: {
-    rate: { headline: 'Rate your visit', subline: 'Private, about 30 seconds' },
-    tell: { headline: 'How was your visit?', subline: 'About 30 seconds' },
-  },
-  bg: {
-    rate: {
-      headline: 'Оценете посещението си',
-      subline: 'Поверително, около 30 секунди',
-    },
-    tell: { headline: 'Как мина посещението ви?', subline: 'Около 30 секунди' },
-  },
-  es: {
-    rate: { headline: 'Valore su visita', subline: 'En privado, unos 30 segundos' },
-    tell: { headline: '¿Qué tal su visita?', subline: 'Unos 30 segundos' },
-  },
-  it: {
-    rate: { headline: 'Valuti la sua visita', subline: 'In privato, circa 30 secondi' },
-    tell: { headline: 'Com’è andata la sua visita?', subline: 'Circa 30 secondi' },
-  },
-  fr: {
-    rate: { headline: 'Évaluez votre visite', subline: 'En privé, environ 30 secondes' },
-    tell: {
-      headline: 'Comment s’est passée votre visite ?',
-      subline: 'Environ 30 secondes',
-    },
-  },
-  de: {
-    rate: { headline: 'Bewerten Sie Ihren Besuch', subline: 'Privat, etwa 30 Sekunden' },
-    tell: { headline: 'Wie war Ihr Besuch?', subline: 'Etwa 30 Sekunden' },
-  },
-})
-
-/**
- * The cue in the bar under the code, per language: what the phone is for.
- * Drafts that no native speaker has checked yet, as the closed beta allows (the
- * es, it, fr and de copy above is the same). The French line is the longest.
- */
-export const PRINT_KIT_SCAN_CUE: Readonly<Record<GuestLocale, string>> = Object.freeze({
-  en: 'Scan with your camera',
-  es: 'Escanee con la cámara',
-  bg: 'Сканирайте с камерата',
-  it: 'Inquadri con la fotocamera',
-  fr: 'Scannez avec l’appareil photo',
-  de: 'Mit der Kamera scannen',
-})
-
-export type PrintKitChoice = Readonly<{
-  /** The look, and the paper family it prints on (Letter or A4). */
-  style: PrintKitStyle
-  paper: PrintKitPaper
-  /** The piece's size (round 3) and who prints it; `portal-print-kit-offer.ts` says which pairs are offered. */
-  size: PrintKitSize
-  output: PrintKitOutput
-  piece: PrintKitPiece
-  /** One or two of the portal's languages; the first is the larger. */
-  languages: readonly GuestLocale[]
-  callToAction: PrintKitCallToAction
-  /** The property's name under a logo on a Large or Table card (round-2 R6); on unless the manager turns it off. */
-  showPropertyName: boolean
-}>
-
-/** What decides what a print says: the piece, its languages and its call to action. */
-export type PrintKitWords = Pick<PrintKitChoice, 'piece' | 'languages' | 'callToAction'>
-
-/**
- * The language selections a portal's languages offer: its primary with each
- * other language, then each language alone. The board's "English + Български"
- * is the first of these.
- */
-export function printKitLanguageChoices(
-  locales: readonly GuestLocale[],
-): readonly (readonly GuestLocale[])[] {
-  const [primary, ...others] = locales
-  if (primary === undefined) return []
-  return [
-    ...others.map((other): readonly GuestLocale[] => [primary, other]),
-    ...locales.map((locale): readonly GuestLocale[] => [locale]),
-  ]
-}
-
 /**
  * Whether `languages` is one or two distinct languages the portal offers. The
  * order is the manager's (the larger language first), so a pair is accepted in
@@ -271,38 +162,6 @@ export type PrintTextBlock = Readonly<{
   headline: string
   subline: string
 }>
-
-export type PrintFaceSide = 'front' | 'back'
-
-export type PrintFace = Readonly<{
-  side: PrintFaceSide
-  /** The larger language first; one block, or two. */
-  blocks: readonly PrintTextBlock[]
-}>
-
-/**
- * What each face of a piece says. With two languages the front leads with the
- * first and the back leads with the second, so a guest on either side meets
- * their own language first. A table tent always has two panels; a counter card
- * has a back only when there is a second language to put on it.
- */
-export function printKitFaces(
-  choice: PrintKitWords,
-  titles: Readonly<Partial<Record<GuestLocale, string>>>,
-  fallbackTitle: string,
-): readonly PrintFace[] {
-  const block = (locale: GuestLocale): PrintTextBlock => ({
-    locale,
-    kicker: titles[locale] ?? fallbackTitle,
-    ...PRINT_KIT_COPY[locale][choice.callToAction],
-  })
-  const blocks = choice.languages.map(block)
-  const front: PrintFace = { side: 'front', blocks }
-  if (blocks.length === 2) {
-    return [front, { side: 'back', blocks: [...blocks].reverse() }]
-  }
-  return choice.piece === 'table_tent' ? [front, { side: 'back', blocks }] : [front]
-}
 
 /**
  * `pool-terrace-table-tent-en-bg.pdf`: the portal's name made safe for a file

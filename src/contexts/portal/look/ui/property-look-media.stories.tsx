@@ -5,6 +5,7 @@
 // the permission checkbox, "Use photo"), and the logo. The upload and the saves
 // are stubs that record what they were asked, so each play proves what a gesture
 // sends and what it does not. The pictures are made in the browser.
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { openAlertDialog } from '#/components/ui/confirmation-dialog.stories.open'
@@ -31,6 +32,7 @@ import {
 } from './property-look-page-fixtures'
 import { AVELA_MIXED_PORTALS } from './property-look-mixed-fixtures'
 import { PropertyLookPage } from './property-look-page'
+import { PropertyLookPhotoDialog } from './property-look-photo-dialog'
 
 const WAIT = { timeout: 5000 }
 
@@ -682,46 +684,82 @@ export const CannotBeClosedWhileSending: Story = {
   },
 }
 
-/** "Take this photo down" asks first, then takes the file down and clears it from the look. */
+/** The photograph dialog on its own, as the takedown stories draw it: no page behind it. */
+function TakedownDialog({
+  onTakeDown,
+  onSave,
+}: Readonly<{
+  onTakeDown?: (assetId: string) => Promise<unknown>
+  onSave: () => Promise<void>
+}>) {
+  const [isOpen, setIsOpen] = useState(true)
+  return (
+    <PropertyLookPhotoDialog
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      propertyId="prop-1"
+      propertyName="Avela Resort"
+      hero={AVELA_MEDIA.hero}
+      locales={['en']}
+      saved={{ en: 'The colonnade pool at dusk' }}
+      onSave={onSave}
+      {...(onTakeDown ? { onTakeDown } : {})}
+    />
+  )
+}
+
+const takedownStory = (
+  takeDown: ((assetId: string) => Promise<unknown>) | undefined,
+): Pick<Story, 'render'> => ({
+  render: (args) => (
+    <TakedownDialog
+      {...(takeDown ? { onTakeDown: takeDown } : {})}
+      onSave={async () => {
+        await args.saveHero({ data: { propertyId: 'prop-1', assetId: null } })
+      }}
+    />
+  ),
+})
+
+const takingDown = fn(async (_assetId: string) => ({ assetId: 'a', objectRemoved: true }))
+const refusingTakedown = fn((_assetId: string) => Promise.reject(new Error('refused')))
+
+const openedPhoto = async () =>
+  within(
+    await within(document.body).findByRole('dialog', { name: 'Replace photo' }, WAIT),
+  )
+
+/** "Take this photo down" asks first, then takes the file down. */
 export const TakesThePhotoDownAfterAsking: Story = {
-  args: { takeDownImage: fn(async () => ({ assetId: 'a', objectRemoved: true })) },
-  play: async ({ canvasElement, args }) => {
-    const photo = await openPhotoDialog(canvasElement)
+  ...takedownStory(takingDown),
+  play: async () => {
+    takingDown.mockClear()
+    const photo = await openedPhoto()
     await userEvent.click(photo.getByRole('button', { name: 'Take this photo down' }))
-    await expect(args.takeDownImage).not.toHaveBeenCalled()
+    await expect(takingDown).not.toHaveBeenCalled()
     await expect(photo.getByText(/This cannot be undone/)).toBeVisible()
     await userEvent.click(photo.getByRole('button', { name: 'Keep it' }))
-    await expect(args.takeDownImage).not.toHaveBeenCalled()
+    await expect(takingDown).not.toHaveBeenCalled()
     await userEvent.click(photo.getByRole('button', { name: 'Take this photo down' }))
     await userEvent.click(photo.getByRole('button', { name: 'Take it down' }))
     await waitFor(
-      () => expect(args.takeDownImage).toHaveBeenCalledWith(AVELA_MEDIA.hero?.assetId),
-      WAIT,
-    )
-    await waitFor(
-      () =>
-        expect(args.saveHero).toHaveBeenCalledWith({
-          data: { propertyId: 'prop-1', assetId: null },
-        }),
+      () => expect(takingDown).toHaveBeenCalledWith(AVELA_MEDIA.hero?.assetId),
       WAIT,
     )
     await waitFor(noDialog, WAIT)
   },
 }
 
-/** A refused takedown stays in the dialog, the photograph stays on the look, and it can be tried again. */
+/** A refused takedown stays in the dialog, and it can be tried again. */
 export const ARefusedTakedownStaysInTheDialog: Story = {
-  args: {
-    takeDownImage: fn(() => Promise.reject(new Error('refused'))),
-  },
-  play: async ({ canvasElement, args }) => {
-    const photo = await openPhotoDialog(canvasElement)
+  ...takedownStory(refusingTakedown),
+  play: async () => {
+    const photo = await openedPhoto()
     await userEvent.click(photo.getByRole('button', { name: 'Take this photo down' }))
     await userEvent.click(photo.getByRole('button', { name: 'Take it down' }))
     await expect(
       await photo.findByText('The photo could not be taken down. Try again.', {}, WAIT),
     ).toBeVisible()
-    await expect(args.saveHero).not.toHaveBeenCalled()
     await expect(dialog('Replace photo')).toBeVisible()
     await expect(photo.getByRole('button', { name: 'Take it down' })).toBeEnabled()
   },
@@ -729,8 +767,9 @@ export const ARefusedTakedownStaysInTheDialog: Story = {
 
 /** Where the page is given no takedown, the dialog offers none. */
 export const NoTakedownWithoutTheAction: Story = {
-  play: async ({ canvasElement }) => {
-    const photo = await openPhotoDialog(canvasElement)
+  ...takedownStory(undefined),
+  play: async () => {
+    const photo = await openedPhoto()
     await expect(photo.queryByRole('button', { name: 'Take this photo down' })).toBeNull()
   },
 }

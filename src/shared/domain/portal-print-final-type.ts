@@ -162,30 +162,3 @@ export function choosePrintFinalHeadline(
 
 // ---------------------------------------------------------------------------
 // The rules between the sizes
-
-export type PrintFinalTypeProblem =
-  'headline_under_floor' | 'second_headline_too_small' | 'second_headline_not_smaller'
-
-/**
- * What breaks the ratio rules: the headline at least 1.8 × the sub-line; the
- * second language's headline at least 1.25 × its own sub-line (not 1.8 ×,
- * which cannot hold at the type floors) and smaller than the first headline.
- */
-export function printFinalTypeProblems(
-  piece: PrintFinalPiece,
-  headlinePt: number,
-  secondHeadlinePt: number | null,
-): readonly PrintFinalTypeProblem[] {
-  const scale = PRINT_FINAL_TYPE[piece]
-  const settings = PRINT_FINAL_TYPE_SETTINGS
-  const problems: PrintFinalTypeProblem[] = []
-  if (headlinePt < scale.sublinePt * settings.headlineToSubline) {
-    problems.push('headline_under_floor')
-  }
-  if (secondHeadlinePt === null) return problems
-  if (secondHeadlinePt < scale.sublinePt * settings.secondHeadlineToSubline) {
-    problems.push('second_headline_too_small')
-  }
-  if (secondHeadlinePt >= headlinePt) problems.push('second_headline_not_smaller')
-  return problems
-}
