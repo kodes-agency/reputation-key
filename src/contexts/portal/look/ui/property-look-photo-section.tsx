@@ -36,6 +36,8 @@ export type PropertyLookPhotoControls = Readonly<{
   /** The phone beside the dialog's photograph. */
   renderPhone: (hero: NonNullable<PreviewMedia['hero']> | null) => ReactNode
   upload?: PortalImageUploader
+  /** Takes the photograph down for good; left out where the page cannot. */
+  onTakeDown?: PhotoDialogInput['onTakeDown']
 }>
 
 type Props = Readonly<{
@@ -125,6 +127,7 @@ export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props
           onSave={photo.onSave}
           renderPhone={photo.renderPhone}
           {...(photo.upload ? { upload: photo.upload } : {})}
+          {...(photo.onTakeDown ? { onTakeDown: photo.onTakeDown } : {})}
         />
       ) : null}
     </PropertyLookSection>

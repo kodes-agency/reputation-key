@@ -3,10 +3,13 @@ import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 
-type Read = Pick<
-  UseQueryResult,
+/** What a section needs of one read: its answer, and what it takes to say it failed and to try again. */
+export type SectionRead<T = unknown> = Pick<
+  UseQueryResult<T>,
   'isError' | 'isFetching' | 'errorUpdateCount' | 'data' | 'refetch'
 >
+
+type Read = SectionRead
 
 export function PortalReadState({
   queries,

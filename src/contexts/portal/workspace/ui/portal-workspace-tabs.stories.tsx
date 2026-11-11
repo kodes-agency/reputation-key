@@ -1,28 +1,26 @@
 // fallow-ignore-file code-duplication
-// Portal detail page — the tab (and, on the Page tab, the editor section) is
-// driven by the owning route's typed search state. Components receive it as
-// props, so stories and SSR use the same deterministic state without reading or
-// mutating window.location. The workspace layout provides the autosave
-// coordinator; the decorator below stands in for it.
-//
-// getPortalAnalytics is a server-fn-typed prop (analytics tab fires it on mount
-// via useServerFn(getPortalAnalytics)) → mock via mockServerFn + type cast.
+// The workspace's tab bodies as the route mounts them: the Page tab's editor
+// (on the section the route's search names), History and Share. Components
+// receive the tab as props, so stories and SSR use the same deterministic state
+// without reading or mutating window.location. The workspace layout provides
+// the autosave coordinator; the decorator below stands in for it.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
-import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
-import { PortalDetailPage } from './portal-detail-page'
+import { previewReader } from '#/components/features/portal/portal-preview/__fixtures__/portal-preview-fixtures'
+import { PortalEditor } from '#/contexts/portal/editor/ui/portal-editor'
+import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
+import { usePortalLinkIssuance } from '#/components/features/portal/portal-workspace/portal-link-issuance'
+import { PortalHistorySection } from './portal-history-section'
+import { PortalShareSection } from './portal-share-section'
+import type { SectionRead } from './portal-read-state'
 import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
-import type {
-  getPortalAnalyticsFn,
-  PortalAnalyticsData,
-} from '#/contexts/reporting/server/portal-analytics'
 import type { Action } from '#/components/hooks/use-action'
 import type { LinkTreeLink } from '#/contexts/portal/editor/ui/link-tree/link-tree-types'
 import type {
   CompleteReviewResult,
   CompleteReviewVariables,
   UpdatePortalVariables,
-} from '../shared/types'
+} from '#/components/features/portal/shared/types'
 import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import type { getPortalHistory } from '#/contexts/portal/server/portals'
 import type {
@@ -30,19 +28,77 @@ import type {
   getPortalVersionPreview,
   getPortalVersions,
 } from '#/contexts/portal/server/portal-versions'
-import { storyVersionPreview } from '../portal-history/__fixtures__/portal-version-preview-stories-data'
+import { storyVersionPreview } from '#/contexts/portal/workspace/ui/__fixtures__/portal-version-preview-stories-data'
 import {
   STORY_TIME_ZONE,
   STORY_VERSIONS,
   STORY_VERSION_DETAILS,
   storyHistoryFor,
-} from '../portal-history/__fixtures__/portal-history-stories-data'
+} from '#/contexts/portal/workspace/ui/__fixtures__/portal-history-stories-data'
 import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 
-const meta: Meta<typeof PortalDetailPage> = {
-  title: 'Portal/PortalDetailPage',
-  component: PortalDetailPage,
+/** How far a section's reads have got: the section says so itself until they answer. */
+type ReadState = 'ready' | 'loading' | 'failed'
+
+type TabProps = Readonly<{
+  tab: 'page' | 'history' | 'share'
+  section?: PortalEditorSection
+  /** The History and Share sections' reads; the Page tab's editor loads its own. */
+  reads?: ReadState
+  resources: Parameters<typeof PortalEditor>[0]['resources']
+}>
+
+/** A read as a section sees it; a failed one has not answered and offers to try again. */
+function readOf<T>(data: T, state: ReadState): SectionRead<T> {
+  return {
+    data: state === 'ready' ? data : undefined,
+    isError: state === 'failed',
+    isFetching: state === 'loading',
+    errorUpdateCount: state === 'failed' ? 1 : 0,
+    refetch: () => Promise.reject(new Error('not read in a story')),
+  }
+}
+
+function WorkspaceTab({ tab, section, reads = 'ready', resources }: TabProps) {
+  const issuance = usePortalLinkIssuance()
+  if (tab === 'page') {
+    return <PortalEditor resources={resources} requestedSection={section} />
+  }
+  if (tab === 'history') {
+    return (
+      <PortalHistorySection
+        portal={portal}
+        timeZone={STORY_TIME_ZONE}
+        history={readOf(publicationHistory, reads)}
+        reads={historyReads}
+        makeLive={makeVersionLiveMutation}
+      />
+    )
+  }
+  return (
+    <PortalShareSection
+      portal={portal}
+      tokenStatus={tokenStatus}
+      property={{ timeZone: STORY_TIME_ZONE, countryCode: 'US' }}
+      reads={{
+        managers: readOf(responsibleManagers, reads),
+        members: readOf({ members: [] }, reads),
+      }}
+      commands={{
+        issueToken: issueTokenMutation,
+        rotateToken: rotateTokenMutation,
+        revokeToken: revokeTokenMutation,
+        revealAddress: revealAddressMutation,
+      }}
+      issuance={issuance}
+    />
+  )
+}
+
+const meta: Meta<typeof WorkspaceTab> = {
+  title: 'Portal/WorkspaceTabs',
+  component: WorkspaceTab,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
   decorators: [
@@ -55,7 +111,7 @@ const meta: Meta<typeof PortalDetailPage> = {
   ],
 }
 export default meta
-type Story = StoryObj<typeof PortalDetailPage>
+type Story = StoryObj<typeof WorkspaceTab>
 
 const portal = {
   id: 'p-1',
@@ -152,73 +208,6 @@ const tokenStatus: PortalTokenStatus = {
   madeBy: null,
 }
 
-// Empty analytics payload — exercises the "no data" rendering path of the
-// analytics tab (valid PortalAnalyticsData with zero KPIs / empty arrays).
-const analyticsComputedAt = new Date('2026-08-25T12:00:00.000Z')
-const emptyEvidence = {
-  definitionVersionId: 'portal-analytics-story-v1',
-  state: 'insufficient_data',
-  verifiedThrough: null,
-  latestActivity: null,
-  computedAt: analyticsComputedAt,
-  completeness: 1,
-  availabilityReason: 'no_eligible_sample',
-  correctionHead: null,
-  sampleCount: 0,
-} as const
-const emptyAnalytics: PortalAnalyticsData = {
-  period: {
-    startAt: new Date('2026-07-26T00:00:00.000Z'),
-    endAt: analyticsComputedAt,
-    timezone: 'Europe/Sofia',
-  },
-  comparePeriod: null,
-  localDays: {
-    start: '2026-07-26',
-    end: '2026-08-24',
-    compareStart: null,
-    compareEnd: null,
-  },
-  qualifiedScansSince: new Date('2026-08-01T00:00:00.000Z'),
-  kpis: {
-    scans: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
-    avgRating: {
-      value: null,
-      priorValue: null,
-      comparison: null,
-      sampleCount: 0,
-      priorSampleCount: 0,
-      evidence: emptyEvidence,
-    },
-    feedback: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
-    ratings: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
-    googleOpens: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
-  },
-  engagementFunnel: null,
-  ratingDistribution: [
-    { stars: 1, count: 0 },
-    { stars: 2, count: 0 },
-    { stars: 3, count: 0 },
-    { stars: 4, count: 0 },
-    { stars: 5, count: 0 },
-  ],
-  series: null,
-  versionMarkers: [],
-  linkTaps: null,
-  scanPatterns: null,
-  ratingLanguages: { total: 0, languages: [], unrecorded: 0 },
-  thresholds: { averageMinSample: 5, comparisonMinSample: 10, busiestMinScans: 30 },
-  responseIntegrity: {
-    accepted: 0,
-    filteredAutomatically: 0,
-    underReview: 0,
-    total: 0,
-  },
-}
-const getPortalAnalytics = mockServerFn(
-  async (_input: unknown) => emptyAnalytics,
-) as unknown as typeof getPortalAnalyticsFn
-
 // The History tab reads on mount, like the Results tab: the reads are handed in
 // as server-fn-typed props and answered here from the board 08 ledger.
 const historyReads = {
@@ -244,66 +233,69 @@ const makeVersionLiveMutation = Object.assign(async (_input: unknown) => ({}), {
   data: null,
 }) as Action<{ data: { portalId: string; version: number } }, unknown>
 
+const publicationHistory = {
+  current: {
+    activationSequence: 1,
+    version: 1,
+    kind: 'publish' as const,
+    activatedBy: { userId: 'user-1', displayName: 'Georgi Ivanov' },
+    activatedAt: '2026-08-20T10:00:00.000Z',
+    deactivatedAt: null,
+    deactivationReason: null,
+  },
+  priorActivations: [],
+  hasPendingChanges: false,
+  nextCursor: null,
+}
+
+const responsibleManagers = {
+  assignments: [],
+  eligibleManagers: [],
+  revision: 1,
+  responsibilityNeeded: false,
+  responsibilityNeededSince: null,
+}
+
 const baseArgs = {
-  portal,
-  historyReads,
-  makeVersionLiveMutation,
-  propertyTimeZone: STORY_TIME_ZONE,
-  propertyCountryCode: 'US',
-  organizationName: 'Acme Hotels',
-  propertyId: 'prop-1',
-  publicationHistory: {
-    current: {
-      activationSequence: 1,
-      version: 1,
-      kind: 'publish' as const,
-      activatedBy: { userId: 'user-1', displayName: 'Georgi Ivanov' },
-      activatedAt: '2026-08-20T10:00:00.000Z',
-      deactivatedAt: null,
-      deactivationReason: null,
+  tab: 'page' as const,
+  resources: {
+    portal,
+    propertyId: 'prop-1',
+    publicationHistory,
+    googleReviewDestination: {
+      state: 'verified' as const,
+      retrievedAt: new Date('2026-08-20T10:00:00.000Z'),
     },
-    priorActivations: [],
-    hasPendingChanges: false,
-    nextCursor: null,
+    links,
+    linktree: {
+      portalId: 'p-1',
+      enabled: true,
+      maxLinks: 4,
+      primaryLocale: 'en' as const,
+      locales: ['en' as const],
+      titles: {},
+      links: links.map((link) => ({
+        id: link.id,
+        categoryId: link.categoryId,
+        url: link.url,
+        iconKey: null,
+        imageAssetId: null,
+        sortKey: link.sortKey,
+        texts: [
+          { locale: 'en' as const, label: link.label, line: null, provenance: null },
+        ],
+        destination: {
+          state: 'approved' as const,
+          sourceType: 'recognized' as const,
+          approvedByUserId: null,
+        },
+      })),
+    },
+    autosaveUpdateMutation: idleMutation,
+    changeLanguagesMutation: idleMutation,
+    completeReviewMutation,
+    getPortalPreview: previewReader(),
   },
-  googleReviewDestination: {
-    state: 'verified' as const,
-    retrievedAt: new Date('2026-08-20T10:00:00.000Z'),
-  },
-  links,
-  linktree: {
-    portalId: 'p-1',
-    enabled: true,
-    maxLinks: 4,
-    primaryLocale: 'en' as const,
-    locales: ['en' as const],
-    titles: {},
-    links: links.map((link) => ({
-      id: link.id,
-      categoryId: link.categoryId,
-      url: link.url,
-      iconKey: null,
-      imageAssetId: null,
-      sortKey: link.sortKey,
-      texts: [{ locale: 'en' as const, label: link.label, line: null, provenance: null }],
-      destination: {
-        state: 'approved' as const,
-        sourceType: 'recognized' as const,
-        approvedByUserId: null,
-      },
-    })),
-  },
-  autosaveUpdateMutation: idleMutation,
-  changeLanguagesMutation: idleMutation,
-  completeReviewMutation,
-  tokenStatus,
-  issueTokenMutation,
-  rotateTokenMutation,
-  revokeTokenMutation,
-  revealAddressMutation,
-  getPortalAnalytics,
-  getPortalPreview: previewReader(),
-  activeTab: 'page' as const,
 }
 
 // The Page tab opens on Welcome: the section list beside the portal's name,
@@ -331,7 +323,7 @@ export const PageTab: Story = {
 
 // The old Settings' Google card is the Rating & Google section now.
 export const RatingSection: Story = {
-  args: { ...baseArgs, activeSection: 'rating' },
+  args: { ...baseArgs, section: 'rating' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
@@ -346,7 +338,7 @@ export const RatingSection: Story = {
 
 // The old Links tab is the Linktree section: the links are still there.
 export const LinktreeSection: Story = {
-  args: { ...baseArgs, activeSection: 'linktree' },
+  args: { ...baseArgs, section: 'linktree' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('heading', { name: 'Linktree' })).toBeInTheDocument()
@@ -356,7 +348,7 @@ export const LinktreeSection: Story = {
 
 // History tab: the ledger and the Versions rail, read on mount (board 08).
 export const HistoryTab: Story = {
-  args: { ...baseArgs, activeTab: 'history' },
+  args: { ...baseArgs, tab: 'history' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
@@ -371,10 +363,7 @@ export const HistoryTab: Story = {
 
 // Share tab generates and displays the opaque URL through the route-owned action.
 export const ShareTab: Story = {
-  args: {
-    ...baseArgs,
-    activeTab: 'share',
-  },
+  args: { ...baseArgs, tab: 'share' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /make code/i }))
@@ -383,8 +372,45 @@ export const ShareTab: Story = {
   },
 }
 
-// Results tab → fires getPortalAnalytics on mount (mock returns empty →
-// the "no analytics data yet" empty state renders).
-export const ResultsTab: Story = {
-  args: { ...baseArgs, activeTab: 'results' },
+// A section that is still reading says so itself, in its own place.
+export const HistoryLoading: Story = {
+  args: { ...baseArgs, tab: 'history', reads: 'loading' },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole('status', { name: 'Loading publication history' }),
+    ).toBeInTheDocument()
+  },
+}
+
+// A history that cannot be read says so and offers to try again; the rest of
+// the workspace is untouched.
+export const HistoryReadFailed: Story = {
+  args: { ...baseArgs, tab: 'history', reads: 'failed' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText('The publication history couldn’t be loaded.'),
+    ).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: /try again/i })).toBeEnabled()
+  },
+}
+
+export const ShareLoading: Story = {
+  args: { ...baseArgs, tab: 'share', reads: 'loading' },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole('status', { name: 'Loading sharing details' }),
+    ).toBeInTheDocument()
+  },
+}
+
+export const ShareReadFailed: Story = {
+  args: { ...baseArgs, tab: 'share', reads: 'failed' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText('The sharing details couldn’t be loaded.'),
+    ).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: /try again/i })).toBeEnabled()
+  },
 }
