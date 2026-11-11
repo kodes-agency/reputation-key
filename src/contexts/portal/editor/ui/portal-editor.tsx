@@ -8,7 +8,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useRef, useState } from 'react'
 import { SectionNavLayout } from '#/components/ui/section-nav-layout'
-import { usePortalEditAccess } from '#/components/features/portal/portal-detail/use-portal-edit-access'
+import { usePortalEditAccess } from '#/components/features/portal/shared/use-portal-edit-access'
 import {
   PortalLookPreviewProvider,
   type SetBrandPatch,
@@ -20,6 +20,7 @@ import {
 import { PortalPreviewPane } from '#/components/features/portal/portal-preview/portal-preview-pane'
 import type { PreviewPartSection } from '#/components/features/portal/portal-preview/preview-parts'
 import { PortalEditorNav } from './portal-editor-nav'
+import { isResourceExpected } from './portal-editor-section-reads'
 import { PortalEditorSectionPanel } from './portal-editor-section-panel'
 import {
   availablePortalEditorSections,
@@ -46,16 +47,16 @@ export function PortalEditor({ resources, requestedSection }: Props) {
   const { portal, propertyId, portalGroups } = resources
   const group = portalGroups ? findPortalGroup(portalGroups, portal.id) : null
   const hasResponsible =
-    resources.responsibleManagers !== undefined &&
-    resources.responsibleManagerMembers !== undefined &&
+    isResourceExpected(resources, 'responsibleManagers') &&
+    isResourceExpected(resources, 'responsibleManagerMembers') &&
     resources.updateResponsibleManagersMutation !== undefined
   const available = availablePortalEditorSections({
-    group: portalGroups !== undefined,
+    group: isResourceExpected(resources, 'portalGroups'),
     responsible: hasResponsible,
   })
   const section = resolvePortalEditorSection(requestedSection, available)
   const summaries = summarizePortalEditorSections(
-    portalEditorSummaryInput(resources, group?.name ?? null),
+    portalEditorSummaryInput(resources, portalGroups ? (group?.name ?? null) : undefined),
   )
   // One answer for every section: the role, the organisation's `portal.write`
   // capability (the server refuses every write without it) and an archived

@@ -9,7 +9,7 @@
 // recoverable archive. Pure, so each rule that keeps an action off a role or a
 // state is tested apart from the menu.
 import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
-import { canReviewAndPublish } from '../portal-detail/portal-detail-rules'
+import { canReviewAndPublish } from '#/contexts/portal/workspace/ui/portal-detail-rules'
 
 export type PortalRowAccess = Readonly<{
   canUpdate: boolean

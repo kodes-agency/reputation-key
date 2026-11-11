@@ -24,7 +24,7 @@ import type { SavePublicDisplayNameAction } from '#/components/features/property
 import type { PropertyLookMedia } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalImageUploader } from '#/components/features/portal/portal-media/upload-portal-image'
 import type { PortalPreviewReader } from '#/components/features/portal/portal-preview/portal-preview-pane'
-import { PortalUnsavedChangesPrompt } from '#/components/features/portal/portal-detail/portal-unsaved-changes-prompt'
+import { PortalUnsavedChangesPrompt } from '#/contexts/portal/workspace/ui/portal-unsaved-changes-prompt'
 import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import { PropertyLookBatchPublish } from './property-look-batch-publish'
 import { PropertyLookColoursSection } from './property-look-colours-section'
@@ -80,6 +80,8 @@ export type PropertyLookPageProps = PropertyLookSaves &
     photoDescriptions: PhotoDescriptions
     /** Sends an image to the media endpoint; the real upload unless a story hands in a stub. */
     uploadImage?: PortalImageUploader
+    /** Takes a photograph down for good (`takeDownPortalMedia`); left out, the dialog offers no takedown. */
+    takeDownImage?: (assetId: string) => Promise<unknown>
     /** What publishing would do to one portal, and whether anything stops it. */
     getPortalReview: PortalReviewReader
     /** Publishes the named live portals in turn and reports each (`publishPortalsChanges`). */
@@ -164,6 +166,7 @@ function PropertyLookEditor({
   media: savedMedia,
   photoDescriptions,
   uploadImage,
+  takeDownImage,
 }: PropertyLookPageProps & Readonly<{ profile: PropertyLookProfile }>) {
   const { draft, setDraft, locales, setLocales, problem, state, retry } =
     usePropertyLookDraft(propertyId, profile, { saveLook, saveLocales })
@@ -184,6 +187,7 @@ function PropertyLookEditor({
     descriptions: photoDescriptions,
     locales,
     uploadImage,
+    takeDownImage,
     preview: { portal: previewPortal, data: previewData, draft },
   })
   const status = describeLookStatus(

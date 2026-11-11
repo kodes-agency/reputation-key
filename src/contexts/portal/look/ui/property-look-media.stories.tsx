@@ -681,3 +681,56 @@ export const CannotBeClosedWhileSending: Story = {
     await expect(dialog('Replace photo')).toBeVisible()
   },
 }
+
+/** "Take this photo down" asks first, then takes the file down and clears it from the look. */
+export const TakesThePhotoDownAfterAsking: Story = {
+  args: { takeDownImage: fn(async () => ({ assetId: 'a', objectRemoved: true })) },
+  play: async ({ canvasElement, args }) => {
+    const photo = await openPhotoDialog(canvasElement)
+    await userEvent.click(photo.getByRole('button', { name: 'Take this photo down' }))
+    await expect(args.takeDownImage).not.toHaveBeenCalled()
+    await expect(photo.getByText(/This cannot be undone/)).toBeVisible()
+    await userEvent.click(photo.getByRole('button', { name: 'Keep it' }))
+    await expect(args.takeDownImage).not.toHaveBeenCalled()
+    await userEvent.click(photo.getByRole('button', { name: 'Take this photo down' }))
+    await userEvent.click(photo.getByRole('button', { name: 'Take it down' }))
+    await waitFor(
+      () => expect(args.takeDownImage).toHaveBeenCalledWith(AVELA_MEDIA.hero?.assetId),
+      WAIT,
+    )
+    await waitFor(
+      () =>
+        expect(args.saveHero).toHaveBeenCalledWith({
+          data: { propertyId: 'prop-1', assetId: null },
+        }),
+      WAIT,
+    )
+    await waitFor(noDialog, WAIT)
+  },
+}
+
+/** A refused takedown stays in the dialog, the photograph stays on the look, and it can be tried again. */
+export const ARefusedTakedownStaysInTheDialog: Story = {
+  args: {
+    takeDownImage: fn(() => Promise.reject(new Error('refused'))),
+  },
+  play: async ({ canvasElement, args }) => {
+    const photo = await openPhotoDialog(canvasElement)
+    await userEvent.click(photo.getByRole('button', { name: 'Take this photo down' }))
+    await userEvent.click(photo.getByRole('button', { name: 'Take it down' }))
+    await expect(
+      await photo.findByText('The photo could not be taken down. Try again.', {}, WAIT),
+    ).toBeVisible()
+    await expect(args.saveHero).not.toHaveBeenCalled()
+    await expect(dialog('Replace photo')).toBeVisible()
+    await expect(photo.getByRole('button', { name: 'Take it down' })).toBeEnabled()
+  },
+}
+
+/** Where the page is given no takedown, the dialog offers none. */
+export const NoTakedownWithoutTheAction: Story = {
+  play: async ({ canvasElement }) => {
+    const photo = await openPhotoDialog(canvasElement)
+    await expect(photo.queryByRole('button', { name: 'Take this photo down' })).toBeNull()
+  },
+}
