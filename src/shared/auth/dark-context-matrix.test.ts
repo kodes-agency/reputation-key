@@ -120,15 +120,12 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
     }
   })
 
-  it('allows P1 and refuses P2 for the same allowlisted organization', async () => {
+  it('allows the allowlisted organization and refuses another', async () => {
     initCapabilityPolicyStore({
-      isCapabilityGloballyEnabled: (capability) => capability === 'goal.use',
+      isCapabilityGloballyEnabled: () => false,
       isOrgAllowlisted: (orgId, capability) =>
         orgId === 'org-controlled-route' && capability === 'goal.use',
-      isPropertyAllowlisted: (propertyId, capability) =>
-        propertyId === 'property-p1' && capability === 'goal.use',
       isOrgSuspended: () => false,
-      isPropertySuspended: () => false,
     })
 
     const p1Data = {
@@ -149,25 +146,25 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
       ),
     ).not.toThrow()
 
-    const p2Data = { ...p1Data, propertyId: 'property-p2' }
+    const otherOrgData = { ...p1Data, propertyId: 'property-p2' }
     await expect(
       Promise.resolve().then(() =>
         denyControlledRoute(
           checkScopedCapability(
             {
-              organizationId: 'org-controlled-route',
+              organizationId: 'org-other',
               propertyId: 'property-p2',
             },
             'goal.use',
           ),
-          p2Data,
+          otherOrgData,
         ),
       ),
     ).rejects.toMatchObject({
       data: {
         cause: 'feature',
         title: 'Goals',
-        category: 'needs_admin_enablement',
+        category: 'not_enabled_for_organization',
         propertyId: 'property-p2',
       },
     })

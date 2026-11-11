@@ -140,29 +140,13 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'AI-01/AI-02/AI-04',
   }),
   ...rows({
-    schemaFile: 'ai-property-trend.schema.ts',
-    exportNames: ['aiPropertyTrendSchedulerHeads', 'aiPropertyTrendSchedules'],
-    owner: 'ai',
-    disposition: 'active_authority',
-    authority: 'AI-01/AI-02/AI-04',
-  }),
-  ...rows({
     schemaFile: 'ai.schema.ts',
     exportNames: [
       'aiPropertyAggregateContributions',
       'aiPropertyAggregateHeads',
       'aiPropertyAggregateSettlements',
-      'aiPropertyDailyAggregates',
       'aiReviewAnalyses',
     ],
-    owner: 'ai',
-    disposition: 'erasable_source_content',
-    authority: 'AI-01/AI-02/AI-04',
-    exitCriteria: ERASE_WITH_OWNER,
-  }),
-  ...rows({
-    schemaFile: 'ai-property-trend.schema.ts',
-    exportNames: ['aiPropertyTrendOutcomes'],
     owner: 'ai',
     disposition: 'erasable_source_content',
     authority: 'AI-01/AI-02/AI-04',
@@ -172,7 +156,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     schemaFile: 'ai-review-analysis-v3.schema.ts',
     exportNames: [
       'aiPropertyAggregateContributionMentions',
-      'aiPropertyReviewPopulationDaily',
       'aiReviewAnalysisMentionSentences',
       'aiReviewAnalysisMentions',
     ],
@@ -180,7 +163,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'erasable_source_content',
     authority: 'AI-01/AI-02/AI-04',
     exitCriteria:
-      'Review Analysis v3 derivatives: the owning lifecycle command hides and erases them, and the retention sweep deletes them 24 months after the analysis (the mention tables with the analysis or contribution they cascade from) or after the day they count (the daily star counts).',
+      'Review Analysis v3 derivatives: the owning lifecycle command hides and erases them, and the retention sweep deletes them 24 months after the analysis (the mention tables with the analysis or contribution they cascade from).',
   }),
   ...rows({
     schemaFile: 'ai-property-issue-groups.schema.ts',

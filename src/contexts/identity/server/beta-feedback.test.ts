@@ -109,9 +109,7 @@ function feedbackPolicyStore(
     isOrgAllowlisted: (candidateOrganizationId, capability) =>
       candidateOrganizationId === actor.organizationId &&
       capability === 'portal.guest_response',
-    isPropertyAllowlisted: () => false,
     isOrgSuspended: () => false,
-    isPropertySuspended: () => false,
     ...overrides,
   }
 }

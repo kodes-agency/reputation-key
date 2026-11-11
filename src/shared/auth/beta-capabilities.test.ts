@@ -30,9 +30,7 @@ function makeStore(
       return false
     },
     isOrgAllowlisted: (_orgId, _cap) => false,
-    isPropertyAllowlisted: () => true,
     isOrgSuspended: () => false,
-    isPropertySuspended: () => false,
     ...overrides,
   }
 }
@@ -113,13 +111,12 @@ describe('BetaCapabilities', () => {
       expect(decision.allowed).toBe(false)
       expect(decision.reason).toBe('capability_blocked')
     })
-    it('promotes safe Portal, guest, and email capabilities through scoped allowlists', () => {
+    it('promotes safe Portal, guest, and email capabilities through the Organization allowlist', () => {
       const ctx = buildTestAuthContext()
       initCapabilityPolicyStore(
         makeStore({
           isCapabilityGloballyEnabled: () => false,
           isOrgAllowlisted: (orgId) => orgId === ctx.organizationId,
-          isPropertyAllowlisted: (candidatePropertyId) => candidatePropertyId === 'p1',
         }),
       )
 
@@ -143,10 +140,10 @@ describe('BetaCapabilities', () => {
         })
         expect(
           checkScopedCapability(
-            { organizationId: ctx.organizationId, propertyId: 'p2' },
+            { organizationId: 'some-other-org', propertyId: 'p1' },
             capability,
           ).reason,
-        ).toBe('property_not_allowlisted')
+        ).toBe('org_not_allowlisted')
       }
     })
 
@@ -156,7 +153,6 @@ describe('BetaCapabilities', () => {
         makeStore({
           isCapabilityGloballyEnabled: () => true,
           isOrgAllowlisted: () => true,
-          isPropertyAllowlisted: () => true,
         }),
       )
 
@@ -172,13 +168,12 @@ describe('BetaCapabilities', () => {
       })
     })
 
-    it('leaves Portal upload to tenant policy: allowed for a listed Organization and Property, denied for the rest', () => {
+    it('leaves Portal upload to tenant policy: allowed for a listed Organization, denied for the rest', () => {
       const ctx = buildTestAuthContext()
       initCapabilityPolicyStore(
         makeStore({
           isCapabilityGloballyEnabled: () => false,
           isOrgAllowlisted: (orgId) => orgId === ctx.organizationId,
-          isPropertyAllowlisted: (candidatePropertyId) => candidatePropertyId === 'p1',
         }),
       )
 
@@ -203,7 +198,6 @@ describe('BetaCapabilities', () => {
           isCapabilityGloballyEnabled: () => false,
           isCapabilityKilled: (cap) => cap === 'portal.upload',
           isOrgAllowlisted: () => true,
-          isPropertyAllowlisted: () => true,
         }),
       )
       expect(
@@ -222,14 +216,6 @@ describe('BetaCapabilities', () => {
       const decision = checkBetaCapability(ctx, 'identity.invite')
       expect(decision.allowed).toBe(false)
       expect(decision.reason).toBe('org_suspended')
-    })
-
-    it('denies all capabilities when property is suspended', () => {
-      const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(makeStore({ isPropertySuspended: () => true }))
-      const decision = checkBetaCapability(ctx, 'portal.read', 'prop-1')
-      expect(decision.allowed).toBe(false)
-      expect(decision.reason).toBe('property_suspended')
     })
 
     it('denies core capabilities when globally disabled (kill switch)', () => {

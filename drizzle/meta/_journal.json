@@ -908,8 +908,15 @@
     {
       "idx": 129,
       "version": "7",
+      "when": 1800100009000,
+      "tag": "0129_drop_retired_ai_projection_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
       "when": 1800200006000,
-      "tag": "0129_drop_retired_account_tables",
+      "tag": "0130_drop_retired_account_tables",
       "breakpoints": true
     }
   ]

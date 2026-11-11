@@ -4010,25 +4010,6 @@ CREATE TABLE "public"."ai_organization_cost_windows" (
 
 
 --
--- Name: ai_property_aggregate_contribution_aspects; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_aggregate_contribution_aspects" (
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "review_id" "uuid" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "source_revision" bigint NOT NULL,
-    "analysis_sequence" bigint NOT NULL,
-    "aspect" character varying(40) NOT NULL,
-    "polarity" character varying(20) NOT NULL,
-    "intensity" integer NOT NULL,
-    CONSTRAINT "ai_property_aggregate_contribution_aspects_aspect_valid" CHECK ((("aspect")::"text" = ANY ((ARRAY['service'::character varying, 'staff'::character varying, 'quality'::character varying, 'value'::character varying, 'cleanliness'::character varying, 'wait_time'::character varying, 'atmosphere'::character varying, 'location'::character varying, 'accessibility'::character varying, 'other'::character varying, 'room'::character varying, 'food_and_drink'::character varying, 'noise'::character varying, 'wifi_and_tech'::character varying, 'check_in_out'::character varying, 'parking'::character varying, 'amenities'::character varying, 'events'::character varying])::"text"[]))),
-    CONSTRAINT "ai_property_contribution_aspects_polarity_intensity_valid" CHECK ((((("polarity")::"text" = 'positive'::"text") AND (("intensity" >= 20) AND ("intensity" <= 100))) OR ((("polarity")::"text" = 'neutral'::"text") AND ("abs"("intensity") <= 19)) OR ((("polarity")::"text" = 'negative'::"text") AND ("intensity" < 0) AND (("abs"("intensity") >= 20) AND ("abs"("intensity") <= 100)))))
-);
-
-
---
 -- Name: ai_property_aggregate_contribution_mentions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4115,55 +4096,6 @@ CREATE TABLE "public"."ai_property_aggregate_settlements" (
 
 
 --
--- Name: ai_property_daily_aggregates; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_daily_aggregates" (
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "local_date" "date" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "review_analysis_epoch" integer NOT NULL,
-    "property_profile_version" integer NOT NULL,
-    "calendar_profile_version" character varying(100) NOT NULL,
-    "aggregate_revision" bigint NOT NULL,
-    "terminal_analysis_sequence" bigint NOT NULL,
-    "review_count" integer NOT NULL,
-    "rating_sum" integer NOT NULL,
-    "positive_count" integer NOT NULL,
-    "neutral_count" integer NOT NULL,
-    "negative_count" integer NOT NULL,
-    "mixed_count" integer NOT NULL,
-    "urgent_count" integer NOT NULL,
-    "high_count" integer NOT NULL,
-    "medium_count" integer NOT NULL,
-    "low_count" integer NOT NULL,
-    "updated_at" timestamp with time zone NOT NULL,
-    CONSTRAINT "ai_property_daily_aggregates_count_sums_valid" CHECK (((((("positive_count" + "neutral_count") + "negative_count") + "mixed_count") = "review_count") AND (((("urgent_count" + "high_count") + "medium_count") + "low_count") = "review_count") AND ("rating_sum" <= ("review_count" * 5)))),
-    CONSTRAINT "ai_property_daily_aggregates_counts_nonnegative" CHECK ((("review_count" >= 0) AND ("rating_sum" >= 0) AND ("positive_count" >= 0) AND ("neutral_count" >= 0) AND ("negative_count" >= 0) AND ("mixed_count" >= 0) AND ("urgent_count" >= 0) AND ("high_count" >= 0) AND ("medium_count" >= 0) AND ("low_count" >= 0))),
-    CONSTRAINT "ai_property_daily_aggregates_versions_valid" CHECK ((("source_epoch" >= 0) AND ("review_analysis_epoch" >= 1) AND ("property_profile_version" >= 1) AND (("aggregate_revision" >= 0) AND ("aggregate_revision" <= '9007199254740991'::bigint)) AND (("terminal_analysis_sequence" >= 0) AND ("terminal_analysis_sequence" <= '9007199254740991'::bigint))))
-);
-
-
---
--- Name: ai_property_daily_aspect_aggregates; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_daily_aspect_aggregates" (
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "local_date" "date" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "review_analysis_epoch" integer NOT NULL,
-    "property_profile_version" integer NOT NULL,
-    "aspect" character varying(40) NOT NULL,
-    "polarity" character varying(20) NOT NULL,
-    "mention_count" integer NOT NULL,
-    CONSTRAINT "ai_property_daily_aspect_aggregates_values_valid" CHECK ((("source_epoch" >= 0) AND ("review_analysis_epoch" >= 1) AND ("property_profile_version" >= 1) AND (("aspect")::"text" = ANY ((ARRAY['service'::character varying, 'staff'::character varying, 'quality'::character varying, 'value'::character varying, 'cleanliness'::character varying, 'wait_time'::character varying, 'atmosphere'::character varying, 'location'::character varying, 'accessibility'::character varying, 'other'::character varying, 'room'::character varying, 'food_and_drink'::character varying, 'noise'::character varying, 'wifi_and_tech'::character varying, 'check_in_out'::character varying, 'parking'::character varying, 'amenities'::character varying, 'events'::character varying])::"text"[])) AND (("polarity")::"text" = ANY ((ARRAY['positive'::character varying, 'neutral'::character varying, 'negative'::character varying])::"text"[])) AND ("mention_count" >= 0)))
-);
-
-
---
 -- Name: ai_property_issue_groups; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4237,103 +4169,6 @@ CREATE TABLE "public"."ai_property_processing_profiles" (
 
 
 --
--- Name: ai_property_review_population_daily; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_review_population_daily" (
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "local_date" "date" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "property_profile_version" integer NOT NULL,
-    "calendar_profile_version" character varying(100) NOT NULL,
-    "review_count" integer NOT NULL,
-    "text_review_count" integer NOT NULL,
-    "rating_1_count" integer NOT NULL,
-    "rating_2_count" integer NOT NULL,
-    "rating_3_count" integer NOT NULL,
-    "rating_4_count" integer NOT NULL,
-    "rating_5_count" integer NOT NULL,
-    "population_revision" bigint NOT NULL,
-    "updated_at" timestamp with time zone NOT NULL,
-    CONSTRAINT "ai_property_review_population_daily_counts_valid" CHECK ((("review_count" >= 0) AND ("text_review_count" >= 0) AND ("text_review_count" <= "review_count") AND ("rating_1_count" >= 0) AND ("rating_2_count" >= 0) AND ("rating_3_count" >= 0) AND ("rating_4_count" >= 0) AND ("rating_5_count" >= 0) AND ((((("rating_1_count" + "rating_2_count") + "rating_3_count") + "rating_4_count") + "rating_5_count") = "review_count"))),
-    CONSTRAINT "ai_property_review_population_daily_versions_valid" CHECK ((("source_epoch" >= 0) AND ("property_profile_version" >= 1) AND (("char_length"(("calendar_profile_version")::"text") >= 1) AND ("char_length"(("calendar_profile_version")::"text") <= 100)) AND (("population_revision" >= 1) AND ("population_revision" <= '9007199254740991'::bigint))))
-);
-
-
---
--- Name: ai_property_trend_outcomes; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_trend_outcomes" (
-    "schedule_id" "uuid" NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "disposition" character varying(32) NOT NULL,
-    "operation_id" "uuid",
-    "selected_signal_ids" "jsonb",
-    "signal_key" character varying(64),
-    "direction" character varying(20),
-    "confidence_basis_points" integer,
-    "supporting_review_count" integer,
-    "headline" character varying(80),
-    "sentences" "jsonb",
-    "summary" "text",
-    "render_profile_version" character varying(100),
-    "render_profile_digest" character varying(64),
-    "definition_version" character varying(100),
-    "definition_digest" character varying(64),
-    "evidence" "jsonb",
-    "provider_selection_recorded_at" timestamp with time zone,
-    "recorded_at" timestamp with time zone NOT NULL,
-    "expires_at" timestamp with time zone,
-    CONSTRAINT "ai_property_trend_outcomes_valid" CHECK ((((("disposition")::"text" = 'ready'::"text") AND (("operation_id" IS NOT NULL) OR ("provider_selection_recorded_at" IS NULL)) AND ("jsonb_typeof"("selected_signal_ids") = 'array'::"text") AND (("jsonb_array_length"("selected_signal_ids") >= 1) AND ("jsonb_array_length"("selected_signal_ids") <= 4)) AND (("signal_key")::"text" ~ '^[a-z][a-z0-9_.]{2,63}$'::"text") AND (("direction")::"text" = ANY ((ARRAY['improving'::character varying, 'stable'::character varying, 'declining'::character varying])::"text"[])) AND (("confidence_basis_points" >= 0) AND ("confidence_basis_points" <= 10000)) AND ("supporting_review_count" >= 0) AND (("headline")::"text" = ANY ((ARRAY['Review signals improved'::character varying, 'Review signals need attention'::character varying, 'Notable review changes'::character varying])::"text"[])) AND ("jsonb_typeof"("sentences") = 'array'::"text") AND (("jsonb_array_length"("sentences") >= 1) AND ("jsonb_array_length"("sentences") <= 4)) AND (("length"("summary") >= 1) AND ("length"("summary") <= 1000)) AND (("render_profile_version")::"text" = 'trend-render-v1'::"text") AND (("render_profile_digest")::"text" ~ '^[0-9a-f]{64}$'::"text") AND ((("definition_version" IS NULL) AND ("definition_digest" IS NULL) AND ("evidence" IS NULL)) OR ((("definition_version")::"text" = 'property-trend-definition-v1'::"text") AND (("definition_digest")::"text" ~ '^[0-9a-f]{64}$'::"text") AND ("jsonb_typeof"("evidence") = 'object'::"text"))) AND ((("operation_id" IS NOT NULL) AND ("provider_selection_recorded_at" IS NOT NULL) AND ("recorded_at" = "provider_selection_recorded_at")) OR (("operation_id" IS NULL) AND ("provider_selection_recorded_at" IS NULL))) AND ("expires_at" > "recorded_at")) OR ((("disposition")::"text" = ANY ((ARRAY['updating'::character varying, 'insufficient_data'::character varying, 'no_material_change'::character varying])::"text"[])) AND ("operation_id" IS NULL) AND ("selected_signal_ids" IS NULL) AND ("signal_key" IS NULL) AND ("direction" IS NULL) AND ("confidence_basis_points" IS NULL) AND ("supporting_review_count" IS NULL) AND ("headline" IS NULL) AND ("sentences" IS NULL) AND ("summary" IS NULL) AND ("render_profile_version" IS NULL) AND ("render_profile_digest" IS NULL) AND ((("definition_version" IS NULL) AND ("definition_digest" IS NULL) AND ("evidence" IS NULL) AND ("expires_at" IS NULL)) OR ((("definition_version")::"text" = 'property-trend-definition-v1'::"text") AND (("definition_digest")::"text" ~ '^[0-9a-f]{64}$'::"text") AND ("jsonb_typeof"("evidence") = 'object'::"text") AND ("expires_at" > "recorded_at"))) AND ("provider_selection_recorded_at" IS NULL))))
-);
-
-
---
--- Name: ai_property_trend_scheduler_heads; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_trend_scheduler_heads" (
-    "scheduler_key" character varying(64) NOT NULL,
-    "generation" bigint NOT NULL,
-    "cursor_organization_id" character varying(255),
-    "cursor_property_id" "uuid",
-    "lease_owner" "uuid",
-    "claimed_at" timestamp with time zone,
-    "lease_expires_at" timestamp with time zone,
-    "updated_at" timestamp with time zone NOT NULL,
-    CONSTRAINT "ai_property_trend_scheduler_heads_valid" CHECK (((("scheduler_key")::"text" = 'property-trend-v1'::"text") AND (("generation" >= 0) AND ("generation" <= '9007199254740991'::bigint)) AND ((("cursor_organization_id" IS NULL) AND ("cursor_property_id" IS NULL)) OR (("cursor_organization_id" IS NOT NULL) AND ("cursor_property_id" IS NOT NULL))) AND ((("lease_owner" IS NULL) AND ("claimed_at" IS NULL) AND ("lease_expires_at" IS NULL)) OR (("lease_owner" IS NOT NULL) AND ("claimed_at" IS NOT NULL) AND ("lease_expires_at" > "claimed_at")))))
-);
-
-
---
--- Name: ai_property_trend_schedules; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_property_trend_schedules" (
-    "id" "uuid" NOT NULL,
-    "outbox_event_id" "uuid" NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "due_local_date" "date" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "review_analysis_epoch" integer NOT NULL,
-    "property_trends_epoch" integer NOT NULL,
-    "property_profile_version" integer NOT NULL,
-    "terminal_analysis_sequence" bigint NOT NULL,
-    "aggregate_revision" bigint NOT NULL,
-    "timezone" character varying(64) NOT NULL,
-    "calendar_profile_version" character varying(100) NOT NULL,
-    "report_profile_version" character varying(100) NOT NULL,
-    "scheduler_generation" bigint NOT NULL,
-    "scheduled_at" timestamp with time zone NOT NULL,
-    CONSTRAINT "ai_property_trend_schedules_versions_valid" CHECK ((("source_epoch" >= 0) AND ("review_analysis_epoch" >= 1) AND ("property_trends_epoch" >= 1) AND ("property_profile_version" >= 1) AND (("terminal_analysis_sequence" >= 0) AND ("terminal_analysis_sequence" <= '9007199254740991'::bigint)) AND (("aggregate_revision" >= 0) AND ("aggregate_revision" <= '9007199254740991'::bigint)) AND (("scheduler_generation" >= 1) AND ("scheduler_generation" <= '9007199254740991'::bigint)) AND (("timezone")::"text" ~ '^(UTC|[A-Za-z_]+(/[A-Za-z0-9_+-]+)+)$'::"text")))
-);
-
-
---
 -- Name: ai_review_analyses; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4361,25 +4196,6 @@ CREATE TABLE "public"."ai_review_analyses" (
     CONSTRAINT "ai_review_analyses_result_valid" CHECK ((((("analysis_profile_version")::"text" <> 'review-analysis-v3'::"text") AND ("urgent_reason" IS NULL) AND (((("status")::"text" = 'ready'::"text") AND ("unavailable_reason" IS NULL) AND (("sentiment")::"text" = ANY ((ARRAY['positive'::character varying, 'neutral'::character varying, 'negative'::character varying, 'mixed'::character varying])::"text"[])) AND (("primary_category")::"text" = ANY ((ARRAY['service'::character varying, 'staff'::character varying, 'quality'::character varying, 'value'::character varying, 'cleanliness'::character varying, 'wait_time'::character varying, 'atmosphere'::character varying, 'location'::character varying, 'accessibility'::character varying, 'other'::character varying, 'room'::character varying, 'food_and_drink'::character varying, 'noise'::character varying, 'wifi_and_tech'::character varying, 'check_in_out'::character varying, 'parking'::character varying, 'amenities'::character varying, 'events'::character varying])::"text"[])) AND (("attention")::"text" = ANY ((ARRAY['urgent'::character varying, 'high'::character varying, 'medium'::character varying, 'low'::character varying])::"text"[])) AND (("issue_label" IS NULL) OR (("issue_label")::"text" ~ '^[a-z]+( [a-z]+){0,3}$'::"text"))) OR ((("status")::"text" = 'unavailable'::"text") AND (("unavailable_reason")::"text" = 'language_not_supported'::"text") AND ("sentiment" IS NULL) AND ("primary_category" IS NULL) AND ("attention" IS NULL) AND ("issue_label" IS NULL)))) OR ((("analysis_profile_version")::"text" = 'review-analysis-v3'::"text") AND (((("status")::"text" = 'ready'::"text") AND ("unavailable_reason" IS NULL) AND ("sentiment" IS NOT NULL) AND (("sentiment")::"text" = ANY ((ARRAY['positive'::character varying, 'neutral'::character varying, 'negative'::character varying, 'mixed'::character varying])::"text"[])) AND ("primary_category" IS NULL) AND ("issue_label" IS NULL) AND ("attention" IS NOT NULL) AND (("attention")::"text" = ANY ((ARRAY['urgent'::character varying, 'high'::character varying, 'medium'::character varying, 'low'::character varying])::"text"[])) AND (((("attention")::"text" = 'urgent'::"text") AND ("urgent_reason" IS NOT NULL) AND (("urgent_reason")::"text" = ANY ((ARRAY['safety'::character varying, 'health'::character varying, 'discrimination'::character varying, 'legal_threat'::character varying])::"text"[]))) OR ((("attention")::"text" <> 'urgent'::"text") AND ("urgent_reason" IS NULL)))) OR ((("status")::"text" = 'unavailable'::"text") AND ("unavailable_reason" IS NOT NULL) AND (("unavailable_reason")::"text" = 'language_not_supported'::"text") AND ("sentiment" IS NULL) AND ("primary_category" IS NULL) AND ("attention" IS NULL) AND ("issue_label" IS NULL) AND ("urgent_reason" IS NULL)))))),
     CONSTRAINT "ai_review_analyses_retention_valid" CHECK (("expires_at" > "generated_at")),
     CONSTRAINT "ai_review_analyses_versions_valid" CHECK ((("source_epoch" >= 0) AND (("source_revision" >= 1) AND ("source_revision" <= '9007199254740991'::bigint)) AND (("analysis_sequence" >= 1) AND ("analysis_sequence" <= '9007199254740991'::bigint)) AND ("review_analysis_epoch" >= 1) AND ("property_profile_version" >= 1)))
-);
-
-
---
--- Name: ai_review_analysis_aspects; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ai_review_analysis_aspects" (
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "review_id" "uuid" NOT NULL,
-    "source_epoch" integer NOT NULL,
-    "source_revision" bigint NOT NULL,
-    "analysis_sequence" bigint NOT NULL,
-    "aspect" character varying(40) NOT NULL,
-    "polarity" character varying(20) NOT NULL,
-    "intensity" integer NOT NULL,
-    CONSTRAINT "ai_review_analysis_aspects_aspect_valid" CHECK ((("aspect")::"text" = ANY ((ARRAY['service'::character varying, 'staff'::character varying, 'quality'::character varying, 'value'::character varying, 'cleanliness'::character varying, 'wait_time'::character varying, 'atmosphere'::character varying, 'location'::character varying, 'accessibility'::character varying, 'other'::character varying, 'room'::character varying, 'food_and_drink'::character varying, 'noise'::character varying, 'wifi_and_tech'::character varying, 'check_in_out'::character varying, 'parking'::character varying, 'amenities'::character varying, 'events'::character varying])::"text"[]))),
-    CONSTRAINT "ai_review_analysis_aspects_polarity_intensity_valid" CHECK ((((("polarity")::"text" = 'positive'::"text") AND (("intensity" >= 20) AND ("intensity" <= 100))) OR ((("polarity")::"text" = 'neutral'::"text") AND ("abs"("intensity") <= 19)) OR ((("polarity")::"text" = 'negative'::"text") AND ("intensity" < 0) AND (("abs"("intensity") >= 20) AND ("abs"("intensity") <= 100)))))
 );
 
 
@@ -8382,14 +8198,6 @@ ALTER TABLE ONLY "public"."ai_organization_cost_windows"
 
 
 --
--- Name: ai_property_aggregate_contribution_aspects ai_property_aggregate_contribution_aspects_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_aggregate_contribution_aspects"
-    ADD CONSTRAINT "ai_property_aggregate_contribution_aspects_pk" PRIMARY KEY ("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence", "aspect");
-
-
---
 -- Name: ai_property_aggregate_contribution_mentions ai_property_aggregate_contribution_mentions_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8419,22 +8227,6 @@ ALTER TABLE ONLY "public"."ai_property_aggregate_heads"
 
 ALTER TABLE ONLY "public"."ai_property_aggregate_settlements"
     ADD CONSTRAINT "ai_property_aggregate_settlements_pk" PRIMARY KEY ("organization_id", "property_id", "source_epoch", "review_analysis_epoch", "analysis_sequence");
-
-
---
--- Name: ai_property_daily_aggregates ai_property_daily_aggregates_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_daily_aggregates"
-    ADD CONSTRAINT "ai_property_daily_aggregates_pk" PRIMARY KEY ("organization_id", "property_id", "local_date", "source_epoch", "review_analysis_epoch", "property_profile_version");
-
-
---
--- Name: ai_property_daily_aspect_aggregates ai_property_daily_aspect_aggregates_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_daily_aspect_aggregates"
-    ADD CONSTRAINT "ai_property_daily_aspect_aggregates_pk" PRIMARY KEY ("organization_id", "property_id", "local_date", "source_epoch", "review_analysis_epoch", "property_profile_version", "aspect", "polarity");
 
 
 --
@@ -8470,51 +8262,11 @@ ALTER TABLE ONLY "public"."ai_property_processing_profiles"
 
 
 --
--- Name: ai_property_review_population_daily ai_property_review_population_daily_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_review_population_daily"
-    ADD CONSTRAINT "ai_property_review_population_daily_pk" PRIMARY KEY ("organization_id", "property_id", "source_epoch", "property_profile_version", "local_date");
-
-
---
--- Name: ai_property_trend_outcomes ai_property_trend_outcomes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_outcomes"
-    ADD CONSTRAINT "ai_property_trend_outcomes_pkey" PRIMARY KEY ("schedule_id");
-
-
---
--- Name: ai_property_trend_scheduler_heads ai_property_trend_scheduler_heads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_scheduler_heads"
-    ADD CONSTRAINT "ai_property_trend_scheduler_heads_pkey" PRIMARY KEY ("scheduler_key");
-
-
---
--- Name: ai_property_trend_schedules ai_property_trend_schedules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_schedules"
-    ADD CONSTRAINT "ai_property_trend_schedules_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: ai_review_analyses ai_review_analyses_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY "public"."ai_review_analyses"
     ADD CONSTRAINT "ai_review_analyses_pk" PRIMARY KEY ("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence");
-
-
---
--- Name: ai_review_analysis_aspects ai_review_analysis_aspects_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_review_analysis_aspects"
-    ADD CONSTRAINT "ai_review_analysis_aspects_pk" PRIMARY KEY ("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence", "aspect");
 
 
 --
@@ -10123,20 +9875,6 @@ CREATE INDEX "ai_property_aggregate_settlements_review_idx" ON "public"."ai_prop
 
 
 --
--- Name: ai_property_daily_aggregates_window_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_daily_aggregates_window_idx" ON "public"."ai_property_daily_aggregates" USING "btree" ("organization_id", "property_id", "source_epoch", "review_analysis_epoch", "local_date");
-
-
---
--- Name: ai_property_daily_aspect_aggregates_window_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_daily_aspect_aggregates_window_idx" ON "public"."ai_property_daily_aspect_aggregates" USING "btree" ("organization_id", "property_id", "source_epoch", "review_analysis_epoch", "local_date");
-
-
---
 -- Name: ai_property_issue_groups_canonical_active_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10169,55 +9907,6 @@ CREATE INDEX "ai_property_issue_members_group_idx" ON "public"."ai_property_issu
 --
 
 CREATE INDEX "ai_property_profiles_org_idx" ON "public"."ai_property_processing_profiles" USING "btree" ("organization_id", "updated_at" DESC NULLS LAST);
-
-
---
--- Name: ai_property_review_population_daily_retention_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_review_population_daily_retention_idx" ON "public"."ai_property_review_population_daily" USING "btree" ("local_date");
-
-
---
--- Name: ai_property_trend_outcomes_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_trend_outcomes_expiry_idx" ON "public"."ai_property_trend_outcomes" USING "btree" ("expires_at") WHERE ("expires_at" IS NOT NULL);
-
-
---
--- Name: ai_property_trend_outcomes_operation_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "ai_property_trend_outcomes_operation_unique" ON "public"."ai_property_trend_outcomes" USING "btree" ("operation_id") WHERE ("operation_id" IS NOT NULL);
-
-
---
--- Name: ai_property_trend_outcomes_property_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_trend_outcomes_property_idx" ON "public"."ai_property_trend_outcomes" USING "btree" ("organization_id", "property_id", "recorded_at" DESC NULLS LAST);
-
-
---
--- Name: ai_property_trend_schedules_generation_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "ai_property_trend_schedules_generation_unique" ON "public"."ai_property_trend_schedules" USING "btree" ("organization_id", "property_id", "due_local_date", "source_epoch", "review_analysis_epoch", "property_trends_epoch", "property_profile_version", "terminal_analysis_sequence", "aggregate_revision");
-
-
---
--- Name: ai_property_trend_schedules_outbox_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "ai_property_trend_schedules_outbox_unique" ON "public"."ai_property_trend_schedules" USING "btree" ("outbox_event_id");
-
-
---
--- Name: ai_property_trend_schedules_property_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ai_property_trend_schedules_property_idx" ON "public"."ai_property_trend_schedules" USING "btree" ("organization_id", "property_id", "due_local_date" DESC NULLS LAST);
 
 
 --
@@ -13176,14 +12865,6 @@ ALTER TABLE ONLY "public"."ai_operations"
 
 
 --
--- Name: ai_property_aggregate_contribution_aspects ai_property_aggregate_contribution_aspects_contribution_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_aggregate_contribution_aspects"
-    ADD CONSTRAINT "ai_property_aggregate_contribution_aspects_contribution_fk" FOREIGN KEY ("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence") REFERENCES "public"."ai_property_aggregate_contributions"("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence") ON DELETE CASCADE;
-
-
---
 -- Name: ai_property_aggregate_contribution_mentions ai_property_aggregate_contribution_mentions_contribution_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13232,22 +12913,6 @@ ALTER TABLE ONLY "public"."ai_property_aggregate_settlements"
 
 
 --
--- Name: ai_property_daily_aggregates ai_property_daily_aggregates_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_daily_aggregates"
-    ADD CONSTRAINT "ai_property_daily_aggregates_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: ai_property_daily_aspect_aggregates ai_property_daily_aspect_aggregates_daily_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_daily_aspect_aggregates"
-    ADD CONSTRAINT "ai_property_daily_aspect_aggregates_daily_fk" FOREIGN KEY ("organization_id", "property_id", "local_date", "source_epoch", "review_analysis_epoch", "property_profile_version") REFERENCES "public"."ai_property_daily_aggregates"("organization_id", "property_id", "local_date", "source_epoch", "review_analysis_epoch", "property_profile_version") ON DELETE CASCADE;
-
-
---
 -- Name: ai_property_issue_groups ai_property_issue_groups_merged_into_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13280,46 +12945,6 @@ ALTER TABLE ONLY "public"."ai_property_processing_profiles"
 
 
 --
--- Name: ai_property_review_population_daily ai_property_review_population_daily_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_review_population_daily"
-    ADD CONSTRAINT "ai_property_review_population_daily_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: ai_property_trend_outcomes ai_property_trend_outcomes_operation_id_ai_operations_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_outcomes"
-    ADD CONSTRAINT "ai_property_trend_outcomes_operation_id_ai_operations_id_fk" FOREIGN KEY ("operation_id") REFERENCES "public"."ai_operations"("id") ON DELETE RESTRICT;
-
-
---
--- Name: ai_property_trend_outcomes ai_property_trend_outcomes_schedule_id_ai_property_trend_schedu; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_outcomes"
-    ADD CONSTRAINT "ai_property_trend_outcomes_schedule_id_ai_property_trend_schedu" FOREIGN KEY ("schedule_id") REFERENCES "public"."ai_property_trend_schedules"("id") ON DELETE CASCADE;
-
-
---
--- Name: ai_property_trend_outcomes ai_property_trend_outcomes_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_outcomes"
-    ADD CONSTRAINT "ai_property_trend_outcomes_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: ai_property_trend_schedules ai_property_trend_schedules_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_property_trend_schedules"
-    ADD CONSTRAINT "ai_property_trend_schedules_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
-
-
---
 -- Name: ai_review_analyses ai_review_analyses_material_review_revision_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13349,14 +12974,6 @@ ALTER TABLE ONLY "public"."ai_review_analyses"
 
 ALTER TABLE ONLY "public"."ai_review_analyses"
     ADD CONSTRAINT "ai_review_analyses_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: ai_review_analysis_aspects ai_review_analysis_aspects_analysis_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ai_review_analysis_aspects"
-    ADD CONSTRAINT "ai_review_analysis_aspects_analysis_fk" FOREIGN KEY ("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence") REFERENCES "public"."ai_review_analyses"("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence") ON DELETE CASCADE;
 
 
 --
