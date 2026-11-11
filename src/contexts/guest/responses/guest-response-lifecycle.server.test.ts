@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { GuestResponse, GuestResponseStatus } from '../../domain/guest-response'
-import type { GuestMutationFact } from '../ports/guest-response-command-store.port'
+import type { GuestResponse, GuestResponseStatus } from '../domain/guest-response'
+import type { GuestMutationFact } from '../application/ports/guest-response-command-store.port'
 import type {
   GuestResponseRepository,
   GuestResponseScope,
-} from '../ports/guest-response.repository'
+} from '../application/ports/guest-response.repository'
 import {
   guestSessionId,
   organizationId,
@@ -14,12 +14,14 @@ import {
 } from '#/shared/domain/ids'
 import {
   GuestResponseLifecycleError,
-  canStartNewGuestResponse,
   guestResponseLifecycle,
+  type OperatorErasureAuthority,
+} from './guest-response-lifecycle.server'
+import {
+  canStartNewGuestResponse,
   isQualifiedGuestResponse,
   type GuestResponseView,
-  type OperatorErasureAuthority,
-} from './guest-response-lifecycle'
+} from './contracts'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 
@@ -103,7 +105,7 @@ function harness(
     commitSubmitted: async (
       response: GuestResponse,
       facts: Parameters<
-        import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitSubmitted']
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitSubmitted']
       >[1],
     ) => {
       if (
@@ -130,7 +132,7 @@ function harness(
       previous: GuestResponse,
       response: GuestResponse,
       facts: Parameters<
-        import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitCorrected']
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitCorrected']
       >[2],
     ) => {
       const index = repo.responses.findIndex(
@@ -174,10 +176,10 @@ function harness(
       previous: GuestResponse,
       response: GuestResponse,
       _decision: Parameters<
-        import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitIntegrityChanged']
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitIntegrityChanged']
       >[2],
       facts: Parameters<
-        import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitIntegrityChanged']
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitIntegrityChanged']
       >[3],
     ) => {
       const index = repo.responses.findIndex(
@@ -208,7 +210,7 @@ function harness(
     commitFeedbackAdded: async (
       response: GuestResponse,
       fact: Parameters<
-        import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitFeedbackAdded']
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitFeedbackAdded']
       >[1],
     ) => {
       const index = repo.responses.findIndex(
@@ -229,7 +231,7 @@ function harness(
       previous: GuestResponse,
       response: GuestResponse,
       fact: Parameters<
-        import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitFeedbackWithdrawn']
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitFeedbackWithdrawn']
       >[2],
     ) => {
       const index = repo.responses.findIndex(
@@ -263,7 +265,7 @@ function harness(
     commitWithdrawn: async (
       response: GuestResponse,
       facts: Parameters<
-        import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitWithdrawn']
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitWithdrawn']
       >[1],
     ) => {
       const index = repo.responses.findIndex((row) => row.id === response.id)

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import type { PublicGoogleReviewDestination } from '#/contexts/portal/application/public-api'
 import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
 

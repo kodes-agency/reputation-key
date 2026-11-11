@@ -10,7 +10,7 @@ import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
-import { createGuestResponseRepository } from './guest-response.repository'
+import { createGuestResponseRepository } from './guest-response.repository.server'
 
 const db = getDb()
 const ORG = 'org-guest-rating-languages'
