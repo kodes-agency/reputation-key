@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, it, expect, vi } from 'vitest'
+import { Pool } from 'pg'
 import { assignInboxItem } from './assign-inbox-item'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
+import { getEnv } from '#/shared/config/env'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { isInboxError } from '../../domain/errors'
 import {
   inboxItemId,
@@ -18,15 +19,22 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
+import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
+import {
+  clearInboxOrganization,
+  createInboxUseCaseDatabase,
+  dropInboxOrganization,
+  readOutboxFacts,
+} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
-const ORG_ID = organizationId('org-1')
-const OTHER_ORG_ID = organizationId('org-other')
-const ITEM_ID = inboxItemId('ii-1')
+const ORG_ID = organizationId('org-assign-inbox-item-test')
+const OTHER_ORG_ID = organizationId('org-assign-inbox-item-other')
+const ITEM_ID = inboxItemId('94a10000-0000-4000-8000-000000000001')
 const ASSIGNEE_ID = userId('user-2')
 const USER_ID = userId('user-1')
-const PROP_1 = propertyId('prop-1')
-const PROP_OTHER = propertyId('prop-other')
+const PROP_1 = propertyId('94a10000-0000-4000-8000-0000000000a1')
+const PROP_OTHER = propertyId('94a10000-0000-4000-8000-0000000000a2')
 
 const ctxFor = (role: Role, orgId = ORG_ID): AuthContext =>
   ({ organizationId: orgId, userId: USER_ID, role }) as AuthContext
@@ -46,8 +54,8 @@ const seedItem = (overrides: Partial<InboxItem> = {}): InboxItem => ({
   organizationId: ORG_ID,
   propertyId: PROP_1,
   sourceType: 'review' as SourceType,
-  sourceId: reviewId('rev-1'),
-  status: 'new' as InboxStatus,
+  sourceId: reviewId('94a10000-0000-4000-8000-0000000000b1'),
+  status: 'open' as InboxStatus,
   rating: 4,
   sourceDate: new Date('2026-04-10'),
   platform: 'google',
@@ -75,13 +83,11 @@ const defaultStaffApi: StaffPublicApi = {
 }
 
 const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
-  const repo = createInMemoryInboxRepo()
-  const events = createRecordedOutbox()
-  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
+  const { repo, commandStore, seed } = createInboxUseCaseDatabase(pool, () => FIXED_TIME)
   const deps = { repo, commandStore, clock: () => FIXED_TIME, staffPublicApi: peopleApi }
   const execute = assignInboxItem(deps)
   type CommandInput = Parameters<typeof execute>[0]
-  const useCase = (
+  const useCase = async (
     input: Omit<CommandInput, 'expectedCommandRevision'> &
       Partial<Pick<CommandInput, 'expectedCommandRevision'>>,
     ctx: AuthContext,
@@ -91,18 +97,35 @@ const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
         ...input,
         expectedCommandRevision:
           input.expectedCommandRevision ??
-          repo.items.find((item) => item.id === input.inboxItemId)?.commandRevision ??
+          (await repo.findById(input.inboxItemId, ORG_ID))?.commandRevision ??
           1,
       },
       ctx,
     )
-  return { useCase, repo, events }
+  return { useCase, seed, facts: () => readOutboxFacts(pool, ORG_ID) }
 }
 
-describe('assignInboxItem', () => {
+let pool: Pool
+
+beforeAll(async () => {
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  clearEventSchemas()
+  registerAllEventSchemas()
+  await seedInboxOrganization(pool, ORG_ID, [PROP_1, PROP_OTHER])
+})
+
+beforeEach(() => clearInboxOrganization(pool, ORG_ID))
+
+afterAll(async () => {
+  await dropInboxOrganization(pool, ORG_ID)
+  clearEventSchemas()
+  await pool.end()
+})
+
+describe.sequential('assignInboxItem', () => {
   it('allows PropertyManager to assign an item', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem())
+    const { useCase, seed } = setup()
+    await seed(seedItem())
 
     const updated = await useCase(
       {
@@ -117,8 +140,8 @@ describe('assignInboxItem', () => {
   })
 
   it('allows AccountAdmin to assign an item', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem())
+    const { useCase, seed } = setup()
+    await seed(seedItem())
 
     const updated = await useCase(
       {
@@ -132,8 +155,8 @@ describe('assignInboxItem', () => {
   })
 
   it('rejects Member role with forbidden', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem())
+    const { useCase, seed } = setup()
+    await seed(seedItem())
 
     await expect(
       useCase(
@@ -151,8 +174,8 @@ describe('assignInboxItem', () => {
       getAccessiblePropertyIds: async () => [PROP_1],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(seedItem())
+    const { useCase, seed } = setup(peopleApi)
+    await seed(seedItem())
 
     const updated = await useCase(
       { inboxItemId: ITEM_ID, assignedToUserId: USER_ID },
@@ -163,8 +186,8 @@ describe('assignInboxItem', () => {
   })
 
   it('still requires inbox.manage when assigning another user', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem())
+    const { useCase, seed } = setup()
+    await seed(seedItem())
 
     await expect(
       useCase(
@@ -181,9 +204,12 @@ describe('assignInboxItem', () => {
       getAccessiblePropertyIds: async () => [PROP_1],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(
-      seedItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    const { useCase, seed } = setup(peopleApi)
+    await seed(
+      seedItem({
+        sourceType: 'feedback',
+        sourceId: feedbackId('94a10000-0000-4000-8000-0000000000b2'),
+      }),
     )
 
     await expect(
@@ -201,9 +227,12 @@ describe('assignInboxItem', () => {
       ...defaultStaffApi,
       getAccessiblePropertyIds: async () => [PROP_OTHER],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(
-      seedItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    const { useCase, seed } = setup(peopleApi)
+    await seed(
+      seedItem({
+        sourceType: 'feedback',
+        sourceId: feedbackId('94a10000-0000-4000-8000-0000000000b2'),
+      }),
     )
 
     await expect(
@@ -229,8 +258,8 @@ describe('assignInboxItem', () => {
       getAccessiblePropertyIds: async (_orgId, candidateUserId) =>
         candidateUserId === ASSIGNEE_ID ? [PROP_1] : [PROP_OTHER],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(seedItem())
+    const { useCase, seed } = setup(peopleApi)
+    await seed(seedItem())
 
     await expect(
       useCase(
@@ -265,8 +294,8 @@ describe('assignInboxItem', () => {
   })
 
   it('records inbox.item.assigned when assigning to a user', async () => {
-    const { useCase, repo, events } = setup()
-    repo.items.push(seedItem())
+    const { useCase, seed, facts: readFacts } = setup()
+    await seed(seedItem())
 
     await useCase(
       {
@@ -276,14 +305,14 @@ describe('assignInboxItem', () => {
       ctxFor('PropertyManager'),
     )
 
-    const facts = events.facts
+    const facts = await readFacts()
     expect(facts).toHaveLength(1)
-    expect(facts[0]._tag).toBe('inbox.inbox_item.assigned')
+    expect(facts[0].eventType).toBe('inbox.inbox_item.assigned')
   })
 
   it('records inbox.item.unassigned when assignedToUserId is null', async () => {
-    const { useCase, repo, events } = setup()
-    repo.items.push({ ...seedItem(), assignedTo: ASSIGNEE_ID })
+    const { useCase, seed, facts: readFacts } = setup()
+    await seed({ ...seedItem(), assignedTo: ASSIGNEE_ID })
 
     await useCase(
       {
@@ -293,9 +322,9 @@ describe('assignInboxItem', () => {
       ctxFor('PropertyManager'),
     )
 
-    const facts = events.facts
+    const facts = await readFacts()
     expect(facts).toHaveLength(1)
-    expect(facts[0]._tag).toBe('inbox.inbox_item.unassigned')
+    expect(facts[0].eventType).toBe('inbox.inbox_item.unassigned')
   })
 
   it('scopes PropertyManager caller to assigned properties (PM is NOT org-wide for inbox)', async () => {
@@ -309,8 +338,8 @@ describe('assignInboxItem', () => {
         uId === ASSIGNEE_ID ? [PROP_1] : [PROP_OTHER],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(seedItem())
+    const { useCase, seed } = setup(peopleApi)
+    await seed(seedItem())
 
     await expect(
       useCase(
@@ -329,8 +358,8 @@ describe('assignInboxItem', () => {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(seedItem())
+    const { useCase, seed } = setup(peopleApi)
+    await seed(seedItem())
 
     await expect(
       useCase(
@@ -348,8 +377,8 @@ describe('assignInboxItem', () => {
       getAccessiblePropertyIds: async () => [PROP_1],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(seedItem())
+    const { useCase, seed } = setup(peopleApi)
+    await seed(seedItem())
 
     const updated = await useCase(
       {
@@ -374,8 +403,8 @@ describe('assignInboxItem', () => {
       getAccessiblePropertyIds,
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(seedItem())
+    const { useCase, seed } = setup(peopleApi)
+    await seed(seedItem())
 
     await expect(
       useCase(
@@ -396,8 +425,8 @@ describe('assignInboxItem', () => {
 
   // ── Tenant isolation ──────────────────────────────────────────────
   it('throws not_found when item belongs to a different organization', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem()) // ORG_ID item
+    const { useCase, seed } = setup()
+    await seed(seedItem()) // ORG_ID item
 
     await expect(
       useCase(
