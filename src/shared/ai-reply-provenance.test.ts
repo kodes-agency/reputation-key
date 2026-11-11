@@ -1,4 +1,4 @@
-import { generateKeyPairSync } from 'node:crypto'
+import { generateKeyPairSync, sign, type KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -15,6 +15,7 @@ import {
 } from '#/shared/ai-personalized-reply-contract'
 import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from './reply-drafting-v2-contract'
 import { REPLY_DRAFTING_V2_VERSIONS } from './reply-drafting-v2-schema'
+import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 
 const UUIDS = {
   operation: '10000000-0000-4000-8000-000000000001',
@@ -84,6 +85,26 @@ function groundedPersonalizedPayload(kid = 'reply-v1'): AiReplyProvenancePayload
     replyBrandProfileVersion: 7,
     replyBrandDisplayNameDigest: SHA,
   }
+}
+
+const PERMIT_BINDING = {
+  executionPermitId: '10000000-0000-4000-8000-000000000003',
+  executionAttempt: 2,
+} as const
+
+/** Signs any payload under its version's domain, bypassing the signer's schema. */
+function signedRegardless(
+  rawPayload: Readonly<Record<string, unknown> & { version: string }>,
+  privateKey: KeyObject,
+): string {
+  const versionNumber = rawPayload.version.slice('ai-reply-provenance-'.length)
+  const canonical = canonicalizeRfc8785(rawPayload)
+  const signature = sign(
+    null,
+    Buffer.from(`repkey-${rawPayload.version}\0${canonical}`, 'utf8'),
+    privateKey,
+  )
+  return `rk_ai_reply_${versionNumber}.${Buffer.from(canonical, 'utf8').toString('base64url')}.${signature.toString('base64url')}`
 }
 
 function tokenWith(payloadPart: string, signaturePart: string): string {
@@ -363,5 +384,83 @@ describe('AI reply provenance', () => {
         'actorId',
       ])
     }
+  })
+
+  describe.each([
+    ['v1', payload],
+    ['v2', personalizedPayload],
+    ['v3', groundedPersonalizedPayload],
+    ['v4', sentencePayload],
+  ] as const)('%s execution binding', (_version, build) => {
+    const keys = generateKeyPairSync('ed25519')
+    const keyring = new Map([['reply-v1', keys.publicKey]])
+    const withoutBinding = () => {
+      const { requestBindingHmac: _requestBinding, ...rest } = build() as ReturnType<
+        typeof build
+      > & { requestBindingHmac: string }
+      return rest
+    }
+
+    it('round-trips a token bound to an execution permit and attempt', () => {
+      const permitBound = { ...withoutBinding(), ...PERMIT_BINDING }
+      const token = signAiReplyProvenance(permitBound, keys.privateKey)
+
+      expect(verifyAiReplyProvenance(token, keyring)).toEqual(permitBound)
+    })
+
+    it('keeps the legacy request-binding token bytes unchanged', () => {
+      const legacy = build()
+      const token = signAiReplyProvenance(legacy, keys.privateKey)
+
+      expect(token).toBe(signedRegardless(legacy, keys.privateKey))
+      expect(verifyAiReplyProvenance(token, keyring)).toEqual(legacy)
+    })
+
+    it.each([
+      ['both bindings', () => ({ ...build(), ...PERMIT_BINDING })],
+      ['no binding', withoutBinding],
+      [
+        'a permit without its attempt',
+        () => ({
+          ...withoutBinding(),
+          executionPermitId: PERMIT_BINDING.executionPermitId,
+        }),
+      ],
+      [
+        'an attempt without its permit',
+        () => ({
+          ...withoutBinding(),
+          executionAttempt: PERMIT_BINDING.executionAttempt,
+        }),
+      ],
+      [
+        'a request binding with an attempt',
+        () => ({
+          ...build(),
+          executionAttempt: PERMIT_BINDING.executionAttempt,
+        }),
+      ],
+      [
+        'attempt zero',
+        () => ({ ...withoutBinding(), ...PERMIT_BINDING, executionAttempt: 0 }),
+      ],
+      [
+        'a permit that is not a UUID',
+        () => ({
+          ...withoutBinding(),
+          ...PERMIT_BINDING,
+          executionPermitId: 'permit_01',
+        }),
+      ],
+    ])('refuses to sign or verify a token with %s', (_label, shape) => {
+      const invalid = shape()
+
+      expect(() =>
+        signAiReplyProvenance(invalid as AiReplyProvenancePayload, keys.privateKey),
+      ).toThrow(z.ZodError)
+      expect(
+        verifyAiReplyProvenance(signedRegardless(invalid, keys.privateKey), keyring),
+      ).toBeNull()
+    })
   })
 })
