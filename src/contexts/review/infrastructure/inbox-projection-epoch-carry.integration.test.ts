@@ -9,7 +9,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { createReviewObservationRepository } from './repositories/review-observation.repository'
+import { readObservationHistory } from './testing/review-observation-history'
 
 /**
  * Archive/Restore, a Google relink and disconnect/reconnect advance the
@@ -249,9 +249,10 @@ describe('Review Inbox projection permit across a source-epoch carry', () => {
     const UPDATED = new Date('2026-08-20T12:00:00.000Z')
     const stored = { ...initial, sourceUpdatedAt: UPDATED }
     const comparisons = async () =>
-      (
-        await createReviewObservationRepository(getDb()).findObservations(REVIEW, ORG)
-      ).map((entry) => [entry.materialRevision, entry.comparison])
+      (await readObservationHistory(getDb(), REVIEW, ORG)).map((entry) => [
+        entry.materialRevision,
+        entry.comparison,
+      ])
 
     it('marks the carry of a Review Google only restated, its updateTime unmoved', async () => {
       const created = await observe(stored, OBSERVED[0], '8'.repeat(64))
