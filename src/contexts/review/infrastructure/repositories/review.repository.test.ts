@@ -190,11 +190,19 @@ function makeReview(
   } as Review
 }
 
-/**
- * Gives every active Review of an Organization that holds a content clock its
- * content row, the way the sync writes it. The rows go with their Reviews.
- */
-async function seedSourceContents(organizationId: string) {
+/** `count` live Reviews of one Property, newest first by their review date. */
+async function seedBulkReviews(count: number) {
+  await pool.query(
+    `INSERT INTO reviews (
+       id, organization_id, property_id, platform, external_id,
+       external_location_id, expires_at, first_fetched_at, source_epoch,
+       source_revision, analysis_sequence
+     )
+     SELECT gen_random_uuid(), $1, $2, 'google', 'bulk-' || n, 'locations/bulk',
+            NOW() + INTERVAL '25 days', NOW(), 0, 0, 0
+     FROM generate_series(1, $3::int) AS n`,
+    [ORG_A, PROP_A, count],
+  )
   await pool.query(
     `INSERT INTO review_source_contents (
        review_id, organization_id, property_id, platform, external_id,
@@ -203,35 +211,14 @@ async function seedSourceContents(organizationId: string) {
        source_revision, ai_source_byte_length, ai_source_digest
      )
      SELECT id, organization_id, property_id, platform, external_id,
-            external_location_id, reviewer_name, rating, text, reviewed_at,
-            first_fetched_at, COALESCE(last_fetched_at, reviewed_at),
-            content_expires_at, source_epoch, source_revision,
-            ai_source_byte_length, ai_source_digest
+            external_location_id, 'Jane Doe', 5, 'A live review',
+            NOW() - (substring(external_id from 6)::int * INTERVAL '1 minute'),
+            first_fetched_at, NOW(), NOW() + INTERVAL '30 days', source_epoch,
+            source_revision, 1, repeat('0', 64)
      FROM reviews
-     WHERE organization_id = $1 AND source_content_state = 'active'
-       AND content_expires_at IS NOT NULL
-     ON CONFLICT (review_id) DO NOTHING`,
-    [organizationId],
+     WHERE organization_id = $1 AND external_id ~ '^bulk-[0-9]+$'`,
+    [ORG_A],
   )
-}
-
-/** `count` live Reviews of one Property, newest first by their review date. */
-async function seedBulkReviews(count: number) {
-  await pool.query(
-    `INSERT INTO reviews (
-       id, organization_id, property_id, platform, external_id,
-       external_location_id, reviewer_name, rating, text, reviewed_at, expires_at,
-       first_fetched_at, last_fetched_at, content_expires_at, source_epoch,
-       source_revision, analysis_sequence, ai_source_byte_length, ai_source_digest
-     )
-     SELECT gen_random_uuid(), $1, $2, 'google', 'bulk-' || n, 'locations/bulk',
-            'Jane Doe', 5, 'A live review', NOW() - (n * INTERVAL '1 minute'),
-            NOW() + INTERVAL '25 days', NOW(), NOW(), NOW() + INTERVAL '30 days',
-            0, 0, 0, 1, repeat('0', 64)
-     FROM generate_series(1, $3::int) AS n`,
-    [ORG_A, PROP_A, count],
-  )
-  await seedSourceContents(ORG_A)
 }
 
 describe.sequential('reviewRepository (integration)', () => {
@@ -596,19 +583,31 @@ describe.sequential('reviewRepository (integration)', () => {
       await pool.query(
         `INSERT INTO reviews (
            id, organization_id, property_id, platform, external_id,
-           external_location_id, rating, text, reviewed_at, expires_at,
-           content_expires_at, source_epoch, source_revision, analysis_sequence,
-           ai_source_byte_length, ai_source_digest
+           external_location_id, expires_at, first_fetched_at, source_epoch,
+           source_revision, analysis_sequence
          )
          SELECT
            ('1c000000-0000-0000-0000-' || lpad(series::text, 12, '0'))::uuid,
            $1, $2, 'google', 'bulk-filter-' || series,
-           $3, 5, 'Complete filter match', NOW(), NOW() + INTERVAL '30 days',
-           NOW() + INTERVAL '30 days', 0, 0, 0, 1, repeat('0', 64)
+           $3, NOW() + INTERVAL '30 days', NOW(), 0, 0, 0
          FROM generate_series(1, 1001) AS series`,
         [ORG_A, PROP_A, GOOGLE_LOCATION_PRIMARY_RESOURCE],
       )
-      await seedSourceContents(ORG_A)
+      await pool.query(
+        `INSERT INTO review_source_contents (
+           review_id, organization_id, property_id, platform, external_id,
+           external_location_id, rating, text, reviewed_at, first_fetched_at,
+           last_fetched_at, content_expires_at, source_epoch, source_revision,
+           ai_source_byte_length, ai_source_digest
+         )
+         SELECT id, organization_id, property_id, platform, external_id,
+                external_location_id, 5, 'Complete filter match', NOW(),
+                first_fetched_at, NOW(), expires_at, source_epoch, source_revision,
+                1, repeat('0', 64)
+         FROM reviews
+         WHERE organization_id = $1 AND external_id LIKE 'bulk-filter-%'`,
+        [ORG_A],
+      )
 
       const ids = await createReviewRepository(
         getDb(),

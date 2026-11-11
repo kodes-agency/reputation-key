@@ -1222,22 +1222,32 @@ describe('Merchant AI authorization store', () => {
     )
     await db.execute(sql`
       INSERT INTO reviews (
-        id, organization_id, property_id, platform, external_id, reviewer_name,
-        rating, text, language_code, reviewed_at, content_expires_at,
-        source_epoch, source_revision, analysis_sequence, ai_source_byte_length,
-        ai_source_digest
+        id, organization_id, property_id, platform, source_epoch,
+        source_revision, analysis_sequence
+      ) VALUES
+        ('10000000-0000-4000-8000-000000000020'::uuid, ${ORG}, ${PROPERTY}::uuid,
+          'google', 3, 1, 20),
+        ('10000000-0000-4000-8000-000000000038'::uuid, ${ORG}, ${PROPERTY}::uuid,
+          'google', 3, 1, 38)
+    `)
+    await db.execute(sql`
+      INSERT INTO review_source_contents (
+        review_id, organization_id, property_id, platform, external_id,
+        external_location_id, reviewer_name, rating, text, language_code,
+        reviewed_at, last_fetched_at, content_expires_at, source_epoch,
+        source_revision, ai_source_byte_length, ai_source_digest
       ) VALUES
         (
           '10000000-0000-4000-8000-000000000020'::uuid, ${ORG}, ${PROPERTY}::uuid,
-          'google', 'notice-reconsent-review-20', 'Synthetic reviewer', 5,
-          'Eligible review twenty', 'en', ${NOW}, '2099-09-10T00:00:00.000Z',
-          3, 1, 20, 22, ${'a'.repeat(64)}
+          'google', 'notice-reconsent-review-20', 'locations/notice-reconsent',
+          'Synthetic reviewer', 5, 'Eligible review twenty', 'en', ${NOW}, ${NOW},
+          '2099-09-10T00:00:00.000Z', 3, 1, 22, ${'a'.repeat(64)}
         ),
         (
           '10000000-0000-4000-8000-000000000038'::uuid, ${ORG}, ${PROPERTY}::uuid,
-          'google', 'notice-reconsent-review-38', 'Synthetic reviewer', 4,
-          'Eligible review thirty eight', 'en', ${NOW}, '2099-09-10T00:00:00.000Z',
-          3, 1, 38, 28, ${'b'.repeat(64)}
+          'google', 'notice-reconsent-review-38', 'locations/notice-reconsent',
+          'Synthetic reviewer', 4, 'Eligible review thirty eight', 'en', ${NOW}, ${NOW},
+          '2099-09-10T00:00:00.000Z', 3, 1, 28, ${'b'.repeat(64)}
         )
     `)
     await db.execute(sql`
@@ -1269,22 +1279,23 @@ describe('Merchant AI authorization store', () => {
       }),
     )
     const eligible = await db.execute(sql`
-      SELECT id
-      FROM reviews
-      WHERE organization_id = ${ORG}
-        AND property_id = ${PROPERTY}::uuid
-        AND source_epoch = 3
-        AND source_revision >= 1
-        AND analysis_sequence <= ${reconsented.analysisStartSequence}
-        AND text IS NOT NULL
-        AND content_expires_at > transaction_timestamp()
-        AND ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
+      SELECT r.id
+      FROM reviews AS r
+      INNER JOIN review_source_contents AS c ON c.review_id = r.id
+      WHERE r.organization_id = ${ORG}
+        AND r.property_id = ${PROPERTY}::uuid
+        AND r.source_epoch = 3
+        AND r.source_revision >= 1
+        AND r.analysis_sequence <= ${reconsented.analysisStartSequence}
+        AND c.text IS NOT NULL
+        AND c.content_expires_at > transaction_timestamp()
+        AND c.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
         AND (
-          COALESCE(octet_length(text), 0)::bigint
-          + COALESCE(octet_length(language_code), 0)::bigint
-          + COALESCE(octet_length(reviewer_name), 0)::bigint
+          COALESCE(octet_length(c.text), 0)::bigint
+          + COALESCE(octet_length(c.language_code), 0)::bigint
+          + COALESCE(octet_length(c.reviewer_name), 0)::bigint
         ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
-      ORDER BY analysis_sequence
+      ORDER BY r.analysis_sequence
     `)
 
     expect(reconsented).toMatchObject({

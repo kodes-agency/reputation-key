@@ -72,17 +72,12 @@ async function seedReview(
   await db.execute(sql`
     INSERT INTO reviews (
       id, organization_id, property_id, platform, external_id,
-      external_location_id, google_connection_id, reviewer_name, rating, text,
-      reviewed_at, expires_at, first_fetched_at, last_fetched_at,
-      content_expires_at, content_hash, source_epoch, source_revision,
-      analysis_sequence, ai_source_byte_length, ai_source_digest,
-      created_at, updated_at
+      external_location_id, google_connection_id, expires_at, first_fetched_at,
+      source_epoch, source_revision, analysis_sequence, created_at, updated_at
     ) VALUES (
       ${id}, ${ORG}, ${property}, 'google', ${externalId},
-      ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, ${connectionId}, 'Provider guest', 5,
-      'Provider-controlled text', ${NOW}, ${CONTENT_EXPIRES_AT}, ${NOW}, ${NOW},
-      ${CONTENT_EXPIRES_AT}, 'source-hash', 0, 1, 0, 32, ${'0'.repeat(64)},
-      ${NOW}, ${NOW}
+      ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, ${connectionId}, ${CONTENT_EXPIRES_AT},
+      ${NOW}, 0, 1, 0, ${NOW}, ${NOW}
     )
   `)
   await db.execute(sql`
@@ -203,7 +198,7 @@ describe('source content purge (real PostgreSQL)', () => {
     expect(
       await count(
         'reviews',
-        `organization_id = '${ORG}' AND property_id = '${PROP_A}' AND source_content_state = 'source_expired' AND text IS NULL AND rating IS NULL`,
+        `organization_id = '${ORG}' AND property_id = '${PROP_A}' AND source_content_state = 'source_expired'`,
       ),
     ).toBe(3)
     expect(await count('review_source_contents', `organization_id = '${ORG}'`)).toBe(2)

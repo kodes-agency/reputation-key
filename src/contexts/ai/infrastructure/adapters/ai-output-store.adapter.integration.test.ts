@@ -47,6 +47,7 @@ import { createAiOperationExecutionReaper } from '../../application/ai-operation
 import { AI_REVIEW_ANALYSIS_CONSUMER } from '../outbox-consumers'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
+import { seedReviewContent } from '../testing/review-content-fixture'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createAiReviewAnalysisReceiptWriter } from './ai-review-analysis-receipt.adapter'
 import { REVIEW_ANALYSIS_NORMALIZATION_DIGEST } from '#/shared/review-analysis-v3-normalizer'
@@ -192,32 +193,6 @@ function requireControl(
   const control = controls.find((candidate) => candidate.scopeKey === scopeKey)
   if (!control) throw new Error(`AI execution control ${scopeKey} is not seeded`)
   return control
-}
-
-/** Gives seeded Reviews their content rows; they go with their Reviews. */
-async function seedSourceContents(
-  db: ReturnType<typeof getDb>,
-  reviewIds: readonly string[],
-) {
-  await db.execute(sql`
-    INSERT INTO review_source_contents (
-      review_id, organization_id, property_id, platform, external_id,
-      external_location_id, reviewer_name, rating, text, language_code,
-      reviewed_at, first_fetched_at, last_fetched_at, content_expires_at,
-      source_epoch, source_revision, ai_source_byte_length, ai_source_digest
-    )
-    SELECT id, organization_id, property_id, platform, external_id,
-           COALESCE(external_location_id, 'locations/ai-output-store'),
-           reviewer_name, rating, text, language_code, reviewed_at,
-           COALESCE(first_fetched_at, reviewed_at),
-           COALESCE(last_fetched_at, reviewed_at), content_expires_at,
-           source_epoch, source_revision, ai_source_byte_length, ai_source_digest
-    FROM reviews
-    WHERE id IN (${sql.join(
-      reviewIds.map((id) => sql`${id}::uuid`),
-      sql`, `,
-    )})
-  `)
 }
 
 async function readDailyProjection(db: ReturnType<typeof getDb>) {
@@ -397,7 +372,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       lifecycleState: 'active',
       updatedAt: NOW,
     })
-    await db.insert(reviews).values([
+    await seedReviewContent([
       {
         id: REVIEW_A_ID,
         organizationId: ORGANIZATION_ID,
@@ -435,7 +410,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aiSourceDigest: REVIEW_B_SOURCE_DIGEST,
       },
     ])
-    await seedSourceContents(db, [REVIEW_A_ID, REVIEW_B_ID])
     await db.insert(materialReviewRevisions).values([
       {
         reviewId: REVIEW_A_ID,
@@ -950,7 +924,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         profileVersion: 1,
         sourceEpoch: SOURCE_EPOCH,
       })
-      await db.insert(reviews).values({
+      await seedReviewContent({
         id: SECOND_REVIEW_ID,
         organizationId: SECOND_ORGANIZATION_ID,
         propertyId: SECOND_PROPERTY_ID,
@@ -968,7 +942,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aiSourceByteLength: SOURCE_BYTE_COUNT,
         aiSourceDigest: REVIEW_A_SOURCE_DIGEST,
       })
-      await seedSourceContents(db, [SECOND_REVIEW_ID])
       const [baseOperation] = await db
         .select()
         .from(aiOperations)
@@ -1510,7 +1483,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         intensity: index % 3 === 0 ? 70 : index % 3 === 1 ? 0 : -70,
       }
     })
-    await db.insert(reviews).values(
+    await seedReviewContent(
       fixture.map((row) => ({
         id: row.reviewId,
         organizationId: ORGANIZATION_ID,
@@ -1529,10 +1502,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aiSourceByteLength: SOURCE_BYTE_COUNT,
         aiSourceDigest: REVIEW_A_SOURCE_DIGEST,
       })),
-    )
-    await seedSourceContents(
-      db,
-      fixture.map((row) => row.reviewId),
     )
     await db.insert(materialReviewRevisions).values(
       fixture.map((row) => ({

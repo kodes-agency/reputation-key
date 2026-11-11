@@ -380,16 +380,12 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     await db.execute(sql`
       INSERT INTO reviews (
         id, organization_id, property_id, platform, external_id,
-        external_location_id, rating, text, reviewed_at, expires_at,
-        content_expires_at, source_epoch, source_revision, analysis_sequence,
-        ai_source_byte_length, ai_source_digest, reply_state_revision,
-        created_at, updated_at
+        external_location_id, expires_at, source_epoch, source_revision,
+        analysis_sequence, reply_state_revision, created_at, updated_at
       ) VALUES (
         ${REVIEW_ID}, ${ORGANIZATION_ID}, ${PROPERTY_ID}, 'google',
-        'safe03-provider-review', 'safe03-provider-location', 2,
-        'provider-controlled source', ${STARTED_AT}, ${EXPIRES_AT},
-        ${EXPIRES_AT}, 0, 1, 0, 26, ${'2'.repeat(64)}, 0,
-        ${STARTED_AT}, ${STARTED_AT}
+        'safe03-provider-review', 'safe03-provider-location', ${EXPIRES_AT},
+        0, 1, 0, 0, ${STARTED_AT}, ${STARTED_AT}
       )
     `)
     await db.execute(sql`
@@ -560,18 +556,6 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
         external_id,
         external_location_id,
         google_connection_id,
-        reviewer_name,
-        reviewer_profile_photo_url,
-        rating,
-        text,
-        translated_text,
-        language_code,
-        reviewed_at,
-        source_created_at,
-        source_updated_at,
-        content_hash,
-        ai_source_byte_length,
-        ai_source_digest,
         analysis_sequence::int AS analysis_sequence
       FROM reviews
       WHERE id = ${REVIEW_ID}
@@ -606,18 +590,6 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       external_id: null,
       external_location_id: null,
       google_connection_id: null,
-      reviewer_name: null,
-      reviewer_profile_photo_url: null,
-      rating: null,
-      text: null,
-      translated_text: null,
-      language_code: null,
-      reviewed_at: null,
-      source_created_at: null,
-      source_updated_at: null,
-      content_hash: null,
-      ai_source_byte_length: null,
-      ai_source_digest: null,
     })
     expect(reviewRows.rows[0]?.analysis_sequence).toBe(
       transitionRows.rows[0]?.analysis_sequence,
@@ -643,16 +615,12 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     await db.execute(sql`
       INSERT INTO reviews (
         id, organization_id, property_id, platform, external_id,
-        external_location_id, rating, text, reviewed_at, expires_at,
-        content_expires_at, source_epoch, source_revision, analysis_sequence,
-        ai_source_byte_length, ai_source_digest, reply_state_revision,
-        created_at, updated_at
+        external_location_id, expires_at, source_epoch, source_revision,
+        analysis_sequence, reply_state_revision, created_at, updated_at
       ) VALUES (
         ${EXPIRING_REVIEW_ID}, ${ORGANIZATION_ID}, ${PROPERTY_ID}, 'google',
-        'safe03-expiring-review', 'safe03-provider-location', 4,
-        'expiring provider source', ${STARTED_AT}, ${EXPIRES_AT},
-        ${EXPIRES_AT}, 0, 1, 0, 24, ${'3'.repeat(64)}, 0,
-        ${STARTED_AT}, ${STARTED_AT}
+        'safe03-expiring-review', 'safe03-provider-location', ${EXPIRES_AT},
+        0, 1, 0, 0, ${STARTED_AT}, ${STARTED_AT}
       )
     `)
     await db.execute(sql`
@@ -700,13 +668,12 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
 
     expect(result.transitioned).toBe(0)
     const reviewRows = await db.execute(sql`
-      SELECT id, source_content_state, rating, text, reviewer_name,
-             external_id, external_location_id, ai_source_digest
+      SELECT id, source_content_state, external_id, external_location_id
       FROM reviews
       WHERE id = ${EXPIRING_REVIEW_ID}
     `)
     const sourceContentRows = await db.execute(sql`
-      SELECT review_id FROM review_source_contents
+      SELECT review_id, rating, text, ai_source_digest FROM review_source_contents
       WHERE review_id = ${EXPIRING_REVIEW_ID}
     `)
     const replyRows = await db.execute(
@@ -720,14 +687,17 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       expect.objectContaining({
         id: EXPIRING_REVIEW_ID,
         source_content_state: 'active',
-        rating: 4,
-        text: 'expiring provider source',
         external_id: 'safe03-expiring-review',
         external_location_id: 'safe03-provider-location',
+      }),
+    ])
+    expect(sourceContentRows.rows).toEqual([
+      expect.objectContaining({
+        rating: 4,
+        text: 'expiring provider source',
         ai_source_digest: '3'.repeat(64),
       }),
     ])
-    expect(sourceContentRows.rows).toHaveLength(1)
     expect(replyRows.rows).toEqual([expect.objectContaining({ id: EXPIRING_REPLY_ID })])
     expect(providerSubjectRows.rows).toEqual([
       expect.objectContaining({ state: 'linked' }),
@@ -1399,16 +1369,12 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       await db.execute(sql`
         INSERT INTO reviews (
           id, organization_id, property_id, platform, external_id,
-          external_location_id, rating, text, reviewed_at, expires_at,
-          content_expires_at, source_epoch, source_revision, analysis_sequence,
-          ai_source_byte_length, ai_source_digest, reply_state_revision,
-          created_at, updated_at
+          external_location_id, expires_at, source_epoch, source_revision,
+          analysis_sequence, reply_state_revision, created_at, updated_at
         ) VALUES (
           ${ABSENT_REVIEW_ID}, ${ORGANIZATION_ID}, ${PROPERTY_ID}, 'google',
-          'count-gap-absent-review', 'count-gap-location', 3,
-          ${STORED_TEXT}, ${lastObservedAt}, ${EXPIRES_AT},
-          ${EXPIRES_AT}, 0, 1, 0, 23, ${'5'.repeat(64)}, 0,
-          ${lastObservedAt}, ${lastObservedAt}
+          'count-gap-absent-review', 'count-gap-location', ${EXPIRES_AT},
+          0, 1, 0, 0, ${lastObservedAt}, ${lastObservedAt}
         )
       `)
       await db.execute(sql`
@@ -1551,7 +1517,10 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       })
 
       const stored = await db.execute(sql`
-        SELECT source_content_state, text FROM reviews WHERE id = ${ABSENT_REVIEW_ID}
+        SELECT review.source_content_state, content.text
+        FROM reviews AS review
+        JOIN review_source_contents AS content ON content.review_id = review.id
+        WHERE review.id = ${ABSENT_REVIEW_ID}
       `)
       expect(stored.rows).toEqual([{ source_content_state: 'active', text: STORED_TEXT }])
       const content = await db.execute(sql`

@@ -226,21 +226,25 @@ describe.sequential('an erased Review in the repository reads', () => {
 
       const stored = await pool.query<{
         source_content_state: string
-        content_expires_at: Date | null
         first_fetched_at: Date | null
       }>(
-        `SELECT source_content_state, content_expires_at, first_fetched_at
+        `SELECT source_content_state, first_fetched_at
          FROM reviews WHERE id = $1`,
         [id],
       )
       expect(stored.rows).toEqual([
         {
           source_content_state: state,
-          content_expires_at: null,
           // The first fetch is stable identity, not provider content.
           first_fetched_at: FETCHED_AT,
         },
       ])
+      // The content row, and with it the content clock, is gone.
+      const content = await pool.query(
+        `SELECT 1 FROM review_source_contents WHERE review_id = $1`,
+        [id],
+      )
+      expect(content.rows).toEqual([])
     },
   )
 })

@@ -17,13 +17,13 @@ import {
   outboxEvents,
   properties,
   reviewAiAnalysisHeads,
-  reviews,
 } from '#/shared/db/schema'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { seedEnabledReviewAnalysis } from '#/shared/db/testing/enabled-review-analysis-fixture'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { seedReviewContent } from './testing/review-content-fixture'
 import { createAiPropertyAggregateStoreAdapter } from './adapters/ai-property-aggregate-store.adapter'
 
 const ORG = 'ai-rolled-profile-test'
@@ -155,7 +155,7 @@ async function seed(target: Case, timezone: string): Promise<void> {
     createdAt: AT,
     updatedAt: AT,
   })
-  await db.insert(reviews).values(
+  await seedReviewContent(
     Array.from({ length: target.head }, (_, offset) => offset + 1).map((sequence) => ({
       id: reviewOf(target, sequence),
       organizationId: ORG,

@@ -897,6 +897,20 @@
       "when": 1800100007000,
       "tag": "0127_drop_portal_group_members",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1800100008000,
+      "tag": "0128_drop_review_provider_content_copy",
+      "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1800100009000,
+      "tag": "0129_validate_review_source_content_state",
+      "breakpoints": true
     }
   ]
 }

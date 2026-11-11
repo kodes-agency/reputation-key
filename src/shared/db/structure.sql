@@ -8736,22 +8736,10 @@ CREATE TABLE "public"."reviews" (
     "external_id" character varying(500),
     "external_location_id" character varying(500),
     "google_connection_id" "uuid",
-    "reviewer_name" character varying(255),
-    "reviewer_profile_photo_url" character varying(1000),
-    "rating" integer,
-    "text" "text",
-    "translated_text" "text",
-    "language_code" character varying(10),
-    "reviewed_at" timestamp with time zone,
     "expires_at" timestamp with time zone,
     "sentiment_label" character varying(20),
     "sentiment_score" real,
-    "source_created_at" timestamp with time zone,
-    "source_updated_at" timestamp with time zone,
     "first_fetched_at" timestamp with time zone,
-    "last_fetched_at" timestamp with time zone,
-    "content_expires_at" timestamp with time zone,
-    "content_hash" "text",
     "source_seen_generation" "uuid",
     "source_epoch" integer NOT NULL,
     "source_revision" bigint NOT NULL,
@@ -8760,20 +8748,15 @@ CREATE TABLE "public"."reviews" (
     "material_source_digest" character varying(64),
     "material_normalized_digest" character varying(64),
     "analysis_sequence" bigint NOT NULL,
-    "ai_source_byte_length" integer,
-    "ai_source_digest" character varying(64),
     "source_content_state" character varying(24) DEFAULT 'active'::character varying NOT NULL,
     "source_content_erased_at" timestamp with time zone,
     "reply_state_revision" bigint DEFAULT 0 NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "google_review_url" character varying(2048),
-    CONSTRAINT "reviews_ai_source_byte_length_valid" CHECK ((("ai_source_byte_length" >= 1) AND ("ai_source_byte_length" <= '4294967295'::bigint))),
-    CONSTRAINT "reviews_ai_source_digest_valid" CHECK ((("ai_source_digest")::"text" ~ '^[0-9a-f]{64}$'::"text")),
     CONSTRAINT "reviews_analysis_sequence_safe" CHECK ((("analysis_sequence" >= 0) AND ("analysis_sequence" <= '9007199254740991'::bigint))),
     CONSTRAINT "reviews_material_comparison_head_valid" CHECK (((("material_normalization_version" IS NULL) AND ("material_source_digest" IS NULL) AND ("material_normalized_digest" IS NULL)) OR ((("material_normalization_version")::"text" = 'legacy-unverified-v0'::"text") AND ("material_source_digest" IS NULL) AND ("material_normalized_digest" IS NULL)) OR ((("material_normalization_version")::"text" = 'review-material-v1'::"text") AND ("material_source_digest" IS NOT NULL) AND (("material_source_digest")::"text" ~ '^[0-9a-f]{64}$'::"text") AND ("material_normalized_digest" IS NOT NULL) AND (("material_normalized_digest")::"text" ~ '^[0-9a-f]{64}$'::"text")))),
     CONSTRAINT "reviews_reply_state_revision_safe" CHECK ((("reply_state_revision" >= 0) AND ("reply_state_revision" <= '9007199254740991'::bigint))),
-    CONSTRAINT "reviews_source_content_state_valid" CHECK ((((("source_content_state")::"text" = 'active'::"text") AND ("source_content_erased_at" IS NULL)) OR ((("source_content_state")::"text" = ANY ((ARRAY['source_expired'::character varying, 'provider_deleted'::character varying])::"text"[])) AND ("source_content_erased_at" IS NOT NULL) AND ("external_id" IS NULL) AND ("external_location_id" IS NULL) AND ("google_connection_id" IS NULL) AND ("reviewer_name" IS NULL) AND ("reviewer_profile_photo_url" IS NULL) AND ("google_review_url" IS NULL) AND ("rating" IS NULL) AND ("text" IS NULL) AND ("translated_text" IS NULL) AND ("language_code" IS NULL) AND ("reviewed_at" IS NULL) AND ("source_created_at" IS NULL) AND ("source_updated_at" IS NULL) AND ("content_hash" IS NULL) AND ("ai_source_byte_length" IS NULL) AND ("ai_source_digest" IS NULL)))),
+    CONSTRAINT "reviews_source_content_state_valid" CHECK ((((("source_content_state")::"text" = 'active'::"text") AND ("source_content_erased_at" IS NULL)) OR ((("source_content_state")::"text" = ANY ((ARRAY['source_expired'::character varying, 'provider_deleted'::character varying])::"text"[])) AND ("source_content_erased_at" IS NOT NULL) AND ("external_id" IS NULL) AND ("external_location_id" IS NULL) AND ("google_connection_id" IS NULL)))),
     CONSTRAINT "reviews_source_epoch_safe" CHECK ((("source_epoch" >= 0) AND ("source_epoch" <= 2147483647))),
     CONSTRAINT "reviews_source_observation_sequence_safe" CHECK ((("source_observation_sequence" >= 0) AND ("source_observation_sequence" <= '9007199254740991'::bigint))),
     CONSTRAINT "reviews_source_revision_safe" CHECK ((("source_revision" >= 0) AND ("source_revision" <= '9007199254740991'::bigint)))
@@ -13508,13 +13491,6 @@ CREATE INDEX "review_sync_state_lease_expired_idx" ON "public"."review_sync_stat
 
 
 --
--- Name: reviews_content_expires_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "reviews_content_expires_idx" ON "public"."reviews" USING "btree" ("content_expires_at", "id") WHERE ("content_expires_at" IS NOT NULL);
-
-
---
 -- Name: reviews_expires_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13550,13 +13526,6 @@ CREATE INDEX "reviews_org_idx" ON "public"."reviews" USING "btree" ("organizatio
 
 
 --
--- Name: reviews_org_property_reviewed_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "reviews_org_property_reviewed_idx" ON "public"."reviews" USING "btree" ("organization_id", "property_id", "reviewed_at");
-
-
---
 -- Name: reviews_platform_external_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13564,24 +13533,10 @@ CREATE UNIQUE INDEX "reviews_platform_external_unique" ON "public"."reviews" USI
 
 
 --
--- Name: reviews_property_created_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "reviews_property_created_cursor_idx" ON "public"."reviews" USING "btree" ("property_id", "source_created_at" DESC NULLS LAST, "id" DESC NULLS LAST);
-
-
---
 -- Name: reviews_property_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX "reviews_property_idx" ON "public"."reviews" USING "btree" ("property_id");
-
-
---
--- Name: reviews_property_updated_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "reviews_property_updated_cursor_idx" ON "public"."reviews" USING "btree" ("property_id", "source_updated_at" DESC NULLS LAST, "id" DESC NULLS LAST);
 
 
 --

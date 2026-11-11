@@ -1,0 +1,1 @@
+ALTER TABLE public.reviews VALIDATE CONSTRAINT reviews_source_content_state_valid;

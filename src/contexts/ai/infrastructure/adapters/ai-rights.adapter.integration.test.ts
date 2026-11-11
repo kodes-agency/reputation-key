@@ -180,21 +180,29 @@ describe.sequential('ai rights report counts', () => {
     const [globalControl, globalGeneration] = heads('global')
     const [providerControl, providerGeneration] = heads('provider:private-beta-global-v2')
     const [capabilityControl, capabilityGeneration] = heads('capability:review_analysis')
+    const contentExpiresAt = new Date('2027-08-01T00:00:00.000Z')
     await query(
       `INSERT INTO reviews (
-         id, organization_id, property_id, platform, external_id, reviewer_name,
-         rating, text, language_code, reviewed_at, content_expires_at,
-         source_epoch, source_revision, analysis_sequence, ai_source_byte_length,
-         ai_source_digest
-       ) VALUES ($1, $2, $3, 'google', $4, 'Reviewer', 5, 'Text', 'en', $5, $6, 0, 1, $7, 20, $8)`,
+         id, organization_id, property_id, platform, first_fetched_at,
+         source_epoch, source_revision, analysis_sequence
+       ) VALUES ($1, $2, $3, 'google', $4, 0, 1, $5)`,
+      [reviewId, organizationId, propertyId, at, sequence],
+    )
+    await query(
+      `INSERT INTO review_source_contents (
+         review_id, organization_id, property_id, platform, external_id,
+         external_location_id, reviewer_name, rating, text, language_code,
+         reviewed_at, last_fetched_at, content_expires_at, source_epoch,
+         source_revision, ai_source_byte_length, ai_source_digest
+       ) VALUES ($1, $2, $3, 'google', $4, 'locations/ai-rights', 'Reviewer', 5, 'Text',
+                 'en', $5, $5, $6, 0, 1, 20, $7)`,
       [
         reviewId,
         organizationId,
         propertyId,
         `ai-rights-${reviewId}`,
         at,
-        new Date('2027-08-01T00:00:00.000Z'),
-        sequence,
+        contentExpiresAt,
         'a'.repeat(64),
       ],
     )

@@ -66,7 +66,7 @@ const REVIEW_PROBES: ReadonlyArray<Probe> = [
     where: DIRECT,
     scrub: {
       key: 't.id::text',
-      done: `t.source_content_state <> 'active' AND t.text IS NULL`,
+      done: `t.source_content_state <> 'active'`,
     },
   },
   {

@@ -149,7 +149,7 @@ rules, the epoch bump is the lever (it moves with a Merchant AI authorization
 transition, not a deploy); the options and their cost are listed in the pull
 request that carried the change.
 
-Changing what the canonicalizer produces is not a patch. The Review row stores a
+Changing what the canonicalizer produces is not a patch. The Review's source content row stores a
 digest and a byte length of the canonical text (`ai_source_digest`,
 `ai_source_byte_length`), `readForAi` recomputes them from the raw row, and the
 output store refuses a result whose operation digest differs from the Review's.
@@ -186,8 +186,8 @@ one byte over the limit (`REFUSED_AI_SOURCE_BYTE_LENGTH`) and a digest of the ra
 fields, so every AI reader denies it as `source_too_large` and analysis settles
 it as not analysable, exactly as for any oversize source. The review stays out
 of the aggregates and the Trend. Nothing logs, counts or alerts on it: the
-marker is the only trace, and `SELECT count(*) FROM reviews WHERE
-ai_source_byte_length = 16385 AND source_content_state = 'active'` sizes the
+marker is the only trace, and `SELECT count(*) FROM review_source_contents WHERE
+ai_source_byte_length = 16385` sizes the
 decision. A reply suggestion for such a review answers `source_changed`
 (`reply/generate-suggestion.server.ts` maps every status but `available` to it), which
 the author sees as a retryable failure, so the Inbox shows a suggestion button

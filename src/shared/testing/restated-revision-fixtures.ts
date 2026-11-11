@@ -92,12 +92,11 @@ export async function seedReview(pool: Pool, input: ReviewFixture): Promise<void
   await pool.query(
     `INSERT INTO reviews (
        id, organization_id, property_id, platform, external_id,
-       external_location_id, rating, reviewed_at, expires_at,
-       source_epoch, source_revision, source_observation_sequence,
-       analysis_sequence, ai_source_byte_length, ai_source_digest,
-       source_content_state, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'google', $4, 'fixture-location', 4, $5, $6,
-               0, $7, $8, 1, 1, $9, 'active', $5, $5)`,
+       external_location_id, expires_at, source_epoch, source_revision,
+       source_observation_sequence, analysis_sequence, source_content_state,
+       created_at, updated_at
+     ) VALUES ($1, $2, $3, 'google', $4, 'fixture-location', $6,
+               0, $7, $8, 1, 'active', $5, $5)`,
     [
       input.reviewId,
       input.organizationId,
@@ -107,7 +106,6 @@ export async function seedReview(pool: Pool, input: ReviewFixture): Promise<void
       FAR_FUTURE,
       newest,
       lastSequence,
-      '0'.repeat(64),
     ],
   )
   for (const revision of input.revisions) {

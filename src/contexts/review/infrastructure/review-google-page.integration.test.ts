@@ -144,7 +144,6 @@ async function observe(
 }
 
 type StoredPage = Readonly<{
-  compatibility: string | null
   sourceCache: string | null | undefined
   contentExpiresAt: Date | null
   sourceRevision: number
@@ -152,14 +151,12 @@ type StoredPage = Readonly<{
 
 async function stored(id: ReviewId): Promise<StoredPage> {
   const result = await getPool().query<{
-    compatibility: string | null
     source_cache: string | null
     has_source_cache: boolean
     content_expires_at: Date | null
     source_revision: string
   }>(
-    `SELECT r.google_review_url AS compatibility,
-            c.google_review_url AS source_cache,
+    `SELECT c.google_review_url AS source_cache,
             c.review_id IS NOT NULL AS has_source_cache,
             c.content_expires_at, r.source_revision
      FROM reviews r
@@ -170,7 +167,6 @@ async function stored(id: ReviewId): Promise<StoredPage> {
   const row = result.rows[0]
   if (!row) throw new Error('Review not stored')
   return {
-    compatibility: row.compatibility,
     sourceCache: row.has_source_cache ? row.source_cache : undefined,
     contentExpiresAt: row.content_expires_at,
     sourceRevision: Number(row.source_revision),
@@ -241,11 +237,10 @@ beforeEach(async () => {
 })
 
 describe.sequential("a Review's own page on Google", () => {
-  it('is stored only with the source content while the old copy stays empty', async () => {
+  it('is stored with the source content', async () => {
     const id = await observe(FIRST_FETCH, REVIEW_PAGE)
 
     await expect(stored(id)).resolves.toMatchObject({
-      compatibility: null,
       sourceCache: REVIEW_PAGE,
     })
     await expect(findingsFor(id)).resolves.toEqual([])
@@ -254,13 +249,12 @@ describe.sequential("a Review's own page on Google", () => {
   it('is written by the same-content refresh that extends the clock, changing nothing else', async () => {
     const id = await observe(FIRST_FETCH, null)
     const before = await stored(id)
-    expect(before.compatibility).toBeNull()
 
     // An existing Review, refreshed after the deploy: Google now sends a page.
     expect(await observe(REFRESH, REVIEW_PAGE)).toBe(id)
 
     const after = await stored(id)
-    expect(after).toMatchObject({ compatibility: null, sourceCache: REVIEW_PAGE })
+    expect(after).toMatchObject({ sourceCache: REVIEW_PAGE })
     expect(after.contentExpiresAt?.getTime()).toBe(REFRESH.getTime() + 30 * DAY_MS)
     expect(after.contentExpiresAt?.getTime()).toBeGreaterThan(
       before.contentExpiresAt?.getTime() ?? Infinity,
@@ -284,12 +278,10 @@ describe.sequential("a Review's own page on Google", () => {
     // A later fetch carries what Google sends then: another page, then none.
     await observe(LATER_REFRESH, LATER_PAGE)
     await expect(stored(id)).resolves.toMatchObject({
-      compatibility: null,
       sourceCache: LATER_PAGE,
     })
     await observe(new Date(LATER_REFRESH.getTime() + DAY_MS), null)
     await expect(stored(id)).resolves.toMatchObject({
-      compatibility: null,
       sourceCache: null,
     })
     await expect(reviewFacts()).resolves.toEqual(['review.created'])
@@ -308,7 +300,6 @@ describe.sequential("a Review's own page on Google", () => {
     expect(await observe(reobservedAt, LATER_PAGE, firstFetch)).toBe(id)
 
     await expect(stored(id)).resolves.toMatchObject({
-      compatibility: null,
       sourceCache: LATER_PAGE,
     })
     await expect(findingsFor(id)).resolves.toEqual([])
@@ -337,7 +328,7 @@ describe.sequential("a Review's own page on Google", () => {
     expect((await reads.getReviewSnippetsByIds([id], ORG)).size).toBe(0)
   })
 
-  it('is erased with the source content, and the database keeps it off a tombstone', async () => {
+  it('is erased with the source content', async () => {
     const id = await observe(FIRST_FETCH, REVIEW_PAGE)
 
     const erased = await db.transaction((tx) =>
@@ -356,7 +347,6 @@ describe.sequential("a Review's own page on Google", () => {
     )
     expect(erased).toBe(true)
     await expect(stored(id)).resolves.toMatchObject({
-      compatibility: null,
       sourceCache: undefined,
     })
     await expect(findingsFor(id)).resolves.toEqual([])
@@ -366,13 +356,6 @@ describe.sequential("a Review's own page on Google", () => {
         ORG,
       ),
     ).resolves.toEqual({ status: 'not_found' })
-
-    await expect(
-      getPool().query('UPDATE reviews SET google_review_url = $2 WHERE id = $1', [
-        id,
-        REVIEW_PAGE,
-      ]),
-    ).rejects.toThrow(/reviews_source_content_state_valid/)
   })
 
   it('reports a content row whose revision differs from its Review identity', async () => {

@@ -258,11 +258,7 @@ describe.sequential('reviewHeadCheckRepository.readBaseline (real PostgreSQL)', 
     await pool.query(
       `UPDATE reviews SET source_content_state = 'source_expired',
          source_content_erased_at = NOW(), external_id = NULL, external_location_id = NULL,
-         google_connection_id = NULL, reviewer_name = NULL, reviewer_profile_photo_url = NULL,
-         google_review_url = NULL, rating = NULL, text = NULL, translated_text = NULL,
-         language_code = NULL, reviewed_at = NULL, source_created_at = NULL,
-         source_updated_at = NULL, content_hash = NULL, ai_source_byte_length = NULL,
-         ai_source_digest = NULL
+         google_connection_id = NULL
        WHERE organization_id = $1 AND id IN (SELECT review_id FROM review_source_contents WHERE organization_id = $1 AND external_id = 'ext-a3')`,
       [ORG],
     )
@@ -278,11 +274,7 @@ describe.sequential('reviewHeadCheckRepository.readBaseline (real PostgreSQL)', 
     await pool.query(
       `UPDATE reviews SET source_content_state = 'provider_deleted',
          source_content_erased_at = NOW(), external_id = NULL, external_location_id = NULL,
-         google_connection_id = NULL, reviewer_name = NULL, reviewer_profile_photo_url = NULL,
-         google_review_url = NULL, rating = NULL, text = NULL, translated_text = NULL,
-         language_code = NULL, reviewed_at = NULL, source_created_at = NULL,
-         source_updated_at = NULL, content_hash = NULL, ai_source_byte_length = NULL,
-         ai_source_digest = NULL
+         google_connection_id = NULL
        WHERE organization_id = $1 AND id IN (SELECT review_id FROM review_source_contents WHERE organization_id = $1 AND external_id = 'ext-gone')`,
       [ORG],
     )

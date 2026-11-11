@@ -202,8 +202,6 @@ async function setup() {
 async function retainedContent() {
   const result = await getPool().query(
     `SELECT c.text, r.source_content_state, c.last_fetched_at, c.content_expires_at,
-            r.text AS old_review_text, r.last_fetched_at AS old_last_fetched_at,
-            r.content_expires_at AS old_content_expires_at,
             c.text AS cache_text, c.content_expires_at AS cache_deadline,
             o.original_text AS observation_text, o.content_expires_at AS observation_deadline,
             g.normalized_text AS provider_reply, g.content_expires_at AS reply_deadline
@@ -217,9 +215,6 @@ async function retainedContent() {
   expect(result.rows).toHaveLength(1)
   expect(result.rows[0]).toMatchObject({
     text: 'Retained provider review',
-    old_review_text: null,
-    old_last_fetched_at: null,
-    old_content_expires_at: null,
     source_content_state: 'active',
     last_fetched_at: FETCHED_AT,
     content_expires_at: DEADLINE,
@@ -339,7 +334,7 @@ describe('disconnected Google content expiry', () => {
         period: { count: 0 },
       })
       const proof = await getPool().query(
-        `SELECT r.source_content_state, r.text, r.content_expires_at,
+        `SELECT r.source_content_state,
            (SELECT count(*)::int FROM review_source_contents WHERE review_id = r.id) AS caches,
            (SELECT count(*)::int FROM review_source_observations
             WHERE review_id = r.id AND content_state = 'active') AS active_observations,
@@ -360,8 +355,6 @@ describe('disconnected Google content expiry', () => {
       expect(proof.rows).toEqual([
         expect.objectContaining({
           source_content_state: 'source_expired',
-          text: null,
-          content_expires_at: null,
           caches: 0,
           active_observations: 0,
           observation_identities: 1,

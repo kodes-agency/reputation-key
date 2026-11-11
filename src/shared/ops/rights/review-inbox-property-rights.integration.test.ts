@@ -60,12 +60,19 @@ async function seedProperty(
   await q(
     `INSERT INTO reviews (
        id, organization_id, property_id, platform, external_id, external_location_id,
-       reviewer_name, rating, text, language_code, reviewed_at, expires_at,
-       content_expires_at, source_epoch, source_revision, source_observation_sequence,
-       analysis_sequence, ai_source_byte_length, ai_source_digest, source_content_state,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, 'google', $4, 'locations/rights', $5, 4, $6, 'en', $7, $8, $8,
-               0, 1, 1, 1, 24, $9, 'active', $7, $7)`,
+       expires_at, source_epoch, source_revision, source_observation_sequence,
+       analysis_sequence, source_content_state, created_at, updated_at
+     ) VALUES ($1, $2, $3, 'google', $4, 'locations/rights', $6, 0, 1, 1, 1, 'active', $5, $5)`,
+    [reviewId, org, propertyId, `external-${reviewId}`, AT, EXPIRES_AT],
+  )
+  await q(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id, external_location_id,
+       reviewer_name, rating, text, language_code, reviewed_at, last_fetched_at,
+       content_expires_at, source_epoch, source_revision, ai_source_byte_length,
+       ai_source_digest)
+     VALUES ($1, $2, $3, 'google', $4, 'locations/rights', $5, 4, $6, 'en', $7, $7, $8,
+             0, 1, 24, $9)`,
     [
       reviewId,
       org,
@@ -216,6 +223,7 @@ async function cleanup(tenant: Tenant): Promise<void> {
 /** Every table the two executors touch, with the SQL that picks a Property's rows. */
 const TABLES: ReadonlyArray<Readonly<{ table: string; inProperty: string }>> = [
   { table: 'reviews', inProperty: 't.property_id = $1' },
+  { table: 'review_source_contents', inProperty: 't.property_id = $1' },
   {
     table: 'replies',
     inProperty: 't.review_id IN (SELECT id FROM reviews WHERE property_id = $1)',
@@ -416,6 +424,7 @@ async function expectErased(tenant: Tenant): Promise<void> {
   for (const table of [
     'property_reply_voices',
     'reply_templates',
+    'review_source_contents',
     'review_sync_state',
     'inbox_items',
     'inbox_private_feedback_target_property_overrides',
@@ -430,19 +439,14 @@ async function expectErased(tenant: Tenant): Promise<void> {
     ),
   ).toBe(0)
   const reviews = await lease.pool.query(
-    `SELECT text, reviewer_name, source_content_state FROM reviews
+    `SELECT source_content_state FROM reviews
      WHERE organization_id = $1 AND property_id = $2`,
     [org, a],
   )
   expect(reviews.rows).toHaveLength(1)
-  expect(
-    reviews.rows.every(
-      (row) =>
-        row.text === null &&
-        row.reviewer_name === null &&
-        row.source_content_state === 'source_expired',
-    ),
-  ).toBe(true)
+  expect(reviews.rows.every((row) => row.source_content_state === 'source_expired')).toBe(
+    true,
+  )
   const replies = await lease.pool.query(
     `SELECT text, created_by FROM replies
      WHERE organization_id = $1
@@ -489,7 +493,7 @@ describe.sequential('Review and Inbox rights executors for a Property request', 
         const result = await runScript(report(tenant.organizationId, propertyId))
         expect(result.exit).toBe(0)
         expect(result.out).toContain(
-          'review: reviews=1 replies=1 review_provider_snapshot_runs=0 review_provider_history_cutoffs=0 review_ai_analysis_heads=0 review_google_reputation_snapshot_facts=0 property_reply_voices=1 reply_templates=1 reply_template_visibility=0 reply_template_revisions=1 reply_template_wordings=1 reply_publication_attempts=0 material_review_revisions=0 review_source_contents=0 review_source_observations=0 review_first_sightings=0 review_provider_subjects=0 review_ai_analysis_released_sequences=0 google_reply_observations=0 google_reply_observation_heads=0 review_provider_snapshot_members=0 review_provider_deletion_candidates=0 review_sync_runs=0 review_sync_state=1 idempotency_receipts=0',
+          'review: reviews=1 replies=1 review_provider_snapshot_runs=0 review_provider_history_cutoffs=0 review_ai_analysis_heads=0 review_google_reputation_snapshot_facts=0 property_reply_voices=1 reply_templates=1 reply_template_visibility=0 reply_template_revisions=1 reply_template_wordings=1 reply_publication_attempts=0 material_review_revisions=0 review_source_contents=1 review_source_observations=0 review_first_sightings=0 review_provider_subjects=0 review_ai_analysis_released_sequences=0 google_reply_observations=0 google_reply_observation_heads=0 review_provider_snapshot_members=0 review_provider_deletion_candidates=0 review_sync_runs=0 review_sync_state=1 idempotency_receipts=0',
         )
         expect(result.out).toContain(
           'inbox: inbox_items=1 inbox_handling_cycles=0 inbox_notes=1 inbox_private_feedback_target_property_overrides=1 inbox_assignment_history=0 inbox_escalation_history=0 inbox_priority_history=0 inbox_handling_cycle_heads=0 inbox_handling_cycle_transitions=0 inbox_handling_cycle_response_targets=0 inbox_response_target_reminders=0 inbox_response_target_exclusions=0 inbox_feedback_handling_outcomes=0',

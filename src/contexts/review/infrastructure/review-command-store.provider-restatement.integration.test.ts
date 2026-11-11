@@ -367,8 +367,6 @@ describe('the content row through a restatement and an edit', () => {
 
     const both = await getPool().query(
       `SELECT r.source_revision = c.source_revision AS same_revision,
-              r.ai_source_digest IS NULL AS no_digest_copy,
-              r.ai_source_byte_length IS NULL AS no_length_copy,
               c.ai_source_digest AS source_digest,
               c.ai_source_byte_length AS source_length
          FROM reviews r JOIN review_source_contents c ON c.review_id = r.id
@@ -378,8 +376,6 @@ describe('the content row through a restatement and an edit', () => {
     expect(both.rows).toEqual([
       {
         same_revision: true,
-        no_digest_copy: true,
-        no_length_copy: true,
         source_digest: 'c'.repeat(64),
         source_length: 20,
       },

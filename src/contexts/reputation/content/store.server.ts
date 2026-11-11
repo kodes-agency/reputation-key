@@ -103,12 +103,7 @@ export async function upsertReviewSourceContent(
  * and remove its independently erasable provider cache. The caller owns the
  * surrounding lifecycle transaction and event/outbox write.
  *
- * The content clock goes with the content. `content_expires_at` says when
- * provider content that is held must stop being served; a tombstone holds none,
- * and a clock left on it made every sweep and serving read that selects on the
- * clock treat the erased row as live. `last_fetched_at` stays: it is the fetch
- * history of a stable Review, not provider content, and a re-observation sets
- * a new clock from its own fetch.
+ * The content clock lives on the content row, so it goes with it.
  */
 export async function eraseReviewSourceContent(
   tx: Tx,
@@ -128,21 +123,7 @@ export async function eraseReviewSourceContent(
       externalId: null,
       externalLocationId: null,
       googleConnectionId: null,
-      reviewerName: null,
-      reviewerProfilePhotoUrl: null,
-      googleReviewUrl: null,
-      rating: null,
-      text: null,
-      translatedText: null,
-      languageCode: null,
-      reviewedAt: null,
       expiresAt: null,
-      sourceCreatedAt: null,
-      sourceUpdatedAt: null,
-      contentExpiresAt: null,
-      contentHash: null,
-      aiSourceByteLength: null,
-      aiSourceDigest: null,
       sourceContentState: input.state,
       sourceContentErasedAt: sql`transaction_timestamp()`,
       updatedAt: sql`transaction_timestamp()`,

@@ -103,18 +103,27 @@ function createInboxRepository(database: Database, ports: RepositoryPorts) {
       }
 
       await pool.query(
-        `INSERT INTO reviews (
-           id, organization_id, property_id, platform, external_id,
-           external_location_id, rating, reviewed_at, expires_at,
-           source_epoch, source_revision, source_observation_sequence,
-           analysis_sequence, ai_source_byte_length, ai_source_digest,
-           source_content_state, created_at, updated_at
-         ) VALUES (
-           $1, $2, $3, 'google', $4, 'locations/inbox-repository-test',
+        `WITH identity AS (
+           INSERT INTO reviews (
+             id, organization_id, property_id, platform, external_id,
+             external_location_id, expires_at, first_fetched_at,
+             source_epoch, source_revision, source_observation_sequence,
+             analysis_sequence, source_content_state, created_at, updated_at
+           ) VALUES (
+             $1, $2, $3, 'google', $4, 'locations/inbox-repository-test',
+             $5::timestamptz + INTERVAL '1 year', $5::timestamptz,
+             0, 1, 0, 1, 'active', $5::timestamptz, $5::timestamptz
+           ) ON CONFLICT (id) DO NOTHING
+           RETURNING id
+         ) INSERT INTO review_source_contents (
+           review_id, organization_id, property_id, platform, external_id,
+           external_location_id, rating, reviewed_at, content_expires_at,
+           first_fetched_at, last_fetched_at, source_epoch, source_revision,
+           ai_source_byte_length, ai_source_digest
+         ) SELECT id, $2, $3, 'google', $4, 'locations/inbox-repository-test',
            4, $5::timestamptz, $5::timestamptz + INTERVAL '1 year',
-           0, 1, 0, 1, 1, repeat('a', 64), 'active',
-           $5::timestamptz, $5::timestamptz
-         ) ON CONFLICT (id) DO NOTHING`,
+           $5::timestamptz, $5::timestamptz, 0, 1, 1, repeat('a', 64)
+           FROM identity`,
         [
           item.sourceId,
           item.organizationId,
@@ -254,18 +263,26 @@ async function seedProperties(pool: Pool) {
 
 async function seedReviews(pool: Pool) {
   await pool.query(
-    `INSERT INTO reviews (
-       id, organization_id, property_id, external_id, external_location_id,
-       platform, rating, text, reviewer_name, reviewed_at, expires_at,
-       source_epoch, source_revision, analysis_sequence,
-       ai_source_byte_length, ai_source_digest, created_at, updated_at
-     )
-     VALUES (
-       $1, $2, $3, 'ext-rev-001', 'ext-loc-001',
-       'google', 4, 'Great service', 'John Doe', NOW(), NOW() + INTERVAL '1 year',
-       0, 0, 0, 1, repeat('0', 64), NOW(), NOW()
-     )
-     ON CONFLICT (platform, external_id, organization_id) DO NOTHING`,
+    `WITH identity AS (
+       INSERT INTO reviews (
+         id, organization_id, property_id, external_id, external_location_id,
+         platform, expires_at, first_fetched_at,
+         source_epoch, source_revision, analysis_sequence, created_at, updated_at
+       ) VALUES (
+         $1, $2, $3, 'ext-rev-001', 'ext-loc-001',
+         'google', NOW() + INTERVAL '1 year', NOW(),
+         0, 0, 0, NOW(), NOW()
+       )
+       ON CONFLICT (platform, external_id, organization_id) DO NOTHING
+       RETURNING id
+     ) INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, rating, text, reviewer_name, reviewed_at,
+       content_expires_at, first_fetched_at, last_fetched_at,
+       source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+     ) SELECT id, $2, $3, 'google', 'ext-rev-001', 'ext-loc-001',
+       4, 'Great service', 'John Doe', NOW(), NOW() + INTERVAL '1 year',
+       NOW(), NOW(), 0, 0, 1, repeat('0', 64) FROM identity`,
     [REVIEW_ID_A, ORG_A as string, PROP_A as string],
   )
 }
