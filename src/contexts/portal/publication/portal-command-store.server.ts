@@ -34,7 +34,7 @@ import type {
   PortalPublicationMutation,
   PortalSemanticLifecycleEvent,
   UpdatePortalCommand,
-} from '../application/ports/portal-command-store.port'
+} from './portal-command-store-port.server'
 import type { Portal, PortalTheme } from '../domain/types'
 import { portalError } from '../domain/errors'
 import { verifyPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
