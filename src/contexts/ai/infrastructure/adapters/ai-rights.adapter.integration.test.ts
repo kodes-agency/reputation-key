@@ -25,6 +25,7 @@ import {
 } from '#/shared/merchant-ai-notice-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import { withoutRetiredAiTables } from '#/shared/db/testing/retired-ai-tables-fixture'
 import { createAiErasureReplayers, createAiRightsExecutor } from './ai-rights.adapter'
 
 describeRightsIsolation({
@@ -32,7 +33,6 @@ describeRightsIsolation({
   name: 'ai',
   context: 'ai',
   tables: [
-    { table: 'ai_property_review_population_daily', hasProperty: true },
     { table: 'ai_property_issue_groups', hasProperty: true },
     { table: 'ai_property_processing_profiles', hasProperty: true },
     { table: 'ai_organization_cost_windows', hasProperty: false },
@@ -40,15 +40,6 @@ describeRightsIsolation({
   executor: (db) => createAiRightsExecutor(db, () => RIGHTS_FIXTURE_AT),
   replayers: createAiErasureReplayers(() => RIGHTS_FIXTURE_AT),
   async seedProperty(query, organizationId, propertyId) {
-    await query(
-      `INSERT INTO ai_property_review_population_daily
-         (organization_id, property_id, local_date, source_epoch, property_profile_version,
-          calendar_profile_version, review_count, text_review_count, rating_1_count,
-          rating_2_count, rating_3_count, rating_4_count, rating_5_count,
-          population_revision, updated_at)
-       VALUES ($1, $2::uuid, '2026-07-31', 0, 1, 'v1', 1, 0, 0, 0, 0, 0, 1, 1, $3)`,
-      [organizationId, propertyId, RIGHTS_FIXTURE_AT],
-    )
     await query(
       `INSERT INTO ai_property_issue_groups
          (organization_id, property_id, topic, canonical_key, created_at, updated_at,
@@ -78,26 +69,21 @@ const REPORTED_BY_PROPERTY = [
   'ai_draft_measurements',
   'ai_review_analysis_backlog',
   'ai_review_analysis_enrollments',
-  'ai_property_trend_outcomes',
-  'ai_property_trend_schedules',
   'ai_property_aggregate_contributions',
   'ai_property_issue_members',
   'ai_property_issue_groups',
   'ai_property_aggregate_settlements',
-  'ai_property_daily_aggregates',
-  'ai_property_review_population_daily',
   'ai_property_aggregate_heads',
   'ai_review_analyses',
   'ai_operations',
   'ai_property_processing_profiles',
   'ai_draft_measurement_links',
   'ai_review_analysis_aspects',
+  'ai_property_aggregate_contribution_aspects',
   'ai_review_analysis_mentions',
   'ai_review_analysis_mention_sentences',
   'ai_review_analysis_mention_corrections',
-  'ai_property_aggregate_contribution_aspects',
   'ai_property_aggregate_contribution_mentions',
-  'ai_property_daily_aspect_aggregates',
 ] as const
 const REPORTED_BY_ORGANIZATION = [
   ...REPORTED_BY_PROPERTY,
@@ -481,7 +467,6 @@ describe.sequential('ai rights report counts', () => {
     await activateProperty(organizationId, propertyId)
     const lineageId = randomUUID()
     const issueGroupId = randomUUID()
-    const scheduleId = randomUUID()
     await query(
       `INSERT INTO ai_property_processing_profiles
          (property_id, organization_id, country_code, timezone, processing_region,
@@ -534,36 +519,6 @@ describe.sequential('ai rights report counts', () => {
       [issueGroupId, organizationId, propertyId, at],
     )
     await query(
-      `INSERT INTO ai_property_trend_schedules (
-         id, outbox_event_id, organization_id, property_id, due_local_date,
-         source_epoch, review_analysis_epoch, property_trends_epoch,
-         property_profile_version, terminal_analysis_sequence, aggregate_revision,
-         timezone, calendar_profile_version, report_profile_version,
-         scheduler_generation, scheduled_at
-       ) VALUES ($1, $2, $3, $4, '2026-08-27', 0, 1, 1, 1, 1, 1, 'UTC',
-                 'property-calendar-v1', 'property-trend-v1', 1, $5)`,
-      [scheduleId, randomUUID(), organizationId, propertyId, at],
-    )
-    await query(
-      `INSERT INTO ai_property_trend_outcomes (
-         schedule_id, organization_id, property_id, disposition,
-         selected_signal_ids, signal_key, direction, confidence_basis_points,
-         supporting_review_count, headline, sentences, summary,
-         render_profile_version, render_profile_digest, recorded_at, expires_at
-       ) VALUES ($1, $2, $3, 'ready', '["category.service"]'::jsonb,
-                 'category.service', 'improving', 1500, 1,
-                 'Review signals improved', '["Service improved."]'::jsonb, 'Summary',
-                 'trend-render-v1', $4, $5, $6)`,
-      [
-        scheduleId,
-        organizationId,
-        propertyId,
-        '4'.repeat(64),
-        at,
-        new Date('2027-08-01T00:00:00.000Z'),
-      ],
-    )
-    await query(
       `INSERT INTO ai_property_aggregate_heads (
          organization_id, property_id, source_epoch, review_analysis_epoch,
          property_profile_version, aggregate_revision, terminal_analysis_sequence, updated_at
@@ -571,34 +526,6 @@ describe.sequential('ai rights report counts', () => {
       [organizationId, propertyId, at],
     )
     for (let index = 0; index < reviews; index += 1) {
-      const localDate = `2026-08-${String(10 + index).padStart(2, '0')}`
-      await query(
-        `INSERT INTO ai_property_daily_aggregates (
-           organization_id, property_id, local_date, source_epoch,
-           review_analysis_epoch, property_profile_version, calendar_profile_version,
-           aggregate_revision, terminal_analysis_sequence, review_count, rating_sum,
-           positive_count, neutral_count, negative_count, mixed_count, urgent_count,
-           high_count, medium_count, low_count, updated_at
-         ) VALUES ($1, $2, $3, 0, 1, 1, 'property-calendar-v1', 1, 1, 1, 5, 1, 0, 0,
-                   0, 0, 0, 0, 1, $4)`,
-        [organizationId, propertyId, localDate, at],
-      )
-      await query(
-        `INSERT INTO ai_property_daily_aspect_aggregates (
-           organization_id, property_id, local_date, source_epoch,
-           review_analysis_epoch, property_profile_version, aspect, polarity, mention_count
-         ) VALUES ($1, $2, $3, 0, 1, 1, 'service', 'positive', 1)`,
-        [organizationId, propertyId, localDate],
-      )
-      await query(
-        `INSERT INTO ai_property_review_population_daily (
-           organization_id, property_id, local_date, source_epoch, property_profile_version,
-           calendar_profile_version, review_count, text_review_count, rating_1_count,
-           rating_2_count, rating_3_count, rating_4_count, rating_5_count,
-           population_revision, updated_at
-         ) VALUES ($1, $2, $3, 0, 1, 'property-calendar-v1', 1, 1, 0, 0, 0, 0, 1, 1, $4)`,
-        [organizationId, propertyId, localDate, at],
-      )
       await seedReview(organizationId, propertyId, index, heads)
     }
   }
@@ -655,6 +582,28 @@ describe.sequential('ai rights report counts', () => {
       }),
     )
   }
+
+  it.each(['property', 'organization'] as const)(
+    'reports and erases %s data with the retired tables absent',
+    async (scope) => {
+      const { first, other, a } = await seedAll()
+      holdRightsOrganization(first.organizationId)
+      await withoutRetiredAiTables(db, async (tx) => {
+        const executor = createAiRightsExecutor(tx, () => RIGHTS_FIXTURE_AT)
+        const plan = rightsPlan(scope, first.organizationId, { propertyId: a })
+        const report = await executor.report(plan)
+        expect(report).toContain(`ai_draft_measurements ${scope === 'property' ? 1 : 3}`)
+        const result = await executor.apply(plan)
+        expect(result.ok).toBe(true)
+        const empty = await executor.report(plan)
+        expect(empty.every((line) => line.endsWith(' 0'))).toBe(true)
+        const otherReport = await executor.report(
+          rightsPlan('organization', other.organizationId),
+        )
+        expect(otherReport).toContain('ai_draft_measurements 3')
+      })
+    },
+  )
 
   it('reports a Property erasure as exactly the rows it removes', async () => {
     const { first, other, a, b } = await seedAll()

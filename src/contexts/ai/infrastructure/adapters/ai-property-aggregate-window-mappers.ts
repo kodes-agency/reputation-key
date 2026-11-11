@@ -126,12 +126,10 @@ export function mapAnalyzedReview(
     modelSnapshot: string
   }>,
 ): AiPropertyAnalyzedReview {
-  // v1 analyses predate aspect extraction and remain current evidence until an
-  // epoch bump retires them. Only that profile may legitimately have no children.
+  // Aspect rows are no longer read, so stored v1 and v2 analyses carry none.
   const aspects =
     Array.isArray(row.aspects) &&
     row.aspects.length <= 5 &&
-    (row.aspects.length >= 1 || row.analysisProfileVersion === 'review-analysis-v1') &&
     row.aspects.every(isAnalyzedReviewAspect)
       ? row.aspects
       : null
