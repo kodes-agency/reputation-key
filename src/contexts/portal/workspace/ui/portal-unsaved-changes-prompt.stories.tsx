@@ -84,6 +84,13 @@ function Harness({ failing }: Readonly<{ failing: Failing }>) {
   )
 }
 
+async function editAndTryToLeave(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  await userEvent.click(await canvas.findByRole('button', { name: 'Edit the name' }))
+  await userEvent.click(canvas.getByRole('button', { name: 'Leave' }))
+  return { canvas, body: within(canvasElement.ownerDocument.body) }
+}
+
 const meta: Meta<typeof Harness> = {
   title: 'Portal/PortalUnsavedChangesPrompt',
   component: Harness,
@@ -111,10 +118,7 @@ export const WritesWhatIsWaitingThenLeavesQuietly: Story = {
 export const AsksWhenTheSaveFailed: Story = {
   args: { failing: 'always' },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const body = within(canvasElement.ownerDocument.body)
-    await userEvent.click(await canvas.findByRole('button', { name: 'Edit the name' }))
-    await userEvent.click(canvas.getByRole('button', { name: 'Leave' }))
+    const { canvas, body } = await editAndTryToLeave(canvasElement)
     const dialog = await body.findByRole('alertdialog', {
       name: 'Save before you leave?',
     })
@@ -144,10 +148,7 @@ export const AsksWhenTheSaveFailed: Story = {
 export const TryingAgainSavesAndLeaves: Story = {
   args: { failing: 'once' },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const body = within(canvasElement.ownerDocument.body)
-    await userEvent.click(await canvas.findByRole('button', { name: 'Edit the name' }))
-    await userEvent.click(canvas.getByRole('button', { name: 'Leave' }))
+    const { canvas, body } = await editAndTryToLeave(canvasElement)
     await userEvent.click(await body.findByRole('button', { name: 'Try saving again' }))
     await waitFor(() => expect(canvas.getByText('Somewhere else')).toBeVisible())
     await expect(saveSpy).toHaveBeenCalledTimes(2)
