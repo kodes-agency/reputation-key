@@ -1,6 +1,5 @@
 import {
   NOW,
-  VALID_ANALYSIS_RESULT,
   agedBackfillInput,
   createHarness,
   elapsedInput,
@@ -9,35 +8,7 @@ import {
   withPinnedLanguageRuntime,
 } from '#/contexts/ai/infrastructure/testing/review-analysis-handler.test-fixtures'
 import { beforeEach, describe, expect, it } from 'vitest'
-import {
-  AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
-  derivePrimaryCategoryV1,
-} from './analyze-review-event'
-describe('review-analysis-v2 local primary category', () => {
-  it('selects the aspect with the largest absolute intensity', () => {
-    expect(
-      derivePrimaryCategoryV1([
-        { aspect: 'service', polarity: 'positive', intensity: 40 },
-        { aspect: 'room', polarity: 'negative', intensity: -80 },
-        { aspect: 'noise', polarity: 'negative', intensity: -60 },
-      ]),
-    ).toBe('room')
-  })
-
-  it('lets a negative aspect win an equal-magnitude tie', () => {
-    expect(
-      derivePrimaryCategoryV1([
-        { aspect: 'service', polarity: 'positive', intensity: 80 },
-        { aspect: 'cleanliness', polarity: 'negative', intensity: -80 },
-      ]),
-    ).toBe('cleanliness')
-  })
-
-  it('falls back to other when no aspect is available', () => {
-    expect(derivePrimaryCategoryV1([])).toBe('other')
-  })
-})
-
+import { AI_ANALYSIS_OPERATION_HORIZON_MILLIS } from './analyze-review-event'
 describe('analyze review event', () => {
   describe('with the pinned language runtime', () => {
     beforeEach(withPinnedLanguageRuntime)
@@ -49,7 +20,7 @@ describe('analyze review event', () => {
       expect(harness.mocks.readProcessingProfile).not.toHaveBeenCalled()
       expect(harness.mocks.readReviewSource).not.toHaveBeenCalled()
       expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
-      expect(harness.mocks.storeAnalysis).not.toHaveBeenCalled()
+      expect(harness.mocks.storeAnalysisV3).not.toHaveBeenCalled()
       expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
       expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
     })
@@ -59,7 +30,7 @@ describe('analyze review event', () => {
 
       await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
       expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
-      expect(harness.mocks.storeAnalysis).not.toHaveBeenCalled()
+      expect(harness.mocks.storeAnalysisV3).not.toHaveBeenCalled()
       expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledWith(
         expect.objectContaining({
           dispositionCode: 'language_not_supported',
@@ -106,18 +77,14 @@ describe('analyze review event', () => {
       const harness = await createHarness()
 
       await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
-      expect(harness.mocks.storeAnalysis).toHaveBeenCalledWith(
+      expect(harness.mocks.storeAnalysisV3).toHaveBeenCalledWith(
         expect.objectContaining({
-          result: {
-            status: 'ready',
-            derivative: {
-              sentiment: 'negative',
-              primaryCategory: 'service',
-              attention: 'urgent',
-              aspects: [{ aspect: 'service', polarity: 'negative', intensity: -90 }],
-              issueLabel: 'service recovery',
-            },
-          },
+          analysisProfileVersion: 'review-analysis-v3',
+          derivative: expect.objectContaining({
+            sentiment: 'negative',
+            attention: 'urgent',
+            urgentReason: 'health',
+          }),
         }),
       )
       expect(harness.mocks.applyReviewAnalysis).toHaveBeenCalledOnce()
@@ -125,127 +92,19 @@ describe('analyze review event', () => {
       expect(harness.mocks.release).toHaveBeenCalledWith({ admissionId: 'admission-1' })
     })
 
-    it.each([
-      [
-        'urgent',
-        {
-          sentiment: 'positive',
-          sentimentValence: 60,
-          urgencySignals: ['safety'],
-          aspects: [{ aspect: 'service', polarity: 'positive', intensity: 60 }],
-          issueLabel: null,
-        },
-        5,
-        'urgent',
-      ],
-      [
-        'high',
-        {
-          sentiment: 'positive',
-          sentimentValence: 60,
-          urgencySignals: ['service_failure'],
-          aspects: [{ aspect: 'service', polarity: 'positive', intensity: 60 }],
-          issueLabel: null,
-        },
-        5,
-        'high',
-      ],
-      [
-        'medium',
-        {
-          sentiment: 'negative',
-          sentimentValence: -40,
-          urgencySignals: [],
-          aspects: [{ aspect: 'service', polarity: 'negative', intensity: -40 }],
-          issueLabel: null,
-        },
-        5,
-        'medium',
-      ],
-      [
-        'low',
-        {
-          sentiment: 'positive',
-          sentimentValence: 60,
-          urgencySignals: [],
-          aspects: [{ aspect: 'service', polarity: 'positive', intensity: 60 }],
-          issueLabel: null,
-        },
-        5,
-        'low',
-      ],
-    ] as const)(
-      'keeps review-attention-v1 %s behavior pinned',
-      async (_case, analysisResult, rating, expectedAttention) => {
-        const harness = await createHarness({ analysisResult, rating })
+    it('rejects an answer that fails the contract as output_invalid without storage or a retry', async () => {
+      const harness = await createHarness({ analysisResult: { contract: 'nope' } })
 
-        await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
-        expect(harness.mocks.storeAnalysis).toHaveBeenCalledWith(
-          expect.objectContaining({
-            result: expect.objectContaining({
-              derivative: expect.objectContaining({ attention: expectedAttention }),
-            }),
-          }),
-        )
-      },
-    )
-
-    it.each([
-      ['uppercase', 'Bed bugs'],
-      ['digits', 'room 2'],
-      ['punctuation', 'bed-bugs'],
-      ['five words', 'one two three four five'],
-      ['41 characters', 'a'.repeat(41)],
-      ['review excerpt with a proper noun', 'dirty sheets at Hilton'],
-    ])(
-      'rejects %s issue labels as output_invalid without storage or a retry',
-      async (_case, issueLabel) => {
-        const harness = await createHarness({
-          analysisResult: {
-            ...VALID_ANALYSIS_RESULT,
-            issueLabel,
-          },
-        })
-
-        await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
-        expect(harness.mocks.recordFailure).toHaveBeenCalledExactlyOnceWith(
-          expect.objectContaining({
-            failureCode: 'output_invalid',
-            retryAtEpochMillis: null,
-          }),
-        )
-        expect(harness.mocks.storeAnalysis).not.toHaveBeenCalled()
-        expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
-      },
-    )
-
-    // The review reads "The kitchen made several guests sick." A label is
-    // letters and spaces, so a phrase copied from the end of that sentence
-    // arrives without its full stop.
-    it.each([
-      ['in the middle of a sentence', 'kitchen made several'],
-      ['at the end of a sentence', 'guests sick'],
-    ])(
-      'stores the analysis without an issue label quoted from the review %s',
-      async (_case, issueLabel) => {
-        const harness = await createHarness({
-          analysisResult: { ...VALID_ANALYSIS_RESULT, issueLabel },
-        })
-
-        await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
-        expect(harness.mocks.storeAnalysis).toHaveBeenCalledWith(
-          expect.objectContaining({
-            result: {
-              status: 'ready',
-              derivative: expect.objectContaining({
-                aspects: [{ aspect: 'service', polarity: 'negative', intensity: -90 }],
-                issueLabel: null,
-              }),
-            },
-          }),
-        )
-      },
-    )
+      await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
+      expect(harness.mocks.recordFailure).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          failureCode: 'output_invalid',
+          retryAtEpochMillis: null,
+        }),
+      )
+      expect(harness.mocks.storeAnalysisV3).not.toHaveBeenCalled()
+      expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
+    })
 
     it('finishes an idempotent aggregate replay when its outcome is already terminal', async () => {
       const harness = await createHarness({
