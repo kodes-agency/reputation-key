@@ -27,8 +27,8 @@ import { createAtomicIntegrationCommandStore } from '#/contexts/integration/infr
 import { createGoogleConnectionRepository } from '#/contexts/integration/infrastructure/repositories/google-connection.repository'
 import { buildGoogleImportedProperty } from '../application/build-google-imported-property'
 import { disconnectPropertyGoogleBinding } from '../application/use-cases/property-lifecycle'
-import { createPropertyGoogleBindingStore } from './property-google-binding-store'
-import { createPropertyRepository } from './repositories/property.repository'
+import { createPropertyGoogleBindingStore } from './google-binding-store.server'
+import { createPropertyRepository } from '../infrastructure/repositories/property.repository'
 
 const db = getDb()
 const ORG = organizationId('org-category-publication-disconnect')

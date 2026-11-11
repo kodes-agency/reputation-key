@@ -7,18 +7,15 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../../domain/types'
+import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../domain/types'
 import {
   PROPERTY_OPERATION_RECEIPT_TTL_MS,
   PropertyGoogleBindingError,
-} from '../../application/ports/property-google-binding.port'
-import { createPropertyGoogleBindingStore } from '../property-google-binding-store'
-import { seedTestProperty } from '../property-test-fixtures'
+} from '../application/ports/property-google-binding.port'
+import { createPropertyGoogleBindingStore } from './google-binding-store.server'
+import { seedTestProperty } from '../infrastructure/property-test-fixtures'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
-import {
-  propertyReceiptKey,
-  propertyReceiptPayload,
-} from '../property-operation-receipts'
+import { propertyReceiptKey, propertyReceiptPayload } from './operation-receipts.server'
 
 const ORG_ID = organizationId('org-google-binding-integration')
 const OTHER_ORG_ID = organizationId('org-google-binding-other')
@@ -325,6 +322,65 @@ describe.sequential('Property Google binding store', () => {
     expect((rejected as PromiseRejectedResult).reason).toSatisfy(
       bindingError('location_already_bound'),
     )
+  })
+
+  it("never reads, changes or replays another Organization's Property or receipt", async () => {
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+    const property = makeActiveProperty('9', 'location-9')
+    const idempotencyKey = '20000000-0000-4000-8000-000000000009'
+    await store.createBoundProperty({
+      organizationId: ORG_ID,
+      idempotencyKey,
+      property,
+      now: NOW,
+    })
+    const heldBefore = await store.readInternal(ORG_ID, property.id)
+
+    expect(await store.readInternal(OTHER_ORG_ID, property.id)).toBeNull()
+    expect(await store.readByLocationIds(OTHER_ORG_ID, ['location-9'])).toEqual([])
+    expect(await store.readReceipt(OTHER_ORG_ID, idempotencyKey, NOW)).toBeNull()
+    expect(await store.readReceipt(ORG_ID, idempotencyKey, NOW)).not.toBeNull()
+
+    await expect(
+      store.disconnect({
+        organizationId: OTHER_ORG_ID,
+        propertyId: property.id,
+        expectedSourceEpoch: 1,
+        expectedProfileVersion: 1,
+        now: NOW,
+      }),
+    ).rejects.toSatisfy(bindingError('property_not_found'))
+    await expect(
+      store.scrubProviderIdentity({
+        organizationId: OTHER_ORG_ID,
+        propertyId: property.id,
+        expectedSourceEpoch: 1,
+        expectedProfileVersion: 1,
+        now: NOW,
+      }),
+    ).rejects.toSatisfy(bindingError('property_not_found'))
+    await expect(
+      store.relink({
+        organizationId: OTHER_ORG_ID,
+        propertyId: property.id,
+        idempotencyKey: '20000000-0000-4000-8000-000000000019',
+        connectionId: CONNECTION_ID,
+        accountId: 'account-1',
+        locationId: 'location-9',
+        profile: {
+          name: 'Hijacked',
+          address: '1 Main Street',
+          timezone: 'America/New_York',
+          confirmedBy: 'user-9',
+          googleReviewUri: null,
+        },
+        expectedSourceEpoch: 1,
+        expectedProfileVersion: 1,
+        now: NOW,
+      }),
+    ).rejects.toBeInstanceOf(PropertyGoogleBindingError)
+
+    expect(await store.readInternal(ORG_ID, property.id)).toEqual(heldBefore)
   })
 
   it('relinks with source/profile CAS, confirmed profile replacement, and exact replay', async () => {

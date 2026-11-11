@@ -19,7 +19,7 @@ import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-re
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { buildPropertyContext } from '../build'
-import { createPropertyRepository } from './repositories/property.repository'
+import { createPropertyRepository } from '../infrastructure/repositories/property.repository'
 
 const db = getDb()
 const ORG = organizationId('org-property-restore-manager-fence')

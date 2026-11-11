@@ -5,14 +5,14 @@ import {
   propertyResponsibleManagers,
 } from '#/shared/db/schema/property.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import { propertyError } from '../../domain/errors'
+import { propertyError } from '../domain/errors'
 import {
   propertyResponsibilityNeeded,
   propertyResponsibleManagersUpdated,
-} from '../../domain/events'
+} from '../domain/events'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type { PropertyResponsibleManager } from '../../domain/property-responsible-manager'
-import type { PropertyResponsibleManagerRepository } from '../../application/ports/property-responsible-manager.repository'
+import type { PropertyResponsibleManager } from '../domain/property-responsible-manager'
+import type { PropertyResponsibleManagerRepository } from '../application/ports/property-responsible-manager.repository'
 
 const fromRow = (
   row: typeof propertyResponsibleManagers.$inferSelect,
@@ -28,23 +28,30 @@ const fromRow = (
 const announcesResponsibilityGap = (lifecycleState: string): boolean =>
   lifecycleState === 'active'
 
+type Reader = Pick<Database, 'select'>
+
+const selectActive = (
+  executor: Reader,
+  organizationIdValue: string,
+  propertyIdValue: string,
+) =>
+  executor
+    .select()
+    .from(propertyResponsibleManagers)
+    .where(
+      and(
+        eq(propertyResponsibleManagers.organizationId, organizationIdValue),
+        eq(propertyResponsibleManagers.propertyId, propertyIdValue),
+        isNull(propertyResponsibleManagers.effectiveTo),
+      ),
+    )
+    .orderBy(asc(propertyResponsibleManagers.userId))
+
 export const createPropertyResponsibleManagerRepository = (
   db: Database,
 ): PropertyResponsibleManagerRepository => ({
-  listActive: async (organizationId, propertyId) => {
-    const rows = await db
-      .select()
-      .from(propertyResponsibleManagers)
-      .where(
-        and(
-          eq(propertyResponsibleManagers.organizationId, organizationId),
-          eq(propertyResponsibleManagers.propertyId, propertyId),
-          isNull(propertyResponsibleManagers.effectiveTo),
-        ),
-      )
-      .orderBy(asc(propertyResponsibleManagers.userId))
-    return rows.map(fromRow)
-  },
+  listActive: async (organizationId, propertyId) =>
+    (await selectActive(db, organizationId, propertyId)).map(fromRow),
 
   listActiveForUser: async (organizationId, userId) => {
     const rows = await db
@@ -94,17 +101,7 @@ export const createPropertyResponsibleManagerRepository = (
         )
       }
 
-      const currentRows = await tx
-        .select()
-        .from(propertyResponsibleManagers)
-        .where(
-          and(
-            eq(propertyResponsibleManagers.organizationId, input.organizationId),
-            eq(propertyResponsibleManagers.propertyId, input.propertyId),
-            isNull(propertyResponsibleManagers.effectiveTo),
-          ),
-        )
-        .orderBy(asc(propertyResponsibleManagers.userId))
+      const currentRows = await selectActive(tx, input.organizationId, input.propertyId)
       const desired = new Set(input.managerUserIds)
       const current = new Set(currentRows.map((row) => row.userId))
       const rowsToEnd = currentRows.filter((row) => !desired.has(row.userId))
@@ -192,17 +189,7 @@ export const createPropertyResponsibleManagerRepository = (
         )
       }
 
-      const activeRows = await tx
-        .select()
-        .from(propertyResponsibleManagers)
-        .where(
-          and(
-            eq(propertyResponsibleManagers.organizationId, input.organizationId),
-            eq(propertyResponsibleManagers.propertyId, input.propertyId),
-            isNull(propertyResponsibleManagers.effectiveTo),
-          ),
-        )
-        .orderBy(asc(propertyResponsibleManagers.userId))
+      const activeRows = await selectActive(tx, input.organizationId, input.propertyId)
       // Committed with the change, and only when the selection really moved:
       // a downstream reader needs to tell a gap that just closed from one that
       // just opened, and `assignmentCount` says which without loading rows.
