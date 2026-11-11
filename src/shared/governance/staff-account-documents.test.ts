@@ -25,7 +25,7 @@ describe('current notice corrections', () => {
   it('discloses stored Reporting copies, current AI cleanup and inactive source deletion', () => {
     const privacy = legalBody('privacy-notice')
     expect(
-      privacy.match(/Reporting can retain legacy per-review star values/gu),
+      privacy.match(/The Service no longer records separate per-review star values/gu),
     ).toHaveLength(2)
     expect(privacy).toContain('per-review rating, review text and language')
     expect(privacy).toContain('a new successful fetch restarts that period')
@@ -35,16 +35,17 @@ describe('current notice corrections', () => {
     expect(privacy).toContain(
       'Database backups are deleted on a fixed schedule within 30 days: daily copies after six days and weekly copies after 27 days.',
     )
-    expect(privacy).toContain(
-      'Automatic recording and re-application of erasures after a restore is not active.',
+    expect(privacy).not.toContain(
+      're-application of erasures after a restore is not active',
     )
-    expect(privacy).toContain(
-      'Restoring an older backup can therefore bring back information erased after that backup was made.',
-    )
+    expect(privacy).not.toContain('can therefore bring back information erased')
     expect(privacy).toContain('except the stored business category')
     expect(privacy).toContain('expire after 730 days and are deleted by daily cleanup')
     expect(privacy).toContain('Operational Action History has no active deletion rule')
-    expect(privacy).toContain('These copies await removal.')
+    expect(privacy).toContain(
+      'Existing copies remain with no enforced expiry and are being removed.',
+    )
+    expect(privacy).not.toContain('These copies await removal.')
     expect(privacy).not.toContain('23,349')
     expect(privacy).not.toContain('365 days under the current engineering policy')
     expect(privacy).toContain(
@@ -77,7 +78,7 @@ describe('current notice corrections', () => {
     expect(agreement).toContain(
       'Erasure replay was not tested, and the app’s restore verifier was not used.',
     )
-    expect(agreement).toContain('Privacy Notice version 3.7, effective 2026-11-11')
+    expect(agreement).toContain('Privacy Notice version 3.8, effective 2026-11-11')
     expect(agreement).toContain(
       'Google Business Profile Access Disclosure version 2.7, effective 2026-11-11',
     )
@@ -113,6 +114,29 @@ describe('current notice corrections', () => {
   it('publishes the business category clearing promise', () => {
     expect(legalBody('privacy-notice')).toContain(
       'The category is used as AI context and to pick example words, is shown during Google import, and is removed when Google is disconnected.',
+    )
+  })
+
+  it('publishes the erasure record and restore replay only where main writes and replays it', () => {
+    const privacy = legalBody('privacy-notice')
+    expect(privacy).toContain(
+      'Before an approved erasure request or a one-off purge deletes information, the Service saves a separate record containing only the identifiers needed to repeat that erasure after a restore. These records are kept in separate object storage for 45 days. If saving the record fails, the erasure waits and Reputation Key is alerted. After a restore, the records are used to repeat those erasures before the restored Service returns to use. Routine deletion of information that has reached its age limit runs again after a restore and needs no separate erasure record.',
+    )
+    expect(privacy).toContain(
+      'A guest withdrawal does not yet save such a record, so restoring an older backup can bring back a response a guest withdrew after that backup was made.',
+    )
+    expect(privacy).not.toContain('Before a guest withdrawal deletes information')
+    expect(privacy).toContain(
+      'confirmed erasure with a record that allows it to be repeated after a restore.',
+    )
+    expect(legalBody('internal-beta-agreement')).toContain(
+      'A separate erasure record allows deletion to be repeated after a restore.',
+    )
+  })
+
+  it('explains how All Time totals are calculated', () => {
+    expect(legalBody('privacy-notice')).toContain(
+      'Portal “All Time” totals are calculated from the retained Guest metric readings. Those readings have a 24-month retention limit. Once older readings start to expire, the totals cover the last 24 months and will be labelled “last 24 months”, rather than “All Time”.',
     )
   })
 
@@ -157,8 +181,8 @@ describe('current notice corrections', () => {
 
 describe('staff account release documents', () => {
   it.each([
-    ['privacy-notice', '3.7'],
-    ['internal-beta-agreement', '2.8'],
+    ['privacy-notice', '3.8'],
+    ['internal-beta-agreement', '2.9'],
     ['google-access-disclosure', '2.7'],
   ])('publishes %s version %s on the approved release date', (file, version) => {
     const text = readFileSync(`docs/legal/${file}.md`, 'utf8')
