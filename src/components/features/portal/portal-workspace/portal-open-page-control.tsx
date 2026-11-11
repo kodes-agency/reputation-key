@@ -12,7 +12,7 @@
 // `PortalLinkIssuanceProvider`, which is why the layout hands it over as an
 // element rather than reading the state itself.
 import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
-import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
+import type { PortalDetailTab } from '#/contexts/portal/workspace/ui/portal-detail-rules'
 import type { PortalShareMutations } from '../portal-share/portal-share-types'
 import type { PortalPublicationState } from '../shared/types'
 import { PortalOpenPageButton } from './portal-open-page-button'

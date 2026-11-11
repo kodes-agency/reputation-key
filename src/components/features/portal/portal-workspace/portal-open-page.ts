@@ -30,7 +30,7 @@
 import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
-import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
+import type { PortalDetailTab } from '#/contexts/portal/workspace/ui/portal-detail-rules'
 import { directAddressOf } from '../portal-share/portal-share-state'
 import type { PortalPublicationState } from '../shared/types'
 
