@@ -18,7 +18,7 @@ import {
   ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER,
 } from '../notify/goals.server'
 import { registerGoalNotificationConsumer } from './goal-notice-routes'
-import { withOutboxNotificationDelivery } from './outbox-notification-delivery'
+import { noticeWriterOver } from './notification-consumer-test-fixtures'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -110,8 +110,10 @@ const makeDeps = () => {
       jobs.push({ name, data, opts })
     }),
   }
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
     queue,
+    noticeWriter: noticeWriterOver(queue, receipts),
     monthlyResultFacts: {
       findMonthlyResultNotificationFacts: vi.fn(async (): Promise<ClosedFacts> => ({
         programId: IDS.program,
@@ -159,7 +161,7 @@ const makeDeps = () => {
       error: vi.fn(),
       child: vi.fn(),
     },
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     jobs,
   }
 }
@@ -785,26 +787,22 @@ describe('canonical Goal monthly-result notification consumer', () => {
     // Like BullMQ, an add under an id the queue still holds is a no-op.
     const held = new Map<string, unknown>()
     const enqueueReceipts: string[] = []
-    const queue = withOutboxNotificationDelivery(
-      {
-        add: async (_name, data, opts) => {
-          const jobId = (opts as { jobId: string }).jobId
-          if (!held.has(jobId)) held.set(jobId, data)
-        },
+    const queue = {
+      add: async (_name: string, data: unknown, opts?: unknown) => {
+        const jobId = (opts as { jobId: string }).jobId
+        if (!held.has(jobId)) held.set(jobId, data)
       },
-      { insertReceipt: async (eventId) => void enqueueReceipts.push(eventId) },
-      {
-        eventType: 'goal.monthly_result.revised',
-        consumerName: ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER,
-      },
-    )
+    }
+    const noticeWriter = noticeWriterOver(queue, {
+      insertReceipt: async (eventId: string) => void enqueueReceipts.push(eventId),
+    })
 
     await handleNotificationGoalMonthlyResultRevised(
-      { ...deps, queue },
+      { ...deps, noticeWriter },
       revisedEvent({ achieved: false, revision: 1 }),
     )
     await handleNotificationGoalMonthlyResultRevised(
-      { ...deps, queue },
+      { ...deps, noticeWriter },
       revisedEvent(
         {
           achieved: false,
@@ -817,7 +815,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
     )
 
     const carried = [...held.values()].map(
-      (data) => (data as { delivery: { eventId: string } }).delivery.eventId,
+      (data) => (data as { eventId: string }).eventId,
     )
     expect(carried.sort()).toEqual([...enqueueReceipts].sort())
     expect(carried.sort()).toEqual([IDS.event, laterEvent].sort())

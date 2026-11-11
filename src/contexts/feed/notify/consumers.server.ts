@@ -2,7 +2,6 @@ import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
-import type { OutboxRepository } from '#/shared/outbox'
 import type {
   NotificationAudienceAuthorizer,
   NotificationAudience,
@@ -10,13 +9,11 @@ import type {
 import type { NotificationWorkState } from '../application/notification-work-state'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { InsertNotificationInput } from '../application/use-cases/insert-notification'
-import type { NotificationJobEnqueuePort } from '../infrastructure/inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from '../infrastructure/jobs/insert-notification.job'
 import {
   enqueueImmediateAfterCommit,
   writeNoticeInTransaction,
-  type SettlementDeps,
-} from '../infrastructure/repositories/notification-delivery-settlement.repository'
+  type NoticeWriteSettings,
+} from './notice-write.server'
 
 /**
  * One notice a consumer decided to raise: who gets it, about what, and why the
@@ -52,7 +49,7 @@ export type NoticeWriter = Readonly<{
   ) => Promise<ReceiptStatus | 'duplicate'>
 }>
 
-type NoticeWriterDeps = SettlementDeps &
+type NoticeWriterDeps = NoticeWriteSettings &
   Readonly<{
     authorizeAudience: NotificationAudienceAuthorizer
     workState: Pick<NotificationWorkState, 'isWaiting'>
@@ -130,20 +127,12 @@ export const createNoticeWriter = (deps: NoticeWriterDeps): NoticeWriter => ({
 })
 
 export type NoticeDeliveryDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  receipts: Pick<OutboxRepository, 'insertReceipt'>
-  /**
-   * Present on the worker. Without it the notices travel as queued
-   * `insert-notification` jobs, which is how a repair replays a fact.
-   */
-  noticeWriter?: NoticeWriter
+  noticeWriter: NoticeWriter
 }>
 
 type DeliveryOptions = Readonly<{
   /** The receipt's outcome; `obsolete` for a fact that can never raise a notice. */
   status?: ReceiptStatus
-  /** The queued job's id for a notice, where the default would collide. */
-  jobId?: (notice: Notice) => string
 }>
 
 /**
@@ -158,27 +147,13 @@ export async function deliverNotices(
   notices: ReadonlyArray<Notice>,
   options: DeliveryOptions = {},
 ): Promise<ConsumerResult> {
-  const status = options.status ?? 'applied'
-  if (deps.noticeWriter) {
-    const outcome = await deps.noticeWriter.write({
-      eventId: event.eventId,
-      consumerName,
-      status,
-      notices,
-    })
-    return { status: outcome }
-  }
-  await Promise.all(
-    notices.map((notice) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        { ...notice, eventId: event.eventId },
-        { jobId: options.jobId?.(notice) ?? `${event.eventId}-${notice.userId}` },
-      ),
-    ),
-  )
-  await deps.receipts.insertReceipt(event.eventId, consumerName, status)
-  return { status }
+  const outcome = await deps.noticeWriter.write({
+    eventId: event.eventId,
+    consumerName,
+    status: options.status ?? 'applied',
+    notices,
+  })
+  return { status: outcome }
 }
 
 /**

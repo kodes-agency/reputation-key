@@ -25,8 +25,24 @@ import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.s
 import type { NotificationGapRepositoryPort } from '../../application/ports/notification-gap.repository'
 import { historicalOnboardingItem } from '../historical-onboarding-item'
 import { ON_INBOX_ITEM_CREATED_CONSUMER } from '../notification-outbox-consumers'
-import { notificationDeliveryReceiptPrefixes } from '../outbox-notification-delivery'
+import { notificationDeliveryReceiptPrefixes } from '../notification-delivery-receipts'
 import { withHealthReadTimeout } from './health-read-timeout'
+
+/**
+ * How far back the missing-notification gauge looks: a notification about a
+ * day-old fact is no longer news.
+ */
+export const NOTIFICATION_GAP_LOOKBACK_MS = 24 * 60 * 60 * 1000
+
+/** How fresh an Inbox item is too fresh to judge; its consumer may still be running. */
+export const NOTIFICATION_GAP_GRACE_MS = 5 * 60 * 1000
+
+/**
+ * Saturation cap for the `notification.missing_for_inbox_item` gauge. Its
+ * alert pages on any count above zero, so an exact count past this buys
+ * nothing and would put an unbounded aggregate on the health path.
+ */
+export const NOTIFICATION_GAP_SCAN_LIMIT = 1000
 
 /**
  * No notification row anywhere points at this inbox item. The predicate must

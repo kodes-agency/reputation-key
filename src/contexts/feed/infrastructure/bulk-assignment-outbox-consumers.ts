@@ -7,13 +7,7 @@ import { z } from 'zod/v4'
 import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import {
-  inboxItemId,
-  organizationId,
-  propertyId,
-  unbrand,
-  userId,
-} from '#/shared/domain/ids'
+import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import {
   deliverNotices,
@@ -204,16 +198,7 @@ export async function handleNotificationBulkAssignmentCompleted(
     )
   }
 
-  return deliverNotices(
-    deps,
-    event,
-    ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER,
-    notices,
-    {
-      jobId: (notice) =>
-        `${event.eventId}-${unbrand(notice.userId)}-${notice.propertyId}${notice.type === 'inbox.bulk_assigned' ? '' : '-unassigned'}`,
-    },
-  )
+  return deliverNotices(deps, event, ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER, notices)
 }
 
 export function registerBulkAssignmentNotificationConsumer(

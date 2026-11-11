@@ -48,7 +48,6 @@ import {
   MANDATORY_EMAIL_JOB_NAME,
   URGENT_EMAIL_JOB_NAME,
 } from '../email/send-emails.server'
-import { parseOutboxNotificationDelivery } from './outbox-notification-delivery'
 
 import {
   ACTOR,
@@ -489,7 +488,7 @@ describe('every beta notification route queues its notice from its real producer
   for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX.filter(
     (candidate) => candidate.settles === undefined,
   )) {
-    it(`${route.eventType}: ${route.consumerName} queues its notification durably`, async () => {
+    it(`${route.eventType}: ${route.consumerName} writes its notification durably`, async () => {
       const result = await dispatch(PRODUCED_FACTS[route.eventType]!())
       const { envelope } = result
       const queued = expectAnnouncingRoute(
@@ -498,9 +497,8 @@ describe('every beta notification route queues its notice from its real producer
         SELECTED_FACT_TYPES[route.eventType],
       )
       for (const job of queued) {
-        expect(parseOutboxNotificationDelivery(job)).toMatchObject({
+        expect(job).toMatchObject({
           eventId: envelope.eventId,
-          eventType: route.eventType,
           consumerName: route.consumerName,
         })
         expect(parseNotificationAudience(job.audience), job.type).not.toBeNull()

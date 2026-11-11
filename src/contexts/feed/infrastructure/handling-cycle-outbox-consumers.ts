@@ -17,7 +17,6 @@ import {
   inboxItemId,
   organizationId,
   propertyId,
-  unbrand,
   userId,
   type OrganizationId,
   type UserId,
@@ -371,10 +370,6 @@ export async function handleNotificationBulkReopenCompleted(
         actorUserId,
       },
     })),
-    {
-      jobId: (notice) =>
-        `${event.eventId}-${unbrand(notice.userId)}-${notice.propertyId}`,
-    },
   )
 }
 

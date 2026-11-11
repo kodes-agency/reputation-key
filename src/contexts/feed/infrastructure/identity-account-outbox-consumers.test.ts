@@ -14,7 +14,10 @@ import {
   registerIdentityAccountNotificationConsumers,
 } from './identity-account-outbox-consumers'
 import { INVITATION_ACCEPTED_INVITER_CONSUMER } from './invitation-accepted-inviter-notice'
-import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from './notification-consumer-test-fixtures'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -43,9 +46,11 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
 
 const makeDeps = () => {
   const fakes = createNotificationConsumerDeps()
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
     queue: fakes.queue,
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
+    receipts,
     userLookup: fakes.userLookup,
     displayNames: fakes.displayNames,
     logger: fakes.logger,

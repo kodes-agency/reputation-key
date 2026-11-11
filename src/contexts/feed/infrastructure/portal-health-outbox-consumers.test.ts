@@ -10,6 +10,7 @@ import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import { portalHealthChanged } from '#/contexts/portal/domain/events'
+import { noticeWriterOver } from './notification-consumer-test-fixtures'
 import {
   handleNotificationPortalHealthChanged,
   ON_PORTAL_HEALTH_CHANGED_CONSUMER,
@@ -66,8 +67,10 @@ const makeDeps = () => {
       jobs.push({ name, data, opts })
     }),
   }
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
     queue,
+    noticeWriter: noticeWriterOver(queue, receipts),
     responsibleManagers: {
       findForProperty: vi.fn(async () => []),
       findForPortal: vi.fn(async () => [MANAGER]),
@@ -76,7 +79,7 @@ const makeDeps = () => {
     },
     userLookup: { findByRole: vi.fn(async () => [ADMIN]) },
     displayNames: { findPropertyName: vi.fn(async () => 'Riverside Hotel') },
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     logger: {
       debug: vi.fn(),
       info: vi.fn(),

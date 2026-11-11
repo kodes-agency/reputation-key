@@ -9,7 +9,6 @@ describe('Notification runtime logging injection', () => {
   it('keeps jobs and durable consumers independent from the ambient logger', () => {
     for (const file of [
       'jobs/insert-notification.job.ts',
-      'jobs/reconcile-missing-notifications.job.ts',
       'notification-outbox-consumers.ts',
     ]) {
       expect(read(file), file).not.toMatch(/\bgetLogger\s*\(/u)
