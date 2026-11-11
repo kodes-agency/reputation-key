@@ -20,8 +20,8 @@ import {
   type UpdatePropertyInput,
 } from '../application/use-cases/update-property'
 import { isPropertyError } from '../domain/errors'
-import { createAtomicPropertyCommandStore } from './property-command-store'
-import { createPropertyRepository } from './repositories/property.repository'
+import { createAtomicPropertyCommandStore } from './update-store.server'
+import { createPropertyRepository } from '../infrastructure/repositories/property.repository'
 
 const db = getDb()
 const ORGANIZATION_ID = organizationId('org-property-update-overlap')

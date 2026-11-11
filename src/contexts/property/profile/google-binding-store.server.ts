@@ -1,8 +1,5 @@
-import {
-  assertBindingProfile,
-  normalizeConfirmedProfile,
-} from './property-google-profile'
-import { createGooglePrimaryCategoryRefresh } from './property-google-category-store'
+import { assertBindingProfile, normalizeConfirmedProfile } from './google-profile.server'
+import { createGooglePrimaryCategoryRefresh } from './google-category-store.server'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
@@ -20,7 +17,6 @@ import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { normalizeGooglePrimaryCategory } from '#/shared/domain/google-primary-category'
 import { isGoogleResourceSuffix } from '../domain/google-binding-contract'
 import {
-  PROPERTY_OPERATION_RECEIPT_TTL_MS,
   PROPERTY_OPERATION_SWEEP_LIMIT,
   PropertyGoogleBindingError,
   type PropertyGoogleBindingStore,
@@ -28,14 +24,22 @@ import {
   type PropertyOperationCommit,
 } from '../application/ports/property-google-binding.port'
 import { propertyCreated, propertyGoogleBindingChanged } from '../domain/events'
-import { propertyToRow, summaryFromRow, internalFromRow } from './mappers/property.mapper'
 import {
+  propertyToRow,
+  summaryFromRow,
+  internalFromRow,
+} from '../infrastructure/mappers/property.mapper'
+import {
+  findLiveReceipt,
+  markRetentionReleased,
   propertyReceiptKey,
-  propertyReceiptPayload,
+  RETENTION_UNRELEASED,
   receiptFromRow,
+  recordReceipt,
+  type Tx,
   replayReceipt,
   ensureImportFollowUps,
-} from './property-operation-receipts'
+} from './operation-receipts.server'
 import {
   awaitingRefreshGoogleReviewDestination,
   unavailableGoogleReviewDestination,
@@ -56,6 +60,43 @@ function isUniqueViolation(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false
   const candidate = error as { code?: unknown; cause?: unknown }
   return candidate.code === '23505' || isUniqueViolation(candidate.cause)
+}
+
+const readPropertyRow = async (
+  executor: Pick<Database, 'select'>,
+  organizationIdValue: string,
+  propertyIdValue: string,
+) => {
+  const [row] = await executor
+    .select()
+    .from(properties)
+    .where(
+      and(
+        eq(properties.organizationId, organizationIdValue),
+        eq(properties.id, propertyIdValue),
+      ),
+    )
+    .limit(1)
+  return row
+}
+
+const lockPropertyRow = async (
+  tx: Tx,
+  organizationIdValue: string,
+  propertyIdValue: string,
+) => {
+  const [row] = await tx
+    .select()
+    .from(properties)
+    .where(
+      and(
+        eq(properties.organizationId, organizationIdValue),
+        eq(properties.id, propertyIdValue),
+      ),
+    )
+    .for('update')
+    .limit(1)
+  return row
 }
 
 export const createPropertyGoogleBindingStore = (
@@ -89,16 +130,7 @@ export const createPropertyGoogleBindingStore = (
   return Object.freeze({
     refreshPrimaryCategory: createGooglePrimaryCategoryRefresh(db),
     readInternal: async (organizationIdValue, propertyIdValue) => {
-      const [row] = await db
-        .select()
-        .from(properties)
-        .where(
-          and(
-            eq(properties.organizationId, organizationIdValue),
-            eq(properties.id, propertyIdValue),
-          ),
-        )
-        .limit(1)
+      const row = await readPropertyRow(db, organizationIdValue, propertyIdValue)
       return row ? internalFromRow(row) : null
     },
 
@@ -126,16 +158,7 @@ export const createPropertyGoogleBindingStore = (
     },
 
     readSummary: async (organizationIdValue, propertyIdValue) => {
-      const [row] = await db
-        .select()
-        .from(properties)
-        .where(
-          and(
-            eq(properties.organizationId, organizationIdValue),
-            eq(properties.id, propertyIdValue),
-          ),
-        )
-        .limit(1)
+      const row = await readPropertyRow(db, organizationIdValue, propertyIdValue)
       return row ? summaryFromRow(row) : null
     },
 
@@ -190,29 +213,11 @@ export const createPropertyGoogleBindingStore = (
       try {
         const result = await trace('property.googleBinding.create', () =>
           db.transaction(async (tx) => {
-            const receiptKey = propertyReceiptKey(
-              input.organizationId,
-              input.idempotencyKey,
+            const racedReceipt = await findLiveReceipt(
+              tx,
+              propertyReceiptKey(input.organizationId, input.idempotencyKey),
+              input.now,
             )
-            await tx
-              .delete(idempotencyReceipts)
-              .where(
-                and(
-                  eq(idempotencyReceipts.scope, 'property_operation'),
-                  eq(idempotencyReceipts.key, receiptKey),
-                  sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz <= ${input.now}`,
-                ),
-              )
-            const [racedReceipt] = await tx
-              .select({ payload: idempotencyReceipts.payload })
-              .from(idempotencyReceipts)
-              .where(
-                and(
-                  eq(idempotencyReceipts.scope, 'property_operation'),
-                  eq(idempotencyReceipts.key, receiptKey),
-                ),
-              )
-              .limit(1)
             if (racedReceipt) {
               return replayReceipt(receiptFromRow(racedReceipt), 'imported')
             }
@@ -225,24 +230,14 @@ export const createPropertyGoogleBindingStore = (
             )
               deny('connection_unavailable')
             await tx.insert(properties).values(propertyToRow(input.property))
-            const expiresAt = new Date(
-              input.now.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS,
-            )
-            await tx.insert(idempotencyReceipts).values({
-              scope: 'property_operation',
-              key: receiptKey,
-              payload: propertyReceiptPayload({
-                organizationId: input.organizationId,
-                idempotencyKey: input.idempotencyKey,
-                destinationPropertyId: input.property.id,
-                outcome: 'imported',
-                destinationSourceEpoch: input.property.sourceEpoch,
-                destinationProfileVersion: input.property.profileVersion,
-                tombstone: false,
-                expiresAt,
-                retentionReleasedAt: null,
-              }),
-              recordedAt: input.now,
+            await recordReceipt(tx, {
+              organizationId: input.organizationId,
+              idempotencyKey: input.idempotencyKey,
+              destinationPropertyId: input.property.id,
+              outcome: 'imported',
+              sourceEpoch: input.property.sourceEpoch,
+              profileVersion: input.property.profileVersion,
+              now: input.now,
             })
             await insertOutboxRow(tx, created)
             await insertOutboxRow(tx, event)
@@ -300,29 +295,11 @@ export const createPropertyGoogleBindingStore = (
       try {
         const result = await trace('property.googleBinding.relink', () =>
           db.transaction(async (tx) => {
-            const receiptKey = propertyReceiptKey(
-              input.organizationId,
-              input.idempotencyKey,
+            const racedReceipt = await findLiveReceipt(
+              tx,
+              propertyReceiptKey(input.organizationId, input.idempotencyKey),
+              input.now,
             )
-            await tx
-              .delete(idempotencyReceipts)
-              .where(
-                and(
-                  eq(idempotencyReceipts.scope, 'property_operation'),
-                  eq(idempotencyReceipts.key, receiptKey),
-                  sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz <= ${input.now}`,
-                ),
-              )
-            const [racedReceipt] = await tx
-              .select({ payload: idempotencyReceipts.payload })
-              .from(idempotencyReceipts)
-              .where(
-                and(
-                  eq(idempotencyReceipts.scope, 'property_operation'),
-                  eq(idempotencyReceipts.key, receiptKey),
-                ),
-              )
-              .limit(1)
             if (racedReceipt) {
               return replayReceipt(
                 receiptFromRow(racedReceipt),
@@ -333,17 +310,11 @@ export const createPropertyGoogleBindingStore = (
             if (!(await lockGoogleConnectionBindingAuthority(tx, input))) {
               deny('connection_unavailable')
             }
-            const [current] = await tx
-              .select()
-              .from(properties)
-              .where(
-                and(
-                  eq(properties.organizationId, input.organizationId),
-                  eq(properties.id, input.propertyId),
-                ),
-              )
-              .for('update')
-              .limit(1)
+            const current = await lockPropertyRow(
+              tx,
+              input.organizationId,
+              input.propertyId,
+            )
             if (!current) deny('property_not_found')
             if (current.deletedAt !== null) deny('property_deleted')
             if (current.sourceEpoch !== input.expectedSourceEpoch) deny('stale_binding')
@@ -399,24 +370,14 @@ export const createPropertyGoogleBindingStore = (
               },
               replyEffects,
             )
-            const expiresAt = new Date(
-              input.now.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS,
-            )
-            await tx.insert(idempotencyReceipts).values({
-              scope: 'property_operation',
-              key: receiptKey,
-              payload: propertyReceiptPayload({
-                organizationId: input.organizationId,
-                idempotencyKey: input.idempotencyKey,
-                destinationPropertyId: input.propertyId,
-                outcome: 'relinked',
-                destinationSourceEpoch: nextSourceEpoch,
-                destinationProfileVersion: nextProfileVersion,
-                tombstone: false,
-                expiresAt,
-                retentionReleasedAt: null,
-              }),
-              recordedAt: input.now,
+            await recordReceipt(tx, {
+              organizationId: input.organizationId,
+              idempotencyKey: input.idempotencyKey,
+              destinationPropertyId: input.propertyId,
+              outcome: 'relinked',
+              sourceEpoch: nextSourceEpoch,
+              profileVersion: nextProfileVersion,
+              now: input.now,
             })
             event = propertyGoogleBindingChanged({
               organizationId: input.organizationId,
@@ -457,17 +418,11 @@ export const createPropertyGoogleBindingStore = (
       let event: ReturnType<typeof propertyGoogleBindingChanged> | undefined
       const result = await trace('property.googleBinding.disconnect', () =>
         db.transaction(async (tx) => {
-          const [current] = await tx
-            .select()
-            .from(properties)
-            .where(
-              and(
-                eq(properties.organizationId, input.organizationId),
-                eq(properties.id, input.propertyId),
-              ),
-            )
-            .for('update')
-            .limit(1)
+          const current = await lockPropertyRow(
+            tx,
+            input.organizationId,
+            input.propertyId,
+          )
           if (!current) deny('property_not_found')
           if (current.deletedAt !== null) deny('property_deleted')
           if (current.googleBindingState === 'disconnected') {
@@ -536,17 +491,11 @@ export const createPropertyGoogleBindingStore = (
       let event: ReturnType<typeof propertyGoogleBindingChanged> | undefined
       const result = await trace('property.googleBinding.scrub', () =>
         db.transaction(async (tx) => {
-          const [current] = await tx
-            .select()
-            .from(properties)
-            .where(
-              and(
-                eq(properties.organizationId, input.organizationId),
-                eq(properties.id, input.propertyId),
-              ),
-            )
-            .for('update')
-            .limit(1)
+          const current = await lockPropertyRow(
+            tx,
+            input.organizationId,
+            input.propertyId,
+          )
           if (!current) deny('property_not_found')
           if (current.deletedAt !== null) deny('property_deleted')
           if (
@@ -621,24 +570,12 @@ export const createPropertyGoogleBindingStore = (
       ) {
         deny('invalid_binding')
       }
-      const receiptKeys = uniqueKeys.map((key) =>
-        propertyReceiptKey(input.organizationId, key),
+      const rows = await markRetentionReleased(
+        db,
+        input.organizationId,
+        uniqueKeys,
+        input.releasedAt,
       )
-      const rows = await db
-        .update(idempotencyReceipts)
-        .set({
-          payload: sql`${idempotencyReceipts.payload} || jsonb_build_object(
-            'retentionReleasedAt', ${input.releasedAt.toISOString()}::timestamptz
-          )`,
-        })
-        .where(
-          and(
-            eq(idempotencyReceipts.scope, 'property_operation'),
-            inArray(idempotencyReceipts.key, receiptKeys),
-            sql`${idempotencyReceipts.payload}->'retentionReleasedAt' = 'null'::jsonb`,
-          ),
-        )
-        .returning({ key: idempotencyReceipts.key })
       return rows.length
     },
 
@@ -698,7 +635,7 @@ export const createPropertyGoogleBindingStore = (
         .where(
           and(
             eq(idempotencyReceipts.scope, 'property_operation'),
-            sql`${idempotencyReceipts.payload}->'retentionReleasedAt' = 'null'::jsonb`,
+            RETENTION_UNRELEASED,
             sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz <= ${input.now}`,
           ),
         )
@@ -732,23 +669,12 @@ export const createPropertyGoogleBindingStore = (
           .onConflictDoNothing()
           .returning({ eventId: eventConsumerReceipts.eventId })
         if (!insertedReceipt) return 'duplicate'
-        const receiptKeys = uniqueKeys.map((key) =>
-          propertyReceiptKey(input.organizationId, key),
+        await markRetentionReleased(
+          tx,
+          input.organizationId,
+          uniqueKeys,
+          input.releasedAt,
         )
-        await tx
-          .update(idempotencyReceipts)
-          .set({
-            payload: sql`${idempotencyReceipts.payload} || jsonb_build_object(
-              'retentionReleasedAt', ${input.releasedAt.toISOString()}::timestamptz
-            )`,
-          })
-          .where(
-            and(
-              eq(idempotencyReceipts.scope, 'property_operation'),
-              inArray(idempotencyReceipts.key, receiptKeys),
-              sql`${idempotencyReceipts.payload}->'retentionReleasedAt' = 'null'::jsonb`,
-            ),
-          )
         return 'applied'
       })
     },
