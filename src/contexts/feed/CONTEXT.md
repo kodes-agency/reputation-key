@@ -504,9 +504,7 @@ the settlement consumers retire every recipient's still-waiting row for a
 mail behind them. `property.archived` settles by Property instead, every
 actionable notice there except the Organization's Google reconnect request. A
 grouped reopen is settled by row id, once none of the cycles it stands for is
-still its item's open head. The one retractable type,
-`account.organization_purge_pending`, is taken back when the purge is
-cancelled, its mail cancelled as `purge_cancelled`. Settling stamps
+still its item's open head. Settling stamps
 `resolvedAt` and leaves `status` alone, because read is not resolved: a
 settled row leaves the unread count and the Unread tab and stays in the feed
 under a "Done" marker; a repeat on the resource is a new row. The work itself

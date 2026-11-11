@@ -19,9 +19,6 @@ export const PRODUCERLESS_EVENT_FAMILIES: Readonly<Record<string, ProducerlessRe
     // Property deletion fails closed in the beta (property CONTEXT.md), so
     // nothing emits it; recorded facts are still delivered.
     'property.deleted': 'legacy_replay',
-    // Its closure producer is gone; Feed's consumers stay until its notification
-    // contributors are removed.
-    'identity.organization_lifecycle.changed': 'legacy_replay',
     // The Qualified Scan correction path (guest CONTEXT.md): the store write
     // and this fact exist, but no use case retracts a scan yet.
     'guest.qualified_scan.retracted': 'reserved',
