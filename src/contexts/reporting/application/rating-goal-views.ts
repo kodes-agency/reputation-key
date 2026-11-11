@@ -161,7 +161,7 @@ export function buildSetupView(
 
 /**
  * A climb is left while the reviews have earned less than 4.9; above it Google
- * catches up with a tenth already earned (D28). One exact comparison, no plan.
+ * catches up with a tenth already earned. One exact comparison, no plan.
  */
 const climbable = (inputs: RatingGoalSetupInputs): boolean =>
   earnedTenths({
@@ -190,7 +190,7 @@ export function goalBasis(
   return { basis: { ...numbers, mix: tracking.mix }, qualityBasis: tracking.basis }
 }
 
-/** When the card says the goal arrives: chosen pace for 28 days, then actual (Q8). */
+/** When the card says the goal arrives: chosen pace for 28 days, then actual. */
 function cardForecast(
   goal: PropertyRatingGoal,
   numbers: GoalBasis | null,
@@ -281,7 +281,7 @@ export const changeView = (change: RatingGoalChange): RatingGoalChangeView => ({
 
 /**
  * The reviews since the set: their count, and their average once there are
- * ten, as the verdict waits for them (R2-5); the numbers blend them earlier.
+ * ten, as the verdict waits for them; the numbers blend them earlier.
  */
 function sinceSetView(sinceSet: RatingTotals): RatingGoalPlanProgressView['sinceSet'] {
   if (sinceSet.count < QUALITY_VERDICT_MIN_REVIEWS) {

@@ -103,7 +103,7 @@ const keepMock = fn<RatingGoalRecapCommands['keepPaceFn']>(async ({ data }) => (
 }))
 
 /**
- * The Monday check-in on the Overview (V16, E30): the same region as on the
+ * The Monday check-in on the Overview (V16): the same region as on the
  * Goals page, above the card, wired to the page's commands.
  */
 export const WithCheckIn: Story = {

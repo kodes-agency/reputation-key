@@ -11,7 +11,7 @@ import {
   CARD_WHILE_DECEMBER_OPENS,
 } from './portal-goal-running.stories.fixtures'
 
-// The change sheet where a month's measure is not the goal's (PLAN PG-14):
+// The change sheet where a month's measure is not the goal's:
 // after "Count scans instead" from December, November still counts private
 // ratings, so a change of number keeps each month's own measure, and a change
 // now is November's alone; and in the hour before a month's own is opened,

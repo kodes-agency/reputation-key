@@ -161,7 +161,7 @@ const figuresDrawn = async (canvas: ReturnType<typeof within>) =>
 const above = (a: Node, b: Node) =>
   Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
 
-/** R-1: November, what Reception brought in toward the monthly goal, above the figures. */
+/** November, what Reception brought in toward the monthly goal, above the figures. */
 export const WithPortalGoalLine: Story = {
   decorators: [withUtilityLayer],
   args: {
@@ -185,7 +185,7 @@ export const WithPortalGoalLine: Story = {
   },
 }
 
-/** R-2: Reception's own goal, its month so far against its number, and the way to it. */
+/** Reception's own goal, its month so far against its number, and the way to it. */
 export const WithOwnGoal: Story = {
   decorators: [withUtilityLayer],
   args: {

@@ -1,4 +1,4 @@
-// When a reading waits for Google (PLAN-R4 D24): Google's numbers are not
+// When a reading waits for Google: Google's numbers are not
 // current, show no tenth, give no exact average, or the review cache holds no
 // review at all. The last is the wait the recent mix used to stand for: the mix
 // is missing exactly when the cache is empty, so the truth table is unchanged.

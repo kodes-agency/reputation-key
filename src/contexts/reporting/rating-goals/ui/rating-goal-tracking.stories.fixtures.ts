@@ -1,9 +1,9 @@
-// The Google rating goal card of round 5 (PLAN-D D-1, mocks D2/D4) as the card
+// The Google rating goal card as the card
 // read hands it to the page, for stories and tests. Harborline Suites, the
 // quiet hotel of the approved setup, a few weeks after its goal of 4.1 at 1 a
 // day: Google shows 4.0, up from 3.9, and 18 new reviews take it to 4.1. The
 // other cards are the states the card has to draw. Every number is entered by
-// hand, worked out with the domain's own arrival rule (PLAN-D §2) from the
+// hand, worked out with the domain's own arrival rule from the
 // counts each card names; the reads compute them.
 import type { RatingGoalCardView } from '#/contexts/reporting/rating-goals/contracts'
 import { CARD } from './rating-goal.stories.fixtures'
@@ -89,7 +89,7 @@ export const CARD_LAGS: RatingGoalCardView = {
 }
 
 /**
- * Google lags on a middle number (PLAN-D §2): it shows 4.3, the exact average
+ * Google lags on a middle number: it shows 4.3, the exact average
  * is 4.36 (500 reviews, 2,180 stars), so it should show 4.4 soon, and the card
  * counts the 180 new reviews to the goal of 4.5, never "0 to 4.4".
  */
@@ -161,7 +161,7 @@ export const CARD_GETTING_STARTED: RatingGoalCardView = {
 }
 
 /**
- * Harborline at the set (PLAN-D §2, the setup's receipt): 261 reviews, 3.912,
+ * Harborline at the set: 261 reviews, 3.912,
  * 19 new reviews to 4.0, 81 to 4.1 and 4.2 possible in 178. The aim a day
  * stands in for this week.
  */

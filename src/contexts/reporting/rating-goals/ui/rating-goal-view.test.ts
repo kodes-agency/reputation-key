@@ -189,7 +189,7 @@ describe('the change log', () => {
     expect(changeText({ ...quality, oldValue: '45', newValue: '47' })).toBe(
       'New reviews average 4.5★ → 4.7★',
     )
-    // A goal set before round 2 had none; a goal switched to keep has none.
+    // A goal set before a planned quality was stored had none; a goal switched to keep has none.
     expect(changeText({ ...quality, oldValue: null, newValue: '45' })).toBe(
       'New reviews average set to 4.5★',
     )

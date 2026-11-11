@@ -1,4 +1,4 @@
-// What the Monthly portal goal's change works from in the stories (PLAN PG-14):
+// What the Monthly portal goal's change works from in the stories:
 // Seaview's goal of 40 private ratings a month, read on Nov 22 (November runs,
 // a change opens on December; or after "Count scans instead" from December),
 // on Dec 1 before December's month is opened, on Dec 1 to 3 (December runs, a

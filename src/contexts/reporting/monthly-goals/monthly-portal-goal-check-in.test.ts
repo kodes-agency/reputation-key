@@ -29,7 +29,7 @@ const DEC_31 = new Date('2026-12-31T22:00:00.000Z')
 const DEC_1_NOON = new Date('2026-12-01T10:00:00.000Z')
 
 /**
- * G4: the 4 weeks to Nov 30 at Reception, Restaurant and Spa brought in 34
+ * The 4 weeks to Nov 30 at Reception, Restaurant and Spa brought in 34
  * private ratings (15, 9 and 10), so a 31-day December gets about 38: 40 · 45
  * · 50, with 45 recommended.
  */
@@ -89,7 +89,7 @@ const changeOf = (monthlyResultId: string, at: Date): GoalMonthTargetChange => (
 })
 
 describe("the card's month-start check-in", () => {
-  it('Dec 1: Use 45 for a goal of 40, worked out for a whole 31-day December (G4)', async () => {
+  it('Dec 1: Use 45 for a goal of 40, worked out for a whole 31-day December', async () => {
     await expect(checkInAt(DEC_1_NOON)).resolves.toMatchObject({
       kind: 'offer',
       month: '2026-12',

@@ -86,7 +86,7 @@ function recommend(patch: Partial<RecommendPortalGoalInput>) {
   })
 }
 
-/** Seaview on Oct 23: Reception and Restaurant live Oct 9, Spa Oct 15 (G1). */
+/** Seaview on Oct 23: Reception and Restaurant live Oct 9, Spa Oct 15. */
 const SEAVIEW_PORTALS = [
   livePortal('Reception', '2026-10-09'),
   livePortal('Restaurant', '2026-10-09'),
@@ -720,7 +720,7 @@ describe('what the recommendation says about each portal', () => {
   })
 })
 
-describe('the recommended number for one portal or one group (PG-20)', () => {
+describe('the recommended number for one portal or one group', () => {
   // Nov 22: the month offered is December (31 days); November has 9 days left.
   const months = recommend({ now: inSofia('2026-11-22') }).months
   const reception = {
@@ -789,7 +789,7 @@ describe('the recommended number for one portal or one group (PG-20)', () => {
   })
 })
 
-describe('the recommendation narrowed to one portal or one group (PG-21)', () => {
+describe('the recommendation narrowed to one portal or one group', () => {
   const seaview = recommend({ portals: SEAVIEW_PORTALS, days: SEAVIEW_RATINGS })
   const named = (name: string) => {
     const found = seaview.portals.find((portal) => portal.name === name)

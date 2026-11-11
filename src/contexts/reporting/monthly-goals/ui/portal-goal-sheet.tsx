@@ -63,10 +63,10 @@ export type PortalGoalSheetProps = Readonly<{
   commands: PortalGoalSheetCommands
   /** The goal a change is for, as the sheet opened on it; null when setting. */
   goal?: PortalGoalOfCard | null
-  /** A refusal the sheet opens with: F-1, F-2 or F-4, said again on the latest. */
+  /** A refusal the sheet opens with, said again on the latest. */
   notice?: unknown
   /**
-   * F-1, F-2 or F-4 on a change: the sheet is behind the goal, and the host
+   * A stale-goal refusal on a change: the sheet is behind the goal, and the host
    * reads it again and opens the sheet afresh on the latest.
    */
   onBehind?: (error: unknown) => void
@@ -76,12 +76,12 @@ export type PortalGoalSheetProps = Readonly<{
   now?: Date
   /**
    * The change sheet's title on a goal other than the Monthly portal goal, a
-   * Portal's or a group's on its own page (PLAN PG-21); else the sheet's own.
+   * Portal's or a group's on its own page; else the sheet's own.
    */
   changeTitle?: string
   /**
    * The change sheet offers the other measure: false on a Portal's or a
-   * group's page when its subject already holds a goal for it (PLAN PG-21).
+   * group's page when its subject already holds a goal for it.
    */
   canSwitch?: boolean
 }>
@@ -104,7 +104,7 @@ function useSetCommand(props: PortalGoalSheetProps) {
       onError: (error) => {
         const code = goalRefusalCode(error) ?? ''
         if (code === 'subject_has_goal') {
-          // F-3: nothing is left to set here; the card shows the goal that was.
+          // nothing is left to set here; the card shows the goal that was.
           void settle().then(() => toast.error(actionErrorMessage(error)))
         } else if (PORTAL_GOAL_BEHIND.has(code)) {
           void commands.onSet()
@@ -122,7 +122,7 @@ function useSetCommand(props: PortalGoalSheetProps) {
         sending.current = false
       })
   }
-  // F-3 is the toast's to say, once the sheet has closed.
+  // A subject that already holds a goal is the toast's to say, once the sheet has closed.
   const shown = goalRefusalCode(set.error) === 'subject_has_goal' ? null : set.error
   return { send, pending: set.isPending, error: shown }
 }

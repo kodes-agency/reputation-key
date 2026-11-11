@@ -163,7 +163,7 @@ const isTenth = (value: number): boolean => Number.isInteger(value)
 /**
  * A climb goal names a tenth above what Google shows, up to 4.9 (5.0 needs
  * every review to be five stars). A keep goal is set only while Google shows
- * 4.7 or more (X1, 2026-10-16; R2-9 said 4.9), where a higher tenth needs new
+ * 4.7 or more, where a higher tenth needs new
  * reviews of nearly five stars, and names a tenth Google shows now or a lower
  * one, 5.0 included.
  */
@@ -254,7 +254,7 @@ export function planChanges(
  * Whether a change of plan forgets the status the goal knew, so the status the
  * new plan puts it in is stored without a notice (a manager's own doing). A
  * change that moves the pace and keeps the mode and target does not: the goal
- * starts afresh (getting started for 14 days, Q3), which never overwrites the
+ * starts afresh (getting started for 14 days), which never overwrites the
  * known status, and leaving that fresh start tells only a status that differs
  * from the one before the change.
  */

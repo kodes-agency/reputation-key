@@ -41,7 +41,7 @@ function RadioCard({
   )
 }
 
-/** M-9: the goal that holds a closed card, linked under it. */
+/** The goal that holds a closed card, linked under it. */
 function HeldLink({
   propertyId,
   held,
@@ -69,7 +69,7 @@ type ChooseProps = Readonly<{
   disabled: boolean
 }>
 
-/** M-2…M-7: what to add. */
+/** What to add. */
 export function PortalGoalAddChoose({
   propertyId,
   model,
@@ -125,7 +125,7 @@ type WhichProps = Readonly<{
   disabled: boolean
 }>
 
-/** M-9: which Portal, or which group; one that has a goal links to it. */
+/** Which Portal, or which group; one that has a goal links to it. */
 export function PortalGoalAddWhich({
   propertyId,
   label,

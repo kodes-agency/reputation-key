@@ -1,5 +1,5 @@
 // The Google rating goal's done screen, drawn: what was set, "Go to goals", and
-// one next step on the portal side (PLAN PG-11, D-1 and D-2). Once a Portal is
+// one next step on the portal side. Once a Portal is
 // live it is the monthly portal goal's card, which every Property has, so the
 // step is never a dead end; a draft, disabled or archived Portal is not live,
 // and the step is then a first Portal.

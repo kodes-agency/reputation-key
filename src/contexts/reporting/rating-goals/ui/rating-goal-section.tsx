@@ -41,7 +41,7 @@ type Props = Readonly<{
   /** The few-reviews state links to the Portals, or to a first one. */
   hasPortals: boolean
   onStart: (intent: RatingGoalWizardIntent) => void
-  /** The Monday check-in's commands, from the page (E30). */
+  /** The Monday check-in's commands, from the page. */
   recap?: RatingGoalRecapCommands
 }>
 

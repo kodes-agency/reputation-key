@@ -1,4 +1,4 @@
-// The Monthly portal goal page's actions (PLAN PG-14; the page itself is in
+// The Monthly portal goal page's actions (the page itself is in
 // `portal-goal-page.stories.tsx`): "Change number" in the header and "Change the
 // number" among the ways on in the page's last question, and the menu's other
 // measure, all open the change sheet; Stop asks first, in the destructive tone (at
@@ -209,7 +209,7 @@ export const StopScheduled: Story = {
   },
 }
 
-/** F-5: stopped a moment ago elsewhere. The dialog says so and the page is read again. */
+/** Stopped a moment ago elsewhere. The dialog says so and the page is read again. */
 export const StopAlreadyStopped: Story = {
   args: {
     stop: {

@@ -1,4 +1,4 @@
-// A goal's own page on `$goalId` (PLAN PG-21; the Monthly portal goal's is in
+// A goal's own page on `$goalId` (the Monthly portal goal's is in
 // `portal-goal-page.stories.tsx`): Reception's and the Rooms group's goals on the
 // same page, without the Portals' rows and with the same actions, and Reception's
 // when Reception already holds a scans goal (no "Count scans instead"), and on a
@@ -136,7 +136,7 @@ async function expectToast(text: string) {
   await waitFor(() => expect(said).toBeVisible())
 }
 
-// ─── The average's change (PLAN PG-21) ─────────────────────────────────────
+// ─── The average's change ─────────────────────────────────────
 
 /** After the 20th it opens on December at 4.5: 4.6 from December is a revision. */
 export const AverageChangeFromDecember: Story = {
@@ -299,7 +299,7 @@ export const AverageForAPortal: Story = {
   },
 }
 
-// ─── A goal for one portal (PLAN PG-21) ────────────────────────────────────
+// ─── A goal for one portal ────────────────────────────────────
 
 const subjectArgs = (view: typeof SINGLE_RECEPTION) => ({
   propertyId: SEAVIEW.propertyId,

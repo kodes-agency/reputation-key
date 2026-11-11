@@ -102,7 +102,7 @@ describe('goal number steps', () => {
 })
 
 describe('own number note', () => {
-  // G1: the usual for a 30-day November is 16 / 14 × 30 = 240 / 7, about 34.29.
+  // the usual for a 30-day November is 16 / 14 × 30 = 240 / 7, about 34.29.
   const NOVEMBER_USUAL: ExactCount = { num: 240n, den: 7n }
 
   it('says about how many times the usual a number three times it or more is', () => {

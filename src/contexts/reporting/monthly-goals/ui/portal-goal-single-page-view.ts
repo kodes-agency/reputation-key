@@ -13,16 +13,16 @@ import type { PortalGoalTileWords } from './portal-goal-page-view'
 import { MONTH_FIGURE_UNREADABLE } from './portal-goal-running-view'
 import { dayWords, monthName } from './portal-goal-words'
 
-/** L-2: the average's name, and its page's title. */
+/** The average's name, and its page's title. */
 const AVERAGE_GOAL_NAME = goalMetricLabel('portal_rating_average')
 
-/** L-6: what the average is, under its title. */
+/** What the average is, under its title. */
 export const AVERAGE_GOAL_LINE =
   'The average private rating guests give at your portals. A month needs at least 10 ratings.'
 
 /**
  * Stop and the change sheet on a goal other than the Monthly portal goal, which
- * they would otherwise name (X-1, P-16 and S-1, after N-8's "Portal goal").
+ * they would otherwise name.
  */
 export const SINGLE_GOAL_WORDS = {
   stopTitle: 'Stop this portal goal?',
@@ -31,7 +31,7 @@ export const SINGLE_GOAL_WORDS = {
 } as const
 
 /**
- * L-7: one subject as the Goals list names it, "Reception" or "Rooms
+ * One subject as the Goals list names it, "Reception" or "Rooms
  * (group)"; one Portal could not name, "Portal" or "Portal group".
  */
 export function singleSubjectWords(subject: PortalGoalSingleSubject): string {
@@ -77,7 +77,7 @@ export function singleGoalTitle(
     : `${singleSubjectWords(subject)} · ${AVERAGE_GOAL_NAME}`
 }
 
-/** L-6 for the Property's average; a Portal's or a group's says where it counts. */
+/** For the Property's average; a Portal's or a group's says where it counts. */
 export function averageGoalLine(subject: PortalGoalSingleSubject): string {
   const place = subjectPlace(subject)
   return place === null
@@ -139,7 +139,7 @@ export function averageTiles(
 
 /**
  * A goal that counts no month now says why, under its title: "Stopped on Nov
- * 12." (G-29's first words), "Stopped." with no day recorded, or "Paused.";
+ * 12.", "Stopped." with no day recorded, or "Paused.";
  * nothing for a goal that is counting or waiting for its first month.
  */
 export function goalStateLine(

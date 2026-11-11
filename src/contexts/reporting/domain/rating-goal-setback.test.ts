@@ -23,7 +23,7 @@ const harborline = (
   targetTenths: 41,
 })
 
-/** A setback as a decimal, for the golden rows of PLAN-D §2. */
+/** A setback as a decimal, for the fixed rows. */
 const decimal = (value: ReturnType<typeof setbackOf>): number | null =>
   value === null ? null : Number(value.num) / Number(value.den)
 
@@ -45,7 +45,7 @@ describe('needExact', () => {
   })
 })
 
-describe('setbackOf (PLAN-D §2 golden rows)', () => {
+describe('setbackOf (fixed rows)', () => {
   it('sets the goal back about 50 for a 2★ first review', () => {
     // With it: blend 695/160 = 4.3438, need 129.70; without it: 4.5★, 80.11.
     const setback = setbackOf(harborline(262, 1023, { count: 1, sum: 2 }), 2)

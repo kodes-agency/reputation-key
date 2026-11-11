@@ -99,7 +99,7 @@ export function setbackOf(numbers: SetbackNumbers, stars: number): Ratio | null 
   )
 }
 
-/** The low stars a review may have: the owner's 4★ ceiling (Q2). */
+/** The low stars a review may have: the owner's 4★ ceiling. */
 const LOW_STARS = [4, 3, 2, 1] as const
 
 /** Whether one review of `stars` sets the goal back about one new review or more. */

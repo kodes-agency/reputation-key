@@ -55,7 +55,7 @@ export type CardRate = Readonly<{
   basis: NonNullable<RatingGoalCardView['forecastBasis']>
 }>
 
-/** The pace the card works with (Q8): chosen for 28 days, then the last 28 days'. */
+/** The pace the card works with: chosen for 28 days, then the last 28 days'. */
 export function cardRate(
   goal: PropertyRatingGoal,
   reading: Pick<RatingGoalReading, 'now' | 'reviewsLast28Days'>,

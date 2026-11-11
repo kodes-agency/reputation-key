@@ -263,7 +263,7 @@ describe('readMonthlyPortalGoalCard', () => {
     })
   })
 
-  describe("the Overview's prompt (PG-16)", () => {
+  describe("the Overview's prompt", () => {
     /** G1's Seaview on Oct 23: November is offered, 40 recommended. */
     const seaview = (deferredMonth?: string) =>
       fakeWorld({
@@ -443,7 +443,7 @@ describe('readMonthlyPortalGoalCard', () => {
   })
 
   it('private ratings that cannot be read keep the scans offered in the sheet', async () => {
-    // G13: one rating the governed read would quarantine; 14 days of scans.
+    // one rating the governed read would quarantine; 14 days of scans.
     const { deps } = fakeWorld({
       now: OCT_23,
       portals: [portal('Reception', '2026-10-03')],
@@ -486,7 +486,7 @@ describe('readMonthlyPortalGoalCard', () => {
       programs: [propertyGoal('monthly', 'portal_rating_count')],
     })
 
-    // The change sheet's months and offers, as before a goal (PG-14)…
+    // The change sheet's months and offers, as before a goal…
     await expect(sheetOf(deps)).resolves.toMatchObject({
       month: '2026-11',
       ownNumber: { current: { key: '2026-10' }, next: { key: '2026-11' } },
@@ -554,7 +554,7 @@ describe('readMonthlyPortalGoalCard', () => {
         status: 'active',
         target: 40,
         startsOn: null,
-        // G10: 23 of 40 on Nov 22 is behind (69,000 < 79,200), 9 days left with today.
+        // 23 of 40 on Nov 22 is behind (69,000 < 79,200), 9 days left with today.
         month: {
           key: '2026-11',
           measure: 'portal_rating_count',
@@ -808,7 +808,7 @@ describe('readMonthlyPortalGoalCard', () => {
     const at = (value: number) =>
       fakeWorld({ now: NOV_22, programs: [runningGoal()], figure: governed(value) })
 
-    // G10: 23 of 40 on Nov 22 expects 29.3, and 90% of it is 26.4.
+    // 23 of 40 on Nov 22 expects 29.3, and 90% of it is 26.4.
     expect(goalOf(await read(at(23).deps)).month).toMatchObject({
       belowPace: true,
       quietDays: false,
@@ -817,7 +817,7 @@ describe('readMonthlyPortalGoalCard', () => {
   })
 
   it('not judged under 5 expected', async () => {
-    // G11: 10 a month in a 30-day month is judged from Nov 15; the first three
+    // 10 a month in a 30-day month is judged from Nov 15; the first three
     // days of a month are never judged, and draw no tick.
     const on = (now: Date, value: number) =>
       fakeWorld({

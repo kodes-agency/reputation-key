@@ -65,10 +65,10 @@ export type PortalGoalChangeEdit =
 
 export type PortalGoalChangeModel = PortalGoalSheetBodyModel &
   Readonly<{
-    /** S-19: "Add a note", then the field. */
+    /** "Add a note", then the field. */
     note: Readonly<{ open: boolean; text: string; limit: number }>
     submission: PortalGoalChangeSubmission | null
-    /** S-21: what is said once it is saved. */
+    /** What is said once it is saved. */
     toast: string | null
   }>
 
@@ -149,7 +149,7 @@ export function changedChangeDraft(
   }
 }
 
-/** S-15: "November, now" | "From Dec 1"; only the second while no month can change now. */
+/** "November, now" | "From Dec 1"; only the second while no month can change now. */
 function monthsOf(
   draft: PortalGoalChangeDraft,
   context: PortalGoalChangeContext,
@@ -201,7 +201,7 @@ function lineOf(
     : `${monthName(running.key)} keeps counting ${portalGoalUnit(counts, 2)}.`
 }
 
-/** S-18: a number for now that the month so far is already behind. */
+/** A number for now that the month so far is already behind. */
 function belowPaceNote(
   value: number | null,
   measure: PortalGoalMeasure,

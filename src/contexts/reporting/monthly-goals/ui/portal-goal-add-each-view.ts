@@ -108,6 +108,6 @@ export function eachModel(
   }
 }
 
-/** M-12: "2 portal goals set", "1 portal goal set". */
+/** "2 portal goals set", "1 portal goal set". */
 export const eachToast = (count: number): string =>
   `${formatNumber(count)} portal ${count === 1 ? 'goal' : 'goals'} set`

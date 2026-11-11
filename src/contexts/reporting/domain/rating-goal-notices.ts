@@ -208,7 +208,7 @@ function noticesFor(input: RatingGoalNoticeInput): readonly RatingGoalNotice[] {
 }
 
 /**
- * A wait for Google, or the fresh start after a pace change (Q3), leaves the
+ * A wait for Google, or the fresh start after a pace change, leaves the
  * known status as it was: neither is something the goal's reviews did.
  */
 function keepsKnownStatus({ goal, evaluation, now }: RatingGoalNoticeInput): boolean {

@@ -38,7 +38,7 @@ type Props = Readonly<{
   /** The change's note, above the refusal; none when setting. */
   note?: ReactNode
   /**
-   * A refusal the sheet opened with (F-1, on the latest), said until the next
+   * A refusal the sheet opened with (a stale goal, on the latest), said until the next
    * press: the banner shows only refusals of presses made since it opened.
    */
   notice?: unknown
@@ -46,7 +46,7 @@ type Props = Readonly<{
   canSwitch?: boolean
 }>
 
-/** What the number is (S-5…S-7) and the notes on it (S-8), said politely as they change. */
+/** What the number is and the notes on it, said politely as they change. */
 function NumberLine({
   model,
   small,

@@ -44,7 +44,7 @@ describe('where the planned average comes from', () => {
     expect(averageSourceText(planOf(inputs).average, inputs.displayedTenths)).toBe(source)
   })
 
-  it('names a typed one and the plan’s earlier one (D30)', () => {
+  it('names a typed one and the plan’s earlier one', () => {
     expect(
       averageSourceText(planOf(HARBORLINE, { ownAverageTenths: 47 }).average, 39),
     ).toBe('your own number')
@@ -66,7 +66,7 @@ describe('where the planned average comes from', () => {
   })
 })
 
-describe('an average only a typed one plans (X1, D28)', () => {
+describe('an average only a typed one plans', () => {
   it.each([
     [EDGE_47, '4.8 needs new reviews averaging 4.9★ or more'],
     [LAGS_AT_47, '4.8 needs new reviews averaging 4.9★ or more'],
@@ -194,7 +194,7 @@ describe('how we worked out the goal', () => {
     )
   })
 
-  it('starts above what Google shows while it lags (D28)', () => {
+  it('starts above what Google shows while it lags', () => {
     expect(paragraphs(GOOGLE_LAGS)[0]).toBe(
       'Google shows 3.9 from 100 reviews today. 55 new reviews averaging 4.5 stars make the average 4.15, which Google shows as 4.2.',
     )

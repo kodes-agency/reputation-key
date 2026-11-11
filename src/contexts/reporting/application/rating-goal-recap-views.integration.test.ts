@@ -1,6 +1,6 @@
-// The Monday check-in as the card read hands it on (round 5, PLAN-D D-3, owner
-// answer Q4): last week's count, its average only from ten reviews, the plan it
-// is compared with, and the paces Raise and Ease move to.
+// The Monday check-in as the card read hands it on: last week's count, its
+// average only from ten reviews, the plan it is compared with, and the paces
+// Raise and Ease move to.
 //
 // The read is on Wednesday 14 Oct 2026 in Sofia; last week ran from Monday
 // 5 Oct 00:00 (21:00 UTC on the 4th) to Monday 12 Oct 00:00.

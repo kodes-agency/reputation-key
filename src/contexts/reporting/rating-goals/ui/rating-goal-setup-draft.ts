@@ -28,7 +28,7 @@ export type SetupDraft = Readonly<{
   /** The chip "Back to options" returns to. */
   lastChip?: number
   ownAverageTenths?: number
-  /** Change plan: the plan's stored average (D30). */
+  /** Change plan: the plan's stored average. */
   keptAverageTenths?: number
   pin?: number
   /** + at the highest goal, or − at the lowest: said once, until the next change. */
@@ -89,7 +89,7 @@ export const chooseChip = (draft: SetupDraft, index: number): SetupDraft =>
   step(draft, { pace: { kind: 'chip', index }, paceMessage: undefined })
 
 /**
- * The faster-pace link: that chip, and the goal the link named (D31), which
+ * The faster-pace link: that chip, and the goal the link named, which
  * follows the recommendation again when it is the one at that chip.
  */
 export const takeFasterPace = (
@@ -181,7 +181,7 @@ export type GoalToChange = Pick<
 /**
  * Change plan opens on the goal's own plan: its target pinned, its pace as the
  * chip of the same value or as its own, and its average kept when it is not
- * today's automatic one (D30). A goal to keep opens as recommended.
+ * today's automatic one. A goal to keep opens as recommended.
  */
 export function draftFromGoal(
   inputs: RatingGoalSetupInputs,

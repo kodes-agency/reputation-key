@@ -16,7 +16,7 @@ import {
   SHEET_READY as READY,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
 
-// Seaview on Oct 23 (goldens G1 and G2): November is offered, 35 · 40 · 45
+// Seaview on Oct 23 (the first golden Property): November is offered, 35 · 40 · 45
 // with 40 recommended over a usual of 240 / 7 (about 34.29); the rest of
 // October is 23 · 24 · 25 on top of the 12 that already count; scans 50 · 55 ·
 // 60 for November. On Oct 17, the first weeks, nothing is recommended until
@@ -173,7 +173,7 @@ describe('portalGoalSheetModel', () => {
   })
 
   it('an October note measures against the 23 its usual stands for, not the whole month', () => {
-    // G2: 12 so far and 8 / 7 a day for the 9 days left, 156 / 7 (about 22.29).
+    // 12 so far and 8 / 7 a day for the 9 days left, 156 / 7 (about 22.29).
     const october = changedDraft(
       openingDraft(READY, ratings),
       { kind: 'month', month: '2026-10' },
@@ -261,7 +261,7 @@ describe('portalGoalSheetModel', () => {
   })
 
   it('a measure with no number empties the box', () => {
-    // Scans first (P-2): "Set a private ratings number" opens on ratings, which have none.
+    // Scans first: "Set a private ratings number" opens on ratings, which have none.
     const scansOnly: PortalGoalSheetFacts = {
       ...READY,
       offers: { ...READY.offers, portal_rating_count: { current: null, next: null } },
@@ -298,7 +298,7 @@ describe('portalGoalSheetModel', () => {
         PORTAL_SHEET_REFUSALS,
       )
 
-    // F-1, F-3 and F-4 (today's sentence; the sheet re-reads its months).
+    // Stale and held-subject refusals (today's sentence; the sheet re-reads its months).
     expect(refusal('revision_conflict')).toMatchObject({
       code: 'revision_conflict',
       message: 'Someone changed this goal a moment ago. Here is the latest.',

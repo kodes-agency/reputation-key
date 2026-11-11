@@ -195,7 +195,7 @@ afterAll(async () => {
 })
 
 describe('the readings behind the recommended number', () => {
-  it('a group counts each reading by the group it was recorded with (G19)', async () => {
+  it('a group counts each reading by the group it was recorded with', async () => {
     const property = await seedProperty()
     const spa = await seedPortal(property, 'Spa')
     const rooms = await seedGroup(property, 'Rooms')

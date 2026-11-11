@@ -38,7 +38,7 @@ export function PortalGoalMonthHeadline({
   )
 }
 
-/** G-25: the month and its number with no figure, and that it cannot be read now. */
+/** The month and its number with no figure, and that it cannot be read now. */
 export function PortalGoalMonthUnreadable({
   month,
 }: Readonly<{ month: PortalGoalRunningMonth }>) {

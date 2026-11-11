@@ -1,7 +1,7 @@
-// The Monthly portal goal card once its number is ready, and the goal it sets
-// (PLAN PG-09): Use for November and for the rest of October, scans first,
+// The Monthly portal goal card once its number is ready, and the goal it sets:
+// Use for November and for the rest of October, scans first,
 // "How we worked this out", a Use on its way, a refusal, and the scheduled
-// goal (and its "Change", PLAN PG-14, drawn only for someone who may change
+// goal (and its "Change", drawn only for someone who may change
 // it), each at 320 and 1440 px and the ready card on the light theme too. The
 // running goal is `portal-goal-card-running.stories.tsx`. The Storybook Vitest
 // project compiles no Tailwind, so the plays assert words, roles and what Use

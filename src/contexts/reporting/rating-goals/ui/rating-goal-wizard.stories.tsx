@@ -154,7 +154,7 @@ export const NextStepUpFrom46: Story = {
   },
 }
 
-/** X1 at 4.7: Keep first, and Raise it anyway opens the climb at a typed 4.9★. */
+/** At 4.7: Keep first, and Raise it anyway opens the climb at a typed 4.9★. */
 export const KeepFirstAt47: Story = {
   args: { intent: { kind: 'keep', targetTenths: 47 }, setup: read(setupViewOf(EDGE_47)) },
   play: async ({ canvasElement }) => {
@@ -187,7 +187,7 @@ export const KeepFirstAt47: Story = {
   },
 }
 
-/** X1 at 4.8: Keep first; raising it plans 5.0★ for 4.9. */
+/** At 4.8: Keep first; raising it plans 5.0★ for 4.9. */
 export const KeepFirstAt48: Story = {
   args: { intent: { kind: 'keep', targetTenths: 48 }, setup: read(setupViewOf(EDGE_48)) },
   play: async ({ canvasElement }) => {

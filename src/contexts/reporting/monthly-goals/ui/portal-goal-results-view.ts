@@ -18,7 +18,7 @@ type PortalGoal = Parameters<typeof buildGoalResultsMatrix>[0]['programs'][numbe
 /** The page's title, and the name its breadcrumb gives it. */
 export const PORTAL_GOAL_RESULTS_TITLE = 'Portal goal results'
 
-/** The ended goals' part of the page, and its anchor, where R-4 lands (`#ended`). */
+/** The ended goals' part of the page, and its anchor, where the results link lands (`#ended`). */
 export const ENDED_PORTAL_GOALS_TITLE = 'Ended portal goals'
 export const ENDED_PORTAL_GOALS_ID = 'ended'
 

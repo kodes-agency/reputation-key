@@ -126,7 +126,7 @@ describe('what the done screen says', () => {
   })
 })
 
-describe('Keep first at 4.7 and 4.8 (X1)', () => {
+describe('Keep first at 4.7 and 4.8', () => {
   it('says why keeping is suggested, where a climb is still possible', () => {
     expect(keepFirstSentence(47)).toBe(
       '4.8 needs new reviews averaging 4.9★ or more, so we suggest keeping 4.7.',

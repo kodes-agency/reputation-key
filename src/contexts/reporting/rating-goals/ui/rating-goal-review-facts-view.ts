@@ -41,7 +41,7 @@ function beforeSentence(detail: Detail): string | null {
     : `Before the goal it was about ${formatNumber(before.perMonth)} a month.`
 }
 
-/** "3.8★": what new reviews average, to a tenth, once there are ten of them (R2-5). */
+/** "3.8★": what new reviews average, to a tenth, once there are ten of them. */
 function averageWords(detail: Detail): string | null {
   const average = detail.plan?.sinceSet.average ?? null
   return average === null ? null : `${ratingText(average)}★`

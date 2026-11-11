@@ -66,7 +66,7 @@ type Props = Readonly<{
 
 type HistoryProps = Pick<Props, 'page' | 'propertyId' | 'canSeeResults' | 'personName'>
 
-/** P-15: every month's result, once a month has closed. */
+/** Every month's result, once a month has closed. */
 function AllResultsLink({ page, propertyId, canSeeResults }: HistoryProps) {
   const foot = canSeeResults ? allResultsLink(page.anyMonthClosed) : null
   if (foot === null) return null
@@ -82,7 +82,7 @@ function AllResultsLink({ page, propertyId, canSeeResults }: HistoryProps) {
   )
 }
 
-/** P-8 to P-12: each month, and what changed. */
+/** Each month, and what changed. */
 function MonthsAndChanges({ page, personName }: HistoryProps) {
   return (
     <>
@@ -223,7 +223,7 @@ export function focusPortalGoalPageTitle(): void {
 }
 
 /**
- * M-1: the other Portal goals, and the way to add one. The way, and the line
+ * The other Portal goals, and the way to add one. The way, and the line
  * that asks, show only when "Add a portal goal" offers something (the M-rule);
  * with neither a goal nor a way, there is no block.
  */
@@ -247,7 +247,7 @@ function MorePortalGoals({ extras, addLink }: Pick<Props, 'extras' | 'addLink'>)
   )
 }
 
-/** P-3: the page's actions while its goal can change, and the Stop dialog they open. */
+/** The page's actions while its goal can change, and the Stop dialog they open. */
 function usePageActions(props: Props) {
   const { card } = props.page
   const { openSheet } = props.commands
