@@ -73,6 +73,12 @@ const PROFILE = AI_OPERATION_PROFILES.find(
   (candidate) => candidate.profileVersion === REPLY_OPERATION_PROFILE_VERSION,
 )!
 
+/** What admission answers when the claimed source or consent moved before send. */
+const ADMISSION_CURRENTNESS_REFUSALS: ReadonlySet<AiErrorCode> = new Set([
+  'source_revision_changed',
+  'capability_epoch_changed',
+])
+
 type ReplyProviderFailure = Readonly<{
   operationId: AiOperationId
   organizationId: OrganizationId
@@ -538,6 +544,19 @@ export function createGenerateReplySuggestion(
           failureCode: response.code,
           providerRetryAfterEpochMillis: response.retryAfterEpochMillis,
         })
+        // Admission re-reads the source and the consent before anything is
+        // sent. Its refusal is the same finding as the check after a
+        // response, so it answers the same way.
+        if (ADMISSION_CURRENTNESS_REFUSALS.has(response.code)) {
+          const refusedCurrentness = await isReplySuggestionStillCurrent(
+            dependencies,
+            input,
+            currentnessFence,
+          )
+          return unavailable(
+            refusedCurrentness === 'current' ? 'source_changed' : refusedCurrentness,
+          )
+        }
         // Never substitute a template here. A manager who asked for a
         // personalized draft is told it could not be written; using the
         // governed template is their explicit choice (`templateOnly`).
