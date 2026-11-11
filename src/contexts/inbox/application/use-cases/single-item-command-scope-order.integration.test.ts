@@ -24,12 +24,12 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxItem, SourceType } from '../../domain/types'
 import { isInboxError } from '../../domain/errors'
-import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
 import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
-} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
+  seedInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures'
 import { addInboxNote } from './add-inbox-note'
 import { assignInboxItem } from './assign-inbox-item'
 import { correctFeedbackHandlingOutcome } from './correct-feedback-handling-outcome'

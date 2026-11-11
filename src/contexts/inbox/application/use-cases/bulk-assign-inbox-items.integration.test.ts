@@ -4,18 +4,14 @@ import { bulkAssignInboxItems } from './bulk-assign-inbox-items'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
-  dropInboxUseCaseTenant,
-  runScopedId,
-} from '../../infrastructure/inbox-database-fixtures-use-case-ids'
-import {
-  clearInboxUseCaseRows,
+  clearInboxOrganization,
   createUseCaseCommandStore,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
+  dropInboxUseCaseTenant,
   openFixturePool,
-  readCommittedFacts,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
-import {
+  readOutboxFacts,
+  runScopedId,
   seedInboxItem,
   seedInboxOrganization,
 } from '../../infrastructure/inbox-database-fixtures'
@@ -113,7 +109,7 @@ describe.sequential('bulkAssignInboxItems', () => {
         )
       ).rows.map((row) => row.assigned_to)
     const factsOf = async (eventType: string) =>
-      (await readCommittedFacts(pool, ORG)).filter((fact) => fact.eventType === eventType)
+      (await readOutboxFacts(pool, ORG)).filter((fact) => fact.eventType === eventType)
     return { seed, assignees, factsOf, commandStore, execute }
   }
 
@@ -124,7 +120,7 @@ describe.sequential('bulkAssignInboxItems', () => {
     await seedInboxOrganization(pool, ORG, [PROP_A, PROP_B])
   })
 
-  beforeEach(() => clearInboxUseCaseRows(pool, ORG))
+  beforeEach(() => clearInboxOrganization(pool, ORG))
 
   afterAll(async () => {
     clearEventSchemas()

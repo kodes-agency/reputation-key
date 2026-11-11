@@ -8,7 +8,10 @@
 // it; it imports use-cases + in-memory doubles that are verified browser-safe.
 import { projectInboxRequestApi, wireUseCases } from '#/contexts/inbox/build-use-cases'
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import {
+  createStoryOnlyInboxCommandStore,
+  createStoryOnlyInboxRepo,
+} from './story-only-inbox-fake'
 import {
   organizationId,
   userId,
@@ -28,7 +31,6 @@ import type { ResponseTargetStore } from '#/contexts/inbox/application/ports/res
 import type { ResponseTargetPolicyStore } from '#/contexts/inbox/application/ports/response-target-policy.store'
 import type { InboxHistoryRepository } from '#/contexts/inbox/application/ports/inbox-history.repository'
 import type { InboxActorDirectory } from '#/contexts/inbox/application/ports/inbox-actor-directory.port'
-import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxItem, InboxNote } from '#/contexts/inbox/domain/types'
@@ -244,7 +246,7 @@ const storybookActorDirectory: InboxActorDirectory = {
 }
 
 export function createInboxContainer() {
-  const inboxRepo = createInMemoryInboxRepo()
+  const inboxRepo = createStoryOnlyInboxRepo()
   const inboxNoteRepo = createInMemoryNoteRepo()
   const inboxViewRepo = createInMemoryViewRepo()
   let clockNow = new Date('2025-01-15T12:00:00Z')
@@ -255,7 +257,7 @@ export function createInboxContainer() {
     inboxHistoryRepo: emptyInboxHistoryRepo,
     inboxViewRepo,
     actorDirectory: storybookActorDirectory,
-    commandStore: createSequentialInboxCommandStore({
+    commandStore: createStoryOnlyInboxCommandStore({
       repo: inboxRepo,
       noteRepo: inboxNoteRepo,
     }),
