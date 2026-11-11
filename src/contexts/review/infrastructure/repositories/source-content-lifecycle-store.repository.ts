@@ -599,19 +599,6 @@ export const createReviewSourceContentLifecycleStore = (
           ${reviews.externalId} IS NOT NULL
           OR ${reviews.externalLocationId} IS NOT NULL
           OR ${reviews.googleConnectionId} IS NOT NULL
-          OR ${reviews.reviewerName} IS NOT NULL
-          OR ${reviews.reviewerProfilePhotoUrl} IS NOT NULL
-          OR ${reviews.googleReviewUrl} IS NOT NULL
-          OR ${reviews.rating} IS NOT NULL
-          OR ${reviews.text} IS NOT NULL
-          OR ${reviews.translatedText} IS NOT NULL
-          OR ${reviews.languageCode} IS NOT NULL
-          OR ${reviews.reviewedAt} IS NOT NULL
-          OR ${reviews.sourceCreatedAt} IS NOT NULL
-          OR ${reviews.sourceUpdatedAt} IS NOT NULL
-          OR ${reviews.contentHash} IS NOT NULL
-          OR ${reviews.aiSourceByteLength} IS NOT NULL
-          OR ${reviews.aiSourceDigest} IS NOT NULL
         )`,
         tombstoneObservationContentPresent: sql<boolean>`EXISTS (
           SELECT 1 FROM ${reviewSourceObservations} AS lifecycle_observation

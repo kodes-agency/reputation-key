@@ -8,7 +8,6 @@ import {
   aiPropertyAggregateSettlements,
   outboxEvents,
   properties,
-  reviews,
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -17,6 +16,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { seedReviewContent } from './testing/review-content-fixture'
 import {
   settleReviewAnalysisWithoutResult,
   type AnalyzeReviewEventResult,
@@ -274,7 +274,7 @@ describe.sequential(
         profileVersion: 1,
         sourceEpoch: 0,
       })
-      await db.insert(reviews).values(
+      await seedReviewContent(
         REVIEW_IDS.map((id, index) => ({
           id,
           organizationId: ORGANIZATION_ID,

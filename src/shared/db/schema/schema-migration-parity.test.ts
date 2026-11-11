@@ -44,18 +44,21 @@ describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions
   })
 
   describe('migration 0006 — review source lifecycle', () => {
-    it('includes all source-lifecycle columns on reviews', () => {
+    it('keeps the fetch history and fences on reviews and moves provider content off it', () => {
       const cols = new Set(columnNames(reviews))
+      for (const name of ['first_fetched_at', 'source_seen_generation']) {
+        expect(cols.has(name), `reviews missing column ${name}`).toBe(true)
+      }
       for (const name of [
         'source_created_at',
         'source_updated_at',
-        'first_fetched_at',
         'last_fetched_at',
         'content_expires_at',
         'content_hash',
-        'source_seen_generation',
+        'rating',
+        'text',
       ]) {
-        expect(cols.has(name), `reviews missing column ${name}`).toBe(true)
+        expect(cols.has(name), `reviews still has column ${name}`).toBe(false)
       }
     })
   })

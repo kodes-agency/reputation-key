@@ -228,11 +228,19 @@ function sweep(
 async function seedSavedDraft(f: Fixture): Promise<void> {
   const reviewId = randomUUID()
   await db.execute(sql`
-    INSERT INTO reviews (id, organization_id, property_id, platform, external_id, rating, text,
-      source_epoch, source_revision, analysis_sequence, content_expires_at,
-      ai_source_byte_length, ai_source_digest)
+    INSERT INTO reviews (id, organization_id, property_id, platform, first_fetched_at,
+      source_epoch, source_revision, analysis_sequence)
+    VALUES (${reviewId}::uuid, ${f.organizationId}, ${f.propertyId}::uuid, 'google', now(),
+      0, 1, 0)
+  `)
+  await db.execute(sql`
+    INSERT INTO review_source_contents (review_id, organization_id, property_id, platform,
+      external_id, external_location_id, rating, text, reviewed_at, last_fetched_at,
+      content_expires_at, source_epoch, source_revision, ai_source_byte_length,
+      ai_source_digest)
     VALUES (${reviewId}::uuid, ${f.organizationId}, ${f.propertyId}::uuid, 'google', ${reviewId},
-      5, 'A lovely stay', 0, 1, 0, now() + interval '1 day', 13, ${'e'.repeat(64)})
+      'locations/standing-renewal', 5, 'A lovely stay', now(), now(),
+      now() + interval '1 day', 0, 1, 13, ${'e'.repeat(64)})
   `)
   await db.execute(sql`
     INSERT INTO replies (id, review_id, organization_id, text, reply_language_tag, status, source,

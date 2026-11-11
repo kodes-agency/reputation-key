@@ -118,22 +118,14 @@ async function seedReviews(db: Database, expired: number, eligible = 0) {
   await db.execute(sql`
     INSERT INTO reviews (
       id, organization_id, property_id, platform, external_id,
-      external_location_id, reviewer_name, rating, text, reviewed_at,
-      source_created_at, first_fetched_at, last_fetched_at,
-      content_expires_at, content_hash, source_epoch, source_revision,
-      ai_source_byte_length, ai_source_digest,
-      analysis_sequence, source_content_state, created_at, updated_at
+      external_location_id, first_fetched_at, source_epoch,
+      source_revision, analysis_sequence, source_content_state, created_at,
+      updated_at
     )
     SELECT ('10000000-0000-4000-8000-' || lpad(ordinal::text, 12, '0'))::uuid,
            'recovery-proof', ${PROPERTY_ID}::uuid, 'google',
            'provider-review-' || ordinal, 'locations/recovery-proof',
-           'Private reviewer', 2, 'Private review text',
-           ${CREATED_AT}::timestamptz, ${CREATED_AT}::timestamptz,
-           ${CREATED_AT}::timestamptz, ${CREATED_AT}::timestamptz,
-           CASE WHEN ordinal <= ${expired}
-             THEN ${NOW}::timestamptz - interval '1 minute'
-             ELSE ${NOW}::timestamptz + interval '1 day' END,
-           'content-hash', 0, 1, 19, ${'a'.repeat(64)}, 0, 'active',
+           ${CREATED_AT}::timestamptz, 0, 1, 0, 'active',
            ${CREATED_AT}::timestamptz, ${CREATED_AT}::timestamptz
     FROM generate_series(1, ${expired + eligible}) AS ordinal
   `)
@@ -147,10 +139,14 @@ async function seedReviews(db: Database, expired: number, eligible = 0) {
       created_at, updated_at
     )
     SELECT id, organization_id, property_id, platform, external_id,
-           external_location_id, reviewer_name, rating, text, reviewed_at,
-           source_created_at, first_fetched_at, last_fetched_at,
-           content_expires_at, content_hash, source_epoch, source_revision,
-           ai_source_byte_length, ai_source_digest,
+           external_location_id, 'Private reviewer', 2, 'Private review text',
+           ${CREATED_AT}::timestamptz, ${CREATED_AT}::timestamptz,
+           first_fetched_at, ${CREATED_AT}::timestamptz,
+           CASE WHEN substring(external_id from 17)::int <= ${expired}
+             THEN ${NOW}::timestamptz - interval '1 minute'
+             ELSE ${NOW}::timestamptz + interval '1 day' END,
+           'content-hash', source_epoch, source_revision,
+           19, ${'a'.repeat(64)},
            created_at, updated_at
     FROM reviews WHERE property_id = ${PROPERTY_ID}::uuid
   `)
@@ -502,16 +498,8 @@ describe('typed-confirmation recovery receipt discovery (PostgreSQL)', () => {
         await seedReviews(db, 101, 2)
         // A newly expired row lies before the saved cursor; another remains live.
         await db.execute(sql`
-        UPDATE reviews SET content_expires_at = ${NOW}::timestamptz + interval '1 day'
-        WHERE id = ${reviewIdAt(1)}::uuid
-      `)
-        await db.execute(sql`
         UPDATE review_source_contents SET content_expires_at = ${NOW}::timestamptz + interval '1 day'
         WHERE review_id = ${reviewIdAt(1)}::uuid
-      `)
-        await db.execute(sql`
-        UPDATE reviews SET content_expires_at = ${LATER}::timestamptz + interval '1 day'
-        WHERE id = ${reviewIdAt(103)}::uuid
       `)
         await db.execute(sql`
         UPDATE review_source_contents SET content_expires_at = ${LATER}::timestamptz + interval '1 day'
@@ -677,14 +665,13 @@ describe('typed-confirmation recovery receipt discovery (PostgreSQL)', () => {
         expect(await readExecution(db)).toEqual(before)
       }
       const content = await db.execute(sql`
-        SELECT review.source_content_state, review.text, source.text AS cached_text
+        SELECT review.source_content_state, source.text AS cached_text
         FROM reviews AS review JOIN review_source_contents AS source ON source.review_id = review.id
         WHERE review.id = ${reviewIdAt(1)}::uuid
       `)
       expect(content.rows).toEqual([
         {
           source_content_state: 'active',
-          text: 'Private review text',
           cached_text: 'Private review text',
         },
       ])

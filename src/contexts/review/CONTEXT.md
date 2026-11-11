@@ -117,9 +117,8 @@ adapter keeps it only in the one shape Google sends for the review's own
 location (`#/shared/domain/google-review-links`) and reads anything else as
 none; a refused value never fails the page. Every applied fetch writes it to
 `review_source_contents` (the quiet same-content refresh that extends the content
-clock included). The old columns on `reviews` stay unwritten; erasure still
-nulls any retained copy, with the tombstone CHECK refusing a tombstone that
-keeps one. It is in no observation, material
+clock included). `reviews` holds no provider content; the column exists only on
+`review_source_contents`. It is in no observation, material
 or normalized digest, no `review_source_observations` row, no AI input and no
 export, so a link Google starts or stops sending never reads as a guest edit.
 It is served only through the eligible reads (`getReviewSnippetById`,

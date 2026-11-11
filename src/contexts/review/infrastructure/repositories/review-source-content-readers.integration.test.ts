@@ -29,7 +29,6 @@ const CLOCK_STILL_RUNNING = new Date('2026-11-01T09:00:00.000Z')
 const CLOCK_LAPSED = new Date('2026-10-14T08:00:00.000Z')
 
 const CONTENT_TEXT = 'The content row says the pool was warm'
-const STALE_TEXT = 'The reviews copy says something else entirely'
 
 let pool: Pool
 const db = getDb()
@@ -43,7 +42,7 @@ async function clean(): Promise<void> {
   await deleteTestOrganizations(pool, [ORG])
 }
 
-async function seedReviewWithDivergentCopy(): Promise<void> {
+async function seedReview(): Promise<void> {
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, 'Content readers', $2, NOW())`,
@@ -65,10 +64,6 @@ async function seedReviewWithDivergentCopy(): Promise<void> {
     rating: 4,
     text: CONTENT_TEXT,
   })
-  await pool.query(
-    `UPDATE reviews SET text = $2, rating = 1, reviewer_name = 'Stale Name' WHERE id = $1`,
-    [REVIEW, STALE_TEXT],
-  )
 }
 
 beforeAll(async () => {
@@ -83,7 +78,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await clean()
-  await seedReviewWithDivergentCopy()
+  await seedReview()
 })
 
 describe('readers of provider content', () => {

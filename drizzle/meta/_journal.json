@@ -918,6 +918,20 @@
       "when": 1800200006000,
       "tag": "0130_drop_retired_account_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1800200007000,
+      "tag": "0131_drop_review_provider_content_copy",
+      "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1800200008000,
+      "tag": "0132_validate_review_source_content_state",
+      "breakpoints": true
     }
   ]
 }

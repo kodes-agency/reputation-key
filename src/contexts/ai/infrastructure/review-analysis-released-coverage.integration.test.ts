@@ -20,7 +20,6 @@ import {
   properties,
   reviewAiAnalysisHeads,
   reviewAiAnalysisReleasedSequences,
-  reviews,
 } from '#/shared/db/schema'
 import { createAlertAuxReader } from '#/shared/observability/alert-aux-reads'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -28,6 +27,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { seedEnabledReviewAnalysis } from '#/shared/db/testing/enabled-review-analysis-fixture'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { seedReviewContent } from './testing/review-content-fixture'
 import { createAiPropertyAggregateStoreAdapter } from './adapters/ai-property-aggregate-store.adapter'
 
 const ORG = 'ai-released-coverage-test'
@@ -155,7 +155,7 @@ async function seed(target: Case, timezone: string): Promise<void> {
     updatedAt: AT,
   })
   if (target.settled.length > 0) {
-    await db.insert(reviews).values(
+    await seedReviewContent(
       target.settled.map((sequence) => ({
         id: reviewOf(target, sequence),
         organizationId: ORG,

@@ -376,8 +376,7 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
          (SELECT (payload->>'occurredAt')::timestamptz FROM outbox_events
           WHERE source_aggregate_id = $1::text
             AND event_type = 'review.source_transitioned'
-          ORDER BY created_at DESC LIMIT 1) AS event_occurred_at,
-         (SELECT text FROM reviews WHERE id = $1::uuid) AS review_text`,
+          ORDER BY created_at DESC LIMIT 1) AS event_occurred_at`,
       [MATCHED],
     )
     expect(proof.rows[0]).toMatchObject({
@@ -392,7 +391,6 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
       created_fact_count: 1,
       evidence_count: 1,
       state: 'source_expired',
-      review_text: null,
     })
     expect(proof.rows[0]?.review_analysis_sequence).toBe(
       proof.rows[0]?.event_analysis_sequence,
@@ -456,10 +454,6 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
 
   it('does not expire an active Review when its canonical source-cache clock is missing', async () => {
     await seedReview(MATCHED, 1)
-    await getPool().query('UPDATE reviews SET content_expires_at = $2 WHERE id = $1', [
-      MATCHED,
-      EXPIRED_AT,
-    ])
     await getPool().query('DELETE FROM review_source_contents WHERE review_id = $1', [
       MATCHED,
     ])

@@ -65,12 +65,19 @@ async function insertReview(
   await lease.pool.query(
     `INSERT INTO reviews (
        id, organization_id, property_id, platform, external_id, external_location_id,
-       reviewer_name, rating, text, language_code, reviewed_at, expires_at,
-       content_expires_at, source_epoch, source_revision, source_observation_sequence,
-       analysis_sequence, ai_source_byte_length, ai_source_digest, source_content_state,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, 'google', $4, 'locations/rights', $5, 4, $6, 'en', $7, $8, $8,
-               0, 1, 1, 1, 24, $9, 'active', $7, $7)`,
+       expires_at, source_epoch, source_revision, source_observation_sequence,
+       analysis_sequence, source_content_state, created_at, updated_at
+     ) VALUES ($1, $2, $3, 'google', $4, 'locations/rights', $6, 0, 1, 1, 1, 'active', $5, $5)`,
+    [reviewId, organizationId, propertyId, `external-${reviewId}`, AT, EXPIRES_AT],
+  )
+  await lease.pool.query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id, external_location_id,
+       reviewer_name, rating, text, language_code, reviewed_at, last_fetched_at,
+       content_expires_at, source_epoch, source_revision, ai_source_byte_length,
+       ai_source_digest)
+     VALUES ($1, $2, $3, 'google', $4, 'locations/rights', $5, 4, $6, 'en', $7, $7, $8,
+             0, 1, 24, $9)`,
     [
       reviewId,
       organizationId,
@@ -468,6 +475,7 @@ async function expectErased(fixture: Fixture): Promise<void> {
     'organization_reply_voices',
     'property_reply_voices',
     'reply_templates',
+    'review_source_contents',
   ]) {
     expect(await rowCount(table, org), table).toBe(0)
   }
@@ -480,19 +488,14 @@ async function expectErased(fixture: Fixture): Promise<void> {
     true,
   )
   const reviews = await lease.pool.query(
-    `SELECT property_id, text, reviewer_name, source_content_state
+    `SELECT property_id, source_content_state
      FROM reviews WHERE organization_id = $1`,
     [org],
   )
   expect(reviews.rows).toHaveLength(4)
-  expect(
-    reviews.rows.every(
-      (row) =>
-        row.text === null &&
-        row.reviewer_name === null &&
-        row.source_content_state === 'source_expired',
-    ),
-  ).toBe(true)
+  expect(reviews.rows.every((row) => row.source_content_state === 'source_expired')).toBe(
+    true,
+  )
   expect(new Set(reviews.rows.map((row) => row.property_id))).toEqual(
     new Set([fixture.propertyId, fixture.secondPropertyId]),
   )
@@ -596,6 +599,7 @@ describe.sequential(
         'inbox_response_target_organization_policies',
         'organization_reply_voices',
         'reply_templates',
+        'review_source_contents',
       ]) {
         expect(await rowCount(table, asked.organizationId)).toBe(0)
       }
@@ -607,17 +611,12 @@ describe.sequential(
         replies.rows.every((row) => row.text === '' && row.created_by === null),
       ).toBe(true)
       const reviews = await lease.pool.query(
-        `SELECT text, reviewer_name, source_content_state FROM reviews WHERE organization_id = $1`,
+        `SELECT source_content_state FROM reviews WHERE organization_id = $1`,
         [asked.organizationId],
       )
       expect(reviews.rows).toHaveLength(3)
       expect(
-        reviews.rows.every(
-          (row) =>
-            row.text === null &&
-            row.reviewer_name === null &&
-            row.source_content_state === 'source_expired',
-        ),
+        reviews.rows.every((row) => row.source_content_state === 'source_expired'),
       ).toBe(true)
       expect(await snapshot(other.organizationId)).toBe(otherBefore)
 
@@ -652,14 +651,14 @@ describe.sequential(
         const keptLines = await reportLines(kept.organizationId)
 
         expect(closingLines).toContain(
-          'review: reviews=4 replies=4 review_provider_snapshot_runs=0 review_provider_history_cutoffs=0 review_ai_analysis_heads=0 review_google_reputation_snapshot_facts=0 organization_reply_voices=1 property_reply_voices=1 reply_templates=1 reply_template_visibility=0 reply_template_revisions=1 reply_template_wordings=1 reply_publication_attempts=0 material_review_revisions=0 review_source_contents=0 review_source_observations=0 review_first_sightings=0 review_provider_subjects=0 review_ai_analysis_released_sequences=0 google_reply_observations=0 google_reply_observation_heads=0 review_provider_snapshot_members=0 review_provider_deletion_candidates=0 review_sync_runs=0 review_sync_state=0 idempotency_receipts=0',
+          'review: reviews=4 replies=4 review_provider_snapshot_runs=0 review_provider_history_cutoffs=0 review_ai_analysis_heads=0 review_google_reputation_snapshot_facts=0 organization_reply_voices=1 property_reply_voices=1 reply_templates=1 reply_template_visibility=0 reply_template_revisions=1 reply_template_wordings=1 reply_publication_attempts=0 material_review_revisions=0 review_source_contents=4 review_source_observations=0 review_first_sightings=0 review_provider_subjects=0 review_ai_analysis_released_sequences=0 google_reply_observations=0 google_reply_observation_heads=0 review_provider_snapshot_members=0 review_provider_deletion_candidates=0 review_sync_runs=0 review_sync_state=0 idempotency_receipts=0',
         )
         expect(closingLines).toContain('review: closure blockers: none')
         expect(closingLines).toContain(
           'inbox: inbox_items=2 inbox_handling_cycles=0 inbox_notes=2 inbox_response_target_organization_policies=1 inbox_private_feedback_target_property_overrides=0 inbox_user_views=0 inbox_assignment_history=0 inbox_escalation_history=0 inbox_priority_history=0 inbox_handling_cycle_heads=0 inbox_handling_cycle_transitions=0 inbox_handling_cycle_response_targets=0 inbox_response_target_reminders=0 inbox_response_target_exclusions=0 inbox_feedback_handling_outcomes=0',
         )
         expect(keptLines).toContain(
-          'review: reviews=3 replies=3 review_provider_snapshot_runs=0 review_provider_history_cutoffs=0 review_ai_analysis_heads=0 review_google_reputation_snapshot_facts=0 organization_reply_voices=1 property_reply_voices=0 reply_templates=1 reply_template_visibility=0 reply_template_revisions=1 reply_template_wordings=1 reply_publication_attempts=0 material_review_revisions=0 review_source_contents=0 review_source_observations=0 review_first_sightings=0 review_provider_subjects=0 review_ai_analysis_released_sequences=0 google_reply_observations=0 google_reply_observation_heads=0 review_provider_snapshot_members=0 review_provider_deletion_candidates=0 review_sync_runs=0 review_sync_state=0 idempotency_receipts=0',
+          'review: reviews=3 replies=3 review_provider_snapshot_runs=0 review_provider_history_cutoffs=0 review_ai_analysis_heads=0 review_google_reputation_snapshot_facts=0 organization_reply_voices=1 property_reply_voices=0 reply_templates=1 reply_template_visibility=0 reply_template_revisions=1 reply_template_wordings=1 reply_publication_attempts=0 material_review_revisions=0 review_source_contents=3 review_source_observations=0 review_first_sightings=0 review_provider_subjects=0 review_ai_analysis_released_sequences=0 google_reply_observations=0 google_reply_observation_heads=0 review_provider_snapshot_members=0 review_provider_deletion_candidates=0 review_sync_runs=0 review_sync_state=0 idempotency_receipts=0',
         )
         expect(keptLines).toContain(
           'inbox: inbox_items=1 inbox_handling_cycles=0 inbox_notes=1 inbox_response_target_organization_policies=1 inbox_private_feedback_target_property_overrides=0 inbox_user_views=0 inbox_assignment_history=0 inbox_escalation_history=0 inbox_priority_history=0 inbox_handling_cycle_heads=0 inbox_handling_cycle_transitions=0 inbox_handling_cycle_response_targets=0 inbox_response_target_reminders=0 inbox_response_target_exclusions=0 inbox_feedback_handling_outcomes=0',

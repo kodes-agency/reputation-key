@@ -514,12 +514,8 @@ async function purge(
     tx,
     sql`UPDATE reviews
         SET source_content_state = 'source_expired', source_content_erased_at = ${now},
-            content_expires_at = NULL, external_id = NULL, external_location_id = NULL,
-            google_connection_id = NULL, reviewer_name = NULL,
-            reviewer_profile_photo_url = NULL, google_review_url = NULL, rating = NULL,
-            text = NULL, translated_text = NULL, language_code = NULL, reviewed_at = NULL,
-            source_created_at = NULL, source_updated_at = NULL, content_hash = NULL,
-            ai_source_byte_length = NULL, ai_source_digest = NULL,
+            external_id = NULL, external_location_id = NULL,
+            google_connection_id = NULL,
             sentiment_label = NULL, sentiment_score = NULL,
             updated_at = GREATEST(updated_at, ${now}::timestamptz)
         WHERE ${rows} AND source_content_state = 'active'`,
