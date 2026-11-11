@@ -19,7 +19,12 @@
  *   banner for it.
  * `feedback-ownership.test.ts` fails on a file that does both.
  */
-import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query'
+import {
+  useMutation,
+  useQueryClient,
+  type MutationKey,
+  type QueryKey,
+} from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
@@ -59,6 +64,8 @@ export const actionFailureMessage =
   }
 
 export interface ActionMutationOptions<TInput, TOutput> {
+  /** Names the mutation in the mutation cache, for a surface that shows it while pending. */
+  mutationKey?: MutationKey
   /** Shown via toast.success on success. Omit for a silent mutation. */
   successMessage?: string
   /**
@@ -92,12 +99,12 @@ export interface ActionMutationOptions<TInput, TOutput> {
   /** Runs AFTER invalidation + toast. Receives the output + the submitted input. */
   onSuccess?: (output: TOutput, input: TInput) => void | Promise<void>
   /**
-   * Runs after a rejection's rollback and toast, with the SUBMITTED input — for
+   * Runs (awaited) after a rejection's rollback and toast, with the SUBMITTED input — for
    * a caller whose cache may be what the refusal is about. Like `onSuccess`,
    * it reaches a mutation still pending when the options change, so it must
    * act on the input, not on whatever the caller's closure has open by then.
    */
-  onError?: (error: unknown, input: TInput) => void
+  onError?: (error: unknown, input: TInput) => void | Promise<void>
   /** Navigate after success (create-and-redirect flows build params from output). */
   navigateTo?: {
     to: string
@@ -124,6 +131,7 @@ export function useActionMutation<TInput, TOutput>(
   } = options ?? {}
 
   const mutation = useMutation<TOutput, Error, TInput, Rollback>({
+    mutationKey: options?.mutationKey,
     mutationFn: async (input) => {
       try {
         return await fn(input)
@@ -137,12 +145,12 @@ export function useActionMutation<TInput, TOutput>(
     onMutate: (input) => ({ undo: optimistic?.(input) }),
     // The optimistic write is undone only on failure; on success the
     // invalidation below reconciles it against the server.
-    onError: (error, input, context) => {
+    onError: async (error, input, context) => {
       context?.undo?.()
       if (errorMessage !== undefined) {
         toast.error(typeof errorMessage === 'string' ? errorMessage : errorMessage(error))
       }
-      options?.onError?.(error, input)
+      await options?.onError?.(error, input)
     },
     onSuccess: async (output, input) => {
       if (invalidateKeys && invalidateKeys.length > 0) {

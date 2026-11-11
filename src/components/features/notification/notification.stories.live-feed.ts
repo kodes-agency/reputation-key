@@ -1,5 +1,6 @@
 // Test-only harness: an in-memory notification feed that changes between
-// requests, observed through the REAL QueryObservers useNotifications builds.
+// requests, observed through the REAL query and mutation wiring
+// useNotifications and useNotificationMutations build.
 // The `.stories.` segment keeps this module out of production-shaped source
 // inventories and bundles, like notification.stories.fixtures.ts.
 //
@@ -7,8 +8,9 @@
 // directly, exactly as the hook configures them.
 
 import {
-  InfiniteQueryObserver,
+  MutationObserver,
   QueryObserver,
+  skipToken,
   type QueryClient,
 } from '@tanstack/react-query'
 import { createKeys } from '#/shared/queries/query-keys'
@@ -18,13 +20,23 @@ import {
   notificationPageFixture,
 } from './notification.stories.fixtures'
 import {
-  fetchHeadKeepingHistoryContiguous,
-  mergeNotificationHeadWithHistory,
   notificationHeadQueryOptions,
-  notificationHistoryQueryOptions,
-} from './notification-feed-pagination'
+  readHeadKeepingOlderTrue,
+} from './notification-feed-head'
+import {
+  loadOlderNotifications,
+  mergeNotificationRows,
+  type OlderNotifications,
+} from './notification-feed-older'
+import {
+  feedWriteOptions,
+  pendingFeedWrites,
+  withPendingWrites,
+  type FeedWriteKind,
+} from './notification-feed-writes'
 
-const { notificationKeys } = createKeys({ userId: 'user-1', organizationId: 'org-1' })
+const SCOPE = { userId: 'user-1', organizationId: 'org-1' }
+const { notificationKeys } = createKeys(SCOPE)
 
 export const LIVE_FEED_LIMIT = 20
 const FEED_START = Date.parse('2026-09-01T12:00:00.000Z')
@@ -50,13 +62,11 @@ export function createLiveFeed(size: number) {
   let heldHeads: Array<() => void> | null = null
   let heldPages: Array<() => void> | null = null
   let pagesFail = false
+  const removed = new Map<string, (typeof rows)[number]>()
 
   const label = (id: string) => labels.get(id) ?? id
-  const pageOf = (candidates: typeof rows) =>
-    notificationPageFixture(
-      candidates.slice(0, LIVE_FEED_LIMIT),
-      candidates.length > LIVE_FEED_LIMIT,
-    )
+  const pageOf = (candidates: typeof rows, limit = LIVE_FEED_LIMIT) =>
+    notificationPageFixture(candidates.slice(0, limit), candidates.length > limit)
   // Served like the endpoint: rows strictly after the cursor in feed order,
   // which is latest activity (a coalesced row's newest event) first.
   const activityAt = (current: (typeof rows)[number]) =>
@@ -74,6 +84,8 @@ export function createLiveFeed(size: number) {
     requests,
     label,
     labels: () => rows.map((current) => label(current.id)),
+    labelsById: () => labels.entries(),
+    removedId: (gone: string) => removed.get(gone)?.id ?? gone,
     arrive: (count: number) => {
       for (let k = 0; k < count; k += 1) {
         arrivals += 1
@@ -81,8 +93,27 @@ export function createLiveFeed(size: number) {
         rows = [arrival, ...rows]
       }
     },
-    remove: (removed: string) => {
-      rows = rows.filter((current) => label(current.id) !== removed)
+    remove: (gone: string) => {
+      for (const current of rows) {
+        if (label(current.id) === gone) removed.set(gone, current)
+      }
+      rows = rows.filter((current) => label(current.id) !== gone)
+    },
+    // An Undo: the row comes back at its own place in feed order.
+    restore: (back: string) => {
+      const row = removed.get(back)
+      if (!row) throw new Error(`no removed row ${back}`)
+      removed.delete(back)
+      rows = [...rows, row].sort((a, b) =>
+        activityAt(a) === activityAt(b)
+          ? b.id.localeCompare(a.id)
+          : activityAt(b) - activityAt(a),
+      )
+    },
+    markRead: (read: string) => {
+      rows = rows.map((current) =>
+        label(current.id) === read ? { ...current, status: 'read' as const } : current,
+      )
     },
     // A repeat event absorbed by an existing row: it re-sorts to the top.
     coalesce: (repeated: string) => {
@@ -138,10 +169,10 @@ export function createLiveFeed(size: number) {
       if (waiting) await new Promise<void>((resolve) => waiting.push(resolve))
       return answer
     },
-    pageAfter: async (before: NotificationFeedCursor | null) => {
-      requests.push(before ? `after ${label(before.id)}` : 'top')
+    pageAfter: async (before: NotificationFeedCursor, limit = LIVE_FEED_LIMIT) => {
+      requests.push(`after ${label(before.id)}`)
       if (pagesFail) throw new Error('page read failed')
-      const answer = pageOf(before ? after(before) : rows)
+      const answer = pageOf(after(before), limit)
       const waiting = heldPages
       if (waiting) await new Promise<void>((resolve) => waiting.push(resolve))
       return answer
@@ -149,61 +180,86 @@ export function createLiveFeed(size: number) {
   }
 }
 
-/** The observers useNotifications builds, without React. */
+/** The observers useNotifications builds, and its view of them, without React. */
 export function observeLiveFeed(
   client: QueryClient,
   feed: ReturnType<typeof createLiveFeed>,
 ) {
-  const historyKey = notificationKeys.list('org-1', LIVE_FEED_LIMIT, 'all')
+  const olderKey = notificationKeys.list('org-1', LIVE_FEED_LIMIT, 'all')
   const headKey = notificationKeys.head('org-1', LIVE_FEED_LIMIT, 'all')
   const headObserver = new QueryObserver(
     client,
     notificationHeadQueryOptions(
       headKey,
-      fetchHeadKeepingHistoryContiguous(
+      readHeadKeepingOlderTrue(
         client,
-        headKey,
-        historyKey,
+        olderKey,
         feed.head,
         feed.pageAfter,
+        LIVE_FEED_LIMIT,
       ),
       true,
     ),
   )
-  const historyOptions = () =>
-    notificationHistoryQueryOptions(
-      historyKey,
-      feed.pageAfter,
-      headObserver.getCurrentResult().data?.page.nextCursor ?? null,
-    )
-  const historyObserver = new InfiniteQueryObserver(client, historyOptions())
+  const olderObserver = new QueryObserver<OlderNotifications | null>(client, {
+    queryKey: olderKey,
+    queryFn: skipToken,
+    staleTime: Infinity,
+  })
   const unsubscribeHead = headObserver.subscribe(() => {})
-  const unsubscribeHistory = historyObserver.subscribe(() => {})
+  const unsubscribeOlder = olderObserver.subscribe(() => {})
+  const shown = () => {
+    const head = headObserver.getCurrentResult().data
+    const older = olderObserver.getCurrentResult().data ?? null
+    return withPendingWrites(
+      client,
+      SCOPE,
+      'org-1',
+      { filter: 'all' },
+      {
+        rows: mergeNotificationRows(head?.page, older?.rows),
+        unreadCount: head?.unreadCount ?? 0,
+        filterUnreadCount: head?.filterUnreadCount ?? 0,
+        hasMore: older ? older.nextCursor !== null : (head?.page.hasMore ?? false),
+      },
+      pendingFeedWrites(client, SCOPE, 'org-1'),
+    )
+  }
 
   return {
-    // A render always precedes the click, so the options carry the current
-    // head's cursor exactly as the hook's would.
-    loadMore: () => {
-      historyObserver.setOptions(historyOptions())
-      return historyObserver.fetchNextPage()
-    },
-    visible: () =>
-      mergeNotificationHeadWithHistory(
-        headObserver.getCurrentResult().data?.page,
-        historyObserver.getCurrentResult().data?.pages,
-      ).map((row) => feed.label(row.id)),
+    loadMore: () =>
+      loadOlderNotifications(client, olderKey, headKey, feed.pageAfter, LIVE_FEED_LIMIT),
+    visible: () => shown().rows.map((row) => feed.label(row.id)),
     unreadVisible: () =>
-      mergeNotificationHeadWithHistory(
-        headObserver.getCurrentResult().data?.page,
-        historyObserver.getCurrentResult().data?.pages,
-      )
-        .filter((row) => row.status === 'unread')
+      shown()
+        .rows.filter((row) => row.status === 'unread')
         .map((row) => feed.label(row.id)),
-    historyPageCount: () => historyObserver.getCurrentResult().data?.pages.length ?? 0,
+    unreadCount: () => shown().unreadCount,
+    olderRowCount: () => olderObserver.getCurrentResult().data?.rows.length ?? 0,
     headError: () => headObserver.getCurrentResult().error,
+    /**
+     * A feed write through the hook's own mutation wiring. `apply` is what the
+     * server does; the write answers when `answer` is called.
+     */
+    write: (kind: FeedWriteKind, input: unknown, apply: () => void) => {
+      let answer: (ok: boolean) => void = () => {}
+      const observer = new MutationObserver(client, {
+        ...feedWriteOptions(client, SCOPE, 'org-1', kind),
+        mutationFn: () =>
+          new Promise<void>((resolve, reject) => {
+            answer = (ok) => {
+              if (!ok) return reject(new Error('write failed'))
+              apply()
+              resolve()
+            }
+          }),
+      })
+      const settled = observer.mutate(input).catch(() => undefined)
+      return { answer: (ok: boolean) => answer(ok), settled }
+    },
     stop: () => {
       unsubscribeHead()
-      unsubscribeHistory()
+      unsubscribeOlder()
     },
   }
 }

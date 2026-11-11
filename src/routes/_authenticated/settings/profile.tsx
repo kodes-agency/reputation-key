@@ -116,6 +116,7 @@ function ProfileSettings() {
             failed={userSettings.errorUpdateCount > 0 && userSettings.data === undefined}
             retrying={userSettings.isFetching}
             onRetry={() => void userSettings.refetch()}
+            organizationId={ctx.activeOrganization.id}
             organizationName={ctx.activeOrganization.name}
             updateUserSettings={updateUserSettings}
           />
