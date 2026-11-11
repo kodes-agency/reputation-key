@@ -1,5 +1,5 @@
 import type { PublicImmersiveLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalVisitRecorder } from '../../portal-visit-recording'
 import { guestCopyText } from '../guest-copy-format'
