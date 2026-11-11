@@ -78,6 +78,8 @@ const REPORTED_BY_PROPERTY = [
   'ai_operations',
   'ai_property_processing_profiles',
   'ai_draft_measurement_links',
+  'ai_review_analysis_aspects',
+  'ai_property_aggregate_contribution_aspects',
   'ai_review_analysis_mentions',
   'ai_review_analysis_mention_sentences',
   'ai_review_analysis_mention_corrections',
@@ -253,6 +255,13 @@ describe.sequential('ai rights report counts', () => {
     )
     const analysisKey = [...key, sequence]
     await query(
+      `INSERT INTO ai_review_analysis_aspects (
+         organization_id, property_id, review_id, source_epoch, source_revision,
+         analysis_sequence, aspect, polarity, intensity
+       ) VALUES ($1, $2, $3, 0, 1, $4, 'service', 'positive', 50)`,
+      analysisKey,
+    )
+    await query(
       `INSERT INTO ai_review_analysis_mentions (
          organization_id, property_id, review_id, source_epoch, source_revision,
          analysis_sequence, mention_ordinal, topic, polarity, strength
@@ -283,6 +292,13 @@ describe.sequential('ai rights report counts', () => {
        ) VALUES ($1, $2, $3, 0, 1, $4, 1, 1, 'property-calendar-v1', '2026-08-27',
                  'ready', 5, 'positive', 'service', 'low', 1, $5)`,
       [...analysisKey, at],
+    )
+    await query(
+      `INSERT INTO ai_property_aggregate_contribution_aspects (
+         organization_id, property_id, review_id, source_epoch, source_revision,
+         analysis_sequence, aspect, polarity, intensity
+       ) VALUES ($1, $2, $3, 0, 1, $4, 'service', 'positive', 50)`,
+      analysisKey,
     )
     await query(
       `INSERT INTO ai_property_aggregate_contribution_mentions (
