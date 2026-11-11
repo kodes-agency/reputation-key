@@ -59,7 +59,6 @@ beforeEach(() => {
     ...createEnvCapabilityPolicyStore({}),
     isCapabilityGloballyEnabled: () => true,
     isOrgAllowlisted: () => true,
-    isPropertyAllowlisted: () => true,
   })
   initExecutionPolicy(
     createExecutionPolicy({ listAccessiblePropertyIds: async () => [] }),

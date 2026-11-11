@@ -93,9 +93,7 @@ function bundle(label: string): ProcessPolicyBundle {
     capabilityPolicyStore: Object.freeze({
       isCapabilityGloballyEnabled: vi.fn(() => false),
       isOrgAllowlisted: vi.fn(() => false),
-      isPropertyAllowlisted: vi.fn(() => false),
       isOrgSuspended: vi.fn(() => false),
-      isPropertySuspended: vi.fn(() => false),
     }),
   }) as unknown as ProcessPolicyBundle
 }

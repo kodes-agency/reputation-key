@@ -27,9 +27,7 @@ import {
 
 export type CapabilitySetInput = Readonly<{
   /**
-   * Property the decisions are scoped to. Capability policy is allowlisted per
-   * property (`property_not_allowlisted`), so an org-only set would be wrong
-   * for a tenant whose properties differ. Omitted only when no property is in
+   * Property the decisions are scoped to. Omitted only when no property is in
    * scope, in which case the org-level posture is returned.
    */
   propertyId?: string
