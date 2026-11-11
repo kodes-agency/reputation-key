@@ -3,13 +3,13 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { seedTestProperty } from '../property-test-fixtures'
+import { seedTestProperty } from '../infrastructure/property-test-fixtures'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../../domain/types'
-import { propertyUpdated } from '../../domain/events'
-import { createAtomicPropertyCommandStore } from '../property-command-store'
+import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../domain/types'
+import { propertyUpdated } from '../domain/events'
+import { createAtomicPropertyCommandStore } from './update-store.server'
 
 const ORG_ID = organizationId('org-propcmd-0000-0000-0000-000000000001')
 const PROP_ID = propertyId('4c000000-0000-0000-0000-000000000001')

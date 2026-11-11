@@ -5,14 +5,17 @@ import {
   googleConnectionId,
   organizationId,
   propertyId,
+  type OrganizationId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
-import { outboxEvents } from '#/shared/db/schema/outbox.schema'
+import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { propertyGoogleBindingChanged } from '../domain/events'
 import {
+  PROPERTY_OPERATION_RECEIPT_TTL_MS,
   PropertyGoogleBindingError,
   type PropertyOperationCommit,
   type PropertyOperationOutcome,
@@ -185,3 +188,86 @@ export function replayReceipt(
     tombstone: false,
   }
 }
+
+export type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+export const RETENTION_UNRELEASED = sql`${idempotencyReceipts.payload}->'retentionReleasedAt' = 'null'::jsonb`
+
+/** Drops the key's expired receipt, then returns one a racing writer committed. */
+export const findLiveReceipt = async (tx: Tx, receiptKey: string, now: Date) => {
+  await tx
+    .delete(idempotencyReceipts)
+    .where(
+      and(
+        eq(idempotencyReceipts.scope, 'property_operation'),
+        eq(idempotencyReceipts.key, receiptKey),
+        sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz <= ${now}`,
+      ),
+    )
+  const [racedReceipt] = await tx
+    .select({ payload: idempotencyReceipts.payload })
+    .from(idempotencyReceipts)
+    .where(
+      and(
+        eq(idempotencyReceipts.scope, 'property_operation'),
+        eq(idempotencyReceipts.key, receiptKey),
+      ),
+    )
+    .limit(1)
+  return racedReceipt
+}
+
+export const recordReceipt = async (
+  tx: Tx,
+  input: {
+    organizationId: OrganizationId
+    idempotencyKey: string
+    destinationPropertyId: PropertyId
+    outcome: 'imported' | 'relinked'
+    sourceEpoch: number
+    profileVersion: number
+    now: Date
+  },
+) => {
+  await tx.insert(idempotencyReceipts).values({
+    scope: 'property_operation',
+    key: propertyReceiptKey(input.organizationId, input.idempotencyKey),
+    payload: propertyReceiptPayload({
+      organizationId: input.organizationId,
+      idempotencyKey: input.idempotencyKey,
+      destinationPropertyId: input.destinationPropertyId,
+      outcome: input.outcome,
+      destinationSourceEpoch: input.sourceEpoch,
+      destinationProfileVersion: input.profileVersion,
+      tombstone: false,
+      expiresAt: new Date(input.now.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS),
+      retentionReleasedAt: null,
+    }),
+    recordedAt: input.now,
+  })
+}
+
+export const markRetentionReleased = (
+  executor: Pick<Database, 'update'>,
+  organizationIdValue: OrganizationId,
+  idempotencyKeys: ReadonlyArray<string>,
+  releasedAt: Date,
+) =>
+  executor
+    .update(idempotencyReceipts)
+    .set({
+      payload: sql`${idempotencyReceipts.payload} || jsonb_build_object(
+        'retentionReleasedAt', ${releasedAt.toISOString()}::timestamptz
+      )`,
+    })
+    .where(
+      and(
+        eq(idempotencyReceipts.scope, 'property_operation'),
+        inArray(
+          idempotencyReceipts.key,
+          idempotencyKeys.map((key) => propertyReceiptKey(organizationIdValue, key)),
+        ),
+        RETENTION_UNRELEASED,
+      ),
+    )
+    .returning({ key: idempotencyReceipts.key })

@@ -7,7 +7,7 @@ import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { propertyArchived, propertyRestored } from '../domain/events'
-import { createPropertyLifecycleCommandStore } from './property-lifecycle-command-store'
+import { createPropertyLifecycleCommandStore } from './transition-store.server'
 
 const db = getDb()
 const ORGANIZATION_ID = organizationId('org-property-lifecycle-atomicity')
