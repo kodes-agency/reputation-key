@@ -13,8 +13,7 @@ import {
   composePropertyGooglePerformanceReport,
   GooglePerformanceReportError,
 } from './google-performance-report'
-import { isGbpApiError } from '../domain/gbp-api-error'
-import { googleCallError } from '../domain/google-call-error'
+import { isGoogleCallError, googleCallError } from '../domain/google-call-error'
 
 const CONTENT_TTL_MS = 15 * 60_000
 
@@ -122,7 +121,7 @@ function mapProviderError(error: unknown): UnavailablePerformanceResult {
   if (error instanceof GooglePerformanceReportError) {
     return errorResult('stale_source', true)
   }
-  if (!isGbpApiError(error)) return errorResult('temporarily_unavailable', true)
+  if (!isGoogleCallError(error)) return errorResult('temporarily_unavailable', true)
   const call = googleCallError(error)
   if (
     error.executionAdmissionCode === 'credential_unavailable' ||

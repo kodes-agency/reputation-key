@@ -18,6 +18,17 @@ import type { ReviewProviderObservationWriter } from '../ports/review-provider-o
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 import { readReviewBeforePublish } from './read-review-before-publish'
 
+/** What the integration adapter throws for a call Google answered or refused. */
+const providerFailure = (
+  fields: Readonly<{ code: string; providerStatus?: number; retryAfterMs?: number }>,
+) =>
+  Object.assign(new Error('provider call failed'), {
+    _tag: 'GbpApiError',
+    dispatch: 'answered',
+    providerStatus: 429,
+    ...fields,
+  })
+
 const organizationId = 'org-pre-read' as OrganizationId
 const propertyId = '00000000-0000-4000-8000-000000000021' as PropertyId
 const connectionId = '00000000-0000-4000-8000-000000000022' as GoogleConnectionId
@@ -231,5 +242,18 @@ describe('readReviewBeforePublish', () => {
     const { useCase } = setup({ persistError: failure })
 
     await expect(useCase(request)).rejects.toBe(failure)
+  })
+
+  it('translates a provider failure on the read into the review API error', async () => {
+    const { useCase, persist } = setup({
+      getError: providerFailure({ code: 'rate_limited', retryAfterMs: 7_000 }),
+    })
+
+    await expect(useCase(request)).rejects.toMatchObject({
+      _tag: 'GoogleReviewApiError',
+      code: 'provider_rate_limited',
+      retryAfterMs: 7_000,
+    })
+    expect(persist).not.toHaveBeenCalled()
   })
 })
