@@ -27,9 +27,11 @@ function entry(kind: 'guest_response' | 'guest_feedback'): BackupErasureLedgerEn
 
 function tx(rows: unknown[]) {
   const chain: Record<string, unknown> = {}
-  for (const name of ['update', 'set', 'delete', 'where'])
+  for (const name of ['select', 'from', 'update', 'set', 'delete', 'where'])
     chain[name] = vi.fn(() => chain)
   chain.returning = vi.fn().mockResolvedValue(rows)
+  // A `where` that is awaited without `returning` is the pre-read of live rows.
+  chain.then = (resolve: (value: unknown[]) => unknown) => resolve([])
   return chain as unknown as Tx
 }
 
