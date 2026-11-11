@@ -105,11 +105,3 @@ export function printKitFontBytes(face: PrintKitFontFace, subset: FontSubset): B
   decoded.set(key, bytes)
   return bytes
 }
-
-export const PRINT_KIT_FONT_FACES: readonly PrintKitFontFace[] = [
-  'display',
-  'body',
-  'bodyStrong',
-  'bodyItalic',
-  'bodyStrongItalic',
-]

@@ -261,5 +261,3 @@ export const createPortalPrintFinal =
       pdf,
     }
   }
-
-export type CreatePortalPrintFinal = ReturnType<typeof createPortalPrintFinal>

@@ -1,32 +1,6 @@
 // Availability and wording shared by the Share tab's print controls.
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
-import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalPublicationState } from '../shared/types'
-
-/** How many characters the line names before it counts the rest. */
-const UNPRINTABLE_NAMED = 6
-
-/** A character a person can see; a variation selector or a mark has nothing to name. */
-const VISIBLE_CHARACTER = /[\p{L}\p{N}\p{P}\p{S}]/u
-
-/**
- * The one line that names what will not print, or null when everything will.
- * Characters with nothing to show (a variation selector on an emoji) are not
- * named: they would be a blank in the sentence.
- */
-export function describeUnprintable(characters: readonly string[]): string | null {
-  const visible = characters.filter((character) => VISIBLE_CHARACTER.test(character))
-  if (visible.length === 0) return null
-  const named = visible.slice(0, UNPRINTABLE_NAMED).join(' ')
-  const rest = visible.length - UNPRINTABLE_NAMED
-  const list = rest > 0 ? `${named} and ${rest} more` : named
-  return `These characters will not print, because the print kit’s fonts don’t have them: ${list}.`
-}
-
-/** `English + Български`: each language in its own words. */
-export function languageChoiceLabel(languages: readonly GuestLocale[]): string {
-  return languages.map((locale) => GUEST_LOCALE_METADATA[locale].nativeName).join(' + ')
-}
 
 /**
  * Whether the portal has a live version to print from. A print carries the live

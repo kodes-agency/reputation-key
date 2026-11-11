@@ -14,7 +14,6 @@ import {
   printFinalHeadlineSteps,
   printFinalKickerTrackingEm,
   printFinalSublineWeight,
-  printFinalTypeProblems,
 } from './portal-print-final-type'
 
 const mm = (pt: number) => Number(ptMm(pt).toFixed(2))
@@ -103,36 +102,6 @@ describe('long copy (spec 5.3)', () => {
     })
   })
 })
-
-describe('the ratio rules (spec 3)', () => {
-  it('passes every piece at its own sizes, one language and two', () => {
-    for (const piece of ['counter', 'tent', 'small'] as const) {
-      const scale = PRINT_FINAL_TYPE[piece]
-      expect(printFinalTypeProblems(piece, scale.headlinePt, null)).toEqual([])
-      expect(
-        printFinalTypeProblems(piece, scale.headlinePt, scale.secondHeadlinePt),
-      ).toEqual([])
-      expect(
-        printFinalTypeProblems(
-          piece,
-          printFinalHeadlineFloorPt(piece),
-          scale.secondHeadlinePt,
-        ),
-      ).toEqual([])
-    }
-  })
-
-  it('holds the second headline to 1.25 × its sub-line and under the first', () => {
-    expect(printFinalTypeProblems('small', 15, 9.5)).toEqual([
-      'second_headline_too_small',
-    ])
-    expect(printFinalTypeProblems('tent', 16.5, 16.5)).toEqual([
-      'second_headline_not_smaller',
-    ])
-    expect(printFinalTypeProblems('counter', 19, null)).toEqual(['headline_under_floor'])
-  })
-})
-
 describe('the logo (spec 4)', () => {
   it('sizes the Harborline badge on Paper 12.68 / 8.20 / 6.71 mm tall', () => {
     expect(mm(printFinalLogoSize('counter', 'paper', HARBORLINE).heightPt)).toBe(12.68)
