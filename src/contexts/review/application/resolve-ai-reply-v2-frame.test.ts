@@ -192,4 +192,66 @@ describe('saved AI body boundaries', () => {
       }),
     ).toBeNull()
   })
+  it('refuses a saved body once the business has changed its voice', async () => {
+    const original = deps()
+    const { resolveSavedReplyFrame } = await import('./resolve-ai-reply-v2-frame')
+    const frame = await resolveAiReplyV2Frame(original, INPUT)
+    const candidate = frame!.candidates.at(-1)!
+    const text = [candidate.prefix, 'We are sorry.', candidate.suffix]
+      .filter(Boolean)
+      .join('\n\n')
+    const edited = deps({
+      propertyVoice: {
+        organizationId: ORGANIZATION,
+        propertyId: PROPERTY,
+        version: 2,
+        overriddenFields: [],
+        localized: {
+          'en-Latn': { closings: { negative: ['Our door is always open.'] } },
+        },
+      },
+    })
+    expect(
+      await resolveSavedReplyFrame(edited, {
+        ...INPUT,
+        voiceDigest: frame!.voiceDigest,
+        choices: candidate.choices,
+        text,
+      }),
+    ).toBeNull()
+  })
+
+  it('refuses a saved body that no longer starts and ends with the frame', async () => {
+    const d = deps()
+    const { resolveSavedReplyFrame } = await import('./resolve-ai-reply-v2-frame')
+    const frame = await resolveAiReplyV2Frame(d, INPUT)
+    const candidate = frame!.candidates.find((c) => c.prefix.length > 0)!
+    expect(
+      await resolveSavedReplyFrame(d, {
+        ...INPUT,
+        voiceDigest: frame!.voiceDigest,
+        choices: candidate.choices,
+        text: 'A body someone retyped without the greeting.',
+      }),
+    ).toBeNull()
+  })
+
+  it('refuses a saved body for a review on another property', async () => {
+    const d = deps({ reviewProperty: OTHER_PROPERTY })
+    const { resolveSavedReplyFrame } = await import('./resolve-ai-reply-v2-frame')
+    expect(
+      await resolveSavedReplyFrame(d, {
+        ...INPUT,
+        voiceDigest: '0'.repeat(64),
+        choices: {
+          closing: 0,
+          signOff: 0,
+          contactSentence: 0,
+          emoji: 0,
+          includeContact: true,
+        },
+        text: 'Anything',
+      }),
+    ).toBeNull()
+  })
 })
