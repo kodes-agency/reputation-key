@@ -98,14 +98,6 @@ const COMMANDS: ReadonlyArray<
       ),
   ],
   [
-    'rename',
-    (service, programId) =>
-      service.rename(
-        { propertyId: 'property-1', programId, name: 'April ratings' },
-        actor,
-      ),
-  ],
-  [
     'changeMonthTarget',
     (service, programId) =>
       service.changeMonthTarget(

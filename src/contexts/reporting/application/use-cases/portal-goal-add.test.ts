@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { GoalBulkCreateInput, GoalBulkCreateResult } from './goal-bulk-create'
+import { GoalProgramError } from './goal-program-shared'
 import type { GoalActor } from '../../monthly-goals/goal-programs.server'
 import {
   actor,
@@ -149,6 +150,16 @@ describe('adding a portal goal', () => {
       }),
       actor,
     )
+  })
+
+  it('lets the refusal of a subject that already holds the measure through, writing nothing else', async () => {
+    const { deps } = setup()
+    deps.programs.create.mockRejectedValueOnce(new GoalProgramError('subject_has_goal'))
+
+    await expect(addPortalGoal(deps, oneFor(), actor)).rejects.toMatchObject({
+      code: 'subject_has_goal',
+    })
+    expect(deps.createForSubjects).not.toHaveBeenCalled()
   })
 
   it('refuses a portal or group it cannot name as invalid_subject', async () => {

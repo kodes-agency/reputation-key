@@ -354,27 +354,6 @@ export type GoalProgramRepository = Partial<GoalProgramCurrentReads> &
       }>,
     ): Promise<boolean>
     /**
-     * Set a Program's name and description in place; no version is written.
-     * `previousName` and `previousDescription` are what the command read. The
-     * update applies only while the Program still says both, so a rename never
-     * undoes another one it did not see, and the audit row names exactly what
-     * was replaced. Null when the Program does not exist for the tenant, has
-     * ended, or no longer has that name and description.
-     */
-    rename(
-      input: Readonly<{
-        organizationId: string
-        propertyId: string
-        programId: string
-        name: string
-        description: string | null
-        previousName: string
-        previousDescription: string | null
-        actorId: string
-        at: Date
-      }>,
-    ): Promise<GoalProgram | null>
-    /**
      * Give the months of a Program that are running at `at` their own target, in
      * one transaction with the log of the change and, when `following.revision`
      * is given, the version that carries the target into the months after.
