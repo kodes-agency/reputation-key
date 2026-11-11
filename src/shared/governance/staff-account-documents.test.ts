@@ -47,7 +47,9 @@ describe('current notice corrections', () => {
     expect(privacy).toContain('These copies await removal.')
     expect(privacy).not.toContain('23,349')
     expect(privacy).not.toContain('365 days under the current engineering policy')
-    expect(privacy).not.toContain('The stored business category is cleared')
+    expect(privacy).toContain(
+      'The stored business category is cleared when Google is disconnected and when AI results are purged; no automatic retention rule removes it by age',
+    )
     expect(privacy).not.toContain('daily counts of reviews by star rating')
     expect(privacy).not.toContain('the answers kept for quality testing')
     expect(privacy).toContain(
@@ -75,30 +77,93 @@ describe('current notice corrections', () => {
     expect(agreement).toContain(
       'Erasure replay was not tested, and the app’s restore verifier was not used.',
     )
-    expect(agreement).toContain('Privacy Notice version 3.6, effective 2026-11-07')
+    expect(agreement).toContain('Privacy Notice version 3.7, effective 2026-11-11')
     expect(agreement).toContain(
-      'Google Business Profile Access Disclosure version 2.6, effective 2026-11-07',
+      'Google Business Profile Access Disclosure version 2.7, effective 2026-11-11',
     )
     expect(agreement).not.toContain('docs/BETA.md')
     expect(agreement.match(/schedule (?:is )?maintained in/gu)).toHaveLength(2)
     expect(agreement).not.toContain('four feature switches')
-    expect(agreement).toContain('Property Trends')
+    expect(agreement).not.toContain('Property Trends')
     expect(agreement).toContain('Recent Activity')
+    expect(agreement).not.toContain('does not promise unavailable self-service export')
+  })
+
+  it('retires Property Trends from every published choice', () => {
+    expect(legalBody('privacy-notice')).toContain(
+      'Review Analysis and Reply Drafting are independent Property-level controlled capabilities. Neither becomes available merely because code exists.',
+    )
+    expect(legalBody('internal-beta-agreement')).toContain(
+      'Review Analysis and Reply Drafting are independent, off-by-default Property capabilities.',
+    )
+    const disclosure = legalBody('google-access-disclosure')
+    expect(disclosure).toContain(
+      'Review Analysis and Reply Drafting are separate controlled capabilities, each requiring its own permission.',
+    )
+    for (const file of [
+      'privacy-notice',
+      'internal-beta-agreement',
+      'google-access-disclosure',
+    ]) {
+      expect(legalBody(file)).not.toContain('Property Trends')
+      expect(legalBody(file)).not.toContain('three independent')
+    }
+  })
+
+  it('publishes the business category clearing promise', () => {
+    expect(legalBody('privacy-notice')).toContain(
+      'The category is used as AI context and to pick example words, is shown during Google import, and is removed when Google is disconnected.',
+    )
+  })
+
+  it('describes the manual export, closure and rights procedure', () => {
+    const privacy = legalBody('privacy-notice')
+    const delivery =
+      'a 24-hour download link to a file in the private bucket, deleted after download and after seven days at the latest, never an email attachment'
+    expect(privacy).toContain(
+      `Organization exports prepared through the manual procedure | Provided on request within seven days from verified identity; ${delivery}`,
+    )
+    expect(privacy).not.toContain('Organization Export object')
+    expect(privacy).not.toContain('single-use retrieval authority')
+    expect(privacy).not.toContain('Organization Export objects are kept')
+    expect(privacy).not.toContain('purged by the Organization closure workflow')
+    expect(privacy).toContain(
+      'purged through Reputation Key’s manual Organization closure procedure',
+    )
+    expect(privacy).toContain(
+      'Organization exports, closure, permanent Property erasure and privacy requests are handled by the owner through the operator script, not through self-service account controls.',
+    )
+    expect(privacy).toContain('Reputation Key responds within 30 days.')
+    expect(privacy).toContain(
+      'We answer within 30 days and provide an export on request within seven days from verified identity.',
+    )
+    expect(privacy).toContain(
+      'Permanent Property erasure must be requested by an AccountAdmin.',
+    )
+    const agreement = legalBody('internal-beta-agreement')
     expect(agreement).toContain(
-      'does not promise unavailable self-service export or deletion',
+      'Permanent Property erasure is requested by an AccountAdmin and handled by the Operator.',
+    )
+    expect(agreement).toContain(
+      'Self-service Organization export, closure and permanent Property erasure are unavailable.',
+    )
+    expect(agreement).not.toContain('single-use retrieval authority')
+    expect(agreement).not.toContain('17-context workflow')
+    expect(agreement).toContain(
+      delivery.replace('never an email attachment', 'never as an email attachment'),
     )
   })
 })
 
 describe('staff account release documents', () => {
   it.each([
-    ['privacy-notice', '3.6'],
-    ['internal-beta-agreement', '2.7'],
-    ['google-access-disclosure', '2.6'],
+    ['privacy-notice', '3.7'],
+    ['internal-beta-agreement', '2.8'],
+    ['google-access-disclosure', '2.7'],
   ])('publishes %s version %s on the approved release date', (file, version) => {
     const text = readFileSync(`docs/legal/${file}.md`, 'utf8')
     expect(text).toContain(`**Version:** ${version}`)
-    expect(text).toContain('**Effective date:** 2026-11-07')
+    expect(text).toContain('**Effective date:** 2026-11-11')
     expect(text).toContain('without a waiting period')
   })
   it.each(['privacy-notice', 'internal-beta-agreement'])(
@@ -109,7 +174,7 @@ describe('staff account release documents', () => {
       expect(body).toContain(
         'Managers may also see a marker when someone who has joined has had no scans for 14 days. It prompts a conversation; nothing happens automatically, and staff do not see it.',
       )
-      expect(text).toContain('amended_on: 2026-11-07')
+      expect(text).toContain('amended_on: 2026-11-11')
     },
   )
   it('preserves the Google ban and states the staff scan target and manager Google selection plainly', () => {
