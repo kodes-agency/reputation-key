@@ -6,11 +6,11 @@
 // resolved for this member and only falls back to that table. Root CONTEXT.md
 // ("Permission Patterns") assigns each API its place.
 //
-// Route components used to ask the table too, so on one page the profile form
-// could be enabled from the table while the card beside it followed the
-// resolved set. And two affordances were decided by role rank (`hasRole`) where
-// the server enforces a permission. With the three built-in roles every answer
-// agrees, which is why nothing failed; this reads the sources instead.
+// A route component that asks the table would enable the profile form from the
+// table while the card beside it followed the resolved set, and an affordance
+// decided by role rank (`hasRole`) would diverge from a permission the server
+// enforces. With the three built-in roles every answer agrees, so behaviour
+// tests cannot see it; this reads the sources instead.
 import { relative } from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'

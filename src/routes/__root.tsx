@@ -73,8 +73,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     select: (s) => documentLanguageOfMatches(s.matches),
   })
 
-  // Which web fonts this page loads. `styles.css` used to @import the app fonts
-  // for every page; now the root links exactly one set, chosen from the route
+  // Which web fonts this page loads. `styles.css` imports no fonts: the root
+  // links exactly one set, chosen from the route
   // loaders (`/p/$token` declares 'guest' for the Immersive Hub). Read from the
   // router state rather than this route's `head`, so a client-side navigation
   // between an app page and a guest page swaps the set even though the root

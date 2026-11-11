@@ -3,7 +3,7 @@ import { portalGoalLineShown } from './-portal-goal-line'
 
 // A Portal's Results line is read only on the Results tab, for someone who may
 // set the Monthly portal goal, with Goals and Results on, and never for a draft
-// Portal (PLAN PG-16, §3.5).
+// Portal.
 
 const everything = {
   can: (permission: string) => permission === 'goal.create',

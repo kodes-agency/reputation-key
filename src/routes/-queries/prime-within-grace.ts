@@ -14,8 +14,7 @@
 // is handed the answer, and when the answer is there before the page hydrates the
 // browser's first render draws the figures where the server drew the placeholder:
 // React error 418, after which React throws the server's markup away and renders the
-// page again in the browser. A slow machine does it: measured on 2026-10-28,
-// Properties with the fleet read held 1.5 s and the scripts held 3.5 s failed in 8
+// page again in the browser. A slow machine does it: measured, Properties with the fleet read held 1.5 s and the scripts held 3.5 s failed in 8
 // loads of 8.
 //
 // So when the grace ends on the server, a read of the loader's that is still pending
