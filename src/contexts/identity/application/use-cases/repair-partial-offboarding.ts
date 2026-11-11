@@ -1,12 +1,12 @@
 // LIF-01-T21 — repair for a partially applied offboarding.
 //
-// Removal and leave fence the provider-side authorities (Google connector,
-// running imports) BEFORE the Identity transaction, because those live in
-// another context and cannot join it. That ordering is deliberate: a fenced
-// connector with a surviving membership is a REPAIRABLE state, while a deleted
-// membership with a live provider grant is not.
+// Removal used to release a member's authorities, Property access grants
+// included, in commits of their own BEFORE the Identity transaction. Removal
+// now revokes the grants in the transaction that deletes the membership, so it
+// cannot leave this state behind; rows an earlier removal left are what this
+// repairs.
 //
-// A crash between the two therefore leaves exactly one observable shape:
+// A crash between the two left exactly one observable shape:
 //   * every `property_access_grant` for the user is revoked with the
 //     offboarding reason, and
 //   * the membership row is still present.

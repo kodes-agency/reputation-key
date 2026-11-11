@@ -85,13 +85,20 @@ describe('GoogleConnectorDepartureStore contract', () => {
 
   it('is consumed through the seam, never through a context-private hatch', () => {
     const consumer = readFileSync(
+      resolve(
+        'src/contexts/integration/infrastructure/member-departure-outbox-consumers.ts',
+      ),
+      'utf8',
+    )
+    const removal = readFileSync(
       resolve('src/contexts/identity/members/remove-member.server.ts'),
       'utf8',
     )
 
     expect(consumer).not.toContain('.internal.')
-    // Identity states the intent; it never names a Google connection.
-    expect(consumer).toContain('prepareGoogleConnectorDeparture')
-    expect(consumer).not.toContain('connectionId')
+    // Integration releases from Identity's fact; Identity never names Google.
+    expect(consumer).toContain('PrepareGoogleConnectorDeparture')
+    expect(removal).not.toContain('prepareGoogleConnectorDeparture')
+    expect(removal).not.toContain('connectionId')
   })
 })

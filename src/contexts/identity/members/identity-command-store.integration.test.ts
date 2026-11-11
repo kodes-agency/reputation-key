@@ -640,13 +640,15 @@ describe.sequential('identityCommandStore (integration)', () => {
     const store = createAtomicIdentityCommandStore(db)
     await pool.query(
       `INSERT INTO member (id, "organizationId", "userId", role, "createdAt")
-       VALUES ('member-idcmd-staff', $1, $2, 'member', NOW())`,
-      [ORG_ID, ACCEPTOR_ID],
+       VALUES ('member-idcmd-owner', $1, $3, 'owner', NOW()),
+              ('member-idcmd-staff', $1, $2, 'member', NOW())`,
+      [ORG_ID, ACCEPTOR_ID, INVITER_ID],
     )
 
     await store.changeMemberRole({
       organizationId: ORG_ID,
       memberId: 'member-idcmd-staff',
+      actorUserId: INVITER_ID,
       newRole: 'admin',
       event: identityMemberRoleChanged({
         organizationId: ORG_ID,
@@ -679,6 +681,7 @@ describe.sequential('identityCommandStore (integration)', () => {
     createAtomicIdentityCommandStore(db).changeMemberRole({
       organizationId: ORG_ID,
       memberId,
+      actorUserId: memberUserId === INVITER_ID ? ACCEPTOR_ID : INVITER_ID,
       newRole: 'admin',
       event: identityMemberRoleChanged({
         organizationId: ORG_ID,
@@ -730,10 +733,12 @@ describe.sequential('identityCommandStore (integration)', () => {
     const refused = outcomes.filter((outcome) => outcome.status === 'rejected')
     expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
     expect(refused).toHaveLength(1)
+    // Each demotes the other, so whichever commits second finds its actor is
+    // no longer an AccountAdmin before it reaches the last-owner check.
     expect(
       refused.every(
         (outcome) =>
-          isIdentityError(outcome.reason) && outcome.reason.code === 'last_owner',
+          isIdentityError(outcome.reason) && outcome.reason.code === 'forbidden',
       ),
     ).toBe(true)
     const owners = await pool.query(

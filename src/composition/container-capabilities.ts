@@ -235,6 +235,7 @@ export function buildContainerCapabilities({
     // Worker-only durable consumer registration contributed by owning contexts.
     // Every context registers into THIS container's registry.
     registerOutboxConsumers: () => {
+      identity.worker.registerOutboxConsumers(consumerRegistry)
       integration.worker.registerOutboxConsumers(consumerRegistry)
       review.worker.registerOutboxConsumers(consumerRegistry)
       portal.worker.registerOutboxConsumers(consumerRegistry)

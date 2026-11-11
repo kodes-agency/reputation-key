@@ -124,9 +124,6 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     expect(ctx.maintenance.imports.inspectBacklog).toBe(
       ctx.internal.useCases.inspectGoogleImportV2Lifecycle,
     )
-    expect(ctx.lifecycle.prepareConnectorDeparture).toBe(
-      ctx.internal.useCases.prepareGoogleConnectorDeparture,
-    )
     expect(ctx.webhook.handleNotification).toBe(ctx.internal.gbpNotificationHandler)
     expect(ctx.worker.processImportItem).toBe(
       ctx.internal.useCases.processGoogleImportV2Item,

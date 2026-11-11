@@ -1,6 +1,6 @@
-// Portal's reaction to a member's removal: release again, from the fact that
-// commits with the membership delete, what the removal's own earlier release
-// could not see (`releaseRemovedMemberResponsibilities`, bound in build.ts).
+// Portal's reaction to a member's removal: release, from the fact that commits
+// with the membership delete, what the member may no longer hold here
+// (`releaseRemovedMemberResponsibilities`, bound in build.ts).
 
 import type { ConsumerRegistry } from '#/shared/outbox'
 import {

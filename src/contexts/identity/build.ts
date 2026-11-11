@@ -96,6 +96,9 @@ import {
 import { recoverInvitedRegistrations } from './members/recover-invited-registrations.server'
 import { registerInvitedUser } from './members/register-invited-user.server'
 import { removeMember } from './members/remove-member.server'
+import { roleChangeCleanup } from './members/member-role-cleanup.server'
+import type { ConsumerRegistry } from '#/shared/outbox'
+import { registerMemberRoleConsumers } from './infrastructure/member-role-outbox-consumers'
 import { renewLapsedMerchantAiAuthorizations } from './consent/renew-lapsed-merchant-ai-authorizations.server'
 import { resendInvitation } from './members/resend-invitation.server'
 import {
@@ -158,10 +161,7 @@ import { createMerchantAiNoticeUpdateStore } from './consent/merchant-ai-notice-
 import { createMerchantAiOverviewReader } from './consent/merchant-ai-overview.repository.server'
 import { createStandingRenewalStore } from './consent/merchant-ai-standing-renewal.repository.server'
 import { createProductUpdatesStore } from './updates/product-updates.repository.server'
-import {
-  hasActiveGrant,
-  revokeAllPropertyAccessForUser,
-} from './infrastructure/repositories/property-access-grant.repository'
+import { hasActiveGrant } from './infrastructure/repositories/property-access-grant.repository'
 import { createStaffParticipationRepository } from './infrastructure/repositories/staff-participation.repository'
 import { createStaffAccountStore } from './staff/staff-account-store.server'
 
@@ -227,17 +227,6 @@ type IdentityContextDeps = Readonly<{
       propertyId: string,
     ) => Promise<boolean>
   }>
-  cancelGoogleImportsForUser?: (organizationId: string, userId: string) => Promise<void>
-  prepareGoogleConnectorDeparture?: (
-    organizationId: string,
-    userId: string,
-    cause: 'member_removed' | 'account_admin_role_lost',
-  ) => Promise<void>
-  releaseMemberAuthorities?: (
-    organizationId: string,
-    userId: string,
-    actorId: string,
-  ) => Promise<void>
   reconcileResponsibleManagerEligibility?: (
     organizationId: string,
     userId: string,
@@ -641,6 +630,10 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   })
 
   const staffAccounts = buildStaffAccounts({ ...deps, commandStore })
+  const memberRoleCleanup = roleChangeCleanup({
+    commandStore,
+    reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
+  })
 
   const requests = Object.freeze({
     inviteMember: inviteMember({
@@ -653,17 +646,13 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       identity: identityPort,
       commandStore,
       clock,
-      reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
-      prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
+      cleanup: memberRoleCleanup,
     }),
     removeMember: removeMember({
       removeStaffForMemberDeparture: staffAccounts.removeForMemberDeparture,
       identity: identityPort,
       commandStore,
       clock,
-      cancelGoogleImportsForUser: deps.cancelGoogleImportsForUser,
-      prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
-      releaseMemberAuthorities: deps.releaseMemberAuthorities,
     }),
     listInvitations: listInvitations({
       invitations,
@@ -744,6 +733,8 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
         logger,
       }),
       renewLapsedMerchantAiAuthorizations: merchantAi.renewal,
+      registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) =>
+        registerMemberRoleConsumers(consumerRegistry, { cleanup: memberRoleCleanup }),
     }),
     /** Capability-policy control plane owned by Identity. */
     policy: Object.freeze({
@@ -770,12 +761,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       // Property-scoped recipient resolution for other contexts (notification
       // fan-out).
       propertyAccessHolders: createPropertyGrantHolderLookup(db, clock),
-      revokeAllPropertyAccessForUser: (organizationId: string, userId: string) =>
-        revokeAllPropertyAccessForUser(db, {
-          organizationId,
-          userId,
-          reason: 'member_offboarded',
-        }),
     }),
     /** Beta-feedback reporting for the signed-in reporter. Request-facing, but
      * kept off `publicApi`, which other contexts receive. */
