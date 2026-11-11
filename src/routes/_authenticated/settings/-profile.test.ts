@@ -277,7 +277,7 @@ describe('saving the profile', () => {
     expect(organizationLoader).toHaveBeenCalledTimes(1)
   })
 
-  // In the browser `_authenticated` remembers the session for 30 seconds (ADR 0072), so
+  // In the browser `_authenticated` remembers the session for 30 seconds, so
   // without the save forgetting it the router's second load would answer with the name
   // from before the save. (The tests above run as the server, which always asks.)
   describe('where the shell remembers its checks', () => {

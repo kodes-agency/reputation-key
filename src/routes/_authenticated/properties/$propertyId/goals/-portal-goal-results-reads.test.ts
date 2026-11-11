@@ -1,5 +1,5 @@
 // The Portal goal results page's reads, defined in `-portal-goal-queries.ts`
-// beside the Monthly portal goal's (PLAN PG-18).
+// beside the Monthly portal goal's.
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'

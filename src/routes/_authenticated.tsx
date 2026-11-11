@@ -60,7 +60,7 @@ const MerchantAiNoticeUpdate = lazy(
  * What the shell knows about the person, read by every page below it.
  *
  * The server render resolves it fresh on every request. In the browser it may be up
- * to 30 seconds old (ADR 0072): `beforeLoad` reuses the last answers for the signed-in
+ * to 30 seconds old: `beforeLoad` reuses the last answers for the signed-in
  * person until they are stale, and forgets them on sign-in, sign-out, a tab coming
  * back, the person's own profile, Organization or member changes, and any refusal that
  * reaches a route error boundary (`invalidateShellContext`); other refusals wait out
@@ -79,7 +79,7 @@ export type AuthRouteContext = Readonly<{
   role: Role
   authz: ClientAuthz
   /**
-   * Capability posture for the property in scope (ADR 0049). Resolved
+   * Capability posture for the property in scope. Resolved
    * property-scoped. `beforeLoad` re-runs on every
    * navigation and remembers one set per Property scope, so switching property
    * reads that Property's set (asked for when there is no fresh one).
@@ -339,7 +339,7 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
           hasPersonalPortal={ctx.activeOrganization?.hasPersonalPortal}
         />
         {/*
-          BQC-6.8: the layout wrapper is a plain div, NOT SidebarInset — the
+          The layout wrapper is a plain div, NOT SidebarInset — the
           vendored SidebarInset renders <main>, which nested the content <main>
           below inside it (duplicate main, main-in-main, non-unique landmarks on
           the e2e axe gate). With a div wrapper the landmarks are textbook:

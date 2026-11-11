@@ -9,7 +9,7 @@ import {
 import { putOffPortalGoalPrompt } from './-portal-goal-overview'
 import { portalGoalCardQuery } from './-portal-goal-queries'
 
-// "Not now" on the Overview's prompt (PLAN PG-16): the card's read is written
+// "Not now" on the Overview's prompt: the card's read is written
 // as the server will answer it, before the command is sent, and put back when
 // the command fails.
 

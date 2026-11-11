@@ -2,8 +2,8 @@
 //
 // Better Auth mounts every endpoint of its core and of each plugin behind one
 // handler. Its organization routes authorize with the library's own checks
-// (membership, or the role table), never with the app's ExecutionPolicy (ADR
-// 0033): any member reads every invitation row, any signed-in account creates
+// (membership, or the role table), never with the app's ExecutionPolicy:
+// any member reads every invitation row, any signed-in account creates
 // an Organization, and an AccountAdmin updates one with no capability decision
 // and none of the app's validation. A list of refused paths cannot keep up
 // with that surface, so this is the reverse: a provider route is served only
@@ -71,7 +71,7 @@ export const REFUSED_PROVIDER_ROUTES: ReadonlyArray<ProviderRoute> = [
   // any member of the Organization with every invitation row, and
   // `list-members` with every member row. An invitation id is the only secret
   // invited registration asks for, and only an AccountAdmin may list
-  // invitations (ADR 0033). `get-invitation` answers one id, and only to the
+  // invitations. `get-invitation` answers one id, and only to the
   // invited address; an invitation link reads the app-owned preview instead.
   // Where the app needs one of these reads, its own server functions make it
   // in process. Nothing needs one over HTTP.
@@ -88,7 +88,7 @@ export const REFUSED_PROVIDER_ROUTES: ReadonlyArray<ProviderRoute> = [
   // Answers whether any Organization holds a slug, across tenants.
   { method: 'POST', path: '/organization/check-slug' },
   // Organization writes: app-owned Identity commands are the only write path.
-  // Organizations are operator-provisioned (ADR 0065), so `create` is also
+  // Organizations are operator-provisioned, so `create` is also
   // refused by the provider itself (allowUserToCreateOrganization, auth.ts).
   // `update` skips the execution policy and the app's validation. `set-active`
   // is done in process by ensureActiveOrg and setActiveOrganization, which
@@ -108,8 +108,8 @@ export const REFUSED_PROVIDER_ROUTES: ReadonlyArray<ProviderRoute> = [
   // onboards by invitation only. Refused here rather than by clearing
   // emailAndPassword.enabled, which would also disable sign-in and reset.
   { method: 'POST', path: '/sign-up/email' },
-  // Only the app-owned resendVerificationEmail enforces the per-address limit
-  // (ADR 0062 §6); this route would let anyone mail any unverified address.
+  // Only the app-owned resendVerificationEmail enforces the per-address limit;
+  // this route would let anyone mail any unverified address.
   { method: 'POST', path: '/send-verification-email' },
   // Account changes the app owns (changePasswordFn, the profile functions) or
   // does not offer (changing the address, deleting the account).
