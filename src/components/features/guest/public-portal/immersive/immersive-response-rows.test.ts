@@ -119,6 +119,20 @@ describe.each(PACKS)('the rows of "Your response" [$locale]', (pack) => {
     expect(all?.note).toBe('')
   })
 
+  it('says the time has ended when the deadline has passed even if the window still reads available', () => {
+    const [change, note, all] = rowsFor(pack, {
+      correctionDeadline: PAST,
+      feedbackWithdrawalDeadline: PAST,
+      responseWithdrawalDeadline: PAST,
+    })
+    expect([change?.actionable, note?.actionable, all?.actionable]).toEqual([
+      false,
+      false,
+      false,
+    ])
+    expect(change?.detail).toBe(pack.copy.windowEndedChange)
+  })
+
   it('also says the time has ended when the server sent no deadline at all', () => {
     const [change] = rowsFor(pack, {
       correctionAvailable: false,
