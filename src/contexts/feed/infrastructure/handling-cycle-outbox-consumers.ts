@@ -10,7 +10,8 @@
 // Property from its completion fact; the per-item reopen facts it stamps with
 // its bulkId notify nobody.
 
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   inboxItemId,
@@ -31,7 +32,7 @@ import type { HandlingCycleNotificationFacts } from '../application/ports/notifi
 import { resolveHandlingCycleRecipients } from '../application/responsible-recipients'
 import type { InboxFanoutDeps } from './inbox-notification-fanout'
 import { buildInboxItemPayload } from './notification-payload-facts'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 
 const OPENED_EVENT = 'inbox.handling_cycle.opened' as const
 const REOPENED_EVENT = 'inbox.handling_cycle.reopened' as const
@@ -44,10 +45,7 @@ export const ON_INBOX_HANDLING_CYCLE_REOPENED_CONSUMER =
 export const ON_INBOX_BULK_REOPEN_COMPLETED_CONSUMER =
   'notification.on-inbox-bulk-reopen-completed' as const
 
-export type HandlingCycleNotificationConsumerDeps = InboxFanoutDeps &
-  Readonly<{
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
-  }>
+export type HandlingCycleNotificationConsumerDeps = InboxFanoutDeps & NoticeDeliveryDeps
 
 type HandlingCyclePayload = Readonly<{
   inboxItemId: string
@@ -154,7 +152,7 @@ function exactCurrent(
 export async function handleNotificationHandlingCycle(
   deps: HandlingCycleNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<ConsumerResult> {
   const payload = parse(event)
   const notificationType = notificationTypeFor(payload)
 
@@ -162,8 +160,7 @@ export async function handleNotificationHandlingCycle(
   // owns initial arrival delivery, a bulk completion fact owns its reopens,
   // and legacy backfills never notify.
   if (notificationType === null) {
-    await deps.receipts.insertReceipt(event.eventId, payload.consumerName, 'applied')
-    return { status: 'applied' }
+    return deliverNotices(deps, event, payload.consumerName, [])
   }
 
   const orgId = organizationId(payload.organizationId)
@@ -173,8 +170,7 @@ export async function handleNotificationHandlingCycle(
     orgId,
   )
   if (!exactCurrent(payload, facts)) {
-    await deps.receipts.insertReceipt(event.eventId, payload.consumerName, 'obsolete')
-    return { status: 'obsolete' }
+    return deliverNotices(deps, event, payload.consumerName, [], { status: 'obsolete' })
   }
 
   const actorUserId: UserId | null = payload.userId ? userId(payload.userId) : null
@@ -201,30 +197,21 @@ export async function handleNotificationHandlingCycle(
     actorUserId,
   }
 
-  await Promise.all(
-    recipients.map((recipient) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipient,
-          organizationId: orgId,
-          propertyId: propertyId(payload.propertyId),
-          type: notificationType,
-          resourceType: 'inbox_item' as const,
-          resourceId: itemId,
-          eventId: event.eventId,
-          payload: notificationPayload,
-          audience,
-        },
-        { jobId: `${event.eventId}-${unbrand(recipient)}` },
-      ),
-    ),
+  return deliverNotices(
+    deps,
+    event,
+    payload.consumerName,
+    recipients.map((recipient) => ({
+      userId: recipient,
+      organizationId: orgId,
+      propertyId: propertyId(payload.propertyId),
+      type: notificationType,
+      resourceType: 'inbox_item' as const,
+      resourceId: itemId,
+      payload: notificationPayload,
+      audience,
+    })),
   )
-
-  // Receipt last: a partial enqueue failure remains retryable and stable job
-  // ids converge the successful subset on relay replay.
-  await deps.receipts.insertReceipt(event.eventId, payload.consumerName, 'applied')
-  return { status: 'applied' }
 }
 
 type BulkReopenedCycle = CycleIdentity & Readonly<{ inboxItemId: string }>
@@ -347,59 +334,48 @@ const cycleRef = (cycle: BulkReopenedCycle): HandlingCycleRef => ({
 export async function handleNotificationBulkReopenCompleted(
   deps: HandlingCycleNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<ConsumerResult> {
   const payload = parseBulkReopen(event)
   const orgId = organizationId(payload.organizationId)
   const actorUserId = userId(payload.userId)
   const current = await currentBulkCycles(deps, orgId, payload.reopened)
   if (current.length === 0) {
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      ON_INBOX_BULK_REOPEN_COMPLETED_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
+    return deliverNotices(deps, event, ON_INBOX_BULK_REOPEN_COMPLETED_CONSUMER, [], {
+      status: 'obsolete',
+    })
   }
 
   const groups = await groupByRecipientAndProperty(deps, orgId, actorUserId, current)
   const actorRole = await deps.userLookup.findActorRole(actorUserId, orgId)
-  await Promise.all(
-    groups.map((group) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: group.recipient,
-          organizationId: orgId,
-          propertyId: propertyId(group.propertyId),
-          type: 'inbox.bulk_reopened' as const,
-          resourceType: 'inbox_item' as const,
-          // The first item in canonical order keys the row; its link opens
-          // the Property's open queue, since the row stands for the group.
-          resourceId: inboxItemId(group.cycles[0]!.inboxItemId),
-          eventId: event.eventId,
-          payload: {
-            ...(group.propertyName === null ? {} : { propertyName: group.propertyName }),
-            itemCount: group.cycles.length,
-            ...(actorRole ? { actorRole } : {}),
-          },
-          audience: {
-            kind: 'bulk_handling_cycle' as const,
-            cycles: group.cycles.map(cycleRef),
-            actorUserId,
-          },
-        },
-        { jobId: `${event.eventId}-${unbrand(group.recipient)}-${group.propertyId}` },
-      ),
-    ),
-  )
-
-  // Receipt last, as for single cycles: a partial enqueue stays retryable.
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  return deliverNotices(
+    deps,
+    event,
     ON_INBOX_BULK_REOPEN_COMPLETED_CONSUMER,
-    'applied',
+    groups.map((group) => ({
+      userId: group.recipient,
+      organizationId: orgId,
+      propertyId: propertyId(group.propertyId),
+      type: 'inbox.bulk_reopened' as const,
+      resourceType: 'inbox_item' as const,
+      // The first item in canonical order keys the row; its link opens
+      // the Property's open queue, since the row stands for the group.
+      resourceId: inboxItemId(group.cycles[0]!.inboxItemId),
+      payload: {
+        ...(group.propertyName === null ? {} : { propertyName: group.propertyName }),
+        itemCount: group.cycles.length,
+        ...(actorRole ? { actorRole } : {}),
+      },
+      audience: {
+        kind: 'bulk_handling_cycle' as const,
+        cycles: group.cycles.map(cycleRef),
+        actorUserId,
+      },
+    })),
+    {
+      jobId: (notice) =>
+        `${event.eventId}-${unbrand(notice.userId)}-${notice.propertyId}`,
+    },
   )
-  return { status: 'applied' }
 }
 
 export function registerHandlingCycleNotificationConsumers(

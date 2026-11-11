@@ -56,6 +56,9 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { operationalActionHistoryRecordId } from '../../domain/operational-action-history'
 import { buildFeedContext } from '../../build'
+import { createInboxItemLookupAdapter } from '../adapters/inbox-item-lookup.adapter'
+import { registerNotificationConsumers } from '../notification-outbox-consumers'
+import { withBetaOutboxNotificationDelivery } from '../outbox-notification-delivery'
 import {
   createInsertNotificationHandler,
   type InsertNotificationJobData,
@@ -252,9 +255,31 @@ describe.sequential('missing-notification repair through the Feed build', () => 
       publishedAt: ARRIVED,
     })
 
+    // The delivery as the previous release made it: the consumer queues one
+    // insert job behind the durable bridge instead of writing the notice. The
+    // worker now writes it with the receipt, so only a delivery Redis accepted
+    // before that release can still need this repair.
     const original = recordingQueue()
     const registry = createConsumerRegistry()
-    buildFeed(original.queue).notification.worker.registerOutboxConsumers(registry)
+    registerNotificationConsumers(registry, {
+      queue: withBetaOutboxNotificationDelivery(
+        original.queue,
+        createOutboxRepository(db),
+      ),
+      receipts: createOutboxRepository(db),
+      userLookup: { findByRole: async () => [] } as never,
+      responsibleManagers: {
+        findForProperty: async () => [MANAGER],
+        findForPortal: async () => [MANAGER],
+        findForPortalGroup: async () => [MANAGER],
+        isEligibleForProperty: async () => true,
+      },
+      inboxItemLookup: createInboxItemLookupAdapter(db, {
+        findPortalId: async () => PORTAL,
+      }),
+      clock: () => NOW,
+      logger: createMockLogger(),
+    })
     const row = (
       await db.select().from(outboxEvents).where(eq(outboxEvents.id, fact.eventId))
     )[0]!

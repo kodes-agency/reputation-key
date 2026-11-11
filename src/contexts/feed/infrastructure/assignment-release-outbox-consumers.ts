@@ -7,7 +7,8 @@
 // to nobody. The grouped close fact is the replay boundary, and this consumer
 // turns it into ONE notice per Property, to the people who now own that gap.
 
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   inboxItemId,
@@ -21,8 +22,11 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import { resolveResponsibleRecipients } from '../application/responsible-recipients'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  deliverNotices,
+  type Notice,
+  type NoticeDeliveryDeps,
+} from '../notify/consumers.server'
 import {
   buildPropertyPayload,
   type PropertyPayloadDeps,
@@ -32,12 +36,11 @@ export const ON_INBOX_ASSIGNMENTS_RELEASED_CONSUMER =
   'notification.on-inbox-assignments-released' as const
 
 export type AssignmentReleaseNotificationConsumerDeps = PropertyPayloadDeps &
+  NoticeDeliveryDeps &
   Readonly<{
-    queue: NotificationJobEnqueuePort
     userLookup: Pick<UserLookupPort, 'findByRole'>
     responsibleManagers: ResponsibleManagerLookupPort
     logger: LoggerPort
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
   }>
 
 type Release = Readonly<{
@@ -78,14 +81,14 @@ function parse(event: ConsumerEvent): Payload {
 export async function handleNotificationAssignmentsReleased(
   deps: AssignmentReleaseNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' }>> {
+): Promise<ConsumerResult> {
   const payload = parse(event)
   const org = organizationId(payload.organizationId)
   const departing = userId(payload.releasedFrom)
   const actor = payload.userId === null ? null : userId(payload.userId)
 
-  await Promise.all(
-    payload.releases.map(async (release) => {
+  const perProperty = await Promise.all(
+    payload.releases.map(async (release): Promise<ReadonlyArray<Notice>> => {
       const property = release.propertyId
       const scope = { kind: 'property', propertyId: property } as const
       const recipients = (await resolveResponsibleRecipients(deps, org, scope)).filter(
@@ -98,39 +101,34 @@ export async function handleNotificationAssignmentsReleased(
           { correlationId: event.correlationId ?? undefined },
           'Inbox assignment-release notification has no recipients for a Property',
         )
-        return
+        return []
       }
       const where = await buildPropertyPayload(deps, org, propertyId(property))
-      await Promise.all(
-        recipients.map((recipientId) =>
-          deps.queue.add(
-            INSERT_NOTIFICATION_JOB_NAME,
-            {
-              userId: recipientId,
-              organizationId: org,
-              propertyId: propertyId(property),
-              type: 'inbox.assignments_released' as const,
-              resourceType: 'inbox_item' as const,
-              // The row stands for the whole group; its link opens the
-              // Property's open queue rather than this one item.
-              resourceId: inboxItemId(release.anchorInboxItemId),
-              eventId: event.eventId,
-              payload: { ...where, itemCount: release.count },
-              audience: { kind: 'responsible_scope' as const, scope },
-            },
-            { jobId: `${event.eventId}-${unbrand(recipientId)}-${property}` },
-          ),
-        ),
-      )
+      return recipients.map((recipientId) => ({
+        userId: recipientId,
+        organizationId: org,
+        propertyId: propertyId(property),
+        type: 'inbox.assignments_released' as const,
+        resourceType: 'inbox_item' as const,
+        // The row stands for the whole group; its link opens the
+        // Property's open queue rather than this one item.
+        resourceId: inboxItemId(release.anchorInboxItemId),
+        payload: { ...where, itemCount: release.count },
+        audience: { kind: 'responsible_scope' as const, scope },
+      }))
     }),
   )
 
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  return deliverNotices(
+    deps,
+    event,
     ON_INBOX_ASSIGNMENTS_RELEASED_CONSUMER,
-    'applied',
+    perProperty.flat(),
+    {
+      jobId: (notice) =>
+        `${event.eventId}-${unbrand(notice.userId)}-${notice.propertyId}`,
+    },
   )
-  return { status: 'applied' }
 }
 
 export function registerAssignmentReleaseNotificationConsumer(

@@ -6,25 +6,23 @@
 // changes therefore fail closed without turning a timing reminder into an
 // escalation or leaking source content.
 
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { inboxItemId, organizationId, propertyId, unbrand } from '#/shared/domain/ids'
+import { inboxItemId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { NotificationType } from '../domain/notification-types'
 import type { NotificationAudience } from '../application/notification-audience'
 import { resolveResponseTargetReminderRecipients } from '../application/response-target-reminder-recipients'
 import type { InboxFanoutDeps } from './inbox-notification-fanout'
 import { buildInboxItemPayload } from './notification-payload-facts'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 
 const EVENT_TYPE = 'inbox.response_target.reminder_due' as const
 
 export const ON_INBOX_RESPONSE_TARGET_REMINDER_DUE_CONSUMER =
   'notification.on-inbox-response-target-reminder-due' as const
 
-export type ResponseTargetNotificationConsumerDeps = InboxFanoutDeps &
-  Readonly<{
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
-  }>
+export type ResponseTargetNotificationConsumerDeps = InboxFanoutDeps & NoticeDeliveryDeps
 
 type ResponseTargetReminderPayload = Readonly<{
   inboxItemId: string
@@ -69,7 +67,7 @@ const notificationTypeFor = (
 export async function handleNotificationResponseTargetReminder(
   deps: ResponseTargetNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<ConsumerResult> {
   const payload = parse(event)
   const orgId = organizationId(payload.organizationId)
   const itemId = inboxItemId(payload.inboxItemId)
@@ -91,12 +89,13 @@ export async function handleNotificationResponseTargetReminder(
     facts.reminderKind !== payload.reminderKind ||
     facts.scheduledFor.toISOString() !== payload.scheduledFor
   ) {
-    await deps.receipts.insertReceipt(
-      event.eventId,
+    return deliverNotices(
+      deps,
+      event,
       ON_INBOX_RESPONSE_TARGET_REMINDER_DUE_CONSUMER,
-      'obsolete',
+      [],
+      { status: 'obsolete' },
     )
-    return { status: 'obsolete' }
   }
 
   const recipients = await resolveResponseTargetReminderRecipients(deps, orgId, facts)
@@ -124,34 +123,21 @@ export async function handleNotificationResponseTargetReminder(
     scheduledFor: facts.scheduledFor.toISOString(),
   }
 
-  await Promise.all(
-    recipients.map((recipient) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipient,
-          organizationId: orgId,
-          propertyId: propertyId(payload.propertyId),
-          type: notificationTypeFor(payload.reminderKind),
-          resourceType: 'inbox_item' as const,
-          resourceId: itemId,
-          eventId: event.eventId,
-          payload: notificationPayload,
-          audience,
-        },
-        { jobId: `${event.eventId}-${unbrand(recipient)}` },
-      ),
-    ),
-  )
-
-  // Receipt last: partial queue failure remains safely replayable through the
-  // stable per-recipient job identities.
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  return deliverNotices(
+    deps,
+    event,
     ON_INBOX_RESPONSE_TARGET_REMINDER_DUE_CONSUMER,
-    'applied',
+    recipients.map((recipient) => ({
+      userId: recipient,
+      organizationId: orgId,
+      propertyId: propertyId(payload.propertyId),
+      type: notificationTypeFor(payload.reminderKind),
+      resourceType: 'inbox_item' as const,
+      resourceId: itemId,
+      payload: notificationPayload,
+      audience,
+    })),
   )
-  return { status: 'applied' }
 }
 
 export function registerResponseTargetNotificationConsumer(

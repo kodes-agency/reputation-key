@@ -436,8 +436,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     enqueueImmediateEmail,
   })
 
-  // The account, integration, Portal and Property routes write their notices
-  // in the transaction that claims their receipt.
+  // The consumer routes write their notices in the transaction that claims
+  // their receipt.
   const noticeWriter = createNoticeWriter({
     db: input.db,
     clock: input.clock,
@@ -699,46 +699,40 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     })
     registerNotificationConsumers(consumerRegistry, {
       ...fanoutReads,
-      queue,
-      receipts: input.outboxRepo,
+      ...notices,
     })
     registerWorkflowNotificationConsumers(consumerRegistry, {
       ...fanoutReads,
-      queue,
+      ...notices,
       retireMovedAssignment: createRetireMovedAssignment({
         notifications: notificationRepo,
         emails: emailRepo,
       }),
-      receipts: input.outboxRepo,
     })
     registerBulkAssignmentNotificationConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerAssignmentReleaseNotificationConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       userLookup,
       responsibleManagers: input.responsibleManagers,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerEscalationResolutionNotificationConsumer(consumerRegistry, {
-      queue,
+      ...notices,
       escalationResolutions,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       notifications: notificationRepo,
       inboxItemLookup,
-      receipts: input.outboxRepo,
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, {
       ...fanoutReads,
-      queue,
-      receipts: input.outboxRepo,
+      ...notices,
     })
     // The counterpart of the routes above: the facts that finish the work
     // they announced retire their notices and cancel the mail behind them.
@@ -754,8 +748,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     })
     registerResponseTargetNotificationConsumer(consumerRegistry, {
       ...fanoutReads,
-      queue,
-      receipts: input.outboxRepo,
+      ...notices,
     })
     registerGoalNotificationConsumer(consumerRegistry, {
       ...notices,

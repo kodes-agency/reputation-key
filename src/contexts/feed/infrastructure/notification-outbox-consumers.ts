@@ -1,48 +1,32 @@
 // Durable notification delivery for `inbox.inbox_item.created`.
 //
 // The source transaction records an identifier-only outbox fact. This consumer
-// resolves current recipients and copy facts, enqueues one deterministic job
-// per recipient, and acknowledges only after every enqueue succeeds. The
-// sibling workflow consumers cover assignment, escalation, notes, and Reply
-// lifecycle facts with the same delivery guarantees.
-//
-// Idempotency, in the order the fences apply:
-//   1. The dispatcher pre-checks `hasReceipt(eventId, consumerName)` and skips
-//      a consumer that already ran.
-//   2. Each enqueue carries the deterministic job id `<eventId>-<userId>`, so
-//      an ambiguous relay redelivery between the enqueue and the receipt write
-//      converges on the same BullMQ job instead of queueing a second one
-//      (same technique as integration.property-import-dispatch).
-//   3. Behind that, `insertNotification` itself is convergent: the partial
-//      unique index `notifications_unread_resource_unique` on
-//      (user_id, type, resource_id) over unread, unsettled rows plus the repository's
-//      `onConflictDoUpdate` mean a raced replay UPDATES the unread row rather
-//      than inserting a second one. It is not free, though — the conflict
-//      branch bumps `coalesced_count`, which is user-visible (the copy says how
-//      often a row repeated). That is exactly why fences 1 and 2 exist rather
-//      than leaning on the database alone.
+// resolves current recipients and copy facts, then writes one notice per
+// recipient together with its receipt (`deliverNotices`). The sibling workflow
+// consumers cover assignment, escalation, notes, and Reply lifecycle facts the
+// same way. A redelivery finds the receipt claimed and writes nothing, so it
+// cannot bump a notice's user-visible repeat count.
 //
 // Content-free: identifiers, an enum and counts only (ADR 0030 / BQC-7.3).
 
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   inboxItemId as brandInboxItemId,
   organizationId as brandOrganizationId,
 } from '#/shared/domain/ids'
 import {
-  fanoutInboxItemNotifications,
+  inboxItemCreatedNotices,
   type InboxFanoutDeps,
 } from './inbox-notification-fanout'
+import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 
 const INBOX_ITEM_CREATED_EVENT = 'inbox.inbox_item.created' as const
 export const ON_INBOX_ITEM_CREATED_CONSUMER =
   'notification.on-inbox-item-created' as const
 
-export type NotificationConsumerDeps = InboxFanoutDeps &
-  Readonly<{
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
-  }>
+export type NotificationConsumerDeps = InboxFanoutDeps & NoticeDeliveryDeps
 
 type InboxItemCreatedPayload = Readonly<{
   inboxItemId: string
@@ -75,7 +59,7 @@ function parseInboxItemCreated(event: ConsumerEvent): InboxItemCreatedPayload {
 export async function handleNotificationInboxItemCreated(
   deps: NotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<ConsumerResult> {
   const logger = deps.logger
   const correlationId = event.correlationId ?? undefined
   const payload = parseInboxItemCreated(event)
@@ -89,25 +73,17 @@ export async function handleNotificationInboxItemCreated(
       { correlationId, consumerName: ON_INBOX_ITEM_CREATED_CONSUMER },
       'notification.on-inbox-item-created: inbox item is gone — marking obsolete',
     )
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      ON_INBOX_ITEM_CREATED_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
+    return deliverNotices(deps, event, ON_INBOX_ITEM_CREATED_CONSUMER, [], {
+      status: 'obsolete',
+    })
   }
 
-  const outcome = await fanoutInboxItemNotifications(deps, {
+  const outcome = await inboxItemCreatedNotices(deps, {
     inboxItemId: payload.inboxItemId,
     organizationId: payload.organizationId,
     propertyId: payload.propertyId ?? facts.propertyId,
     sourceType: payload.sourceType ?? facts.sourceType,
-    eventId: event.eventId,
     correlationId: event.correlationId ?? null,
-    // Relay delivery is at-least-once and the receipt is written after the
-    // enqueue; the deterministic id makes the redelivery in that window a
-    // no-op instead of a second notification job.
-    jobIdScope: event.eventId,
   })
 
   // A source that never notifies anybody is a permanent property of the event,
@@ -121,20 +97,26 @@ export async function handleNotificationInboxItemCreated(
       ? 'obsolete'
       : 'applied'
 
-  await deps.receipts.insertReceipt(event.eventId, ON_INBOX_ITEM_CREATED_CONSUMER, status)
+  const result = await deliverNotices(
+    deps,
+    event,
+    ON_INBOX_ITEM_CREATED_CONSUMER,
+    outcome.kind === 'notices' ? outcome.notices : [],
+    { status },
+  )
 
   logger.info(
     {
       correlationId,
       consumerName: ON_INBOX_ITEM_CREATED_CONSUMER,
-      status,
-      recipients: outcome.kind === 'enqueued' ? outcome.recipients : 0,
+      status: result.status,
+      recipients: outcome.kind === 'notices' ? outcome.notices.length : 0,
       skippedReason: outcome.kind === 'skipped' ? outcome.reason : undefined,
     },
     'notification.on-inbox-item-created completed',
   )
 
-  return { status }
+  return result
 }
 
 /**

@@ -11,8 +11,7 @@ import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-appr
 import type { ActivePropertyLookup } from '../application/ports/active-property.port'
 import type { NotificationAudience } from '../application/notification-audience'
 import { resolveReplyApprovalRecipients } from '../application/reply-approval-recipients'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import type { Notice } from '../notify/consumers.server'
 import {
   buildInboxItemPayload,
   type InboxPayloadDeps,
@@ -30,7 +29,6 @@ export type DurableReplyPublicationCancelled = Omit<
 
 export type PublicationCancelledNotificationDeps = InboxPayloadDeps &
   Readonly<{
-    queue: NotificationJobEnqueuePort
     responsibleManagers: Pick<
       ResponsibleManagerLookupPort,
       'findForProperty' | 'isEligibleForProperty'
@@ -105,16 +103,16 @@ async function publicationCancelledRecipients(
  * included — nothing can be approved or published there, and the
  * cancellation is the archive's own consequence.
  */
-export async function enqueuePublicationCancelledNotifications(
+export async function publicationCancelledNotices(
   deps: PublicationCancelledNotificationDeps,
   event: DurableReplyPublicationCancelled,
-): Promise<void> {
+): Promise<ReadonlyArray<Notice>> {
   if (!(await deps.activeProperty(event.organizationId, event.propertyId))) {
     deps.logger.info(
       { correlationId: event.correlationId ?? undefined },
       'notification publication-cancelled delivery: Property is not active, skipping',
     )
-    return
+    return []
   }
   const recipients = await publicationCancelledRecipients(deps, event)
   if (recipients.length === 0) {
@@ -122,37 +120,28 @@ export async function enqueuePublicationCancelledNotifications(
       { correlationId: event.correlationId ?? undefined },
       'notification publication-cancelled delivery: no recipients found, skipping',
     )
-    return
+    return []
   }
 
   const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
     event.reviewId,
     event.organizationId,
   )
-  if (!inboxItem) return
+  if (!inboxItem) return []
 
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: inboxItem,
     orgId: event.organizationId,
     publicationCancellationCause: event.cause,
   })
-  await Promise.all(
-    recipients.map((recipient) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipient.userId,
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          type: 'reply.publication_cancelled',
-          resourceType: 'inbox_item',
-          resourceId: inboxItem,
-          eventId: event.eventId,
-          payload,
-          audience: recipient.audience,
-        },
-        { jobId: `${event.eventId}-${recipient.userId}` },
-      ),
-    ),
-  )
+  return recipients.map((recipient) => ({
+    userId: recipient.userId,
+    organizationId: event.organizationId,
+    propertyId: event.propertyId,
+    type: 'reply.publication_cancelled' as const,
+    resourceType: 'inbox_item' as const,
+    resourceId: inboxItem,
+    payload,
+    audience: recipient.audience,
+  }))
 }
