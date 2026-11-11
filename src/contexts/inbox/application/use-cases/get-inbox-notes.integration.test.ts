@@ -24,7 +24,7 @@ import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
+} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
 
 const ORG_ID = organizationId('org-inbox-notes-test')
 const OTHER_ORG_ID = organizationId('org-inbox-notes-other')

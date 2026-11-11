@@ -1,12 +1,14 @@
-import { describe, it, expect, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Pool } from 'pg'
 import { getInboxItems } from './get-inbox-items'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { getDb } from '#/shared/db'
+import { getEnv } from '#/shared/config/env'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   inboxItemId,
   organizationId,
   propertyId,
   reviewId,
-  feedbackId,
   userId,
 } from '#/shared/domain/ids'
 import type {
@@ -23,14 +25,33 @@ import type { Role } from '#/shared/domain/roles'
 import { isInboxError } from '../../domain/errors'
 import type { ReplyLookupPort } from '../ports/reply-lookup.port'
 import type { InboxViewRepository } from '../ports/inbox-view.repository'
+import type { AiReviewInsightsPort } from '../ports/ai-review-insights.port'
 import type { Cursor } from '../ports/inbox.repository'
+import { createInboxRepository } from '../../infrastructure/repositories/inbox.repository'
+import {
+  buildFixtureItem,
+  fixtureUuid,
+  seedInboxScope,
+} from '../../infrastructure/inbox-database-fixtures-status'
 
+const SCOPE = 'get-inbox-items'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
-const ORG_ID = organizationId('org-1')
-const OTHER_ORG_ID = organizationId('org-2')
-const PROP_ID = propertyId('prop-1')
-const OTHER_PROP_ID = propertyId('prop-2')
+const ORG_ID = organizationId('org-get-inbox-items-test')
+const OTHER_ORG_ID = organizationId('org-get-inbox-items-other')
+const PROP_ID = propertyId(fixtureUuid(SCOPE, 'prop-1'))
+const OTHER_PROP_ID = propertyId(fixtureUuid(SCOPE, 'prop-2'))
+const OTHER_ORG_PROP_ID = propertyId(fixtureUuid(SCOPE, 'prop-other-org'))
 const USER_ID = userId('user-1')
+
+const itemId = (label: string) => inboxItemId(fixtureUuid(SCOPE, label))
+
+const pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+
+const clearScope = async (orgId: string): Promise<void> => {
+  await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [orgId])
+  await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [orgId])
+  await pool.query('DELETE FROM reviews WHERE organization_id = $1', [orgId])
+}
 
 // Mock: AccountAdmin gets null (all access)
 const adminStaffApi: StaffPublicApi = {
@@ -44,44 +65,53 @@ const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAssignedPortals: async () => [],
 })
 
-function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): InboxItem {
-  const { id, ...restOverrides } = overrides
-  const base = {
-    id: inboxItemId(id),
-    organizationId: ORG_ID,
-    propertyId: PROP_ID,
-    sourceType: 'review' as SourceType,
-    sourceId: reviewId(`rev-${id}`),
-    status: 'open' as InboxStatus,
-    rating: 4,
-    sourceDate: new Date('2026-04-10'),
-    platform: 'google',
-    snippet: 'Great!',
-    assignedTo: null,
-    reviewerName: null,
-    propertyName: null,
-    isEscalated: false,
-    escalatedAt: null,
-    escalatedBy: null,
-    escalationResolvedAt: null,
-    escalationResolvedBy: null,
-    closedAt: null,
-    firstReplySubmittedAt: null as Date | null,
-    firstReplyPublishedAt: null as Date | null,
-    commandRevision: 1,
-    createdAt: FIXED_TIME,
-    updatedAt: FIXED_TIME,
-    ...(restOverrides as Partial<InboxItem>),
-  } satisfies InboxItem
-  return base
+function seedItem(
+  label: string,
+  overrides: Partial<Omit<InboxItem, 'id'>> = {},
+): InboxItem {
+  return buildFixtureItem({
+    organizationId: overrides.organizationId ?? ORG_ID,
+    scope: SCOPE,
+    label,
+    status: (overrides.status ?? 'open') as InboxStatus,
+    propertyId: overrides.propertyId ?? PROP_ID,
+    sourceType: (overrides.sourceType ?? 'review') as SourceType,
+    at: FIXED_TIME,
+    overrides,
+  })
 }
 
 const setup = (
   peopleApi: StaffPublicApi = adminStaffApi,
   replyStates: ReadonlyMap<string, InboxItemReplyState> = new Map(),
   viewedUpTo: Date | null = null,
+  issueReviewIds: ReadonlyArray<string> = [],
 ) => {
-  const repo = createInMemoryInboxRepo()
+  const aiInsights = {
+    findCurrentReviewIdsByAttention: vi.fn(async () => []),
+    findCurrentReviewIdsByIssue: vi.fn(async () => issueReviewIds.map(reviewId)),
+  } as unknown as AiReviewInsightsPort
+  const repo = createInboxRepository(
+    getDb(),
+    {
+      reviewLookup: {
+        getReviewSnippetById: async () => ({ status: 'not_found' as const }),
+        getReviewSnippetsByIds: async () => new Map(),
+        findEligibleReviewIds: async () => [],
+      },
+      feedbackLookup: {
+        getFeedbackSnippetById: async () => null,
+        getFeedbackSnippetsByIds: async () => new Map(),
+        findEligibleFeedbackIds: async () => [],
+      },
+      propertyLookup: {
+        getPropertyNameById: async () => null,
+        getPropertyNamesByIds: async () => new Map(),
+      },
+      aiInsights,
+    },
+    { clock: () => FIXED_TIME, logger: createMockLogger() },
+  )
   const getReplyStatesByReviewIds = vi.fn(async () => replyStates)
   const replyLookup: ReplyLookupPort = {
     getEffectiveReplyByReviewId: vi.fn(async () => null),
@@ -94,15 +124,25 @@ const setup = (
     getLastInboxView: vi.fn(async () => viewedUpTo),
     stampLastInboxView: vi.fn(async (_orgId, _userId, now) => now ?? FIXED_TIME),
   }
-  const deps = {
+  const useCase = getInboxItems({
     repo,
     staffPublicApi: peopleApi,
     replyLookup,
     viewRepo,
     clock: () => FIXED_TIME,
+  })
+  const seed = async (...items: InboxItem[]) => {
+    for (const orgId of new Set(items.map((item) => item.organizationId))) {
+      await seedInboxScope(
+        pool,
+        orgId,
+        orgId === ORG_ID ? [PROP_ID, OTHER_PROP_ID] : [OTHER_ORG_PROP_ID],
+        items.filter((item) => item.organizationId === orgId),
+        FIXED_TIME,
+      )
+    }
   }
-  const useCase = getInboxItems(deps)
-  return { useCase, repo, getReplyStatesByReviewIds, replyLookup, viewRepo }
+  return { useCase, seed, getReplyStatesByReviewIds, replyLookup, viewRepo, aiInsights }
 }
 
 const adminCtx = {
@@ -133,11 +173,22 @@ const dynamicCtx = (...permissions: Permission[]): AuthContext => ({
   ),
 })
 
-describe('getInboxItems', () => {
+describe.sequential('getInboxItems', () => {
+  beforeEach(async () => {
+    await clearScope(ORG_ID)
+    await clearScope(OTHER_ORG_ID)
+  })
+
+  afterAll(async () => {
+    await clearScope(ORG_ID)
+    await clearScope(OTHER_ORG_ID)
+    await pool.end()
+  })
+
   it('returns paginated items for an organization', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem({ id: 'ii-1' }))
-    repo.items.push(seedItem({ id: 'ii-2' }))
+    const { useCase, seed } = setup()
+    await seed(seedItem('ii-1'))
+    await seed(seedItem('ii-2'))
 
     const result = await useCase({ filters: {} }, adminCtx)
 
@@ -150,8 +201,8 @@ describe('getInboxItems', () => {
 
   it('returns the caller watermark captured with the page', async () => {
     const viewedUpTo = new Date('2026-04-14T09:00:00Z')
-    const { useCase, repo } = setup(adminStaffApi, new Map(), viewedUpTo)
-    repo.items.push(seedItem({ id: 'ii-viewed-up-to' }))
+    const { useCase, seed } = setup(adminStaffApi, new Map(), viewedUpTo)
+    await seed(seedItem('ii-viewed-up-to'))
 
     const result = await useCase({ filters: {} }, adminCtx)
 
@@ -159,7 +210,7 @@ describe('getInboxItems', () => {
   })
 
   it('reads the visit watermark only for the first page', async () => {
-    const cursorItem = seedItem({ id: 'ii-watermark-cursor' })
+    const cursorItem = seedItem('ii-watermark-cursor')
     const { useCase, viewRepo } = setup(
       adminStaffApi,
       new Map(),
@@ -179,10 +230,10 @@ describe('getInboxItems', () => {
   })
 
   it('applies a reply queue through its effective stage ids', async () => {
-    const awaiting = seedItem({ id: 'ii-awaiting' })
-    const needsReply = seedItem({ id: 'ii-needs-reply' })
-    const { useCase, repo, replyLookup } = setup()
-    repo.items.push(awaiting, needsReply)
+    const awaiting = seedItem('ii-awaiting')
+    const needsReply = seedItem('ii-needs-reply')
+    const { useCase, seed, replyLookup } = setup()
+    await seed(awaiting, needsReply)
     vi.mocked(replyLookup.findReviewIdsByReplyStage).mockResolvedValue({
       awaiting: [awaiting.sourceId as ReturnType<typeof reviewId>],
       waiting: [],
@@ -195,14 +246,12 @@ describe('getInboxItems', () => {
   })
 
   it('intersects a cross-source queue with the active source filter', async () => {
-    const review = seedItem({ id: 'ii-open-review' })
-    const feedback = seedItem({
-      id: 'ii-open-feedback',
+    const review = seedItem('ii-open-review')
+    const feedback = seedItem('ii-open-feedback', {
       sourceType: 'feedback',
-      sourceId: feedbackId('fb-open-feedback'),
     })
-    const { useCase, repo } = setup()
-    repo.items.push(review, feedback)
+    const { useCase, seed } = setup()
+    await seed(review, feedback)
 
     const result = await useCase(
       { filters: { sourceType: 'feedback' }, queue: 'open' },
@@ -213,13 +262,11 @@ describe('getInboxItems', () => {
   })
 
   it('returns no rows when a queue contradicts the active source filter', async () => {
-    const feedback = seedItem({
-      id: 'ii-feedback-queue',
+    const feedback = seedItem('ii-feedback-queue', {
       sourceType: 'feedback',
-      sourceId: feedbackId('fb-feedback-queue'),
     })
-    const { useCase, repo } = setup()
-    repo.items.push(feedback)
+    const { useCase, seed } = setup()
+    await seed(feedback)
 
     const result = await useCase(
       { filters: { sourceType: 'review' }, queue: 'feedback' },
@@ -245,22 +292,20 @@ describe('getInboxItems', () => {
 
   describe('without reply stages, the reply queue is every open Review', () => {
     // The rail's one reply row is then labelled "Open" (ADR 0057, amended 2026-10-28).
-    const seedMixed = (repo: ReturnType<typeof setup>['repo']) => {
-      const awaiting = seedItem({ id: 'ii-awaiting' })
-      const needsReply = seedItem({ id: 'ii-needs-reply' })
-      const closedReview = seedItem({ id: 'ii-closed-review', status: 'closed' })
-      const feedback = seedItem({
-        id: 'ii-open-feedback',
+    const seedMixed = async (seed: ReturnType<typeof setup>['seed']) => {
+      const awaiting = seedItem('ii-awaiting')
+      const needsReply = seedItem('ii-needs-reply')
+      const closedReview = seedItem('ii-closed-review', { status: 'closed' })
+      const feedback = seedItem('ii-open-feedback', {
         sourceType: 'feedback',
-        sourceId: feedbackId('fb-open-feedback'),
       })
-      repo.items.push(awaiting, needsReply, closedReview, feedback)
+      await seed(awaiting, needsReply, closedReview, feedback)
       return { awaiting, needsReply }
     }
 
     it('serves it to an actor without reply.manage, with no stage lookup', async () => {
-      const { useCase, repo, replyLookup } = setup()
-      const { awaiting, needsReply } = seedMixed(repo)
+      const { useCase, seed, replyLookup } = setup()
+      const { awaiting, needsReply } = await seedMixed(seed)
 
       const result = await useCase(
         { filters: {}, queue: 'reply' },
@@ -275,8 +320,8 @@ describe('getInboxItems', () => {
     })
 
     it('serves it when the boundary says reply publication is off, even to a manager', async () => {
-      const { useCase, repo, replyLookup } = setup()
-      const { awaiting, needsReply } = seedMixed(repo)
+      const { useCase, seed, replyLookup } = setup()
+      const { awaiting, needsReply } = await seedMixed(seed)
 
       const result = await useCase(
         { filters: {}, queue: 'reply', replyQueuesEnabled: false },
@@ -301,16 +346,14 @@ describe('getInboxItems', () => {
   })
 
   it('lists closed Reviews under Replied and closed feedback under Handled', async () => {
-    const closedReview = seedItem({ id: 'ii-closed-review', status: 'closed' })
-    const closedFeedback = seedItem({
-      id: 'ii-closed-feedback',
+    const closedReview = seedItem('ii-closed-review', { status: 'closed' })
+    const closedFeedback = seedItem('ii-closed-feedback', {
       status: 'closed',
       sourceType: 'feedback',
-      sourceId: feedbackId('fb-closed-feedback'),
     })
-    const openReview = seedItem({ id: 'ii-open-review' })
-    const { useCase, repo } = setup()
-    repo.items.push(closedReview, closedFeedback, openReview)
+    const openReview = seedItem('ii-open-review')
+    const { useCase, seed } = setup()
+    await seed(closedReview, closedFeedback, openReview)
 
     const replied = await useCase({ filters: {}, queue: 'replied' }, adminCtx)
     const handled = await useCase({ filters: {}, queue: 'handled' }, adminCtx)
@@ -322,18 +365,18 @@ describe('getInboxItems', () => {
   })
 
   it('omits reply state when the actor lacks reply.manage', async () => {
-    const item = seedItem({ id: 'ii-private-reply-state' })
+    const item = seedItem('ii-private-reply-state')
     const replyState: InboxItemReplyState = {
       status: 'pending_approval',
       publicationState: null,
       publicationLastErrorClass: null,
       updatedAt: FIXED_TIME,
     }
-    const { useCase, repo, getReplyStatesByReviewIds } = setup(
+    const { useCase, seed, getReplyStatesByReviewIds } = setup(
       adminStaffApi,
       new Map([[String(item.sourceId), replyState]]),
     )
-    repo.items.push(item)
+    await seed(item)
 
     const result = await useCase({ filters: {} }, dynamicCtx('inbox.read', 'review.read'))
 
@@ -343,12 +386,10 @@ describe('getInboxItems', () => {
   })
 
   it('enriches every review row from one governed reply-state batch', async () => {
-    const withReply = seedItem({ id: 'ii-with-reply' })
-    const withoutReply = seedItem({ id: 'ii-without-reply' })
-    const feedback = seedItem({
-      id: 'ii-feedback',
+    const withReply = seedItem('ii-with-reply')
+    const withoutReply = seedItem('ii-without-reply')
+    const feedback = seedItem('ii-feedback', {
       sourceType: 'feedback',
-      sourceId: feedbackId('fb-list-enrichment'),
     })
     const replyState: InboxItemReplyState = {
       status: 'approved',
@@ -356,11 +397,11 @@ describe('getInboxItems', () => {
       publicationLastErrorClass: null,
       updatedAt: FIXED_TIME,
     }
-    const { useCase, repo, getReplyStatesByReviewIds } = setup(
+    const { useCase, seed, getReplyStatesByReviewIds } = setup(
       adminStaffApi,
       new Map([[String(withReply.sourceId), replyState]]),
     )
-    repo.items.push(withReply, withoutReply, feedback)
+    await seed(withReply, withoutReply, feedback)
 
     const result = await useCase(
       { filters: {} },
@@ -396,16 +437,14 @@ describe('getInboxItems', () => {
     [{ isEscalated: true }, ['4', '5']],
     [{ status: 'open' as const, isEscalated: true }, ['4']],
   ])('keeps status and escalation independent for %j', async (filters, expectedIds) => {
-    const { useCase, repo } = setup()
-    repo.items.push(
-      seedItem({ id: '1' }),
-      seedItem({ id: '2' }),
-      seedItem({ id: '3', sourceType: 'feedback', sourceId: feedbackId('fb-3') }),
-      seedItem({ id: '4', isEscalated: true }),
-      seedItem({
-        id: '5',
+    const { useCase, seed } = setup()
+    await seed(
+      seedItem('1'),
+      seedItem('2'),
+      seedItem('3', { sourceType: 'feedback' }),
+      seedItem('4', { isEscalated: true }),
+      seedItem('5', {
         sourceType: 'feedback',
-        sourceId: feedbackId('fb-5'),
         status: 'closed',
         isEscalated: true,
       }),
@@ -413,31 +452,29 @@ describe('getInboxItems', () => {
 
     const result = await useCase({ filters }, adminCtx)
 
-    expect(result.items.map((item) => item.id).sort()).toEqual(expectedIds)
+    expect(result.items.map((item) => item.id).sort()).toEqual(
+      expectedIds.map(itemId).sort(),
+    )
     expect(result.totalCount).toBe(expectedIds.length)
   })
 
   it('filters by sourceType', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem({ id: 'ii-1', sourceType: 'review' }))
-    repo.items.push(
-      seedItem({ id: 'ii-2', sourceType: 'feedback', sourceId: feedbackId('fb-ii-2') }),
-    )
+    const { useCase, seed } = setup()
+    await seed(seedItem('ii-1', { sourceType: 'review' }))
+    await seed(seedItem('ii-2', { sourceType: 'feedback' }))
 
     const result = await useCase({ filters: { sourceType: 'feedback' } }, adminCtx)
 
     expect(result.items).toHaveLength(1)
-    expect(result.items[0].sourceType).toBe('feedback')
+    expect(result.items[0]?.sourceType).toBe('feedback')
   })
 
   it('omits private-feedback rows when the caller lacks feedback.read', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem({ id: 'ii-review', sourceType: 'review' }))
-    repo.items.push(
-      seedItem({
-        id: 'ii-feedback',
+    const { useCase, seed } = setup()
+    await seed(seedItem('ii-review', { sourceType: 'review' }))
+    await seed(
+      seedItem('ii-feedback', {
         sourceType: 'feedback',
-        sourceId: feedbackId('fb-private'),
       }),
     )
 
@@ -448,20 +485,16 @@ describe('getInboxItems', () => {
   })
 
   it('intersects each source permission scope with Inbox scope', async () => {
-    const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
-    repo.items.push(
-      seedItem({ id: 'review-1', sourceType: 'review', propertyId: PROP_ID }),
-      seedItem({ id: 'review-2', sourceType: 'review', propertyId: OTHER_PROP_ID }),
-      seedItem({
-        id: 'feedback-1',
+    const { useCase, seed } = setup(createScopedStaffApi([PROP_ID]))
+    await seed(
+      seedItem('review-1', { sourceType: 'review', propertyId: PROP_ID }),
+      seedItem('review-2', { sourceType: 'review', propertyId: OTHER_PROP_ID }),
+      seedItem('feedback-1', {
         sourceType: 'feedback',
-        sourceId: feedbackId('feedback-1'),
         propertyId: PROP_ID,
       }),
-      seedItem({
-        id: 'feedback-2',
+      seedItem('feedback-2', {
         sourceType: 'feedback',
-        sourceId: feedbackId('feedback-2'),
         propertyId: OTHER_PROP_ID,
       }),
     )
@@ -480,22 +513,16 @@ describe('getInboxItems', () => {
     )
 
     expect(result.items.map((item) => item.id).sort()).toEqual(
-      [
-        inboxItemId('feedback-1'),
-        inboxItemId('review-1'),
-        inboxItemId('review-2'),
-      ].sort(),
+      [itemId('feedback-1'), itemId('review-1'), itemId('review-2')].sort(),
     )
     expect(result.totalCount).toBe(3)
   })
 
   it('returns an empty page for an explicitly requested unauthorized source', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(
-      seedItem({
-        id: 'ii-feedback',
+    const { useCase, seed } = setup()
+    await seed(
+      seedItem('ii-feedback', {
         sourceType: 'feedback',
-        sourceId: feedbackId('fb-private'),
       }),
     )
 
@@ -514,8 +541,8 @@ describe('getInboxItems', () => {
   })
 
   it('returns no source rows when Inbox read is not paired with an owning-context read', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem({ id: 'ii-review', sourceType: 'review' }))
+    const { useCase, seed } = setup()
+    await seed(seedItem('ii-review', { sourceType: 'review' }))
 
     const result = await useCase({ filters: {} }, dynamicCtx('inbox.read'))
 
@@ -546,44 +573,47 @@ describe('getInboxItems', () => {
   })
 
   it('filters the in-memory repository by an aspect and polarity on one mention', async () => {
-    const { useCase, repo } = setup()
-    const praise = seedItem({ id: 'ii-praise' })
-    const complaint = seedItem({ id: 'ii-complaint' })
-    repo.items.push(praise, complaint)
-    repo.analysisAspects.set(praise.id, [{ aspect: 'wait_time', polarity: 'positive' }])
-    repo.analysisAspects.set(complaint.id, [
-      { aspect: 'wait_time', polarity: 'negative' },
+    const praise = seedItem('ii-praise')
+    const complaint = seedItem('ii-complaint')
+    const { useCase, seed, aiInsights } = setup(adminStaffApi, new Map(), null, [
+      String(complaint.sourceId),
     ])
+    await seed(praise, complaint)
 
     const result = await useCase(
-      { filters: { aspect: ['wait_time'], polarity: ['negative'] } },
+      { filters: { issueId: 'wait_time', polarity: ['negative'] } },
       adminCtx,
     )
 
+    expect(aiInsights.findCurrentReviewIdsByIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ issueId: 'wait_time', polarities: ['negative'] }),
+    )
     expect(result.items.map((item) => item.id)).toEqual([complaint.id])
     expect(result.totalCount).toBe(1)
   })
 
   it('filters by propertyId', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
-    repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
+    const { useCase, seed } = setup()
+    await seed(seedItem('ii-1', { propertyId: PROP_ID }))
+    await seed(seedItem('ii-2', { propertyId: OTHER_PROP_ID }))
 
     const result = await useCase({ filters: { propertyId: PROP_ID } }, adminCtx)
 
     expect(result.items).toHaveLength(1)
-    expect(result.items[0].propertyId).toBe(PROP_ID)
+    expect(result.items[0]?.propertyId).toBe(PROP_ID)
   })
 
   it('does not return items from other organizations', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem({ id: 'ii-1', organizationId: ORG_ID }))
-    repo.items.push(seedItem({ id: 'ii-2', organizationId: OTHER_ORG_ID }))
+    const { useCase, seed } = setup()
+    await seed(seedItem('ii-1', { organizationId: ORG_ID }))
+    await seed(
+      seedItem('ii-2', { organizationId: OTHER_ORG_ID, propertyId: OTHER_ORG_PROP_ID }),
+    )
 
     const result = await useCase({ filters: {} }, adminCtx)
 
     expect(result.items).toHaveLength(1)
-    expect(result.items[0].id).toBe(inboxItemId('ii-1'))
+    expect(result.items[0]?.id).toBe(itemId('ii-1'))
   })
 
   it.each([
@@ -592,23 +622,28 @@ describe('getInboxItems', () => {
     ['newest' as const, 2, ['ii-1', 'ii-3', 'ii-2']],
     ['oldest' as const, 2, ['ii-2', 'ii-3', 'ii-1']],
   ])('paginates in %s order with page size %i', async (sort, limit, expectedIds) => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem({ id: 'ii-1', sourceDate: new Date('2026-04-12') }))
-    repo.items.push(seedItem({ id: 'ii-2', sourceDate: new Date('2026-04-10') }))
-    repo.items.push(seedItem({ id: 'ii-3', sourceDate: new Date('2026-04-11') }))
+    const { useCase, seed } = setup()
+    const seeded = [
+      seedItem('ii-1', { sourceDate: new Date('2026-04-12') }),
+      seedItem('ii-2', { sourceDate: new Date('2026-04-10') }),
+      seedItem('ii-3', { sourceDate: new Date('2026-04-11') }),
+    ]
+    await seed(...seeded)
 
     let cursor: Cursor | undefined
     for (let offset = 0; offset < expectedIds.length; offset += limit) {
       const page = await useCase({ filters: { sort }, cursor, limit }, adminCtx)
 
       expect(page.items.map((item) => item.id)).toEqual(
-        expectedIds.slice(offset, offset + limit),
+        expectedIds.slice(offset, offset + limit).map(itemId),
       )
       expect(page.totalCount).toBe(3)
-      const last = repo.items.find((item) => item.id === expectedIds[offset + limit - 1])
+      const last = seeded.find(
+        (item) => item.id === itemId(expectedIds[offset + limit - 1] ?? ''),
+      )!
       expect(page.nextCursor).toEqual(
         offset + limit < expectedIds.length
-          ? { id: last!.id, sourceDate: last!.sourceDate }
+          ? { id: last.id, sourceDate: last.sourceDate }
           : null,
       )
       cursor = page.nextCursor ?? undefined
@@ -618,9 +653,9 @@ describe('getInboxItems', () => {
   // ── Property scoping tests (F-14 fix) ──────────────────────────────
 
   it('AccountAdmin sees all properties (org-wide role bypass)', async () => {
-    const { useCase, repo } = setup(adminStaffApi)
-    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
-    repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
+    const { useCase, seed } = setup(adminStaffApi)
+    await seed(seedItem('ii-1', { propertyId: PROP_ID }))
+    await seed(seedItem('ii-2', { propertyId: OTHER_PROP_ID }))
 
     const result = await useCase({ filters: {} }, adminCtx)
 
@@ -630,33 +665,33 @@ describe('getInboxItems', () => {
   it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
     // PM holds inbox.manage, but per root CONTEXT.md L72 PM only manages
     // ASSIGNED properties — the read path must scope PM via staff_assignment.
-    const scopedApi = createScopedStaffApi(['prop-1'])
-    const { useCase, repo } = setup(scopedApi)
-    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
-    repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { useCase, seed } = setup(scopedApi)
+    await seed(seedItem('ii-1', { propertyId: PROP_ID }))
+    await seed(seedItem('ii-2', { propertyId: OTHER_PROP_ID }))
 
     const result = await useCase({ filters: {} }, pmCtx)
 
     // Only the assigned property's item is visible
     expect(result.items).toHaveLength(1)
-    expect(result.items[0].propertyId).toBe(PROP_ID)
+    expect(result.items[0]?.propertyId).toBe(PROP_ID)
   })
 
   it('allows PropertyManager to filter by an assigned property', async () => {
-    const scopedApi = createScopedStaffApi(['prop-1'])
-    const { useCase, repo } = setup(scopedApi)
-    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { useCase, seed } = setup(scopedApi)
+    await seed(seedItem('ii-1', { propertyId: PROP_ID }))
 
     const result = await useCase({ filters: { propertyId: PROP_ID } }, pmCtx)
 
     expect(result.items).toHaveLength(1)
-    expect(result.items[0].propertyId).toBe(PROP_ID)
+    expect(result.items[0]?.propertyId).toBe(PROP_ID)
   })
 
   it('denies PropertyManager when filtering by an unassigned property', async () => {
-    const scopedApi = createScopedStaffApi(['prop-1'])
-    const { useCase, repo } = setup(scopedApi)
-    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { useCase, seed } = setup(scopedApi)
+    await seed(seedItem('ii-1', { propertyId: PROP_ID }))
 
     await expect(
       useCase({ filters: { propertyId: OTHER_PROP_ID } }, pmCtx),
@@ -664,21 +699,21 @@ describe('getInboxItems', () => {
   })
 
   it('PropertyManager is property-scoped to accessible properties only', async () => {
-    const scopedApi = createScopedStaffApi(['prop-1'])
-    const { useCase, repo } = setup(scopedApi)
-    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
-    repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { useCase, seed } = setup(scopedApi)
+    await seed(seedItem('ii-1', { propertyId: PROP_ID }))
+    await seed(seedItem('ii-2', { propertyId: OTHER_PROP_ID }))
 
     const result = await useCase({ filters: {} }, assignedManagerCtx)
 
     expect(result.items).toHaveLength(1)
-    expect(result.items[0].propertyId).toBe(PROP_ID)
+    expect(result.items[0]?.propertyId).toBe(PROP_ID)
   })
 
   it('PropertyManager with no accessible properties sees nothing', async () => {
     const scopedApi = createScopedStaffApi([])
-    const { useCase, repo } = setup(scopedApi)
-    repo.items.push(seedItem({ id: 'ii-1' }))
+    const { useCase, seed } = setup(scopedApi)
+    await seed(seedItem('ii-1'))
 
     const result = await useCase({ filters: {} }, assignedManagerCtx)
 
@@ -686,9 +721,9 @@ describe('getInboxItems', () => {
   })
 
   it('Member is denied when filtering by an inaccessible property', async () => {
-    const scopedApi = createScopedStaffApi(['prop-1'])
-    const { useCase, repo } = setup(scopedApi)
-    repo.items.push(seedItem({ id: 'ii-1' }))
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { useCase, seed } = setup(scopedApi)
+    await seed(seedItem('ii-1'))
 
     await expect(
       useCase({ filters: { propertyId: OTHER_PROP_ID } }, assignedManagerCtx),
@@ -696,13 +731,13 @@ describe('getInboxItems', () => {
   })
 
   it('PropertyManager can filter by an accessible property', async () => {
-    const scopedApi = createScopedStaffApi(['prop-1'])
-    const { useCase, repo } = setup(scopedApi)
-    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { useCase, seed } = setup(scopedApi)
+    await seed(seedItem('ii-1', { propertyId: PROP_ID }))
 
     const result = await useCase({ filters: { propertyId: PROP_ID } }, assignedManagerCtx)
 
     expect(result.items).toHaveLength(1)
-    expect(result.items[0].propertyId).toBe(PROP_ID)
+    expect(result.items[0]?.propertyId).toBe(PROP_ID)
   })
 })

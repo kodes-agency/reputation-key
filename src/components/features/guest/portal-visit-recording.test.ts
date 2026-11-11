@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  claimPortalVisit,
   portalVisitStorageKey,
   settlePortalVisit,
   settlePortalVisitFromStorage,
@@ -119,5 +120,14 @@ describe('settlePortalVisit', () => {
     })
 
     expect(secondAttempt).toHaveBeenCalledOnce()
+  })
+})
+
+describe('claimPortalVisit', () => {
+  it('claims a visit once per key and again after the session rotates', () => {
+    const claimed = { current: null as string | null }
+    expect(claimPortalVisit(claimed, portalVisitStorageKey('scope', 'one'))).toBe(true)
+    expect(claimPortalVisit(claimed, portalVisitStorageKey('scope', 'one'))).toBe(false)
+    expect(claimPortalVisit(claimed, portalVisitStorageKey('scope', 'two'))).toBe(true)
   })
 })

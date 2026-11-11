@@ -24,7 +24,7 @@ import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
+} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
 
 const ORG_ID = organizationId('org-inbox-history-test')
 const ITEM_ID = inboxItemId('94a30000-0000-4000-8000-000000000001')

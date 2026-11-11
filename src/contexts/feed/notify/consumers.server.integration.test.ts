@@ -198,11 +198,6 @@ describe.sequential(
         type: 'property.responsibility_needed',
       },
       {
-        eventType: 'identity.organization_lifecycle.changed',
-        consumerName: 'notification.on-identity-organization-purge-pending',
-        type: 'account.organization_purge_pending',
-      },
-      {
         eventType: 'identity.beta_feedback.outcome_reached',
         consumerName: 'notification.on-identity-beta-feedback-outcome',
         type: 'beta_feedback.outcome',

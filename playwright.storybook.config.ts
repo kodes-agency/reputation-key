@@ -5,8 +5,8 @@ import {
   STORYBOOK_URL,
 } from './e2e/storybook-metrics/storybook-server'
 
-// Real-browser geometry against STORYBOOK, not the app. Run it with
-// `pnpm test:storybook:metrics`.
+// Real-browser guest geometry and vitals against STORYBOOK, not the app. Run it
+// with `pnpm test:storybook:metrics`.
 //
 // A separate config, not a project in `playwright.config.ts`, because the two
 // cannot share a test tree or a precondition:
@@ -29,7 +29,7 @@ import {
 // code, its shared renderers, styles and harness dependencies, including screens
 // colocated under the Guest and Portal contexts. It measures guest geometry and
 // reduced motion against a development build and LCP/CLS against a production
-// build. Other metrics suites remain available through `pnpm test:storybook:metrics`.
+// build. `pnpm test:storybook:metrics` runs the same suites against a dev server.
 //
 // ── Which Storybook ─────────────────────────────────────────────────────────
 //
@@ -40,7 +40,7 @@ import {
 export default defineConfig({
   testDir: './e2e/storybook-metrics',
   // NOT `.spec.ts` — see the header. Helpers in the same directory
-  // (`pane-metrics.ts`, `storybook-story.ts`, `inbox-detail-stories.ts`) are
+  // (`pane-metrics.ts`, `storybook-story.ts`, `guest-stories.ts`) are
   // plain modules and match nothing.
   testMatch: /.*\.metrics\.ts$/,
   // Runs after `webServer` is up (Playwright starts plugins, then global

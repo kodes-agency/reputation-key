@@ -25,7 +25,7 @@ import {
   createInboxUseCaseDatabase,
   dropInboxOrganization,
   readOutboxFacts,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
+} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-assign-inbox-item-test')

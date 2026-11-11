@@ -29,7 +29,7 @@ import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
+} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
 
 const ORG_ID = organizationId('org-inbox-property-counts-test')
 const VIEWER = userId('user-1')

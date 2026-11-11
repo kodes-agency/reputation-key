@@ -96,7 +96,7 @@ export const Default: Story = {
     // Every other page keeps its 52 px bar: only a full-bleed surface shrinks it
     // to 44 px on a phone. The height is `--app-top-bar-height` (styles.css), the
     // one the page's sticky elements sit under, and the bar is sticky itself. A
-    // class pin: the real check is `inbox-phone-chrome.metrics.ts` ("app top bar").
+    // class pin.
     const bar = canvasElement.querySelector('header')
     expect(bar).toHaveClass('sticky', 'top-0', 'h-(--app-top-bar-height)')
     expect(bar).not.toHaveAttribute('data-full-bleed')
@@ -147,10 +147,8 @@ export const FullBleed: Story = {
     // on the 16 px gutter, and the 28 px avatar's right edge on the gutter. The
     // bar is a compact workspace, so its controls read the 36 px touch token from
     // the Button; the margins pull the glyphs onto the gutter. Tailwind is not
-    // compiled in this runner, so the geometry itself is the Playwright metrics
-    // gate's; this pins what produces it: the full-bleed mark, under which
-    // styles.css sets `--app-top-bar-height` to 44 px below md. The real check is
-    // `inbox-phone-chrome.metrics.ts` ("app top bar").
+    // compiled in this runner, so this pins what produces the geometry: the full-bleed mark, under which
+    // styles.css sets `--app-top-bar-height` to 44 px below md.
     const header = canvasElement.querySelector('header')
     expect(header).toHaveAttribute('data-full-bleed', 'true')
     expect(header).toHaveClass('h-(--app-top-bar-height)')

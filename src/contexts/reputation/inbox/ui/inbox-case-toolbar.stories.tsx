@@ -1132,8 +1132,7 @@ export const PriorityReadOnlyUrgent: Story = {
  * box is that pane and the window stays the gate's 1440 px, so `md:` and `lg:`
  * apply as they do on the real page. A pane's width is not the window's, which
  * is why the Priority control sizes itself by the toolbar's own width (a
- * container query) and not by a breakpoint; `inbox-case-toolbar-floor.metrics.ts`
- * measures that every story below fits it with the status word whole.
+ * container query) and not by a breakpoint.
  */
 const FLOOR_PANE_WIDTH_PX = 472
 const FLOOR = { paneWidth: FLOOR_PANE_WIDTH_PX } as const

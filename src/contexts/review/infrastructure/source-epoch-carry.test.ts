@@ -78,4 +78,21 @@ describe('isSourceEpochCarry', () => {
       ),
     ).toBe(false)
   })
+
+  it('does not trust equal digests produced by different normalizations', () => {
+    expect(
+      isSourceEpochCarry(
+        evidence(0, 'a', V1),
+        evidence(1, 'a', 'review-material-v2'),
+        'material_change',
+      ),
+    ).toBe(false)
+  })
+
+  it('does not attest a revision with no digest and no recorded comparison', () => {
+    expect(isSourceEpochCarry(evidence(0, 'a'), evidence(1, null), null)).toBe(false)
+    expect(
+      isSourceEpochCarry(evidence(0, 'a'), evidence(1, null), 'material_change'),
+    ).toBe(false)
+  })
 })

@@ -1,8 +1,7 @@
 // How the case toolbar fits the pane it is given, read from its class lists.
 //
 // The widths are CSS, and the unit project has no layout, so this holds the
-// MECHANISM and `e2e/storybook-metrics/inbox-case-toolbar-floor.metrics.ts`
-// measures the result. What it pins is the part a refactor could take away
+// MECHANISM. What it pins is the part a refactor could take away
 // without a story noticing, because no story compiles Tailwind: the toolbar is
 // the `@container`, the Priority control's classes all answer to that container
 // and not to the window (a pane 472 px wide in a 1280 px window is not a phone),

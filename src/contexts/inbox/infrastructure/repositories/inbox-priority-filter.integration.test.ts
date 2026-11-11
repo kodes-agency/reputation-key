@@ -23,7 +23,7 @@ import {
   createInboxUseCaseDatabase,
   dropInboxOrganization,
   setStoredManagerPriority,
-} from '../inbox-database-fixtures-use-cases'
+} from '../inbox-database-fixtures-use-cases-slice'
 
 const ORG = organizationId('org-priority-fixture')
 const PROP = propertyId('94b10000-0000-4000-8000-0000000000a1')

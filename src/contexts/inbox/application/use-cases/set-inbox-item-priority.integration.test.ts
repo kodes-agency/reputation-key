@@ -25,7 +25,7 @@ import {
   dropInboxOrganization,
   readOutboxFacts,
   setStoredManagerPriority,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
+} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
 
 const NOW = new Date('2026-10-28T12:00:00Z')
 const ORG_ID = organizationId('org-set-inbox-priority-test')

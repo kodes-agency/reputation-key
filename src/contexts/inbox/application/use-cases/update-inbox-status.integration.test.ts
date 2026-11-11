@@ -1,32 +1,37 @@
-import { describe, it, expect, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Pool } from 'pg'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import { updateInboxStatus } from './update-inbox-status'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
+import { getEnv } from '#/shared/config/env'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { isInboxError } from '../../domain/errors'
-import {
-  inboxItemId,
-  organizationId,
-  propertyId,
-  reviewId,
-  feedbackId,
-  userId,
-} from '#/shared/domain/ids'
+import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
-import type { ReviewHandlingCycleStore } from '../ports/review-handling-cycle.store'
 import type { ReviewSourceLookupPort } from '../ports/review-source-lookup.port'
 import type { ReviewResponseTargetAuthorityPort } from '../ports/review-response-target-authority.port'
+import {
+  buildFixtureItem,
+  clearInboxScope,
+  createInboxDatabaseStores,
+  fixtureUuid,
+  readOutboxFacts,
+  seedInboxScope,
+} from '../../infrastructure/inbox-database-fixtures-status'
 
+const SCOPE = 'update-inbox-status'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const PROVIDER_TIME = new Date('2026-04-10T12:00:00Z')
-const ORG_ID = organizationId('org-1')
-const ITEM_ID = inboxItemId('ii-1')
+const ORG_ID = organizationId('org-update-inbox-status-test')
+const ITEM_ID = inboxItemId(fixtureUuid(SCOPE, 'ii-1'))
 const USER_ID = userId('user-1')
+const PROP_1 = propertyId(fixtureUuid(SCOPE, 'prop-1'))
+const PROP_OTHER = propertyId(fixtureUuid(SCOPE, 'prop-other'))
+const PROP_ASSIGNED = propertyId(fixtureUuid(SCOPE, 'prop-assigned'))
 
 const ctxFor = (role: Role): AuthContext =>
   ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
@@ -42,33 +47,16 @@ const ctxWith = (...permissions: Permission[]): AuthContext => ({
 })
 
 function seedOpen(overrides?: Partial<InboxItem>): InboxItem {
-  return {
-    id: ITEM_ID,
+  return buildFixtureItem({
     organizationId: ORG_ID,
-    propertyId: propertyId('prop-1'),
-    sourceType: 'feedback' as SourceType,
-    sourceId: feedbackId('fb-1'),
-    status: 'open' as InboxStatus,
-    rating: 4,
-    sourceDate: new Date('2026-04-10'),
-    platform: null,
-    snippet: 'Great!',
-    assignedTo: null,
-    reviewerName: null,
-    propertyName: null,
-    isEscalated: false,
-    escalatedAt: null,
-    escalatedBy: null,
-    escalationResolvedAt: null,
-    escalationResolvedBy: null,
-    closedAt: null,
-    firstReplySubmittedAt: null,
-    firstReplyPublishedAt: null,
-    commandRevision: 1,
-    createdAt: FIXED_TIME,
-    updatedAt: FIXED_TIME,
-    ...overrides,
-  }
+    scope: SCOPE,
+    label: 'ii-1',
+    status: (overrides?.status ?? 'open') as InboxStatus,
+    propertyId: PROP_1,
+    sourceType: (overrides?.sourceType ?? 'feedback') as SourceType,
+    at: FIXED_TIME,
+    overrides: { id: ITEM_ID, ...overrides },
+  })
 }
 
 const staffApiAllAccess: StaffPublicApi = {
@@ -76,61 +64,19 @@ const staffApiAllAccess: StaffPublicApi = {
   getAssignedPortals: async () => [],
 }
 
+const pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+
 const setup = (peopleApi: StaffPublicApi = staffApiAllAccess) => {
-  const repo = createInMemoryInboxRepo()
-  const events = createRecordedOutbox()
-  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
-  const cycleStore: ReviewHandlingCycleStore = {
-    findSourceHead: async (itemId, organizationIdValue) => {
-      const item = repo.items.find(
-        (candidate) =>
-          candidate.id === itemId && candidate.organizationId === organizationIdValue,
-      )
-      return item
-        ? {
-            inboxItemId: item.id,
-            organizationId: item.organizationId,
-            propertyId: item.propertyId,
-            sourceType: item.sourceType,
-            sourceId: item.sourceId,
-            currentCycleNumber: 1,
-            currentSourceRevision: 1,
-            stateRevision: 1,
-            status: item.status,
-          }
-        : null
-    },
-    findHead: async (itemId, organizationIdValue) => {
-      const item = repo.items.find(
-        (candidate) =>
-          candidate.id === itemId &&
-          candidate.organizationId === organizationIdValue &&
-          candidate.sourceType === 'review',
-      )
-      return item
-        ? {
-            inboxItemId: item.id,
-            organizationId: item.organizationId,
-            propertyId: item.propertyId,
-            reviewId: reviewId(item.sourceId),
-            currentCycleNumber: 1,
-            currentMaterialReviewRevision: 1,
-            stateRevision: 1,
-            status: item.status,
-          }
-        : null
-    },
-    listCycles: async () => [],
-    startNext: async () => {
-      throw new Error('not used by status commands')
-    },
-  }
+  const { repo, commandStore, cycleStore } = createInboxDatabaseStores(
+    () => FIXED_TIME,
+    createMockLogger(),
+  )
   const reviewSourceLookup: ReviewSourceLookupPort = {
     getReviewSourceMetaById: async (id) => ({
       id,
-      propertyId: propertyId('prop-1'),
+      propertyId: PROP_1,
       platform: 'google',
-      sourceEpoch: 1,
+      sourceEpoch: 0,
       sourceDate: FIXED_TIME,
       contentExpiresAt: null,
       materialReviewRevision: 1,
@@ -153,7 +99,7 @@ const setup = (peopleApi: StaffPublicApi = staffApiAllAccess) => {
     withInboxProjection: async () => ({ status: 'obsolete' }),
     withExactCurrentBatch: async () => ({ status: 'obsolete' }),
   }
-  const deps = {
+  const execute = updateInboxStatus({
     repo,
     commandStore,
     clock: () => FIXED_TIME,
@@ -161,10 +107,9 @@ const setup = (peopleApi: StaffPublicApi = staffApiAllAccess) => {
     cycleStore,
     reviewSourceLookup,
     responseTargetAuthority,
-  }
-  const execute = updateInboxStatus(deps)
+  })
   type CommandInput = Parameters<typeof execute>[0]
-  const useCase = (
+  const useCase = async (
     input: Omit<CommandInput, 'expectedCommandRevision'> &
       Partial<Pick<CommandInput, 'expectedCommandRevision'>>,
     ctx: AuthContext,
@@ -174,30 +119,44 @@ const setup = (peopleApi: StaffPublicApi = staffApiAllAccess) => {
         ...input,
         expectedCommandRevision:
           input.expectedCommandRevision ??
-          repo.items.find((item) => item.id === input.inboxItemId)?.commandRevision ??
+          (await repo.findById(input.inboxItemId, ORG_ID))?.commandRevision ??
           1,
       },
       ctx,
     )
-  return { useCase, repo, events, commandStore }
+  const stored = async () => (await repo.findById(ITEM_ID, ORG_ID))!
+  const seed = (...items: InboxItem[]) =>
+    seedInboxScope(pool, ORG_ID, [PROP_1, PROP_OTHER, PROP_ASSIGNED], items, FIXED_TIME)
+  return { useCase, seed, stored, commandStore }
 }
 
-describe('updateInboxStatus', () => {
+describe.sequential('updateInboxStatus', () => {
+  beforeAll(async () => {
+    registerAllEventSchemas()
+  })
+
+  beforeEach(() => clearInboxScope(pool, ORG_ID))
+
+  afterAll(async () => {
+    await clearInboxScope(pool, ORG_ID)
+    await pool.end()
+  })
+
   it('routes private-feedback close through the outcome-specific command', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedOpen())
+    const { useCase, seed, stored } = setup()
+    await seed(seedOpen())
 
     await expect(
       useCase({ inboxItemId: ITEM_ID, newStatus: 'closed' }, ctxFor('AccountAdmin')),
     ).rejects.toSatisfy(
       (error: unknown) => isInboxError(error) && error.code === 'invalid_input',
     )
-    expect(repo.items[0]).toMatchObject({ status: 'open', commandRevision: 1 })
+    expect(await stored()).toMatchObject({ status: 'open', commandRevision: 1 })
   })
 
   it('transitions closed → open (reopen)', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedOpen({ status: 'closed' }))
+    const { useCase, seed } = setup()
+    await seed(seedOpen({ status: 'closed' }))
 
     const updated = await useCase(
       {
@@ -212,8 +171,8 @@ describe('updateInboxStatus', () => {
   })
 
   it('throws invalid_transition for same-status transition', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedOpen({ status: 'open' }))
+    const { useCase, seed } = setup()
+    await seed(seedOpen({ status: 'open' }))
 
     await expect(
       useCase({ inboxItemId: ITEM_ID, newStatus: 'open' }, ctxFor('AccountAdmin')),
@@ -231,8 +190,8 @@ describe('updateInboxStatus', () => {
   })
 
   it('records inbox.status.changed when a governed reopen succeeds', async () => {
-    const { useCase, repo, events } = setup()
-    repo.items.push(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
+    const { useCase, seed } = setup()
+    await seed(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
 
     await useCase(
       {
@@ -243,32 +202,28 @@ describe('updateInboxStatus', () => {
       ctxFor('AccountAdmin'),
     )
 
-    const facts = events.facts
+    const facts = await readOutboxFacts(pool, ORG_ID, 'inbox.inbox_item.status_changed')
     expect(facts).toHaveLength(1)
-    expect(facts[0]._tag).toBe('inbox.inbox_item.status_changed')
   })
 
   it('rejects manual close on a Review because Google observation owns closure', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(
-      seedOpen({ sourceType: 'review' as SourceType, sourceId: reviewId('rev-1') }),
-    )
+    const { useCase, seed, stored } = setup()
+    await seed(seedOpen({ sourceType: 'review' as SourceType }))
 
     await expect(
       useCase({ inboxItemId: ITEM_ID, newStatus: 'closed' }, ctxFor('AccountAdmin')),
     ).rejects.toSatisfy(
       (error: unknown) => isInboxError(error) && error.code === 'invalid_input',
     )
-    expect(repo.items[0]?.status).toBe('open')
+    expect((await stored())?.status).toBe('open')
   })
 
   it('reopens a closed Review only with a governed neutral reason', async () => {
-    const { useCase, repo, commandStore } = setup()
+    const { useCase, seed, commandStore } = setup()
     const reopen = vi.spyOn(commandStore, 'reopenReviewCycle')
-    repo.items.push(
+    await seed(
       seedOpen({
         sourceType: 'review',
-        sourceId: reviewId('rev-1'),
         status: 'closed',
         closedAt: FIXED_TIME,
       }),
@@ -305,10 +260,8 @@ describe('updateInboxStatus', () => {
   })
 
   it('rejects generic manual close on a feedback item', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(
-      seedOpen({ sourceType: 'feedback' as SourceType, sourceId: feedbackId('fb-1') }),
-    )
+    const { useCase, seed } = setup()
+    await seed(seedOpen({ sourceType: 'feedback' as SourceType }))
 
     await expect(
       useCase({ inboxItemId: ITEM_ID, newStatus: 'closed' }, ctxFor('AccountAdmin')),
@@ -318,10 +271,8 @@ describe('updateInboxStatus', () => {
   })
 
   it('requires feedback.handle to change private-feedback workflow status', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(
-      seedOpen({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
-    )
+    const { useCase, seed, stored } = setup()
+    await seed(seedOpen({ sourceType: 'feedback' }))
 
     await expect(
       useCase(
@@ -331,14 +282,12 @@ describe('updateInboxStatus', () => {
     ).rejects.toSatisfy(
       (error: unknown) => isInboxError(error) && error.code === 'forbidden',
     )
-    expect(repo.items[0]!.status).toBe('open')
+    expect((await stored()).status).toBe('open')
   })
 
   it('still requires the outcome-specific command with feedback.handle', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(
-      seedOpen({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
-    )
+    const { useCase, seed } = setup()
+    await seed(seedOpen({ sourceType: 'feedback' }))
 
     await expect(
       useCase(
@@ -353,12 +302,10 @@ describe('updateInboxStatus', () => {
   it('intersects feedback.handle scope before changing workflow status', async () => {
     const peopleApi: StaffPublicApi = {
       ...staffApiAllAccess,
-      getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+      getAccessiblePropertyIds: async () => [PROP_OTHER],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(
-      seedOpen({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
-    )
+    const { useCase, seed, stored } = setup(peopleApi)
+    await seed(seedOpen({ sourceType: 'feedback' }))
 
     await expect(
       useCase(
@@ -375,7 +322,7 @@ describe('updateInboxStatus', () => {
     ).rejects.toSatisfy(
       (error: unknown) => isInboxError(error) && error.code === 'forbidden',
     )
-    expect(repo.items[0]!.status).toBe('open')
+    expect((await stored()).status).toBe('open')
   })
 
   it('denies access without inbox.write permission for inaccessible property', async () => {
@@ -383,8 +330,8 @@ describe('updateInboxStatus', () => {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(seedOpen())
+    const { useCase, seed } = setup(peopleApi)
+    await seed(seedOpen())
 
     await expect(
       useCase(
@@ -396,11 +343,11 @@ describe('updateInboxStatus', () => {
 
   it('allows update when user has access to the property', async () => {
     const peopleApi: StaffPublicApi = {
-      getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+      getAccessiblePropertyIds: async () => [PROP_1],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
+    const { useCase, seed } = setup(peopleApi)
+    await seed(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
 
     await expect(
       useCase(
@@ -416,26 +363,26 @@ describe('updateInboxStatus', () => {
 
   it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
     const peopleApi: StaffPublicApi = {
-      getAccessiblePropertyIds: async () => [propertyId('prop-assigned')],
+      getAccessiblePropertyIds: async () => [PROP_ASSIGNED],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(seedOpen({ propertyId: propertyId('prop-other') }))
+    const { useCase, seed, stored } = setup(peopleApi)
+    await seed(seedOpen({ propertyId: PROP_OTHER }))
 
     await expect(
       useCase({ inboxItemId: ITEM_ID, newStatus: 'closed' }, ctxFor('PropertyManager')),
     ).rejects.toMatchObject({ _tag: 'InboxError', code: 'forbidden' })
 
-    expect(repo.items[0]!.status).toBe('open')
+    expect((await stored()).status).toBe('open')
   })
 
   it('allows PropertyManager to update status for an assigned property', async () => {
     const peopleApi: StaffPublicApi = {
-      getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+      getAccessiblePropertyIds: async () => [PROP_1],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
+    const { useCase, seed } = setup(peopleApi)
+    await seed(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
 
     const updated = await useCase(
       {
@@ -456,8 +403,8 @@ describe('updateInboxStatus', () => {
       },
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(peopleApi)
-    repo.items.push(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
+    const { useCase, seed } = setup(peopleApi)
+    await seed(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
 
     await expect(
       useCase(

@@ -29,7 +29,7 @@ import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
+} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
 import { addInboxNote } from './add-inbox-note'
 import { assignInboxItem } from './assign-inbox-item'
 import { correctFeedbackHandlingOutcome } from './correct-feedback-handling-outcome'

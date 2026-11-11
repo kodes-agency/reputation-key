@@ -9,8 +9,9 @@ support command. An Organization is suspended by naming its ID in
 `BETA_SUSPENDED_ORGS`, and its personal data is exported and erased on request
 through the manual procedure in [rights-requests.md](rights-requests.md).
 
-The database still holds the lifecycle tables and their triggers; every
-Organization's row stays `active`. Nothing reads them at run time.
+The Organization lifecycle authority tables, their triggers and the lifecycle
+event are gone. Only `organization_lifecycle_events` remains, an append-only
+ledger that backup erasure hold releases read and write.
 
 ## Property lifecycle
 

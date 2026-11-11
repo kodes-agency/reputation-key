@@ -28,7 +28,7 @@ import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
+} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
 
 const ORG_ID = organizationId('org-inbox-queue-counts-test')
 const PROP_1 = propertyId('94a50000-0000-4000-8000-0000000000a1')

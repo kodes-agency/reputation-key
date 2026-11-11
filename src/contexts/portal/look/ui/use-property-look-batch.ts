@@ -98,9 +98,10 @@ export function usePropertyLookBatch({
     staleTime: 0,
     gcTime: 0,
   })
-  // The portals whose tick the manager turned from where it started. A ready
-  // portal starts ticked, unless it also carries other draft edits.
-  const [flipped, setFlipped] = useState<ReadonlySet<string>>(() => new Set())
+  // What the manager chose for a portal: left out (true) or ticked (false). A
+  // portal not in here follows where it starts: ticked, unless it also carries
+  // other draft edits. A choice stays put when a review is read again.
+  const [choices, setChoices] = useState<ReadonlyMap<string, boolean>>(() => new Map())
   const [run, setRun] = useState<BatchPhase>({ status: 'reviewing' })
   const order = useMemo(() => live.map((row) => row.portalId), [live])
 
@@ -118,18 +119,16 @@ export function usePropertyLookBatch({
       new Set(
         (rows ?? [])
           .filter((item) => item.entry.kind === 'ready')
-          .filter((item) => startsLeftOut(item.entry) !== flipped.has(item.row.portalId))
+          .filter((item) => choices.get(item.row.portalId) ?? startsLeftOut(item.entry))
           .map((item) => item.row.portalId),
       ),
-    [rows, flipped],
+    [rows, choices],
   )
 
-  const toggle = (portalId: string) =>
-    setFlipped((current) => {
-      const next = new Set(current)
-      if (!next.delete(portalId)) next.add(portalId)
-      return next
-    })
+  const toggle = (portalId: string) => {
+    const isLeftOut = leftOut.has(portalId)
+    setChoices((current) => new Map(current).set(portalId, !isLeftOut))
+  }
 
   /** The digest each ready portal was reviewed at: a publish is held to it. */
   const reviewedDigestOf = useMemo(
