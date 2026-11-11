@@ -3,11 +3,11 @@ import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { MerchantAiPropertyAuthorization } from '#/components/features/settings/merchant-ai-property-authorization'
+import { MerchantAiPropertyAuthorization } from '#/contexts/identity/consent/ui/merchant-ai-property-authorization'
 import {
   MerchantAiReadOnlyCard,
   merchantAiReadOnlyState,
-} from '#/components/features/settings/merchant-ai-read-only-card'
+} from '#/contexts/identity/consent/ui/merchant-ai-read-only-card'
 import { propertyAiIsOn } from '#/components/features/property/settings/property-setup-steps'
 import { ReviewAnalysisProgressCard } from '#/components/features/property/settings/review-analysis-progress-card'
 import {

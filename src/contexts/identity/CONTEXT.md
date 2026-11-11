@@ -22,7 +22,7 @@ adapter; no other context reads its tables directly.
 ## Feature folders
 
 Server-side code for these features lives beside its tests in
-`consent/` (merchant AI authorization, notices, deferral, renewal),
+`consent/` (merchant AI authorization, notices, deferral, renewal; its settings screens are in `consent/ui/`),
 `updates/` (product updates), `feedback/` (beta feedback submission and delivery),
 `operator/` (platform console), `staff/` (staff accounts, invitations and
 address checks) and `members/` (member invitations, role changes, removal and

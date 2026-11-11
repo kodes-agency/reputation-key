@@ -7,7 +7,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   AuthedRouterDecorator,
   withRole,
-} from '../../../../.storybook/AuthedRouterDecorator'
+} from '../../../../../.storybook/AuthedRouterDecorator'
 import type { Action } from '#/components/hooks/use-action'
 import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'

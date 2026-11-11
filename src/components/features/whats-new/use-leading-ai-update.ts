@@ -1,8 +1,8 @@
 import { useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { merchantAiNoticeUpdateQuery } from '#/components/features/settings/merchant-ai-notice-update-query'
-import type { MerchantAiNoticeUpdateScope } from '#/components/features/settings/merchant-ai-notice-update-query'
-import { useMarkMerchantAiNoticeUpdateSeen } from '#/components/features/settings/use-mark-merchant-ai-notice-update-seen'
+import { merchantAiNoticeUpdateQuery } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-query'
+import type { MerchantAiNoticeUpdateScope } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-query'
+import { useMarkMerchantAiNoticeUpdateSeen } from '#/contexts/identity/consent/ui/use-mark-merchant-ai-notice-update-seen'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { ProductUpdatesClientGetter } from '#/shared/whats-new/types'
 
