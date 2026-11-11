@@ -14,7 +14,6 @@ import {
   inboxItemId,
   organizationId,
   propertyId,
-  unbrand,
   userId,
   type UserId,
 } from '#/shared/domain/ids'
@@ -124,10 +123,6 @@ export async function handleNotificationAssignmentsReleased(
     event,
     ON_INBOX_ASSIGNMENTS_RELEASED_CONSUMER,
     perProperty.flat(),
-    {
-      jobId: (notice) =>
-        `${event.eventId}-${unbrand(notice.userId)}-${notice.propertyId}`,
-    },
   )
 }
 

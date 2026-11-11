@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Job } from 'bullmq'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -33,10 +32,8 @@ import {
   type HandlingCycleNotificationConsumerDeps,
 } from '#/contexts/feed/infrastructure/handling-cycle-outbox-consumers'
 import { handleNotificationInboxItemCreated } from '#/contexts/feed/infrastructure/notification-outbox-consumers'
-import {
-  createInsertNotificationHandler,
-  type InsertNotificationJobData,
-} from '#/contexts/feed/infrastructure/jobs/insert-notification.job'
+import type { InsertNotificationJobData } from '#/contexts/feed/infrastructure/jobs/insert-notification.job'
+import { insertNotification } from '#/contexts/feed/application/use-cases/insert-notification'
 import { createNotificationWorkState } from '#/contexts/feed/application/notification-work-state'
 import { resolveCategoryPreference } from '#/contexts/feed/domain/notification-preference-resolution'
 import { buildFakeInsertNotificationDeps } from '#/contexts/feed/application/use-cases/test-fixtures'
@@ -109,7 +106,12 @@ function inboxDeps(): InboxConsumerDeps {
 function feedDeps() {
   const jobs: unknown[] = []
   const deps: HandlingCycleNotificationConsumerDeps = {
-    queue: { add: async (_name: string, data: unknown) => jobs.push(data) },
+    noticeWriter: {
+      write: async ({ eventId, notices, status }) => {
+        for (const notice of notices) jobs.push({ ...notice, eventId })
+        return status
+      },
+    },
     userLookup: {
       findByRole: async () => [],
       getEmail: async () => null,
@@ -127,7 +129,6 @@ function feedDeps() {
     }),
     clock: () => CLOCK.deliveredAt,
     logger: createMockLogger(),
-    receipts: { insertReceipt: async () => undefined },
   }
   return { deps, jobs }
 }
@@ -177,9 +178,9 @@ const notAskedForAnArrival = async (): Promise<never> => {
 }
 
 /**
- * The insert-notification jobs, run later on the default queue, asking the
- * real Inbox through the work-state gate whether the review still waits.
- * Returns the notices written.
+ * The notices a consumer handed the writer, written as the writer does: the
+ * real Inbox is asked through the work-state gate whether the review still
+ * waits. Returns the notices written.
  */
 async function writeNotices(jobs: ReadonlyArray<InsertNotificationJobData>) {
   const insert = buildFakeInsertNotificationDeps()
@@ -198,24 +199,30 @@ async function writeNotices(jobs: ReadonlyArray<InsertNotificationJobData>) {
         personalDefault: null,
       }),
   )
-  const handle = createInsertNotificationHandler({
-    ...insert,
-    authorizeAudience: async () => true,
-    workState: createNotificationWorkState({
-      inboxItemLookup: feedDeps().deps.inboxItemLookup,
-      escalationResolutions: { findEscalationResolutionFacts: notAskedForAnArrival },
-      replyStates: { findReplyStatus: notAskedForAnArrival },
-      portalHealthLookup: { findPortalHealthNotificationFacts: notAskedForAnArrival },
-      destinationLookup: {
-        findDestinationApprovalNotificationFacts: notAskedForAnArrival,
-      },
-      responsibleManagers: {
-        findForProperty: notAskedForAnArrival,
-        findForPortal: notAskedForAnArrival,
-      },
-    }),
+  const workState = createNotificationWorkState({
+    inboxItemLookup: feedDeps().deps.inboxItemLookup,
+    escalationResolutions: { findEscalationResolutionFacts: notAskedForAnArrival },
+    replyStates: { findReplyStatus: notAskedForAnArrival },
+    portalHealthLookup: { findPortalHealthNotificationFacts: notAskedForAnArrival },
+    destinationLookup: {
+      findDestinationApprovalNotificationFacts: notAskedForAnArrival,
+    },
+    responsibleManagers: {
+      findForProperty: notAskedForAnArrival,
+      findForPortal: notAskedForAnArrival,
+    },
   })
-  for (const data of jobs) await handle({ data } as Job<InsertNotificationJobData>)
+  const write = insertNotification(insert)
+  for (const { audience, ...notice } of jobs) {
+    const waiting = await workState.isWaiting({
+      organizationId: notice.organizationId,
+      type: notice.type,
+      resourceId: notice.resourceId,
+      audience,
+      recipient: { userId: notice.userId, propertyId: notice.propertyId },
+    })
+    if (waiting !== false) await write(notice, audience)
+  }
   return vi.mocked(insert.notificationRepo.insert).mock.calls.map(([notice]) => notice)
 }
 

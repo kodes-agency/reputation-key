@@ -12,6 +12,7 @@ import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
 import { settledNotificationTypes } from '../domain/notification-settlement'
 import type { HandlingCycleNotificationFacts } from '../application/ports/notification-inbox-item-lookup.port'
+import { noticeWriterOver } from './notification-consumer-test-fixtures'
 
 // ADR 0046: a guest edit that reopens CLOSED work is `inbox.reopened` and stays
 // `urgent_operational` — somebody had considered the item finished. Inbox
@@ -73,12 +74,15 @@ const openHead: HandlingCycleNotificationFacts = {
 
 const makeDeps = (head: HandlingCycleNotificationFacts) => {
   const jobs: Array<{ name: string; data: Record<string, unknown>; opts?: unknown }> = []
+  const queue = {
+    add: vi.fn(async (name: string, data: Record<string, unknown>, opts?: unknown) => {
+      jobs.push({ name, data, opts })
+    }),
+  }
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
-    queue: {
-      add: vi.fn(async (name: string, data: Record<string, unknown>, opts?: unknown) => {
-        jobs.push({ name, data, opts })
-      }),
-    },
+    queue,
+    noticeWriter: noticeWriterOver(queue, receipts),
     userLookup: {
       findByRole: vi.fn(async () => []),
       getEmail: vi.fn(async () => null),
@@ -110,7 +114,7 @@ const makeDeps = (head: HandlingCycleNotificationFacts) => {
       debug: vi.fn(),
       child: vi.fn().mockReturnThis(),
     },
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     jobs,
   }
 }

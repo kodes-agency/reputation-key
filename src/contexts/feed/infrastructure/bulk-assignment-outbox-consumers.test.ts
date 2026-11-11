@@ -6,7 +6,10 @@ import {
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from './notification-consumer-test-fixtures'
 import {
   handleNotificationBulkAssignmentCompleted,
   ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER,
@@ -71,12 +74,14 @@ const event = (payloadOverrides: Record<string, unknown> = {}): ConsumerEvent =>
 
 const makeDeps = () => {
   const fakes = createNotificationConsumerDeps()
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
     queue: fakes.queue,
     userLookup: fakes.userLookup,
     displayNames: fakes.displayNames,
     logger: fakes.logger,
-    receipts: { insertReceipt: vi.fn(async () => {}) },
+    receipts,
     fakes,
   }
 }
@@ -131,7 +136,7 @@ describe('bulk-assignment notification durable consumer', () => {
               inboxItemIds: [ITEM_A1, ITEM_A2],
             },
           }),
-          opts: { jobId: `${EVENT_ID}-${ASSIGNEE}-${PROPERTY_A}` },
+          opts: { jobId: `${EVENT_ID}-${ASSIGNEE}` },
         }),
         expect.objectContaining({
           data: expect.objectContaining({
@@ -147,7 +152,7 @@ describe('bulk-assignment notification durable consumer', () => {
               inboxItemIds: [ITEM_B],
             },
           }),
-          opts: { jobId: `${EVENT_ID}-${ASSIGNEE}-${PROPERTY_B}` },
+          opts: { jobId: `${EVENT_ID}-${ASSIGNEE}` },
         }),
       ]),
     )
@@ -164,10 +169,10 @@ describe('bulk-assignment notification durable consumer', () => {
     await handleNotificationBulkAssignmentCompleted(deps, event())
 
     expect(deps.fakes.jobs.map((job) => job.opts)).toEqual([
-      { jobId: `${EVENT_ID}-${ASSIGNEE}-${PROPERTY_A}` },
-      { jobId: `${EVENT_ID}-${ASSIGNEE}-${PROPERTY_B}` },
-      { jobId: `${EVENT_ID}-${ASSIGNEE}-${PROPERTY_A}` },
-      { jobId: `${EVENT_ID}-${ASSIGNEE}-${PROPERTY_B}` },
+      { jobId: `${EVENT_ID}-${ASSIGNEE}` },
+      { jobId: `${EVENT_ID}-${ASSIGNEE}` },
+      { jobId: `${EVENT_ID}-${ASSIGNEE}` },
+      { jobId: `${EVENT_ID}-${ASSIGNEE}` },
     ])
   })
 

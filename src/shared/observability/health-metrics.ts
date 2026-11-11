@@ -297,9 +297,8 @@ export type HealthSnapshot = Readonly<{
      * notification row for anybody and a delivery not yet decided — "a
      * review arrived and nobody was told". An item whose recipients all muted
      * it is decided, so it never counts. Above zero means delivery is late:
-     * the Feed consumer has not taken the item's fact, or a delivery Redis
-     * accepted has not settled and the reconcile-missing-notifications repair
-     * has not caught up. Saturates at its scan cap; the alert pages on any
+     * the Feed consumer has not taken the item's fact, or an insert-notification
+     * job an earlier release queued has not run yet. Saturates at its scan cap; the alert pages on any
      * count above zero, so the cap costs nothing.
      */
     missingForInboxItemCount: number

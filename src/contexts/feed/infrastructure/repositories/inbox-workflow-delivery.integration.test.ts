@@ -31,6 +31,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import {
   currentRouteDeps,
   dispatch,
+  type QueuedNotice,
 } from '#/shared/testing/notification-route-test-harness'
 import {
   ACTOR,
@@ -53,9 +54,8 @@ import {
 } from '#/contexts/inbox/domain/events'
 import { createRetireMovedAssignment } from '../../application/retire-moved-assignment'
 import { parseNotificationPayload } from '../../domain/notification-payload'
-import type { InsertNotificationJobData } from '../jobs/insert-notification.job'
-import { parseOutboxNotificationDelivery } from '../outbox-notification-delivery'
-import { createNotificationDeliverySettlement } from './notification-delivery-settlement.repository'
+import { createNoticeWriter } from '../../notify/consumers.server'
+import { waitingWorkState } from '../jobs/test-fixtures'
 import { createNotificationEmailRepository } from './notification-email.repository'
 import { createNotificationRepository } from './notification.repository'
 
@@ -168,25 +168,29 @@ describe.sequential('Inbox workflow delivery races (real PostgreSQL)', () => {
     }
   }
 
-  const materialize = async (jobs: readonly InsertNotificationJobData[]) => {
-    const settlement = createNotificationDeliverySettlement({
+  // Writes what a consumer handed the writer, as a separate step so a test can
+  // let another fact land between the two. The receipt is per notice, so a
+  // duplicate delivery of one claims the same name.
+  const materialize = async (jobs: readonly QueuedNotice[]) => {
+    const writer = createNoticeWriter({
       db,
       clock: () => now,
       idGen: () => notificationId(randomUUID()),
       emailIdGen: () => notificationEmailId(randomUUID()),
       logger: currentRouteDeps().logger,
       ratingForRouting: async () => null,
+      authorizeAudience: async () => true,
+      workState: waitingWorkState(),
     })
     return Promise.all(
-      jobs.map(({ audience, delivery: _delivery, ...input }) => {
-        const delivery = parseOutboxNotificationDelivery({
-          ...input,
-          audience,
-          delivery: _delivery,
-        })
-        expect(delivery).not.toBeNull()
-        return settlement.settleAuthorized(input, delivery!, audience)
-      }),
+      jobs.map(({ eventId, consumerName, ...notice }) =>
+        writer.write({
+          eventId,
+          consumerName: `${consumerName}:${notice.userId}:${notice.type}`,
+          status: 'applied',
+          notices: [notice],
+        }),
+      ),
     )
   }
 

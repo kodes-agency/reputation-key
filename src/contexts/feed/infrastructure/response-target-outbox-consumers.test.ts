@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { noticeWriterOver } from './notification-consumer-test-fixtures'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
   createConsumerRegistry,
@@ -85,14 +86,17 @@ const currentFacts = (): ResponseTargetReminderNotificationFacts => ({
 })
 
 const makeDeps = () => {
+  const queue = {
+    add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
+      jobs.push({ name, data, opts })
+    }),
+  }
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   const jobs: Array<{ name: string; data: unknown; opts?: unknown }> = []
   const facts = currentFacts()
   return {
-    queue: {
-      add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
-        jobs.push({ name, data, opts })
-      }),
-    },
+    queue,
+    noticeWriter: noticeWriterOver(queue, receipts),
     userLookup: {
       findByRole: vi.fn(async () => [ADMIN]),
       getEmail: vi.fn(async () => null),
@@ -126,7 +130,7 @@ const makeDeps = () => {
       debug: vi.fn(),
       child: vi.fn().mockReturnThis(),
     },
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     jobs,
   }
 }

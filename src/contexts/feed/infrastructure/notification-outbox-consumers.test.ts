@@ -25,6 +25,7 @@ import {
   createNotificationConsumerDeps,
   type FakeNotificationConsumerDeps,
   NOTIF_TEST_IDS,
+  noticeWriterOver,
 } from './notification-consumer-test-fixtures'
 import { unbrand } from '#/shared/domain/ids'
 
@@ -51,19 +52,25 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
   ...overrides,
 })
 
-type Deps = NotificationConsumerDeps & { fakes: FakeNotificationConsumerDeps }
+type Deps = NotificationConsumerDeps & {
+  fakes: FakeNotificationConsumerDeps
+  queue: FakeNotificationConsumerDeps['queue']
+  receipts: FakeNotificationConsumerDeps['receipts']
+}
 
 const makeDeps = (): Deps => {
   const fakes = createNotificationConsumerDeps()
   fakes.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+  const receipts = { insertReceipt: vi.fn(async () => {}) }
   return {
     queue: fakes.queue,
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
     userLookup: fakes.userLookup,
     responsibleManagers: fakes.responsibleManagers,
     inboxItemLookup: fakes.inboxItemLookup,
     clock: fakes.clock,
     logger: fakes.logger,
-    receipts: { insertReceipt: vi.fn(async () => {}) },
+    receipts,
     fakes,
   }
 }

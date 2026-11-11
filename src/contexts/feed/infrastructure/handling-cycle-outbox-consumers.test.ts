@@ -20,6 +20,7 @@ import type {
   InboxItemFacts,
   InboxItemLookupPort,
 } from '../application/ports/notification-inbox-item-lookup.port'
+import { noticeWriterOver } from './notification-consumer-test-fixtures'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -74,12 +75,15 @@ const event = (
 
 const makeDeps = () => {
   const jobs: Array<{ name: string; data: unknown; opts?: unknown }> = []
+  const queue = {
+    add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
+      jobs.push({ name, data, opts })
+    }),
+  }
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
-    queue: {
-      add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
-        jobs.push({ name, data, opts })
-      }),
-    },
+    queue,
+    noticeWriter: noticeWriterOver(queue, receipts),
     userLookup: {
       findByRole: vi.fn(async () => [ADMIN]),
       getEmail: vi.fn(async () => null),
@@ -134,7 +138,7 @@ const makeDeps = () => {
       debug: vi.fn(),
       child: vi.fn().mockReturnThis(),
     },
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     jobs,
   }
 }
@@ -312,7 +316,7 @@ describe('Handling Cycle notification durable consumers', () => {
           actorRole: 'property_manager',
         },
         items,
-        jobId: `${EVENT_ID}-${recipient}-${property}`,
+        jobId: `${EVENT_ID}-${recipient}`,
       })
       // The actor is responsible too, and is told nothing.
       expect(delivered(deps)).toEqual(
@@ -387,10 +391,21 @@ describe('Handling Cycle notification durable consumers', () => {
       await handleNotificationBulkReopenCompleted(deps, completion(cycles))
       await handleNotificationBulkReopenCompleted(deps, completion(cycles))
       expect(deps.jobs.map((job) => job.opts)).toEqual([
-        { jobId: `${EVENT_ID}-${MANAGER}-${PROPERTY}` },
-        { jobId: `${EVENT_ID}-${OWNER}-${PROPERTY}` },
-        { jobId: `${EVENT_ID}-${MANAGER}-${PROPERTY}` },
-        { jobId: `${EVENT_ID}-${OWNER}-${PROPERTY}` },
+        { jobId: `${EVENT_ID}-${MANAGER}` },
+        { jobId: `${EVENT_ID}-${OWNER}` },
+        { jobId: `${EVENT_ID}-${MANAGER}` },
+        { jobId: `${EVENT_ID}-${OWNER}` },
+      ])
+      expect(
+        deps.jobs.map((job) => {
+          const data = job.data as { userId: string; propertyId: string }
+          return [data.userId, data.propertyId]
+        }),
+      ).toEqual([
+        [MANAGER, PROPERTY],
+        [OWNER, PROPERTY],
+        [MANAGER, PROPERTY],
+        [OWNER, PROPERTY],
       ])
 
       deps.receipts.insertReceipt.mockClear()
