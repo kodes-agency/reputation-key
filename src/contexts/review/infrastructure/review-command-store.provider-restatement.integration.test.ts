@@ -13,6 +13,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createReviewObservationRepository } from './repositories/review-observation.repository'
+import { readObservationHistory } from './testing/review-observation-history'
 
 // On 2026-10-23 Google changed how it wraps translated review text and did not
 // move updateTime. The comparison still found a difference, created Material
@@ -126,9 +127,11 @@ function observe(
 }
 
 const comparisonsOf = async () =>
-  (await createReviewObservationRepository(getDb()).findObservations(REVIEW, ORG)).map(
-    (entry) => [entry.observationSequence, entry.materialRevision, entry.comparison],
-  )
+  (await readObservationHistory(getDb(), REVIEW, ORG)).map((entry) => [
+    entry.observationSequence,
+    entry.materialRevision,
+    entry.comparison,
+  ])
 
 const replyStatus = async () =>
   (

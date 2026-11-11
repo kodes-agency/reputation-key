@@ -16,7 +16,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { createReviewObservationRepository } from './repositories/review-observation.repository'
+import { readObservationHistory } from './testing/review-observation-history'
 
 const ORG = organizationId('review-seq-release-org-a')
 const OTHER_ORG = organizationId('review-seq-release-org-b')
@@ -250,10 +250,7 @@ describe('the Review writer gives back a sequence it did not use', () => {
     expect(await releasedRows()).toEqual([
       { sequence: 2, reason: 'out_of_order_observation' },
     ])
-    const history = await createReviewObservationRepository(getDb()).findObservations(
-      REVIEW,
-      ORG,
-    )
+    const history = await readObservationHistory(getDb(), REVIEW, ORG)
     expect(history.map((entry) => entry.comparison)).toEqual([
       'initial_material_revision',
       'out_of_order_ignored',
@@ -295,10 +292,7 @@ describe('the Review writer gives back a sequence it did not use', () => {
     expect(await headSequence()).toBe(2)
     expect(await releasedRows()).toEqual([])
     expect(await announcedSequences()).toEqual([1, 2])
-    const history = await createReviewObservationRepository(getDb()).findObservations(
-      REVIEW,
-      ORG,
-    )
+    const history = await readObservationHistory(getDb(), REVIEW, ORG)
     // Stored as the shadow match; the report is what says the net fired.
     expect(history.map((entry) => entry.comparison)).toEqual([
       'initial_material_revision',

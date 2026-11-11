@@ -554,11 +554,7 @@ export const createReviewSourceContentLifecycleStore = (
           AND ${reviewSourceObservations.sourceCreatedAt} IS NOT DISTINCT FROM ${reviewSourceContents.sourceCreatedAt}
           AND ${reviewSourceObservations.sourceUpdatedAt} IS NOT DISTINCT FROM ${reviewSourceContents.sourceUpdatedAt}
           AND ${reviewSourceObservations.rating} IS NOT DISTINCT FROM ${reviewSourceContents.rating}
-          AND ${reviewSourceObservations.originalText} IS NOT DISTINCT FROM ${reviewSourceContents.text}
-          AND ${reviewSourceObservations.translatedText} IS NOT DISTINCT FROM ${reviewSourceContents.translatedText}
           AND ${reviewSourceObservations.languageCode} IS NOT DISTINCT FROM ${reviewSourceContents.languageCode}
-          AND ${reviewSourceObservations.reviewerName} IS NOT DISTINCT FROM ${reviewSourceContents.reviewerName}
-          AND ${reviewSourceObservations.reviewerProfilePhotoUrl} IS NOT DISTINCT FROM ${reviewSourceContents.reviewerProfilePhotoUrl}
           AND ${reviewSourceObservations.reviewedAt} IS NOT DISTINCT FROM ${reviewSourceContents.reviewedAt}
           AND ${reviewSourceObservations.contentState} = 'active'
         )`,
