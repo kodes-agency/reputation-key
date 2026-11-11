@@ -1,4 +1,9 @@
 import { createHash } from 'node:crypto'
+import {
+  GOOGLE_RETRY_MAX_MS,
+  GOOGLE_RETRY_MIN_MS,
+  googleRetryFloorMs,
+} from './retry-floor'
 
 export function hashBoundedRequestBody(
   body: Uint8Array,
@@ -44,9 +49,6 @@ export async function executeWithSingle401Refresh<TToken, TResult>(
   return input.send(refreshed, 2)
 }
 
-const GOOGLE_RETRY_MIN_MS = 5_000
-const GOOGLE_RETRY_MAX_MS = 300_000
-
 export function parseGoogleRetryAfterMs(
   value: string | null,
   nowMs: number,
@@ -61,19 +63,6 @@ export function parseGoogleRetryAfterMs(
   const atMs = Date.parse(trimmed)
   if (!Number.isFinite(atMs)) return null
   return Math.min(Math.max(0, atMs - nowMs), GOOGLE_RETRY_MAX_MS)
-}
-
-/**
- * Floor an already-parsed retry hint onto the same 5s..300s schedule as
- * `googleRetryDelayMs`. The gateway reports milliseconds rather than a header,
- * and a missing or zero hint must still produce a real wait: surfacing "retry
- * now" told the caller to wait while enabling the action immediately.
- */
-export function googleRetryFloorMs(retryAfterMs: number | null): number {
-  if (retryAfterMs === null || !Number.isSafeInteger(retryAfterMs)) {
-    return GOOGLE_RETRY_MIN_MS
-  }
-  return Math.min(GOOGLE_RETRY_MAX_MS, Math.max(GOOGLE_RETRY_MIN_MS, retryAfterMs))
 }
 
 export function googleRetryDelayMs(

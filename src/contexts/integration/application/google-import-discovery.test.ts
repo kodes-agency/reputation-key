@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { errorFactTags } from '#/shared/observability/error-facts'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
-import { createGbpApiError } from '../domain/gbp-api-error'
+import { createGoogleCallError } from '../domain/google-call-error'
 import type {
   GoogleImportReferenceStore,
   ImportDiscoveryAuthorization,
@@ -467,7 +467,9 @@ describe('Google import discovery', () => {
     'surfaces a %s account-page failure as %s rather than one collapsed outage',
     async (kind, expected) => {
       const { discovery, accounts, references, logger } = setup()
-      accounts.listAccounts.mockRejectedValueOnce(createGbpApiError('listAccounts', kind))
+      accounts.listAccounts.mockRejectedValueOnce(
+        createGoogleCallError('listAccounts', kind),
+      )
 
       await expect(discovery.listAccounts({ connectionId }, actor)).rejects.toMatchObject(
         { code: expected },
@@ -487,7 +489,7 @@ describe('Google import discovery', () => {
   ] as const)('classifies a %s location-page failure as %s', async (kind, expected) => {
     const { discovery, locations, classifyCandidates, logger } = setup()
     locations.listLocations.mockRejectedValueOnce(
-      createGbpApiError('listLocations', kind),
+      createGoogleCallError('listLocations', kind),
     )
 
     await expect(

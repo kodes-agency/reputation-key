@@ -1,3 +1,4 @@
+import { translatedGoogleReviewApi } from '../google-review-api-error'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
@@ -56,7 +57,9 @@ export const readReviewBeforePublish =
     }
     if (!(await sourceIsCurrent())) return { status: 'obsolete' }
 
-    const providerResult = await deps.googleReviewApi.getReview({
+    const providerResult = await translatedGoogleReviewApi(
+      deps.googleReviewApi,
+    ).getReview({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       connectionId: input.connectionId,

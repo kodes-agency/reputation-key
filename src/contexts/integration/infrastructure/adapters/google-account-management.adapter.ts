@@ -4,7 +4,7 @@ import type {
   GoogleAccountManagementPort,
 } from '../../application/google-provider-contract'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
-import { createGbpApiError } from '../../domain/gbp-api-error'
+import { createGoogleCallError } from '../../domain/google-call-error'
 import { executeGoogleProviderJson } from '../../provider/google-client.server'
 import { parseGoogleProviderResourceSuffix } from './google-resource-suffix'
 
@@ -67,14 +67,14 @@ export const createGoogleAccountManagementAdapter = (
       })
       const parsed = accountsPageSchema.safeParse(raw)
       if (!parsed.success) {
-        throw createGbpApiError('listAccounts', 'parse_error')
+        throw createGoogleCallError('listAccounts', 'parse_error')
       }
       const items: GbpAccount[] = []
       const seen = new Set<string>()
       for (const rawAccount of parsed.data.accounts ?? []) {
         const account = parseAccount(rawAccount)
         if (!account || seen.has(account.accountId)) {
-          throw createGbpApiError('listAccounts', 'parse_error')
+          throw createGoogleCallError('listAccounts', 'parse_error')
         }
         seen.add(account.accountId)
         items.push(account)
