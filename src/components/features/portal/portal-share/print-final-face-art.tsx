@@ -29,11 +29,7 @@ import { PRINT_KIT_PAPER } from '#/shared/domain/portal-print-kit-palette'
 import type { PointsToLength } from './print-kit-code-block-layout'
 import { PrintFinalFaceParts } from './print-final-face-parts'
 import { PrintFinalImmersiveArt } from './print-final-immersive-art'
-import {
-  usePrintFinalDrawnFace,
-  type PrintFinalDrawnFace,
-  type PrintFinalFaceInput,
-} from './use-print-final-drawn-face'
+import { type PrintFinalDrawnFace } from './use-print-final-drawn-face'
 
 const ignoreAspect = () => undefined
 
@@ -93,25 +89,5 @@ export function PrintFinalDrawnFaceArt({
         pt={pt}
       />
     </div>
-  )
-}
-
-type Props = PrintFinalFaceInput &
-  Readonly<{
-    codeUrl: string | null
-    pt: PointsToLength
-  }>
-
-/** One face, laid out and drawn. */
-export function PrintFinalFaceArt(props: Props) {
-  const drawn = usePrintFinalDrawnFace(props)
-  return (
-    <PrintFinalDrawnFaceArt
-      drawn={drawn}
-      look={props.look}
-      codeUrl={props.codeUrl}
-      framing={props.framing}
-      pt={props.pt}
-    />
   )
 }

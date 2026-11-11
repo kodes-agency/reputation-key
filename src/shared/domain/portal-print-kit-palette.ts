@@ -31,14 +31,6 @@ const PRINT_KIT_BODY = '#F6F1E8'
 /** The tile under the code: fixed, so any phone reads it. */
 export const PRINT_KIT_TILE = '#F6F1E6'
 const WHITE = '#FFFFFF'
-
-/**
- * How strongly the washes are painted at their peak over the field. The guest
- * backdrop paints them at about twice this; on a card they sit behind small type
- * and a near-black field, so they are quieter.
- */
-export const PRINT_KIT_WASH_ALPHA = 0.3
-
 /** The contrast each token is held to, in the order the spec lists them. */
 export const PRINT_KIT_CONTRAST = {
   /** Paper accent-ink: 6:1 rather than 4.5:1, because toner prints small type lighter. */
