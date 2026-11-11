@@ -44,6 +44,17 @@ describe('pnpm ops command table', () => {
     expect(unresolved).toEqual([])
   })
 
+  it('lists every command in the operator command census', () => {
+    const census = readFileSync(
+      resolve(ROOT, 'docs/operations/operator-commands.md'),
+      'utf8',
+    )
+    const section = census.slice(census.indexOf('## Command census'))
+    const rows = section.slice(0, section.indexOf('\nThe commands:'))
+    const missing = Object.keys(COMMANDS).filter((name) => !rows.includes(`\`${name}\``))
+    expect(missing).toEqual([])
+  })
+
   it('points every command at a script that exists', () => {
     const missing = Object.entries(COMMANDS)
       .filter(([, [file]]) => !existsSync(resolve(ROOT, file)))

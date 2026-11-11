@@ -33,7 +33,7 @@ import {
   type CapabilityRefusalReport,
   type ObservedFact,
 } from '../../src/shared/governance/capability-refusal'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:report-capability-refusal'
 const USAGE =
@@ -161,7 +161,7 @@ async function main(): Promise<void> {
       }
     : undefined
 
-  const result = await runOperatorCommand(
+  const result = await runDatabaseOperatorCommand(
     {
       name: COMMAND_NAME,
       scope: 'global',
