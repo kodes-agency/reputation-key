@@ -62,9 +62,9 @@ const mkRequest = (body: unknown, auth: string | null = 'Bearer valid-token') =>
   })
 
 // The exact shape Google's My Business Notifications API publishes, captured
-// from the beta's topic on 2026-09-29: no attributes, `location` and `review`
-// resource names, and the kind in `type`. The webhook had required
-// `locationName`/`reviewName`, so every real push was answered 400.
+// from a live topic: no attributes, `location` and `review` resource names,
+// and the kind in `type`. The webhook must not require `locationName` or
+// `reviewName`, which real pushes never carry.
 const VALID_PAYLOAD = Object.freeze({
   type: 'NEW_REVIEW',
   location: GOOGLE_LOCATION_PRIMARY_RESOURCE,

@@ -1,9 +1,9 @@
 // How a dashboard topic page (Ratings, Guest voice) reads its range.
 //
-// The range used to be a loader dependency, so choosing one made a new route
-// match, and a new match shows the route's pending fallback at once: the page
-// (header, range control and all) was replaced by a skeleton and the keyboard
-// focus was lost. Now the range is not a dependency. The loader primes the range
+// The range is not a loader dependency: choosing one would make a new route
+// match, and a new match shows the route's pending fallback at once, replacing
+// the page (header, range control and all) with a skeleton and losing the
+// keyboard focus. The loader primes the range
 // the URL names when the page is entered, and the page reads whatever range is
 // chosen through the query cache, keeping the previous one on screen, dimmed,
 // until the new one arrives.

@@ -1,4 +1,4 @@
-// Notification context — Resend delivery-event webhook endpoint (ADR 0046 r.6).
+// Notification context — Resend delivery-event webhook endpoint.
 //
 // Structured after `api/webhooks/gbp/notifications.ts`: the route is thin — it
 // verifies the signature (an API endpoint concern), parses the event, then
@@ -33,8 +33,8 @@ import { trace } from '#/shared/observability/trace'
 
 // Only the fields we act on. Resend adds fields freely, so the schema stays
 // permissive about everything else — and deliberately never reads a message
-// event's `data.to`, `data.subject` or `data.html`: BQC-1.6 keeps recipient
-// content out of this process, and the queue row already knows who it was
+// event's `data.to`, `data.subject` or `data.html`: recipient
+// content stays out of this process, and the queue row already knows who it was
 // for. Of a bounce only its `type` is read, a classification (Permanent,
 // Transient, Undetermined): the provider's message is the recipient server's
 // text.

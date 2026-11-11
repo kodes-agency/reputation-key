@@ -68,7 +68,7 @@ const GOALS = '_authenticated/properties/$propertyId/goals'
 
 /**
  * Reads that more than one goal page defines for itself, and may. Sharing them
- * was measured on 2026-10-13, on production builds of the same tree: against
+ * was measured on production builds of the same tree: against
  * 307,592 B gzip for the first-paint closure with the copies below, one module
  * for the two beside the goal routes gave 308,008 B (+416) and defining them in
  * `route-queries.ts` gave 307,801 B (+209). A shared module is a chunk of its
@@ -81,12 +81,12 @@ const GOALS = '_authenticated/properties/$propertyId/goals'
  */
 const LEAF_COPIES: Readonly<Record<string, readonly string[]>> = {
   "goalKeys.list({ propertyId, model: 'program' })": [
-    // The New goal page's copy went with the page (PG-20).
+    // The New goal page's copy went with the page.
     `${GOALS}/-portal-goal-queries.ts`,
     `${GOALS}/index.tsx`,
   ],
   'portalKeys.goalSubjectNames(propertyId)': [
-    // The goal page's copy went with its old dialogs (PG-21): each goal page's
+    // The goal page's copy went with its old dialogs: each goal page's
     // read is the Portal goals' own now.
     `${GOALS}/-portal-goal-queries.ts`,
     `${GOALS}/index.tsx`,
@@ -103,7 +103,7 @@ describe('route query options', () => {
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'card')")
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'page')")
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'add')")
-    // A goal's own page (PG-21): one Portal's, one group's or the average's.
+    // A goal's own page: one Portal's, one group's or the average's.
     expect(keys).toContain('goalKeys.portalGoalRead(propertyId, `goal:${programId}`)')
   })
 
