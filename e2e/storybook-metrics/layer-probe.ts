@@ -30,7 +30,7 @@
 // exceeded" instead of "scrollWidth 452 > clientWidth 390". Here every action
 // has its own short timeout, every failure becomes a `ProbeReport.error`
 // naming the trigger and whatever intercepted it, and the caller has judged
-// the pane before any of this runs (`inbox-detail.metrics.ts`).
+// the pane before any of this runs.
 
 import type { Locator, Page } from '@playwright/test'
 import {

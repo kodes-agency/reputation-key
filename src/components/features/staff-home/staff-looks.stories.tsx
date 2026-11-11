@@ -138,7 +138,6 @@ const landscape: Story['play'] = async ({ canvasElement }) => {
   const canvas = within(canvasElement)
   const image = await canvas.findByRole('img', { name: 'Code for guests to scan' })
   const box = image.getBoundingClientRect()
-  // The fit against the tabs is measured with the real stylesheet: e2e/storybook-metrics.
   await expect(box.width).toBeCloseTo(box.height, 0)
   await expect(box.width).toBeGreaterThan(200)
 }
