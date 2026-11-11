@@ -217,7 +217,7 @@ export async function prefetchPortalGoalResults(
 }
 
 /**
- * What "Add a portal goal" offers (PLAN PG-20): made of Portal's facts as much
+ * What "Add a portal goal" offers: made of Portal's facts as much
  * as the goals, so it goes stale as soon as the card before a goal does; every
  * Portal-goal command marks it stale with the rest (`portalGoal(propertyId)`).
  */
@@ -250,7 +250,7 @@ export const portalGoalAddCommands = {
 }
 
 /**
- * What an added goal marks stale (PLAN PG-20): every Portal-goal read, through
+ * What an added goal marks stale: every Portal-goal read, through
  * `markPortalGoalReadsStale`, and the month so far of the goals that target each
  * subject it was added for (`progress(propertyId, 'portal_group:<id>')`, a Portal
  * Group page's goal card), which sits under no Portal-goal key. Never the Goals
@@ -270,7 +270,7 @@ export async function markPortalGoalAddedStale(
 }
 
 /**
- * A Portal's Results line (PLAN PG-16): its count toward the Monthly portal
+ * A Portal's Results line: its count toward the Monthly portal
  * goal this month, or its own goal's month so far; null for no line. Fresh as
  * long as a running month's read.
  */
@@ -283,7 +283,7 @@ export const portalGoalLineQuery = (propertyId: string, portalId: string) =>
   })
 
 /**
- * The Overview prompt's "Not now" (PLAN PG-16), fetched with its first use like
+ * The Overview prompt's "Not now", fetched with its first use like
  * the other commands; it marks the reads stale through `markPortalGoalReadsStale`.
  */
 export const deferPortalGoalPrompt = async (
@@ -291,8 +291,8 @@ export const deferPortalGoalPrompt = async (
 ) => (await server()).deferMonthlyPortalGoalPrompt(input)
 
 /**
- * The page of a goal for one Portal, one Portal Group or the average (PLAN
- * PG-21), on `$goalId`; a Property count goal answers that its page is
+ * The page of a goal for one Portal, one Portal Group or the average, on
+ * `$goalId`; a Property count goal answers that its page is
  * `/goals/portals`. Under the Portal goals' key, so every Portal-goal command
  * marks it stale with the rest. Fresh as long as a running month's read.
  */

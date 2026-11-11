@@ -1,4 +1,4 @@
-// Platform operator console (ADR 0065): the owner creates each Organization,
+// Platform operator console: the owner creates each Organization,
 // without joining it, and hands it to its first Account Admin.
 //
 // It sits OUTSIDE `_authenticated` because the operator holds no role in the
