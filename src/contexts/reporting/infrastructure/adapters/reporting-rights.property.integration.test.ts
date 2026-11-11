@@ -22,25 +22,19 @@ import {
 import type { RightsRequestPlan } from '#/shared/ops/rights/rights-request-command'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import {
-  REPORTING_ORGANIZATION_ONLY_TABLES,
-  REPORTING_PURGE_ORDER,
-} from './reporting-rights-plan'
+import { REPORTING_PURGE_ORDER } from './reporting-rights-plan'
 import {
   createReportingRightsExecutor,
   reportingPurgeInTransaction,
 } from './reporting-rights.adapter'
 
 const AT = new Date('2026-08-01T00:00:00.000Z')
-const PROPERTY_REVIEW_DASHBOARD_VERSION = '11111111-1111-4111-8111-111111111205'
+const PORTAL_RATING_VERSION = '11111111-1111-4111-8111-111111111202'
 const JOURNAL_CONTEXTS: ReadonlyArray<BackupErasureLedgerContext> = [
   'goal',
   'metric',
   'dashboard',
 ]
-const PROPERTY_TABLES = REPORTING_PURGE_ORDER.filter(
-  (table) => !REPORTING_ORGANIZATION_ONLY_TABLES.includes(table),
-)
 
 type Seeded = Readonly<{ organizationId: string; propertyA: string; propertyB: string }>
 
@@ -70,14 +64,14 @@ async function seedProperty(organizationId: string, propertyId: string): Promise
        id, organization_id, property_id, metric_key, value, definition_version_id,
        source_event_id, source_policy, exact_value, sample_count, attribution_quality,
        recorded_at, event_at, property_local_date, data_quality, retention_class
-     ) VALUES ($1::uuid, $2, $3::uuid, 'property.review', 5::real, $4, $5,
-               'google_property_derivative', 5::numeric, 1, 'exact', $6, $6,
+     ) VALUES ($1::uuid, $2, $3::uuid, 'portal.rating', 5::real, $4, $5,
+               'first_party_guest_private', 5::numeric, 1, 'exact', $6, $6,
                '2026-08-01', 'exact', 'guest_gateway_metric')`,
     [
       readingId,
       organizationId,
       propertyId,
-      PROPERTY_REVIEW_DASHBOARD_VERSION,
+      PORTAL_RATING_VERSION,
       `rights-${readingId}`,
       AT,
     ],
@@ -109,11 +103,6 @@ async function seedTracked(): Promise<Seeded> {
   )
   await seedProperty(seeded.organizationId, seeded.propertyA)
   await seedProperty(seeded.organizationId, seeded.propertyB)
-  await query(
-    `INSERT INTO setup_checklist_milestones (organization_id, step, first_completed_at, created_at)
-     VALUES ($1, 'published_portal', $2, $2)`,
-    [seeded.organizationId, AT],
-  )
   return seeded
 }
 
@@ -129,7 +118,7 @@ function propertyRows(table: string): string {
 /** One Property's rows in every purgeable table, as canonical JSON. */
 async function propertySnapshot(organizationId: string, propertyId: string) {
   const tables: Record<string, unknown> = {}
-  for (const table of PROPERTY_TABLES) {
+  for (const table of REPORTING_PURGE_ORDER) {
     const result = await query(
       `SELECT coalesce(jsonb_agg(r ORDER BY r::text), '[]'::jsonb) AS rows
        FROM (${propertyRows(table)}) s`,
@@ -142,17 +131,12 @@ async function propertySnapshot(organizationId: string, propertyId: string) {
 
 /** Everything the Organization holds outside any one Property's purgeable rows. */
 async function organizationLevel(organizationId: string): Promise<string> {
-  const milestones = await query(
-    `SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text), '[]'::jsonb) AS rows
-     FROM setup_checklist_milestones t WHERE organization_id = $1`,
-    [organizationId],
-  )
   const properties = await query(
     `SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text), '[]'::jsonb) AS rows
      FROM properties t WHERE organization_id = $1`,
     [organizationId],
   )
-  return JSON.stringify([milestones.rows[0]?.rows, properties.rows[0]?.rows])
+  return JSON.stringify([properties.rows[0]?.rows])
 }
 
 async function whole(seeded: Seeded): Promise<string> {
@@ -165,7 +149,7 @@ async function whole(seeded: Seeded): Promise<string> {
 
 async function counts(organizationId: string, propertyId: string) {
   const held: Record<string, number> = {}
-  for (const table of PROPERTY_TABLES) {
+  for (const table of REPORTING_PURGE_ORDER) {
     const result = await query(
       `SELECT count(*)::int AS n FROM (${propertyRows(table)}) s`,
       [organizationId, propertyId],
@@ -181,7 +165,7 @@ const total = (held: Record<string, number>) =>
 /** Puts back the rows a snapshot held, roots of a supersession chain first. */
 async function resurrect(snapshot: string): Promise<void> {
   const tables = JSON.parse(snapshot) as Record<string, Array<Record<string, unknown>>>
-  for (const table of [...PROPERTY_TABLES].reverse()) {
+  for (const table of [...REPORTING_PURGE_ORDER].reverse()) {
     const rows = tables[table] ?? []
     const isTip = (row: Record<string, unknown>) =>
       Object.entries(row).some(([key, value]) => key.startsWith('supersedes_') && value)
@@ -293,7 +277,6 @@ describe('reporting rights for a Property request', () => {
         'reporting: metric_corrections 2',
       ]),
     )
-    expect(result.out.join('\n')).not.toContain('setup_checklist_milestones')
     expect(await whole(asked)).toBe(before)
   })
 

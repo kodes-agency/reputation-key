@@ -32,11 +32,6 @@ const GUEST_OUTBOX_SOURCE_CONTEXT = 'guest'
  * The explicit, static Guest purge plan, innermost dependency first.
  *
  * Deliberately NOT here:
- * - `portal_metric_lifetime_aggregates`: the ANONYMOUS lifetime aggregate the
- *   Metric context and every Portal statistic depend on. It is Metric's row
- *   and Metric's receipt. Guest must never edit or delete it, and — see
- *   `verifyPurgeReadiness` — must not scrub the source facts until every
- *   correction has reached it, or the aggregate silently becomes wrong.
  * - the `guest_contact_purge` idempotency receipt: a single global cursor for
  *   the serialized 30-day retention authority. It has no tenant scope and
  *   holds no tenant content; deleting it would corrupt an unrelated sweep.

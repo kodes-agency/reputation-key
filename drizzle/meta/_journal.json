@@ -897,6 +897,13 @@
       "when": 1800100007000,
       "tag": "0127_drop_portal_group_members",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1800100008000,
+      "tag": "0128_drop_retired_reporting_tables",
+      "breakpoints": true
     }
   ]
 }
