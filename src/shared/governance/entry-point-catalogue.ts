@@ -70,6 +70,9 @@ export type SystemAction =
   | 'system:portal.health_reconcile'
   | 'system:portal.responsibility_reannounce'
   | 'system:portal.release_member_responsibility'
+  | 'system:identity.member_role_cleanup'
+  | 'system:inbox.release_member_assignments'
+  | 'system:integration.release_member_google_authority'
   | 'system:portal.destination_revalidate'
   | 'system:portal.media_sweep'
   | 'system:property.import_v2'
@@ -390,6 +393,27 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   consumer(
     'portal.member-offboarding',
     'system:portal.release_member_responsibility',
+    'none',
+    'organization',
+  ),
+  consumer(
+    'inbox.member-offboarding',
+    'system:inbox.release_member_assignments',
+    'none',
+    'organization',
+  ),
+  // A role change's cleanup: what the member may no longer be responsible for.
+  consumer(
+    'identity.member-role-cleanup',
+    'system:identity.member_role_cleanup',
+    'none',
+    'organization',
+  ),
+  // Google authority a departing or demoted AccountAdmin held: fence and
+  // cancel. No provider call, and a denied consumer is never retried.
+  consumer(
+    'integration.member-departure',
+    'system:integration.release_member_google_authority',
     'none',
     'organization',
   ),

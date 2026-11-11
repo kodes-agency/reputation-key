@@ -194,7 +194,9 @@ export type InboxCommandStore = Readonly<{
     input: Readonly<{
       organizationId: OrganizationId
       userId: UserId
-      actorId: UserId
+      actorId: UserId | null
+      /** A removed member's release says so; otherwise they became ineligible. */
+      releaseReason?: 'member_offboarded'
       at: Date
     }>,
     tx?: Tx,

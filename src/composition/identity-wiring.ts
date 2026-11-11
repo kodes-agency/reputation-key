@@ -8,12 +8,11 @@ import { buildIdentityContext, buildPlatformConsole } from '#/contexts/identity/
 import { createStaffInvitationBudget } from '#/contexts/identity/infrastructure/staff-invitation-budget'
 import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
 import { sendInvitationEmail, sendStaffCodeReadyEmail } from '#/shared/auth/emails'
-import { organizationId, propertyId, userId } from '#/shared/domain/ids'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
 import type { CompositionRuntime, ContextWiringInput } from './runtime'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
-import type { IntegrationContextApi } from '#/contexts/integration/build'
 import type { createDeferredMemberAuthorityLifecycle } from './member-authority-lifecycle'
 
 const PROPERTY_ID_SHAPE =
@@ -41,7 +40,6 @@ export function wireIdentity(
   memberAuthorityLifecycle: ReturnType<typeof createDeferredMemberAuthorityLifecycle>,
   getProperty: () => ReturnType<typeof buildPropertyContext>,
   getPortal: () => ReturnType<typeof buildPortalContext>,
-  getIntegration: () => IntegrationContextApi,
 ) {
   const staffInvitationBudget = createStaffInvitationBudget(
     infra.rateLimiter,
@@ -152,19 +150,6 @@ export function wireIdentity(
       propertyBelongsToOrganization: (orgId, pid) =>
         getProperty().publicApi.propertyExists(organizationId(orgId), propertyId(pid)),
     },
-    cancelGoogleImportsForUser: (orgId, userIdValue) => {
-      const cancel = getIntegration().lifecycle.cancelImportsForUser
-      if (!cancel) throw new Error('Google import lifecycle unavailable')
-      return cancel(orgId, userIdValue).then(() => undefined)
-    },
-    prepareGoogleConnectorDeparture: async (orgId, userIdValue, cause) => {
-      await getIntegration().lifecycle.prepareConnectorDeparture({
-        organizationId: organizationId(orgId),
-        connectorUserId: userId(userIdValue),
-        cause,
-      })
-    },
-    releaseMemberAuthorities: memberAuthorityLifecycle.port.releaseMemberAuthorities,
     reconcileResponsibleManagerEligibility:
       memberAuthorityLifecycle.port.reconcileResponsibleManagerEligibility,
   })

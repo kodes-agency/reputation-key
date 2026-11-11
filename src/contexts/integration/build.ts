@@ -102,6 +102,7 @@ import {
 } from './application/ports/google-review-push-reference.port'
 import { createGoogleReviewPushReferenceStore } from './infrastructure/google-review-push-reference-store'
 import { createGbpReviewPushReceiptStore } from './infrastructure/gbp-review-push-receipt.store'
+import { registerMemberDepartureConsumers } from './infrastructure/member-departure-outbox-consumers'
 import { registerGoogleCategoryRefreshConsumer } from './infrastructure/google-category-refresh-outbox-consumers'
 
 export {
@@ -220,11 +221,8 @@ export type IntegrationContextApi = Readonly<{
   }>
   /** Cross-context account/import teardown authority. */
   lifecycle: Readonly<{
-    prepareConnectorDeparture: ReturnType<typeof prepareGoogleConnectorDeparture>
     cancelImportsForConnection:
       ReturnType<typeof createGoogleImportV2Lifecycle>['cancelConnection'] | null
-    cancelImportsForUser:
-      ReturnType<typeof createGoogleImportV2Lifecycle>['cancelUser'] | null
     cancelImportsForOrganization:
       ReturnType<typeof createGoogleImportV2Lifecycle>['cancelOrganization'] | null
     preparePropertyDeletion:
@@ -461,6 +459,17 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         receipts: deps.outboxRepo,
       })
     }
+    registerMemberDepartureConsumers(consumerRegistry, {
+      prepareDeparture: useCases.prepareGoogleConnectorDeparture,
+      cancelImportsForUser: async (organizationIdValue, userIdValue) => {
+        if (!googleImportV2Lifecycle) {
+          throw new Error('Google import lifecycle unavailable')
+        }
+        return googleImportV2Lifecycle.cancelUser(organizationIdValue, userIdValue)
+      },
+      resolveActiveMember,
+      receipts: deps.outboxRepo,
+    })
   }
 
   // ── Use Cases ────────────────────────────────────────────────────
@@ -787,9 +796,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       }),
     }),
     lifecycle: Object.freeze({
-      prepareConnectorDeparture: useCases.prepareGoogleConnectorDeparture,
       cancelImportsForConnection: useCases.cancelGoogleImportV2ForConnection,
-      cancelImportsForUser: useCases.cancelGoogleImportV2ForUser,
       cancelImportsForOrganization: useCases.cancelGoogleImportV2ForOrganization,
       preparePropertyDeletion: useCases.prepareGoogleImportV2PropertyDeletion,
       finalizePropertyDeletion: useCases.finalizeGoogleImportV2PropertyDeletion,

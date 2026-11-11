@@ -93,7 +93,6 @@ function buildContainer(
     memberAuthorityLifecycle,
     () => property,
     () => portal,
-    () => integration,
   )
 
   // ARC-03-T10: operators refuse Google; application processes require its substrate.
@@ -134,7 +133,6 @@ function buildContainer(
       propertyResponsibility: property.responsibility,
       portalResponsibility: portal.responsibility,
       inboxAssignments: inbox.assignments,
-      propertyAccess: identity.authority,
       eligibility: {
         listActiveManagers: identity.publicApi.managerFacts.listActiveManagers,
         getAccessiblePropertyIds: identity.publicApi.people.getAccessiblePropertyIds,

@@ -9,6 +9,7 @@ import type { IdentityCommandStore } from '../application/ports/identity-command
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { ADMIN_ROLE, isOwnerToken, toBetterAuthRole } from '#/shared/domain/roles'
+import type { RoleChangeCleanup } from './member-role-cleanup.server'
 import { canChangeRole } from '../domain/rules'
 import { identityError } from '../domain/errors'
 import { identityMemberRoleChanged } from '../domain/events'
@@ -24,20 +25,8 @@ export type UpdateMemberRoleDeps = Readonly<{
   identity: IdentityPort
   commandStore: IdentityCommandStore
   clock: () => Date
-  reconcileResponsibleManagerEligibility?: (
-    organizationId: string,
-    userId: string,
-    actorId: string,
-  ) => Promise<void>
-  /**
-   * Converge a demoted AccountAdmin's Google connector once the demotion has
-   * committed: cancel the imports of the connections it authorized.
-   */
-  prepareGoogleConnectorDeparture?: (
-    organizationId: string,
-    userId: string,
-    cause: 'account_admin_role_lost',
-  ) => Promise<void>
+  /** What a committed role change owes: Responsible Manager eligibility. */
+  cleanup: RoleChangeCleanup
 }>
 export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
 
@@ -49,11 +38,13 @@ export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
  * 2. Validate referenced entities — load the target member to get their current role
  * 3. Check business invariants — role hierarchy with the actual current role,
  *    no self-change, no same-role change, then the last-owner UX guard (the
- *    command store re-enforces it under the org advisory lock)
- * 4. Persist — command store: role update + role_changed fact, atomic
- * 5. Converge — reconcile Responsible Manager eligibility, then, for a demoted
- *    AccountAdmin, the Google connector they authorized
- * 6. Return
+ *    command store re-enforces it, and the actor's role, under the lock)
+ * 4. Persist — command store: role update + role_changed fact, atomic; the
+ *    member row's trigger fences a demoted AccountAdmin's Google connections
+ *    in the same commit and Integration cancels their imports from the fact
+ * 5. Clean up — reconcile Responsible Manager eligibility and record it done.
+ *    A failure is reported, and the same request sent again resumes it
+ *    instead of being refused as a change to the role the member already has.
  */
 export const updateMemberRole =
   (deps: UpdateMemberRoleDeps) =>
@@ -85,7 +76,20 @@ export const updateMemberRole =
       throw identityError('forbidden', 'Ask another Account Admin to change your role')
     }
     if (targetMember.role === input.role) {
-      throw identityError('validation_error', 'The member already has this role')
+      const pending = await deps.commandStore.pendingRoleChangeCleanup({
+        organizationId: ctx.organizationId,
+        memberUserId: targetMember.userId,
+      })
+      if (!pending) {
+        throw identityError('validation_error', 'The member already has this role')
+      }
+      await deps.cleanup({
+        eventId: pending.eventId,
+        organizationId: ctx.organizationId,
+        memberUserId: targetMember.userId,
+        actorUserId: pending.actorUserId,
+      })
+      return { success: true }
     }
 
     // 3b. Last-owner UX guard — cannot demote the last owner. Detected via the raw
@@ -103,39 +107,30 @@ export const updateMemberRole =
     }
 
     // 4. Persist + fact — atomic via the command store
+    const event = identityMemberRoleChanged({
+      organizationId: ctx.organizationId,
+      memberUserId: toUserId(targetMember.userId),
+      previousRole: targetMember.role ?? 'Member',
+      newRole: input.role,
+      userId: ctx.userId,
+      occurredAt: deps.clock(),
+    })
     await deps.commandStore.changeMemberRole({
       organizationId: ctx.organizationId,
       memberId: input.memberId,
+      actorUserId: ctx.userId,
       newRole: toBetterAuthRole(input.role),
-      event: identityMemberRoleChanged({
-        organizationId: ctx.organizationId,
-        memberUserId: toUserId(targetMember.userId),
-        previousRole: targetMember.role ?? 'Member',
-        newRole: input.role,
-        userId: ctx.userId,
-        occurredAt: deps.clock(),
-      }),
+      event,
     })
 
-    // 5. Converge, only now that the demotion is known to have won: a store
-    // refusal (another AccountAdmin's concurrent demotion taking the last-owner
-    // slot, a removed member) must leave the connector and its imports alone.
-    // Provider use is not left open meanwhile — the member row's trigger fenced
-    // the connector in the role change's own transaction — so what remains is
-    // cancelling imports a reauth_required connection can no longer run. That
-    // is why the Responsible Manager reconcile goes first.
-    await deps.reconcileResponsibleManagerEligibility?.(
-      ctx.organizationId,
-      targetMember.userId,
-      ctx.userId,
-    )
-    if (demotesAccountAdmin) {
-      await deps.prepareGoogleConnectorDeparture?.(
-        ctx.organizationId,
-        targetMember.userId,
-        'account_admin_role_lost',
-      )
-    }
+    // 5. Clean up, only now that the change is known to have won: a store
+    // refusal must leave the member's responsibilities alone.
+    await deps.cleanup({
+      eventId: event.eventId,
+      organizationId: ctx.organizationId,
+      memberUserId: targetMember.userId,
+      actorUserId: ctx.userId,
+    })
 
     return { success: true }
   }
