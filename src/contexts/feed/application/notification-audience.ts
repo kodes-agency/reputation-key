@@ -927,9 +927,8 @@ export const createNotificationAudienceAuthorizer =
       })
     }
     // The AccountAdmin role is Organization-wide, so this audience is decided
-    // the same way with or without a Property. Mandatory Organization notices
-    // depend on it: the Purge Pending warning has no Property, and refusing it
-    // here dropped the last message before an irreversible deletion.
+    // the same way with or without a Property: a mandatory Organization
+    // notice has no Property, and refusing it here would drop the message.
     if (audience.kind === 'account_admin') {
       return isAccountAdminRecipient(deps, organizationId, userId)
     }
