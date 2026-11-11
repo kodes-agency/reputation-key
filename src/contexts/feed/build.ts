@@ -3,7 +3,7 @@
 // single module exposes one merged context surface.
 
 import type { Database } from '#/shared/db'
-import { createConsumerRegistry, type ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerRegistry } from '#/shared/outbox'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createRecentActivityRepository } from './infrastructure/recent-activity-repository.drizzle'
@@ -74,15 +74,13 @@ import { registerHandlingCycleNotificationConsumers } from './infrastructure/han
 import { registerNotificationSettlementConsumers } from './infrastructure/notification-settlement-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
 import { createAccountAccessRemovalReader } from './infrastructure/repositories/account-access-removal.repository'
-import { createNotificationGapRepository } from './infrastructure/repositories/notification-gap.repository'
-import { createNotificationDeliveryRepairRepository } from './infrastructure/repositories/notification-delivery-repair.repository'
-import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'
 import {
-  createReconcileMissingNotificationsHandler,
-  DEFAULT_RECONCILE_GRACE_MS,
-  DEFAULT_RECONCILE_LOOKBACK_MS,
+  createNotificationGapRepository,
+  NOTIFICATION_GAP_GRACE_MS,
+  NOTIFICATION_GAP_LOOKBACK_MS,
   NOTIFICATION_GAP_SCAN_LIMIT,
-} from './infrastructure/jobs/reconcile-missing-notifications.job'
+} from './infrastructure/repositories/notification-gap.repository'
+import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'
 import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
 import type { LowRatingThreshold } from './domain/notification-low-ratings'
 import { createReviewRatingForRouting } from './infrastructure/adapters/review-rating-routing.adapter'
@@ -92,7 +90,6 @@ import {
   type PreviousPropertySetting,
 } from './preferences/mute-category.server'
 import { createImmediateEmailEnqueue } from './email/send-emails.server'
-import { withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import {
   markNotificationRead,
   markNotificationUnread,
@@ -124,13 +121,7 @@ import {
   type NotificationDeliveryWorkerInput,
 } from './infrastructure/jobs/notification-delivery-processors'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
-import {
-  withBetaOutboxNotificationDelivery,
-  withDeliveryRepairJobs,
-} from './infrastructure/outbox-notification-delivery'
-import type { NotificationJobEnqueuePort } from './infrastructure/inbox-notification-fanout'
 import { createNoticeWriter, type NoticeWriter } from './notify/consumers.server'
-import { createNotificationDeliverySettlement } from './infrastructure/repositories/notification-delivery-settlement.repository'
 import { createNotificationDeliveryLagRepository } from './infrastructure/repositories/notification-delivery-lag.repository'
 import { NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS } from './infrastructure/repositories/health-read-timeout'
 import {
@@ -290,7 +281,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   })
   const accessRemovalReader = createAccountAccessRemovalReader(input.db)
   const gapRepo = createNotificationGapRepository(input.db)
-  const deliveryRepairRepo = createNotificationDeliveryRepairRepository(input.db)
   const deliveryLagRepo = createNotificationDeliveryLagRepository(
     input.db,
     input.isEmailDeliveryAllowed,
@@ -381,21 +371,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     return transition(n, () => now).isErr() ? null : now
   }
 
-  // Every durable delivery inherits the catalogue retry policy and records its
-  // Redis-acceptance marker before the consumer acknowledges the source fact.
-  const policyQueue = input.queue ? withCatalogueJobOptions(input.queue) : undefined
-  const notificationDeliveryQueue = policyQueue
-    ? withBetaOutboxNotificationDelivery(policyQueue, input.outboxRepo)
-    : undefined
-  // A repair replays a source fact through the same bridge, but queues only
-  // the deliveries that never settled, each under an id of its own.
-  const deliveryRepairQueue = policyQueue
-    ? withBetaOutboxNotificationDelivery(
-        withDeliveryRepairJobs(policyQueue, input.outboxRepo),
-        input.outboxRepo,
-      )
-    : undefined
-
   // The reads every route's fan-out shares; the queue decides how a job travels.
   const fanoutReads = {
     userLookup,
@@ -414,8 +389,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const gapWindow = () => {
     const now = input.clock().getTime()
     return {
-      createdAtOrAfter: new Date(now - DEFAULT_RECONCILE_LOOKBACK_MS),
-      createdBefore: new Date(now - DEFAULT_RECONCILE_GRACE_MS),
+      createdAtOrAfter: new Date(now - NOTIFICATION_GAP_LOOKBACK_MS),
+      createdBefore: new Date(now - NOTIFICATION_GAP_GRACE_MS),
     }
   }
 
@@ -423,18 +398,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     ? createImmediateEmailEnqueue(input.queue, 'notification:urgent-enqueue')
     : undefined
   const ratingForRouting = createReviewRatingForRouting(input.db, input.reviewRatings)
-
-  // Handed to the insert-notification processor: without it every
-  // outbox-delivered notification throws.
-  const deliverySettlement = createNotificationDeliverySettlement({
-    db: input.db,
-    clock: input.clock,
-    idGen: () => notificationId(input.idGen()),
-    emailIdGen: () => notificationEmailId(input.idGen()),
-    logger: input.logger,
-    ratingForRouting,
-    enqueueImmediateEmail,
-  })
 
   // The consumer routes write their notices in the transaction that claims
   // their receipt.
@@ -679,10 +642,9 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   /** Every durable notification route, enqueueing through `queue`. */
   const registerNotificationRoutes = (
     consumerRegistry: ConsumerRegistry,
-    queue: NotificationJobEnqueuePort,
-    noticeWriter?: NoticeWriter,
+    noticeWriter: NoticeWriter,
   ) => {
-    const notices = { queue, noticeWriter, receipts: input.outboxRepo }
+    const notices = { noticeWriter, receipts: input.outboxRepo }
     registerIdentityAccountNotificationConsumers(consumerRegistry, {
       ...notices,
       displayNames,
@@ -786,20 +748,18 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       logger: input.logger,
     })
     registerPortalDestinationNotificationConsumer(consumerRegistry, {
-      queue,
+      noticeWriter,
       userLookup,
       destinations: input.destinationLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerPortalHealthNotificationConsumer(consumerRegistry, {
-      queue,
+      noticeWriter,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
     })
     registerPropertyNotificationConsumers(consumerRegistry, {
       ...notices,
@@ -814,14 +774,13 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       logger: input.logger,
     })
     registerReviewImportNotificationConsumers(consumerRegistry, {
-      queue,
+      noticeWriter,
       userLookup,
       responsibleManagers: input.responsibleManagers,
       inboxItemLookup,
       importInitiators: input.propertyImportInitiators,
       displayNames,
       logger: input.logger,
-      receipts: input.outboxRepo,
       clock: input.clock,
     })
   }
@@ -832,31 +791,14 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
    * exposing Notification repositories or use cases.
    */
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
-    if (!notificationDeliveryQueue) return
-    registerNotificationRoutes(consumerRegistry, notificationDeliveryQueue, noticeWriter)
+    if (!input.queue) return
+    registerNotificationRoutes(consumerRegistry, noticeWriter)
     // Executable readiness contract: compare the beta trigger/recipient
     // matrix with the consumers that are actually present in this worker.
     // ARC-03-T7: read the registry this container just registered into — a
     // process-global read would let one container's matrix pass on another
     // container's consumers.
     assertBetaNotificationTriggerMatrix(consumerRegistry.list())
-  }
-
-  /**
-   * The repair replays a source fact through the route's own consumer, bound
-   * here to the delivery-repair queue. This registry is private: the outbox
-   * dispatcher never reads it.
-   */
-  const reconcileMissingNotificationsHandler = () => {
-    if (!deliveryRepairQueue) return undefined
-    const routes = createConsumerRegistry()
-    registerNotificationRoutes(routes, deliveryRepairQueue)
-    return createReconcileMissingNotificationsHandler({
-      deliveries: deliveryRepairRepo,
-      routes,
-      clock: input.clock,
-      logger: input.logger,
-    })
   }
 
   return {
@@ -868,7 +810,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       authorizeAudience,
       recipientStanding,
       workState,
-      deliverySettlement,
+      noticeWriter,
       ratingForRouting,
       /** Builds the worker's insert, email and digest processors. */
       createProcessors: (worker: NotificationDeliveryWorkerInput) =>
@@ -880,15 +822,12 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
             userLookup,
             recipientStanding,
             workState,
-            authorizeAudience,
-            deliverySettlement,
-            ratingForRouting,
+            noticeWriter,
             clock: input.clock,
             logger: input.logger,
           },
           worker,
         ),
-      reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
     }),
   } as const
 }

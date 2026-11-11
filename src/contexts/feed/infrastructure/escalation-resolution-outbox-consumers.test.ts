@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { noticeWriterOver } from './notification-consumer-test-fixtures'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
   createConsumerRegistry,
@@ -49,13 +50,16 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
 })
 
 const makeDeps = () => {
+  const queue = {
+    add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
+      jobs.push({ name, data, opts })
+    }),
+  }
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   const jobs: Array<{ name: string; data: unknown; opts?: unknown }> = []
   return {
-    queue: {
-      add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
-        jobs.push({ name, data, opts })
-      }),
-    },
+    queue,
+    noticeWriter: noticeWriterOver(queue, receipts),
     escalationResolutions: {
       findEscalationResolutionFacts: vi.fn(async () => ({
         propertyId: PROPERTY,
@@ -83,7 +87,7 @@ const makeDeps = () => {
     notifications: {
       findRecipientsOfNotice: vi.fn(async (): Promise<readonly UserId[]> => []),
     },
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     jobs,
   }
 }

@@ -180,7 +180,7 @@ that choice, pending product confirmation:
   immediate emails, or ten digest lines.
 - Only durable receipts fence repeat deliveries for them. The unread key no
   longer does, so two deliveries of one resource under different event ids,
-  such as a repair sweep overlapping the original, each send an email.
+  such as an outbox replay overlapping the original, each send an email.
 - The anchor's `read` status is not a read by the user, so its `read_at` is
   NULL (`isEmailOnlyAnchor`), and the send treats it as unread; settlement
   stamps it like any row. Anchors stored before 2026-09-28 carry `read_at` =
@@ -622,7 +622,7 @@ assigned to its recipient on that Property (the work check is given the
 recipient for it). Both counts are restated at send. A closed cycle settles a grouped
 reopen in-app once none of its items stands, except a row that coalesced a
 second bulk reopen.
-Notification jobs perform insert, immediate-email, digest, and missing-notification repair work.
+Notification jobs perform immediate-email and digest work. The `insert-notification` processor only drains jobs an earlier release left in Redis, writing each through the notice writer.
 `email/send-emails.server.ts` sends immediate mail: it renders a row once, stores the
 provider request on the row (`provider_request`) before the first attempt, and every
 retry re-checks the recipient and sends that stored request under the same key until the
@@ -632,12 +632,7 @@ digest groups lines in queue order and freezes membership from those same lines.
 `digest-batch-identity.ts` owns member, request and provider-key fingerprints;
 assembly uses the email renderer's group contract. The repository retains the
 transactional batch and member settlement boundary.
-A durable delivery is settled once its materialization receipt is claimed: a
-row was written, preferences asked for none, or the recipient no longer
-qualified. The repair replays a delivery Redis accepted that never settled
-through its route's own consumer, under the source fact's event id; a settled
-delivery is never repaired, and never counts as a gap, and a delivery the
-original fan-out never queued is never queued by the repair.
+A durable delivery is settled when its consumer's receipt is claimed, in the transaction that writes its notices: a row was written, preferences asked for none, or the recipient no longer qualified. A redelivery that finds the receipt writes nothing.
 All queue, clock, logger, identifier, capability-policy, and upstream lookup
 dependencies are provided by composition; modules do not read ambient roots.
 Immediate mail for an Organization-scoped mandatory notice is a job of its

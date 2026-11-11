@@ -7,7 +7,10 @@ import type { ConsumerEvent } from '#/shared/outbox'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
-import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from './notification-consumer-test-fixtures'
 import {
   handleNotificationGoogleReauthorizationRequired,
   ON_GOOGLE_REAUTHORIZATION_REQUIRED_CONSUMER,
@@ -46,14 +49,16 @@ describe('Google reauthorization with no active Property', () => {
   it('tells every AccountAdmin in the bell at Organization scope', async () => {
     const fakes = createNotificationConsumerDeps()
     fakes.userLookup.findByRole.mockResolvedValue([ADMIN, OTHER_ADMIN])
+    const receipts = { insertReceipt: vi.fn(async () => undefined) }
     const deps = {
       queue: fakes.queue,
+      noticeWriter: noticeWriterOver(fakes.queue, receipts),
       userLookup: fakes.userLookup,
       googleConnectionProperties: {
         findGoogleNotificationAnchor: vi.fn(async () => null),
       },
       logger: fakes.logger,
-      receipts: { insertReceipt: vi.fn(async () => undefined) },
+      receipts,
     }
 
     await expect(

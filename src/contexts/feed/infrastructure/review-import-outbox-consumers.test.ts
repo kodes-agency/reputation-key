@@ -10,6 +10,7 @@ import { propertyId, unbrand, userId } from '#/shared/domain/ids'
 import {
   createNotificationConsumerDeps,
   NOTIF_TEST_IDS,
+  noticeWriterOver,
 } from './notification-consumer-test-fixtures'
 import {
   handleNotificationReviewHistoryImportFinished,
@@ -56,8 +57,10 @@ const event = (
 const makeDeps = () => {
   const fakes = createNotificationConsumerDeps()
   fakes.inboxItemLookup.countOpenReviewItemsForProperty.mockResolvedValue(254)
+  const receipts = { insertReceipt: vi.fn(async () => {}) }
   return {
     queue: fakes.queue,
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
     userLookup: fakes.userLookup,
     responsibleManagers: fakes.responsibleManagers,
     inboxItemLookup: fakes.inboxItemLookup,
@@ -66,7 +69,7 @@ const makeDeps = () => {
     importInitiators: {
       findPropertyImportInitiator: vi.fn(async () => null as string | null),
     },
-    receipts: { insertReceipt: vi.fn(async () => {}) },
+    receipts,
     clock: () => NOTIF_TEST_IDS.now,
     fakes,
   }

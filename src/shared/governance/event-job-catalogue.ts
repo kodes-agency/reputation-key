@@ -567,18 +567,6 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { timeoutMs: 300_000 },
   ),
   job(
-    'reconcile-missing-notifications',
-    'src/contexts/feed/infrastructure/jobs/reconcile-missing-notifications.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:notification.reconcile',
-      schedule: 'every:600000',
-      registration: 'enabled',
-    },
-    { timeoutMs: 120_000 },
-  ),
-  job(
     'release-response-target-reminders',
     'src/contexts/inbox/infrastructure/jobs/release-response-target-reminders.job.ts',
     {
