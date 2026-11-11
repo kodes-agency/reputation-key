@@ -7,8 +7,8 @@ import { createRouteHarness } from '#/routes/route-harness'
 import { createKeys } from '#/shared/queries/query-keys'
 import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
 import type { ProductUpdatesClient } from '#/shared/whats-new/types'
-import { merchantAiNoticeUpdateKey } from '#/components/features/settings/merchant-ai-notice-update-query'
-import type { MerchantAiNoticeUpdateBanner } from '#/components/features/settings/merchant-ai-notice-update-banner'
+import { merchantAiNoticeUpdateKey } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-query'
+import type { MerchantAiNoticeUpdateBanner } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-banner'
 import { useLeadingAiUpdate } from '#/components/features/whats-new/use-leading-ai-update'
 import MerchantAiNoticeUpdateGate from './-merchant-ai-notice-update'
 import { merchantAiNoticeUpdateClient } from './-merchant-ai-notice-update-client'
@@ -25,7 +25,7 @@ vi.mock('#/components/layout/manager-sidebar', () => ({ ManagerSidebar: () => nu
 vi.mock('#/components/layout/settings-sidebar', () => ({ SettingsSidebar: () => null }))
 vi.mock('#/components/layout/app-top-bar', () => ({ AppTopBar: () => null }))
 let banner: ComponentProps<typeof MerchantAiNoticeUpdateBanner> | undefined
-vi.mock('#/components/features/settings/merchant-ai-notice-update-banner', () => ({
+vi.mock('#/contexts/identity/consent/ui/merchant-ai-notice-update-banner', () => ({
   MerchantAiNoticeUpdateBanner: (
     props: ComponentProps<typeof MerchantAiNoticeUpdateBanner>,
   ) => {

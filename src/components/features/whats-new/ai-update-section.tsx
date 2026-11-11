@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { Sparkles } from 'lucide-react'
 import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
-import { MerchantAiNoticeUpdateDetails } from '#/components/features/settings/merchant-ai-notice-update-details'
+import { MerchantAiNoticeUpdateDetails } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-details'
 import { TONE_FILL, TONE_INK } from '#/components/ui/tone'
 import { SectionTitle } from '#/components/ui/section-title'
 import { formatDayMonthYear } from '#/lib/format'
