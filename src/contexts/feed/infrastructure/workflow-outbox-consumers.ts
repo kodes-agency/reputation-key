@@ -5,7 +5,8 @@
 // acknowledges only after every enqueue succeeds. Redelivery therefore
 // converges on the same BullMQ job identities.
 
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   inboxItemId,
@@ -36,13 +37,16 @@ import type {
   ReviewReplySubmitted,
 } from '#/contexts/review/application/public-api'
 import {
-  enqueuePublishFailedNotification,
-  enqueueReplyAuthorNotification,
+  publishFailedNotices,
+  replyAuthorNotices,
   type DurableReplyPublishFailed,
   type DurableReplyRejected,
 } from './reply-outcome-notifications'
-import type { InsertNotificationJobData } from './jobs/insert-notification.job'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  deliverNotices,
+  type Notice,
+  type NoticeDeliveryDeps,
+} from '../notify/consumers.server'
 import { buildInboxItemPayload } from './notification-payload-facts'
 import {
   inboxNotificationAudience,
@@ -52,13 +56,10 @@ import { resolveReplyApprovalRecipients } from '../application/reply-approval-re
 import { resolveEscalationRecipients } from '../application/escalation-recipients'
 import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
 import type { ActivePropertyLookup } from '../application/ports/active-property.port'
-import {
-  enqueueInboxWorkflowNotifications,
-  type NotificationJobEnqueuePort,
-} from './inbox-notification-fanout'
+import { inboxWorkflowNotices } from './inbox-notification-fanout'
 import type { NotificationAudience } from '../application/notification-audience'
 import {
-  enqueuePublicationCancelledNotifications,
+  publicationCancelledNotices,
   type DurableReplyPublicationCancelled,
 } from './publication-cancelled-notifications'
 import {
@@ -120,23 +121,20 @@ type WorkflowEvent =
   | DurableReplyPublishFailed
   | DurableReplyPublicationCancelled
 
-export type WorkflowNotificationConsumerDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  userLookup: UserLookupPort
-  responsibleManagers: ResponsibleManagerLookupPort
-  inboxItemLookup: InboxItemLookupPort
-  /** Who may act on an approval request, asked at fan-out and again at send. */
-  replyApproval: ReplyApprovalAuthorityPort
-  /** Whether the Property is still inside the workspace. */
-  activeProperty: ActivePropertyLookup
-  /** Retires the previous holder's "Assigned to you" once an item moves on. */
-  retireMovedAssignment: RetireMovedAssignment
-  clock: () => Date
-  logger: LoggerPort
-  receipts: Pick<OutboxRepository, 'insertReceipt'>
-}>
-
-type WorkflowNotificationDeliveryDeps = Omit<WorkflowNotificationConsumerDeps, 'receipts'>
+export type WorkflowNotificationConsumerDeps = NoticeDeliveryDeps &
+  Readonly<{
+    userLookup: UserLookupPort
+    responsibleManagers: ResponsibleManagerLookupPort
+    inboxItemLookup: InboxItemLookupPort
+    /** Who may act on an approval request, asked at fan-out and again at send. */
+    replyApproval: ReplyApprovalAuthorityPort
+    /** Whether the Property is still inside the workspace. */
+    activeProperty: ActivePropertyLookup
+    /** Retires the previous holder's "Assigned to you" once an item moves on. */
+    retireMovedAssignment: RetireMovedAssignment
+    clock: () => Date
+    logger: LoggerPort
+  }>
 
 /**
  * Who this assignment is news to.
@@ -163,10 +161,10 @@ const assignmentRecipients = (
   ]
 }
 
-async function enqueueAssignmentNotification(
-  deps: WorkflowNotificationDeliveryDeps,
+async function assignmentNotices(
+  deps: WorkflowNotificationConsumerDeps,
   event: InboxItemAssigned,
-): Promise<void> {
+): Promise<ReadonlyArray<Notice>> {
   // The item moved away from whoever held it: their "Assigned to you" stops
   // waiting on them now, whether or not they are told — nobody is told about
   // a handoff they made themselves, and a bulk move notifies per group.
@@ -182,22 +180,20 @@ async function enqueueAssignmentNotification(
   }
   // The atomic bulk-completion fact owns grouped delivery. Per-item facts
   // remain activity/audit facts but must not also produce N notifications.
-  if (event.bulkId) return
+  if (event.bulkId) return []
   const recipients = assignmentRecipients(event)
-  if (recipients.length === 0) return
+  if (recipients.length === 0) return []
 
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: event.inboxItemId,
     orgId: event.organizationId,
     actorId: event.userId,
   })
-  await enqueueInboxWorkflowNotifications(
-    deps.queue,
+  return inboxWorkflowNotices(
     {
       organizationId: event.organizationId,
       propertyId: event.propertyId,
       resourceId: event.inboxItemId,
-      eventId: event.eventId,
       payload,
     },
     recipients.map((recipient) => ({
@@ -217,10 +213,10 @@ async function enqueueAssignmentNotification(
  * AccountAdmins when nobody there but the escalating actor can answer it
  * (I5.3, `resolveEscalationRecipients`).
  */
-async function enqueueEscalationNotifications(
-  deps: WorkflowNotificationDeliveryDeps,
+async function escalationNotices(
+  deps: WorkflowNotificationConsumerDeps,
   event: InboxItemEscalated,
-): Promise<void> {
+): Promise<ReadonlyArray<Notice>> {
   const facts = await deps.inboxItemLookup.findInboxItemFacts(
     event.inboxItemId,
     event.organizationId,
@@ -237,7 +233,7 @@ async function enqueueEscalationNotifications(
       { correlationId: event.correlationId ?? undefined },
       'notification escalation delivery: nobody besides the escalating actor, skipping',
     )
-    return
+    return []
   }
 
   // Escalating is a person's judgement call; the notice names their role.
@@ -247,13 +243,11 @@ async function enqueueEscalationNotifications(
     actorId: event.userId,
     measureWait: true,
   })
-  await enqueueInboxWorkflowNotifications(
-    deps.queue,
+  return inboxWorkflowNotices(
     {
       organizationId: event.organizationId,
       propertyId: event.propertyId,
       resourceId: event.inboxItemId,
-      eventId: event.eventId,
       payload,
     },
     recipients.map((userId) => ({ userId, type: 'inbox.escalated', audience })),
@@ -267,7 +261,7 @@ async function enqueueEscalationNotifications(
  * keep the audience that admitted them, so the send rechecks the right thing.
  */
 async function noteRecipients(
-  deps: WorkflowNotificationDeliveryDeps,
+  deps: WorkflowNotificationConsumerDeps,
   event: InboxNoteAdded,
 ): Promise<ReadonlyArray<Readonly<{ userId: UserId; audience: NotificationAudience }>>> {
   const facts = await deps.inboxItemLookup.findInboxItemFacts(
@@ -302,15 +296,15 @@ async function noteRecipients(
   return [...byUser].map(([userId, audience]) => ({ userId, audience }))
 }
 
-async function enqueueNoteNotifications(
-  deps: WorkflowNotificationDeliveryDeps,
+async function noteNotices(
+  deps: WorkflowNotificationConsumerDeps,
   event: InboxNoteAdded,
-): Promise<void> {
+): Promise<ReadonlyArray<Notice>> {
   if (!event.propertyId) {
     deps.logger.debug('notification note delivery: no propertyId, skipping', {
       correlationId: event.correlationId ?? undefined,
     })
-    return
+    return []
   }
 
   const candidates = await noteRecipients(deps, event)
@@ -320,7 +314,7 @@ async function enqueueNoteNotifications(
       { correlationId: event.correlationId ?? undefined },
       'notification note delivery: no recipients after filtering, skipping',
     )
-    return
+    return []
   }
 
   const payload = await buildInboxItemPayload(deps, {
@@ -328,13 +322,11 @@ async function enqueueNoteNotifications(
     orgId: event.organizationId,
     actorId: event.userId,
   })
-  await enqueueInboxWorkflowNotifications(
-    deps.queue,
+  return inboxWorkflowNotices(
     {
       organizationId: event.organizationId,
       propertyId: event.propertyId,
       resourceId: event.inboxItemId,
-      eventId: event.eventId,
       payload,
     },
     filtered.map((recipient) => ({ ...recipient, type: 'inbox_note.added' })),
@@ -347,10 +339,10 @@ async function enqueueNoteNotifications(
  * (I5.3). The submitter is never asked: they cannot approve their own draft,
  * and an AccountAdmin who submits one needs no prompt either.
  */
-async function enqueueSubmittedNotifications(
-  deps: WorkflowNotificationDeliveryDeps,
+async function submittedNotices(
+  deps: WorkflowNotificationConsumerDeps,
   event: ReviewReplySubmitted,
-): Promise<void> {
+): Promise<ReadonlyArray<Notice>> {
   const { recipients, audience } = await resolveReplyApprovalRecipients(deps, {
     organizationId: event.organizationId,
     propertyId: event.propertyId,
@@ -361,14 +353,14 @@ async function enqueueSubmittedNotifications(
       { correlationId: event.correlationId ?? undefined },
       'notification reply-submitted delivery: no recipients found, skipping',
     )
-    return
+    return []
   }
 
   const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
     event.reviewId,
     event.organizationId,
   )
-  if (!inboxItem) return
+  if (!inboxItem) return []
 
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: inboxItem,
@@ -376,24 +368,16 @@ async function enqueueSubmittedNotifications(
     actorId: event.userId,
     measureWait: true,
   })
-  const jobs: InsertNotificationJobData[] = recipients.map((recipientId) => ({
+  return recipients.map((recipientId) => ({
     userId: recipientId,
     organizationId: event.organizationId,
     propertyId: event.propertyId,
     type: 'reply.pending_approval',
     resourceType: 'inbox_item',
     resourceId: inboxItem,
-    eventId: event.eventId,
     payload,
     audience,
   }))
-  await Promise.all(
-    jobs.map((data) =>
-      deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data, {
-        jobId: `${event.eventId}-${data.userId}`,
-      }),
-    ),
-  )
 }
 
 /** Named in every malformed-payload failure these routes raise. */
@@ -613,46 +597,43 @@ const consumerNameFor = (eventType: string): string => {
   return route.consumerName
 }
 
-export async function handleWorkflowNotificationEvent(
+const noticesFor = (
   deps: WorkflowNotificationConsumerDeps,
-  event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' }>> {
-  const parsed = parseWorkflowEvent(event)
-
+  parsed: WorkflowEvent,
+): Promise<ReadonlyArray<Notice>> => {
   switch (parsed._tag) {
     case 'inbox.inbox_item.assigned':
-      await enqueueAssignmentNotification(deps, parsed)
-      break
+      return assignmentNotices(deps, parsed)
     case 'inbox.inbox_item.escalated':
-      await enqueueEscalationNotifications(deps, parsed)
-      break
+      return escalationNotices(deps, parsed)
     case 'inbox.inbox_note.added':
-      await enqueueNoteNotifications(deps, parsed)
-      break
+      return noteNotices(deps, parsed)
     case 'review.reply.submitted':
-      await enqueueSubmittedNotifications(deps, parsed)
-      break
+      return submittedNotices(deps, parsed)
     case 'review.reply.approved':
     case 'review.reply.rejected':
     case 'review.reply.published':
-      await enqueueReplyAuthorNotification(deps, parsed)
-      break
+      return replyAuthorNotices(deps, parsed)
     case 'review.reply.publish_failed':
-      await enqueuePublishFailedNotification(deps, parsed)
-      break
+      return publishFailedNotices(deps, parsed)
     case 'review.reply.publication_cancelled':
-      await enqueuePublicationCancelledNotifications(deps, parsed)
-      break
+      return publicationCancelledNotices(deps, parsed)
     default:
-      assertNever('handleWorkflowNotificationEvent', parsed)
+      return assertNever('handleWorkflowNotificationEvent', parsed)
   }
+}
 
-  await deps.receipts.insertReceipt(
-    event.eventId,
+export async function handleWorkflowNotificationEvent(
+  deps: WorkflowNotificationConsumerDeps,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const parsed = parseWorkflowEvent(event)
+  return deliverNotices(
+    deps,
+    event,
     consumerNameFor(event.eventType),
-    'applied',
+    await noticesFor(deps, parsed),
   )
-  return { status: 'applied' }
 }
 
 export function registerWorkflowNotificationConsumers(

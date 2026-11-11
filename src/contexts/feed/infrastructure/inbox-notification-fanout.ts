@@ -11,17 +11,17 @@
 // review text, guest names or media.
 
 import type { JobsOptions } from 'bullmq'
+import type { Notice } from '../notify/consumers.server'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   inboxItemId as brandInboxItemId,
   organizationId as brandOrganizationId,
-  unbrand,
+  propertyId as brandPropertyId,
   type UserId,
 } from '#/shared/domain/ids'
 import { buildInboxItemPayload } from './notification-payload-facts'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 import type { NotificationType } from '../domain/notification-types'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import {
@@ -30,7 +30,6 @@ import {
   resolveResponsibleRecipients,
 } from '../application/responsible-recipients'
 import type { NotificationAudience } from '../application/notification-audience'
-import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 
 /**
  * The enqueue surface the fan-out needs. A bullmq `Queue` satisfies it, and so
@@ -42,26 +41,15 @@ export type NotificationJobEnqueuePort = Readonly<{
 }>
 
 /** One item's workflow fact, with each recipient's reason for admission intact. */
-export async function enqueueInboxWorkflowNotifications(
-  queue: NotificationJobEnqueuePort,
-  common: Pick<
-    InsertNotificationJobData,
-    'organizationId' | 'propertyId' | 'resourceId' | 'eventId' | 'payload'
-  >,
-  recipients: ReadonlyArray<
-    Pick<InsertNotificationJobData, 'userId' | 'type' | 'audience'>
-  >,
-): Promise<void> {
-  await Promise.all(
-    recipients.map((recipient) =>
-      queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        { ...common, ...recipient, resourceType: 'inbox_item' },
-        { jobId: `${common.eventId}-${unbrand(recipient.userId)}` },
-      ),
-    ),
-  )
-}
+export const inboxWorkflowNotices = (
+  common: Pick<Notice, 'organizationId' | 'propertyId' | 'resourceId' | 'payload'>,
+  recipients: ReadonlyArray<Pick<Notice, 'userId' | 'type' | 'audience'>>,
+): ReadonlyArray<Notice> =>
+  recipients.map((recipient) => ({
+    ...common,
+    ...recipient,
+    resourceType: 'inbox_item',
+  }))
 
 export type InboxFanoutDeps = Readonly<{
   queue: NotificationJobEnqueuePort
@@ -87,20 +75,7 @@ export type InboxFanoutInput = Readonly<{
   organizationId: string
   propertyId: string | null | undefined
   sourceType: string
-  /**
-   * The originating `inbox.inbox_item.created` event id, stamped onto the
-   * notification row's `event_id` and the durable delivery marker. A repair
-   * replays the same fact, so it carries the same id.
-   */
-  eventId: string
   correlationId?: string | null
-  /**
-   * When set, each enqueue gets the deterministic job id
-   * `<jobIdScope>-<userId>`. Durable delivery uses it so an ambiguous relay
-   * redelivery converges; the delivery-repair queue replaces it with an id of
-   * its own.
-   */
-  jobIdScope?: string | null
 }>
 
 export type InboxFanoutOutcome =
@@ -108,7 +83,7 @@ export type InboxFanoutOutcome =
       kind: 'skipped'
       reason: 'unknown_source' | 'no_property' | 'historical_onboarding' | 'no_recipients'
     }>
-  | Readonly<{ kind: 'enqueued'; recipients: number }>
+  | Readonly<{ kind: 'notices'; notices: ReadonlyArray<Notice> }>
 
 /**
  * History does not fan out (ADR 0046): a past review an import brought in is
@@ -167,11 +142,11 @@ const resolveRecipients = async (
 }
 
 /**
- * Enqueue one insert-notification job per recipient for a single inbox item.
- * Returns why nothing was enqueued rather than logging-and-returning, so the
- * durable consumer can turn "nothing to do" into an `obsolete` receipt.
+ * One notice per recipient for a single inbox item. Returns why there are none
+ * rather than logging-and-returning, so the durable consumer can turn
+ * "nothing to do" into an `obsolete` receipt.
  */
-export const fanoutInboxItemNotifications = async (
+export const inboxItemCreatedNotices = async (
   deps: InboxFanoutDeps,
   input: InboxFanoutInput,
 ): Promise<InboxFanoutOutcome> => {
@@ -184,7 +159,8 @@ export const fanoutInboxItemNotifications = async (
     return { kind: 'skipped', reason: 'unknown_source' }
   }
 
-  if (!input.propertyId) {
+  const property = input.propertyId
+  if (!property) {
     deps.logger.debug('inbox notification fan-out: no propertyId, skipping', {
       correlationId,
     })
@@ -202,7 +178,7 @@ export const fanoutInboxItemNotifications = async (
   const { recipients, audience } = await resolveRecipients(
     deps,
     input.organizationId,
-    input.propertyId,
+    property,
     input.inboxItemId,
     input.sourceType,
   )
@@ -218,29 +194,17 @@ export const fanoutInboxItemNotifications = async (
     orgId: brandOrganizationId(input.organizationId),
   })
 
-  await Promise.all(
-    recipients.map((recipient) => {
-      const data = {
-        userId: recipient,
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        type,
-        resourceType: 'inbox_item',
-        resourceId: input.inboxItemId,
-        eventId: input.eventId,
-        payload,
-        audience,
-      }
-      // Two-arg enqueue unless a deterministic id was asked for: the catalogue
-      // policy wrapper supplies attempts/backoff, and passing an explicit
-      // `undefined` third argument would only obscure the call.
-      return input.jobIdScope
-        ? deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data, {
-            jobId: `${input.jobIdScope}-${unbrand(recipient)}`,
-          })
-        : deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data)
-    }),
-  )
-
-  return { kind: 'enqueued', recipients: recipients.length }
+  return {
+    kind: 'notices',
+    notices: recipients.map((recipient) => ({
+      userId: recipient,
+      organizationId: brandOrganizationId(input.organizationId),
+      propertyId: brandPropertyId(property),
+      type,
+      resourceType: 'inbox_item',
+      resourceId: brandInboxItemId(input.inboxItemId),
+      payload,
+      audience,
+    })),
+  }
 }
