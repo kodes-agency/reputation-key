@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { BUILTIN_REPLY_LIBRARY } from '#/shared/reply-library/builtin-library'
+import {
+  BUILTIN_REPLY_LIBRARY,
+  BUILTIN_REPLY_LIBRARY_VERSION_NUMBER,
+} from '#/shared/reply-library/builtin-library'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { StoredReplyTemplate } from './ports/reply-library.repository'
 import { resolveReplyLibraryTemplates } from './reply-library-resolver'
@@ -111,5 +114,89 @@ describe('resolveReplyLibraryTemplates', () => {
     expect(result.find(({ ref }) => ref === `template:${account.id}`)?.baseChanged).toBe(
       true,
     )
+  })
+
+  it('does not flag a customization whose base revision is not newer', () => {
+    const account = stored({ revisionCreatedAt: new Date('2026-10-02T00:00:00Z') })
+    const property = stored({
+      id: '20000000-0000-4000-8000-000000000099',
+      propertyId: PROPERTY,
+      basedOnTemplateId: account.id,
+      revisionCreatedAt: new Date('2026-10-02T00:00:00Z'),
+    })
+    const result = resolveReplyLibraryTemplates({
+      builtin: BUILTIN_REPLY_LIBRARY,
+      accountTemplates: [account],
+      propertyTemplates: [property],
+      visibility: [],
+    })
+    expect(result.find(({ ref }) => ref === `template:${account.id}`)?.baseChanged).toBe(
+      false,
+    )
+  })
+
+  it('does not flag a customization whose account base is no longer in the library', () => {
+    const property = stored({
+      id: '20000000-0000-4000-8000-000000000099',
+      propertyId: PROPERTY,
+      basedOnTemplateId: '20000000-0000-4000-8000-0000000000aa',
+    })
+    const result = resolveReplyLibraryTemplates({
+      builtin: BUILTIN_REPLY_LIBRARY,
+      accountTemplates: [],
+      propertyTemplates: [property],
+      visibility: [],
+    })
+    expect(
+      result.find(({ ref }) => ref === 'template:20000000-0000-4000-8000-0000000000aa')
+        ?.baseChanged,
+    ).toBe(false)
+  })
+
+  it('flags a built-in customization written against an older built-in library', () => {
+    const accountBuiltin = stored({
+      builtinKey: 'RO5',
+      basedOnBuiltinVersion: BUILTIN_REPLY_LIBRARY_VERSION_NUMBER - 1,
+    })
+    const result = resolveReplyLibraryTemplates({
+      builtin: BUILTIN_REPLY_LIBRARY,
+      accountTemplates: [accountBuiltin],
+      propertyTemplates: [],
+      visibility: [],
+    })
+    expect(result.find(({ ref }) => ref === 'builtin:RO5')?.baseChanged).toBe(true)
+  })
+
+  it('ignores a hide that names a template nobody has', () => {
+    const before = resolveReplyLibraryTemplates({
+      builtin: BUILTIN_REPLY_LIBRARY,
+      accountTemplates: [],
+      propertyTemplates: [],
+      visibility: [],
+    })
+    const after = resolveReplyLibraryTemplates({
+      builtin: BUILTIN_REPLY_LIBRARY,
+      accountTemplates: [],
+      propertyTemplates: [],
+      visibility: [
+        { propertyId: null, ref: 'template:20000000-0000-4000-8000-0000000000bb' },
+        { propertyId: PROPERTY, ref: 'builtin:NOPE' },
+      ],
+    })
+    expect(after).toEqual(before)
+  })
+
+  it('keeps the wordings of a hidden template so the hide can be undone', () => {
+    const account = stored({})
+    const result = resolveReplyLibraryTemplates({
+      builtin: BUILTIN_REPLY_LIBRARY,
+      accountTemplates: [account],
+      propertyTemplates: [],
+      visibility: [{ propertyId: PROPERTY, ref: `template:${account.id}` }],
+    })
+    expect(result.find(({ ref }) => ref === `template:${account.id}`)).toMatchObject({
+      status: 'hidden',
+      wordings: { 'en-Latn': [{ key: '1', body: 'Account body.' }] },
+    })
   })
 })
