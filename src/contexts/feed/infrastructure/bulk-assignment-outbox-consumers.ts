@@ -4,7 +4,8 @@
 // It tells the new assignee and each previous holder, once per Property.
 
 import { z } from 'zod/v4'
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   inboxItemId,
@@ -14,8 +15,11 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  deliverNotices,
+  type Notice,
+  type NoticeDeliveryDeps,
+} from '../notify/consumers.server'
 import {
   buildPropertyPayload,
   type PropertyPayloadDeps,
@@ -26,10 +30,9 @@ export const ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER =
   'notification.on-inbox-bulk-assignment-completed' as const
 
 export type BulkAssignmentNotificationConsumerDeps = PropertyPayloadDeps &
+  NoticeDeliveryDeps &
   Readonly<{
-    queue: NotificationJobEnqueuePort
     userLookup: Pick<UserLookupPort, 'findActorRole'>
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
   }>
 
 type Transition = Readonly<{
@@ -160,59 +163,57 @@ const noticeGroups = (payload: Payload): ReadonlyArray<NoticeGroup> => {
 export async function handleNotificationBulkAssignmentCompleted(
   deps: BulkAssignmentNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' }>> {
+): Promise<ConsumerResult> {
   const payload = parse(event)
   const groups = noticeGroups(payload)
 
+  let notices: ReadonlyArray<Notice> = []
   if (groups.length > 0) {
     const org = organizationId(payload.organizationId)
     const actorRole = await deps.userLookup.findActorRole(userId(payload.userId), org)
-    await Promise.all(
-      groups.map(async (group) => {
+    notices = await Promise.all(
+      groups.map(async (group): Promise<Notice> => {
         const inboxItemIds = group.inboxItemIds.map(inboxItemId)
         const recipient = userId(group.recipient)
         const property = propertyId(group.propertyId)
         const where = await buildPropertyPayload(deps, org, property)
         const assigned = group.type === 'inbox.bulk_assigned'
-        return deps.queue.add(
-          INSERT_NOTIFICATION_JOB_NAME,
-          {
-            userId: recipient,
-            organizationId: org,
-            propertyId: property,
-            type: group.type,
-            resourceType: 'inbox_item' as const,
-            // The first canonically sorted item is the row's resource identity;
-            // its link opens a queue at this Property instead
-            // (notificationLink), since the row stands for the whole group.
-            resourceId: inboxItemIds[0]!,
-            eventId: event.eventId,
-            payload: {
-              ...where,
-              itemCount: inboxItemIds.length,
-              ...(actorRole ? { actorRole } : {}),
-            },
-            // The new assignee is admitted for the items still theirs; a
-            // previous holder no longer holds them, so they are admitted as
-            // somebody who may still act on the Property.
-            audience: assigned
-              ? { kind: 'bulk_inbox_assignee' as const, inboxItemIds }
-              : { kind: 'property_operator' as const },
+        return {
+          userId: recipient,
+          organizationId: org,
+          propertyId: property,
+          type: group.type,
+          resourceType: 'inbox_item' as const,
+          // The first canonically sorted item is the row's resource identity;
+          // its link opens a queue at this Property instead
+          // (notificationLink), since the row stands for the whole group.
+          resourceId: inboxItemIds[0]!,
+          payload: {
+            ...where,
+            itemCount: inboxItemIds.length,
+            ...(actorRole ? { actorRole } : {}),
           },
-          {
-            jobId: `${event.eventId}-${unbrand(recipient)}-${group.propertyId}${assigned ? '' : '-unassigned'}`,
-          },
-        )
+          // The new assignee is admitted for the items still theirs; a
+          // previous holder no longer holds them, so they are admitted as
+          // somebody who may still act on the Property.
+          audience: assigned
+            ? { kind: 'bulk_inbox_assignee' as const, inboxItemIds }
+            : { kind: 'property_operator' as const },
+        }
       }),
     )
   }
 
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  return deliverNotices(
+    deps,
+    event,
     ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER,
-    'applied',
+    notices,
+    {
+      jobId: (notice) =>
+        `${event.eventId}-${unbrand(notice.userId)}-${notice.propertyId}${notice.type === 'inbox.bulk_assigned' ? '' : '-unassigned'}`,
+    },
   )
-  return { status: 'applied' }
 }
 
 export function registerBulkAssignmentNotificationConsumer(

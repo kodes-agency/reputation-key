@@ -728,9 +728,12 @@ database isolation still requires the integration project.
 `infrastructure/inbox-workflow-acceptance.test.ts` checks producer-to-dispatcher
 payload/copy parity, note audience precedence, bulk/per-item arrival order and
 receipt-last retries for assignment, note and escalation fanout. Those single-item
-routes share `enqueueInboxWorkflowNotifications` in
+routes share `inboxWorkflowNotices` in
 `infrastructure/inbox-notification-fanout.ts`; grouped routes keep their
-per-Property job identities. Database concurrency and assignment-generation
+per-Property identities. The Inbox and reply consumers return their notices to
+`deliverNotices`, so on the worker each notice commits with its receipt;
+`notify/consumers.server.integration.test.ts` runs every producer route, the
+Low ratings routing of arrivals and a stale assignee through PostgreSQL. Database concurrency and assignment-generation
 fences require separate PostgreSQL coverage.
 
 `infrastructure/notification-family-acceptance.test.ts` preserves recipients,
