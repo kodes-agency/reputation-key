@@ -1,15 +1,16 @@
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import type { Pool } from 'pg'
-import { createDatabase } from '#/shared/db'
-import { aiOperations } from '#/shared/db/schema'
+import { createDatabase, type Database } from '#/shared/db'
+import { aiExecutionControlHeads, aiOperations } from '#/shared/db/schema'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/ai-reply-provenance'
 import { settledCostMicrosWith } from '#/shared/ai-provider-pricing'
 import { priceCatalogueOfProvider } from '#/shared/ai-provider-pricing-registry'
 import {
   aiSettlementRequestSchema,
+  type AiAdmissionDescriptorV1,
   type AiSettlementRequestV1,
 } from '#/shared/ai-internal-transport-contract'
 import type {
@@ -17,7 +18,16 @@ import type {
   AiAdmissionDenialCode,
   AiSettlementDenialCode,
 } from '#/shared/ai-provider-control/admission-service'
-import { createAiBudgetControl, type AiBudgetControl } from './ai-budget'
+import { createAiBudgetControl, type AiBudgetControl } from '#/shared/db/ai/ai-budget'
+import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
+import {
+  authorizedEffectOperationColumns,
+  isCurrentAuthorizedEffect,
+} from './ai-authorized-effect'
+import { readCurrentReviewSource, sourceHoldsOperation } from './ai-review-source-fence'
+
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+type PropertyDescriptor = Extract<AiAdmissionDescriptorV1, { subjectKind: 'property' }>
 
 const KEY_ID = /^[a-z][a-z0-9_-]{0,31}$/
 
@@ -44,8 +54,9 @@ function profileFor(route: string, operationProfileVersion: string) {
   )
 }
 
-function admissionDenial(
-  code: 'kill_switch' | 'budget_exhausted' | 'capability_unavailable',
+function budgetDenial(
+  code:
+    'kill_switch' | 'budget_exhausted' | 'capability_unavailable' | 'already_reserved',
 ): PropertyDenial {
   switch (code) {
     case 'kill_switch':
@@ -54,6 +65,8 @@ function admissionDenial(
       return 'quota_exhausted'
     case 'capability_unavailable':
       return 'authorization_changed'
+    case 'already_reserved':
+      return 'already_consumed'
   }
 }
 
@@ -82,16 +95,23 @@ function settledCost(
 }
 
 /**
- * An admission whose reservation was settled at zero cost: the gateway withheld
- * dispatch and released it, or the provider reported known zero usage. It must
- * not block the operation's next attempt. A charged or still-open admission
- * keeps blocking: the ledger holds one reservation per operation, and a second
- * provider call against it would be unaccounted.
+ * Where the operation's one reservation stands. The ledger, not the admission
+ * nonce, decides: a process that admitted and then died leaves an open
+ * reservation, and another process must not admit beside it. Only a reservation
+ * settled at zero (dispatch withheld, or known zero usage) lets the next attempt
+ * reserve afresh; a charged or open one would put a second provider call
+ * against a single reservation.
  */
-function releasedWithoutCharge(
-  operation: Readonly<{ budgetSettledAt: Date | null; actualMicros: number | null }>,
-): boolean {
-  return operation.budgetSettledAt !== null && operation.actualMicros === 0
+function reservationState(
+  operation: Readonly<{
+    costWindowId: string | null
+    budgetSettledAt: Date | null
+    actualMicros: number | null
+  }>,
+): 'none' | 'open' | 'charged' | 'released' {
+  if (operation.costWindowId === null) return 'none'
+  if (operation.budgetSettledAt === null) return 'open'
+  return operation.actualMicros === 0 ? 'released' : 'charged'
 }
 
 /** Clears a released admission so the next attempt is admitted afresh. */
@@ -107,7 +127,171 @@ const RELEASED_ADMISSION_CLEARED = Object.freeze({
   actualMicros: null,
 })
 
-export function createPostgresAiAdmissionAuthority(
+const admissionOperationColumns = {
+  ...authorizedEffectOperationColumns,
+  id: aiOperations.id,
+  executionPermitId: aiOperations.executionPermitId,
+  replyDraftingV2: aiOperations.replyDraftingV2,
+  reviewId: aiOperations.reviewId,
+  sourceRevision: aiOperations.sourceRevision,
+  sourceDigest: aiOperations.sourceDigest,
+  sourceByteCount: aiOperations.sourceByteCount,
+  analysisSequence: aiOperations.analysisSequence,
+  baseReplyStateRevision: aiOperations.baseReplyStateRevision,
+  costWindowId: aiOperations.costWindowId,
+  budgetSettledAt: aiOperations.budgetSettledAt,
+  actualMicros: aiOperations.actualMicros,
+  expiresAt: aiOperations.expiresAt,
+} as const
+
+async function lockAdmissionOperation(tx: Transaction, descriptor: PropertyDescriptor) {
+  const [operation] = await tx
+    .select(admissionOperationColumns)
+    .from(aiOperations)
+    .where(
+      and(
+        eq(aiOperations.id, descriptor.operationId),
+        eq(aiOperations.organizationId, descriptor.organizationId),
+        eq(aiOperations.propertyId, descriptor.propertyId),
+      ),
+    )
+    .limit(1)
+    .for('update')
+  return operation
+}
+
+type AdmissionOperation = NonNullable<Awaited<ReturnType<typeof lockAdmissionOperation>>>
+
+function isExecutingAttempt(
+  operation: AdmissionOperation | undefined,
+  descriptor: PropertyDescriptor,
+): operation is AdmissionOperation {
+  return (
+    operation !== undefined &&
+    operation.state === 'executing' &&
+    operation.executionAttempt === descriptor.attemptNumber &&
+    operation.executionPermitId === descriptor.permitId &&
+    operation.sourceDigest === descriptor.sourceDigest &&
+    operation.sourceByteCount === descriptor.sourceByteCount &&
+    canonicalizeRfc8785(operation.replyDraftingV2) ===
+      canonicalizeRfc8785(descriptor.binding.replyDraftingV2 ?? null)
+  )
+}
+
+function capabilityFence(value: unknown): Readonly<Record<string, unknown>> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Readonly<Record<string, unknown>>)
+    : null
+}
+
+/**
+ * Whether the three controls the operation was claimed under still accept work.
+ * Read only to tell a stopped control from moved consent after the authorized
+ * effect fence refused; that fence already holds them share-locked.
+ */
+async function controlsAccepting(
+  tx: Transaction,
+  operation: AdmissionOperation,
+  capability: MerchantAiCapability,
+): Promise<boolean> {
+  const scopeKeys = [
+    'global',
+    `provider:${operation.providerDeploymentProfileVersion}`,
+    `capability:${capability}`,
+  ]
+  const controls = await tx
+    .select({
+      executionState: aiExecutionControlHeads.executionState,
+      admissionState: aiExecutionControlHeads.admissionState,
+    })
+    .from(aiExecutionControlHeads)
+    .where(inArray(aiExecutionControlHeads.scopeKey, scopeKeys))
+  return (
+    controls.length === scopeKeys.length &&
+    controls.every(
+      (control) =>
+        control.executionState === 'enabled' && control.admissionState === 'accepting',
+    )
+  )
+}
+
+/**
+ * The final authority before a provider call: the consent, epochs, processing
+ * profile and control generations the operation was claimed under, re-read in
+ * the transaction that holds the operation row. Lock order matches the output
+ * write: operation, enablement, profile, controls, then the review.
+ */
+async function authorizedEffectDenial(
+  tx: Transaction,
+  operation: AdmissionOperation,
+  capability: MerchantAiCapability,
+): Promise<PropertyDenial | null> {
+  const fence = capabilityFence(operation.capabilityFences)
+  if (
+    fence?.capability === capability &&
+    (await isCurrentAuthorizedEffect(tx, {
+      capability,
+      operation,
+      capabilityFence: fence,
+    }))
+  ) {
+    return null
+  }
+  return (await controlsAccepting(tx, operation, capability))
+    ? 'authorization_changed'
+    : 'control_disabled'
+}
+
+/**
+ * The review source the operation read, re-read under a share lock: the same
+ * epoch, revision, digest and size, content unexpired now, and the contract's
+ * own fence, the analysis sequence or the reply state.
+ */
+async function reviewSourceHolds(
+  tx: Transaction,
+  operation: AdmissionOperation,
+  capability: MerchantAiCapability,
+  at: Date,
+): Promise<boolean> {
+  if (
+    operation.reviewId === null ||
+    operation.sourceEpoch === null ||
+    operation.sourceRevision === null
+  ) {
+    return false
+  }
+  const source = await readCurrentReviewSource(tx, {
+    organizationId: operation.organizationId,
+    propertyId: operation.propertyId,
+    reviewId: operation.reviewId,
+  })
+  if (
+    source === undefined ||
+    !sourceHoldsOperation(
+      source,
+      operation,
+      { sourceEpoch: operation.sourceEpoch, sourceRevision: operation.sourceRevision },
+      at,
+    )
+  ) {
+    return false
+  }
+  if (capability === 'review_analysis') {
+    return (
+      operation.analysisSequence !== null &&
+      source.analysisSequence === operation.analysisSequence
+    )
+  }
+  if (capability === 'reply_drafting') {
+    return (
+      operation.baseReplyStateRevision !== null &&
+      source.replyStateRevision === operation.baseReplyStateRevision
+    )
+  }
+  return false
+}
+
+export function createAiExecutionAdmissionAdapter(
   input: Dependencies,
 ): AiAdmissionDatabaseAuthority {
   if (!KEY_ID.test(input.signingKid)) {
@@ -126,8 +310,7 @@ export function createPostgresAiAdmissionAuthority(
           descriptor.binding.operationProfileVersion,
         )
         if (
-          !profile ||
-          descriptor.binding.operationProfileVersion !== profile.profileVersion ||
+          !profile?.capability ||
           descriptor.binding.providerDeploymentProfileVersion !==
             profile.providerDeploymentProfileVersion ||
           descriptor.binding.capabilityRuntimeProfileVersion !==
@@ -135,47 +318,52 @@ export function createPostgresAiAdmissionAuthority(
         ) {
           return { status: 'denied' as const, code: 'authorization_changed' as const }
         }
-        const [operation] = await tx
-          .select({
-            id: aiOperations.id,
-            state: aiOperations.state,
-            executionAttempt: aiOperations.executionAttempt,
-            executionPermitId: aiOperations.executionPermitId,
-            replyDraftingV2: aiOperations.replyDraftingV2,
-            sourceDigest: aiOperations.sourceDigest,
-            sourceByteCount: aiOperations.sourceByteCount,
-            requestBindingKeyId: aiOperations.requestBindingKeyId,
-            requestBindingHmac: aiOperations.requestBindingHmac,
-            admissionNonce: aiOperations.admissionNonce,
-            budgetSettledAt: aiOperations.budgetSettledAt,
-            actualMicros: aiOperations.actualMicros,
-            expiresAt: aiOperations.expiresAt,
-          })
-          .from(aiOperations)
-          .where(
-            and(
-              eq(aiOperations.id, descriptor.operationId),
-              eq(aiOperations.organizationId, descriptor.organizationId),
-              eq(aiOperations.propertyId, descriptor.propertyId),
-            ),
-          )
-          .limit(1)
-          .for('update')
-        if (
-          !operation ||
-          operation.state !== 'executing' ||
-          operation.executionAttempt !== descriptor.attemptNumber ||
-          operation.executionPermitId !== descriptor.permitId ||
-          operation.sourceDigest !== descriptor.sourceDigest ||
-          operation.sourceByteCount !== descriptor.sourceByteCount ||
-          canonicalizeRfc8785(operation.replyDraftingV2) !==
-            canonicalizeRfc8785(descriptor.binding.replyDraftingV2 ?? null)
-        ) {
+        const operation = await lockAdmissionOperation(tx, descriptor)
+        if (!isExecutingAttempt(operation, descriptor)) {
           return { status: 'denied' as const, code: 'subject_mismatch' as const }
         }
-        const issuedAtEpochMillis = now().getTime()
+        const issuedAt = now()
+        const issuedAtEpochMillis = issuedAt.getTime()
         if (descriptor.callerDeadlineEpochMillis <= issuedAtEpochMillis) {
           return { status: 'denied' as const, code: 'permit_expired' as const }
+        }
+        const reservation = reservationState(operation)
+        if (reservation === 'open' || reservation === 'charged') {
+          return { status: 'denied' as const, code: 'already_consumed' as const }
+        }
+        const authorizationDenial = await authorizedEffectDenial(
+          tx,
+          operation,
+          profile.capability,
+        )
+        if (authorizationDenial !== null) {
+          return { status: 'denied' as const, code: authorizationDenial }
+        }
+        if (!(await reviewSourceHolds(tx, operation, profile.capability, issuedAt))) {
+          return { status: 'denied' as const, code: 'source_mismatch' as const }
+        }
+        if (reservation === 'released') {
+          await tx
+            .update(aiOperations)
+            .set(RELEASED_ADMISSION_CLEARED)
+            .where(
+              and(
+                eq(aiOperations.id, descriptor.operationId),
+                eq(aiOperations.organizationId, descriptor.organizationId),
+              ),
+            )
+        }
+
+        const admitted = await budget.admitAiOperation(tx, {
+          organizationId: descriptor.organizationId,
+          propertyId: descriptor.propertyId,
+          operationKey: descriptor.operationId,
+          routeKey: descriptor.route,
+          operationProfileVersion: descriptor.binding.operationProfileVersion,
+          providerPayloadBytes: descriptor.providerPayloadByteCount,
+        })
+        if (!admitted.ok) {
+          return { status: 'denied' as const, code: budgetDenial(admitted.code) }
         }
         // The adoption window outlives the provider request deadline on
         // purpose: it is the operator's reading time, not the call's. It can
@@ -188,40 +376,6 @@ export function createPostgresAiAdmissionAuthority(
                 operation.expiresAt.getTime(),
               )
             : null
-        if (operation.admissionNonce !== null) {
-          if (
-            operation.requestBindingKeyId === requestBinding.keyId &&
-            operation.requestBindingHmac === requestBinding.hmac
-          ) {
-            return {
-              status: 'admitted' as const,
-              nonce: operation.admissionNonce,
-              issuedAtEpochMillis,
-              expiresAtEpochMillis: descriptor.callerDeadlineEpochMillis,
-              replyTokenExpiresAtEpochMillis: adoptionWindowEnd,
-              replyDraftExpiresAtEpochMillis: adoptionWindowEnd,
-            }
-          }
-          if (!releasedWithoutCharge(operation)) {
-            return { status: 'denied' as const, code: 'already_consumed' as const }
-          }
-          await tx
-            .update(aiOperations)
-            .set(RELEASED_ADMISSION_CLEARED)
-            .where(eq(aiOperations.id, descriptor.operationId))
-        }
-
-        const admitted = await budget.admitAiOperation(tx, {
-          organizationId: descriptor.organizationId,
-          propertyId: descriptor.propertyId,
-          operationKey: descriptor.operationId,
-          routeKey: descriptor.route,
-          operationProfileVersion: descriptor.binding.operationProfileVersion,
-          providerPayloadBytes: descriptor.providerPayloadByteCount,
-        })
-        if (!admitted.ok) {
-          return { status: 'denied' as const, code: admissionDenial(admitted.code) }
-        }
         const admissionNonce = nonce()
         await tx
           .update(aiOperations)
@@ -230,9 +384,14 @@ export function createPostgresAiAdmissionAuthority(
             requestBindingKeyId: requestBinding.keyId,
             requestBindingHmac: requestBinding.hmac,
             grantKid: input.signingKid,
-            updatedAt: new Date(issuedAtEpochMillis),
+            updatedAt: issuedAt,
           })
-          .where(eq(aiOperations.id, descriptor.operationId))
+          .where(
+            and(
+              eq(aiOperations.id, descriptor.operationId),
+              eq(aiOperations.organizationId, descriptor.organizationId),
+            ),
+          )
         return {
           status: 'admitted' as const,
           nonce: admissionNonce,

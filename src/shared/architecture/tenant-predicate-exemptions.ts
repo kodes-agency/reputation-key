@@ -61,6 +61,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/ai/infrastructure/adapters/ai-execution-admission.adapter.ts',
+    symbol: 'settle',
+    reason:
+      'The in-process gateway settles the operation its own admission granted: the settlement permit names the operation id, and the locked row must still carry the same execution permit, attempt, admission nonce and grant key before anything is charged.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
     symbol: 'listExpiredExecutions',
     reason:
