@@ -83,9 +83,7 @@ export type CapabilityPolicyStore = Readonly<{
    * `*` allowlist. Absent = never (a store that cannot say, says no).
    */
   admitsEveryOrganization?: (cap: Capability) => boolean
-  isPropertyAllowlisted: (propertyId: string, cap: Capability) => boolean
   isOrgSuspended: (orgId: string) => boolean
-  isPropertySuspended: (propertyId: string) => boolean
 }>
 
 // ── Organization allowlist ──────────────────────────────────────────
@@ -241,12 +239,7 @@ export function createEnvCapabilityPolicyStore(
     },
     admitsEveryOrganization: (cap) =>
       orgAllowlist.all && !killAll && !killedCapabilities.has(cap),
-    isPropertyAllowlisted: (_propertyId, _cap) => {
-      // Property-level allowlisting deferred to future DB-backed implementation
-      return true
-    },
     isOrgSuspended: (orgId) => suspendedOrgs.has(orgId),
-    isPropertySuspended: () => false,
   }
 }
 
@@ -443,9 +436,7 @@ let _store: CapabilityPolicyStore | undefined
 const RESTORE_ISOLATED_STORE: CapabilityPolicyStore = {
   isCapabilityGloballyEnabled: () => false,
   isOrgAllowlisted: () => false,
-  isPropertyAllowlisted: () => false,
   isOrgSuspended: () => false,
-  isPropertySuspended: () => false,
 }
 
 /**
@@ -507,9 +498,6 @@ export function checkScopedCapability(
   if (store.isOrgSuspended(scope.organizationId)) {
     return { allowed: false, reason: 'org_suspended', capability }
   }
-  if (scope.propertyId && store.isPropertySuspended(scope.propertyId)) {
-    return { allowed: false, reason: 'property_suspended', capability }
-  }
   if (!store.isCapabilityGloballyEnabled(capability)) {
     if (CORE_CAPABILITIES.has(capability)) {
       return { allowed: false, reason: 'capability_disabled', capability }
@@ -517,13 +505,6 @@ export function checkScopedCapability(
     if (!store.isOrgAllowlisted(scope.organizationId, capability)) {
       return { allowed: false, reason: 'org_not_allowlisted', capability }
     }
-  }
-  if (
-    scope.propertyId &&
-    !CORE_CAPABILITIES.has(capability) &&
-    !store.isPropertyAllowlisted(scope.propertyId, capability)
-  ) {
-    return { allowed: false, reason: 'property_not_allowlisted', capability }
   }
   return { allowed: true, reason: 'allowed', capability }
 }
