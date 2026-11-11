@@ -33,6 +33,8 @@ const REPO_SRC = join(INBOX_ROOT, '..', '..')
 const FENCED_MIRROR_WRITERS: Readonly<Record<string, string>> = {
   'contexts/inbox/infrastructure/inbox-command-store.ts':
     'Receipt-coordinated command store: every mirror write co-commits with the Handling Cycle head, its transition row, and the outbox fact.',
+  'contexts/inbox/infrastructure/inbox-source-projection.ts':
+    'Source-driven projection commands and the item row writers they share: item rows converge with the Handling Cycle head, its transition row and the outbox fact in one transaction.',
   'contexts/inbox/infrastructure/feedback-handling.store.ts':
     'Private-feedback outcome store: closes the head and mirrors the status in one locked transaction.',
   'contexts/inbox/infrastructure/review-reply-close.ts':
