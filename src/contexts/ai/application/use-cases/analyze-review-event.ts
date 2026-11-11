@@ -32,21 +32,11 @@ import {
   resolveAiExecutionStopFence,
 } from '../ai-workflow-support'
 import type { ReviewAnalysisContract } from '../review-analysis-contract'
-import {
-  createReviewAnalysisContractV2,
-  type AiAnalysisObservabilityPort,
-} from '../review-analysis-contract-v2'
 import { resolveAnalysisClaimConflict } from '../analysis-claim-conflict'
 import {
   analysisExecutionBinding,
   analysisOperationIdentity,
 } from '../ai-operation-binding'
-
-// The v2 profile facts, the v2 answer rules and the v2 store call live in
-// review-analysis-contract-v2.ts; the contract a build runs is picked there and in
-// review-analysis-runtime.ts. Re-exported because callers and tests name them here.
-export { derivePrimaryCategoryV1 } from '../review-analysis-contract-v2'
-export type { AiAnalysisObservabilityPort }
 
 /**
  * A wait that comes before a provider attempt, for admission or for an operation
@@ -118,13 +108,11 @@ export type AnalyzeReviewEventResult =
   | Readonly<{ status: 'stopped' }>
 
 export type AnalyzeReviewEventDependencies = Readonly<{
-  observability?: AiAnalysisObservabilityPort
   /**
-   * How this build runs a review analysis (contract section 2.2): the profile
-   * facts, what is prepared before the claim and how an answer is stored. Absent
-   * means v2, the contract every build has run so far.
+   * How this build runs a review analysis: the profile facts, what is prepared
+   * before the claim and how an answer is stored.
    */
-  contract?: ReviewAnalysisContract
+  contract: ReviewAnalysisContract
   authorization: AiAuthorizationPort
   control: AiControlPort
   inference: AiInferencePort
@@ -220,14 +208,7 @@ export function createAnalyzeReviewEvent(
   const settlementDependencies = {
     aggregates: dependencies.aggregates,
   }
-  const contract: ReviewAnalysisContract =
-    dependencies.contract ??
-    createReviewAnalysisContractV2({
-      outputs: dependencies.outputs,
-      ...(dependencies.observability === undefined
-        ? {}
-        : { observability: dependencies.observability }),
-    })
+  const contract = dependencies.contract
 
   function settleWithoutResult(
     input: AnalyzeReviewEventInput,
