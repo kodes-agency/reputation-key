@@ -20,13 +20,13 @@ import type {
   InviteOrganizationAdminResult,
   PlatformOperatorActor,
 } from '../dto/platform-console.dto'
-import type { PlatformOrganizationStore } from '../ports/platform-organization-store.port'
-import { assertOperatorMayAdminister } from '../platform-administration'
+import type { PlatformOrganizationStore } from '../../operator/platform-organization-store.port.server'
+import { assertOperatorMayAdminister } from '../../operator/platform-administration.server'
 import {
   adminInvitationCommand,
   sendAdminInvitationEmail,
   type AdminInvitationEmailDeps,
-} from '../platform-admin-invitation'
+} from '../../operator/platform-admin-invitation.server'
 
 export type InviteOrganizationAdminDeps = AdminInvitationEmailDeps &
   Readonly<{

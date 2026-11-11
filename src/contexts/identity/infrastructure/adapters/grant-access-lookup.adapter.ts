@@ -4,7 +4,7 @@
 // authorization source for property scope, so a committed grant or revocation
 // is visible without a cache-generation side channel.
 
-import type { Database } from '#/shared/db'
+import type { Database } from '#/shared/db/index'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
 import {

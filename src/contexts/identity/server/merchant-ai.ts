@@ -8,7 +8,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
   MerchantAiAuthorizationError,
   MerchantAiAuthorizationStoreError,
-} from '../application/use-cases/merchant-ai-authorization'
+} from '../consent/merchant-ai-authorization.server'
 import { MERCHANT_AI_NOTICE } from '../application/dto/merchant-ai-notice.dto'
 import { isMerchantAiDecisionError } from '../domain/merchant-ai-decision-errors'
 import {
@@ -18,7 +18,7 @@ import {
   merchantAiConsentCommandInputSchema,
   merchantAiEnableForPropertiesInputSchema,
   merchantAiPropertyInputSchema,
-} from '../application/dto/merchant-ai-command.dto'
+} from '../consent/merchant-ai-command.dto.server'
 
 function merchantAiErrorStatus(code: MerchantAiAuthorizationError['code']): number {
   if (code === 'capability_denied') return 403

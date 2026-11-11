@@ -6,7 +6,7 @@
 // (tenant identifiers are parameters, with no name/email projection).
 
 import { describe, expect, it, vi } from 'vitest'
-import type { Database } from '#/shared/db'
+import type { Database } from '#/shared/db/index'
 import {
   PARTIAL_OFFBOARDING_GRANT_REASON,
   classifyPartialOffboarding,

@@ -52,7 +52,7 @@ import {
   listMerchantAiOverviewFn,
   revokeMerchantAiFn,
 } from './merchant-ai'
-import { MerchantAiAuthorizationError } from '../application/use-cases/merchant-ai-authorization'
+import { MerchantAiAuthorizationError } from '../consent/merchant-ai-authorization.server'
 import { merchantAiDecisionError } from '../domain/merchant-ai-decision-errors'
 
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'

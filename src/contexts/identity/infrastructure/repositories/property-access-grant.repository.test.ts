@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
-import { getDb } from '#/shared/db'
+import { getDb } from '#/shared/db/index'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   grantPropertyAccess,

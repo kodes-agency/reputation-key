@@ -12,8 +12,11 @@ import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import type { PolicyAdminCommandStore } from '../application/ports/policy-admin-command-store.port'
 import { identityError } from '../domain/errors'
 import { revokePropertyAccess } from './repositories/property-access-grant.repository'
-import { lockPropertyGrant, lockPropertyInOrganization } from './property-grant-locks'
-import { writePropertyGrant } from './property-grant-write'
+import {
+  lockPropertyGrant,
+  lockPropertyInOrganization,
+} from '../members/property-grant-locks.server'
+import { writePropertyGrant } from '../members/property-grant-write.server'
 
 async function requirePropertyInOrganization(
   tx: Tx,

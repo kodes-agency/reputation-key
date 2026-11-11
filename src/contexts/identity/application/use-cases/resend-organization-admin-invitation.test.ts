@@ -5,7 +5,7 @@ import type { RenewedInvitation } from '../ports/identity-command-store.port'
 import type {
   OrganizationAdministration,
   PlatformOrganizationStore,
-} from '../ports/platform-organization-store.port'
+} from '../../operator/platform-organization-store.port.server'
 import type { PlatformOperatorActor } from '../dto/platform-console.dto'
 import { resendOrganizationAdminInvitation } from './resend-organization-admin-invitation'
 

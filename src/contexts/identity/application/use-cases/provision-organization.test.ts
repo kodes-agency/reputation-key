@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { invitationId, organizationId, userId } from '#/shared/domain/ids'
 import { identityError } from '../../domain/errors'
 import type { InvitationEmail } from '../ports/invitation-email.port'
-import type { PlatformOrganizationStore } from '../ports/platform-organization-store.port'
+import type { PlatformOrganizationStore } from '../../operator/platform-organization-store.port.server'
 import type { PlatformOperatorActor } from '../dto/platform-console.dto'
 import { provisionOrganization } from './provision-organization'
 

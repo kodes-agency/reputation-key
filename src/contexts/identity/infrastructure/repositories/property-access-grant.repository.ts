@@ -6,7 +6,7 @@
 // the composite FK to properties(organization_id, id); one active grant per
 // (org, property, user) by partial unique index.
 import { sql } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
+import type { Database } from '#/shared/db/index'
 
 type PolicySqlExecutor = Pick<Database, 'execute'>
 

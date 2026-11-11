@@ -11,7 +11,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
-import { setMemberPropertyAccessInputSchema } from '../application/dto/member-access.dto'
+import { setMemberPropertyAccessInputSchema } from '../members/member-access.dto.server'
 
 // ── List member Property access ────────────────────────────────────
 // Active grants per member. Deliberately not on listMembers, which
