@@ -249,7 +249,7 @@ export function createAuth() {
           admin,
           member: memberRole,
         },
-        // §3.1.3: runtime custom roles are off for the beta. The organizationRole table stays as dormant schema.
+        // §3.1.3: runtime custom roles are off for the beta. The organizationRole table is dropped.
         dynamicAccessControl: {
           enabled: false,
         },

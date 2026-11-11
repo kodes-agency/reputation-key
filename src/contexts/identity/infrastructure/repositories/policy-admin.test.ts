@@ -89,7 +89,6 @@ async function clearOrgFixtures() {
   await executeWithLastOwnerGuardDisabled(db, [
     sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`,
     sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`,
-    sql`DELETE FROM policy_consent WHERE organization_id = ${ORG}`,
     sql`DELETE FROM properties WHERE organization_id = ${ORG}`,
     sql`DELETE FROM member WHERE "organizationId" = ${ORG}`,
     sql`DELETE FROM "user" WHERE id IN (${ADMIN}, ${MEMBER})`,

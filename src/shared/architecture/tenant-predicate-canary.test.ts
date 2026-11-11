@@ -367,16 +367,16 @@ describe('canary: every tenant-owned repository query carries a tenant predicate
 
   it('judges only the statements that name a tenant-owned table', () => {
     const tables = tenantTables()
-    expect(tables.allExportNames.has('organizationExports')).toBe(true)
-    expect(tables.tenantExportNames.has('organizationExports')).toBe(false)
+    expect(tables.allExportNames.has('organizationLifecycleEvents')).toBe(true)
+    expect(tables.tenantExportNames.has('organizationLifecycleEvents')).toBe(false)
     expect(tables.tenantExportNames.has('auditLogs')).toBe(true)
 
     // The where clause is on a table outside the canary's authority; the
     // tenant-owned table is only inserted into, with its Organization.
     const reports = inspectSynthetic(
       `const completeExport = async (exportId: string, organization: string) => {
-        await db.update(organizationExports).set({ state: 'ready' })
-          .where(eq(organizationExports.id, exportId))
+        await db.update(organizationLifecycleEvents).set({ phase: 'done' })
+          .where(eq(organizationLifecycleEvents.id, exportId))
         await db.insert(auditLogs).values({ organizationId: organization })
       }`,
     )

@@ -26,7 +26,6 @@ const grants = createIdentityPropertyEraseContributor()
 
 const IDENTITY_GRANT_TABLES = Object.freeze([
   'merchant_ai_decision_deferrals',
-  'property_access_grants',
   'property_access_grant',
 ])
 

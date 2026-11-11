@@ -177,10 +177,6 @@
       ]
     },
     {
-      "file": "src/shared/db/schema/property-erase.schema.ts",
-      "exports": ["propertyEraseAuthorities"]
-    },
-    {
       "file": "src/routes/api/auth/$.ts",
       "exports": ["handleAuthRequest"]
     },

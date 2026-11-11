@@ -10,7 +10,7 @@ const SCOPE_RANK: Readonly<Record<DataScope, number>> = {
   organization: 2,
 }
 
-/** Runtime guard for scope strings read from organization_role_policy.data_scope. */
+/** Runtime guard for scope strings from an untrusted source. */
 export function isDataScope(value: string): value is DataScope {
   return value in SCOPE_RANK
 }
