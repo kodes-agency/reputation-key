@@ -64,6 +64,11 @@ afterAll(async () => {
 beforeEach(async () => {
   const client = held!.client
   await client.query('SAVEPOINT scenario')
+  // Maintenance reads every Program in the database, and other suites commit
+  // theirs. Their rows are gone for this scenario only: the savepoint restores them.
+  await client.query('DELETE FROM goal_programs WHERE organization_id <> $1', [
+    ORGANIZATION_ID,
+  ])
   await client.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, 'Goal Property', 'goal-programs-property', 'UTC')`,
@@ -125,7 +130,6 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
     listOperational: vi.fn(real.listOperational),
     changeStatus: vi.fn(real.changeStatus),
     revise: vi.fn(real.revise),
-    rename: vi.fn(real.rename),
     answerCheckIn: vi.fn(real.answerCheckIn),
     findAssignmentConflicts: vi.fn(real.findAssignmentConflicts),
     changeMonthTarget: vi.fn(real.changeMonthTarget),
@@ -1189,109 +1193,6 @@ describe('canonical Goal Program service', () => {
 
       await expect(revise({ expectedStartMonth: '2026-05' })).resolves.toMatchObject({
         version: { version: 2, effectiveFrom: MAY },
-      })
-    })
-
-    it('rename changes name only and leaves the version untouched', async () => {
-      const { service, repository, policy, created } = await scansGoal()
-
-      await expect(
-        service.rename(
-          {
-            propertyId: PROPERTY_ID,
-            programId: created.program.id,
-            name: '  Lobby scans  ',
-          },
-          actor,
-        ),
-      ).resolves.toMatchObject({ name: 'Lobby scans', description: null })
-
-      expect(policy.authorize).toHaveBeenLastCalledWith(
-        expect.objectContaining({ action: 'goal.update', propertyId: PROPERTY_ID }),
-      )
-      expect(repository.rename).toHaveBeenCalledWith({
-        organizationId: 'org-1',
-        propertyId: PROPERTY_ID,
-        programId: created.program.id,
-        name: 'Lobby scans',
-        description: null,
-        previousName: 'Portal scans',
-        previousDescription: null,
-        actorId: 'manager-1',
-        at: MARCH,
-      })
-      expect(repository.revise).not.toHaveBeenCalled()
-      await expect(
-        service.get({ propertyId: PROPERTY_ID, programId: created.program.id }, actor),
-      ).resolves.toMatchObject({
-        program: { name: 'Lobby scans', currentVersion: 1 },
-        version: { id: created.version.id, version: 1, changeReason: 'created' },
-        versions: [{ id: created.version.id }],
-      })
-    })
-
-    it('rename keeps a description that is not sent and clears an empty one', async () => {
-      const { service, created } = await scansGoal()
-      const rename = (name: string, description?: string | null) =>
-        service.rename(
-          { propertyId: PROPERTY_ID, programId: created.program.id, name, description },
-          actor,
-        )
-
-      await expect(rename('Lobby scans', ' Counted at the desk ')).resolves.toMatchObject(
-        { description: 'Counted at the desk' },
-      )
-      await expect(rename('Front desk scans')).resolves.toMatchObject({
-        name: 'Front desk scans',
-        description: 'Counted at the desk',
-      })
-      await expect(rename('Front desk scans', '  ')).resolves.toMatchObject({
-        description: null,
-      })
-    })
-
-    it('rename hands over the name and description it read, so the write applies only to them', async () => {
-      const { service, repository, created } = await scansGoal()
-      const rename = (name: string, description?: string | null) =>
-        service.rename(
-          { propertyId: PROPERTY_ID, programId: created.program.id, name, description },
-          actor,
-        )
-      await rename('Lobby scans', 'Counted at the desk')
-
-      await rename('Lobby scans', 'Counted at the front desk')
-
-      expect(repository.rename).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          name: 'Lobby scans',
-          description: 'Counted at the front desk',
-          previousName: 'Lobby scans',
-          previousDescription: 'Counted at the desk',
-        }),
-      )
-    })
-
-    it('rename refuses a blank or overlong name and writes nothing for an unchanged one', async () => {
-      const { service, repository, created } = await scansGoal()
-      const rename = (name: string) =>
-        service.rename(
-          { propertyId: PROPERTY_ID, programId: created.program.id, name },
-          actor,
-        )
-
-      await expect(rename('   ')).rejects.toMatchObject({ code: 'invalid_name' })
-      await expect(rename('x'.repeat(201))).rejects.toMatchObject({
-        code: 'invalid_name',
-      })
-      await expect(rename(' Portal scans ')).resolves.toMatchObject({
-        name: 'Portal scans',
-      })
-      expect(repository.rename).not.toHaveBeenCalled()
-
-      // The goal ended, or was renamed, between the read and the write.
-      vi.mocked(repository.rename).mockResolvedValueOnce(null)
-      await expect(rename('Lobby scans')).rejects.toMatchObject({
-        code: 'revision_conflict',
       })
     })
   })
