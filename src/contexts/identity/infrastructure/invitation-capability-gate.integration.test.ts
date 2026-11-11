@@ -54,8 +54,8 @@ import {
   type InvitationId,
 } from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
-import { buildInvitationUseCases } from '../build-invitations'
-import { createAtomicIdentityCommandStore } from './identity-command-store'
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { buildIdentityContext } from '../build'
 import { createInvitedRegistrationStore } from './invited-registration-store'
 import { createRecoverInvitedRegistrationsHandler } from './jobs/recover-invited-registrations.job'
 
@@ -268,19 +268,31 @@ function build(fixture: Fixture) {
     return fixture.acceptorId
   })
   const ids = [randomUUID(), fixture.acceptorId, fixture.accountId]
-  const useCases = buildInvitationUseCases({
+  const context = buildIdentityContext({
+    replyEffects: replyScopeEffects,
     db,
     identityPort: { ...identityPort, signUp },
-    commandStore: createAtomicIdentityCommandStore(db, randomUUID),
     clock: () => now,
     idGen: () => ids.shift() ?? randomUUID(),
+    authSession: {
+      setActiveOrganization: async () => {},
+      updateOrganization: async () => {},
+      currentOrganizationName: async () => 'Gated invitation',
+      verifyPassword: async () => false,
+    },
+    deleteAssetObject: async () => {},
     sendEmail: async () => {},
     baseUrl: 'http://localhost:3000',
     invitationExpiresInMs: EXPIRES_AT.getTime() - START.getTime(),
     propertyNames: async () => [],
     logger: createMockLogger(),
-    resolveOrganizationName: async () => 'Gated invitation',
+    betaFeedbackHmacSecret: 'test-beta-feedback-pseudonym-secret',
+    policy: { env: {}, propertyBelongsToOrganization: async () => true },
   })
+  const useCases = {
+    ...context.publicApi.requests,
+    recoverInvitedRegistrations: context.worker.recoverInvitedRegistrations,
+  }
   return { useCases, signUp }
 }
 

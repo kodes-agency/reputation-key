@@ -585,3 +585,18 @@ export async function resolveMemberPermissionPropertyScope(
     propertyIds: grants.rows.map((row) => String(row.property_id)),
   }
 }
+
+/**
+ * Transaction-bound authority for a cross-context protected write: membership,
+ * effective reply permission and Property scope share the caller's revocation
+ * boundary instead of relying on enqueue-time attribution.
+ */
+export const decidePublicationActorAuthority = (
+  tx: MemberPropertyAuthorityDatabase,
+  input: Readonly<{
+    organizationId: string
+    propertyId: string
+    userId: string
+    at: Date
+  }>,
+) => decideCurrentMemberPropertyAuthority(tx, { ...input, permission: 'reply.manage' })

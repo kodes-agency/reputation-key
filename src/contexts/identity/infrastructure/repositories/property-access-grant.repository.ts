@@ -153,7 +153,7 @@ export async function listActiveGrantUserIdsForProperty(
 }
 
 export async function hasActiveGrant(
-  db: Database,
+  db: Pick<Database, 'execute'>,
   input: Readonly<{
     organizationId: string
     propertyId: string

@@ -30,7 +30,7 @@ import {
 } from '../domain/events'
 import type { InvitationEmail } from '../application/ports/invitation-email.port'
 import type { ProvisionOrganizationCommand } from '../application/ports/platform-organization-store.port'
-import { buildPlatformConsole } from '../build-platform'
+import { buildPlatformConsole } from '../build'
 import { createAtomicIdentityCommandStore } from './identity-command-store'
 import { createPlatformOrganizationStore } from './platform-organization-store'
 

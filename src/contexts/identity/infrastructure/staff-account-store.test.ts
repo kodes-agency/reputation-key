@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Pool, PoolClient } from 'pg'
 import type { Database } from '#/shared/db'
 import { createStaffAccountStore } from './staff-account-store'
-import { createStaffInvitationBudget } from '../build-staff-accounts'
+import { createStaffInvitationBudget } from './staff-invitation-budget'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 
 function setup(unlockFails = false) {
