@@ -6,7 +6,7 @@
 // the report itself becoming tenant content.
 
 import { sql } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
+import type { Database } from '#/shared/db/index'
 import {
   PARTIAL_OFFBOARDING_GRANT_REASON,
   type PartialOffboardingLookup,

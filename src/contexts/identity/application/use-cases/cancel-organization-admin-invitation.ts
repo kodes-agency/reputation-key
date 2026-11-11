@@ -14,8 +14,8 @@ import type {
   OrganizationInvitationInput,
   PlatformOperatorActor,
 } from '../dto/platform-console.dto'
-import type { PlatformOrganizationStore } from '../ports/platform-organization-store.port'
-import { readPermittedInvitation } from '../platform-administration'
+import type { PlatformOrganizationStore } from '../../operator/platform-organization-store.port.server'
+import { readPermittedInvitation } from '../../operator/platform-administration.server'
 
 export type CancelOrganizationAdminInvitationDeps = Readonly<{
   store: Pick<PlatformOrganizationStore, 'readAdministration' | 'cancelAdminInvitation'>

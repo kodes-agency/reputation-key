@@ -85,7 +85,7 @@ describe('GoogleConnectorDepartureStore contract', () => {
 
   it('is consumed through the seam, never through a context-private hatch', () => {
     const consumer = readFileSync(
-      resolve('src/contexts/identity/application/use-cases/remove-member.ts'),
+      resolve('src/contexts/identity/members/remove-member.server.ts'),
       'utf8',
     )
 

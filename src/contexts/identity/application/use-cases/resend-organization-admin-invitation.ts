@@ -17,12 +17,12 @@ import type {
   PlatformOperatorActor,
   ResendOrganizationAdminInvitationResult,
 } from '../dto/platform-console.dto'
-import type { PlatformOrganizationStore } from '../ports/platform-organization-store.port'
-import { readPermittedInvitation } from '../platform-administration'
+import type { PlatformOrganizationStore } from '../../operator/platform-organization-store.port.server'
+import { readPermittedInvitation } from '../../operator/platform-administration.server'
 import {
   sendAdminInvitationEmail,
   type AdminInvitationEmailDeps,
-} from '../platform-admin-invitation'
+} from '../../operator/platform-admin-invitation.server'
 
 export type ResendOrganizationAdminInvitationDeps = AdminInvitationEmailDeps &
   Readonly<{

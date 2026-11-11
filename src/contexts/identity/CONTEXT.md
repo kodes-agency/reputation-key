@@ -19,6 +19,17 @@ adapter; no other context reads its tables directly.
 - **Property Access Grant** — the only explicit Property-scope authority.
 - **Invitation** — a pending Organization membership request with a built-in role.
 
+## Feature folders
+
+Server-side code for these features lives beside its tests in
+`consent/` (merchant AI authorization, notices, deferral, renewal),
+`updates/` (product updates), `feedback/` (beta feedback submission and delivery),
+`operator/` (platform console), `staff/` (staff accounts, invitations and
+address checks) and `members/` (member invitations, role changes, removal and
+Property access grants). Files there are `*.server.ts`; server functions stay under
+`server/`. Anything a screen, route, script or another context imports, and the
+rights, erasure and export contributors, stay in the layer folders.
+
 ## Invariants
 
 - The role hierarchy is `AccountAdmin > PropertyManager > Member`. Only the first
@@ -147,7 +158,7 @@ atomically with one `identity.member.property_access_changed` fact (identifiers
 only), and a change that alters nothing records none. A grant from a person uses
 `source='operator'` with `createdBy` = that person, and takes the same per-Property
 lock and the same grant write as the operator's grant
-(`infrastructure/property-grant-write.ts`; the rule is `decidePropertyGrant` in
+(`members/property-grant-write.server.ts`; the rule is `decidePropertyGrant` in
 `domain/property-access-grant.ts`): a lapsed grant still holds the one-active-grant
 slot, so it is retired as `superseded` before the new one is written. The Members edit
 names no expiry and leaves a grant that already gives access alone. An invitation's
