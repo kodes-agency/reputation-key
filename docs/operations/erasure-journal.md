@@ -2,8 +2,11 @@
 
 `pnpm ops rights-request --apply` writes one journal object per context to the
 private bucket before that context deletes anything (see `rights-requests.md`).
-Guest self-service withdrawal does not write it yet. The restore verifier replays
-a local journal export (`journal=<file>`) through the resurrection fence.
+Guest self-service withdrawal (Change rating and Remove, and private feedback
+withdrawal) writes it too: the IDs-only intent reaches the bucket before the
+response or feedback is deleted, and a failed write refuses the withdrawal and
+raises the `guest.erasure_journal_write_failed` alert. The restore verifier
+replays a local journal export (`journal=<file>`) through the resurrection fence.
 
 ## Bucket evidence
 
@@ -64,13 +67,20 @@ for this input. An export must cover the chosen restore point and all later
 nonrepeating erasures. Keep the local file private and delete it under the
 recovery procedure after use.
 
-## Activation prerequisites
+## Activation
 
-Before activating any journal-dependent erasure, complete the isolated verifier's
-local-file wiring and command-level resurrected-erasure proof, including a
-negative control that omits replay. Confirm the passing data restore rehearsal,
-backups within 30 days including Manual backups, the applicable published notice,
-and the owner's approval of the actual activation step. Bucket expiry must be
-applied and checked against the real provider. Do not repeat a passing owner
-restore rehearsal. No activation switch, schedule or deletion authority is added
-here.
+Guest withdrawal journaling is on (`GUEST_WITHDRAWAL_JOURNAL_ACTIVE` in
+`contexts/guest/infrastructure/guest-withdrawal-journal.server.ts`), enabled
+after the restore replay for both guest target kinds and a verified backup set
+(2026-11-04). Keep these true while it is on:
+
+- The bucket credentials are set and the 45-day journal expiry rule is applied
+  and checked against the real provider (`erasure-journal-expiry`). Without
+  them every guest withdrawal refuses and the alert fires.
+- Export the journal before any restore and keep erasure writers stopped
+  through cutover.
+- Backups stay within 30 days, including Manual backups.
+
+When the alert fires, the guest saw a refusal and nothing was deleted; fix the
+bucket access and the guest can retry within the 24-hour window. Schedules and
+other deletion authority are not part of this switch.
