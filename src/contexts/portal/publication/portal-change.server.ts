@@ -9,7 +9,7 @@ import type { PortalRepository } from '../application/ports/portal.repository'
 import type {
   PortalCommandStore,
   PortalPublicationMutation,
-} from '../application/ports/portal-command-store.port'
+} from './portal-command-store-port.server'
 import type { PortalPublicationRepository } from '../application/ports/portal-publication.repository'
 import type { PortalTokenRepository } from '../application/ports/portal-token.repository'
 import type { Portal, PortalTheme } from '../domain/types'

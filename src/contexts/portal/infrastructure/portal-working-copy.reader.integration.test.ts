@@ -7,14 +7,14 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
-import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { getPortalPublicationHistory } from '../application/use-cases/get-portal-publication-history'
 import { readPortalWorkingCopy } from './portal-working-copy.reader'
 import { createPortalPublicationRepository } from './repositories/portal-publication.repository'
+import { createPortalRepository } from './repositories/portal.repository'
 import { seedPortalWorkingCopy } from './testing/portal-working-copy-seed'
 import { publishFromSource } from './testing/portal-working-copy-publish'
 import {
@@ -76,21 +76,12 @@ async function snapshotCount(): Promise<number> {
 }
 
 async function historyHasPendingChanges(scenario: WorkingCopyScenario): Promise<boolean> {
-  const portalRepo = createInMemoryPortalRepo()
-  portalRepo.seed([
-    buildTestPortal({
-      id: scenario.portalId,
-      organizationId: scenario.organizationId,
-      propertyId: scenario.propertyId,
-      publicationState: 'published',
-    }),
-  ])
   const staffPublicApi: StaffPublicApi = {
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],
   }
   const history = await getPortalPublicationHistory({
-    portalRepo,
+    portalRepo: createPortalRepository(getDb()),
     publicationRepo: createPortalPublicationRepository(getDb()),
     staffPublicApi,
     actorDirectory: { resolveDisplayNames: async () => new Map() },

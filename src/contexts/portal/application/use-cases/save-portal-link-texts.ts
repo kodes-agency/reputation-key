@@ -6,7 +6,7 @@
 
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalRepository } from '../ports/portal.repository'
-import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import type { PortalCommandStore } from '../../publication/portal-command-store-port.server'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
