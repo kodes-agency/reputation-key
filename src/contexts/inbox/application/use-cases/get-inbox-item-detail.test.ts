@@ -396,7 +396,6 @@ describe('getInboxItemDetail', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis,
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
 

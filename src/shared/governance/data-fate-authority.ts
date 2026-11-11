@@ -240,13 +240,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'SAFE-02/PPL-01',
   }),
   ...rows({
-    schemaFile: 'dashboard.schema.ts',
-    exportNames: ['setupChecklistMilestones'],
-    owner: 'reporting',
-    disposition: 'active_authority',
-    authority: 'EXP-01',
-  }),
-  ...rows({
     schemaFile: 'goal.schema.ts',
     exportNames: [
       'goalMonthlyResults',
@@ -437,7 +430,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'metricCorrections',
       'metricReadings',
       'metricCurrentGoogleReputationSnapshots',
-      'portalMetricLifetimeAggregates',
     ],
     owner: 'reporting',
     disposition: 'active_authority',
