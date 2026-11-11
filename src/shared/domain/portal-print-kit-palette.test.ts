@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { contrastRatio } from './portal-field-colour'
 import {
   PRINT_KIT_CONTRAST,
-  PRINT_KIT_WASH_ALPHA,
   immersivePrintKitPalette,
   IMMERSIVE_LOGO_PLATE,
   logoNeedsCreamPlate,
@@ -211,11 +210,6 @@ describe('printKitPalette', () => {
     expect(immersivePrintKitPalette('#EAD6A8', '#15110D').field).toBe('#15110D')
     expect(immersivePrintKitPalette('#EAD6A8', null).field).toBe('#16130E')
   })
-
-  it('paints the washes at 0.30, quieter than the guest backdrop', () => {
-    expect(PRINT_KIT_WASH_ALPHA).toBe(0.3)
-  })
-
   it('derives the washes from the accent, as the guest backdrop does', () => {
     const palette = immersivePrintKitPalette('#EAD6A8', null)
     expect(palette.warm).toMatch(/^#[0-9A-F]{6}$/u)

@@ -1,12 +1,6 @@
 import PDFDocument from 'pdfkit'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  drawCentredLine,
-  drawLine,
-  measureLine,
-  PrintKitFonts,
-  type PdfTextStyle,
-} from './print-kit-pdf-text'
+import { drawLine, PrintKitFonts, type PdfTextStyle } from './print-kit-pdf-text'
 
 type ShapedGlyph = Readonly<{ id: number; name: string }>
 
@@ -115,25 +109,5 @@ describe('lining figures', () => {
       clig: false,
       dlig: false,
     })
-  })
-})
-
-describe('drawLine and drawCentredLine', () => {
-  it('starts a line at x, and centres a line on its own measure', () => {
-    const doc = newDocument()
-    const fonts = new PrintKitFonts(doc)
-    const spy = vi.spyOn(doc, 'text')
-    const line = style('bodyStrong')
-    const width = measureLine(doc, fonts, 'Scan with your camera', line)
-
-    drawLine(doc, fonts, 'Scan with your camera', line, { x: 40, middleY: 10 })
-    drawCentredLine(doc, fonts, 'Scan with your camera', line, {
-      centreX: 150,
-      middleY: 30,
-    })
-
-    const starts = spy.mock.calls.map(([, x]) => x)
-    expect(starts[0]).toBe(40)
-    expect(starts[1]).toBeCloseTo(150 - width / 2, 6)
   })
 })

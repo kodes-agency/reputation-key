@@ -64,16 +64,6 @@ export function printFinalPhotoDpi(
   return Math.floor(perInch / zoom + DPI_EPSILON)
 }
 
-/** The photo's sharpness tier: under 150 dpi "will look soft", 150 to 199 "may look soft", 200 and up sharp. Never a refusal. */
-export type PrintFinalPhotoTier = 'will_look_soft' | 'may_look_soft' | 'sharp'
-
-const PRINT_FINAL_PHOTO_DPI = Object.freeze({ soft: 150, sharp: 200 })
-
-export function printFinalPhotoTier(dpi: number): PrintFinalPhotoTier {
-  if (dpi < PRINT_FINAL_PHOTO_DPI.soft) return 'will_look_soft'
-  return dpi < PRINT_FINAL_PHOTO_DPI.sharp ? 'may_look_soft' : 'sharp'
-}
-
 /** The least photo that prints at `dpi` in this box: what the notice asks for ("a photo of at least 850 × 717 px"). */
 export function printFinalPhotoPixelsFor(
   cover: Pick<PrintFinalPhotoBox, 'coverWidthPt' | 'coverHeightPt'>,

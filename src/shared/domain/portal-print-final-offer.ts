@@ -17,7 +17,6 @@
 import { err, ok, type Result } from './result'
 import { PRINT_KIT_MAX_LANGUAGES, type PrintKitPaper } from './portal-print-kit'
 import {
-  PRINT_FINAL_PIECES,
   printFinalRegionOf,
   type PrintFinalAddress,
   type PrintFinalLook,
@@ -104,12 +103,6 @@ export function printFinalPieceCount(
 const isCountIn = (value: number, max: number): boolean =>
   Number.isInteger(value) && value >= 1 && value <= max
 
-/** The pieces one office sheet carries: the manager's own count (More options), or every cell. */
-export const printFinalPerSheetOf = (
-  choice: Pick<PrintFinalChoice, 'piece' | 'look' | 'paper' | 'perSheet'>,
-): number =>
-  choice.perSheet ?? PRINT_FINAL_PER_SHEET[choice.piece][choice.look][choice.paper]
-
 /**
  * What is wrong with a choice before its code is known: a quantity or a count
  * per sheet out of range, a number of languages a print cannot carry, a tent
@@ -159,21 +152,4 @@ export function printFinalChoiceTile(
     rung: code.rung,
   })
   return tile.isOk() ? ok(tile.value) : err(tile.error)
-}
-
-export type PrintFinalPieceOffer = Readonly<{
-  piece: PrintFinalPiece
-  /** Null when the piece prints in this choice; else why not. */
-  refusal: PrintFinalRefusal | null
-}>
-
-/** Each piece as Share offers it under the rest of a choice: the three radio cards and why any is held. */
-export function printFinalPieceOffers(
-  choice: Omit<PrintFinalChoice, 'piece'>,
-  code: PrintFinalCodeFacts,
-): readonly PrintFinalPieceOffer[] {
-  return PRINT_FINAL_PIECES.map((piece) => {
-    const tile = printFinalChoiceTile({ ...choice, piece }, code)
-    return { piece, refusal: tile.isOk() ? null : tile.error }
-  })
 }
