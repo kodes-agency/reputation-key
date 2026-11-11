@@ -19,11 +19,10 @@ const executors = composeRightsExecutors(
   false,
 )
 
-/** Tables a cascade removes that the schema barrel does not export. */
+/** Tables a cascade removes that the schema barrel does not export (retired; dropped by the schema contraction). */
 const CASCADE_ONLY_TABLES: ReadonlySet<string> = new Set([
   'ai_review_analysis_aspects',
   'ai_property_aggregate_contribution_aspects',
-  'ai_property_daily_aspect_aggregates',
 ])
 
 /** Tables an erasure keeps on purpose, with the reason. */

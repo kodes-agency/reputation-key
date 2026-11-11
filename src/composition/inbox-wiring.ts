@@ -39,7 +39,6 @@ export function wireInbox(
         readReviewAnalysis: ai.publicApi.readReviewAnalysis,
       }),
       findCurrentReviewIdsByAttention: ai.publicApi.findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByAspect: ai.publicApi.findCurrentReviewIdsByAspect,
       findCurrentReviewIdsByIssue: ai.publicApi.findCurrentReviewIdsByIssue,
     },
     // Foreign read sources the inbox build adapts into its lookup ports.

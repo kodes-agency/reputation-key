@@ -125,15 +125,6 @@ export type AiOutputStorePort = Readonly<{
       nowEpochMillis: number
     }>,
   ): Promise<readonly ReviewId[]>
-  findCurrentReviewIdsByAspect(
-    input: Readonly<{
-      organizationId: OrganizationId
-      propertyIds?: readonly PropertyId[]
-      aspects?: readonly AiAnalysisAspect['aspect'][]
-      polarities?: readonly AiAnalysisAspect['polarity'][]
-      nowEpochMillis: number
-    }>,
-  ): Promise<readonly ReviewId[]>
 
   readAnalysisForDelivery<T>(
     input: Readonly<{
