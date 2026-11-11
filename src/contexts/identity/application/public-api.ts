@@ -16,7 +16,7 @@ export type { StaffPublicApi } from './people-public-api'
 export type {
   MerchantAiOverview,
   MerchantAiOverviewEntry,
-} from './use-cases/merchant-ai-overview'
+} from '../consent/merchant-ai-overview.server'
 
 /** Current manager membership facts. This facade carries no mutation authority. */
 export type IdentityManagerFactsPublicApi = Readonly<{

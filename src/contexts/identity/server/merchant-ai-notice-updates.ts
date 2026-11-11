@@ -5,8 +5,8 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { MerchantAiAuthorizationError } from '../application/use-cases/merchant-ai-authorization'
-import { merchantAiNoticeUpdateSeenInputSchema } from '../application/dto/merchant-ai-notice-update.dto'
+import { MerchantAiAuthorizationError } from '../consent/merchant-ai-authorization.server'
+import { merchantAiNoticeUpdateSeenInputSchema } from '../consent/merchant-ai-notice-update.dto.server'
 
 async function updateContext() {
   const actor = await resolveTenantContext(await headersFromContext())

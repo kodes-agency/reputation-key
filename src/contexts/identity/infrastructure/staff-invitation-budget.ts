@@ -5,7 +5,7 @@ import {
 } from '#/shared/auth/invitation-send-budget'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { staffAccountError } from '../domain/staff-account'
-import { createStaffAddressCheckBudget } from './staff-address-check-budget'
+import { createStaffAddressCheckBudget } from '../staff/staff-address-check-budget.server'
 
 export function createStaffInvitationBudget(
   rateLimiter: Parameters<typeof spendInvitationSendBudget>[0]['rateLimiter'],

@@ -103,7 +103,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/identity/infrastructure/repositories/merchant-ai-standing-renewal.repository.ts',
+    file: 'src/contexts/identity/consent/merchant-ai-standing-renewal.repository.server.ts',
     symbol: 'listLapsed',
     reason:
       'The standing-renewal sweep lists enabled heads on a lapsed notice across tenants with one indexed read; each Property is then renewed in its own transaction, which re-reads the head by organization and Property and rechecks its state version.',

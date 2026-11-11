@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
-import { getDb, type Database } from '#/shared/db'
+import { getDb, type Database } from '#/shared/db/index'
 import type { ManagerMembership } from '../../application/ports/identity.port'
 import { createManagerMembershipRepository } from './manager-membership.repository'
 

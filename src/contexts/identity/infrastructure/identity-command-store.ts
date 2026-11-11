@@ -1,4 +1,4 @@
-import { linkStaffInvitation } from './staff-invitation-link'
+import { linkStaffInvitation } from '../staff/staff-invitation-link.server'
 // Atomic identity command store (BQC-3.5).
 //
 // One PostgreSQL transaction per command commits the better-auth-owned state
@@ -22,7 +22,7 @@ import { linkStaffInvitation } from './staff-invitation-link'
 
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
+import type { Database } from '#/shared/db/index'
 import { invitation, member, session, user as userTable } from '#/shared/db/schema/auth'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -47,7 +47,7 @@ import {
   toOpenInvitations,
   type OpenInvitation,
 } from '../domain/invitation-store-rules'
-import { grantInvitedPropertyAccess } from './invited-property-access'
+import { grantInvitedPropertyAccess } from '../members/invited-property-access.adapter.server'
 import { revokeAllPropertyAccessForUser } from './repositories/property-access-grant.repository'
 import type {
   AcceptedInvitation,

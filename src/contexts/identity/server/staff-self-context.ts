@@ -1,7 +1,7 @@
 import { resolveStaff } from '#/shared/auth/staff-resolver'
 import { throwAuthError } from '#/shared/auth/auth-errors'
 import { getContainer } from '#/composition'
-import type { StaffSelfPerson } from '../application/ports/staff-self-reader.port'
+import type { StaffSelfPerson } from '../staff/staff-self-reader.port.server'
 
 export function requireOwnParticipation(
   person: StaffSelfPerson,

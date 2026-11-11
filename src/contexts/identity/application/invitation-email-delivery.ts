@@ -18,8 +18,8 @@ import type {
   InvitationEmail,
   InvitationEmailSender,
 } from './ports/invitation-email.port'
-import type { PropertyNameLookup } from './ports/invitation-read-model.port'
-import { resolveInvitationProperties } from './invitation-properties'
+import type { PropertyNameLookup } from '../members/invitation-read-model.port.server'
+import { resolveInvitationProperties } from '../members/invitation-properties.server'
 
 export type InvitationEmailDeliveryDeps = Readonly<{
   identity: Pick<IdentityPort, 'listMembers'>

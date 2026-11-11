@@ -1,4 +1,4 @@
-import type { StaffSelfPerson } from './ports/staff-self-reader.port'
+import type { StaffSelfPerson } from '../staff/staff-self-reader.port.server'
 import { staffAccountError } from '../domain/staff-account'
 
 export function requireOwnStaffParticipation(

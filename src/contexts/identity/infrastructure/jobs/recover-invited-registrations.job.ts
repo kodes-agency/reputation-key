@@ -2,7 +2,7 @@
 //
 // One bounded pass a minute finishes registrations whose request died between
 // sign-up and the acceptance transaction (see
-// `../../application/use-cases/recover-invited-registrations`).
+// `../../members/recover-invited-registrations.server`).
 //
 // The tenant-cross schedule is only the enumeration boundary: the firing is
 // admitted before any capability is asked, so each acceptance asks
@@ -18,7 +18,7 @@ import { trace } from '#/shared/observability/trace'
 import type {
   RecoverInvitedRegistrationsResult,
   RecoverInvitedRegistrationsRun,
-} from '../../application/use-cases/recover-invited-registrations'
+} from '../../members/recover-invited-registrations.server'
 
 export const JOB_NAME = 'recover-invited-registrations' as const
 

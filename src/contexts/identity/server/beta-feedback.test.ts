@@ -39,9 +39,9 @@ vi.mock('../application/beta-feedback-pseudonym', () => ({
 }))
 
 import { listMyBetaFeedbackHandler, submitBetaFeedbackHandler } from './beta-feedback'
-import { submitBetaFeedback } from '../application/use-cases/submit-beta-feedback'
-import { listMyBetaFeedback } from '../application/use-cases/list-my-beta-feedback'
-import { deliverBetaFeedback } from '../infrastructure/adapters/beta-feedback-sentry-delivery.adapter'
+import { submitBetaFeedback } from '../feedback/submit-beta-feedback.server'
+import { listMyBetaFeedback } from '../feedback/list-my-beta-feedback.server'
+import { deliverBetaFeedback } from '../feedback/beta-feedback-sentry-delivery.adapter.server'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   createExecutionPolicy,
