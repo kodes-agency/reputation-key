@@ -10,6 +10,8 @@ import { PrivateNoteSection } from './sections/private-note-section'
 import { RatingSection } from './sections/rating-section'
 import { ResponsibleSection } from './sections/responsible-section'
 import { WelcomeSection } from './sections/welcome-section'
+import { PortalReadState } from '#/contexts/portal/workspace/ui/portal-read-state'
+import { pendingSectionReads } from './portal-editor-section-reads'
 import type { PortalEditorSection } from './portal-editor-sections'
 import type { PortalGroupView } from '#/components/features/portal/portal-group/portal-group-types'
 import type { PortalEditorSectionProps } from './portal-editor-types'
@@ -22,6 +24,10 @@ type Props = PortalEditorSectionProps &
   }>
 
 export function PortalEditorSectionPanel({ section, group, ...shared }: Props) {
+  const pending = pendingSectionReads(section, shared.resources)
+  if (pending.length > 0) {
+    return <PortalReadState queries={pending} label="page settings" />
+  }
   switch (section) {
     case 'look':
       return <LookSection {...shared} />

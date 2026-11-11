@@ -8,7 +8,7 @@
 import { lazy, Suspense } from 'react'
 import { Skeleton } from '#/components/ui/skeleton'
 import { PROPERTY_LOOK_SOURCES } from '#/contexts/portal/application/portal-management-contracts'
-import { usePortalEditAccess } from '#/components/features/portal/portal-detail/use-portal-edit-access'
+import { usePortalEditAccess } from '#/components/features/portal/shared/use-portal-edit-access'
 import { PortalLookFacts } from '#/contexts/portal/look/ui/portal-look-facts'
 import { PropertyLookLink } from '#/contexts/portal/look/ui/portal-look-property-link'
 import {
