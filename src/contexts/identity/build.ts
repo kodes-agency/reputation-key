@@ -1,101 +1,169 @@
-import { decidePublicExecution } from '#/shared/auth/execution-policy'
-import { buildStaffAccounts, type StaffAccountBindings } from './build-staff-accounts'
-import { createStaffSelfReader } from './infrastructure/adapters/staff-self.reader'
 // Identity context — build function.
-// Wires identity port, the atomic command store (BQC-3.5), and use cases.
-// Per ADR-0001: the composition root calls this and merges useCases into the container.
+// Wires the identity port, the atomic command store and every Identity feature
+// once. Per ADR-0001 the composition root calls this and merges the result into
+// the container. `buildPlatformConsole` is the one separate seam: the operator
+// console (ADR 0065) never reaches `publicApi`.
 //
-// Readiness/runtime contributions exposed to the composition root:
-//   - internal.refreshPolicyStore — BQC-2.2 version-gated strong read of
-//     persisted policy state (workers await it before starting; side-effect
-//     paths use it for fresh reads, BQC-2.5).
-//   - internal.policyAdmin — BQC-2.7 least-privilege policy administration ops.
+// Runtime contributions exposed to the composition root:
+//   - policy.refreshRequired — version-gated strong read of persisted policy
+//     state (workers await it before starting; side-effect paths use it for
+//     fresh reads).
+//   - policy.admin — least-privilege policy administration ops.
 
-import { createProductUpdates } from './application/use-cases/product-updates'
-import { createProductUpdatesStore } from './infrastructure/repositories/product-updates.repository'
 import type { Database } from '#/shared/db'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { Clock } from '#/shared/domain/clock'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { IdentityPort } from './application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
-  portalId,
+  invitationId,
+  organizationId,
+  userId,
   type OrganizationId,
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
-import { updateMemberRole } from './application/use-cases/update-member-role'
-import { removeMember } from './application/use-cases/remove-member'
-import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
-import { buildInvitationUseCases, type InvitationUseCaseDeps } from './build-invitations'
-import { buildMerchantAiUpdates } from './build-merchant-ai-updates'
-import { buildMemberAccessUseCases } from './build-member-access'
-import { buildOrganizationSettingsUseCases } from './build-organization-settings'
-import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
-import { createPolicyAdminOps } from './application/use-cases/policy-admin'
-import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
+import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import { createCapabilityRefusalExplainer } from '#/shared/governance/capability-refusal'
-import { createOrganizationCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
 import {
   checkScopedCapability,
   type CapabilityPolicyEnv,
 } from '#/shared/auth/beta-capabilities'
-import { createMerchantAiAuthorization } from './application/use-cases/merchant-ai-authorization'
-import { createMerchantAiDecisionDeferral } from './application/use-cases/merchant-ai-decision-deferral'
-import { listMerchantAiOverview } from './application/use-cases/merchant-ai-overview'
-import { createMerchantAiAuthorizationStore } from './infrastructure/repositories/merchant-ai-authorization.repository'
-import { createMerchantAiDecisionDeferralStore } from './infrastructure/repositories/merchant-ai-decision.repository'
-import { createMerchantAiOverviewReader } from './infrastructure/repositories/merchant-ai-overview.repository'
+import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
+import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
+import { trace } from '#/shared/observability/trace'
+import type { IdentityPort } from './application/ports/identity.port'
+import type { IdentityCommandStore } from './application/ports/identity-command-store.port'
+import type { InvitationEmailSender } from './application/ports/invitation-email.port'
+import type { PropertyNameLookup } from './application/ports/invitation-read-model.port'
+import { retireReplacedIdentityAsset } from './application/retire-replaced-identity-asset'
+import { staffFailureDiagnostic } from './application/staff-failure-diagnostic'
 import {
-  isMerchantAiNoticeInForceForCapabilities,
+  MERCHANT_AI_NOTICE,
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
   MERCHANT_AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION,
   MERCHANT_AI_REDACTION_PROFILE_FAMILY,
   MERCHANT_AI_SOURCE_POLICY_ID,
+  isMerchantAiNoticeInForceForCapabilities,
 } from './application/dto/merchant-ai-notice.dto'
-import { getMemberRole } from './infrastructure/repositories/manager-membership.repository'
+import { acceptInvitation } from './application/use-cases/accept-invitation'
+import { addStaffMember } from './application/use-cases/add-staff-member'
+import { cancelInvitation } from './application/use-cases/cancel-invitation'
 import {
-  revokeAllPropertyAccessForUser,
-  hasActiveGrant,
-} from './infrastructure/repositories/property-access-grant.repository'
+  cancelOrganizationAdminInvitation,
+  type CancelOrganizationAdminInvitation,
+} from './application/use-cases/cancel-organization-admin-invitation'
+import { changeStaffInvitationEmail } from './application/use-cases/change-staff-email'
+import { getInvitationPreview } from './application/use-cases/get-invitation-preview'
+import { inviteMember } from './application/use-cases/invite-member'
 import {
-  createGrantAccessLookup,
-  createPropertyGrantHolderLookup,
-} from './infrastructure/adapters/grant-access-lookup.adapter'
-import { createPostgresPolicyAdminCommandStore } from './infrastructure/policy-admin-command-store'
-import { createIdentityAssetReferences } from './infrastructure/adapters/identity-asset-references.adapter'
-import { createManagerMembershipRepository } from './infrastructure/repositories/manager-membership.repository'
-import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
+  inviteOrganizationAdmin,
+  type InviteOrganizationAdmin,
+} from './application/use-cases/invite-organization-admin'
+import { listInvitations } from './application/use-cases/list-invitations'
+import { listMyBetaFeedback } from './application/use-cases/list-my-beta-feedback'
 import {
-  canForContext,
-  scopeForPermission,
-  type Permission,
-} from '#/shared/domain/permissions'
+  listPlatformOrganizations,
+  type ListPlatformOrganizations,
+} from './application/use-cases/list-platform-organizations'
 import {
-  decideCurrentManagerPropertyAuthorities,
-  decideCurrentManagerPropertyAuthority,
-  createMemberPropertyAuthorityLookup,
-  decideCurrentMemberPropertyAuthority,
-  decideMemberPropertyAuthority,
-  resolveMemberPermissionPropertyScope,
-  type ManagerPropertyAuthorityRequirement,
-  type MemberPropertyAuthorityDatabase,
-} from './infrastructure/repositories/member-property-authority'
-import { trace } from '#/shared/observability/trace'
-import { createStaffParticipationRepository } from './infrastructure/repositories/staff-participation.repository'
+  checkStaffBatch,
+  checkStaffSource,
+  listStaffMembers,
+  removeStaffForMemberDeparture,
+  removeStaffMember,
+  renameStaffMember,
+  resendStaffInvitation,
+  setColleagueListEnabled,
+  type ManageStaffDeps,
+} from './application/use-cases/manage-staff-accounts'
+import {
+  listMemberPropertyAccess,
+  setMemberPropertyAccess,
+} from './application/use-cases/member-property-access'
+import { createMerchantAiAuthorization } from './application/use-cases/merchant-ai-authorization'
+import { createMerchantAiDecisionDeferral } from './application/use-cases/merchant-ai-decision-deferral'
+import { createMerchantAiNoticeUpdates } from './application/use-cases/merchant-ai-notice-updates'
+import { listMerchantAiOverview } from './application/use-cases/merchant-ai-overview'
+import { createPolicyAdminOps } from './application/use-cases/policy-admin'
+import { createProductUpdates } from './application/use-cases/product-updates'
+import {
+  provisionOrganization,
+  type ProvisionOrganization,
+} from './application/use-cases/provision-organization'
+import { recoverInvitedRegistrations } from './application/use-cases/recover-invited-registrations'
+import { registerInvitedUser } from './application/use-cases/register-invited-user'
+import { removeMember } from './application/use-cases/remove-member'
+import { renewLapsedMerchantAiAuthorizations } from './application/use-cases/renew-lapsed-merchant-ai-authorizations'
+import { resendInvitation } from './application/use-cases/resend-invitation'
+import {
+  resendOrganizationAdminInvitation,
+  type ResendOrganizationAdminInvitation,
+} from './application/use-cases/resend-organization-admin-invitation'
 import {
   archiveStaffParticipation,
   createStaffParticipation,
   listStaffParticipations,
   updatePortalResponsibilities,
 } from './application/use-cases/staff-participations'
-import { createPrimaryStaffAttributionResolver } from './infrastructure/primary-staff-attribution'
 import { submitBetaFeedback } from './application/use-cases/submit-beta-feedback'
-import { listMyBetaFeedback } from './application/use-cases/list-my-beta-feedback'
-import { BetaFeedbackTriageRepository } from './infrastructure/beta-feedback-triage.repository'
+import { updateMemberRole } from './application/use-cases/update-member-role'
+import { updateOrganization } from './application/use-cases/update-organization'
+import { identityMemberRemoved } from './domain/events'
+import { createStaffManagementStore } from './infrastructure/adapters/staff-management.store'
+import { createStaffSelfReader } from './infrastructure/adapters/staff-self.reader'
+import {
+  createGrantAccessLookup,
+  createPropertyGrantHolderLookup,
+} from './infrastructure/adapters/grant-access-lookup.adapter'
+import { createIdentityAssetReferences } from './infrastructure/adapters/identity-asset-references.adapter'
 import { deliverBetaFeedback } from './infrastructure/adapters/beta-feedback-sentry-delivery.adapter'
+import { BetaFeedbackTriageRepository } from './infrastructure/beta-feedback-triage.repository'
 import { findBetaFeedbackReporterContact } from './infrastructure/beta-feedback-reporter'
+import { createAssignedPortalLookup } from './infrastructure/assigned-portal-lookup'
+import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
+import { isAcceptanceAdmitted } from './infrastructure/invitation-admission'
+import { createInvitationReadModel } from './infrastructure/invitation-read-model'
+import { createInvitedRegistrationStore } from './infrastructure/invited-registration-store'
+import { createMemberPropertyAccessStore } from './infrastructure/member-property-access-store'
+import {
+  createMerchantAiManagementAuthorizer,
+  createStepUpVerifier,
+} from './infrastructure/merchant-ai-management'
+import {
+  merchantAiPauseReason,
+  merchantAiRenewalDecision,
+} from './infrastructure/merchant-ai-pause-reason'
+import { createPlatformOrganizationStore } from './infrastructure/platform-organization-store'
+import { createPostgresPolicyAdminCommandStore } from './infrastructure/policy-admin-command-store'
+import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
+import { createPrimaryStaffAttributionResolver } from './infrastructure/primary-staff-attribution'
+import { createOrganizationCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
+import {
+  getMemberRole,
+  createManagerMembershipRepository,
+} from './infrastructure/repositories/manager-membership.repository'
+import {
+  decideCurrentManagerPropertyAuthorities,
+  decideCurrentManagerPropertyAuthority,
+  createMemberPropertyAuthorityLookup,
+  decidePublicationActorAuthority,
+  resolveMemberPermissionPropertyScope,
+} from './infrastructure/repositories/member-property-authority'
+import { createMerchantAiAuthorizationStore } from './infrastructure/repositories/merchant-ai-authorization.repository'
+import { createMerchantAiDecisionDeferralStore } from './infrastructure/repositories/merchant-ai-decision.repository'
+import { createMerchantAiNoticeUpdateStore } from './infrastructure/repositories/merchant-ai-notice-updates.repository'
+import { createMerchantAiOverviewReader } from './infrastructure/repositories/merchant-ai-overview.repository'
+import { createStandingRenewalStore } from './infrastructure/repositories/merchant-ai-standing-renewal.repository'
+import { createProductUpdatesStore } from './infrastructure/repositories/product-updates.repository'
+import {
+  hasActiveGrant,
+  revokeAllPropertyAccessForUser,
+} from './infrastructure/repositories/property-access-grant.repository'
+import { createStaffParticipationRepository } from './infrastructure/repositories/staff-participation.repository'
+import { createStaffAccountStore } from './infrastructure/staff-account-store'
 
 type AuthSession = Readonly<{
   setActiveOrganization: (organizationId: string) => Promise<void>
@@ -106,7 +174,17 @@ type AuthSession = Readonly<{
   ) => Promise<boolean>
 }>
 
-import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
+export type StaffAccountBindings = Pick<
+  ManageStaffDeps,
+  | 'staffScanTargetsEnabled'
+  | 'authorizeProperty'
+  | 'portals'
+  | 'spendInvitationBudget'
+  | 'invitationBudget'
+  | 'deliverAccess'
+  | 'spendAddressCheckBudget'
+>
+
 type IdentityContextDeps = Readonly<{
   staffAccounts?: StaffAccountBindings
   db: Database
@@ -115,10 +193,8 @@ type IdentityContextDeps = Readonly<{
   clock: Clock
   idGen: () => string
   /**
-   * ARC-03-T13: the authenticated session dependency. The four operations the
-   * root used to perform inline against the better-auth process singleton
-   * (set active org, update org, read org name, verify password) remain one
-   * Identity-owned structural contract.
+   * The authenticated session dependency: the operations the root used to
+   * perform inline against the better-auth process singleton.
    */
   authSession: AuthSession
   /**
@@ -127,20 +203,20 @@ type IdentityContextDeps = Readonly<{
    */
   deleteAssetObject: (key: string) => Promise<void>
   /** Send an invitation email. */
-  sendEmail: InvitationUseCaseDeps['sendEmail']
+  sendEmail: InvitationEmailSender
   /** Base URL for building invitation links. */
   baseUrl: string
   /** Invitation lifetime in ms (INVITATION_EXPIRY_SECONDS in shared/auth/auth). */
   invitationExpiresInMs: number
   /** Property display names, from the Property public API (composition). */
-  propertyNames: InvitationUseCaseDeps['propertyNames']
+  propertyNames: PropertyNameLookup
   /** Logger supplied by the process composition boundary. */
   logger: LoggerPort
   /** Keys the content-free beta-feedback telemetry pseudonyms. */
   betaFeedbackHmacSecret: string
   /**
-   * BQC-2.2/2.7 capability-policy wiring. Identity owns the persisted policy
-   * store (readiness) and the least-privilege admin ops; the composition root
+   * Capability-policy wiring. Identity owns the persisted policy store
+   * (readiness) and the least-privilege admin ops; the composition root
    * supplies the environment policy.
    */
   policy: Readonly<{
@@ -169,38 +245,272 @@ type IdentityContextDeps = Readonly<{
   ) => Promise<void>
 }>
 
+export type PlatformConsoleDeps = Readonly<{
+  db: Database
+  clock: Clock
+  idGen: () => string
+  logger: LoggerPort
+  sendEmail: InvitationEmailSender
+  baseUrl: string
+  invitationExpiresInMs: number
+  /** Whether BETA_ALLOWLIST_ORGS covers the Organization (web's reading). */
+  isControlledBetaEnabled: (organizationId: string) => boolean
+}>
+
+export type PlatformConsole = Readonly<{
+  listOrganizations: ListPlatformOrganizations
+  provisionOrganization: ProvisionOrganization
+  inviteAdmin: InviteOrganizationAdmin
+  resendInvitation: ResendOrganizationAdminInvitation
+  cancelInvitation: CancelOrganizationAdminInvitation
+}>
+
+/**
+ * The platform operator console: only its server functions reach it, after
+ * requirePlatformOperator. Its store runs the ordinary invitation commands
+ * inside its own audited transactions.
+ */
+export function buildPlatformConsole(deps: PlatformConsoleDeps): PlatformConsole {
+  const store = createPlatformOrganizationStore(deps.db, deps.idGen)
+  const { clock, logger } = deps
+  const email = {
+    sendEmail: deps.sendEmail,
+    baseUrl: deps.baseUrl,
+    invitationExpiresInMs: deps.invitationExpiresInMs,
+    logger,
+  } as const
+
+  return Object.freeze({
+    listOrganizations: listPlatformOrganizations({
+      store,
+      isControlledBetaEnabled: deps.isControlledBetaEnabled,
+      clock,
+    }),
+    provisionOrganization: provisionOrganization({
+      ...email,
+      store,
+      clock,
+      newOrganizationId: () => organizationId(deps.idGen()),
+      newInvitationId: () => invitationId(deps.idGen()),
+    }),
+    inviteAdmin: inviteOrganizationAdmin({
+      ...email,
+      store,
+      clock,
+      idGen: () => invitationId(deps.idGen()),
+    }),
+    resendInvitation: resendOrganizationAdminInvitation({ ...email, store, clock }),
+    cancelInvitation: cancelOrganizationAdminInvitation({ store, clock, logger }),
+  })
+}
+
+const unavailable = async (): Promise<never> => {
+  throw new Error('Staff account bindings are unavailable')
+}
+
+const unavailableStaffAccountBindings: StaffAccountBindings = {
+  authorizeProperty: unavailable,
+  portals: {
+    archiveForMemberDeparture: unavailable,
+    rename: unavailable,
+    check: unavailable,
+    create: unavailable,
+    issueCode: unavailable,
+    publish: unavailable,
+    archive: unavailable,
+  },
+  spendInvitationBudget: unavailable,
+  invitationBudget: unavailable,
+  deliverAccess: unavailable,
+  spendAddressCheckBudget: unavailable,
+}
+
+function buildStaffAccounts(
+  deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'idGen' | 'logger' | 'staffAccounts'> &
+    Readonly<{ commandStore: IdentityCommandStore }>,
+) {
+  const { db, clock, logger } = deps
+  const management = createStaffManagementStore(db, clock)
+  const input: ManageStaffDeps = {
+    store: createStaffAccountStore(db, clock, { connect: () => db.$client.connect() }),
+    management,
+    idGen: deps.idGen,
+    ...(deps.staffAccounts ?? unavailableStaffAccountBindings),
+    reportAddressRefusal: (reason) =>
+      logger.warn({ security: true, reason }, 'Staff address refused'),
+    reportStepFailure: (row, error) =>
+      logger.warn(
+        { correlationId: row.id, reason: staffFailureDiagnostic(row, error) },
+        'Staff setup step failed',
+      ),
+    reportDeliveryFailure: (row) =>
+      logger.warn({ correlationId: row.id }, 'Staff access email delivery failed'),
+    // A login already gone is the outcome the caller wanted.
+    removeLogin: async (memberId, targetUserId, ctx) => {
+      try {
+        await deps.commandStore.removeMember({
+          organizationId: ctx.organizationId,
+          memberId,
+          staffOnly: true,
+          event: identityMemberRemoved({
+            organizationId: ctx.organizationId,
+            userId: userId(targetUserId),
+            removedBy: ctx.userId,
+            occurredAt: clock(),
+          }),
+        })
+      } catch (error) {
+        const hasCode = typeof error === 'object' && error !== null && 'code' in error
+        if (!hasCode || error.code !== 'member_not_found') throw error
+      }
+    },
+  }
+  return Object.freeze({
+    removeForMemberDeparture: removeStaffForMemberDeparture(input),
+    checkStaffSource: checkStaffSource(input),
+    checkStaffBatch: checkStaffBatch(input),
+    addStaffMember: addStaffMember(input),
+    removeStaffMember: removeStaffMember(input),
+    renameStaffMember: renameStaffMember(input),
+    listStaffMembers: listStaffMembers(input),
+    setColleagueListEnabled: setColleagueListEnabled(input),
+    resendStaffInvitation: resendStaffInvitation(input),
+    changeStaffInvitationEmail: changeStaffInvitationEmail(input),
+    propertyForParticipation: async (participationId: string, ctx: AuthContext) =>
+      (await management.target(ctx.organizationId, participationId))?.propertyId ?? null,
+  })
+}
+
+const MERCHANT_AI_GRANT_POLICY = {
+  sourcePolicyId: MERCHANT_AI_SOURCE_POLICY_ID,
+  routingPolicyVersion: 1,
+  providerDeploymentProfileVersion: MERCHANT_AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION,
+  redactionProfileFamily: MERCHANT_AI_REDACTION_PROFILE_FAMILY,
+} as const
+
+/**
+ * Merchant AI: authorization, decision deferral, the overview read, notice
+ * updates and the standing renewal job, over one shared management check.
+ */
+function buildMerchantAi(
+  deps: Pick<
+    IdentityContextDeps,
+    'db' | 'replyEffects' | 'idGen' | 'clock' | 'logger' | 'authSession'
+  > &
+    Readonly<{
+      refreshPolicyRequired: () => Promise<unknown>
+      isCurrentAccountAdmin: (
+        input: Readonly<{ organizationId: string; userId: string }>,
+      ) => Promise<boolean>
+    }>,
+) {
+  const { db, clock, idGen } = deps
+  const noticeUpdateReceipts = createMerchantAiNoticeUpdateStore(db)
+  const decisionDeferrals = createMerchantAiDecisionDeferralStore(db)
+  const authorizeManagement = createMerchantAiManagementAuthorizer(db)
+  const isNoticeAdmin = async (input: { organizationId: string; actorUserId: string }) =>
+    (await getMemberRole(db, input.organizationId, input.actorUserId)) === 'owner'
+
+  const authorization = createMerchantAiAuthorization({
+    store: createMerchantAiAuthorizationStore(db, idGen, deps.replyEffects),
+    decisionDeferrals,
+    authorizeManagement,
+    authorize: async (input) => {
+      await deps.refreshPolicyRequired()
+      return checkScopedCapability(
+        { organizationId: input.organizationId, propertyId: input.propertyId },
+        input.capability,
+      ).allowed
+    },
+    isCurrentAccountAdmin: ({ organizationId: orgId, actorUserId }) =>
+      deps.isCurrentAccountAdmin({ organizationId: orgId, userId: actorUserId }),
+    verifyStepUp: createStepUpVerifier(deps.authSession.verifyPassword),
+    clock,
+    idGen,
+    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    ...MERCHANT_AI_GRANT_POLICY,
+  })
+  const deferral = createMerchantAiDecisionDeferral({
+    store: decisionDeferrals,
+    authorizeManagement,
+    clock,
+  })
+  const overview = listMerchantAiOverview({
+    reader: createMerchantAiOverviewReader(db),
+    // The same ai.manage authority as each Property command, resolved once.
+    resolveManagementScope: (input) =>
+      resolveMemberPermissionPropertyScope(db, {
+        organizationId: input.organizationId,
+        userId: input.actorUserId,
+        permission: 'ai.manage',
+        at: input.now,
+      }),
+    clock,
+    isNoticeInForce: isMerchantAiNoticeInForceForCapabilities,
+    readLatestUpdate: async (input) =>
+      (await isNoticeAdmin(input))
+        ? noticeUpdateReceipts.latest({ ...input, unseenOnly: false })
+        : null,
+    pauseReason: merchantAiPauseReason,
+  })
+
+  return {
+    request: Object.freeze({
+      get: authorization.get,
+      enable: authorization.enable,
+      enableForProperties: authorization.enableForProperties,
+      change: authorization.change,
+      revoke: authorization.revoke,
+      defer: deferral.defer,
+      listOverview: overview,
+    }),
+    noticeUpdates: createMerchantAiNoticeUpdates({
+      store: noticeUpdateReceipts,
+      isCurrentAccountAdmin: isNoticeAdmin,
+    }),
+    renewal: renewLapsedMerchantAiAuthorizations({
+      idGen,
+      clock,
+      logger: deps.logger,
+      store: createStandingRenewalStore({
+        db,
+        idGen,
+        replyEffects: deps.replyEffects,
+        policy: {
+          noticeVersion: MERCHANT_AI_NOTICE.version,
+          noticeDigest: MERCHANT_AI_NOTICE.digest,
+          ...MERCHANT_AI_GRANT_POLICY,
+        },
+        authorize: async (input) => merchantAiRenewalDecision(input),
+      }),
+      target: {
+        noticeVersion: MERCHANT_AI_NOTICE.version,
+        noticeDigest: MERCHANT_AI_NOTICE.digest,
+      },
+      captureUnexpected: (error) =>
+        captureObservabilityException(error, {
+          source: 'bullmq-job',
+          jobName: 'merchant-ai-standing-renewal',
+        }),
+    }),
+  }
+}
+
 function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'idGen'>) {
   const accessiblePropertyLookup = createGrantAccessLookup(deps.db, deps.clock)
   const participationRepo = createStaffParticipationRepository(deps.db)
   const resolvePrimaryStaffAttribution = createPrimaryStaffAttributionResolver(deps.db)
-
-  const responsibilityLookup = {
-    listAssignedPortalIds: async (
-      organizationId: OrganizationId,
-      userId: UserId,
-      propertyId: PropertyId,
-    ) => {
-      const participation = await participationRepo.findActiveByUser(
-        organizationId,
-        propertyId,
-        userId,
-      )
-      if (!participation?.personalPortalId) return []
-      const responsibilities = await participationRepo.listActiveResponsibilities(
-        organizationId,
-        participation.id,
-      )
-      return responsibilities
-        .filter(
-          (responsibility) =>
-            responsibility.kind === 'primary' &&
-            responsibility.portalId === participation.personalPortalId,
-        )
-        .map((responsibility) => portalId(responsibility.portalId))
-    },
+  const participation = {
+    repo: participationRepo,
+    accessibleProperties: accessiblePropertyLookup,
+    clock: deps.clock,
+    idGen: deps.idGen,
   } as const
 
-  const facts = Object.freeze({
+  const listAssignedPortalIds = createAssignedPortalLookup(participationRepo)
+
+  return Object.freeze({
     getAccessiblePropertyIds: async (
       organizationId: OrganizationId,
       userId: UserId,
@@ -214,49 +524,19 @@ function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'id
     getAssignedPortals: (
       input: Readonly<{ userId: UserId; propertyId: PropertyId }>,
       ctx: AuthContext,
-    ) =>
-      responsibilityLookup.listAssignedPortalIds(
-        ctx.organizationId,
-        input.userId,
-        input.propertyId,
-      ),
+    ) => listAssignedPortalIds(ctx.organizationId, input.userId, input.propertyId),
     resolvePrimaryStaffAttribution,
     findParticipationById: (organizationId: OrganizationId, participationId: string) =>
       participationRepo.findById(organizationId, participationId),
     listActiveParticipations: (organizationId: OrganizationId, propertyId: PropertyId) =>
       participationRepo.list(organizationId, { propertyId, activeOnly: true }),
-  })
-
-  const management = Object.freeze({
-    createStaffParticipation: createStaffParticipation({
-      repo: participationRepo,
-      accessibleProperties: accessiblePropertyLookup,
-      clock: deps.clock,
-      idGen: deps.idGen,
-    }),
-    listStaffParticipations: listStaffParticipations({
-      repo: participationRepo,
-      accessibleProperties: accessiblePropertyLookup,
-      clock: deps.clock,
-      idGen: deps.idGen,
-    }),
-    archiveStaffParticipation: archiveStaffParticipation({
-      repo: participationRepo,
-      accessibleProperties: accessiblePropertyLookup,
-      clock: deps.clock,
-      idGen: deps.idGen,
-    }),
-    updatePortalResponsibilities: updatePortalResponsibilities({
-      repo: participationRepo,
-      accessibleProperties: accessiblePropertyLookup,
-      clock: deps.clock,
-      idGen: deps.idGen,
+    management: Object.freeze({
+      createStaffParticipation: createStaffParticipation(participation),
+      listStaffParticipations: listStaffParticipations(participation),
+      archiveStaffParticipation: archiveStaffParticipation(participation),
+      updatePortalResponsibilities: updatePortalResponsibilities(participation),
     }),
   })
-
-  return {
-    publicApi: Object.freeze({ ...facts, management }),
-  } as const
 }
 
 /**
@@ -280,16 +560,15 @@ function buildBetaFeedbackRequests(deps: IdentityContextDeps) {
 }
 
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
-  // The merged People surface remains first in the load-bearing construction
-  // order and shares Identity's grant authority.
+  const { db, clock, logger, identityPort } = deps
+  // The People surface comes first in the load-bearing construction order and
+  // shares Identity's grant authority.
   const people = buildPeopleSurface(deps)
-  const resolveOrganizationName = async (_ctx: AuthContext): Promise<string> =>
-    (await deps.authSession.currentOrganizationName()) ?? 'Unknown Organization'
 
   const managerMembershipRepo = createManagerMembershipRepository(
-    deps.db,
+    db,
     async ({ organizationId: orgId, userId: memberUserId, memberRole }) => {
-      const { context } = await resolveMemberAuthContextWithDatabase(deps.db, {
+      const { context } = await resolveMemberAuthContextWithDatabase(db, {
         organizationId: orgId,
         userId: memberUserId,
         memberRole,
@@ -299,315 +578,200 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       return scope === 'none' ? null : scope
     },
   )
-  // BQC-3.5: every identity state mutation + fact commits atomically here.
-  const commandStore = createAtomicIdentityCommandStore(
-    deps.db,
-    deps.idGen,
-    async (organizationId) =>
-      (
-        await decidePublicExecution({
-          action: 'system:identity.accept_invitation',
-          capability: 'staff.accounts',
-          organizationId,
-          now: deps.clock(),
-        })
-      ).allowed,
+  // Every identity state mutation and its fact commit atomically here.
+  const commandStore = createAtomicIdentityCommandStore(db, deps.idGen, (orgId) =>
+    isAcceptanceAdmitted('staff.accounts', orgId, clock()),
   )
-  const invitationUseCases = buildInvitationUseCases({
-    ...deps,
-    commandStore,
-    resolveOrganizationName,
-  })
-  const memberAccess = buildMemberAccessUseCases(deps)
-  const assetReferences = createIdentityAssetReferences(deps.db)
-  const organizationSettings = buildOrganizationSettingsUseCases({
-    saveOrganization: deps.authSession.updateOrganization,
-    assetReferences,
-    deleteAssetObject: deps.deleteAssetObject,
-    logger: deps.logger,
-  })
+
+  // A joiner has no tenant context yet, so acceptance and registration are
+  // admitted by the execution policy for the invitation's Organization. The
+  // recovery job brings the authorizer of its own schedule to each pass.
+  const invitations = createInvitationReadModel(db)
+  const registrationStore = createInvitedRegistrationStore(db)
+  const admission = {
+    invitations,
+    authorizeOrganization: (orgId: OrganizationId) =>
+      isAcceptanceAdmitted('identity.invite', orgId, clock()),
+  } as const
+  // What both sends (invite, resend) need to compose and mail the invitation.
+  const emailDelivery = {
+    identity: identityPort,
+    sendEmail: deps.sendEmail,
+    getOrganizationName: async (_ctx: AuthContext): Promise<string> =>
+      (await deps.authSession.currentOrganizationName()) ?? 'Unknown Organization',
+    propertyNames: deps.propertyNames,
+    baseUrl: deps.baseUrl,
+    invitationExpiresInMs: deps.invitationExpiresInMs,
+    logger,
+  } as const
+
+  const memberPropertyAccessStore = createMemberPropertyAccessStore(db)
+  const assetReferences = createIdentityAssetReferences(db)
 
   // Capability fate and environment controls are process-static. Tenant
   // grants, consent, and the execution kill switch retain their live reads.
   const policyStore = buildCapabilityPolicyHandle({
-    db: deps.db,
+    db,
     env: deps.policy.env,
-    clock: deps.clock,
-    logger: deps.logger,
+    clock,
+    logger,
   })
-  const merchantAiUpdates = buildMerchantAiUpdates(deps)
-  const merchantAiDecisionDeferrals = createMerchantAiDecisionDeferralStore(deps.db)
-  const authorizeMerchantAiManagement = async (
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      actorUserId: string
-      now: Date
-    }>,
-  ): Promise<boolean> => {
-    const role = await getMemberRole(deps.db, input.organizationId, input.actorUserId)
-    if (!role) return false
-    try {
-      const decision = await decideMemberPropertyAuthority(deps.db, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        userId: input.actorUserId,
-        memberRole: role,
-        permission: 'ai.manage',
-        at: input.now,
-      })
-      return decision.allowed
-    } catch {
-      return false
-    }
-  }
-  const merchantAiDecisionDeferral = createMerchantAiDecisionDeferral({
-    store: merchantAiDecisionDeferrals,
-    authorizeManagement: authorizeMerchantAiManagement,
-    clock: deps.clock,
-  })
-  const listMerchantAiOverviewRead = listMerchantAiOverview({
-    reader: createMerchantAiOverviewReader(deps.db),
-    // The same ai.manage authority as each Property command, resolved once.
-    resolveManagementScope: (input) =>
-      resolveMemberPermissionPropertyScope(deps.db, {
-        organizationId: input.organizationId,
-        userId: input.actorUserId,
-        permission: 'ai.manage',
-        at: input.now,
-      }),
-    clock: deps.clock,
-    isNoticeInForce: isMerchantAiNoticeInForceForCapabilities,
-    readLatestUpdate: merchantAiUpdates.latestForOverview,
-    pauseReason: merchantAiUpdates.pauseReason,
-  })
-  const merchantAiAuthorization = createMerchantAiAuthorization({
-    store: createMerchantAiAuthorizationStore(deps.db, deps.idGen, deps.replyEffects),
-    decisionDeferrals: merchantAiDecisionDeferrals,
-    authorizeManagement: authorizeMerchantAiManagement,
-    authorize: async (input) => {
-      await policyStore.refreshRequired()
-      return checkScopedCapability(
-        {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-        },
-        input.capability,
-      ).allowed
-    },
-    isCurrentAccountAdmin: ({ organizationId: orgId, actorUserId }) =>
-      managerMembershipRepo.isCurrentAccountAdmin({
-        organizationId: orgId,
-        userId: actorUserId,
-      }),
-    verifyStepUp: async (input) =>
-      input.requestHeaders !== undefined &&
-      (await deps.authSession.verifyPassword({
-        headers: input.requestHeaders,
-        password: input.proof,
-      })),
-    clock: deps.clock,
-    idGen: deps.idGen,
-    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-    sourcePolicyId: MERCHANT_AI_SOURCE_POLICY_ID,
-    routingPolicyVersion: 1,
-    providerDeploymentProfileVersion: MERCHANT_AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION,
-    redactionProfileFamily: MERCHANT_AI_REDACTION_PROFILE_FAMILY,
+  const merchantAi = buildMerchantAi({
+    ...deps,
+    refreshPolicyRequired: policyStore.refreshRequired,
+    isCurrentAccountAdmin: managerMembershipRepo.isCurrentAccountAdmin,
   })
 
   // PropertyAccessGrant administration. Capability configuration is immutable
   // for the process and has no table-backed admin mutations.
   const policyDiagnostic = createPolicyDiagnostic({
-    getMemberRole: (orgId, uid) => getMemberRole(deps.db, orgId, uid),
-    hasActiveGrant: (input) => hasActiveGrant(deps.db, input),
+    getMemberRole: (orgId, uid) => getMemberRole(db, orgId, uid),
+    hasActiveGrant: (input) => hasActiveGrant(db, input),
   })
-  const policyAdminCommandStore = createPostgresPolicyAdminCommandStore(deps.db)
-  // Every AccountAdmin reaches this report, so its permit tally is tenant-bound.
-  const explainCapabilityRefusal = createCapabilityRefusalExplainer(
-    createOrganizationCapabilityRefusalReaders(deps.db),
-  )
   const policyAdmin = Object.freeze({
     ...createPolicyAdminOps({
       explainPolicyDecision: (input) => policyDiagnostic(input),
-      commandStore: policyAdminCommandStore,
+      commandStore: createPostgresPolicyAdminCommandStore(db),
       reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
     }),
-    explainCapabilityRefusal,
+    // Every AccountAdmin reaches this report, so its permit tally is tenant-bound.
+    explainCapabilityRefusal: createCapabilityRefusalExplainer(
+      createOrganizationCapabilityRefusalReaders(db),
+    ),
   })
 
-  const hasActivePropertyGrant = (
-    tx: Database,
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      userId: string
-      at: Date
-    }>,
-  ) => hasActiveGrant(tx, input)
-
-  /**
-   * Transaction-bound Identity authority for cross-context protected writes.
-   * The caller supplies its command transaction so membership, effective
-   * reply permission, Property scope, and the write share one revocation
-   * boundary instead of relying on enqueue-time attribution.
-   */
-  const decidePublicationActorAuthority = (
-    tx: MemberPropertyAuthorityDatabase,
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      userId: string
-      at: Date
-    }>,
-  ) =>
-    decideCurrentMemberPropertyAuthority(tx, {
-      ...input,
-      permission: 'reply.manage',
-    })
-
-  /**
-   * Transaction-bound, owning-context authority for commands that require
-   * several manager permissions but only one membership/grant snapshot.
-   */
-  const decideManagerPropertyAuthority = (
-    tx: MemberPropertyAuthorityDatabase,
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      userId: string
-      permissions: readonly Permission[]
-      at: Date
-    }>,
-  ) => decideCurrentManagerPropertyAuthority(tx, input)
-
-  /**
-   * Transaction-bound authority for every principal/Property tuple in one
-   * command. Identity owns the globally ordered membership/grant locks and the
-   * command-wide permission-generation cutover.
-   */
-  const decideManagerPropertyAuthorities = (
-    tx: MemberPropertyAuthorityDatabase,
-    input: Readonly<{
-      organizationId: string
-      requirements: readonly ManagerPropertyAuthorityRequirement[]
-      at: Date
-    }>,
-  ) => decideCurrentManagerPropertyAuthorities(tx, input)
-
   const staffAccounts = buildStaffAccounts({ ...deps, commandStore })
-  const useCases = {
-    ...invitationUseCases,
-    updateMemberRole: updateMemberRole({
-      identity: deps.identityPort,
+
+  const requests = Object.freeze({
+    inviteMember: inviteMember({
+      ...emailDelivery,
       commandStore,
-      clock: deps.clock,
+      clock,
+      idGen: () => invitationId(deps.idGen()),
+    }),
+    updateMemberRole: updateMemberRole({
+      identity: identityPort,
+      commandStore,
+      clock,
       reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
       prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
     }),
     removeMember: removeMember({
       removeStaffForMemberDeparture: staffAccounts.removeForMemberDeparture,
-      identity: deps.identityPort,
+      identity: identityPort,
       commandStore,
-      clock: deps.clock,
+      clock,
       cancelGoogleImportsForUser: deps.cancelGoogleImportsForUser,
       prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
       releaseMemberAuthorities: deps.releaseMemberAuthorities,
     }),
-    ...organizationSettings,
-    merchantAiAuthorization,
-    merchantAiDecisionDeferral,
-    listMerchantAiOverview: listMerchantAiOverviewRead,
-  } as const
-
-  const merchantAiRequestApi = Object.freeze({
-    get: useCases.merchantAiAuthorization.get,
-    enable: useCases.merchantAiAuthorization.enable,
-    enableForProperties: useCases.merchantAiAuthorization.enableForProperties,
-    change: useCases.merchantAiAuthorization.change,
-    revoke: useCases.merchantAiAuthorization.revoke,
-    defer: useCases.merchantAiDecisionDeferral.defer,
-    listOverview: useCases.listMerchantAiOverview,
-  })
-  const requestApi = Object.freeze({
-    inviteMember: useCases.inviteMember,
-    updateMemberRole: useCases.updateMemberRole,
-    removeMember: useCases.removeMember,
-    listInvitations: useCases.listInvitations,
-    resendInvitation: useCases.resendInvitation,
-    acceptInvitation: useCases.acceptInvitation,
-    cancelInvitation: useCases.cancelInvitation,
-    getInvitationPreview: useCases.getInvitationPreview,
-    registerInvitedUser: useCases.registerInvitedUser,
-    updateOrganization: useCases.updateOrganization,
-    merchantAiAuthorization: merchantAiRequestApi,
-    merchantAiNoticeUpdates: merchantAiUpdates.updates,
-    ...memberAccess,
-  })
-  const managerFacts = Object.freeze({
-    listActiveManagers: managerMembershipRepo.listActiveManagers,
-    /**
-     * Whether a member may act on an approval request for one Property, under
-     * the same effective-permission model an interactive approval uses. Feed
-     * asks this to route "Approve a reply" to people who can actually approve
-     * (I5.3); it takes no locks and decides nothing, so it serves reads only.
-     */
-    canApproveReplies: createMemberPropertyAuthorityLookup(
-      deps.db,
-      'reply.manage',
-      deps.clock,
-    ),
-  })
-  const accountAdminAuthority = Object.freeze({
-    isCurrentAccountAdmin: managerMembershipRepo.isCurrentAccountAdmin,
-  })
-  const publicApi = Object.freeze({
-    managerFacts,
-    accountAdminAuthority,
-    people: people.publicApi,
-    staffSelf: Object.freeze(createStaffSelfReader(deps.db, deps.clock)),
-    staffAccounts,
-    requests: requestApi,
+    listInvitations: listInvitations({
+      invitations,
+      propertyNames: deps.propertyNames,
+      clock,
+    }),
+    resendInvitation: resendInvitation({ ...emailDelivery, commandStore, clock }),
+    acceptInvitation: acceptInvitation({
+      ...admission,
+      identity: identityPort,
+      commandStore,
+      clock,
+      logger,
+    }),
+    cancelInvitation: cancelInvitation({ commandStore, clock }),
+    getInvitationPreview: getInvitationPreview({
+      invitations,
+      propertyNames: deps.propertyNames,
+      clock,
+    }),
+    registerInvitedUser: registerInvitedUser({
+      ...admission,
+      commandStore,
+      registrationStore,
+      signUp: identityPort.signUp,
+      idGen: deps.idGen,
+      clock,
+      logger,
+    }),
+    updateOrganization: updateOrganization({
+      updateOrg: deps.authSession.updateOrganization,
+      // A removed logo is freed from the store once the removal is saved.
+      currentLogo: assetReferences.currentOrganizationLogo,
+      retireReplaced: retireReplacedIdentityAsset({
+        storage: { deleteObject: deps.deleteAssetObject },
+        logger,
+      }),
+    }),
+    merchantAiAuthorization: merchantAi.request,
+    merchantAiNoticeUpdates: merchantAi.noticeUpdates,
+    setMemberPropertyAccess: setMemberPropertyAccess({
+      identity: identityPort,
+      store: memberPropertyAccessStore,
+      clock,
+      reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
+    }),
+    listMemberPropertyAccess: listMemberPropertyAccess({
+      store: memberPropertyAccessStore,
+      clock,
+    }),
   })
 
   return {
-    publicApi,
-    worker: Object.freeze({
-      recoverInvitedRegistrations: useCases.recoverInvitedRegistrations,
-      renewLapsedMerchantAiAuthorizations: merchantAiUpdates.renewal,
+    publicApi: Object.freeze({
+      managerFacts: Object.freeze({
+        listActiveManagers: managerMembershipRepo.listActiveManagers,
+        /**
+         * Whether a member may act on an approval request for one Property,
+         * under the same effective-permission model an interactive approval
+         * uses. Feed asks this to route "Approve a reply" to people who can
+         * actually approve; it takes no locks and decides nothing.
+         */
+        canApproveReplies: createMemberPropertyAuthorityLookup(db, 'reply.manage', clock),
+      }),
+      accountAdminAuthority: Object.freeze({
+        isCurrentAccountAdmin: managerMembershipRepo.isCurrentAccountAdmin,
+      }),
+      people: Object.freeze(people),
+      staffSelf: Object.freeze(createStaffSelfReader(db, clock)),
+      staffAccounts,
+      requests,
     }),
-    // ARC-03-T11/T12: named capability groups replace the former `internal`
-    // grab-bag. The composition root was its only consumer, so the root now
-    // names WHAT it takes from Identity instead of reaching through a
-    // context-private hatch.
+    worker: Object.freeze({
+      recoverInvitedRegistrations: recoverInvitedRegistrations({
+        commandStore,
+        registrationStore,
+        clock,
+        logger,
+      }),
+      renewLapsedMerchantAiAuthorizations: merchantAi.renewal,
+    }),
     /** Capability-policy control plane owned by Identity. */
     policy: Object.freeze({
-      // BQC-2.7: least-privilege policy administration operations.
       admin: policyAdmin,
       // Static policy is already current; these async no-ops preserve the
       // deployment boot/readiness contract without a background poller.
       refresh: policyStore.refresh,
       refreshRequired: policyStore.refreshRequired,
       currentVersion: policyStore.currentVersion,
-      // ARC-03-T8: container-owned policy objects. Building identity no longer
-      // installs them process-wide; an entry point binds exactly one set.
+      // Container-owned policy objects: building identity does not install
+      // them process-wide; an entry point binds exactly one set.
       capabilityPolicyStore: policyStore.capabilityPolicyStore,
       executionPolicy: policyStore.executionPolicy,
       delayedExecutionPolicy: policyStore.delayedExecutionPolicy,
     }),
     /** Authority decisions and grant facts other contexts must ask Identity for. */
     authority: Object.freeze({
-      // Identity owns the grant table; callers supply their authorization
-      // transaction so the grant read participates in the same commit check.
-      hasActivePropertyGrant,
-      decideManagerPropertyAuthority,
-      decideManagerPropertyAuthorities,
+      // Callers supply their authorization transaction so each decision shares
+      // their commit check; the grant table stays Identity's.
+      hasActivePropertyGrant: hasActiveGrant,
+      decideManagerPropertyAuthority: decideCurrentManagerPropertyAuthority,
+      decideManagerPropertyAuthorities: decideCurrentManagerPropertyAuthorities,
       decidePublicationActorAuthority,
       // Property-scoped recipient resolution for other contexts (notification
-      // fan-out). Identity owns the grant table, so the read lives here.
-      propertyAccessHolders: createPropertyGrantHolderLookup(deps.db, deps.clock),
+      // fan-out).
+      propertyAccessHolders: createPropertyGrantHolderLookup(db, clock),
       revokeAllPropertyAccessForUser: (organizationId: string, userId: string) =>
-        revokeAllPropertyAccessForUser(deps.db, {
+        revokeAllPropertyAccessForUser(db, {
           organizationId,
           userId,
           reason: 'member_offboarded',
@@ -619,8 +783,8 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     /** What still points at an uploaded avatar or logo. Request-facing, so kept off `publicApi`. */
     assetReferences,
     productUpdates: createProductUpdates({
-      store: createProductUpdatesStore(deps.db),
-      clock: deps.clock,
+      store: createProductUpdatesStore(db),
+      clock,
       hasCapability: ({ actor, propertyId }, capability) =>
         checkScopedCapability(
           { organizationId: actor.organizationId, propertyId },
