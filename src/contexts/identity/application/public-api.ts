@@ -1,73 +1,22 @@
-export { STAFF_NOTICE_VERSION } from '../domain/staff-account'
-import type { StaffAccountsApi } from './staff-accounts-api'
-import type { StaffSelfReader } from './ports/staff-self-reader.port'
-import type { MerchantAiNoticeUpdates } from './use-cases/merchant-ai-notice-updates'
 // Identity context — public API surface for cross-context consumers.
-// Other contexts consume event types and port interfaces from this barrel.
-// Per ADR-0001.
+// Other contexts consume only what is exported here. Per ADR-0001.
 
 import type { ManagerMembership } from './ports/identity.port'
-import type { StaffPublicApi } from './people-public-api'
-import type { InviteMember } from './use-cases/invite-member'
-import type { UpdateMemberRole } from './use-cases/update-member-role'
-import type { RemoveMember } from './use-cases/remove-member'
-import type { ListInvitations } from './use-cases/list-invitations'
-import type { ResendInvitation } from './use-cases/resend-invitation'
-import type { AcceptInvitation } from './use-cases/accept-invitation'
-import type { CancelInvitation } from './use-cases/cancel-invitation'
-import type { GetInvitationPreview } from './use-cases/get-invitation-preview'
-import type { RegisterInvitedUser } from './use-cases/register-invited-user'
-import type { UpdateOrganization } from './use-cases/update-organization'
-import type { MerchantAiAuthorization } from './use-cases/merchant-ai-authorization'
-import type { MerchantAiDecisionDeferralService } from './use-cases/merchant-ai-decision-deferral'
-import type { ListMerchantAiOverview } from './use-cases/merchant-ai-overview'
-import type {
-  ListMemberPropertyAccess,
-  SetMemberPropertyAccess,
-} from './use-cases/member-property-access'
 
-export type {
-  IdentityOrganizationCreated,
-  IdentityMemberInvited,
-  IdentityInvitationAccepted,
-  IdentityInvitationCanceled,
-  IdentityMemberRemoved,
-  IdentityMemberRoleChanged,
-  IdentityMemberPropertyAccessChanged,
-  IdentityMerchantAiChanged,
-  IdentityOrganizationLifecycleChanged,
-  IdentityEvent,
-} from '../domain/events'
+export { STAFF_NOTICE_VERSION } from '../domain/staff-account'
 
 export {
   type CurrentMerchantAiCapability,
-  type MerchantAiCapability,
   type MerchantAiSnapshot,
   type MerchantAiState,
 } from '../domain/merchant-ai-authorization'
 
+export type { ManagerMembership } from './ports/identity.port'
+export type { StaffPublicApi } from './people-public-api'
 export type {
-  IdentityPort,
-  InvitationRecord,
-  ManagerMembership,
-  MemberRecord,
-  OrganizationRecord,
-} from './ports/identity.port'
-
-export type { InvitationPreview } from './use-cases/get-invitation-preview'
-export type { OrganizationInvitation } from './dto/invitation.dto'
-export type {
-  ListMemberPropertyAccessOutput,
-  SetMemberPropertyAccessInput,
-  SetMemberPropertyAccessOutput,
-} from './dto/member-access.dto'
-export type { MemberPropertyAccess } from './ports/member-property-access.port'
-
-export type {
-  StaffPublicApi,
-  StaffParticipation,
-  PortalResponsibility,
-} from './people-public-api'
+  MerchantAiOverview,
+  MerchantAiOverviewEntry,
+} from './use-cases/merchant-ai-overview'
 
 /** Current manager membership facts. This facade carries no mutation authority. */
 export type IdentityManagerFactsPublicApi = Readonly<{
@@ -83,53 +32,6 @@ export type IdentityAccountAdminAuthorityPublicApi = Readonly<{
     }>,
   ) => Promise<boolean>
 }>
-
-/**
- * Merchant AI management: the per-Property authorization snapshot and its
- * consent commands, the durable "not now" decision, and the read-only
- * Organization overview across every Property the actor manages AI for.
- */
-export type MerchantAiRequestApi = Readonly<
-  Pick<MerchantAiAuthorization, 'get' | 'enable' | 'change' | 'revoke'> &
-    Pick<MerchantAiDecisionDeferralService, 'defer'> & {
-      listOverview: ListMerchantAiOverview
-    }
->
-
-/** Request-facing Identity operations. Infrastructure and worker controls stay private. */
-export type IdentityRequestApi = Readonly<{
-  inviteMember: InviteMember
-  updateMemberRole: UpdateMemberRole
-  removeMember: RemoveMember
-  listInvitations: ListInvitations
-  resendInvitation: ResendInvitation
-  acceptInvitation: AcceptInvitation
-  cancelInvitation: CancelInvitation
-  /** Anonymous: the invitation link's preview, keyed by its bearer id. */
-  getInvitationPreview: GetInvitationPreview
-  registerInvitedUser: RegisterInvitedUser
-  updateOrganization: UpdateOrganization
-  merchantAiNoticeUpdates: MerchantAiNoticeUpdates
-  merchantAiAuthorization: MerchantAiRequestApi
-  /** AccountAdmins: which Properties each PropertyManager can work. */
-  listMemberPropertyAccess: ListMemberPropertyAccess
-  /** AccountAdmins: grant and revoke a PropertyManager's Properties. */
-  setMemberPropertyAccess: SetMemberPropertyAccess
-}>
-
-/** Complete delivery-boundary facade used by Identity request handlers. */
-export type IdentityPublicApi = Readonly<{
-  managerFacts: IdentityManagerFactsPublicApi
-  accountAdminAuthority: IdentityAccountAdminAuthorityPublicApi
-  staffAccounts: StaffAccountsApi
-  staffSelf: StaffSelfReader
-  people: StaffPublicApi
-  requests: IdentityRequestApi
-}>
-export type {
-  MerchantAiOverview,
-  MerchantAiOverviewEntry,
-} from './use-cases/merchant-ai-overview'
 
 export {
   requireOwnStaffParticipation,

@@ -15,7 +15,6 @@ import type { Database } from '#/shared/db'
 import type { Env } from '#/shared/config/env'
 import type { Clock } from '#/shared/domain/clock'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
-import type { RequestContextPort } from '#/contexts/identity/application/ports/request-context.port'
 import type { AuthSessionOperations } from '#/shared/auth/better-auth-session'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
 import type { sendInvitationEmail } from '#/shared/auth/emails'
@@ -57,7 +56,10 @@ export type CreateContainerOptions = {
   identityPort?: IdentityPort
   /** ARC-03-T13: override the ambient request context (worker and fixture
    * processes have no server request; simulations inject fixed headers). */
-  requestContext?: RequestContextPort
+  requestContext?: Readonly<{
+    /** Current request headers, or empty ones outside a server request; never throws. */
+    currentRequestHeaders: () => Promise<Headers>
+  }>
   /** ARC-03-T13: override the authenticated session provider. */
   authSession?: AuthSessionOperations
   /** Dedicated non-persistent provider store override for simulations/tests. */

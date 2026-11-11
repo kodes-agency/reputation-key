@@ -7,16 +7,23 @@
 // (org, property, user) by partial unique index.
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type {
-  GrantSource,
-  PropertyAccessGrantRecord,
-} from '../../application/ports/property-access-grant.port'
 
 type PolicySqlExecutor = Pick<Database, 'execute'>
 
-// The record contract lives in application/ports (boundary rule); re-exported
-// here for the repository's existing consumers.
-export type { GrantSource, PropertyAccessGrantRecord }
+export type GrantSource = 'operator' | 'migration' | 'invitation'
+
+export type PropertyAccessGrantRecord = Readonly<{
+  id: string
+  organizationId: string
+  propertyId: string
+  userId: string
+  source: GrantSource
+  createdBy: string | null
+  createdAt: Date
+  expiresAt: Date | null
+  revokedAt: Date | null
+  revokeReason: string | null
+}>
 
 export type GrantPropertyAccessInput = Readonly<{
   organizationId: string
