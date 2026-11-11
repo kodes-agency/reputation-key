@@ -287,6 +287,7 @@ export const releaseDueResponseTargetReminders = (
     const candidates = await deps.targetStore.listDueReminderCandidates({
       now: startedAt,
       limit: RESPONSE_TARGET_REMINDER_RELEASE_LIMIT,
+      extra: RESPONSE_TARGET_REMINDER_RELEASE_LIMIT,
     })
     const { heads, unreadableOrganizations } = await loadHeads(deps, candidates)
 
