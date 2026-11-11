@@ -1,6 +1,6 @@
 // Combined health endpoint (backward compatible).
 // Prefer /api/health/live, /api/health/ready and /api/health/started for
-// orchestration (BQR-6.1). BQC-7.2: same upgraded readiness semantics as
+// orchestration. Same upgraded readiness semantics as
 // /api/health/ready (container + keys + DB + Redis + migrations + policy,
 // per-probe budgets) —
 // the response shape stays compatible by ADDING fields, never removing.
