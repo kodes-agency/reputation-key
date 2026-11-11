@@ -525,8 +525,8 @@ describe('retention rule registry (BQC-3.7)', () => {
     })
   })
 
-  it('redacts every legacy guest abuse pseudonym after seven days', () => {
-    for (const table of ['scan_events', 'ratings', 'feedback']) {
+  it('redacts the legacy visit record abuse pseudonym after seven days', () => {
+    for (const table of ['scan_events']) {
       expect(
         RETENTION_RULES.find((rule) => rule.subject === `${table}.abuse_pseudonym`),
       ).toMatchObject({
@@ -540,8 +540,8 @@ describe('retention rule registry (BQC-3.7)', () => {
     }
   })
 
-  it('redacts every legacy guest session pseudonym after 24 hours', () => {
-    for (const table of ['scan_events', 'ratings', 'feedback']) {
+  it('redacts the legacy visit record session pseudonym after 24 hours', () => {
+    for (const table of ['scan_events']) {
       expect(
         RETENTION_RULES.find(
           (rule) => rule.subject === `${table}.guest_session_pseudonym`,
@@ -614,16 +614,10 @@ describe('retention rule registry (BQC-3.7)', () => {
     })
   })
 
-  it('touches the mirrors the beta no longer writes only through row-preserving redaction', () => {
-    // `ratings` and `feedback` hold only what predates the response model, so
-    // their rows stay as inventory. `scan_events` is still written on every
-    // visit: its rows are current visit facts and leave at 24 months.
-    const unwrittenMirrors = new Set(['ratings', 'feedback'])
-    const mirrorRules = RETENTION_RULES.filter((rule) => unwrittenMirrors.has(rule.table))
-    expect(mirrorRules).toHaveLength(4)
-    for (const rule of mirrorRules) {
-      expect(rule.operation, rule.subject).toBe('redact')
-    }
+  it('keeps no retention rule over the removed rating and feedback mirrors', () => {
+    expect(
+      RETENTION_RULES.filter((rule) => ['ratings', 'feedback'].includes(rule.table)),
+    ).toEqual([])
     expect(
       RETENTION_RULES.filter((rule) => rule.table === 'scan_events').map(
         ({ subject, operation }) => ({ subject, operation: operation ?? 'delete' }),

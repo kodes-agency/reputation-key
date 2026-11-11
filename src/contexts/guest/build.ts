@@ -11,10 +11,8 @@ import type {
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Clock } from '#/shared/domain/clock'
-import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createGuestResponseRepository } from './infrastructure/repositories/guest-response.repository'
 import type { GuestResponseContentFilter } from './application/ports/guest-response.repository'
-import type { LegacyFeedbackContentFilter } from './application/ports/guest-interaction.repository'
 import { createAtomicGuestResponseCommandStore } from './infrastructure/guest-response-command-store'
 import {
   createGuestWithdrawalJournal,
@@ -40,8 +38,6 @@ import {
   qualifiedScanId,
   scanEventId,
   unbrand,
-  type FeedbackId,
-  type OrganizationId,
 } from '#/shared/domain/ids'
 import { createFeedbackPortalAttributionLookup } from './infrastructure/feedback-portal-attribution'
 import { getPortalResponseIntegritySummary } from './application/use-cases/get-portal-response-integrity-summary'
@@ -81,7 +77,6 @@ type GuestContextDeps = Readonly<{
 }>
 
 export const buildGuestContext = (deps: GuestContextDeps) => {
-  const guestRepo = createGuestInteractionRepository(deps.db)
   const guestResponseRepo = createGuestResponseRepository(deps.db, deps.clock)
   const guestResponseCommandStore = createAtomicGuestResponseCommandStore(
     deps.db,
@@ -216,14 +211,6 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       guestResponseRepo
         .findEligibleSnippetIdsForOrg(organizationId(orgId), filter)
         .then((ids) => ids.map(unbrand)),
-    findLegacyFeedbackSnippetsByIds: (
-      ids: ReadonlyArray<FeedbackId>,
-      organizationId: OrganizationId,
-    ) => guestRepo.findFeedbackSnippetsByIds(ids, organizationId),
-    findEligibleLegacyFeedbackIds: (
-      organizationId: OrganizationId,
-      filter: LegacyFeedbackContentFilter,
-    ) => guestRepo.findEligibleFeedbackIds(organizationId, filter),
   })
 
   return {

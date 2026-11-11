@@ -134,7 +134,7 @@ describe('data-fate authority', () => {
     }
   })
 
-  it('keeps the two mirrors nothing writes as read-only compatibility tables', () => {
+  it('keeps the two mirrors nothing writes or sweeps as compatibility tables until they are dropped', () => {
     const mirrors = DATA_FATE_AUTHORITY.filter(
       (row) => row.disposition === 'compatibility_read',
     ).map((row) => row.exportName)
@@ -144,7 +144,7 @@ describe('data-fate authority', () => {
       const operations = sweepRulesOver(databaseTableName(mirror) ?? '').map(
         ({ operation }) => operation,
       )
-      expect(operations, mirror).toEqual(['redact', 'redact'])
+      expect(operations, mirror).toEqual([])
     }
   })
 
