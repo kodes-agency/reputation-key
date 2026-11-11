@@ -54,7 +54,7 @@ function ProfileSettings() {
   // on the open page and so reads the session. The filter is what keeps that from being
   // the whole router: only `_authenticated` is marked stale (its own loader reads from
   // the Query cache), so every other page, open or cached, keeps the data it loaded.
-  // The shell remembers the session for 30 seconds (ADR 0072), so it is forgotten
+  // The shell remembers the session for 30 seconds, so it is forgotten
   // first: otherwise `beforeLoad` would answer with the name from before the save.
   const readSignedInUserAgain = () => {
     invalidateShellContext(queryClient)
@@ -85,7 +85,7 @@ function ProfileSettings() {
   })
   const requestUpload = useServerFn(requestAvatarUpload)
   const finalizeUpload = useServerFn(finalizeAvatarUpload)
-  // Timezone and date format are the person's clock (D6): quiet hours, the
+  // Timezone and date format are the person's clock: quiet hours, the
   // daily digest and every notification time go by them. They are kept per
   // Organization membership, so only an active Organization has them.
   const userSettings = useQuery(notificationUserSettingsQuery(scope))

@@ -1,4 +1,4 @@
-// Liveness probe — process is up. Does not check dependencies (BQR-6.1).
+// Liveness probe — process is up. Does not check dependencies.
 import { createFileRoute } from '@tanstack/react-router'
 import { liveProbe } from '#/shared/health/probes'
 

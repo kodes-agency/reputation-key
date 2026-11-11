@@ -10,7 +10,7 @@ import { Route } from './dashboard'
  * with a branch to get wrong.
  *
  * What is still worth pinning is that the path a manager has bookmarked, and
- * that every capability denial used to fall back to, still lands somewhere.
+ * that every capability denial falls back to, still lands somewhere.
  */
 describe('Dashboard path', () => {
   it('redirects to the properties list', async () => {

@@ -130,8 +130,7 @@ export function useRatingGoalWizard(
 }
 
 /**
- * The Monday check-in's commands, the same on the Goals page and the Overview
- * (E30): Keep, a change of pace for Raise and Ease, and, once answered, the
+ * The Monday check-in's commands, the same on the Goals page and the Overview: Keep, a change of pace for Raise and Ease, and, once answered, the
  * goal read again with what moves with its pace (the Property's setup step,
  * its Properties list cell), as the detail page's change does.
  */

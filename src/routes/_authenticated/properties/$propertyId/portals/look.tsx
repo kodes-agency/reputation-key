@@ -1,6 +1,6 @@
 // The Property look: the photo, colours, name and logo, and default languages
-// every portal of a Property starts with (round-4 admin board 9; a portal can
-// have its own photo, colours, or name and logo, ADR 0070). The route owns the
+// every portal of a Property starts with (a portal can
+// have its own photo, colours, or name and logo). The route owns the
 // reads and the two autosaved writes; the page draws them.
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
