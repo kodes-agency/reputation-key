@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, it, expect } from 'vitest'
+import { Pool } from 'pg'
 import { getInboxNotes } from './get-inbox-notes'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { getEnv } from '#/shared/config/env'
 import {
   inboxItemId,
   organizationId,
@@ -18,11 +19,17 @@ import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import { isInboxError } from '../../domain/errors'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
+import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
+import {
+  clearInboxOrganization,
+  createInboxUseCaseDatabase,
+  dropInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures-use-cases'
 
-const ORG_ID = organizationId('org-1')
-const OTHER_ORG_ID = organizationId('org-2')
-const ITEM_ID = inboxItemId('item-1')
-const PROP_ID = propertyId('prop-1')
+const ORG_ID = organizationId('org-inbox-notes-test')
+const OTHER_ORG_ID = organizationId('org-inbox-notes-other')
+const ITEM_ID = inboxItemId('94a20000-0000-4000-8000-000000000001')
+const PROP_ID = propertyId('94a20000-0000-4000-8000-0000000000a1')
 const USER_ID = userId('user-1')
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 
@@ -41,8 +48,8 @@ const makeItem = (overrides: Partial<InboxItem> = {}): InboxItem => ({
   organizationId: ORG_ID,
   propertyId: PROP_ID,
   sourceType: 'review' as SourceType,
-  sourceId: reviewId('rev-1'),
-  status: 'new' as InboxStatus,
+  sourceId: reviewId('94a20000-0000-4000-8000-0000000000b1'),
+  status: 'open' as InboxStatus,
   rating: 4,
   sourceDate: FIXED_TIME,
   platform: 'google',
@@ -64,18 +71,25 @@ const makeItem = (overrides: Partial<InboxItem> = {}): InboxItem => ({
   ...overrides,
 })
 
-function createInMemoryNoteRepo() {
-  const notes: InboxNote[] = []
-  const noteRepo = {
-    create: async (note: InboxNote) => {
-      notes.push(note)
-      return note
-    },
-    findByInboxItemId: async (iid: string, orgId: string) =>
-      notes.filter((n) => n.inboxItemId === iid && n.organizationId === orgId),
-  }
-  return { ...noteRepo, notes }
-}
+let pool: Pool
+let noteRepo: ReturnType<typeof createInboxUseCaseDatabase>['noteRepo']
+let repo: ReturnType<typeof createInboxUseCaseDatabase>['repo']
+let seed: ReturnType<typeof createInboxUseCaseDatabase>['seed']
+
+beforeAll(async () => {
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  ;({ noteRepo, repo, seed } = createInboxUseCaseDatabase(pool, () => FIXED_TIME))
+  await seedInboxOrganization(pool, ORG_ID, [PROP_ID])
+})
+
+beforeEach(() => clearInboxOrganization(pool, ORG_ID))
+
+afterAll(async () => {
+  await dropInboxOrganization(pool, ORG_ID)
+  await pool.end()
+})
+
+const addNote = (note: InboxNote) => noteRepo.create(note, note.organizationId)
 
 /**
  * IBX-01-T6: a counting directory double. Every test asserts the lookup happens
@@ -116,19 +130,17 @@ const ctxWith = (...permissions: Permission[]): AuthContext => ({
   ),
 })
 
-describe('getInboxNotes', () => {
+describe.sequential('getInboxNotes', () => {
   it('returns notes for an inbox item', async () => {
-    const noteRepo = createInMemoryNoteRepo()
-    noteRepo.notes.push({
-      id: inboxNoteId('note-1'),
+    await seed(makeItem())
+    await addNote({
+      id: inboxNoteId(crypto.randomUUID()),
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
       userId: USER_ID,
       text: 'Test note',
       createdAt: FIXED_TIME,
     })
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem())
 
     const useCase = getInboxNotes({
       noteRepo,
@@ -143,9 +155,7 @@ describe('getInboxNotes', () => {
   })
 
   it('returns empty array when no notes exist', async () => {
-    const noteRepo = createInMemoryNoteRepo()
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem())
+    await seed(makeItem())
 
     const useCase = getInboxNotes({
       noteRepo,
@@ -159,17 +169,15 @@ describe('getInboxNotes', () => {
   })
 
   it('does not return notes from other organizations', async () => {
-    const noteRepo = createInMemoryNoteRepo()
-    noteRepo.notes.push({
-      id: inboxNoteId('note-1'),
+    await seed(makeItem())
+    await addNote({
+      id: inboxNoteId(crypto.randomUUID()),
       inboxItemId: ITEM_ID,
       organizationId: OTHER_ORG_ID,
       userId: USER_ID,
       text: 'Other org note',
       createdAt: FIXED_TIME,
     })
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem())
 
     const useCase = getInboxNotes({
       noteRepo,
@@ -184,10 +192,8 @@ describe('getInboxNotes', () => {
 
   it('denies access without inbox.read permission for inaccessible property', async () => {
     // Use a role not in the permission table to simulate lacking inbox.read
-    const noteRepo = createInMemoryNoteRepo()
     const scopedApi = createScopedStaffApi([])
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem())
+    await seed(makeItem())
 
     const useCase = getInboxNotes({
       noteRepo,
@@ -203,10 +209,8 @@ describe('getInboxNotes', () => {
   it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
     // PM holds inbox.read/inbox.manage, but per CONTEXT.md L72 PM only manages
     // ASSIGNED properties — assertPropertyAccessible enforces the scope.
-    const noteRepo = createInMemoryNoteRepo()
     const scopedApi = createScopedStaffApi(['other-prop'])
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem()) // item is on PROP_ID (prop-1); PM NOT assigned
+    await seed(makeItem()) // item is on PROP_ID (prop-1); PM NOT assigned
 
     const useCase = getInboxNotes({
       noteRepo,
@@ -220,18 +224,16 @@ describe('getInboxNotes', () => {
   })
 
   it('allows PropertyManager to read notes for an assigned property', async () => {
-    const noteRepo = createInMemoryNoteRepo()
-    noteRepo.notes.push({
-      id: inboxNoteId('note-1'),
+    await seed(makeItem()) // item on prop-1
+    await addNote({
+      id: inboxNoteId(crypto.randomUUID()),
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
       userId: USER_ID,
       text: 'PM-visible note',
       createdAt: FIXED_TIME,
     })
-    const scopedApi = createScopedStaffApi(['prop-1']) // PM assigned to prop-1
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem()) // item on prop-1
+    const scopedApi = createScopedStaffApi([PROP_ID]) // PM assigned to prop-1
 
     const useCase = getInboxNotes({
       noteRepo,
@@ -246,10 +248,11 @@ describe('getInboxNotes', () => {
   })
 
   it('does not expose notes attached to private feedback without feedback.read', async () => {
-    const noteRepo = createInMemoryNoteRepo()
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(
-      makeItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    await seed(
+      makeItem({
+        sourceType: 'feedback',
+        sourceId: feedbackId('94a20000-0000-4000-8000-0000000000b2'),
+      }),
     )
 
     const useCase = getInboxNotes({
@@ -267,10 +270,11 @@ describe('getInboxNotes', () => {
   })
 
   it('intersects feedback.read property scope before returning notes', async () => {
-    const noteRepo = createInMemoryNoteRepo()
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(
-      makeItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    await seed(
+      makeItem({
+        sourceType: 'feedback',
+        sourceId: feedbackId('94a20000-0000-4000-8000-0000000000b2'),
+      }),
     )
     const useCase = getInboxNotes({
       noteRepo,
@@ -297,27 +301,20 @@ describe('getInboxNotes', () => {
   })
 })
 
-describe('getInboxNotes actor display names (IBX-01-T6)', () => {
-  const seedNote = (
-    noteRepo: ReturnType<typeof createInMemoryNoteRepo>,
-    index: number,
-    author: string,
-  ) => {
-    noteRepo.notes.push({
-      id: inboxNoteId(`note-${index}`),
+describe.sequential('getInboxNotes actor display names (IBX-01-T6)', () => {
+  const seedNote = (index: number, author: string) =>
+    addNote({
+      id: inboxNoteId(crypto.randomUUID()),
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
       userId: userId(author),
       text: `note ${index}`,
       createdAt: FIXED_TIME,
     })
-  }
 
   it('carries the resolved display name on every returned note', async () => {
-    const noteRepo = createInMemoryNoteRepo()
-    seedNote(noteRepo, 1, USER_ID)
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem())
+    await seed(makeItem())
+    await seedNote(1, USER_ID)
     const actorDirectory = createCountingActorDirectory()
 
     const result = await getInboxNotes({
@@ -331,10 +328,8 @@ describe('getInboxNotes actor display names (IBX-01-T6)', () => {
   })
 
   it('yields displayName null for a deleted or unknown author', async () => {
-    const noteRepo = createInMemoryNoteRepo()
-    seedNote(noteRepo, 1, 'user-departed')
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem())
+    await seed(makeItem())
+    await seedNote(1, 'user-departed')
 
     const result = await getInboxNotes({
       noteRepo,
@@ -349,12 +344,10 @@ describe('getInboxNotes actor display names (IBX-01-T6)', () => {
   })
 
   it('makes exactly one batched directory call for 25 notes (no N+1)', async () => {
-    const noteRepo = createInMemoryNoteRepo()
+    await seed(makeItem())
     for (let index = 0; index < 25; index += 1) {
-      seedNote(noteRepo, index, `user-${index % 5}`)
+      await seedNote(index, `user-${index % 5}`)
     }
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem())
     const actorDirectory = createCountingActorDirectory()
 
     const result = await getInboxNotes({

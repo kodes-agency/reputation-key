@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, it, expect } from 'vitest'
+import { Pool } from 'pg'
 import { setInboxItemPriority } from './set-inbox-item-priority'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
+import { getEnv } from '#/shared/config/env'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import { isInboxError, PRIORITY_CHANGED_MESSAGE } from '../../domain/errors'
 import {
@@ -17,10 +18,20 @@ import type { InboxItem, InboxPriority } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
+import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
+import {
+  clearInboxOrganization,
+  createInboxUseCaseDatabase,
+  dropInboxOrganization,
+  readOutboxFacts,
+  setStoredManagerPriority,
+} from '../../infrastructure/inbox-database-fixtures-use-cases'
 
 const NOW = new Date('2026-10-28T12:00:00Z')
-const ORG_ID = organizationId('org-1')
-const ITEM_ID = inboxItemId('ii-1')
+const ORG_ID = organizationId('org-set-inbox-priority-test')
+const ITEM_ID = inboxItemId('94a70000-0000-4000-8000-000000000001')
+const PROP_ID = propertyId('94a70000-0000-4000-8000-0000000000a1')
+const PROP_ELSEWHERE = propertyId('94a70000-0000-4000-8000-0000000000a2')
 const MANAGER = userId('user-maria')
 const COLLEAGUE = userId('user-colleague')
 
@@ -40,9 +51,9 @@ function seed(overrides: Partial<InboxItem> = {}): InboxItem {
   return {
     id: ITEM_ID,
     organizationId: ORG_ID,
-    propertyId: propertyId('prop-1'),
+    propertyId: PROP_ID,
     sourceType: 'review',
-    sourceId: reviewId('rev-1'),
+    sourceId: reviewId('94a70000-0000-4000-8000-0000000000b1'),
     status: 'open',
     rating: 2,
     sourceDate: new Date('2026-10-20'),
@@ -74,39 +85,73 @@ const allAccess: StaffPublicApi = {
   getAssignedPortals: async () => [],
 }
 
-function setup(item: InboxItem = seed(), staffPublicApi: StaffPublicApi = allAccess) {
-  const repo = createInMemoryInboxRepo()
-  repo.items.push(item)
-  const events = createRecordedOutbox()
-  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
+let pool: Pool
+
+beforeAll(async () => {
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  clearEventSchemas()
+  registerAllEventSchemas()
+  await seedInboxOrganization(pool, ORG_ID, [PROP_ID, PROP_ELSEWHERE])
+})
+
+beforeEach(() => clearInboxOrganization(pool, ORG_ID))
+
+afterAll(async () => {
+  await dropInboxOrganization(pool, ORG_ID)
+  clearEventSchemas()
+  await pool.end()
+})
+
+async function setup(
+  item: InboxItem = seed(),
+  staffPublicApi: StaffPublicApi = allAccess,
+) {
+  const {
+    repo,
+    commandStore,
+    seed: seedItems,
+  } = createInboxUseCaseDatabase(pool, () => NOW)
+  await seedItems(item)
+  if (item.managerPriority) {
+    await setStoredManagerPriority(
+      pool,
+      item.id,
+      item.managerPriority,
+      item.managerPrioritySetBy!,
+      item.managerPrioritySetAt!,
+    )
+  }
+  const stored = () => repo.findById(ITEM_ID, ORG_ID).then((found) => found!)
+  const events = { facts: () => readOutboxFacts(pool, ORG_ID) }
   const execute = setInboxItemPriority({
     repo,
     commandStore,
     clock: () => NOW,
     staffPublicApi,
   })
-  const run = (
+  const run = async (
     input: Readonly<{
       priority: InboxPriority | null
       expectedPriority?: InboxPriority | null
       expectedCommandRevision?: number
     }>,
     ctx: AuthContext = manager,
-  ) =>
-    execute(
+  ) => {
+    const current = await stored()
+    return execute(
       {
         inboxItemId: ITEM_ID,
-        expectedCommandRevision:
-          input.expectedCommandRevision ?? repo.items[0]!.commandRevision,
+        expectedCommandRevision: input.expectedCommandRevision ?? current.commandRevision,
         expectedPriority:
           input.expectedPriority === undefined
-            ? (repo.items[0]!.managerPriority ?? null)
+            ? (current.managerPriority ?? null)
             : input.expectedPriority,
         priority: input.priority,
       },
       ctx,
     )
-  return { repo, events, run }
+  }
+  return { stored, events, run }
 }
 
 async function refusalOf(promise: Promise<unknown>) {
@@ -119,9 +164,9 @@ async function refusalOf(promise: Promise<unknown>) {
   return error
 }
 
-describe('setInboxItemPriority', () => {
+describe.sequential('setInboxItemPriority', () => {
   it('stores the level with who set it and when, and records one fact', async () => {
-    const { run, events } = setup()
+    const { run, events } = await setup()
 
     const updated = await run({ priority: 'urgent' })
 
@@ -131,19 +176,21 @@ describe('setInboxItemPriority', () => {
       managerPrioritySetAt: NOW,
       commandRevision: 4,
     })
-    expect(events.facts).toHaveLength(1)
-    expect(events.facts[0]).toMatchObject({
-      _tag: 'inbox.inbox_item.priority_changed',
-      inboxItemId: ITEM_ID,
-      userId: MANAGER,
-      source: 'web',
-      priority: 'urgent',
-      previousPriority: null,
+    expect(await events.facts()).toHaveLength(1)
+    expect((await events.facts())[0]).toMatchObject({
+      eventType: 'inbox.inbox_item.priority_changed',
+      payload: {
+        inboxItemId: ITEM_ID,
+        userId: MANAGER,
+        source: 'web',
+        priority: 'urgent',
+        previousPriority: null,
+      },
     })
   })
 
   it('never opens, closes, assigns or escalates', async () => {
-    const { run } = setup(
+    const { run } = await setup(
       seed({ status: 'closed', closedAt: NOW, assignedTo: COLLEAGUE }),
     )
 
@@ -158,19 +205,23 @@ describe('setInboxItemPriority', () => {
   })
 
   it('refuses without inbox.write', async () => {
-    const { run, events } = setup()
+    const { run, events } = await setup()
 
     const error = await refusalOf(
       run({ priority: 'urgent' }, ctxWith('inbox.manage', 'review.read')),
     )
 
     expect(error.code).toBe('forbidden')
-    expect(events.facts).toHaveLength(0)
+    expect(await events.facts()).toHaveLength(0)
   })
 
   it('refuses feedback without feedback.handle', async () => {
-    const { run, events } = setup(
-      seed({ sourceType: 'feedback', sourceId: feedbackId('fb-1'), platform: null }),
+    const { run, events } = await setup(
+      seed({
+        sourceType: 'feedback',
+        sourceId: feedbackId('94a70000-0000-4000-8000-0000000000b2'),
+        platform: null,
+      }),
     )
 
     const error = await refusalOf(
@@ -181,12 +232,16 @@ describe('setInboxItemPriority', () => {
     )
 
     expect(error.code).toBe('forbidden')
-    expect(events.facts).toHaveLength(0)
+    expect(await events.facts()).toHaveLength(0)
   })
 
   it('sets a level on private feedback, which has no suggestion of its own', async () => {
-    const { run } = setup(
-      seed({ sourceType: 'feedback', sourceId: feedbackId('fb-1'), platform: null }),
+    const { run } = await setup(
+      seed({
+        sourceType: 'feedback',
+        sourceId: feedbackId('94a70000-0000-4000-8000-0000000000b2'),
+        platform: null,
+      }),
     )
 
     const updated = await run({ priority: 'high' })
@@ -196,7 +251,7 @@ describe('setInboxItemPriority', () => {
 
   it('checks Property scope before the revision', async () => {
     const otherProperty: StaffPublicApi = {
-      getAccessiblePropertyIds: async () => [propertyId('prop-elsewhere')],
+      getAccessiblePropertyIds: async () => [PROP_ELSEWHERE],
       getAssignedPortals: async () => [],
     }
     const scoped = createScopedAuthContext({
@@ -208,7 +263,7 @@ describe('setInboxItemPriority', () => {
         ['review.read', 'assigned-properties'],
       ],
     })
-    const { run } = setup(seed(), otherProperty)
+    const { run } = await setup(seed(), otherProperty)
 
     const error = await refusalOf(
       run({ priority: 'urgent', expectedCommandRevision: 1 }, scoped),
@@ -219,7 +274,7 @@ describe('setInboxItemPriority', () => {
   })
 
   it('answers a stale revision with a revision conflict', async () => {
-    const { run } = setup()
+    const { run } = await setup()
 
     const error = await refusalOf(run({ priority: 'urgent', expectedCommandRevision: 1 }))
 
@@ -227,7 +282,7 @@ describe('setInboxItemPriority', () => {
   })
 
   it('refuses when a colleague changed the priority, and keeps their choice', async () => {
-    const { run, repo, events } = setup(
+    const { run, stored, events } = await setup(
       seed({
         managerPriority: 'low',
         managerPrioritySetBy: COLLEAGUE,
@@ -240,13 +295,13 @@ describe('setInboxItemPriority', () => {
 
     expect(error.code).toBe('priority_changed')
     expect(error.message).toBe(PRIORITY_CHANGED_MESSAGE)
-    expect(repo.items[0]!.managerPriority).toBe('low')
-    expect(repo.items[0]!.managerPrioritySetBy).toBe(COLLEAGUE)
-    expect(events.facts).toHaveLength(0)
+    expect((await stored()).managerPriority).toBe('low')
+    expect((await stored()).managerPrioritySetBy).toBe(COLLEAGUE)
+    expect(await events.facts()).toHaveLength(0)
   })
 
   it('is a silent no-op when a colleague already chose the same level', async () => {
-    const { run, repo, events } = setup(
+    const { run, stored, events } = await setup(
       seed({
         managerPriority: 'urgent',
         managerPrioritySetBy: COLLEAGUE,
@@ -257,12 +312,12 @@ describe('setInboxItemPriority', () => {
     const result = await run({ priority: 'urgent', expectedPriority: null })
 
     expect(result.commandRevision).toBe(3)
-    expect(repo.items[0]!.managerPrioritySetBy).toBe(COLLEAGUE)
-    expect(events.facts).toHaveLength(0)
+    expect((await stored()).managerPrioritySetBy).toBe(COLLEAGUE)
+    expect(await events.facts()).toHaveLength(0)
   })
 
   it('writes nothing when the picked level is the one already set', async () => {
-    const { run, events } = setup(
+    const { run, events } = await setup(
       seed({
         managerPriority: 'medium',
         managerPrioritySetBy: MANAGER,
@@ -273,11 +328,11 @@ describe('setInboxItemPriority', () => {
     const result = await run({ priority: 'medium' })
 
     expect(result.commandRevision).toBe(3)
-    expect(events.facts).toHaveLength(0)
+    expect(await events.facts()).toHaveLength(0)
   })
 
   it('reset clears all three fields and records what it cleared', async () => {
-    const { run, events } = setup(
+    const { run, events } = await setup(
       seed({
         managerPriority: 'low',
         managerPrioritySetBy: MANAGER,
@@ -292,15 +347,18 @@ describe('setInboxItemPriority', () => {
       managerPrioritySetBy: null,
       managerPrioritySetAt: null,
     })
-    expect(events.facts[0]).toMatchObject({ priority: null, previousPriority: 'low' })
+    expect((await events.facts())[0]?.payload).toMatchObject({
+      priority: null,
+      previousPriority: 'low',
+    })
   })
 
   it('treats resetting an item with no level as nothing to do', async () => {
-    const { run, events } = setup()
+    const { run, events } = await setup()
 
     const result = await run({ priority: null })
 
     expect(result.commandRevision).toBe(3)
-    expect(events.facts).toHaveLength(0)
+    expect(await events.facts()).toHaveLength(0)
   })
 })

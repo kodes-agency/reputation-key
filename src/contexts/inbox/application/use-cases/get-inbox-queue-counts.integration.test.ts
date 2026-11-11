@@ -1,6 +1,16 @@
-import { describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
+import { Pool } from 'pg'
 import { getInboxQueueCounts } from './get-inbox-queue-counts'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { getEnv } from '#/shared/config/env'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { ReplyLookupPort } from '../ports/reply-lookup.port'
 import type { InboxItem } from '../../domain/types'
@@ -13,11 +23,19 @@ import {
   feedbackId,
   userId,
 } from '#/shared/domain/ids'
+import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
+import {
+  clearInboxOrganization,
+  createInboxUseCaseDatabase,
+  dropInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures-use-cases'
 
-const ORG_ID = organizationId('org-1')
+const ORG_ID = organizationId('org-inbox-queue-counts-test')
+const PROP_1 = propertyId('94a50000-0000-4000-8000-0000000000a1')
+const PROP_2 = propertyId('94a50000-0000-4000-8000-0000000000a2')
 const VIEWER = userId('user-1')
-const AWAITING = reviewId('10000000-0000-4000-8000-000000000001')
-const WAITING = reviewId('10000000-0000-4000-8000-000000000002')
+const AWAITING = reviewId('94a51000-0000-4000-8000-000000000001')
+const WAITING = reviewId('94a51000-0000-4000-8000-000000000002')
 
 const allAccessStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
@@ -33,11 +51,11 @@ const makeItem = ({
   id,
   ...overrides
 }: Partial<Omit<InboxItem, 'id'>> & { id: string }): InboxItem => ({
-  id: inboxItemId(id),
+  id: inboxItemId(`94a54000-0000-4000-8000-${id.padStart(12, '0')}`),
   organizationId: ORG_ID,
-  propertyId: propertyId('prop-1'),
+  propertyId: PROP_1,
   sourceType: 'review',
-  sourceId: reviewId(`20000000-0000-4000-8000-${id.padStart(12, '0')}`),
+  sourceId: reviewId(`94a52000-0000-4000-8000-${id.padStart(12, '0')}`),
   status: 'open',
   rating: null,
   sourceDate: new Date('2026-09-01T10:00:00Z'),
@@ -72,6 +90,28 @@ function replyLookup(
   }
 }
 
+let pool: Pool
+let repo: ReturnType<typeof createInboxUseCaseDatabase>['repo']
+let seed: ReturnType<typeof createInboxUseCaseDatabase>['seed']
+
+beforeAll(async () => {
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  ;({ repo, seed } = createInboxUseCaseDatabase(
+    pool,
+    () => new Date('2026-09-02T10:00:00Z'),
+  ))
+  await seedInboxOrganization(pool, ORG_ID, [PROP_1, PROP_2])
+})
+
+beforeEach(() => clearInboxOrganization(pool, ORG_ID))
+
+afterEach(() => vi.restoreAllMocks())
+
+afterAll(async () => {
+  await dropInboxOrganization(pool, ORG_ID)
+  await pool.end()
+})
+
 const manager: AuthContext = {
   organizationId: ORG_ID,
   userId: VIEWER,
@@ -90,15 +130,15 @@ const reader: AuthContext = {
   ]),
 }
 
-function seedQueueCases(repo: ReturnType<typeof createInMemoryInboxRepo>) {
-  repo.items.push(
+async function seedQueueCases() {
+  await seed(
     makeItem({ id: '1' }),
     makeItem({ id: '2', sourceId: AWAITING }),
     makeItem({ id: '3', sourceId: WAITING }),
     makeItem({
       id: '4',
       sourceType: 'feedback',
-      sourceId: feedbackId('30000000-0000-4000-8000-000000000004'),
+      sourceId: feedbackId('94a53000-0000-4000-8000-000000000004'),
     }),
     makeItem({ id: '5', assignedTo: VIEWER }),
     makeItem({ id: '6', status: 'closed', isEscalated: true }),
@@ -106,10 +146,9 @@ function seedQueueCases(repo: ReturnType<typeof createInMemoryInboxRepo>) {
   )
 }
 
-describe('getInboxQueueCounts', () => {
+describe.sequential('getInboxQueueCounts', () => {
   it('counts every queue with the exact list predicates and one stage lookup', async () => {
-    const repo = createInMemoryInboxRepo()
-    seedQueueCases(repo)
+    await seedQueueCases()
     const findStages = vi.fn(async () => ({ awaiting: [AWAITING], waiting: [WAITING] }))
     const useCase = getInboxQueueCounts({
       repo,
@@ -137,8 +176,7 @@ describe('getInboxQueueCounts', () => {
   })
 
   it('runs seven count queries for a manager, none for the closed folders', async () => {
-    const repo = createInMemoryInboxRepo()
-    seedQueueCases(repo)
+    await seedQueueCases()
     const countFiltered = vi.spyOn(repo, 'countFiltered')
     const useCase = getInboxQueueCounts({
       repo,
@@ -159,14 +197,13 @@ describe('getInboxQueueCounts', () => {
   ] as const)(
     'would count %s to the list total, were it counted (ADR 0057 d6)',
     async (_queue, filters, expected) => {
-      const repo = createInMemoryInboxRepo()
-      repo.items.push(
+      await seed(
         makeItem({ id: '1', status: 'closed' }),
         makeItem({
           id: '2',
           status: 'closed',
           sourceType: 'feedback',
-          sourceId: feedbackId('30000000-0000-4000-8000-000000000002'),
+          sourceId: feedbackId('94a53000-0000-4000-8000-000000000002'),
         }),
         makeItem({ id: '3' }),
       )
@@ -182,8 +219,7 @@ describe('getInboxQueueCounts', () => {
   )
 
   it('withholds reply-stage counts and their lookup without reply.manage', async () => {
-    const repo = createInMemoryInboxRepo()
-    seedQueueCases(repo)
+    await seedQueueCases()
     const findStages = vi.fn(async () => ({ awaiting: [AWAITING], waiting: [WAITING] }))
     const useCase = getInboxQueueCounts({
       repo,
@@ -210,8 +246,7 @@ describe('getInboxQueueCounts', () => {
   })
 
   it('withholds reply-stage counts when reply publication is disabled', async () => {
-    const repo = createInMemoryInboxRepo()
-    seedQueueCases(repo)
+    await seedQueueCases()
     const findStages = vi.fn(async () => ({ awaiting: [AWAITING], waiting: [WAITING] }))
     const useCase = getInboxQueueCounts({
       repo,
@@ -246,8 +281,7 @@ describe('getInboxQueueCounts', () => {
   ] as const)(
     'says whether reply stages are available to %s',
     async (_who, ctx, replyQueuesEnabled, expected) => {
-      const repo = createInMemoryInboxRepo()
-      seedQueueCases(repo)
+      await seedQueueCases()
       const useCase = getInboxQueueCounts({
         repo,
         staffPublicApi: allAccessStaffApi,
@@ -265,7 +299,7 @@ describe('getInboxQueueCounts', () => {
 
   it('says so for a scope that holds no rows at all', async () => {
     const useCase = getInboxQueueCounts({
-      repo: createInMemoryInboxRepo(),
+      repo,
       staffPublicApi: scopedStaffApi([]),
       replyLookup: replyLookup(),
     })
@@ -282,8 +316,7 @@ describe('getInboxQueueCounts', () => {
   })
 
   it('runs five count queries without reply stages', async () => {
-    const repo = createInMemoryInboxRepo()
-    seedQueueCases(repo)
+    await seedQueueCases()
     const countFiltered = vi.spyOn(repo, 'countFiltered')
     const useCase = getInboxQueueCounts({
       repo,
@@ -297,41 +330,40 @@ describe('getInboxQueueCounts', () => {
   })
 
   it('narrows all counts and the stage lookup to an accessible property', async () => {
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(
-      makeItem({ id: '1', propertyId: propertyId('prop-1') }),
-      makeItem({ id: '2', propertyId: propertyId('prop-2') }),
+    await seed(
+      makeItem({ id: '1', propertyId: PROP_1 }),
+      makeItem({ id: '2', propertyId: PROP_2 }),
     )
     const findStages = vi.fn(async () => ({ awaiting: [], waiting: [] }))
     const useCase = getInboxQueueCounts({
       repo,
-      staffPublicApi: scopedStaffApi(['prop-1', 'prop-2']),
+      staffPublicApi: scopedStaffApi([PROP_1, PROP_2]),
       replyLookup: replyLookup(findStages),
     })
     const propertyManager = { ...manager, role: 'PropertyManager' as const }
 
-    const counts = await useCase({ propertyId: 'prop-2' }, propertyManager)
+    const counts = await useCase({ propertyId: PROP_2 }, propertyManager)
 
     expect(counts.open).toBe(1)
     expect(counts.reply).toBe(1)
-    expect(findStages).toHaveBeenCalledWith(ORG_ID, [propertyId('prop-2')])
+    expect(findStages).toHaveBeenCalledWith(ORG_ID, [PROP_2])
   })
 
   it('refuses an inaccessible property', async () => {
     const useCase = getInboxQueueCounts({
-      repo: createInMemoryInboxRepo(),
-      staffPublicApi: scopedStaffApi(['prop-1']),
+      repo,
+      staffPublicApi: scopedStaffApi([PROP_1]),
       replyLookup: replyLookup(),
     })
 
     await expect(
-      useCase({ propertyId: 'prop-2' }, { ...manager, role: 'PropertyManager' }),
+      useCase({ propertyId: PROP_2 }, { ...manager, role: 'PropertyManager' }),
     ).rejects.toMatchObject({ _tag: 'InboxError', code: 'forbidden' })
   })
 
   it('rejects a caller without inbox.read', async () => {
     const useCase = getInboxQueueCounts({
-      repo: createInMemoryInboxRepo(),
+      repo,
       staffPublicApi: allAccessStaffApi,
       replyLookup: replyLookup(),
     })
