@@ -12,7 +12,7 @@ import {
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import type { GuestResponseCommandStore } from '../application/ports/guest-response-command-store.port'
 import type { GuestMutationFact } from '../application/ports/guest-response-command-store.port'
-import { guestResponseToInsertRow } from './mappers/guest-response.mapper'
+import { guestResponseToInsertRow } from '../infrastructure/mappers/guest-response.mapper'
 import { trace } from '#/shared/observability/trace'
 import {
   DEFAULT_RESPONSE_SESSION_WINDOW_MS,
@@ -27,7 +27,7 @@ import { primaryStaffAttributionEquals } from '#/shared/domain/primary-staff-att
 import type { Clock } from '#/shared/domain/clock'
 import { ratingId } from '#/shared/domain/ids'
 import { journalBeforeErasure } from '#/shared/db/lifecycle/erasure-journal.server'
-import type { GuestWithdrawalJournal } from './guest-withdrawal-journal.server'
+import type { GuestWithdrawalJournal } from '../infrastructure/guest-withdrawal-journal.server'
 
 class GuestCommandConflict extends Error {}
 
