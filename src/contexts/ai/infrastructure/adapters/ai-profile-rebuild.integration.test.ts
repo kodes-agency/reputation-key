@@ -323,11 +323,5 @@ describe.sequential('processing profile rebuild through PostgreSQL', () => {
         ),
       )
     expect(contributions).toHaveLength(3)
-    const legacy = await db.execute<{ count: number }>(sql`SELECT (
-      (SELECT count(*) FROM ai_property_daily_aggregates WHERE property_id = ${IDS.propertyId}::uuid) +
-      (SELECT count(*) FROM ai_property_daily_aspect_aggregates WHERE property_id = ${IDS.propertyId}::uuid) +
-      (SELECT count(*) FROM ai_property_aggregate_contribution_aspects WHERE property_id = ${IDS.propertyId}::uuid)
-    )::int AS count`)
-    expect(legacy.rows).toEqual([{ count: 0 }])
   })
 })

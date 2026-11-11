@@ -13,7 +13,6 @@ import {
   type AiAnalysisKey,
   installAiAnalysisFixture,
 } from '#/shared/db/testing/ai-review-analysis-v3-fixture'
-import { withoutRetiredAiTables } from '#/shared/db/testing/retired-ai-tables-fixture'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createRetentionSweepHandler, RETENTION_RULES } from './retention-sweep.job'
 
@@ -164,32 +163,32 @@ describe.sequential('Review Analysis v3 retention sweep (real PostgreSQL)', () =
     await lease?.release()
   })
 
-  it('sweeps retained analysis derivatives with the retired tables absent', async () => {
+  it('sweeps retained analysis derivatives', async () => {
     const expired = await seedAnalysis(
       'review-analysis-v3',
       new Date(RUN_AT.getTime() - DAY_MS),
     )
     await seedMentions(expired)
-    await withoutRetiredAiTables(db, async (tx) => {
+    {
       const handler = createRetentionSweepHandler({
-        db: tx,
+        db,
         clock: () => RUN_AT,
         rules: confinedRules,
       })
       await handler({} as Job)
-      const result = await tx.execute<{ count: number }>(
+      const result = await db.execute<{ count: number }>(
         sql`SELECT count(*)::int AS count FROM ai_review_analyses WHERE review_id = ${expired.reviewId}::uuid`,
       )
       expect(result.rows[0]?.count).toBe(0)
-      const runs = await tx.execute(
+      const runs = await db.execute(
         sql`SELECT subject, outcome FROM retention_runs WHERE started_at = ${RUN_AT} ORDER BY subject`,
       )
       expect(runs.rows).toEqual([
         { subject: 'ai_property_issue_groups.expired', outcome: 'completed' },
         { subject: 'ai_review_analyses.v3_expired', outcome: 'completed' },
       ])
-    })
-    expect(await rowsLeft(expired)).toEqual(WHOLE)
+    }
+    expect(await rowsLeft(expired)).toEqual(GONE)
   })
 
   it('deletes an expired v3 analysis with every row that hangs from it', async () => {

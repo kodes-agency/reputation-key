@@ -36,20 +36,11 @@ const ORGANIZATION_ONLY_TABLES: ReadonlySet<string> = new Set([
 /** Rows that go with their parent by cascade; the report counts them too. */
 const CASCADE_TABLES = Object.freeze([
   'ai_draft_measurement_links',
-  // Retired and empty, but their parents still cascade into them until the tables are dropped.
-  'ai_review_analysis_aspects',
-  'ai_property_aggregate_contribution_aspects',
   'ai_review_analysis_mentions',
   'ai_review_analysis_mention_sentences',
   'ai_review_analysis_mention_corrections',
   'ai_property_aggregate_contribution_mentions',
 ] as const)
-
-/** Retired and empty: declared while they exist, counted as 0 once the contraction drops them. */
-const RETIRED_CASCADE_TABLES: ReadonlySet<string> = new Set([
-  'ai_review_analysis_aspects',
-  'ai_property_aggregate_contribution_aspects',
-])
 
 /** The tables the AI report counts and erasure changes, per request scope. */
 const AI_RIGHTS_TABLES = Object.freeze({
@@ -216,15 +207,6 @@ async function reportCounts(
         lines.push(`${table} ${count((result.rows[0] as CountRow).n)}`)
       }
       for (const table of CASCADE_TABLES) {
-        if (RETIRED_CASCADE_TABLES.has(table)) {
-          const present = await tx.execute(
-            sql`SELECT to_regclass(${`public.${table}`}) IS NOT NULL AS present`,
-          )
-          if (!(present.rows[0] as { present: boolean }).present) {
-            lines.push(`${table} 0`)
-            continue
-          }
-        }
         const result = await tx.execute(
           table === 'ai_draft_measurement_links'
             ? sql`SELECT count(*) AS n FROM ai_draft_measurement_links
