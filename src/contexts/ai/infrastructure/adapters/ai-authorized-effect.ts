@@ -2,6 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   aiExecutionControlHeads,
+  aiOperations,
   aiPropertyProcessingProfiles,
   merchantAiEnablement,
 } from '#/shared/db/schema'
@@ -9,6 +10,36 @@ import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capabilit
 import { isExecutionCompatibleWithConsent } from '#/shared/ai-runtime-capability-contract'
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+/**
+ * The operation columns `isCurrentAuthorizedEffect` reads, with the claim state
+ * and command every caller checks beside it.
+ */
+export const authorizedEffectOperationColumns = {
+  state: aiOperations.state,
+  executionAttempt: aiOperations.executionAttempt,
+  command: aiOperations.command,
+  capability: aiOperations.capability,
+  organizationId: aiOperations.organizationId,
+  propertyId: aiOperations.propertyId,
+  sourceEpoch: aiOperations.sourceEpoch,
+  authorizationLineageId: aiOperations.authorizationLineageId,
+  noticeVersion: aiOperations.noticeVersion,
+  noticeDigest: aiOperations.noticeDigest,
+  propertyProfileVersion: aiOperations.propertyProfileVersion,
+  sourcePolicyId: aiOperations.sourcePolicyId,
+  redactionProfileVersion: aiOperations.redactionProfileVersion,
+  operationProfileVersion: aiOperations.operationProfileVersion,
+  capabilityRuntimeProfileVersion: aiOperations.capabilityRuntimeProfileVersion,
+  providerDeploymentProfileVersion: aiOperations.providerDeploymentProfileVersion,
+  capabilityFences: aiOperations.capabilityFences,
+  globalControlId: aiOperations.globalControlId,
+  globalControlGeneration: aiOperations.globalControlGeneration,
+  providerControlId: aiOperations.providerControlId,
+  providerControlGeneration: aiOperations.providerControlGeneration,
+  capabilityControlId: aiOperations.capabilityControlId,
+  capabilityControlGeneration: aiOperations.capabilityControlGeneration,
+} as const
 
 type AuthorizedEffectOperation = Readonly<{
   organizationId: string
