@@ -233,6 +233,130 @@ describe('googleConnectionRepository (integration)', () => {
     })
   })
 
+  describe('updateTokens credential predicates', () => {
+    const EXPECTED = { lifecycleVersion: 1, credentialGeneration: 1 }
+    const NEW_EXPIRY = new Date('2027-01-01T00:00:00.000Z')
+
+    const seed = async () => {
+      const conn = buildTestGoogleConnection({
+        id: crypto.randomUUID(),
+        organizationId: ORG_A,
+        googleSubject: `signed-${crypto.randomUUID()}`,
+      })
+      await makeRepo().insert(conn)
+      return conn
+    }
+
+    const credentialRow = async (id: string, orgId: string = ORG_A) => {
+      const result = await getPool().query(
+        `SELECT encrypted_access_token, encrypted_refresh_token, token_expires_at,
+                credential_generation, lifecycle_version
+           FROM google_connections WHERE organization_id = $1 AND id = $2`,
+        [orgId, id],
+      )
+      return result.rows[0]
+    }
+
+    const rotate = (
+      orgId: typeof ORG_A,
+      id: string,
+      expected: Readonly<{ lifecycleVersion: number; credentialGeneration: number }>,
+    ) =>
+      makeRepo().updateTokens(
+        orgId,
+        googleConnectionId(id),
+        expected,
+        'enc:rotated-access',
+        'enc:rotated-refresh',
+        NEW_EXPIRY,
+      )
+
+    it('replaces the secrets and advances the generation when every predicate holds', async () => {
+      const conn = await seed()
+
+      await expect(rotate(ORG_A, conn.id, EXPECTED)).resolves.toBe(true)
+
+      await expect(credentialRow(conn.id)).resolves.toMatchObject({
+        encrypted_access_token: 'enc:rotated-access',
+        encrypted_refresh_token: 'enc:rotated-refresh',
+        token_expires_at: NEW_EXPIRY,
+        credential_generation: 2,
+        lifecycle_version: 1,
+      })
+    })
+
+    it('leaves the credential untouched for a stale credential generation', async () => {
+      const conn = await seed()
+
+      await expect(
+        rotate(ORG_A, conn.id, { ...EXPECTED, credentialGeneration: 2 }),
+      ).resolves.toBe(false)
+
+      await expect(credentialRow(conn.id)).resolves.toMatchObject({
+        encrypted_access_token: conn.encryptedAccessToken,
+        credential_generation: 1,
+      })
+    })
+
+    it('leaves the credential untouched for a stale lifecycle version', async () => {
+      const conn = await seed()
+      await makeRepo().updateStatus(ORG_A, conn.id, 'degraded')
+
+      await expect(rotate(ORG_A, conn.id, EXPECTED)).resolves.toBe(false)
+
+      await expect(credentialRow(conn.id)).resolves.toMatchObject({
+        encrypted_access_token: conn.encryptedAccessToken,
+        credential_generation: 1,
+        lifecycle_version: 2,
+      })
+    })
+
+    it.each(['cleanup_only', 'none'] as const)(
+      'refuses a credential whose use state is %s',
+      async (useState) => {
+        const conn = await seed()
+        await getPool().query(
+          `UPDATE google_connections SET credential_use_state = $3
+            WHERE organization_id = $1 AND id = $2`,
+          [ORG_A, conn.id, useState],
+        )
+
+        await expect(rotate(ORG_A, conn.id, EXPECTED)).resolves.toBe(false)
+
+        await expect(credentialRow(conn.id)).resolves.toMatchObject({
+          encrypted_access_token: conn.encryptedAccessToken,
+          credential_generation: 1,
+        })
+      },
+    )
+
+    it('does not touch another Organization’s connection, nor an unknown id', async () => {
+      const conn = await seed()
+
+      await expect(rotate(ORG_B, conn.id, EXPECTED)).resolves.toBe(false)
+      await expect(rotate(ORG_A, crypto.randomUUID(), EXPECTED)).resolves.toBe(false)
+
+      await expect(credentialRow(conn.id)).resolves.toMatchObject({
+        encrypted_access_token: conn.encryptedAccessToken,
+        credential_generation: 1,
+      })
+    })
+
+    it('lets only one of two writers holding the same generation win', async () => {
+      const conn = await seed()
+
+      const results = await Promise.all([
+        rotate(ORG_A, conn.id, EXPECTED),
+        rotate(ORG_A, conn.id, EXPECTED),
+      ])
+
+      expect(results.filter(Boolean)).toHaveLength(1)
+      await expect(credentialRow(conn.id)).resolves.toMatchObject({
+        credential_generation: 2,
+      })
+    })
+  })
+
   // A connection row is never hard-deleted: disconnect redacts it in place
   // (`redactForDisconnect`) and each Property's reference moves with its
   // binding state through Property's `googleBinding` capability. The delete
