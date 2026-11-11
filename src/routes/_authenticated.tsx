@@ -80,9 +80,7 @@ export type AuthRouteContext = Readonly<{
   authz: ClientAuthz
   /**
    * Capability posture for the property in scope (ADR 0049). Resolved
-   * property-scoped — not org-scoped — because policy allowlists per property
-   * (`property_not_allowlisted`), so a tenant whose properties differ would get
-   * the wrong answer from an org-only set. `beforeLoad` re-runs on every
+   * property-scoped. `beforeLoad` re-runs on every
    * navigation and remembers one set per Property scope, so switching property
    * reads that Property's set (asked for when there is no fresh one).
    *
