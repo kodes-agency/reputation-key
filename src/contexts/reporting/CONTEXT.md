@@ -395,7 +395,7 @@ qualified scans may drive a staff target (`STAFF_SCAN_TARGETS_ENABLED`, default 
   uses its `readings`/`tip` aliases). Staff reads use the as-of variant. Source status and
   Portal evidence still check every required projection and retraction independently of the
   effective value. Period reads use the concurrent index on Organization, Property, metric
-  version and event time (`shared/db/concurrent-index-registry.ts`).
+  version and event time (migration `0138`).
 - Monthly goal totals and their completeness proof are read in one read-only
   repeatable-read transaction (`goal-metric-snapshot.ts`). The Goals list batches up to 60
   figures in one statement; historical Portal Group membership is resolved inside it,

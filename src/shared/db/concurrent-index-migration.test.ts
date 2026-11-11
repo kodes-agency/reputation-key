@@ -5,7 +5,7 @@ import {
   ConcurrentIndexMigrationError,
   type SqlClient,
 } from './concurrent-index-migration'
-import type { ConcurrentIndexSpec } from './concurrent-index-registry'
+import type { ConcurrentIndexSpec } from './journal-concurrent-index'
 
 const SPEC: ConcurrentIndexSpec = Object.freeze({
   name: 'widgets_scope_idx',
