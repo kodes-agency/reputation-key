@@ -43,13 +43,9 @@ export function wireInbox(
     },
     // Foreign read sources the inbox build adapts into its lookup ports.
     sources: {
-      // Feedback spans two storage generations: the guest_responses aggregate
-      // that the live guest form writes, and the legacy feedback/ratings pair.
-      // `guest.feedback.submitted` carries the aggregate row id, so the
-      // aggregate read is what makes a new feedback inbox item render at all —
-      // the legacy lookup cannot resolve that id.
-      // ARC-03-T11: read through Guest's named snippet port. The root's only
-      // remaining job is the FeedbackId branding both generations share.
+      // Feedback is the guest_responses aggregate the live guest form writes;
+      // `guest.feedback.submitted` carries its row id. Read through Guest's
+      // named snippet port; the root only brands the ids.
       feedback: {
         findResponseSnippetsByIds: async (ids, orgId) =>
           (await guest.snippets.findResponseSnippetsByIds(ids, orgId)).map((row) => ({
@@ -58,8 +54,6 @@ export function wireInbox(
           })),
         findEligibleResponseIds: async (orgId, filter) =>
           (await guest.snippets.findEligibleResponseIds(orgId, filter)).map(feedbackId),
-        findLegacyFeedbackSnippetsByIds: guest.snippets.findLegacyFeedbackSnippetsByIds,
-        findEligibleLegacyFeedbackIds: guest.snippets.findEligibleLegacyFeedbackIds,
       },
       property: property.publicApi,
       // Named reads, not a spread of the repository.

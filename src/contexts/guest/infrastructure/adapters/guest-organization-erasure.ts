@@ -4,7 +4,6 @@
 
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
-  feedback,
   guestContactRequestRevealAudits,
   guestContactRequests,
   guestNetworkPressureRecords,
@@ -14,7 +13,6 @@ import {
   guestResponsePrivateFeedback,
   guestResponseSessionBindings,
   guestResponses,
-  ratings,
   scanEvents,
 } from '#/shared/db/schema/guest.schema'
 import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
@@ -40,9 +38,9 @@ const GUEST_OUTBOX_SOURCE_CONTEXT = 'guest'
  * - `user` rows: a person who submitted nothing here and may be a member of
  *   another Organization. Identity owns identities.
  *
- * `ratings`, `feedback` and `scan_events` ARE in the plan, as ROW deletes.
- * They are physical-drop-blocked compatibility mirrors: the rows are guest
- * content and must go, the tables must not. Nothing in this plan is ever a
+ * `scan_events` IS in the plan, as a ROW delete. It is a
+ * physical-drop-blocked compatibility mirror: the rows are guest content and
+ * must go, the table must not. Nothing in this plan is ever a
  * DROP or a TRUNCATE.
  */
 export const GUEST_PURGE_PLAN = Object.freeze([
@@ -56,8 +54,6 @@ export const GUEST_PURGE_PLAN = Object.freeze([
   'guest_responses',
   'guest_qualified_scans',
   'guest_network_pressure_records',
-  'feedback',
-  'ratings',
   'scan_events',
 ] as const)
 
@@ -93,7 +89,7 @@ export const drizzleGuestLifecycleWorkbench: GuestLifecycleWorkbench = Object.fr
   },
 
   countTenantRows: async (tx, organizationId) => {
-    // The roots of the plan plus the three compatibility mirrors, which have
+    // The roots of the plan plus the compatibility mirror, which has
     // no canonical parent and can outlive every `guest_responses` row.
     const result = await tx.execute(sql`
       SELECT
@@ -113,14 +109,6 @@ export const drizzleGuestLifecycleWorkbench: GuestLifecycleWorkbench = Object.fr
         + (
           SELECT COUNT(*)::int FROM ${guestNetworkPressureRecords}
           WHERE ${guestNetworkPressureRecords.organizationId} = ${organizationId}
-        )
-        + (
-          SELECT COUNT(*)::int FROM ${ratings}
-          WHERE ${ratings.organizationId} = ${organizationId}
-        )
-        + (
-          SELECT COUNT(*)::int FROM ${feedback}
-          WHERE ${feedback.organizationId} = ${organizationId}
         )
         + (
           SELECT COUNT(*)::int FROM ${scanEvents}
@@ -175,11 +163,7 @@ export const drizzleGuestLifecycleWorkbench: GuestLifecycleWorkbench = Object.fr
     await tx
       .delete(guestNetworkPressureRecords)
       .where(eq(guestNetworkPressureRecords.organizationId, organizationId))
-    // Compatibility mirrors: rows are deleted, the tables are never dropped.
-    // `feedback` carries guest-authored comment text and goes before the
-    // `ratings` row it references.
-    await tx.delete(feedback).where(eq(feedback.organizationId, organizationId))
-    await tx.delete(ratings).where(eq(ratings.organizationId, organizationId))
+    // Compatibility mirror: rows are deleted, the table is never dropped.
     await tx.delete(scanEvents).where(eq(scanEvents.organizationId, organizationId))
   },
 })

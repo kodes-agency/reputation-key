@@ -31,8 +31,6 @@ const CHILD_TABLES = [
   'guest_qualified_scans',
   'guest_network_pressure_records',
   'guest_responses',
-  'feedback',
-  'ratings',
   'scan_events',
   'portal_access_artifacts',
   'portal_tokens',
@@ -50,8 +48,6 @@ type Fixture = Readonly<{
   qualifiedScanId: string
   mappedScanEventId: string
   unmappedScanEventId: string
-  unmappedRatingId: string
-  unmappedFeedbackId: string
   contactRequestId: string
   revealAuditId: string
   sessionId: string
@@ -81,8 +77,6 @@ async function seedFixture(): Promise<Fixture> {
     qualifiedScanId: randomUUID(),
     mappedScanEventId: randomUUID(),
     unmappedScanEventId: randomUUID(),
-    unmappedRatingId: randomUUID(),
-    unmappedFeedbackId: randomUUID(),
     contactRequestId: randomUUID(),
     revealAuditId: randomUUID(),
     sessionId: randomUUID(),
@@ -220,39 +214,7 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.qualifiedScanId, ...scope, artifactId, fixture.mappedScanEventId],
   )
 
-  // Legacy rows: one already succeeded by a canonical row (must not be
-  // double-counted) and one with no successor (must be exported).
-  await q(
-    `INSERT INTO ratings (id, organization_id, portal_id, property_id, value, source,
-                          session_id, ip_hash, created_at)
-     VALUES ($1, $2, $3, $4, 2, 'qr', NULL, 'NEVER_EXPORT_IP_HASH', now())`,
-    [fixture.liveTextResponseId, organizationId, fixture.portalId, fixture.propertyId],
-  )
-  await q(
-    `INSERT INTO ratings (id, organization_id, portal_id, property_id, value, source,
-                          session_id, ip_hash, created_at)
-     VALUES ($1, $2, $3, $4, 4, 'qr', $5, 'NEVER_EXPORT_IP_HASH', now())`,
-    [
-      fixture.unmappedRatingId,
-      organizationId,
-      fixture.portalId,
-      fixture.propertyId,
-      fixture.sessionId,
-    ],
-  )
-  await q(
-    `INSERT INTO feedback (id, organization_id, portal_id, property_id, rating_id,
-                           comment, source, session_id, ip_hash, created_at)
-     VALUES ($1, $2, $3, $4, $5, 'Legacy comment kept for the tenant', 'qr', NULL,
-             'NEVER_EXPORT_IP_HASH', now())`,
-    [
-      fixture.unmappedFeedbackId,
-      organizationId,
-      fixture.portalId,
-      fixture.propertyId,
-      fixture.unmappedRatingId,
-    ],
-  )
+  // A legacy scan event with no canonical successor must be exported.
   await q(
     `INSERT INTO scan_events (id, organization_id, portal_id, property_id, source,
                               session_id, ip_hash, created_at)
@@ -423,7 +385,6 @@ describe.sequential('Guest Organization Export contributor', () => {
 
     const text = JSON.parse(read('guest/private-feedback.json')) as Readonly<{
       privateFeedback: readonly Readonly<{ response_id: string; body: string }>[]
-      legacyFeedbackText: readonly Readonly<{ id: string; body: string }>[]
     }>
     expect(text.privateFeedback).toEqual([
       expect.objectContaining({
@@ -431,21 +392,10 @@ describe.sequential('Guest Organization Export contributor', () => {
         body: LIVE_TEXT,
       }),
     ])
-    expect(text.legacyFeedbackText).toEqual([
-      expect.objectContaining({ id: fixture.unmappedFeedbackId }),
-    ])
 
     const legacy = JSON.parse(read('guest/legacy-responses.json')) as Readonly<{
-      legacyRatings: readonly Readonly<{ id: string }>[]
-      legacyFeedbackFacts: readonly Readonly<{ id: string }>[]
       legacyScanEvents: readonly Readonly<{ id: string }>[]
     }>
-    // The legacy rating sharing a canonical id is already exported as a
-    // canonical response; exporting it again would double-count it.
-    expect(legacy.legacyRatings.map(({ id }) => id)).toEqual([fixture.unmappedRatingId])
-    expect(legacy.legacyFeedbackFacts.map(({ id }) => id)).toEqual([
-      fixture.unmappedFeedbackId,
-    ])
     expect(legacy.legacyScanEvents.map(({ id }) => id)).toEqual([
       fixture.unmappedScanEventId,
     ])

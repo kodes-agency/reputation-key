@@ -15,9 +15,6 @@ const READ_ORDER = [
   'integrityDecisions',
   'experienceSnapshots',
   'privateFeedback',
-  'legacyRatings',
-  'legacyFeedbackFacts',
-  'legacyFeedbackText',
   'legacyScanEvents',
 ] as const
 
@@ -83,16 +80,6 @@ const privateFeedbackRows: Row[] = [
   },
 ]
 
-const legacyRatingRows: Row[] = [
-  {
-    id: 'c0000000-0000-4000-8000-000000000001',
-    portal_id: 'f0000000-0000-4000-8000-000000000001',
-    value: 4,
-    source: 'qr',
-    created_at: '2025-06-01T00:00:00.000000Z',
-  },
-]
-
 const scanRows: Row[] = [
   {
     id: 'c0000000-0000-4000-8000-000000000001',
@@ -105,9 +92,6 @@ const scanRows: Row[] = [
 const seeded = {
   responses: responseRows,
   privateFeedback: privateFeedbackRows,
-  legacyRatings: legacyRatingRows,
-  legacyFeedbackFacts: [{ id: 'legacy-feedback', rating_id: legacyRatingRows[0]?.id }],
-  legacyFeedbackText: [{ id: 'legacy-feedback', body: 'Legacy stay' }],
   legacyScanEvents: scanRows,
 }
 
@@ -134,15 +118,12 @@ describe('Guest Organization Export contributor', () => {
     expect(read('guest/responses.json').responses).toEqual([...responseRows].reverse())
     expect(read('guest/private-feedback.json')).toMatchObject({
       privateFeedback: privateFeedbackRows,
-      legacyFeedbackText: seeded.legacyFeedbackText,
     })
     expect(read('guest/legacy-responses.json')).toEqual({
       version: 'guest-organization-export/v1',
       requestedAsOf: ASOF.toISOString(),
       snapshotBound: 'repeatable_read_within_15m_of_request',
       excludedRecordClasses: expect.any(Array),
-      legacyRatings: legacyRatingRows,
-      legacyFeedbackFacts: seeded.legacyFeedbackFacts,
       legacyScanEvents: scanRows,
     })
   })

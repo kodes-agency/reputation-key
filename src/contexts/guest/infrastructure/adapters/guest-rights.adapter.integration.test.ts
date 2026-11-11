@@ -40,8 +40,6 @@ const TABLES = [
   'guest_response_session_bindings',
   'guest_responses',
   'guest_network_pressure_records',
-  'feedback',
-  'ratings',
   'scan_events',
   'idempotency_receipts',
 ] as const
@@ -62,7 +60,6 @@ const q = (text: string, params: unknown[] = []) => lease.pool.query(text, param
 async function seedProperty(organizationId: string, propertyId: string) {
   const portalId = randomUUID()
   const sessionId = randomUUID()
-  const ratingId = randomUUID()
   const responseIds = [randomUUID(), randomUUID()]
   const scope = [organizationId, propertyId, portalId]
   await q(
@@ -113,18 +110,6 @@ async function seedProperty(organizationId: string, propertyId: string) {
                               session_id, ip_hash, created_at)
      VALUES ($1, $2, $3, $4, 'qr', $5, 'fixture-hash', $6)`,
     [randomUUID(), organizationId, portalId, propertyId, sessionId, AT],
-  )
-  await q(
-    `INSERT INTO ratings (id, organization_id, portal_id, property_id, value, source,
-                          session_id, ip_hash, created_at)
-     VALUES ($1, $2, $3, $4, 4, 'qr', $5, 'fixture-hash', $6)`,
-    [ratingId, organizationId, portalId, propertyId, sessionId, AT],
-  )
-  await q(
-    `INSERT INTO feedback (id, organization_id, portal_id, property_id, rating_id,
-                           comment, source, session_id, ip_hash, created_at)
-     VALUES ($1, $2, $3, $4, $5, 'fixture comment', 'qr', NULL, 'fixture-hash', $6)`,
-    [randomUUID(), organizationId, portalId, propertyId, ratingId, AT],
   )
   await q(
     `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
@@ -306,15 +291,14 @@ describe('guest rights executor', () => {
     expect(property.out).toEqual(
       expect.arrayContaining([
         'guest: guest_responses 2',
-        'guest: ratings 1',
         'guest: scan_events 1',
         'guest: undelivered guest facts 0',
       ]),
     )
-    // The purge counts responses, receipts, pressure records and the legacy mirrors.
-    expect(organization.out).toContain('guest: tenant rows 14')
+    // The purge counts responses, receipts, pressure records and the legacy visit mirror.
+    expect(organization.out).toContain('guest: tenant rows 10')
     expect(await snapshot(first.organizationId)).toBe(before)
-    expect(await rowTotal(other.organizationId)).toBe(22)
+    expect(await rowTotal(other.organizationId)).toBe(18)
   })
 
   it('erases one response and leaves its sibling, Property B and the other Organization byte-identical', async () => {
@@ -378,7 +362,7 @@ describe('guest rights executor', () => {
     expect(await snapshot(other.organizationId)).toBe(otherBefore)
   })
 
-  it('erases Property A including the legacy tables and replays it after a restore', async () => {
+  it('erases Property A including the legacy visit table and replays it after a restore', async () => {
     const first = await seedOrganization()
     const other = await seedOrganization()
     const [a, b] = first.propertyIds as [string, string]
@@ -428,7 +412,7 @@ describe('guest rights executor', () => {
     expect(outcome.verified).toBe(true)
     // The replayer counts the plan's roots, not the rows that hang off them.
     expect(resurrected).toBeGreaterThan(0)
-    expect(outcome.counts.ledgerRowsReErased).toBe(14)
+    expect(outcome.counts.ledgerRowsReErased).toBe(10)
     expect(await rowTotal(first.organizationId)).toBe(0)
     expect(await snapshot(other.organizationId)).toBe(otherBefore)
   })

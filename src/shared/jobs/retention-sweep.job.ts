@@ -105,7 +105,7 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     tsColumn: 'expires_at',
     olderThanMs: 0,
   },
-  ...(['scan_events', 'ratings', 'feedback'] as const).map((table): RetentionRule => ({
+  ...(['scan_events'] as const).map((table): RetentionRule => ({
     subject: `${table}.abuse_pseudonym`,
     table,
     keyColumns: ['id'],
@@ -115,7 +115,7 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     operation: 'redact',
     redactColumns: ['ip_hash'],
   })),
-  ...(['scan_events', 'ratings', 'feedback'] as const).map((table): RetentionRule => ({
+  ...(['scan_events'] as const).map((table): RetentionRule => ({
     subject: `${table}.guest_session_pseudonym`,
     table,
     keyColumns: ['id'],
@@ -134,10 +134,10 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMonths: GUEST_VISIT_FACT_RETENTION_MONTHS,
   },
   {
-    // The visit record. Unlike `ratings` and `feedback`, this table is still
-    // written on every Portal visit, so its rows are current visit facts, not
-    // pre-beta inventory: the two redactions above clear its pseudonyms early
-    // and this removes what is left of the row at the published horizon.
+    // The visit record. This table is written on every Portal visit, so its
+    // rows are current visit facts: the two redactions above clear its
+    // pseudonyms early and this removes what is left of the row at the
+    // published horizon.
     subject: 'scan_events.deidentified_fact',
     table: 'scan_events',
     keyColumns: ['id'],
