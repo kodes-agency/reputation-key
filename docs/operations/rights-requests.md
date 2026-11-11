@@ -68,6 +68,19 @@ private bucket by hand and delete the local copy.
     rollback restores it. Property, guest-response and participant scopes have no
     Reporting executor.
 
+- **ai** (`property`, `organization`): on closure it retires and deletes the
+  retained AI derivatives (analyses, mentions, aggregates, issue groups,
+  operations, draft measurements, cost windows); the merchant consent evidence
+  stays. Apply refuses while an AI authorization is enabled, an enrollment is
+  active or an AI operation is in flight. `organization` with `out=<dir>` writes
+  two files under `<dir>/ai/`: `review-analysis-mentions.json` (topic, polarity,
+  strength, cause phrases and the sentence numbers that state each) and
+  `review-analysis-mention-corrections.json` (the manager corrections). Only
+  allowlisted columns leave, never review text. Only the analysis the product
+  still serves is exported: retired, revoked or expired generations are left
+  out. `access` does not run this executor: an access request covers the
+  requester's own records, and this analysis is the Organization's derived
+  data.
 - **review** (`access`, `organization`): exports manager-authored replies with
   their template and AI provenance, publication authorizations and attempts,
   and the layered reply library (voices, templates, revisions, wordings,
