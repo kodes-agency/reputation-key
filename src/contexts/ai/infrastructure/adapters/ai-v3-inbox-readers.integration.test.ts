@@ -1,14 +1,9 @@
-// What the Inbox's analysis filters answer for a Property whose reviews carry only a v3
-// analysis (real PostgreSQL), after the switch-on. An old link or bookmark carries the v2
-// vocabulary (`?aspect=cleanliness&polarity=negative`); a v3 analysis has mentions and
-// issues, not aspects, so the filter finds nothing, and nothing throws: the Inbox shows an
-// empty list that can be cleared, not an error page. The v3 vocabulary (`issue`) finds
-// the reviews. Every row is invented.
+// What the Inbox's issue filter answers for a Property whose reviews carry only a v3
+// analysis (real PostgreSQL), after the switch-on: the reviews that name the issue, by
+// the v3 vocabulary. Every row is invented.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getDb, type Database } from '#/shared/db'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
-import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
 import { findCurrentReviewIdsByIssue } from './ai-current-issue-review-ids'
 import { createAiGuestVoiceFactsAdapter } from './ai-guest-voice-facts.adapter'
 import {
@@ -63,7 +58,6 @@ const REVIEWS: readonly SeededReview[] = [
 describe.sequential('the Inbox filters over a v3-only Property (PostgreSQL)', () => {
   const db: Database = getDb()
   const seed = createV3Seed(db, IDS)
-  const outputs = createAiOutputStoreAdapter(db)
   const facts = createAiGuestVoiceFactsAdapter(db)
   const base = {
     organizationId: organizationId(IDS.organizationId),
@@ -79,25 +73,6 @@ describe.sequential('the Inbox filters over a v3-only Property (PostgreSQL)', ()
 
   afterAll(async () => {
     await seed.tearDown()
-  })
-
-  it.each(ASPECT_TAXONOMY_V1)(
-    'finds nothing, and does not throw, for an old link naming the %s aspect',
-    async (aspect) => {
-      await expect(
-        outputs.findCurrentReviewIdsByAspect({
-          ...base,
-          aspects: [aspect],
-          polarities: ['negative'],
-        }),
-      ).resolves.toEqual([])
-    },
-  )
-
-  it('finds nothing, and does not throw, for an old link naming only a polarity', async () => {
-    await expect(
-      outputs.findCurrentReviewIdsByAspect({ ...base, polarities: ['negative'] }),
-    ).resolves.toEqual([])
   })
 
   it('finds the reviews that complain of an issue by the v3 vocabulary', async () => {

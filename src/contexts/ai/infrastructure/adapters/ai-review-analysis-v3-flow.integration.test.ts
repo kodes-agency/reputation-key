@@ -47,6 +47,7 @@ import type { AiOperationId } from '../../domain/types'
 import type { AiAnalysisDerivativeV3 } from '../../application/ports/ai-output-store.port'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
+import { withoutRetiredAiTables } from '#/shared/db/testing/retired-ai-tables-fixture'
 import { urgentAlertEventId } from './ai-urgent-alert'
 
 const NOW = new Date('2026-10-20T10:00:00.000Z')
@@ -321,8 +322,9 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
 
   const store = (
     overrides: Partial<Parameters<typeof outputs.storeAnalysisV3>[0]> = {},
+    outputStore = outputs,
   ) =>
-    outputs.storeAnalysisV3({
+    outputStore.storeAnalysisV3({
       operationId: OPERATION_ID,
       providerCompletion: {
         expectedAttempt: 1,
@@ -347,8 +349,8 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       ...overrides,
     })
 
-  const apply = (analysisSequence: number) =>
-    aggregates.applyReviewAnalysis({
+  const apply = (analysisSequence: number, aggregateStore = aggregates) =>
+    aggregateStore.applyReviewAnalysis({
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
       reviewId: REVIEW_ID,
@@ -360,8 +362,8 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       calendarProfileVersion: 'property-calendar-v1',
     })
 
-  const read = (analysisSequence = 1) =>
-    outputs.readAnalysisForDelivery(
+  const read = (analysisSequence = 1, outputStore = outputs) =>
+    outputStore.readAnalysisForDelivery(
       {
         organizationId: ORGANIZATION_ID,
         actorUserId: userId(ACTOR_USER_ID),
@@ -517,6 +519,34 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
         await transitionControl(control.scopeKey, control)
       }
     }
+  })
+
+  it('stores, delivers and aggregates v3 with the retired tables absent', async () => {
+    await withoutRetiredAiTables(db, async (tx) => {
+      const outputStore = createAiOutputStoreAdapter(tx)
+      const aggregateStore = createAiPropertyAggregateStoreAdapter(tx)
+      await expect(store({}, outputStore)).resolves.toBe(true)
+      await expect(apply(1, aggregateStore)).resolves.toEqual({
+        status: 'applied',
+        aggregateRevision: 1,
+      })
+      await expect(read(1, outputStore)).resolves.toMatchObject({
+        status: 'ready_v3',
+        sentiment: DERIVATIVE.sentiment,
+        mentions: DERIVATIVE.mentions.map((mention) => expect.objectContaining(mention)),
+      })
+      const window = await aggregateStore.readWindow({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        startLocalDate: '2026-10-19',
+        endLocalDate: '2026-10-19',
+      })
+      expect(window?.coverage.settledAnalysisCount).toBe(1)
+      expect(window?.analyzedReviews).toEqual([])
+    })
   })
 
   it('stores the analysis root, the mentions in answer order, the sentences each cites, and closes the operation with the normalizer record', async () => {

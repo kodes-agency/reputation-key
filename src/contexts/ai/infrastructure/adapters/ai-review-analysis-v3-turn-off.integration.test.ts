@@ -1,22 +1,13 @@
-import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-// What turning review analysis off takes with it (PostgreSQL). The merchant notice of
-// 2026-10-30 tells the owner that turning a capability off and erasure "cover everything
-// listed under 'What review analysis keeps'": the analyses and their mentions, the
-// sentence numbers, the manager corrections beside them, the per-Property issue groups
-// and the daily counts of reviews by star rating. Until the switch-on the lifecycle
-// consumer deleted the analyses and the aggregates over them and left the other two
-// (they waited for the 24-month sweep), so the sentence was untrue for them.
-//
-// The Property stays; a re-consent that keeps review analysis (a new epoch) keeps the
-// groups and the star counts too, on purpose: a group is stable across a re-analysis so
-// a manager's rename, merge or hide survives it, and a day's count follows the reviews,
-// not an analysis. Every row is invented; no guest's words exist here.
+// Turning off, revoking or removing Review Analysis erases its analyses,
+// mentions, manager corrections, contributions, issue groups and category hint.
+// A new epoch with Review Analysis still enabled keeps stable issue identities.
+// Every row is invented; no guest's words exist here.
 import { randomUUID } from 'node:crypto'
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import {
-  aiPropertyReviewPopulationDaily,
   aiReviewAnalysisMentionCorrections,
   merchantAiConsentEvidence,
   merchantAiEnablement,
@@ -101,8 +92,6 @@ async function counts() {
         WHERE property_id = ${IDS.propertyId}::uuid) AS issue_groups,
       (SELECT count(*)::int FROM ai_property_issue_members
         WHERE property_id = ${IDS.propertyId}::uuid) AS issue_members,
-      (SELECT count(*)::int FROM ai_property_review_population_daily
-        WHERE property_id = ${IDS.propertyId}::uuid) AS star_counts,
       (SELECT count(*)::int FROM properties
         WHERE id = ${IDS.propertyId}::uuid) AS properties
   `)
@@ -118,7 +107,6 @@ const EVERYTHING_THE_NOTICE_LISTS = {
   contribution_mentions: 0,
   issue_groups: 0,
   issue_members: 0,
-  star_counts: 0,
 } as const
 
 type Posture = Readonly<{
@@ -333,27 +321,7 @@ describe('turning review analysis off (real PostgreSQL)', () => {
       .where(eq(properties.id, IDS.propertyId))
     for (const review of REVIEWS) await seed.addReview(review)
     await seed.seal()
-    // The daily counts of reviews by star rating, one row per day, as the projection
-    // writes them (no review identity in them).
-    await db.insert(aiPropertyReviewPopulationDaily).values(
-      [9, 10, 11].map((day) => ({
-        organizationId: IDS.organizationId,
-        propertyId: IDS.propertyId,
-        localDate: `2026-10-${String(day).padStart(2, '0')}`,
-        sourceEpoch: 0,
-        propertyProfileVersion: 1,
-        calendarProfileVersion: 'property-calendar-v1',
-        reviewCount: 3,
-        textReviewCount: 3,
-        rating1Count: 0,
-        rating2Count: 3,
-        rating3Count: 0,
-        rating4Count: 0,
-        rating5Count: 0,
-        populationRevision: 1,
-        updatedAt: NOW,
-      })),
-    )
+
     // A manager's correction beside the first review's first mention.
     await db.insert(aiReviewAnalysisMentionCorrections).values({
       organizationId: IDS.organizationId,
@@ -381,9 +349,6 @@ describe('turning review analysis off (real PostgreSQL)', () => {
     await db
       .delete(outboxEvents)
       .where(eq(outboxEvents.organizationId, IDS.organizationId))
-    await db
-      .delete(aiPropertyReviewPopulationDaily)
-      .where(eq(aiPropertyReviewPopulationDaily.organizationId, IDS.organizationId))
     await seed.tearDown()
     await db.delete(googleConnections).where(eq(googleConnections.id, CONNECTION))
   }
@@ -402,7 +367,6 @@ describe('turning review analysis off (real PostgreSQL)', () => {
       corrections: 1,
       contributions: 3,
       contribution_mentions: 3,
-      star_counts: 3,
       properties: 1,
     })
     expect(before.sentences).toBeGreaterThan(0)
@@ -459,7 +423,7 @@ describe('turning review analysis off (real PostgreSQL)', () => {
     })
   })
 
-  it('keeps the issue groups and the star counts when review analysis stays on and only the epoch moves', async () => {
+  it('keeps the issue groups when review analysis stays on and only the epoch moves', async () => {
     const posture: Posture = {
       state: 'enabled',
       capabilities: ['review_analysis'],
@@ -483,7 +447,6 @@ describe('turning review analysis off (real PostgreSQL)', () => {
     })
     expect(after.issue_groups).toBe(before.issue_groups)
     expect(after.issue_members).toBe(before.issue_members)
-    expect(after.star_counts).toBe(before.star_counts)
     expect(await categoryRow()).toEqual({
       category: 'Hotel',
       readAt: NOW,

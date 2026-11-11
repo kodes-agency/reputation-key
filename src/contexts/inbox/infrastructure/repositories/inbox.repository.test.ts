@@ -1251,7 +1251,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const enrichedRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1283,7 +1282,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const enrichedRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1378,7 +1376,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1436,7 +1433,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1461,7 +1457,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       findCurrentReviewIdsByAttention: vi.fn(async (input: AttentionLookup) =>
         input.attention.includes('urgent') ? [downgraded.sourceId as never] : [],
       ),
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1492,27 +1487,27 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     expect(result.items.map((item) => item.id)).toEqual([set.id])
   })
 
-  it('aspect and polarity filters intersect with attention through the AI projection', async () => {
+  it('an issue and polarity intersect with attention through the AI projection', async () => {
     const srcBoth = reviewId(crypto.randomUUID())
     const srcAttentionOnly = reviewId(crypto.randomUUID())
-    const srcAspectOnly = reviewId(crypto.randomUUID())
-    for (const sourceId of [srcBoth, srcAttentionOnly, srcAspectOnly]) {
+    const srcIssueOnly = reviewId(crypto.randomUUID())
+    for (const sourceId of [srcBoth, srcAttentionOnly, srcIssueOnly]) {
       await repo.seedItem(makeInboxItem({ sourceId }))
     }
-    const findCurrentReviewIdsByAspect = vi.fn(async () => [srcBoth, srcAspectOnly])
+    const findCurrentReviewIdsByIssue = vi.fn(async () => [srcBoth, srcIssueOnly])
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => [srcBoth, srcAttentionOnly]),
-      findCurrentReviewIdsByAspect,
-      findCurrentReviewIdsByIssue: vi.fn(async () => []),
+      findCurrentReviewIdsByIssue,
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+    const issueId = 'a0000000-0000-4000-8000-000000000001'
 
     const result = await filteredRepo.findFilteredPaginated(
       {
         propertyId: PROP_A,
         attention: ['urgent'],
-        aspect: ['wait_time'],
+        issueId,
         polarity: ['negative'],
       },
       ORG_A,
@@ -1520,10 +1515,10 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       50,
     )
 
-    expect(findCurrentReviewIdsByAspect).toHaveBeenCalledWith({
+    expect(findCurrentReviewIdsByIssue).toHaveBeenCalledWith({
       organizationId: ORG_A,
       propertyIds: [PROP_A],
-      aspects: ['wait_time'],
+      issueId,
       polarities: ['negative'],
     })
     // Intersection, not union: only the review in BOTH id sets survives.
@@ -1536,12 +1531,10 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     for (const sourceId of [named, other]) {
       await repo.seedItem(makeInboxItem({ sourceId }))
     }
-    const findCurrentReviewIdsByAspect = vi.fn(async () => [other])
     const findCurrentReviewIdsByIssue = vi.fn(async () => [named])
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByAspect,
       findCurrentReviewIdsByIssue,
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1561,8 +1554,32 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       polarities: ['negative'],
     })
     // A v3 analysis has issues and no aspects: the polarity belongs to the issue's mention.
-    expect(findCurrentReviewIdsByAspect).not.toHaveBeenCalled()
     expect(result.items.map((item) => item.sourceId)).toEqual([named])
+  })
+
+  it('an old aspect or polarity link without an issue matches nothing and asks the AI nothing', async () => {
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }))
+    const findCurrentReviewIdsByIssue = vi.fn(async () => [])
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
+      findCurrentReviewIdsByAttention: vi.fn(async () => []),
+      findCurrentReviewIdsByIssue,
+    }
+    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+
+    for (const filters of [
+      { propertyId: PROP_A, aspect: ['service' as const] },
+      { propertyId: PROP_A, polarity: ['negative' as const] },
+    ]) {
+      const result = await filteredRepo.findFilteredPaginated(
+        filters,
+        ORG_A,
+        undefined,
+        50,
+      )
+      expect(result.items).toHaveLength(0)
+    }
+    expect(findCurrentReviewIdsByIssue).not.toHaveBeenCalled()
   })
 
   it('an issue nobody names means no review matches, never no filter', async () => {
@@ -1570,7 +1587,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1599,7 +1615,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
@@ -1607,7 +1622,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     for (const filters of [
       {
         propertyId: PROP_A,
-        aspect: ['service' as const],
+        issueId: 'a0000000-0000-4000-8000-000000000001',
         polarity: ['negative' as const],
       },
       { propertyId: PROP_A, attention: ['urgent' as const] },
@@ -1623,7 +1638,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     }
   })
 
-  it('aspect still narrows to reviews: a set level on feedback does not satisfy it', async () => {
+  it('an issue still narrows to reviews: a set level on feedback does not satisfy it', async () => {
     const feedback = await repo.seedItem(
       makeInboxItem({
         sourceType: 'feedback',
@@ -1638,13 +1653,12 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByAspect: vi.fn(async () => [review.sourceId as never]),
-      findCurrentReviewIdsByIssue: vi.fn(async () => []),
+      findCurrentReviewIdsByIssue: vi.fn(async () => [review.sourceId as never]),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
 
     const result = await filteredRepo.findFilteredPaginated(
-      { attention: ['urgent'], aspect: ['service'] },
+      { attention: ['urgent'], issueId: 'a0000000-0000-4000-8000-000000000001' },
       ORG_A,
     )
 
@@ -1685,7 +1699,6 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
         async (input: AttentionLookup) =>
           input.attention.flatMap((level) => suggestions[level] ?? []) as never,
       ),
-      findCurrentReviewIdsByAspect: vi.fn(async () => []),
       findCurrentReviewIdsByIssue: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })

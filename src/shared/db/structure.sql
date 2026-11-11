@@ -7305,51 +7305,6 @@ CREATE TABLE "public"."portal_media_assets" (
 
 
 --
--- Name: portal_metric_lifetime_aggregates; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."portal_metric_lifetime_aggregates" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "portal_id" "uuid" NOT NULL,
-    "qualified_scan_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_sum" bigint DEFAULT 0 NOT NULL,
-    "private_rating_1_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_2_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_3_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_4_count" bigint DEFAULT 0 NOT NULL,
-    "private_rating_5_count" bigint DEFAULT 0 NOT NULL,
-    "private_feedback_count" bigint DEFAULT 0 NOT NULL,
-    "google_review_selection_count" bigint DEFAULT 0 NOT NULL,
-    "secondary_link_selection_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_qualified_scan_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_sum" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_1_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_2_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_3_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_4_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_rating_5_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_private_feedback_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_google_review_selection_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_secondary_link_selection_count" bigint DEFAULT 0 NOT NULL,
-    "sealed_through_local_date" character varying(10),
-    "projection_revision" bigint DEFAULT 0 NOT NULL,
-    "last_rebuilt_at" timestamp with time zone,
-    "last_sealed_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "portal_metric_lifetime_nonnegative_check" CHECK ((("qualified_scan_count" >= 0) AND ("private_rating_count" >= 0) AND ("private_rating_sum" >= 0) AND ("private_rating_1_count" >= 0) AND ("private_rating_2_count" >= 0) AND ("private_rating_3_count" >= 0) AND ("private_rating_4_count" >= 0) AND ("private_rating_5_count" >= 0) AND ("private_feedback_count" >= 0) AND ("google_review_selection_count" >= 0) AND ("secondary_link_selection_count" >= 0))),
-    CONSTRAINT "portal_metric_lifetime_rating_check" CHECK ((((((("private_rating_1_count" + "private_rating_2_count") + "private_rating_3_count") + "private_rating_4_count") + "private_rating_5_count") = "private_rating_count") AND (("private_rating_sum" >= "private_rating_count") AND ("private_rating_sum" <= ("private_rating_count" * 5))))),
-    CONSTRAINT "portal_metric_lifetime_sealed_boundary_check" CHECK ((("sealed_through_local_date" IS NULL) OR (("sealed_through_local_date")::"text" ~ '^\d{4}-\d{2}-\d{2}$'::"text"))),
-    CONSTRAINT "portal_metric_lifetime_sealed_nonnegative_check" CHECK ((("sealed_qualified_scan_count" >= 0) AND ("sealed_private_rating_count" >= 0) AND ("sealed_private_rating_sum" >= 0) AND ("sealed_private_rating_1_count" >= 0) AND ("sealed_private_rating_2_count" >= 0) AND ("sealed_private_rating_3_count" >= 0) AND ("sealed_private_rating_4_count" >= 0) AND ("sealed_private_rating_5_count" >= 0) AND ("sealed_private_feedback_count" >= 0) AND ("sealed_google_review_selection_count" >= 0) AND ("sealed_secondary_link_selection_count" >= 0))),
-    CONSTRAINT "portal_metric_lifetime_sealed_rating_check" CHECK ((((((("sealed_private_rating_1_count" + "sealed_private_rating_2_count") + "sealed_private_rating_3_count") + "sealed_private_rating_4_count") + "sealed_private_rating_5_count") = "sealed_private_rating_count") AND (("sealed_private_rating_sum" >= "sealed_private_rating_count") AND ("sealed_private_rating_sum" <= ("sealed_private_rating_count" * 5)))))
-);
-
-
---
 -- Name: portal_page_edits; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8797,19 +8752,6 @@ CREATE TABLE "public"."session" (
 
 
 --
--- Name: setup_checklist_milestones; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."setup_checklist_milestones" (
-    "organization_id" character varying(255) NOT NULL,
-    "step" character varying(40) NOT NULL,
-    "first_completed_at" timestamp with time zone NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "setup_checklist_milestones_step_valid" CHECK ((("step")::"text" = ANY ((ARRAY['google_connection'::character varying, 'initial_review_sync'::character varying, 'published_portal'::character varying, 'responsible_managers'::character varying])::"text"[])))
-);
-
-
---
 -- Name: staff_onboardings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10163,14 +10105,6 @@ ALTER TABLE ONLY "public"."portal_media_assets"
 
 
 --
--- Name: portal_metric_lifetime_aggregates portal_metric_lifetime_aggregates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."portal_metric_lifetime_aggregates"
-    ADD CONSTRAINT "portal_metric_lifetime_aggregates_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: portal_page_edits portal_page_edits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10656,14 +10590,6 @@ ALTER TABLE ONLY "public"."session"
 
 ALTER TABLE ONLY "public"."session"
     ADD CONSTRAINT "session_token_key" UNIQUE ("token");
-
-
---
--- Name: setup_checklist_milestones setup_checklist_milestones_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."setup_checklist_milestones"
-    ADD CONSTRAINT "setup_checklist_milestones_pk" PRIMARY KEY ("organization_id", "step");
 
 
 --
@@ -12662,20 +12588,6 @@ CREATE UNIQUE INDEX "portal_media_assets_object_key_unique" ON "public"."portal_
 --
 
 CREATE UNIQUE INDEX "portal_media_assets_org_property_id_key" ON "public"."portal_media_assets" USING "btree" ("organization_id", "property_id", "id");
-
-
---
--- Name: portal_metric_lifetime_property_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "portal_metric_lifetime_property_idx" ON "public"."portal_metric_lifetime_aggregates" USING "btree" ("organization_id", "property_id");
-
-
---
--- Name: portal_metric_lifetime_scope_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "portal_metric_lifetime_scope_unique" ON "public"."portal_metric_lifetime_aggregates" USING "btree" ("organization_id", "property_id", "portal_id");
 
 
 --
@@ -15468,14 +15380,6 @@ ALTER TABLE ONLY "public"."portal_look_overrides"
 
 ALTER TABLE ONLY "public"."portal_media_assets"
     ADD CONSTRAINT "portal_media_assets_property_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE RESTRICT;
-
-
---
--- Name: portal_metric_lifetime_aggregates portal_metric_lifetime_portal_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."portal_metric_lifetime_aggregates"
-    ADD CONSTRAINT "portal_metric_lifetime_portal_fk" FOREIGN KEY ("organization_id", "property_id", "portal_id") REFERENCES "public"."portals"("organization_id", "property_id", "id") ON DELETE CASCADE;
 
 
 --

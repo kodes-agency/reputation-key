@@ -12,8 +12,8 @@ import {
 import manifest from '../../../test-fixtures/populated-upgrade/manifest.json'
 import { migrateJournal } from './migrate-journal.server'
 
-const CONTRACTION = '0128_drop_review_provider_content_copy'
-const VALIDATION = '0129_validate_review_source_content_state'
+const CONTRACTION = '0129_drop_review_provider_content_copy'
+const VALIDATION = '0130_validate_review_source_content_state'
 const CHECK = 'reviews_source_content_state_valid'
 const DROPPED_COLUMNS = [
   'reviewer_name',
