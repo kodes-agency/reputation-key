@@ -125,13 +125,15 @@ export type CancelInvitationCommand = Readonly<{
 }>
 
 /**
- * Remove a member: org advisory lock + session revocation + member delete +
- * member.removed fact in one transaction. The last-owner invariant is
- * re-enforced under the lock (throws `last_owner`); a missing row throws
- * `member_not_found` — both record NO fact.
+ * Remove a member: sessions, Property access grants, the membership and the
+ * member.removed fact in one transaction. The actor and the last-owner
+ * invariant are re-checked under the lock (`forbidden`, `last_owner`); a
+ * missing row throws `member_not_found` — all record NO fact.
  */
 export type RemoveMemberCommand = Readonly<{
   staffOnly?: boolean
+  /** An AccountAdmin's request: they must still be one when it commits. */
+  actorUserId?: string
   organizationId: OrganizationId
   memberId: string
   event: IdentityMemberRemoved
@@ -145,6 +147,8 @@ export type RemoveMemberCommand = Readonly<{
  */
 export type ChangeMemberRoleCommand = Readonly<{
   organizationId: OrganizationId
+  /** The requesting AccountAdmin: they must still be one when it commits. */
+  actorUserId: string
   memberId: string
   /** Beta interactive Better Auth role persisted on the member row ('owner'|'admin'). */
   newRole: string
@@ -161,4 +165,18 @@ export type IdentityCommandStore = Readonly<{
   cancelInvitation(command: CancelInvitationCommand): Promise<void>
   removeMember(command: RemoveMemberCommand): Promise<void>
   changeMemberRole(command: ChangeMemberRoleCommand): Promise<void>
+  /**
+   * The member's newest role change whose cleanup has not completed, if it
+   * is recent enough to belong to a request being retried.
+   */
+  pendingRoleChangeCleanup(
+    input: Readonly<{ organizationId: OrganizationId; memberUserId: string }>,
+  ): Promise<PendingRoleChangeCleanup | null>
+  /** Record the cleanup of a role change as done; safe to repeat. */
+  completeRoleChangeCleanup(eventId: string): Promise<void>
+}>
+
+export type PendingRoleChangeCleanup = Readonly<{
+  eventId: string
+  actorUserId: string
 }>

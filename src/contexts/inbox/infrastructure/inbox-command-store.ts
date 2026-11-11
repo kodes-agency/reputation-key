@@ -464,7 +464,10 @@ export const createAtomicInboxCommandStore = (
             .map((candidate) => candidate.id)
           return releaseAssignmentRows(
             tx,
-            { ...input, releaseReason: 'member_became_ineligible' },
+            {
+              ...input,
+              releaseReason: input.releaseReason ?? 'member_became_ineligible',
+            },
             candidateIds,
           )
         })

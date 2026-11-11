@@ -142,70 +142,28 @@ describe('removeMember', () => {
     expect(facts[0].userId).toBe(userId('user-target'))
   })
 
-  it('fences the removed user import scope before deleting membership', async () => {
-    const identity = createInMemoryIdentityPort()
-    const outbox = createRecordedOutbox()
-    const commandStore = createSequentialIdentityCommandStore({ outbox })
-    for (const member of [MEMBER_RECORD, ADMIN_MEMBER]) {
-      seedMemberBoth(identity, commandStore, member)
-    }
-    const prepareGoogleConnectorDeparture = vi.fn(async () => undefined)
-    const cancelGoogleImportsForUser = vi.fn(async () => undefined)
-    const useCase = removeMember({
-      identity,
-      commandStore,
-      clock: () => FIXED_TIME,
-      prepareGoogleConnectorDeparture,
-      cancelGoogleImportsForUser,
+  it('refuses an actor demoted since the request was admitted, without writes', async () => {
+    const h = setup([MEMBER_RECORD, ADMIN_MEMBER])
+    // A concurrent demotion committed after the request's own role was read.
+    h.commandStore.seedMember({
+      id: ADMIN_MEMBER.id,
+      organizationId: DEFAULT_ORG_ID,
+      userId: ADMIN_MEMBER.userId,
+      email: ADMIN_MEMBER.email,
+      role: 'admin',
+      createdAt: ADMIN_MEMBER.createdAt,
     })
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await useCase({ memberId: MEMBER_RECORD.id }, ctx)
-
-    expect(prepareGoogleConnectorDeparture).toHaveBeenCalledWith(
-      ctx.organizationId,
-      MEMBER_RECORD.userId,
-      'member_removed',
-    )
-    expect(cancelGoogleImportsForUser).toHaveBeenCalledWith(
-      ctx.organizationId,
-      MEMBER_RECORD.userId,
-    )
-    expect(commandStore.memberById(MEMBER_RECORD.id)).toBeNull()
-  })
-
-  it('releases the target member authorities before deleting membership', async () => {
-    const identity = createInMemoryIdentityPort()
-    const outbox = createRecordedOutbox()
-    const commandStore = createSequentialIdentityCommandStore({ outbox })
-    for (const member of [MEMBER_RECORD, ADMIN_MEMBER]) {
-      seedMemberBoth(identity, commandStore, member)
-    }
-    const releaseMemberAuthorities = vi.fn(async () => undefined)
-    const useCase = removeMember({
-      identity,
-      commandStore,
-      clock: () => FIXED_TIME,
-      releaseMemberAuthorities,
+    await expect(h.useCase({ memberId: MEMBER_RECORD.id }, ctx)).rejects.toMatchObject({
+      code: 'forbidden',
     })
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await useCase({ memberId: MEMBER_RECORD.id }, ctx)
-
-    expect(releaseMemberAuthorities).toHaveBeenCalledWith(
-      ctx.organizationId,
-      MEMBER_RECORD.userId,
-      ctx.userId,
-    )
-    expect(commandStore.memberById(MEMBER_RECORD.id)).toBeNull()
+    expect(h.commandStore.memberById(MEMBER_RECORD.id)).not.toBeNull()
+    expect(h.outbox.facts).toEqual([])
   })
 
-  /**
-   * LIF-01-T21. The cross-context fences must be complete BEFORE the Identity
-   * transaction opens, because only that ordering leaves a repairable state
-   * behind a crash. This pins the order rather than merely the calls.
-   */
-  it('completes every cross-context fence before the membership transaction', async () => {
+  it('finishes staff removal, then commits the removal and nothing after it', async () => {
     const identity = createInMemoryIdentityPort()
     const outbox = createRecordedOutbox()
     const commandStore = createSequentialIdentityCommandStore({ outbox })
@@ -218,86 +176,23 @@ describe('removeMember', () => {
       commandStore: {
         ...commandStore,
         removeMember: async (command) => {
-          order.push('identity-transaction')
+          order.push(`identity-transaction:${command.actorUserId}`)
           return commandStore.removeMember(command)
         },
       },
       clock: () => FIXED_TIME,
-      prepareGoogleConnectorDeparture: async () => {
-        order.push('google-connector')
-      },
-      cancelGoogleImportsForUser: async () => {
-        order.push('google-imports')
-      },
-      releaseMemberAuthorities: async () => {
-        order.push('release-authorities')
-      },
-    })
-
-    await useCase(
-      { memberId: MEMBER_RECORD.id },
-      buildTestAuthContext({ role: 'AccountAdmin' }),
-    )
-
-    expect(order).toEqual([
-      'google-connector',
-      'google-imports',
-      'release-authorities',
-      'identity-transaction',
-    ])
-  })
-
-  it('preserves membership when import fencing fails', async () => {
-    const identity = createInMemoryIdentityPort()
-    const outbox = createRecordedOutbox()
-    const commandStore = createSequentialIdentityCommandStore({ outbox })
-    for (const member of [MEMBER_RECORD, ADMIN_MEMBER]) {
-      seedMemberBoth(identity, commandStore, member)
-    }
-    const useCase = removeMember({
-      identity,
-      commandStore,
-      clock: () => FIXED_TIME,
-      cancelGoogleImportsForUser: async () => {
-        throw new Error('import lifecycle unavailable')
+      removeStaffForMemberDeparture: async () => {
+        order.push('staff-departure')
       },
     })
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await expect(useCase({ memberId: MEMBER_RECORD.id }, ctx)).rejects.toThrow(
-      'import lifecycle unavailable',
-    )
+    await useCase({ memberId: MEMBER_RECORD.id }, ctx)
 
-    expect(commandStore.memberById(MEMBER_RECORD.id)).not.toBeNull()
-    expect(outbox.byTag('identity.member.removed')).toEqual([])
-  })
-
-  it('preserves membership when connector departure fencing fails', async () => {
-    const identity = createInMemoryIdentityPort()
-    const outbox = createRecordedOutbox()
-    const commandStore = createSequentialIdentityCommandStore({ outbox })
-    for (const member of [MEMBER_RECORD, ADMIN_MEMBER]) {
-      seedMemberBoth(identity, commandStore, member)
-    }
-    const cancelGoogleImportsForUser = vi.fn(async () => undefined)
-    const useCase = removeMember({
-      identity,
-      commandStore,
-      clock: () => FIXED_TIME,
-      prepareGoogleConnectorDeparture: async () => {
-        throw new Error('connector lifecycle unavailable')
-      },
-      cancelGoogleImportsForUser,
-    })
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-
-    await expect(useCase({ memberId: MEMBER_RECORD.id }, ctx)).rejects.toThrow(
-      'connector lifecycle unavailable',
-    )
-
-    expect(cancelGoogleImportsForUser).not.toHaveBeenCalled()
-    expect(commandStore.memberById(MEMBER_RECORD.id)).not.toBeNull()
-    expect(outbox.byTag('identity.member.removed')).toEqual([])
+    // Responsibilities and Google authority are released by their owners from
+    // the removal fact, never before the membership is gone.
+    expect(order).toEqual(['staff-departure', `identity-transaction:${ctx.userId}`])
+    expect(outbox.byTag('identity.member.removed')).toHaveLength(1)
   })
 
   it('forbids removing the last AccountAdmin of the organization', async () => {
@@ -345,7 +240,7 @@ describe('removeMember', () => {
       image: null,
       createdAt: new Date('2026-01-01'),
     }
-    const { useCase, outbox, commandStore } = setup([adminA, adminB])
+    const { useCase, outbox, commandStore } = setup([adminA, adminB, ADMIN_MEMBER])
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const result = await useCase({ memberId: 'admin-a' }, ctx)
@@ -359,7 +254,7 @@ describe('removeMember', () => {
   // Leaving is its own command, which refuses until every responsibility is
   // handed over. Removal releases them with no successor, so a caller who
   // names their own membership would leave around that rule.
-  it('refuses the caller as its own target, before any authority is released', async () => {
+  it('refuses the caller as its own target, before staff removal starts', async () => {
     const identity = createInMemoryIdentityPort()
     const outbox = createRecordedOutbox()
     const commandStore = createSequentialIdentityCommandStore({ outbox })
@@ -372,16 +267,12 @@ describe('removeMember', () => {
     for (const member of [ADMIN_MEMBER, otherAdmin]) {
       seedMemberBoth(identity, commandStore, member)
     }
-    const prepareGoogleConnectorDeparture = vi.fn(async () => undefined)
-    const cancelGoogleImportsForUser = vi.fn(async () => undefined)
-    const releaseMemberAuthorities = vi.fn(async () => undefined)
+    const removeStaffForMemberDeparture = vi.fn(async () => undefined)
     const useCase = removeMember({
       identity,
       commandStore,
       clock: () => FIXED_TIME,
-      prepareGoogleConnectorDeparture,
-      cancelGoogleImportsForUser,
-      releaseMemberAuthorities,
+      removeStaffForMemberDeparture,
     })
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     expect(ADMIN_MEMBER.userId).toBe(ctx.userId)
@@ -393,9 +284,7 @@ describe('removeMember', () => {
         'You cannot remove yourself; leaving the organization is a separate action',
     })
 
-    expect(prepareGoogleConnectorDeparture).not.toHaveBeenCalled()
-    expect(cancelGoogleImportsForUser).not.toHaveBeenCalled()
-    expect(releaseMemberAuthorities).not.toHaveBeenCalled()
+    expect(removeStaffForMemberDeparture).not.toHaveBeenCalled()
     expect(commandStore.memberById(ADMIN_MEMBER.id)).not.toBeNull()
     expect(outbox.byTag('identity.member.removed')).toEqual([])
   })

@@ -11,6 +11,12 @@ const ACTIVITY_OUTBOX = 'src/contexts/feed/infrastructure/activity-outbox-consum
 const AI_OUTBOX = 'src/contexts/ai/infrastructure/outbox-consumers.ts'
 const NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX =
   'src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts'
+const IDENTITY_MEMBER_ROLE_OUTBOX =
+  'src/contexts/identity/infrastructure/member-role-outbox-consumers.ts'
+const INBOX_MEMBER_OFFBOARDING_OUTBOX =
+  'src/contexts/inbox/infrastructure/member-offboarding-outbox-consumers.ts'
+const INTEGRATION_MEMBER_DEPARTURE_OUTBOX =
+  'src/contexts/integration/infrastructure/member-departure-outbox-consumers.ts'
 const PORTAL_MEMBER_OFFBOARDING_OUTBOX =
   'src/contexts/portal/infrastructure/member-offboarding-outbox-consumers.ts'
 const PROPERTY_MEMBER_OFFBOARDING_OUTBOX =
@@ -38,9 +44,8 @@ export const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
     ),
   ]),
-  // The fact commits with the membership delete, after the removal's own
-  // release of the member's responsibilities: each owner releases again here
-  // whatever the member was assigned in between.
+  // The fact commits with the membership delete, sessions and grants: each
+  // owner releases from it what the member may no longer hold.
   ev('identity.member.removed', [
     durable(
       'notification.on-identity-member-removed',
@@ -48,8 +53,12 @@ export const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
     ),
     durable('property.on-member-removed', PROPERTY_MEMBER_OFFBOARDING_OUTBOX),
     durable('portal.on-member-removed', PORTAL_MEMBER_OFFBOARDING_OUTBOX),
+    durable('inbox.on-member-removed', INBOX_MEMBER_OFFBOARDING_OUTBOX),
+    durable('integration.on-member-removed', INTEGRATION_MEMBER_DEPARTURE_OUTBOX),
   ]),
   ev('identity.member.role_changed', [
+    durable('identity.on-member-role-changed', IDENTITY_MEMBER_ROLE_OUTBOX),
+    durable('integration.on-member-role-changed', INTEGRATION_MEMBER_DEPARTURE_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable(
       'notification.on-identity-member-role-changed',

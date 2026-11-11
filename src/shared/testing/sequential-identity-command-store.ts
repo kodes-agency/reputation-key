@@ -167,6 +167,27 @@ export function createSequentialIdentityCommandStore(deps: {
     return [...malformedIds, ...candidateIds.filter((id) => !isLive(id))]
   }
 
+  const roleChanges: Array<
+    Readonly<{
+      eventId: string
+      organizationId: string
+      memberUserId: string
+      actorUserId: string
+    }>
+  > = []
+  const completedRoleCleanups = new Set<string>()
+
+  /** The real store re-checks the requesting AccountAdmin under its lock. */
+  const recheckActor = (organizationId: string, actorUserId: string | undefined) => {
+    if (actorUserId === undefined) return
+    const actor = [...members.values()].find(
+      (row) => row.organizationId === organizationId && row.userId === actorUserId,
+    )
+    if (!actor || !isOwnerToken(actor.role)) {
+      throw identityError('forbidden', 'Your role no longer allows changing members')
+    }
+  }
+
   const markEmailVerified = (userId: string, email: string) => {
     const seeded = users.get(userId)
     if (seeded && seeded.email.toLowerCase() !== email) {
@@ -309,6 +330,7 @@ export function createSequentialIdentityCommandStore(deps: {
     },
 
     removeMember: async (command) => {
+      recheckActor(command.organizationId as string, command.actorUserId)
       const target = members.get(command.memberId)
       if (!target || target.organizationId !== (command.organizationId as string)) {
         throw identityError('member_not_found', 'Member not found in this organization')
@@ -333,9 +355,13 @@ export function createSequentialIdentityCommandStore(deps: {
           'Only beta manager roles can be assigned to login accounts',
         )
       }
+      recheckActor(command.organizationId as string, command.actorUserId)
       const target = members.get(command.memberId)
       if (!target || target.organizationId !== (command.organizationId as string)) {
         throw identityError('member_not_found', 'Member not found in this organization')
+      }
+      if (target.role === command.newRole) {
+        throw identityError('validation_error', 'The member already has this role')
       }
       if (
         isOwnerToken(target.role) &&
@@ -349,6 +375,28 @@ export function createSequentialIdentityCommandStore(deps: {
       }
       members.set(command.memberId, { ...target, role: command.newRole })
       await recordAndEmit(command.event)
+      roleChanges.push({
+        eventId: command.event.eventId,
+        organizationId: command.organizationId as string,
+        memberUserId: command.event.memberUserId as string,
+        actorUserId: command.event.userId as string,
+      })
+    },
+
+    pendingRoleChangeCleanup: async (input) => {
+      const newest = roleChanges
+        .filter(
+          (change) =>
+            change.organizationId === (input.organizationId as string) &&
+            change.memberUserId === input.memberUserId,
+        )
+        .at(-1)
+      if (!newest || completedRoleCleanups.has(newest.eventId)) return null
+      return { eventId: newest.eventId, actorUserId: newest.actorUserId }
+    },
+
+    completeRoleChangeCleanup: async (eventId) => {
+      completedRoleCleanups.add(eventId)
     },
 
     seedInvitation: (row) => {

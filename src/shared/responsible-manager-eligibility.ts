@@ -131,14 +131,9 @@ export type RemovedMemberRelease = Readonly<{
 /**
  * End the responsibilities a removed member still holds and may no longer hold.
  *
- * Removing a member releases their responsibilities first and deletes the
- * membership afterwards, in separate commits: the Google fences that share that
- * step cannot join the Identity transaction, and a membership left behind by a
- * crash is repairable while a deleted one with live authorities is not. Until
- * the membership is gone the member is still an eligible manager, so an
- * assignment another admin saves in between is accepted, and the release that
- * already ran cannot see it. This is the release each owner (Property, Portal)
- * makes again from the removal fact.
+ * Removing a member deletes the membership, sessions and grants in one commit
+ * with the removal fact; each owner (Property, Portal, Inbox) then releases
+ * from that fact what the member held with it.
  *
  * Eligibility is asked now, per Property, and not assumed from the fact: a
  * member invited again before the fact was delivered is a current manager, and

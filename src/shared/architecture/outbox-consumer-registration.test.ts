@@ -110,6 +110,7 @@ const CATALOGUE_CONSUMER_MODULES: ReadonlySet<string> = new Set(
 const CONTEXT_MODULE_NAMESPACES: Readonly<Record<string, ReadonlyArray<string>>> = {
   ai: ['ai'],
   feed: ['activity', 'notification'],
+  identity: ['identity'],
   inbox: ['inbox'],
   integration: ['integration'],
   portal: ['portal'],
