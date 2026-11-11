@@ -12,26 +12,6 @@ export type {
   InvitationLink,
   UnusableInvitationLink,
 } from './registration/invitation-link'
-export { MemberTable } from './member-directory/member-table'
-export type { MemberRow, PropertyRef } from './member-directory/member-table'
-export { ChangeRoleDialog } from './member-directory/change-role-dialog'
-export { MemberAccessSheet } from './member-directory/member-access-sheet'
-export type {
-  MemberAccessTarget,
-  ResponsibilityState,
-  SaveMemberAccessInput,
-} from './member-directory/member-access-sheet'
-export {
-  grantsOnListedProperties,
-  joinNames,
-} from './member-directory/member-access-diff'
-export {
-  memberRowsWithProperties,
-  propertyIdsByUser,
-} from './member-directory/member-rows'
-export { InviteMemberForm } from './member-directory/invite-member-form'
-export { InvitationTable } from './member-directory/invitation-table'
-export type { InvitationRow } from './member-directory/invitation-table'
 export { ResetPasswordForm } from './reset-password/reset-password-form'
 export { SetNewPasswordForm } from './reset-password/set-new-password-form'
 export { ProfileSettingsPage } from './profile-settings-page'
