@@ -53,12 +53,12 @@ export function PhotoTakedown({ onTakeDown, onDone, onBusyChange, disabled }: Pr
     )
   }
   return (
-    <div role="group" aria-label="Take this photo down" className="space-y-2">
-      <p className="text-sm text-muted-foreground">
+    <div role="group" aria-label="Take this photo down" className="min-w-0 space-y-2">
+      <p className="text-sm text-muted-foreground break-words">
         Guests stop seeing it everywhere, published pages included, and the file is
         deleted. This cannot be undone.
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex min-w-0 flex-wrap gap-2">
         <Button
           type="button"
           variant="destructive"

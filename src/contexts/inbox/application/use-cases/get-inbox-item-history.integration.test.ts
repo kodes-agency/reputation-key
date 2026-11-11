@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Pool } from 'pg'
+import { getEnv } from '#/shared/config/env'
 import {
   inboxItemId,
   organizationId,
@@ -18,14 +19,37 @@ import type { InboxHistoryEntry } from '../../domain/handling-history'
 import { isInboxError } from '../../domain/errors'
 import type { InboxHistoryRepository } from '../ports/inbox-history.repository'
 import { getInboxItemHistory } from './get-inbox-item-history'
+import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
+import {
+  clearInboxOrganization,
+  createInboxUseCaseDatabase,
+  dropInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
 
-const ORG_ID = organizationId('org-1')
-const ITEM_ID = inboxItemId('item-1')
-const PROP_ID = propertyId('prop-1')
-const OTHER_PROP_ID = propertyId('prop-2')
+const ORG_ID = organizationId('org-inbox-history-test')
+const ITEM_ID = inboxItemId('94a30000-0000-4000-8000-000000000001')
+const PROP_ID = propertyId('94a30000-0000-4000-8000-0000000000a1')
+const OTHER_PROP_ID = propertyId('94a30000-0000-4000-8000-0000000000a2')
 const ACTOR_ID = userId('user-actor')
 const ASSIGNEE_ID = userId('user-assignee')
 const AT = new Date('2026-04-15T12:00:00Z')
+
+let pool: Pool
+let repo: ReturnType<typeof createInboxUseCaseDatabase>['repo']
+let seed: ReturnType<typeof createInboxUseCaseDatabase>['seed']
+
+beforeAll(async () => {
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  ;({ repo, seed } = createInboxUseCaseDatabase(pool, () => AT))
+  await seedInboxOrganization(pool, ORG_ID, [PROP_ID, OTHER_PROP_ID])
+})
+
+beforeEach(() => clearInboxOrganization(pool, ORG_ID))
+
+afterAll(async () => {
+  await dropInboxOrganization(pool, ORG_ID)
+  await pool.end()
+})
 
 const adminStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
@@ -42,7 +66,7 @@ const makeItem = (overrides: Partial<InboxItem> = {}): InboxItem => ({
   organizationId: ORG_ID,
   propertyId: PROP_ID,
   sourceType: 'feedback' as SourceType,
-  sourceId: feedbackId('fb-1'),
+  sourceId: feedbackId('94a30000-0000-4000-8000-0000000000b2'),
   status: 'open' as InboxStatus,
   rating: null,
   sourceDate: AT,
@@ -230,15 +254,14 @@ function createActorDirectory(
   }
 }
 
-function build(
+async function build(
   overrides: Partial<{
     item: InboxItem
     staffPublicApi: StaffPublicApi
     entries: readonly InboxHistoryEntry[]
   }> = {},
 ) {
-  const repo = createInMemoryInboxRepo()
-  repo.items.push(overrides.item ?? makeItem())
+  await seed(overrides.item ?? makeItem())
   const history = createHistoryRepo(overrides.entries)
   const actorDirectory = createActorDirectory()
   const useCase = getInboxItemHistory({
@@ -258,9 +281,9 @@ const FULL_HANDLER = ctxWith([
   'feedback.handle',
 ])
 
-describe('getInboxItemHistory', () => {
+describe.sequential('getInboxItemHistory', () => {
   it('requires inbox.read', async () => {
-    const { useCase, history } = build()
+    const { useCase, history } = await build()
 
     await expect(
       useCase({ inboxItemId: ITEM_ID }, ctxWith(['feedback.read'])),
@@ -269,7 +292,7 @@ describe('getInboxItemHistory', () => {
   })
 
   it('requires the source read permission and never touches the store without it', async () => {
-    const { useCase, history } = build()
+    const { useCase, history } = await build()
 
     // inbox.read alone is not enough for a private-feedback item.
     await expect(
@@ -279,7 +302,7 @@ describe('getInboxItemHistory', () => {
   })
 
   it('rejects a caller whose Property scope excludes the item', async () => {
-    const { useCase, history } = build({
+    const { useCase, history } = await build({
       staffPublicApi: scopedStaffApi([OTHER_PROP_ID]),
     })
     const assignedElsewhere = ctxWith(['inbox.read', 'feedback.read'], {
@@ -294,7 +317,6 @@ describe('getInboxItemHistory', () => {
   })
 
   it('throws not_found for an item outside the caller Organization', async () => {
-    const repo = createInMemoryInboxRepo()
     const history = createHistoryRepo()
     const useCase = getInboxItemHistory({
       historyRepo: history.repo,
@@ -309,7 +331,7 @@ describe('getInboxItemHistory', () => {
   })
 
   it('returns one ordered stream merged from every source', async () => {
-    const { useCase } = build()
+    const { useCase } = await build()
 
     const result = await useCase({ inboxItemId: ITEM_ID }, FULL_HANDLER)
 
@@ -329,7 +351,7 @@ describe('getInboxItemHistory', () => {
   })
 
   it('returns the internal note only to a current inbox.write + feedback.handle caller', async () => {
-    const { useCase } = build()
+    const { useCase } = await build()
 
     const authorized = await useCase({ inboxItemId: ITEM_ID }, FULL_HANDLER)
     const outcome = authorized.entries.find((entry) => entry.kind === 'handling_outcome')!
@@ -339,7 +361,7 @@ describe('getInboxItemHistory', () => {
   })
 
   it('omits the internal note field entirely for a read-only caller', async () => {
-    const { useCase } = build()
+    const { useCase } = await build()
 
     const readOnly = await useCase({ inboxItemId: ITEM_ID }, FULL_READER)
     const outcome = readOnly.entries.find((entry) => entry.kind === 'handling_outcome')!
@@ -352,7 +374,7 @@ describe('getInboxItemHistory', () => {
   it('withholds the note when handling authority does not cover the item Property', async () => {
     // Org-wide read, but handling authority assigned to a different Property:
     // the history is returned and the manager-internal note is not.
-    const { useCase } = build({ staffPublicApi: scopedStaffApi([OTHER_PROP_ID]) })
+    const { useCase } = await build({ staffPublicApi: scopedStaffApi([OTHER_PROP_ID]) })
     const readsWidelyHandlesElsewhere = ctxWith(
       ['inbox.read', 'feedback.read', 'inbox.write', 'feedback.handle'],
       { 'inbox.write': 'assigned-properties', 'feedback.handle': 'assigned-properties' },
@@ -366,7 +388,7 @@ describe('getInboxItemHistory', () => {
   })
 
   it('labels the legacy row and infers no actor, outcome, or deadline result for it', async () => {
-    const { useCase } = build()
+    const { useCase } = await build()
 
     const result = await useCase({ inboxItemId: ITEM_ID }, FULL_HANDLER)
     const legacy = result.entries.find((entry) => entry.legacy)!
@@ -379,7 +401,7 @@ describe('getInboxItemHistory', () => {
   })
 
   it('resolves actor and assignee display names in exactly one batched call', async () => {
-    const { useCase, actorDirectory } = build()
+    const { useCase, actorDirectory } = await build()
 
     const result = await useCase({ inboxItemId: ITEM_ID }, FULL_HANDLER)
 
@@ -394,8 +416,7 @@ describe('getInboxItemHistory', () => {
   })
 
   it('reports truncation instead of pretending the story is whole', async () => {
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem())
+    await seed(makeItem())
     const useCase = getInboxItemHistory({
       historyRepo: {
         findByInboxItemId: async () => ({ entries: HISTORY, truncated: true }),
@@ -411,8 +432,11 @@ describe('getInboxItemHistory', () => {
   })
 
   it('applies the review source permission for a review item', async () => {
-    const { useCase, history } = build({
-      item: makeItem({ sourceType: 'review', sourceId: reviewId('rev-1') }),
+    const { useCase, history } = await build({
+      item: makeItem({
+        sourceType: 'review',
+        sourceId: reviewId('94a30000-0000-4000-8000-0000000000b1'),
+      }),
     })
 
     await expect(

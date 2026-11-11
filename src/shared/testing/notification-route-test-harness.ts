@@ -29,18 +29,17 @@ import { registerHandlingCycleNotificationConsumers } from '#/contexts/feed/infr
 import { registerIdentityAccountNotificationConsumers } from '#/contexts/feed/infrastructure/identity-account-outbox-consumers'
 import type { GoogleConnectionPropertyLookup } from '#/contexts/feed/infrastructure/integration-outbox-consumers'
 import { registerIntegrationNotificationConsumers } from '#/contexts/feed/infrastructure/integration-outbox-consumers'
-import { type InsertNotificationJobData } from '#/contexts/feed/infrastructure/jobs/insert-notification.job'
 import {
   noGroupedReopens,
   waitingWorkState,
 } from '#/contexts/feed/infrastructure/jobs/test-fixtures'
-import { createNotificationConsumerDeps } from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+  type FakeNotificationConsumerDeps,
+} from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
 import { registerNotificationConsumers } from '#/contexts/feed/infrastructure/notification-outbox-consumers'
 import { registerNotificationSettlementConsumers } from '#/contexts/feed/infrastructure/notification-settlement-outbox-consumers'
-import {
-  parseOutboxNotificationDelivery,
-  withBetaOutboxNotificationDelivery,
-} from '#/contexts/feed/infrastructure/outbox-notification-delivery'
 import { registerPortalDestinationNotificationConsumer } from '#/contexts/feed/infrastructure/portal-destination-outbox-consumers'
 import { registerPortalHealthNotificationConsumer } from '#/contexts/feed/infrastructure/portal-health-outbox-consumers'
 import { registerPortalNotificationConsumers } from '#/contexts/feed/infrastructure/portal-outbox-consumers'
@@ -84,7 +83,10 @@ export function deliveredEnvelope(fact: DomainEvent): ConsumerEvent {
   })
 }
 
-export type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
+export type RouteDeps = Omit<
+  ReturnType<typeof createNotificationConsumerDeps>,
+  'receipts'
+> &
   Readonly<{
     receipts: Pick<OutboxRepository, 'insertReceipt'>
     escalationResolutions: EscalationResolutionLookupPort
@@ -127,11 +129,19 @@ export type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
     groupedReopens: ReturnType<typeof noGroupedReopens>
   }>
 
+/** The fakes the default deps carry; a writer in `deps` that is not one of them is real. */
+const fakeNoticeWriters = new WeakSet<object>()
+
 /** Reads that find nothing, for tests that never run a handler. */
 function inertRouteDeps(): RouteDeps {
+  const base = createNotificationConsumerDeps()
+  const receipts = { insertReceipt: vi.fn(async () => {}) }
+  const noticeWriter = noticeWriterOver({ add: base.addMock }, receipts)
+  fakeNoticeWriters.add(noticeWriter)
   return {
-    ...createNotificationConsumerDeps(),
-    receipts: { insertReceipt: vi.fn(async () => {}) },
+    ...base,
+    receipts,
+    noticeWriter,
     escalationResolutions: {
       findEscalationResolutionFacts: vi.fn(async () => null),
     },
@@ -280,6 +290,12 @@ export function currentRouteDeps(): RouteDeps {
   }
 }
 
+type NoticeWriter = FakeNotificationConsumerDeps['noticeWriter']
+type Notice = Parameters<NoticeWriter['write']>[0]['notices'][number]
+
+/** A notice a consumer asked the writer to write, with the consumer that asked. */
+export type QueuedNotice = Notice & Readonly<{ eventId: string; consumerName: string }>
+
 export type Receipt = Readonly<{ eventId: string; consumerName: string; status: string }>
 
 const recordInto =
@@ -303,6 +319,8 @@ export async function dispatch(
     outbox?: Pick<OutboxRepository, 'hasReceipt' | 'insertReceipt'>
     envelope?: ConsumerEvent
     omitConsumer?: string
+    /** Writes the notices for real, as does a real writer in `deps`; nothing is recorded in `queued`. */
+    noticeWriter?: NoticeWriter
   }> = {},
 ) {
   const receipts: Receipt[] = []
@@ -311,17 +329,20 @@ export async function dispatch(
     await options.outbox?.insertReceipt(...args)
     await recordInto(receipts)(...args)
   }
-  const queued: InsertNotificationJobData[] = []
-  const recordingQueue = {
-    add: async (_name: string, data: unknown) => {
-      queued.push(data as InsertNotificationJobData)
-    },
-  }
+  const queued: QueuedNotice[] = []
+  const noticeWriter: NoticeWriter = options.noticeWriter ??
+    (fakeNoticeWriters.has(deps.noticeWriter) ? undefined : deps.noticeWriter) ?? {
+      write: async ({ eventId, consumerName, status, notices }) => {
+        for (const notice of notices) {
+          queued.push({ ...notice, eventId, consumerName })
+        }
+        await recordReceipt(eventId, consumerName, status)
+        return status
+      },
+    }
   const registered = registerNotificationRoutes({
     ...deps,
-    queue: withBetaOutboxNotificationDelivery(recordingQueue, {
-      insertReceipt: recordReceipt,
-    }) as RouteDeps['queue'],
+    noticeWriter,
     receipts: { insertReceipt: recordReceipt },
   })
   const registry = createConsumerRegistry()
@@ -360,9 +381,7 @@ export function expectAnnouncingRoute(
     consumerName: route.consumerName,
     status: 'applied',
   })
-  const jobs = result.queued.filter(
-    (job) => parseOutboxNotificationDelivery(job)?.consumerName === route.consumerName,
-  )
+  const jobs = result.queued.filter((job) => job.consumerName === route.consumerName)
   expect(jobs.length).toBeGreaterThan(0)
   for (const job of jobs) {
     expect(route.notifications.map(({ type }) => type)).toContain(job.type)

@@ -93,6 +93,12 @@ rights, erasure and export contributors, stay in the layer folders.
   still advance every previously or newly enabled capability epoch. A
   drafting-only notice preserves Review Analysis and trends epochs. Reads and
   delivery of existing outputs retain their previous rules. Lineage, state, source and control fences remain exact.
+- Every Merchant AI write (a single-Property command, each Property of a consent
+  ceremony, a standing renewal) runs `transitionMerchantAi` in
+  `consent/merchant-ai-transition.server.ts`: one lock order (provider source,
+  Property, membership, head), one set of fences, and the commit in
+  `consent/merchant-ai-transition-commit.server.ts`. A restore reset has no actor
+  and starts a new lineage, so it shares only that commit.
 - A Merchant AI decision deferral ("not now") is a per-Property marker, not consent:
   it records no evidence, notice or epoch, is refused while AI is enabled, keeps the
   first deferral on a repeat, and is deleted in the same transaction as an enable.
@@ -168,8 +174,15 @@ as `createdBy`. An invited Property that is deleted, belongs to another Organiza
 or names no Property is not granted and never holds the acceptance back; it is logged
 by count, never silent. An AccountAdmin may change another AccountAdmin's role; nobody
 changes their own role or removes themselves. Self-service leave is unavailable;
-another AccountAdmin removes the member and releases their responsibilities.
-The last-AccountAdmin guard holds under the Organization lock. Only an AccountAdmin
+another AccountAdmin removes the member. Removal deletes the member's sessions,
+Property access grants and membership in one commit with `identity.member.removed`;
+Property, Portal and Inbox release their responsibilities and Integration their
+Google authority from that fact. A role change commits the role, its permission
+version and `identity.member.role_changed` together, then reconciles Responsible
+Manager eligibility; the `identity.on-member-role-changed` consumer finishes that
+reconcile if the request did not, and the same request sent again resumes it.
+Both commands re-check, under the Organization lock, that the requesting
+AccountAdmin still is one, and the last-AccountAdmin guard holds under that lock. Only an AccountAdmin
 invites, cancels or resends invitations, creates members, edits a PropertyManager's
 Property scope and edits Organization settings; a PropertyManager holds `member.list`
 (Inbox assignment and Responsible managers read it) and nothing else about members,

@@ -21,7 +21,6 @@ import type {
   MaterialReviewRevision,
   ReviewObservationComparison,
   ReviewObservationRepository,
-  ReviewSourceObservation,
 } from '../../application/ports/review-observation.repository'
 import {
   compareMaterialReviewRevision,
@@ -129,11 +128,7 @@ function sourceObservationValues(
     normalizedDigest: input.normalizedDigest,
     comparisonResult: input.comparison,
     rating: input.review.rating,
-    originalText: input.review.text,
-    translatedText: input.review.translatedText,
     languageCode: input.review.languageCode,
-    reviewerName: input.review.reviewerName,
-    reviewerProfilePhotoUrl: input.review.reviewerProfilePhotoUrl,
     reviewedAt: input.review.reviewedAt,
     contentState: 'active' as const,
     contentErasedAt: null,
@@ -727,29 +722,6 @@ export async function persistReviewObservation(
   }
 }
 
-function mapObservation(
-  row: typeof reviewSourceObservations.$inferSelect,
-): ReviewSourceObservation {
-  return {
-    reviewId: reviewId(row.reviewId),
-    organizationId: organizationId(row.organizationId),
-    propertyId: propertyId(row.propertyId),
-    sourceEpoch: row.sourceEpoch,
-    observationSequence: row.observationSequence,
-    materialRevision: row.materialRevision,
-    observedAt: row.observedAt,
-    contentExpiresAt: row.contentExpiresAt,
-    sourceDigest: row.sourceDigest,
-    normalizationVersion: row.normalizationVersion,
-    normalizedDigest: row.normalizedDigest,
-    comparison: row.comparisonResult as ReviewObservationComparison,
-    rating: row.rating as StarRating | null,
-    originalText: row.originalText,
-    contentState: row.contentState as ReviewSourceObservation['contentState'],
-    contentErasedAt: row.contentErasedAt,
-  }
-}
-
 function mapMaterialRevision(
   row: typeof materialReviewRevisions.$inferSelect,
 ): MaterialReviewRevision {
@@ -777,19 +749,6 @@ export const createReviewObservationRepository = (
   db: Database,
 ): ReviewObservationRepository => {
   return Object.freeze({
-    findObservations: async (id: ReviewId, orgId: OrganizationId) => {
-      const rows = await db
-        .select()
-        .from(reviewSourceObservations)
-        .where(
-          and(
-            eq(reviewSourceObservations.reviewId, id),
-            eq(reviewSourceObservations.organizationId, orgId),
-          ),
-        )
-        .orderBy(asc(reviewSourceObservations.observationSequence))
-      return rows.map(mapObservation)
-    },
     findMaterialRevisions: async (id: ReviewId, orgId: OrganizationId) => {
       const rows = await db
         .select()

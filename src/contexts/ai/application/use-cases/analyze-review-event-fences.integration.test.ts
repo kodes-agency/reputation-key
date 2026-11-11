@@ -75,8 +75,8 @@ describe('analyze review event: operation binding', () => {
       replyTemplateCatalogueVersion: null,
       replyTemplateCatalogueDigest: null,
       providerDeploymentProfileVersion: 'private-beta-global-v2',
-      operationProfileVersion: 'review-analysis-v2',
-      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
+      operationProfileVersion: 'review-analysis-v3',
+      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2',
       aiSubjectHmacKeyVersion: 'ai-subject-hmac-v1',
       stopFence: {
         globalControlId: harness.persistence.openHeads[0]!.controlId,

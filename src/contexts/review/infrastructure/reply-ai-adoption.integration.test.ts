@@ -146,6 +146,18 @@ const fact = (reply: Reply) => ({
 })
 
 describe.sequential('AI-assisted reply after its adoption window (PostgreSQL)', () => {
+  it('adopts a suggestion bound to its execution permit and holds it like any other', async () => {
+    const reply = await harness.commands.adoptAiSuggestion(AI_TEXT, 'execution_permit')
+    expect(reply).toMatchObject({ status: 'draft', text: AI_TEXT, aiGenerated: true })
+    expect(await harness.ai.bindingOf(reply.id)).toBe('current')
+    expect(await adoptionOf((await provenance(reply.id))?.origin_operation_id)).toBe(
+      'adopted',
+    )
+
+    await afterTheWindow()
+    await expect(harness.commands.submit()).rejects.toMatchObject(STALE)
+  })
+
   describe('the gates that stay', () => {
     it('refuses to submit a stale AI draft, by the use case and by the store', async () => {
       await adoptSuggestion()

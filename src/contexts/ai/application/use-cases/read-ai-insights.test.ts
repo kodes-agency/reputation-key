@@ -171,7 +171,7 @@ function createHarness(
     propertyAccess: async () => options.grants ?? [],
     authorization: { readMerchantAuthorization },
     outputs: {
-      storeAnalysis: vi.fn(),
+      storeAnalysisV3: vi.fn(),
       settleEphemeralReply: vi.fn(),
       findCurrentReviewIdsByAttention: vi.fn(),
       readAnalysisForDelivery,

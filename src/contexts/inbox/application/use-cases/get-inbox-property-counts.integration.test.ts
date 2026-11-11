@@ -1,7 +1,17 @@
-import { describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
+import { Pool } from 'pg'
 import { getInboxPropertyCounts } from './get-inbox-property-counts'
 import { getInboxQueueCounts } from './get-inbox-queue-counts'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { getEnv } from '#/shared/config/env'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { ReplyLookupPort } from '../ports/reply-lookup.port'
 import type { InboxItem } from '../../domain/types'
@@ -14,13 +24,19 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
+import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
+import {
+  clearInboxOrganization,
+  createInboxUseCaseDatabase,
+  dropInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
 
-const ORG_ID = organizationId('org-1')
+const ORG_ID = organizationId('org-inbox-property-counts-test')
 const VIEWER = userId('user-1')
-const ELEGANCE = propertyId('prop-elegance')
-const RILA = propertyId('prop-rila')
-const BLACK_SEA = propertyId('prop-black-sea')
-const AWAITING = reviewId('10000000-0000-4000-8000-000000000001')
+const ELEGANCE = propertyId('94a40000-0000-4000-8000-0000000000a1')
+const RILA = propertyId('94a40000-0000-4000-8000-0000000000a2')
+const BLACK_SEA = propertyId('94a40000-0000-4000-8000-0000000000a3')
+const AWAITING = reviewId('94a41000-0000-4000-8000-000000000001')
 
 const allAccessStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
@@ -36,11 +52,11 @@ const makeItem = ({
   id,
   ...overrides
 }: Partial<Omit<InboxItem, 'id'>> & { id: string }): InboxItem => ({
-  id: inboxItemId(id),
+  id: inboxItemId(`94a44000-0000-4000-8000-${id.padStart(12, '0')}`),
   organizationId: ORG_ID,
   propertyId: ELEGANCE,
   sourceType: 'review',
-  sourceId: reviewId(`20000000-0000-4000-8000-${id.padStart(12, '0')}`),
+  sourceId: reviewId(`94a42000-0000-4000-8000-${id.padStart(12, '0')}`),
   status: 'open',
   rating: null,
   sourceDate: new Date('2026-09-01T10:00:00Z'),
@@ -75,6 +91,28 @@ function replyLookup(
   }
 }
 
+let pool: Pool
+let repo: ReturnType<typeof createInboxUseCaseDatabase>['repo']
+let seed: ReturnType<typeof createInboxUseCaseDatabase>['seed']
+
+beforeAll(async () => {
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  ;({ repo, seed } = createInboxUseCaseDatabase(
+    pool,
+    () => new Date('2026-09-02T10:00:00Z'),
+  ))
+  await seedInboxOrganization(pool, ORG_ID, [ELEGANCE, RILA, BLACK_SEA])
+})
+
+beforeEach(() => clearInboxOrganization(pool, ORG_ID))
+
+afterEach(() => vi.restoreAllMocks())
+
+afterAll(async () => {
+  await dropInboxOrganization(pool, ORG_ID)
+  await pool.end()
+})
+
 const accountAdmin: AuthContext = {
   organizationId: ORG_ID,
   userId: VIEWER,
@@ -93,8 +131,8 @@ const member: AuthContext = {
 }
 
 /** Needs reply: Elegance 2, Rila 1. Awaiting approval: Elegance 1. Feedback: Black Sea 1. */
-function seedPortfolio(repo: ReturnType<typeof createInMemoryInboxRepo>) {
-  repo.items.push(
+async function seedPortfolio() {
+  await seed(
     makeItem({ id: '1' }),
     makeItem({ id: '2' }),
     makeItem({ id: '3', sourceId: AWAITING }),
@@ -104,15 +142,14 @@ function seedPortfolio(repo: ReturnType<typeof createInMemoryInboxRepo>) {
       id: '6',
       propertyId: BLACK_SEA,
       sourceType: 'feedback',
-      sourceId: feedbackId('30000000-0000-4000-8000-000000000006'),
+      sourceId: feedbackId('94a43000-0000-4000-8000-000000000006'),
     }),
   )
 }
 
-describe('getInboxPropertyCounts', () => {
+describe.sequential('getInboxPropertyCounts', () => {
   it('counts one queue per property, with the organization total', async () => {
-    const repo = createInMemoryInboxRepo()
-    seedPortfolio(repo)
+    await seedPortfolio()
     const useCase = getInboxPropertyCounts({
       repo,
       staffPublicApi: allAccessStaffApi,
@@ -132,8 +169,7 @@ describe('getInboxPropertyCounts', () => {
   })
 
   it('agrees with the queue rail: the total is the queue count at organization scope', async () => {
-    const repo = createInMemoryInboxRepo()
-    seedPortfolio(repo)
+    await seedPortfolio()
     const deps = {
       repo,
       staffPublicApi: allAccessStaffApi,
@@ -149,8 +185,7 @@ describe('getInboxPropertyCounts', () => {
   })
 
   it('reads the reply stages only for a reply-stage queue', async () => {
-    const repo = createInMemoryInboxRepo()
-    seedPortfolio(repo)
+    await seedPortfolio()
     const findStages = vi.fn(async () => ({ awaiting: [AWAITING], waiting: [] }))
     const useCase = getInboxPropertyCounts({
       repo,
@@ -167,8 +202,7 @@ describe('getInboxPropertyCounts', () => {
   })
 
   it('counts only the properties an assigned viewer can see', async () => {
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(
+    await seed(
       makeItem({ id: '1', propertyId: ELEGANCE }),
       makeItem({ id: '2', propertyId: RILA }),
       makeItem({ id: '3', propertyId: BLACK_SEA }),
@@ -187,8 +221,7 @@ describe('getInboxPropertyCounts', () => {
   })
 
   it('is empty for an assigned viewer with no properties', async () => {
-    const repo = createInMemoryInboxRepo()
-    seedPortfolio(repo)
+    await seedPortfolio()
     const useCase = getInboxPropertyCounts({
       repo,
       staffPublicApi: scopedStaffApi([]),
@@ -208,7 +241,7 @@ describe('getInboxPropertyCounts', () => {
       const findStages = vi.fn(async () => ({ awaiting: [], waiting: [] }))
       const getAccessiblePropertyIds = vi.fn(async () => null)
       const useCase = getInboxPropertyCounts({
-        repo: createInMemoryInboxRepo(),
+        repo,
         staffPublicApi: { getAccessiblePropertyIds, getAssignedPortals: async () => [] },
         replyLookup: replyLookup(findStages),
       })
@@ -223,8 +256,7 @@ describe('getInboxPropertyCounts', () => {
   )
 
   it('counts the reply queue as every open Review without reply stages, reading none', async () => {
-    const repo = createInMemoryInboxRepo()
-    seedPortfolio(repo)
+    await seedPortfolio()
     const findStages = vi.fn(async () => ({ awaiting: [AWAITING], waiting: [] }))
     const useCase = getInboxPropertyCounts({
       repo,
@@ -247,15 +279,14 @@ describe('getInboxPropertyCounts', () => {
   })
 
   it('counts the closed folders by kind, as their lists total them', async () => {
-    const repo = createInMemoryInboxRepo()
-    seedPortfolio(repo)
-    repo.items.push(
+    await seedPortfolio()
+    await seed(
       makeItem({
         id: '7',
         propertyId: BLACK_SEA,
         status: 'closed',
         sourceType: 'feedback',
-        sourceId: feedbackId('30000000-0000-4000-8000-000000000007'),
+        sourceId: feedbackId('94a43000-0000-4000-8000-000000000007'),
       }),
     )
     const useCase = getInboxPropertyCounts({
@@ -278,7 +309,7 @@ describe('getInboxPropertyCounts', () => {
 
   it('rejects a caller without inbox.read', async () => {
     const useCase = getInboxPropertyCounts({
-      repo: createInMemoryInboxRepo(),
+      repo,
       staffPublicApi: allAccessStaffApi,
       replyLookup: replyLookup(),
     })

@@ -1,24 +1,17 @@
-// The compatibility mirrors of one Property's Guest rows. The Property erase
+// The compatibility mirror of one Property's Guest rows. The Property erase
 // contributor covers the canonical tables; the Organization purge also deletes
-// these three, so a Property erasure run through the rights script must too.
+// this one, so a Property erasure run through the rights script must too.
 // Every statement is bound to one organization_id AND one property_id, and the
 // rows are deleted, never the tables.
 
 import { and, eq, sql } from 'drizzle-orm'
 import type { PropertyEraseScope } from '#/shared/ops/rights/property-erasure'
-import { feedback, ratings, scanEvents } from '#/shared/db/schema/guest.schema'
+import { scanEvents } from '#/shared/db/schema/guest.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
-export const GUEST_LEGACY_PROPERTY_TABLES = Object.freeze([
-  'feedback',
-  'ratings',
-  'scan_events',
-] as const)
+export const GUEST_LEGACY_PROPERTY_TABLES = Object.freeze(['scan_events'] as const)
 
-type LegacyTable = typeof feedback | typeof ratings | typeof scanEvents
-
-/** `feedback` references `ratings`, so it goes first. */
-const TABLES: readonly LegacyTable[] = [feedback, ratings, scanEvents]
+const TABLES = [scanEvents] as const
 
 export type GuestLegacyPropertyCount = Readonly<{ table: string; rowCount: number }>
 

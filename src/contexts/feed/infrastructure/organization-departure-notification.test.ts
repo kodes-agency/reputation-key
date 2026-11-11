@@ -6,7 +6,10 @@ import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { identityMemberRemoved } from '#/contexts/identity/domain/events'
 import { handleIdentityAccountNotificationEvent } from './identity-account-outbox-consumers'
-import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from './notification-consumer-test-fixtures'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
 import type { InsertNotificationJobData } from './jobs/insert-notification.job'
@@ -25,10 +28,10 @@ async function noticeFor(removedBy: typeof MEMBER) {
   })
   const row = toOutboxEvent(fact)
   const fakes = createNotificationConsumerDeps()
+  const receipts = { insertReceipt: vi.fn(async () => {}) }
   await handleIdentityAccountNotificationEvent(
     {
-      queue: fakes.queue,
-      receipts: { insertReceipt: vi.fn(async () => {}) },
+      noticeWriter: noticeWriterOver(fakes.queue, receipts),
       displayNames: fakes.displayNames,
       logger: fakes.logger,
     },

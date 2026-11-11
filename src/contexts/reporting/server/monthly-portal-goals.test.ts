@@ -380,6 +380,18 @@ describe('Add a portal goal', () => {
     })
   })
 
+  it.each([
+    ['subject_has_goal', 409],
+    ['start_month_changed', 409],
+    ['invalid_subject', 400],
+  ] as const)('answers %s with HTTP %i', async (code, status) => {
+    mocks.addOne.mockRejectedValue(new GoalProgramError(code))
+
+    await expect(
+      withStartContext(() => addPortalGoal({ data: one })),
+    ).rejects.toMatchObject({ name: 'GoalProgramError', code, status })
+  })
+
   it.each(['scope_denied', 'beta_role_inactive'])(
     'passes the execution policy refusal %s on unchanged',
     async (reason) => {

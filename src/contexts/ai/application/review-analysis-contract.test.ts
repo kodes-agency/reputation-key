@@ -1,13 +1,9 @@
-// Which review-analysis contract a build runs, and what each contract says about
-// itself. The live catalogue selects v3 since the switch-on (2026-10-30); the v2
-// contract is retired and stays in the code, and the facts the v3 contract states are
-// the ones the v3 profile and versions state.
+// The review-analysis contract a build runs, and what it says about itself. The
+// live catalogue selects v3 since the switch-on (2026-10-30); the facts the
+// contract states are the ones the v3 profile and versions state.
 
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import {
-  AI_OPERATION_PROFILES,
-  type AiOperationProfile,
-} from '#/shared/ai-operation-profiles'
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -24,18 +20,13 @@ import {
 import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
 import type { ReviewAnalysisMentionV3, ReviewAnalysisReadV1 } from '../domain/types'
 import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/review-analysis-v3-profile'
-import { createReviewAnalysisContractV2 } from './review-analysis-contract-v2'
 import { createReviewAnalysisContractV3 } from './review-analysis-contract-v3'
-import { selectedReviewAnalysisContractVersion } from './review-analysis-runtime'
 
 const SERVED_NOTICE = {
   noticeVersion: MERCHANT_AI_NOTICE_VERSION,
   noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
 }
 
-const v2 = createReviewAnalysisContractV2({
-  outputs: { storeAnalysis: async () => true },
-})
 const v3 = createReviewAnalysisContractV3({
   outputs: { storeAnalysisV3: async () => true },
   vocabularyContext: { readGooglePrimaryCategory: async () => null },
@@ -66,33 +57,14 @@ describe('the v3 vocabulary the domain spells for itself', () => {
 
 describe('the review analysis contract a build runs', () => {
   it('is v3, which the live runtime catalogue selects', () => {
-    expect(selectedReviewAnalysisContractVersion()).toBe('v3')
-  })
-
-  it('states the v2 profile exactly as the catalogue holds it', () => {
-    const profile = AI_OPERATION_PROFILES.find(
-      (candidate: AiOperationProfile) =>
-        candidate.profileVersion === 'review-analysis-v2',
+    expect(getAiRuntimeCapability('review_analysis').operationProfileVersion).toBe(
+      REVIEW_ANALYSIS_V3_VERSIONS.analysisOperation,
     )
-
-    expect(v2.contract).toBe('v2')
-    expect(v2.operationProfile).toEqual({
-      profileVersion: 'review-analysis-v2',
-      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
-      requestDeadlineMs: profile?.requestDeadlineMs,
-    })
-    expect(v2.sourceRead).toEqual({})
   })
 
   it('decides consent by the notice independently of recorded deployment evidence', () => {
-    // Both contracts decide compatibility against served execution. Historical
-    // deployment evidence does not select the execution or require new consent.
-    expect(
-      v2.isServedContract({
-        ...SERVED_NOTICE,
-        providerDeploymentProfileVersion: 'private-beta-global-v1',
-      }),
-    ).toBe(true)
+    // Compatibility is decided against served execution. Historical deployment
+    // evidence does not select the execution or require new consent.
     expect(
       v3.isServedContract({
         ...SERVED_NOTICE,

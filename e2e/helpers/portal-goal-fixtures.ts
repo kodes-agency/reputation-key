@@ -144,6 +144,165 @@ export async function seedPortalGoalProperty(
   return { propertyId, portals }
 }
 
+/** What a goal is for: one Portal, one Portal Group, or the Property's average. */
+export type PortalGoalSubject =
+  | Readonly<{ kind: 'portal'; portalId: string }>
+  | Readonly<{ kind: 'portal_group'; portalGroupId: string }>
+  | Readonly<{ kind: 'property' }>
+
+/** "Add a portal goal", as the sheet sends it: the number is the manager's own. */
+export async function addPortalGoalFor(
+  page: Page,
+  input: Readonly<{
+    propertyId: string
+    subject: PortalGoalSubject
+    metric: 'portal_rating_count' | 'qualified_scans' | 'portal_rating_average'
+    targetValue: number
+    startMonth: string
+  }>,
+): Promise<string> {
+  const { programId } = await callServerFn<{ programId: string }>(page, {
+    file: MONTHLY_PORTAL_GOALS,
+    exportName: 'addPortalGoal',
+    data: { ...input, targetSource: 'own' },
+  })
+  return programId
+}
+
+/** "Stop this goal": the goal ends, and a month it is counting keeps counting. */
+export async function stopPortalGoal(
+  page: Page,
+  propertyId: string,
+  programId: string,
+): Promise<void> {
+  await callServerFn(page, {
+    file: MONTHLY_PORTAL_GOALS,
+    exportName: 'stopMonthlyPortalGoal',
+    data: { propertyId, programId },
+  })
+}
+
+/** A goal's status as stored: `scheduled`, `active`, `paused` or `ended`. */
+export async function storedGoalStatus(
+  propertyId: string,
+  programId: string,
+): Promise<string> {
+  const [row] = await dbQuery<{ status: string }>(
+    'SELECT status FROM goal_programs WHERE id = $1::uuid AND property_id = $2::uuid',
+    [programId, propertyId],
+  )
+  if (!row) throw new Error(`E2E goal ${programId} is not stored`)
+  return row.status
+}
+
+export type StoredGoal = Readonly<{
+  version: Readonly<{
+    id: string
+    targetValue: number
+    changeReason: string
+    effectiveFrom: Date
+  }>
+  versions: ReadonlyArray<Readonly<{ id: string; version: number }>>
+  assignments: ReadonlyArray<
+    Readonly<{
+      programVersionId: string
+      subject: Readonly<{ kind: string; portalId?: string }>
+    }>
+  >
+  results: ReadonlyArray<Readonly<{ status: string; targetValue: number | null }>>
+  targetChanges: ReadonlyArray<
+    Readonly<{
+      previousTargetValue: number
+      newTargetValue: number
+      followingOutcome: string
+      followingVersionId: string | null
+      targetSource: string | null
+    }>
+  >
+}>
+
+/** A goal's versions, subjects, months and target changes, read from the tables. */
+export async function readStoredGoal(
+  propertyId: string,
+  programId: string,
+): Promise<StoredGoal> {
+  const ids = [programId, propertyId]
+  const [versions, assignments, results, changes] = await Promise.all([
+    dbQuery<{
+      id: string
+      version: number
+      target_value: string
+      change_reason: string
+      effective_from: Date
+    }>(
+      `SELECT id, version, target_value, change_reason, effective_from
+         FROM goal_program_versions
+        WHERE program_id = $1::uuid AND property_id = $2::uuid
+        ORDER BY version`,
+      ids,
+    ),
+    dbQuery<{
+      program_version_id: string
+      subject_kind: string
+      portal_id: string | null
+    }>(
+      `SELECT program_version_id, subject_kind, portal_id
+         FROM goal_subject_assignments
+        WHERE program_id = $1::uuid AND property_id = $2::uuid`,
+      ids,
+    ),
+    dbQuery<{ status: string; target_value: string | null }>(
+      `SELECT status, target_value FROM goal_monthly_results
+        WHERE program_id = $1::uuid AND property_id = $2::uuid
+        ORDER BY period_start`,
+      ids,
+    ),
+    dbQuery<{
+      previous_target_value: string
+      new_target_value: string
+      following_outcome: string
+      following_version_id: string | null
+      target_source: string | null
+    }>(
+      `SELECT previous_target_value, new_target_value, following_outcome,
+              following_version_id, target_source
+         FROM goal_month_target_changes
+        WHERE program_id = $1::uuid AND property_id = $2::uuid
+        ORDER BY created_at`,
+      ids,
+    ),
+  ])
+  const head = versions.at(-1)
+  if (!head) throw new Error(`E2E goal ${programId} is not stored`)
+  return {
+    version: {
+      id: head.id,
+      targetValue: Number(head.target_value),
+      changeReason: head.change_reason,
+      effectiveFrom: head.effective_from,
+    },
+    versions: versions.map(({ id, version }) => ({ id, version })),
+    assignments: assignments.map((row) => ({
+      programVersionId: row.program_version_id,
+      subject:
+        row.subject_kind === 'portal'
+          ? { kind: 'portal', portalId: row.portal_id ?? undefined }
+          : { kind: row.subject_kind },
+    })),
+    results: results.map((row) => ({
+      status: row.status,
+      targetValue: row.target_value === null ? null : Number(row.target_value),
+    })),
+    targetChanges: changes.map((row) => ({
+      previousTargetValue: Number(row.previous_target_value),
+      newTargetValue: Number(row.new_target_value),
+      followingOutcome: row.following_outcome,
+      followingVersionId: row.following_version_id,
+      targetSource: row.target_source,
+    })),
+  }
+}
+
 /** The Property's local day today, on the database clock: `YYYY-MM-DD`. */
 export async function localToday(propertyId: string): Promise<string> {
   const [row] = await dbQuery<{ today: string }>(
@@ -173,16 +332,7 @@ export async function tearDownPortalGoalProperties(
     })
     for (const { program } of listed.programs) {
       if (program.status === 'ended') continue
-      await callServerFn(page, {
-        file: GOAL_PROGRAMS,
-        exportName: 'changeGoalProgramStatus',
-        data: {
-          propertyId,
-          programId: program.id,
-          status: 'ended',
-          reason: 'E2E end of a monthly portal goal journey.',
-        },
-      })
+      await stopPortalGoal(page, propertyId, program.id)
     }
   }
   if (propertyIds.length === 0) return

@@ -1,5 +1,5 @@
 // Goal Program use cases — read, revise and change the status of a Program,
-// composed with the create, rename, month-target and
+// composed with the create, month-target and
 // maintenance commands.
 import type {
   GoalProgramBundle,
@@ -20,7 +20,6 @@ import { nextRevisionStart } from '../application/goal-revision-start'
 import { GOAL_VERSION_REASONS } from '../application/goal-version-reasons'
 import { changeMonthTarget } from '../application/use-cases/goal-month-target'
 import { createGoal } from '../application/use-cases/goal-program-create'
-import { renameGoal } from '../application/use-cases/goal-program-details'
 import {
   GoalProgramMaintenanceError,
   loadCaughtUpProgram,
@@ -313,9 +312,6 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
 
     revise: (input: ReviseGoalInput, actor: GoalActor) => reviseGoal(deps, input, actor),
 
-    rename: (input: Parameters<typeof renameGoal>[1], actor: GoalActor) =>
-      renameGoal(deps, input, actor),
-
     changeMonthTarget: (
       input: Parameters<typeof changeMonthTarget>[1],
       actor: GoalActor,
@@ -389,28 +385,8 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
 
 export type GoalProgramService = ReturnType<typeof createGoalProgramService>
 
-/** Request-facing Goal Program commands. Each invocation receives its scoped policy. */
+/** Request-facing Goal Program reads. Each invocation receives its scoped policy. */
 export type GoalProgramRequestApi = Readonly<{
-  create: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramService['create']>
-  ) => ReturnType<GoalProgramService['create']>
-  changeStatus: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramService['changeStatus']>
-  ) => ReturnType<GoalProgramService['changeStatus']>
-  rename: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramService['rename']>
-  ) => ReturnType<GoalProgramService['rename']>
-  changeMonthTarget: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramService['changeMonthTarget']>
-  ) => ReturnType<GoalProgramService['changeMonthTarget']>
-  get: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramService['get']>
-  ) => ReturnType<GoalProgramService['get']>
   history: (
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgramService['history']>

@@ -381,6 +381,11 @@ function buildGoalModule(
     prompts: portalGoalPrompts,
     now: input.clock,
   })
+  const goalPageDeps = (policy: GoalExecutionPolicy) => ({
+    ...monthlyPortalGoalReads(policy),
+    subjectNames: goalProgramSubjects,
+    logger: input.logger,
+  })
   const monthlyPortalGoalCommands = (policy: GoalExecutionPolicy) => ({
     policy,
     repository: goalProgramRepo,
@@ -395,11 +400,9 @@ function buildGoalModule(
       page: (policy, ...args) =>
         readMonthlyPortalGoalPage(
           {
-            ...monthlyPortalGoalReads(policy),
+            ...goalPageDeps(policy),
             history: (programId, propertyId, actor) =>
               readGoalPrograms(policy).get({ programId, propertyId }, actor),
-            subjectNames: goalProgramSubjects,
-            logger: input.logger,
           },
           ...args,
         ),
@@ -460,15 +463,7 @@ function buildGoalModule(
   })
   const portalGoalSingle: PortalGoalSinglePageRequestApi['portalGoalSingle'] =
     Object.freeze({
-      page: (policy, ...args) =>
-        readPortalGoalSinglePage(
-          {
-            ...monthlyPortalGoalReads(policy),
-            subjectNames: goalProgramSubjects,
-            logger: input.logger,
-          },
-          ...args,
-        ),
+      page: (policy, ...args) => readPortalGoalSinglePage(goalPageDeps(policy), ...args),
     })
   const programs: GoalProgramRequestApi &
     GoalProgressRequestApi &
@@ -476,12 +471,6 @@ function buildGoalModule(
     MonthlyPortalGoalRequestApi &
     PortalGoalAddRequestApi &
     PortalGoalSinglePageRequestApi = Object.freeze({
-    create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
-    changeStatus: (policy, ...args) => buildGoalPrograms(policy).changeStatus(...args),
-    rename: (policy, ...args) => buildGoalPrograms(policy).rename(...args),
-    changeMonthTarget: (policy, ...args) =>
-      buildGoalPrograms(policy).changeMonthTarget(...args),
-    get: (policy, ...args) => readGoalPrograms(policy).get(...args),
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
     history: (policy, ...args) => readGoalPrograms(policy).history!(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),

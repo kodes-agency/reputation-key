@@ -253,9 +253,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     expect(Object.keys(container.integrationLifecycleRuntime).sort()).toEqual([
       'cancelImportsForConnection',
       'cancelImportsForOrganization',
-      'cancelImportsForUser',
       'finalizePropertyDeletion',
-      'prepareConnectorDeparture',
       'preparePropertyDeletion',
     ])
     expect(Object.keys(container.integrationWebhookRuntime)).toEqual([

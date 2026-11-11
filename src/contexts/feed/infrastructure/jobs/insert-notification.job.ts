@@ -1,158 +1,103 @@
-// Feed notification surface — BullMQ worker job for insert-notification
-// Consumes jobs from the queue and delegates to the use case.
+// Feed notification surface — drains `insert-notification` jobs.
+//
+// Consumers write their notices in the transaction that claims their receipt,
+// so nothing enqueues this job any more. A job an earlier release left in
+// Redis is still written once, through the same writer, under the receipt name
+// its enqueue recorded, so a delivery that already settled stays settled.
 
+import { createHash } from 'node:crypto'
 import type { Job } from 'bullmq'
-import type {
-  InsertNotificationInput,
-  InsertNotificationDeps,
-} from '../../application/use-cases/insert-notification'
-import { insertNotification } from '../../application/use-cases/insert-notification'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
-import type {
-  NotificationAudience,
-  NotificationAudienceAuthorizer,
-} from '../../application/notification-audience'
 import { parseNotificationAudience } from '../../application/notification-audience'
-import type { NotificationWorkState } from '../../application/notification-work-state'
-import {
-  parseOutboxNotificationDelivery,
-  type OutboxNotificationDelivery,
-} from '../outbox-notification-delivery'
+import type { NotificationAudience } from '../../application/notification-audience'
+import type { Notice, NoticeWriter } from '../../notify/consumers.server'
+import { notificationDeliveryReceiptPrefixes } from '../notification-delivery-receipts'
 
 export const INSERT_NOTIFICATION_JOB_NAME = 'insert-notification'
 
-export type InsertNotificationJobData = InsertNotificationInput &
+/** What a queued job carries: a notice, its source event and, once Redis accepted it, its delivery marker. */
+export type InsertNotificationJobData = Omit<Notice, 'audience'> &
   Readonly<{
+    eventId: string
     audience: NotificationAudience
-    /** Present only when a durable source fact owns this delivery. */
-    delivery?: OutboxNotificationDelivery
+    delivery?: Readonly<{ eventId: string; consumerName: string; receiptKey: string }>
   }>
 
-export type NotificationDeliverySettlement = Readonly<{
-  settleAuthorized: (
-    input: InsertNotificationInput,
-    delivery: OutboxNotificationDelivery,
-    audience: NotificationAudience,
-  ) => Promise<'applied' | 'duplicate'>
-  settleObsolete: (
-    source: Pick<InsertNotificationInput, 'organizationId'>,
-    delivery: OutboxNotificationDelivery,
-  ) => Promise<void>
+const DRAINED_RECEIPT_PREFIX = 'notification.drained:'
+
+type DrainJobDeps = Readonly<{
+  noticeWriter: NoticeWriter
+  logger: LoggerPort
 }>
 
-/** A grouped notice says how many of its items still stood when it was delivered. */
-const withItemCount = (
-  input: InsertNotificationInput,
-  itemCount: number,
-): InsertNotificationInput => ({
-  ...input,
-  payload: {
-    ...(typeof input.payload === 'object' && input.payload !== null ? input.payload : {}),
-    itemCount,
-  },
-})
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
-type InsertNotificationJobDeps = InsertNotificationDeps &
-  Readonly<{
-    authorizeAudience: NotificationAudienceAuthorizer
-    /** Whether the work the notice asks for is still waiting (ADR 0046). */
-    workState: Pick<NotificationWorkState, 'isWaiting'>
-    deliverySettlement?: NotificationDeliverySettlement
-  }>
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value !== ''
 
-export const createInsertNotificationHandler = (deps: InsertNotificationJobDeps) => {
-  const useCase = insertNotification(deps)
+/** The receipt name the job's delivery claims, as its enqueue recorded it. */
+function receiptNameFor(data: Readonly<Record<string, unknown>>): string {
+  const delivery = data.delivery
+  if (delivery === undefined) {
+    const key = createHash('sha256')
+      .update(JSON.stringify([data.type, data.userId, data.resourceId]))
+      .digest('hex')
+      .slice(0, 32)
+    return `${DRAINED_RECEIPT_PREFIX}${key}`
+  }
+  if (
+    !isRecord(delivery) ||
+    delivery.eventId !== data.eventId ||
+    !isNonEmptyString(delivery.consumerName) ||
+    !isNonEmptyString(delivery.receiptKey)
+  ) {
+    throw new Error('invalid outbox delivery marker')
+  }
+  return `${notificationDeliveryReceiptPrefixes.materialized}${delivery.consumerName}:${delivery.receiptKey}`
+}
 
-  return async (job: Job<InsertNotificationJobData>): Promise<void> => {
+export const createInsertNotificationDrainHandler = (deps: DrainJobDeps) => {
+  return async (job: Job): Promise<void> => {
     return trace('job.insertNotification', async () => {
-      const logger = deps.logger.child({ type: job.data.type })
-
-      logger.info('Processing insert-notification job')
-
-      try {
-        // Rolling deployments may leave pre-policy jobs in Redis. Without a
-        // durable reason for delivery there is nothing safe to revalidate, so
-        // consume those jobs without inserting a notification.
-        const rawAudience = (
-          job.data as InsertNotificationInput & Readonly<{ audience?: unknown }>
-        ).audience
-        const audience = parseNotificationAudience(rawAudience)
-        if (!audience) {
-          logger.warn(
-            rawAudience === undefined
-              ? 'Notification suppressed: missing audience descriptor'
-              : 'Notification suppressed: invalid audience descriptor',
-          )
-          return
-        }
-
-        const rawDelivery = (
-          job.data as InsertNotificationInput & Readonly<{ delivery?: unknown }>
-        ).delivery
-        const delivery = parseOutboxNotificationDelivery(job.data)
-        if (rawDelivery !== undefined && !delivery) {
-          throw new Error('invalid outbox delivery marker')
-        }
-        if (delivery && !deps.deliverySettlement) {
-          throw new Error('outbox notification delivery settlement is unavailable')
-        }
-
-        const settleObsolete = async (): Promise<void> => {
-          if (!delivery) return
-          await deps.deliverySettlement!.settleObsolete(
-            { organizationId: job.data.organizationId },
-            delivery,
-          )
-        }
-
-        const decision = await deps.authorizeAudience({
-          userId: job.data.userId,
-          organizationId: job.data.organizationId,
-          propertyId: job.data.propertyId,
-          audience,
-        })
-        if (decision === false) {
-          await settleObsolete()
-          logger.info(
-            { audienceKind: audience.kind },
-            'Notification suppressed: recipient is no longer eligible',
-          )
-          return
-        }
-        // The settling fact may already have been handled: it retires only
-        // rows that exist, and this job runs on a slower queue. A notice for
-        // finished work would stand unsettled forever and mail its request.
-        const work = await deps.workState.isWaiting({
-          organizationId: job.data.organizationId,
-          type: job.data.type,
-          resourceId: job.data.resourceId,
-          audience,
-          recipient: { userId: job.data.userId, propertyId: job.data.propertyId },
-        })
-        if (work === false) {
-          await settleObsolete()
-          logger.info('Notification suppressed: its work is already done')
-          return
-        }
-
-        const { audience: _audience, delivery: _delivery, ...queued } = job.data
-        const input =
-          decision === true ? queued : withItemCount(queued, decision.itemCount)
-        if (delivery) {
-          const outcome = await deps.deliverySettlement!.settleAuthorized(
-            input,
-            delivery,
-            audience,
-          )
-          logger.info({ settlement: outcome }, 'Durable notification delivery settled')
-        } else {
-          await useCase(input, audience)
-          logger.info('Notification inserted')
-        }
-      } catch (err) {
-        logger.error({ err }, 'insert-notification job failed')
-        throw err // re-throw so BullMQ retries
+      const data: unknown = job.data
+      if (
+        !isRecord(data) ||
+        ![
+          'userId',
+          'organizationId',
+          'type',
+          'resourceType',
+          'resourceId',
+          'eventId',
+        ].every((key) => isNonEmptyString(data[key]))
+      ) {
+        throw new Error('invalid insert-notification job')
       }
+      const logger = deps.logger.child({ type: data.type })
+      logger.info('Draining insert-notification job')
+
+      // A job queued before notices carried an audience has no durable reason
+      // for delivery to revalidate; consume it without writing.
+      const audience = parseNotificationAudience(data.audience)
+      if (!audience) {
+        logger.warn(
+          data.audience === undefined
+            ? 'Notification suppressed: missing audience descriptor'
+            : 'Notification suppressed: invalid audience descriptor',
+        )
+        return
+      }
+
+      const { audience: _audience, delivery: _delivery, eventId, ...rest } = data
+      const outcome = await deps.noticeWriter.write({
+        eventId: eventId as string,
+        consumerName: receiptNameFor(data),
+        status: 'applied',
+        notices: [{ ...(rest as Omit<Notice, 'audience'>), audience }],
+      })
+      logger.info({ settlement: outcome }, 'insert-notification job drained')
     })
   }
 }

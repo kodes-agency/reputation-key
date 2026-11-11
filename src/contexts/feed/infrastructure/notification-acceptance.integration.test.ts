@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { and, eq, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import type { Job } from 'bullmq'
 import { identityMemberRoleChanged } from '#/contexts/identity/domain/events'
 import {
   createEnvCapabilityPolicyStore,
@@ -36,18 +35,13 @@ import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { deleteTestOrganizations, seedOrgs } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import { createNoticeWriter } from '../notify/consumers.server'
 import { createNotificationFeedReads } from '../application/notification-feed-reads'
-import { buildFakeInsertNotificationDeps } from '../application/use-cases/test-fixtures'
-import {
-  createInsertNotificationHandler,
-  type InsertNotificationJobData,
-} from './jobs/insert-notification.job'
 import { waitingWorkState } from './jobs/test-fixtures'
 import {
   currentRouteDeps,
   dispatch,
 } from '#/shared/testing/notification-route-test-harness'
-import { createNotificationDeliverySettlement } from './repositories/notification-delivery-settlement.repository'
 import { createNotificationRepository } from './repositories/notification.repository'
 
 const ORG_A = organizationId('notification-acceptance-a')
@@ -114,21 +108,18 @@ describe.sequential(
         occurredAt: NOW,
       })
 
-    function deliveryHandler() {
+    function realWriter() {
       const deps = currentRouteDeps()
-      return createInsertNotificationHandler({
-        ...buildFakeInsertNotificationDeps(),
+      return createNoticeWriter({
+        db,
+        clock: () => NOW,
+        idGen: () => notificationId(randomUUID()),
+        emailIdGen: () => notificationEmailId(randomUUID()),
+        logger: deps.logger,
+        ratingForRouting: async () => null,
         // Identity reads are outside this persistence proof; every fixture is eligible.
         authorizeAudience: async () => true,
         workState: waitingWorkState(),
-        deliverySettlement: createNotificationDeliverySettlement({
-          db,
-          clock: () => NOW,
-          idGen: () => notificationId(randomUUID()),
-          emailIdGen: () => notificationEmailId(randomUUID()),
-          logger: deps.logger,
-          ratingForRouting: async () => null,
-        }),
       })
     }
 
@@ -150,33 +141,33 @@ describe.sequential(
         recordedAt: source!.createdAt,
       })
       const outbox = createOutboxRepository(db)
-      const result = await dispatch(fact, currentRouteDeps(), { outbox, envelope })
-      expect(result.gateDenials).toEqual([])
-      expect(result.queued).toHaveLength(1)
-      expect(result.queued[0]).toMatchObject({
-        userId: recipient,
-        organizationId: organization,
-        propertyId: null,
-        type: 'account.organization_role_changed',
+      const result = await dispatch(fact, currentRouteDeps(), {
+        outbox,
+        envelope,
+        noticeWriter: realWriter(),
       })
-      const handle = deliveryHandler()
-      for (const job of result.queued)
-        await handle({ data: job } as Job<InsertNotificationJobData>)
+      expect(result.gateDenials).toEqual([])
       const rows = await db
         .select()
         .from(notifications)
         .where(eq(notifications.eventId, fact.eventId))
       expect(rows).toHaveLength(1)
-      return { fact, result, row: rows[0]! }
+      expect(rows[0]).toMatchObject({
+        userId: recipient,
+        organizationId: organization,
+        propertyId: null,
+        type: 'account.organization_role_changed',
+      })
+      return { fact, row: rows[0]! }
     }
 
     it('redelivery preserves one notice, one email intent and the durable receipts', async () => {
-      const { fact, result, row } = await produce(ORG_A)
+      const { fact, row } = await produce(ORG_A)
       const outbox = createOutboxRepository(db)
-      expect((await dispatch(fact, currentRouteDeps(), { outbox })).queued).toEqual([])
-      await deliveryHandler()({
-        data: result.queued[0]!,
-      } as Job<InsertNotificationJobData>)
+      await dispatch(fact, currentRouteDeps(), {
+        outbox,
+        noticeWriter: realWriter(),
+      })
 
       const stored = await db
         .select()
@@ -197,14 +188,9 @@ describe.sequential(
         .select()
         .from(eventConsumerReceipts)
         .where(eq(eventConsumerReceipts.eventId, fact.eventId))
-      expect(receipts).toHaveLength(3)
-      expect(receipts.map(({ consumerName }) => consumerName)).toEqual(
-        expect.arrayContaining([
-          'notification.on-identity-member-role-changed',
-          expect.stringMatching(/^notification\.enqueue:/),
-          expect.stringMatching(/^notification\.materialized:/),
-        ]),
-      )
+      expect(receipts.map(({ consumerName }) => consumerName)).toEqual([
+        'notification.on-identity-member-role-changed',
+      ])
     })
 
     it('isolates head, pages, counts and bulk mutations for the same user in two Organizations', async () => {

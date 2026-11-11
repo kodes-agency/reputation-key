@@ -5,9 +5,9 @@ import {
 } from '#/contexts/ai/infrastructure/testing/handler-harness.test-fixtures'
 const handlerDatabase = useAiHandlerDatabase()
 // The review analysis use case under the v3 contract, the one the live runtime
-// catalogue selects since the switch-on (2026-10-30). The skeleton is the one
-// analyze-review-event.integration.test.ts covers for the retired v2 contract; this file shows
-// what the v3 contract does differently, using synthetic text and a fake provider.
+// catalogue selects since the switch-on (2026-10-30), using synthetic text and a
+// fake provider. The skeleton shared by every contract is covered in
+// analyze-review-event.integration.test.ts.
 
 import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
 import {
@@ -161,7 +161,6 @@ async function harness(
     await persistence.patchOperation({ state: 'succeeded_pending_delivery' })
     return true
   })
-  const storeAnalysis = vi.fn(async () => true)
   const applyReviewAnalysis = vi.fn(async () => ({
     status: 'applied' as const,
     aggregateRevision: 4,
@@ -242,7 +241,7 @@ async function harness(
     control: persistence.control,
     inference: { analyzeReview, generateReply: vi.fn(), generateTrend: vi.fn() },
     operations: persistence.operations,
-    outputs: { storeAnalysis, storeAnalysisV3 },
+    outputs: { storeAnalysisV3 },
     aggregates: { applyReviewAnalysis, advanceWithoutAnalysis, readWindow: vi.fn() },
     admission: {
       acquire: vi.fn(async () => ({
@@ -292,7 +291,6 @@ async function harness(
     mocks: {
       claim,
       analyzeReview,
-      storeAnalysis,
       storeAnalysisV3,
       applyReviewAnalysis,
       advanceWithoutAnalysis,
@@ -347,7 +345,6 @@ describe('the review analysis use case under the v3 contract', () => {
       propertyContext: resolveReviewPropertyContext('Hotel').propertyContext,
       source: { sentences: SENTENCES },
     })
-    expect(mocks.storeAnalysis).not.toHaveBeenCalled()
     expect(mocks.storeAnalysisV3).toHaveBeenCalledTimes(1)
     expect(mocks.storeAnalysisV3.mock.calls[0]?.[0]).toMatchObject({
       analysisProfileVersion: 'review-analysis-v3',

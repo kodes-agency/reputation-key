@@ -18,7 +18,7 @@ describe('serverFnCallsIn', () => {
     const source = `
       await callServerFn(page, {
         file: 'src/contexts/reporting/server/goal-programs.ts',
-        exportName: 'createGoalProgram',
+        exportName: 'listGoalPrograms',
         data: {},
       })
       await callServerFnGet(page, {
@@ -29,7 +29,7 @@ describe('serverFnCallsIn', () => {
     expect(serverFnCallsIn(source)).toEqual([
       {
         file: 'src/contexts/reporting/server/goal-programs.ts',
-        exportName: 'createGoalProgram',
+        exportName: 'listGoalPrograms',
       },
       { file: 'src/contexts/portal/server/portals.ts', exportName: 'getPortal' },
     ])

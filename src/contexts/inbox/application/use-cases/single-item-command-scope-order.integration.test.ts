@@ -7,8 +7,9 @@
 // how often it has changed; the bulk commands already decide scope first so
 // that "unavailable" never says which of those it is.
 
-import { describe, expect, it } from 'vitest'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { Pool } from 'pg'
+import { getEnv } from '#/shared/config/env'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import {
   feedbackId,
@@ -23,6 +24,12 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxItem, SourceType } from '../../domain/types'
 import { isInboxError } from '../../domain/errors'
+import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
+import {
+  clearInboxOrganization,
+  createInboxUseCaseDatabase,
+  dropInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
 import { addInboxNote } from './add-inbox-note'
 import { assignInboxItem } from './assign-inbox-item'
 import { correctFeedbackHandlingOutcome } from './correct-feedback-handling-outcome'
@@ -33,7 +40,7 @@ import { setInboxItemPriority } from './set-inbox-item-priority'
 import { updateInboxStatus } from './update-inbox-status'
 
 const NOW = new Date('2026-10-13T09:00:00.000Z')
-const ORG_ID = organizationId('org-scope-order')
+const ORG_ID = organizationId('org-scope-order-test')
 const ITEM_ID = inboxItemId('92000000-0000-4000-8000-000000000001')
 const ITEM_PROPERTY = propertyId('92000000-0000-4000-8000-000000000002')
 const GRANTED_PROPERTY = propertyId('92000000-0000-4000-8000-000000000003')
@@ -87,6 +94,26 @@ const item = (sourceType: SourceType): InboxItem => ({
   createdAt: NOW,
   updatedAt: NOW,
 })
+
+let pool: Pool
+
+beforeAll(async () => {
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  await seedInboxOrganization(pool, ORG_ID, [ITEM_PROPERTY, GRANTED_PROPERTY])
+})
+
+beforeEach(() => clearInboxOrganization(pool, ORG_ID))
+
+afterAll(async () => {
+  await dropInboxOrganization(pool, ORG_ID)
+  await pool.end()
+})
+
+async function storedRepo(stored: InboxItem): Promise<InboxRepository> {
+  const { repo, seed } = createInboxUseCaseDatabase(pool, () => NOW)
+  await seed(stored)
+  return repo
+}
 
 type Run = (repo: InboxRepository, ctx: AuthContext) => Promise<unknown>
 
@@ -216,42 +243,46 @@ const commands: ReadonlyArray<readonly [string, SourceType, Run]> = [
   ],
 ]
 
-describe('single-item Inbox commands decide Property scope before the revision', () => {
-  it.each(commands)(
-    '%s answers a manager with no grant on the Property with forbidden, and says nothing about the item',
-    async (_name, sourceType, run) => {
-      const repo = createInMemoryInboxRepo()
-      repo.items.push(item(sourceType))
+describe.sequential(
+  'single-item Inbox commands decide Property scope before the revision',
+  () => {
+    it.each(commands)(
+      '%s answers a manager with no grant on the Property with forbidden, and says nothing about the item',
+      async (_name, sourceType, run) => {
+        const repo = await storedRepo(item(sourceType))
 
-      const refusal: unknown = await run(repo, managerOfAnotherProperty).then(
-        () => null,
-        (error: unknown) => error,
-      )
+        const refusal: unknown = await run(repo, managerOfAnotherProperty).then(
+          () => null,
+          (error: unknown) => error,
+        )
 
-      expect(isInboxError(refusal) ? refusal.code : refusal).toBe('forbidden')
-      expect(isInboxError(refusal) ? refusal.context : refusal).toEqual({
-        propertyId: ITEM_PROPERTY,
-      })
-    },
-  )
+        expect(isInboxError(refusal) ? refusal.code : refusal).toBe('forbidden')
+        expect(isInboxError(refusal) ? refusal.context : refusal).toEqual({
+          propertyId: ITEM_PROPERTY,
+        })
+      },
+    )
 
-  it.each(commands)(
-    '%s still tells a manager who holds the Property that their copy is stale',
-    async (_name, sourceType, run) => {
-      const repo = createInMemoryInboxRepo()
-      repo.items.push({ ...item(sourceType), propertyId: GRANTED_PROPERTY })
+    it.each(commands)(
+      '%s still tells a manager who holds the Property that their copy is stale',
+      async (_name, sourceType, run) => {
+        const repo = await storedRepo({
+          ...item(sourceType),
+          propertyId: GRANTED_PROPERTY,
+        })
 
-      const refusal: unknown = await run(repo, managerOfAnotherProperty).then(
-        () => null,
-        (error: unknown) => error,
-      )
+        const refusal: unknown = await run(repo, managerOfAnotherProperty).then(
+          () => null,
+          (error: unknown) => error,
+        )
 
-      expect(isInboxError(refusal) ? refusal.code : refusal).toBe('revision_conflict')
-      expect(isInboxError(refusal) ? refusal.context : refusal).toMatchObject({
-        expectedCommandRevision: STALE_REVISION,
-        currentCommandRevision: STORED_REVISION,
-        currentStatus: 'open',
-      })
-    },
-  )
-})
+        expect(isInboxError(refusal) ? refusal.code : refusal).toBe('revision_conflict')
+        expect(isInboxError(refusal) ? refusal.context : refusal).toMatchObject({
+          expectedCommandRevision: STALE_REVISION,
+          currentCommandRevision: STORED_REVISION,
+          currentStatus: 'open',
+        })
+      },
+    )
+  },
+)
