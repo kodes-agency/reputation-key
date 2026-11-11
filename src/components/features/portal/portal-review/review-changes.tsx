@@ -7,9 +7,9 @@ import { Eye, FileText, LayoutGrid, Palette, Settings2, Type } from 'lucide-reac
 import { Button } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
 import type { PortalReview } from '#/contexts/portal/application/portal-management-contracts'
-import { formatHistoryTime } from '../portal-history/portal-history-time'
-import { PhraseView } from '../portal-history/portal-phrase-view'
-import { phraseText } from '../portal-history/portal-history-phrase'
+import { formatHistoryTime } from '#/contexts/portal/workspace/ui/portal-history-time'
+import { PhraseView } from '#/contexts/portal/workspace/ui/portal-phrase-view'
+import { phraseText } from '#/contexts/portal/workspace/ui/portal-history-phrase'
 import {
   describeReviewChange,
   type ReviewChangeGlyph,

@@ -8,7 +8,7 @@
 // pinned by tests, and light, so the section can decide without the editor's code,
 // which is fetched only when the editor is shown.
 import type { PortalLookSources } from '#/contexts/portal/application/portal-management-contracts'
-import type { PortalReadOnlyReason } from '#/components/features/portal/portal-detail/portal-edit-access'
+import type { PortalReadOnlyReason } from '#/components/features/portal/shared/portal-edit-access'
 
 export type PortalLookSurface = 'editor' | 'facts' | 'summary'
 

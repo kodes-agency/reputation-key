@@ -10,6 +10,7 @@ import { can } from '#/shared/domain/permissions'
 import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
+import { useTakeDownImage } from './-portal-media-takedown'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
@@ -117,6 +118,7 @@ function PropertyLookRoute() {
   // portal has waiting to publish, exactly as the colours do.
   const saveHero = useActionMutation(savePropertyHero, { onSuccess: refreshPortals })
   const saveLogo = useActionMutation(savePropertyLogo, { onSuccess: refreshPortals })
+  const takeDownImage = useTakeDownImage()
 
   return (
     <PropertyLookPage
@@ -134,6 +136,7 @@ function PropertyLookRoute() {
       saveLocales={saveLocales}
       saveHero={saveHero}
       saveLogo={saveLogo}
+      takeDownImage={takeDownImage}
       media={experience.media}
       photoDescriptions={savedDescriptions(experience.content)}
     />

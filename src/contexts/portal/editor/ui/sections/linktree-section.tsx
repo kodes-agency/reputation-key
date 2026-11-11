@@ -24,6 +24,7 @@ export function LinktreeSection({ resources, canEdit }: PortalEditorSectionProps
   } = resources
   const mutations = useLinktreeMutations(propertyId, portal.id)
   const { can } = usePermissions()
+  if (!linktree) return null
   // `deleteLink` asks for `portal.delete`, which a property manager does not hold.
   const canDelete = canEdit && can('portal.delete')
   const memberNames = new Map(
