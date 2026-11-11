@@ -1,5 +1,5 @@
 // The Portal goals section of the Goals page and its Monthly portal goal card
-// before a goal (PLAN PG-08): the two gates (no Portal, draft Portals only),
+// before a goal: the two gates (no Portal, draft Portals only),
 // the first weeks with each Portal's steps and the day the number is ready, a
 // code nobody has scanned, a number ready but not offered yet, nothing counted,
 // a recommendation that cannot be read, a goal (no card yet), a read on its way,
@@ -301,7 +301,7 @@ export const ReadError: Story = {
 
 /**
  * A reader who cannot set goals is drawn no card: the title and the slots only.
- * The section has no History of its own (P-7a): the Goals page draws it the
+ * The section has no History of its own: the Goals page draws it the
  * same on both of the Google section's views.
  */
 export const NoCardDrawn: Story = {

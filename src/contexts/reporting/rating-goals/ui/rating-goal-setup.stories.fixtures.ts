@@ -1,4 +1,4 @@
-// The approved scenarios of the one-screen setup (E2/E4, PLAN-R4 §2), as the
+// The approved scenarios of the one-screen setup (E2/E4), as the
 // setup read hands them to the page, for the view-model's tests and the stories. Each is a
 // Property the owner reviewed: the figures reproduce the approved canvas.
 import type { RatingGoalSetupInputs } from '#/contexts/reporting/rating-goals/contracts'
@@ -76,13 +76,13 @@ export const TAVOLA = setupInputs(
 /** 4.6 from 500, nothing else known: only the next step up. */
 export const EDGE_46 = setupInputs({ reviewCount: 500, displayedTenths: 46 }, 2300)
 
-/** 4.7 from 500: Keep first, or raise it with a typed average (X1). */
+/** 4.7 from 500: Keep first, or raise it with a typed average. */
 export const EDGE_47 = setupInputs({ reviewCount: 500, displayedTenths: 47 }, 2350)
 
 /** Google shows 4.6 while the cache has earned 4.7 (4.66): a climb needs a typed average. */
 export const LAGS_AT_47 = setupInputs({ reviewCount: 500, displayedTenths: 46 }, 2330)
 
-/** Google shows 3.9 while the complete cache averages 3.96 (D28). */
+/** Google shows 3.9 while the complete cache averages 3.96. */
 export const GOOGLE_LAGS = setupInputs(
   { reviewCount: 100, displayedTenths: 39, reviewsLast90Days: 10, busiest30Days: 6 },
   396,
@@ -94,18 +94,18 @@ export const LOW_RATING = setupInputs(
   200,
 )
 
-/** 4.8 from 500: Keep first; a climb only at 5.0★ typed (X1). */
+/** 4.8 from 500: Keep first; a climb only at 5.0★ typed. */
 export const EDGE_48 = setupInputs({ reviewCount: 500, displayedTenths: 48 }, 2400)
 
 /** 4.9 from 500: nothing higher to aim for, Keep only. */
 export const EDGE_49 = setupInputs({ reviewCount: 500, displayedTenths: 49 }, 2450)
 
-/** Google shows 4.5 while the cache's 20 reviews average 4.9: every tenth earned (D28). */
+/** Google shows 4.5 while the cache's 20 reviews average 4.9: every tenth earned. */
 export const CATCHING_UP = setupInputs({ reviewCount: 20, displayedTenths: 45 }, 98)
 
 /**
  * The setup read a page hands the wizard for these inputs: eligible, Google's
- * one-decimal number, Keep first from 4.7 (X1) and a climb below 4.9.
+ * one-decimal number, Keep first from 4.7 and a climb below 4.9.
  */
 export function setupViewOf(inputs: RatingGoalSetupInputs): RatingGoalSetupView {
   const shows = inputs.displayedTenths / 10

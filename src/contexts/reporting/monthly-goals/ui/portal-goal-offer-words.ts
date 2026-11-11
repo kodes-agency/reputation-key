@@ -27,14 +27,14 @@ const plural = (n: number, one: string, many: string): string =>
   `${formatNumber(n)} ${n === 1 ? one : many}`
 
 /**
- * G-17 and S-2: this month counts from its first day, with what already counts
+ * This month counts from its first day, with what already counts
  * ("Counts from Oct 1 · 12 already count."); without the count when it cannot
  * be read.
  */
 export const countsFromWords = (month: string, soFar: number | null): string =>
   `Counts from ${dayWords(`${month}-01`)}${soFar === null ? '' : ` · ${alreadyCount(soFar)}`}.`
 
-/** G-17: "November goal set: 40 private ratings", after Use or the sheet's Set. */
+/** "November goal set: 40 private ratings", after Use or the sheet's Set. */
 export const goalSetToast = (month: string, measure: PortalGoalMeasure, n: number) =>
   `${monthName(month)} goal set: ${portalGoalCount(measure, n)}`
 
@@ -44,7 +44,7 @@ const READINGS: Readonly<Record<PortalGoalOffer['measure'], string>> = {
   qualified_scans: 'scans',
 }
 
-/** G-15: the live Portals that join the number once they have 2 weeks. */
+/** The live Portals that join the number once they have 2 weeks. */
 function newPortalsWords(offer: PortalGoalOffer): string | null {
   const names = offer.newPortals.map(({ name }) => name)
   const readings = READINGS[offer.measure]
@@ -56,24 +56,24 @@ function newPortalsWords(offer: PortalGoalOffer): string | null {
 }
 
 export type PortalGoalOfferWords = Readonly<{
-  /** G-13 and G-17: "Recommended for November"; none with scans first. */
+  /** "Recommended for November"; none with scans first. */
   heading: string | null
   /** The figure and its unit beneath the heading; none with scans first. */
   figure: Readonly<{ value: string; unit: string }> | null
-  /** G-14, or with scans first G-18: what the number stands on. */
+  /** What the number stands on. */
   lead: string
-  /** G-17: this month counts from its first day, with what already counts. */
+  /** This month counts from its first day, with what already counts. */
   countsFrom: string | null
   newPortals: string | null
-  /** G-16 goes only with private ratings. */
+  /** Goes only with private ratings. */
   asksEveryGuest: boolean
   /** "Use 40", "Use 55 scans". */
   use: string
-  /** G-17: "November goal set: 40 private ratings". */
+  /** "November goal set: 40 private ratings". */
   setToast: string
   /**
-   * The way into the set sheet, on the measure it opens on: G-17's "Change"; with
-   * scans first, G-18's "Set a private ratings number".
+   * The way into the set sheet, on the measure it opens on: "Change"; with
+   * scans first, "Set a private ratings number".
    */
   door: Readonly<{ label: string; measure: PortalGoalMeasure }>
 }>
@@ -103,14 +103,14 @@ export function offerWords(offer: PortalGoalOffer): PortalGoalOfferWords {
   }
 }
 
-/** W-1: the popover's title, and the words that open it. */
+/** The popover's title, and the words that open it. */
 export const WORKED_OUT_TITLE = 'How we worked this out'
 
-/** W-3: a new Portal's row. */
+/** A new Portal's row. */
 const newPortalRow = ({ name, liveDays }: PortalGoalNewPortal): string =>
   `${name} · live ${plural(liveDays, 'day', 'days')}, joins once it has 2 weeks`
 
-/** W-4: how the measure counts, and whose months it follows. */
+/** How the measure counts, and whose months it follows. */
 function workedOutFoot(offer: PortalGoalOffer): string {
   const months = `Months follow ${timeZoneCity(offer.timezone)} time.`
   return offer.measure === 'portal_rating_count'
@@ -118,7 +118,7 @@ function workedOutFoot(offer: PortalGoalOffer): string {
     : `The same visit counts once per portal in any 24 hours. Bots don’t count. ${months}`
 }
 
-/** W-5: the rest of this month, on top of what already counts. */
+/** The rest of this month, on top of what already counts. */
 function restOfMonth(offer: PortalGoalOffer): string {
   const rest = offer.rest
   const counted = offer.soFar === null ? '' : `${alreadyCount(offer.soFar)} this month. `
@@ -129,7 +129,7 @@ function restOfMonth(offer: PortalGoalOffer): string {
   return `${counted}${added}A bit more, rounded up: ${formatNumber(offer.choices.aBitMore)}.`
 }
 
-/** W-2, W-3 and W-4 (W-5 for this month): the sums behind the number. */
+/** The sums behind the number. */
 export function workedOutWords(offer: PortalGoalOffer): Readonly<{
   paragraphs: readonly string[]
   rows: readonly string[]

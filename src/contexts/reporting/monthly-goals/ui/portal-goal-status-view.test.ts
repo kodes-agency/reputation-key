@@ -42,7 +42,7 @@ describe('the Monthly portal goal pill', () => {
     )
   })
 
-  it('no pill for a month the rule does not judge (P-6: a target of 4 on day 29)', () => {
+  it('no pill for a month the rule does not judge (a target of 4 on day 29)', () => {
     expect(
       portalGoalPace(month({ target: 4, value: 1, elapsedDays: 29, belowPace: null })),
     ).toBeNull()

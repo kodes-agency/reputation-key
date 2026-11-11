@@ -1,5 +1,4 @@
-// The running Monthly portal goal on its card (PLAN PG-12; ADR 0068 amended
-// 2026-10-19 and 2026-11-01): the shared card frame with the pace pill in its corner
+// The running Monthly portal goal on its card (ADR 0068): the shared card frame with the pace pill in its corner
 // (Getting started, On pace, Below pace, or none for a month the rule does not
 // judge), what is left to the number as the headline with the days left and what a
 // day takes under it, the month so far on the ruler with a steady month's stop, what
@@ -351,7 +350,7 @@ export const Stopped: Story = {
   },
 }
 
-/** Where the page draws the sheet, the next goal can be set from December (PLAN PG-14). */
+/** Where the page draws the sheet, the next goal can be set from December. */
 export const StoppedSetsTheNextGoal: Story = {
   args: {
     card: read(CARD_STOPPED),

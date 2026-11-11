@@ -152,7 +152,7 @@ type CardProps = Readonly<{
 
 /**
  * The goal's card, with the Monday check-in above it while one is due and the
- * viewer may change the goal (E29, E30). The same on the Goals page and the
+ * viewer may change the goal. The same on the Goals page and the
  * Overview.
  */
 export function RatingGoalCardWithRecap({ recap, ...props }: CardProps) {

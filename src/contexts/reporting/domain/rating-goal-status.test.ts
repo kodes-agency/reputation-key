@@ -141,7 +141,7 @@ describe('the stars new reviews are expected to average', () => {
 
   it('one 2★ review after a floor plan keeps the goal reachable before the verdict', () => {
     // A plan at 4.6 for 4.5 (threshold 4.45): the blend (69 + 2) / 16 = 4.4375
-    // would read "not reachable" after one review, a verdict R2-5 holds to ten.
+    // would read "not reachable" after one review, a verdict held to ten reviews.
     // The floor is the plan itself, so the numbers assume the plan.
     expect(trackingMix(46, { count: 1, sum: 2 }, 45)).toEqual({
       mix: ratio(46, 10),
@@ -234,7 +234,7 @@ describe('the window the pace is judged on', () => {
   })
 })
 
-describe('a new pace judged only from its change (Q3)', () => {
+describe('a new pace judged only from its change', () => {
   // A goal set 40 days ago whose pace a manager raised on day 40.
   const SET = daysAgo(40)
   const raisedOn = (day: number) => new Date(SET.getTime() + day * DAY)

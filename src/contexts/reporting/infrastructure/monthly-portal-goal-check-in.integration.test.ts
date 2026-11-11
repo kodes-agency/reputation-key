@@ -1,5 +1,5 @@
 // The Monthly portal goal's month-start check-in on PostgreSQL (ADR 0068
-// decision 8, PLAN PG-15): its Use is the change now, its Keep the answered
+// decision 8): its Use is the change now, its Keep the answered
 // month alone. Two managers pressing them at the same moment, each after
 // reading the goal, both land: the month takes the new number and the
 // check-in is answered, and neither undoes the other (Keep moves neither the

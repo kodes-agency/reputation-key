@@ -360,11 +360,7 @@ describe('composed rights executors', () => {
     const left = Object.entries(after)
       .filter(([table, rows]) => rows.length > 0 && !KEPT_IN_PLACE.has(table))
       .map(([table]) => table)
-    expect(left).toEqual(
-      ['organization_lifecycle_authority'].filter(
-        (table) => table in after && after[table]!.length > 0,
-      ),
-    )
+    expect(left).toEqual([])
     expect(await snapshot(tables, other.organizationId)).toBe(otherBefore)
   })
 

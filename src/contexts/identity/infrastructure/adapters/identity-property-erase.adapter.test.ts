@@ -14,17 +14,9 @@ const ORG = 'org-identity-erase'
 const PROPERTY = '60000000-0000-4000-8000-000000000001'
 
 /** The live authority and decision tables the adapter must cover. */
-const ERASED_TABLES = [
-  'merchant_ai_decision_deferrals',
-  'property_access_grants',
-  'property_access_grant',
-] as const
+const ERASED_TABLES = ['merchant_ai_decision_deferrals', 'property_access_grant'] as const
 
-const EXCLUDED_TABLES = [
-  'backup_erasure_ledger',
-  'privacy_requests',
-  'merchant_ai_consent_evidence',
-] as const
+const EXCLUDED_TABLES = ['backup_erasure_ledger', 'merchant_ai_consent_evidence'] as const
 
 type Rendered = Readonly<{ sql: string; params: readonly unknown[] }>
 

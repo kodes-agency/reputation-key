@@ -1,4 +1,4 @@
-// The Monday check-in's cards for the stories (round 5, PLAN-D D-3): Harborline
+// The Monday check-in's cards for the stories: Harborline
 // at 1 a day, the card read on the Monday (and the Wednesday) after a week of 8
 // new reviews against the plan's 7. The numbers are the card read's: the
 // average is there only from ten reviews, the plan only when last week had one.

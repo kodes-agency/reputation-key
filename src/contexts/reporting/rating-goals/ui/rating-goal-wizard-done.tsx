@@ -89,7 +89,7 @@ export function RatingGoalKeepStep({
   pending: boolean
   /** The save's refusal, directly above the actions. */
   banner: ReactNode
-  /** At a shown 4.7 or 4.8, why keeping is suggested (X1); none where nothing is higher. */
+  /** At a shown 4.7 or 4.8, why keeping is suggested; none where nothing is higher. */
   reason: string | null
   /** "Raise it anyway": the climb, with an average the manager types. */
   onRaise?: () => void

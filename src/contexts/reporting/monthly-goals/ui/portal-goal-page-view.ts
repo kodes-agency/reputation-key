@@ -25,7 +25,7 @@ function unitTitle(measure: PortalGoalMeasure): string {
 }
 
 /**
- * P-2: what the goal counts, from where: "Private ratings from all 3 portals at
+ * What the goal counts, from where: "Private ratings from all 3 portals at
  * Seaview Hotel."
  */
 export function pageBodyLine(
@@ -71,7 +71,7 @@ export type PortalGoalQuietWords = Readonly<{
   open: string
 }>
 
-/** P-6 and P-7: each Portal's count, what the rest brought in, the total and the quiet ones. */
+/** Each Portal's count, what the rest brought in, the total and the quiet ones. */
 export function fromPortalsWords(
   rows: PortalGoalPageRows | null,
   facts: Readonly<Record<string, PortalGoalQuietFact>>,
@@ -165,7 +165,7 @@ function monthFigure(month: PortalGoalPageMonth): string {
     : `${againstWords(month, value)} ${portalGoalUnit(measure, target)}`
 }
 
-/** P-9: the correction, and what the month is now. */
+/** The correction, and what the month is now. */
 function correctionWords(month: PortalGoalPageMonth): string | null {
   const { correction } = month
   if (correction === null) return null
@@ -178,7 +178,7 @@ function correctionWords(month: PortalGoalPageMonth): string | null {
 }
 
 /**
- * P-8 and P-9: each month as a chip, newest first, met with a check, not met
+ * Each month as a chip, newest first, met with a check, not met
  * neutral, still counting or read dashed; its popover the figure and result,
  * the day its figure is final, its own number, and any correction.
  */
@@ -212,9 +212,9 @@ export function stripChips(
 }
 
 /**
- * P-13 and P-14: how the goal counts, in what it counts now; the ratings
+ * How the goal counts, in what it counts now; the ratings
  * where it counts them: any of the Property's portals, or a goal's own Portal
- * or group (PLAN PG-21: "at Reception").
+ * or group ("at Reception").
  */
 export function howItCountsWords(
   measure: PortalGoalMeasure,
@@ -246,5 +246,5 @@ export function extrasSubjectName(
   }
 }
 
-/** P-13: the disclosure's title. */
+/** The disclosure's title. */
 export const HOW_IT_COUNTS_TITLE = 'How this goal counts'

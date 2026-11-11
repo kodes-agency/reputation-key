@@ -44,7 +44,7 @@ const actor: GoalActor = {
   userId: 'elena',
   role: 'PropertyManager',
 }
-// Seaview on Sofia time, Oct 23 (G1): Reception and Restaurant live since Oct 9
+// Seaview on Sofia time, Oct 23: Reception and Restaurant live since Oct 9
 // with 11 and 5 private ratings, so November's recommended number is 40.
 const OCT_23 = new Date('2026-10-23T09:00:00.000Z')
 const AT_NOON = 'T09:00:00.000Z'
@@ -381,7 +381,7 @@ describe('setMonthlyPortalGoalSchema', () => {
   })
 })
 
-// ─── Change number, Count scans instead, Stop (PLAN PG-14) ─────────────────
+// ─── Change number, Count scans instead, Stop ─────────────────
 
 /** October on Sofia time: the month that runs on Oct 23. */
 const OCT_1 = new Date('2026-09-30T21:00:00.000Z')
@@ -539,7 +539,7 @@ describe('changeMonthlyPortalGoalNow', () => {
     )
   })
 
-  it('changes a goal for one portal now, with its own recommended number (PG-21)', async () => {
+  it('changes a goal for one portal now, with its own recommended number', async () => {
     // Reception's own 11 in 14 days, 11 so far in October with 9 days left
     // with today: 19 · 20 · 21 for the rest of October.
     const goal = runningOctober('reception', receptionSubject)
@@ -573,7 +573,7 @@ describe('changeMonthlyPortalGoalNow', () => {
     )
   })
 
-  it('changes the average now to its own level in tenths, never a recommended one (PG-21)', async () => {
+  it('changes the average now to its own level in tenths, never a recommended one', async () => {
     const average = propertyGoal('average', 'portal_rating_average', {
       status: 'active',
       from: OCT_1,
@@ -733,7 +733,7 @@ describe('reviseMonthlyPortalGoal', () => {
     )
   })
 
-  it('From Dec 1 on a goal for one portal keeps the portal its subject (PG-21)', async () => {
+  it('From Dec 1 on a goal for one portal keeps the portal its subject', async () => {
     // Reception's goal starts on Nov 1: changed from Nov 1, its own 24 · 26 · 29.
     const goal = existing('reception', { subject: receptionSubject })
     const recommended = changeWorld([goal])
@@ -763,7 +763,7 @@ describe('reviseMonthlyPortalGoal', () => {
     )
   })
 
-  it('Count scans instead on a group goal keeps the group its subject (PG-21)', async () => {
+  it('Count scans instead on a group goal keeps the group its subject', async () => {
     const rooms = { kind: 'portal_group', portalGroupId: 'group-rooms' } as const
     const { deps } = changeWorld([existing('rooms', { subject: rooms })])
 
@@ -784,7 +784,7 @@ describe('reviseMonthlyPortalGoal', () => {
     )
   })
 
-  it('From Dec 1 on the average changes its level, its own, and keeps its subject (PG-21)', async () => {
+  it('From Dec 1 on the average changes its level, its own, and keeps its subject', async () => {
     const { deps } = changeWorld([
       existing('average', { metric: 'portal_rating_average' }),
     ])
@@ -957,7 +957,7 @@ describe('stopMonthlyPortalGoal', () => {
       }),
     ],
     ['the average', existing('monthly', { metric: 'portal_rating_average' })],
-  ])('stops %s too (PG-21)', async (_label, goal) => {
+  ])('stops %s too', async (_label, goal) => {
     const { deps } = changeWorld([goal])
 
     await stopMonthlyPortalGoal(deps, STOP, actor)
@@ -968,7 +968,7 @@ describe('stopMonthlyPortalGoal', () => {
     )
   })
 
-  it('stops a goal for several subjects, made before goals had pages (PG-21)', async () => {
+  it('stops a goal for several subjects, made before goals had pages', async () => {
     const { deps } = changeWorld([severalSubjects('monthly')])
 
     await stopMonthlyPortalGoal(deps, STOP, actor)
@@ -1000,7 +1000,7 @@ describe('stopMonthlyPortalGoal', () => {
   })
 })
 
-// ─── The month-start check-in (PLAN PG-15) ─────────────────────────────────
+// ─── The month-start check-in ─────────────────────────────────
 
 describe('keepMonthlyPortalGoal', () => {
   const DEC_1 = new Date('2026-11-30T22:00:00.000Z')
@@ -1214,7 +1214,7 @@ describe("the check-in's Use", () => {
   })
 })
 
-describe("the Overview prompt's Not now (PG-16)", () => {
+describe("the Overview prompt's Not now", () => {
   // Seaview on Sofia time: Reception live since Sep 20 with a private rating a
   // day, so its number is ready all October. Through the 20th the prompt names
   // October; from the 21st, November.

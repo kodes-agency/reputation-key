@@ -178,7 +178,7 @@ const justSetPlay =
     )
     await expect(canvas.getByText('Aim for about 1 new review a day')).toBeVisible()
     await expect(canvas.queryByRole('progressbar')).toBeNull()
-    // The setup's receipt, word for word (R4-4).
+    // The setup's receipt, word for word.
     await expect(
       canvas.getByText(
         '4.1 in about 3 months at your 1 a day, likely 9 weeks to 4 months.',
@@ -237,7 +237,7 @@ export const NewReviewsTooLow: Story = {
   args: { card: cardRead(CARD_TOO_LOW) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // The chip names the target; the card says the notice's own words and what helps (R2-5, R2-10, R2-12).
+    // The chip names the target; the card says the notice's own words and what helps.
     await expect(canvas.getByText('New reviews too low for 4.1')).toBeVisible()
     await expect(
       canvas.getByText(

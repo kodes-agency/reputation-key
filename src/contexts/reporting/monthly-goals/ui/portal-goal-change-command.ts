@@ -40,7 +40,7 @@ type Input = Readonly<{
   markStale: () => Promise<void>
   /** Saved, and read again: the sheet is done. */
   onSettled: () => void
-  /** F-1, F-2, F-4: the host reads the goal again and opens the sheet afresh. */
+  /** The host reads the goal again and opens the sheet afresh. */
   onBehind?: (error: unknown) => void
   /** A refusal the sheet opened with. */
   notice?: unknown
@@ -71,7 +71,7 @@ export function usePortalGoalChangeCommand(input: Input) {
       onError: (error) => {
         const code = goalRefusalCode(error) ?? ''
         if (code === 'invalid_transition') {
-          // F-5: stopped meanwhile; the page shows the stopped goal.
+          // stopped meanwhile; the page shows the stopped goal.
           void settle().then(() => toast.error(actionErrorMessage(error)))
           return
         }

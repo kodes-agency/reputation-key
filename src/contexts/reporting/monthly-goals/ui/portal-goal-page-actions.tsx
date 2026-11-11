@@ -115,7 +115,7 @@ function PortalGoalPageActions({
 type ActedOn = PortalGoalStopFacts & Readonly<{ measure: PortalGoalMeasure | null }>
 
 /**
- * P-3: a goal page's actions while its goal can change, and the Stop dialog
+ * A goal page's actions while its goal can change, and the Stop dialog
  * they open, held outside the menu and the header so a refusal that reads the
  * page again keeps it, on the goal as it was when it opened. The focus goes
  * back to the menu it was opened from, or to the page's title once that is gone.

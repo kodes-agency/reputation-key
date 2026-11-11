@@ -25,9 +25,9 @@ type Opening = Readonly<{
   intent: PortalGoalSheetIntent
   /** The read the sheet opened on, for when the card no longer has a door. */
   facts: PortalGoalSheetFacts
-  /** The goal a change is for, as the sheet opened on it (or read again after F-1). */
+  /** The goal a change is for, as the sheet opened on it (or read again after a stale-goal refusal). */
   goal: PortalGoalOfCard | null
-  /** F-1, said again by the sheet opened afresh on the latest. */
+  /** The refusal, said again by the sheet opened afresh on the latest. */
   notice: unknown
   open: boolean
   key: number
@@ -136,7 +136,7 @@ type SheetHost = Readonly<{
   reread: () => Promise<PortalGoalCardView | undefined>
   /** The page draws a door to the sheet (`portalGoalDoorShown`): its chunk is fetched. */
   doorShown: boolean
-  /** A Portal's or a group's goal (PLAN PG-21): what its change sheet is called. */
+  /** A Portal's or a group's goal: what its change sheet is called. */
   changeTitle?: string
   /** False when the goal's subject already holds a goal for the other measure. */
   canSwitch?: boolean
@@ -173,7 +173,7 @@ export function usePortalGoalSheet({
     setOpening((current) => ({ intent, facts, goal, notice: null, ...afresh(current) }))
   }
   const setOpen = (next: boolean) => setOpening(openedAs(next))
-  // F-1, F-2, F-4: the latest goal, and a fresh sheet on it that says why. A
+  // the latest goal, and a fresh sheet on it that says why. A
   // latest goal that takes no change (it was stopped) closes the sheet as it
   // is, so the focus goes back as on any close.
   const reopenOnTheLatest = (notice: unknown) =>
@@ -207,7 +207,7 @@ export function usePortalGoalSheet({
           }}
           propertyId={propertyId}
           // Setting, the card's read as it is now (its months move when the
-          // month turns, F-4); once the card shows a goal, the read the sheet
+          // month turns); once the card shows a goal, the read the sheet
           // opened on. Changing, always the read it opened on.
           facts={changing ? opening.facts : (facts ?? opening.facts)}
           intent={opening.intent}

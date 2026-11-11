@@ -130,7 +130,7 @@ describe('stripChips', () => {
   })
 })
 
-describe('stripChips on the average’s own page (PG-21)', () => {
+describe('stripChips on the average’s own page', () => {
   it('says each month’s average and its goal in tenths, never a count', () => {
     const average = (patch: Partial<PortalGoalPageMonth>) =>
       month({ measure: 'portal_rating_average', target: 4.5, ...patch })
@@ -203,7 +203,7 @@ describe('fromPortalsWords', () => {
     const { rows, facts, portals: listed } = PAGE_RUNNING
     const words = fromPortalsWords(rows, facts, listed)
 
-    // Spa has 20 of the 23 and Reception 3: never sorted, never ranked (P-1).
+    // Spa has 20 of the 23 and Reception 3: never sorted, never ranked.
     expect(words.rows?.map(({ name, count }) => `${name} ${count}`)).toEqual([
       'Reception 3',
       'Restaurant 0',
@@ -296,7 +296,7 @@ describe('howItCountsWords', () => {
     expect(howItCountsWords('portal_rating_count', 'Europe/Sofia')).toBe(
       'Counts the 1–5 star private ratings guests give at any of your portals. Low and high ratings count the same. Months follow Sofia time, from the 1st to the last day. A month’s result arrives about a day after it ends. If a guest corrects or withdraws a rating, the month updates.',
     )
-    // A goal for one portal counts the ratings at its portal (PG-21).
+    // A goal for one portal counts the ratings at its portal.
     expect(howItCountsWords('portal_rating_count', 'Europe/Sofia', 'Reception')).toMatch(
       /^Counts the 1–5 star private ratings guests give at Reception\. /,
     )

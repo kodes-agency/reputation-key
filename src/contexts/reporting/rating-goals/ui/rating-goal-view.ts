@@ -27,7 +27,7 @@ export const RATING_GOAL_STATUS: StatusMap<RatingGoalStatus> = {
 /**
  * A goal's status as its card and its page draw it: "New reviews too low"
  * names the target there ("New reviews too low for 4.0"), where the status is
- * the only thing said about it (round 2, R2-5). The Properties list prints the
+ * the only thing said about it. The Properties list prints the
  * target on the line above, so it keeps the plain label.
  */
 export function ratingGoalStatusBadge(
@@ -46,7 +46,7 @@ export function ratingGoalStatusBadge(
 }
 
 /**
- * What "New reviews too low" means, in the notice's own words (R2-10): the
+ * What "New reviews too low" means, in the notice's own words: the
  * reviews since the goal was set average at or below what the target needs.
  */
 export const reviewsTooLowSentence = (target: number): string =>
@@ -85,7 +85,7 @@ export function googleShows(
 /**
  * The average a goal's numbers assume: the plan's until a review arrived since
  * it was set, then the plan's mixed with them step by step, and theirs alone
- * while they are too low for the target (round 4, X3).
+ * while they are too low for the target.
  */
 export function assumedAverageWords(
   goal: Pick<RatingGoalCardView, 'qualityBasis' | 'quality'>,

@@ -65,9 +65,9 @@ type Step = Readonly<{ label: string; to: number | null }>
 export type PortalGoalSheetModel = Readonly<{
   /** S-1. */
   title: string
-  /** S-2: when it starts, or that this month counts from its first day. */
+  /** When it starts, or that this month counts from its first day. */
   description: string
-  /** S-2: this month and the next; a control only with two. */
+  /** This month and the next; a control only with two. */
   months: readonly Readonly<{ value: string; label: string; disabled?: boolean }>[]
   /** The month in effect. */
   month: string
@@ -79,7 +79,7 @@ export type PortalGoalSheetModel = Readonly<{
     value: number | null
     /** Something is typed that no goal takes. */
     invalid: boolean
-    /** S-11: "40 private ratings". */
+    /** "40 private ratings". */
     valueText: string | null
     lower: Step
     raise: Step
@@ -88,11 +88,11 @@ export type PortalGoalSheetModel = Readonly<{
   choices: readonly PortalGoalChoice[] | null
   /** The suggested number the box holds, if it holds one. */
   chosen: number | null
-  /** S-5, S-6 (with its way back) or S-7, as the status line's parts. */
+  /** The status line's parts. */
   status: readonly PortalGoalStatusPart[]
   /** S-8. */
   notes: readonly string[]
-  /** G-16 goes with private ratings. */
+  /** Goes with private ratings. */
   asksEveryGuest: boolean
   /** What "How we worked this out" explains; null with no offer. */
   offer: PortalGoalOffer | null
@@ -228,7 +228,7 @@ const stepTo = (verb: 'Lower' | 'Raise', to: number | null): Step => ({
   to,
 })
 
-/** S-11: − and + along the goal grid, from the number typed (or from none). */
+/** − and + along the goal grid, from the number typed (or from none). */
 export function stepsFrom(reading: Reading): Readonly<{ lower: Step; raise: Step }> {
   if (reading.kind !== 'whole' || reading.n === 0) {
     return { lower: stepTo('Lower', null), raise: stepTo('Raise', 1) }
@@ -242,11 +242,11 @@ export function stepsFrom(reading: Reading): Readonly<{ lower: Step; raise: Step
   }
 }
 
-/** "40" for private ratings, "55 scans" for scans: a primary's number (S-10, S-20). */
+/** "40" for private ratings, "55 scans" for scans: a primary's number. */
 export const primaryNumber = (measure: PortalGoalMeasure, value: number): string =>
   measure === RATINGS ? formatNumber(value) : portalGoalCount(measure, value)
 
-/** S-10: "Set 40 for November", "Set 55 scans for November"; "Set goal" with no number. */
+/** "Set 40 for November", "Set 55 scans for November"; "Set goal" with no number. */
 function primaryOf(
   measure: PortalGoalMeasure,
   month: string,

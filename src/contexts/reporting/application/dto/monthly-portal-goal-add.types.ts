@@ -8,7 +8,7 @@ export type PortalGoalAddSubject =
   | Readonly<{ kind: 'portal'; portalId: string }>
   | Readonly<{ kind: 'portal_group'; portalGroupId: string }>
 
-/** "20 · your usual", "22 · a bit more" (the recommended number, P-3), "24 · stretch". */
+/** "20 · your usual", "22 · a bit more" (the recommended number), "24 · stretch". */
 export type PortalGoalAddChoices = Readonly<{
   usual: number
   aBitMore: number
@@ -51,7 +51,7 @@ export type PortalGoalAddOptions = Readonly<{
   month: string
   /** The month offered is this month: it counts from its first day. */
   current: boolean
-  /** Private ratings, or scans when the Portals had scans but no private ratings (P-2). */
+  /** Private ratings, or scans when the Portals had scans but no private ratings. */
   measure: PortalGoalMeasure
   /** A goal for one Portal: each live Portal, in name order; none under 2 live Portals. */
   onePortal: readonly PortalGoalAddOffer[]

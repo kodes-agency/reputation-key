@@ -27,7 +27,7 @@ type Props = Readonly<{
    * What the polite live region speaks: the goal, or a hint at an end. It is
    * off while the number has the focus, whose `aria-valuetext` says the goal
    * then (an arrow key, Home, End, or a status link that moved the focus
-   * here), so each change is said once (PLAN-R4 B.8).
+   * here), so each change is said once.
    */
   live: string
   /** The number itself, for a link that takes the focus there when it goes. */

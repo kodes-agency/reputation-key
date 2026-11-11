@@ -8,7 +8,7 @@ import {
 const SOFIA = 'Europe/Sofia'
 
 /**
- * Seaview's goal on Dec 1 (G4): it has run since November at 40, and the
+ * Seaview's goal on Dec 1: it has run since November at 40, and the
  * recommended number for a 31-day December is 45.
  */
 const DEC_1: MonthlyCheckInInput = {

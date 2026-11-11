@@ -1,5 +1,5 @@
-// The Monthly portal goal's month-start check-in, the strip above its card (PLAN
-// PG-15; copy deck K-1…K-11; U-K1…U-K3): Dec 1 with November still read, Use 45
+// The Monthly portal goal's month-start check-in, the strip above its card:
+// Dec 1 with November still read, Use 45
 // (sent once, as the change now, recommended, first) and Keep 40 (then gone),
 // "Other number", "How we worked this out", November closed met and not met,
 // December at the recommended number already (one line under the card), nothing
@@ -223,7 +223,7 @@ export const CheckInLight: Story = {
   parameters: { theme: 'light' },
 }
 
-/** K-10: the sums behind 45, for a whole 31-day December. */
+/** The sums behind 45, for a whole 31-day December. */
 export const CheckInHowWeWorkedThisOut: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -357,7 +357,7 @@ export const CheckInRefusedClosed: Story = {
 
 /**
  * Dec 3: November closed and met, with a check; December still asks, for the
- * rest of it on top of what counts (W-5), as the change sheet offers it.
+ * rest of it on top of what counts, as the change sheet offers it.
  */
 export const CheckInClosedMet: Story = {
   args: { card: read(CARD_CHECK_IN_CLOSED_MET) },

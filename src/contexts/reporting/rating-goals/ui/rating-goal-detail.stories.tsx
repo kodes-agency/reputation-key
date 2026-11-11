@@ -3,7 +3,7 @@
 // voice and Portal Results draw theirs (is the rating going up, with a plain line to
 // the goal; are enough good reviews coming in, with bars against the plan; what can
 // you do this week), and "What happened", closed until asked. Also the low reviews
-// since the set, each linked to the Inbox item that opens it (D-2b), and the actions
+// since the set, each linked to the Inbox item that opens it, and the actions
 // only a manager allowed to change or end a goal sees are `rating-goal-detail-actions.stories.tsx`.
 // The Storybook Vitest project compiles no Tailwind, so the plays assert words and
 // roles, not pixels.

@@ -1,7 +1,7 @@
 // The one-screen setup under a manager's hands (rounds 3 and 4, E2): − and +
 // pin a goal and "Back to 4.1, recommended" lets go; the ends say why they
 // stop; a pace typed a month or out of range; an average typed up to 5.0; the
-// faster-pace link keeping the goal it named (D31); the two explanations; a
+// faster-pace link keeping the goal it named; the two explanations; a
 // refusal in plain words. On Harborline Suites (3.9 from 261) unless named.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
@@ -143,7 +143,7 @@ export const OwnAverage: Story = {
   },
 }
 
-/** Over six months, the faster pace keeps the goal it names (D31). */
+/** Over six months, the faster pace keeps the goal it names. */
 export const FasterPaceLink: Story = {
   play: async ({ canvasElement }) => {
     const dialog = await openWizard(canvasElement)

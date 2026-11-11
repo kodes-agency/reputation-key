@@ -1,5 +1,5 @@
-// The Portal goals section as a link from another page lands on it (PLAN
-// PG-11). The Google rating goal's done screen ("See your portal goal") may
+// The Portal goals section as a link from another page lands on it. The Google
+// rating goal's done screen ("See your portal goal") may
 // lead here from the Overview, and the page it left is gone by the time this
 // one is drawn, so the link asks for the focus in the address's state and the
 // section's title takes it once the section is drawn.
