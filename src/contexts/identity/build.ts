@@ -332,7 +332,7 @@ function buildStaffAccounts(
   const { db, clock, logger } = deps
   const management = createStaffManagementStore(db, clock)
   const input: ManageStaffDeps = {
-    store: createStaffAccountStore(db, clock, { connect: () => db.$client.connect() }),
+    store: createStaffAccountStore(db, clock, deps.idGen),
     management,
     idGen: deps.idGen,
     ...(deps.staffAccounts ?? unavailableStaffAccountBindings),
