@@ -19,7 +19,8 @@ export type PortalEditorSummaryInput = Readonly<{
   portalName: string
   privateFeedbackThreshold: number
   skipPrivateRating?: boolean
-  linkCount: number
+  /** Absent while the links are not loaded: the line stays blank rather than say "No links yet". */
+  linkCount?: number
   /** Tiles guests cannot see because their address is not approved. */
   hiddenLinkCount?: number
   languageCount: number
@@ -33,10 +34,10 @@ export type PortalEditorSummaryInput = Readonly<{
   languagesWithoutWording?: number
   /** Which of the three look groups the portal owns; absent: it follows the property look. */
   lookSources?: PortalLookSources
-  /** The group's name, or null for a portal outside any group. */
-  groupName: string | null
-  /** Full names of the responsible managers. */
-  responsibleNames: ReadonlyArray<string>
+  /** The group's name, or null for a portal outside any group; absent while the groups are not loaded. */
+  groupName?: string | null
+  /** Full names of the responsible managers; absent while they are not loaded. */
+  responsibleNames?: ReadonlyArray<string>
 }>
 
 export type PortalEditorSectionSummary = Readonly<{
@@ -110,7 +111,11 @@ export function summarizePortalEditorSections(
         ? 'Skips rating'
         : `${input.privateFeedbackThreshold}★ or below`,
     ),
-    linktree: open(linktreeLine(input.linkCount, input.hiddenLinkCount ?? 0)),
+    linktree: open(
+      input.linkCount === undefined
+        ? ''
+        : linktreeLine(input.linkCount, input.hiddenLinkCount ?? 0),
+    ),
     footer: fixed('Privacy notice'),
     languages: {
       ...open(plural(input.languageCount, 'language', 'languages')),
@@ -118,8 +123,12 @@ export function summarizePortalEditorSections(
         ? { attention: `${input.missingTextCount} missing` }
         : {}),
     },
-    group: open(input.groupName ?? 'Not in a group'),
-    responsible: open(firstNames(input.responsibleNames)),
+    group: open(
+      input.groupName === undefined ? '' : (input.groupName ?? 'Not in a group'),
+    ),
+    responsible: open(
+      input.responsibleNames === undefined ? '' : firstNames(input.responsibleNames),
+    ),
   }
 }
 
@@ -156,7 +165,7 @@ function portalLocales(portal: PortalEditorResources['portal']): string[] {
 /** What the list's lines are made of, read from the editor's resources. */
 export function portalEditorSummaryInput(
   resources: PortalEditorResources,
-  groupName: string | null,
+  groupName: string | null | undefined,
 ): PortalEditorSummaryInput {
   const { portal, portalExperience } = resources
   const locales = portalLocales(portal)
@@ -164,8 +173,10 @@ export function portalEditorSummaryInput(
     portalName: portal.name,
     privateFeedbackThreshold: portal.privateFeedbackThreshold,
     skipPrivateRating: portal.skipPrivateRating,
-    linkCount: resources.links.length,
-    hiddenLinkCount: countHiddenLinks(resources.linktree.links),
+    linkCount: resources.links?.length,
+    hiddenLinkCount: resources.linktree
+      ? countHiddenLinks(resources.linktree.links)
+      : undefined,
     languageCount: locales.length,
     missingTextCount: resources.languageCoverage?.missingTotal,
     languagesWithoutWording: portalExperience
@@ -173,10 +184,13 @@ export function portalEditorSummaryInput(
       : undefined,
     lookSources: portalExperience?.portalLook?.sources,
     groupName,
-    responsibleNames: responsibleManagerNames(
-      resources.responsibleManagers?.assignments ?? [],
-      resources.responsibleManagerMembers ?? [],
-    ),
+    responsibleNames:
+      resources.responsibleManagers && resources.responsibleManagerMembers
+        ? responsibleManagerNames(
+            resources.responsibleManagers.assignments,
+            resources.responsibleManagerMembers,
+          )
+        : undefined,
   }
 }
 

@@ -15,8 +15,12 @@ import type {
   PortalReviewChange,
 } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { describePageEditLine } from '../portal-history/portal-history-edit-line'
-import { plain, strong, type Phrase } from '../portal-history/portal-history-phrase'
+import { describePageEditLine } from '#/contexts/portal/workspace/ui/portal-history-edit-line'
+import {
+  plain,
+  strong,
+  type Phrase,
+} from '#/contexts/portal/workspace/ui/portal-history-phrase'
 
 export type ReviewChangeGlyph = 'linktree' | 'text' | 'look' | 'settings' | 'page'
 

@@ -13,7 +13,7 @@ import type {
   PortalPreview,
   PortalPreviewOutcome,
 } from '#/contexts/portal/application/portal-management-contracts'
-import { previewOfVersion } from '../../portal-preview/__fixtures__/portal-preview-fixtures'
+import { previewOfVersion } from '#/components/features/portal/portal-preview/__fixtures__/portal-preview-fixtures'
 import { STORY_VERSION_DETAILS } from './portal-history-stories-data'
 
 export const STORY_EARLIER_DESIGN_VERSION = 3

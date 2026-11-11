@@ -8,7 +8,7 @@ import {
   normalizePortalWorkspaceSearch,
   portalWorkspaceTitle,
   type PortalDetailTab,
-} from '#/components/features/portal/portal-detail/portal-detail-rules'
+} from '#/contexts/portal/workspace/ui/portal-detail-rules'
 import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import { PortalLinkIssuanceProvider } from '#/components/features/portal/portal-workspace/portal-link-issuance'
