@@ -22,7 +22,6 @@ import {
   aiPropertyAggregateSettlements,
   aiPropertyIssueGroups,
   aiPropertyIssueMembers,
-  aiPropertyDailyAggregates,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
   aiReviewAnalysisMentions,
@@ -47,7 +46,6 @@ import type { AiOperationId } from '../../domain/types'
 import type { AiAnalysisDerivativeV3 } from '../../application/ports/ai-output-store.port'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
-import { withoutRetiredAiTables } from '#/shared/db/testing/retired-ai-tables-fixture'
 import { urgentAlertEventId } from './ai-urgent-alert'
 
 const NOW = new Date('2026-10-20T10:00:00.000Z')
@@ -494,9 +492,6 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       .delete(aiPropertyAggregateContributions)
       .where(eq(aiPropertyAggregateContributions.propertyId, PROPERTY_ID))
     await db
-      .delete(aiPropertyDailyAggregates)
-      .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
-    await db
       .delete(aiPropertyAggregateHeads)
       .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
     await db
@@ -521,10 +516,10 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     }
   })
 
-  it('stores, delivers and aggregates v3 with the retired tables absent', async () => {
-    await withoutRetiredAiTables(db, async (tx) => {
-      const outputStore = createAiOutputStoreAdapter(tx)
-      const aggregateStore = createAiPropertyAggregateStoreAdapter(tx)
+  it('stores, delivers and aggregates v3', async () => {
+    {
+      const outputStore = createAiOutputStoreAdapter(db)
+      const aggregateStore = createAiPropertyAggregateStoreAdapter(db)
       await expect(store({}, outputStore)).resolves.toBe(true)
       await expect(apply(1, aggregateStore)).resolves.toEqual({
         status: 'applied',
@@ -546,7 +541,7 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       })
       expect(window?.coverage.settledAnalysisCount).toBe(1)
       expect(window?.analyzedReviews).toEqual([])
-    })
+    }
   })
 
   it('stores the analysis root, the mentions in answer order, the sentences each cites, and closes the operation with the normalizer record', async () => {
@@ -938,12 +933,6 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       { ordinal: 0, topic: 'speed_waiting', strength: 'clear', thing: 'check-in' },
       { ordinal: 1, topic: 'facilities_equipment', strength: 'mild', thing: null },
     ])
-    await expect(
-      db
-        .select()
-        .from(aiPropertyDailyAggregates)
-        .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID)),
-    ).resolves.toEqual([])
   })
 
   it('replays an applied sequence without writing it twice', async () => {

@@ -26,9 +26,7 @@ function makeStore(
   return {
     isCapabilityGloballyEnabled: () => false,
     isOrgAllowlisted: () => false,
-    isPropertyAllowlisted: () => true,
     isOrgSuspended: () => false,
-    isPropertySuspended: () => false,
     ...overrides,
   }
 }

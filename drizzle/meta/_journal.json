@@ -909,14 +909,21 @@
       "idx": 129,
       "version": "7",
       "when": 1800100009000,
-      "tag": "0129_drop_review_provider_content_copy",
+      "tag": "0129_drop_retired_ai_projection_tables",
       "breakpoints": true
     },
     {
       "idx": 130,
       "version": "7",
       "when": 1800100010000,
-      "tag": "0130_validate_review_source_content_state",
+      "tag": "0130_drop_review_provider_content_copy",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1800100011000,
+      "tag": "0131_validate_review_source_content_state",
       "breakpoints": true
     }
   ]

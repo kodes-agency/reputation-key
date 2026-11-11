@@ -1251,18 +1251,6 @@ describe('Merchant AI authorization store', () => {
         )
     `)
     await db.execute(sql`
-      INSERT INTO ai_property_daily_aggregates (
-        organization_id, property_id, local_date, source_epoch,
-        review_analysis_epoch, property_profile_version, calendar_profile_version,
-        aggregate_revision, terminal_analysis_sequence, review_count, rating_sum,
-        positive_count, neutral_count, negative_count, mixed_count, urgent_count,
-        high_count, medium_count, low_count, updated_at
-      ) VALUES (
-        ${ORG}, ${PROPERTY}::uuid, '2026-08-14', 3, 1, 1,
-        'property-calendar-v1', 1, 7, 1, 5, 1, 0, 0, 0, 0, 0, 0, 1, ${NOW}
-      )
-    `)
-    await db.execute(sql`
       UPDATE review_ai_analysis_heads
       SET head_sequence = 38
       WHERE organization_id = ${ORG}

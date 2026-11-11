@@ -19,10 +19,7 @@ function tablesOf(module: Record<string, unknown>): PgTable[] {
 }
 
 const V3_TABLES = [
-  // The unused population projection remains declared until schema contraction.
-  ...tablesOf(v3Schema).filter(
-    (table) => table !== v3Schema.aiPropertyReviewPopulationDaily,
-  ),
+  ...tablesOf(v3Schema),
   ...tablesOf(issueSchema),
   ...tablesOf(correctionSchema),
 ]

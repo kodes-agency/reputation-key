@@ -302,10 +302,7 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
       isCapabilityGloballyEnabled: () => false,
       isOrgAllowlisted: (organizationId, capability) =>
         organizationId === ORG && capability === 'portal.guest_text',
-      isPropertyAllowlisted: (candidatePropertyId, capability) =>
-        candidatePropertyId === PROP && capability === 'portal.guest_text',
       isOrgSuspended: () => false,
-      isPropertySuspended: () => false,
     })
     const policy = createExecutionPolicy(deps())
     const consentAssertions = {
@@ -329,19 +326,19 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     )
     expect(allowed.allowed).toBe(true)
 
-    const wrongProperty = await policy.decide(
+    const wrongOrganization = await policy.decide(
       request({
         principal: { kind: 'public' },
         action: 'public:portal.response.text.submit',
         capability: 'portal.guest_text',
-        organizationId: ORG,
+        organizationId: 'org-not-listed',
         propertyId: 'p2',
         executionKind: 'public',
         requiredPublicConsents: ['response', 'freeText'],
         consentAssertions,
       }),
     )
-    expect(wrongProperty.reason).toBe('property_not_allowlisted')
+    expect(wrongOrganization.reason).toBe('org_not_allowlisted')
 
     const declined = await policy.decide(
       request({
