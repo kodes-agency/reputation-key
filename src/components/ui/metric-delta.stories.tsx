@@ -81,8 +81,7 @@ export const WholePoints: Story = {
 }
 
 /**
- * Inside a sentence. Its words stand on the sentence's baseline: that is a
- * geometry also measured in `e2e/storybook-metrics/overview-tile-caption.metrics.ts`.
+ * Inside a sentence. Its words stand on the sentence's baseline.
  */
 export const InASentence: Story = {
   render: (args) => (

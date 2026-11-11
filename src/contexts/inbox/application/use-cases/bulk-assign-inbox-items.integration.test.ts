@@ -4,11 +4,14 @@ import { bulkAssignInboxItems } from './bulk-assign-inbox-items'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
+  dropInboxUseCaseTenant,
+  runScopedId,
+} from '../../infrastructure/inbox-database-fixtures-use-case-ids'
+import {
   clearInboxUseCaseRows,
   createUseCaseCommandStore,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
-  dropInboxUseCaseOrganization,
   openFixturePool,
   readCommittedFacts,
 } from '../../infrastructure/inbox-database-fixtures-use-cases'
@@ -32,9 +35,9 @@ const NOW = new Date('2026-08-27T10:00:00.000Z')
 const ORG = organizationId('org-bulk-assign-inbox-items-test')
 const ACTOR = userId('actor-1')
 const ASSIGNEE = userId('assignee-1')
-const PROP_A = propertyId('7e000000-0000-4000-8000-000000000001')
-const PROP_B = propertyId('7e000000-0000-4000-8000-000000000002')
-const BULK_ID = '6a000000-0000-4000-8000-000000000001'
+const PROP_A = propertyId(runScopedId('7e000000-0000-4000-8000-000000000001'))
+const PROP_B = propertyId(runScopedId('7e000000-0000-4000-8000-000000000002'))
+const BULK_ID = runScopedId('6a000000-0000-4000-8000-000000000001')
 
 const adminCtx = {
   organizationId: ORG,
@@ -125,14 +128,14 @@ describe.sequential('bulkAssignInboxItems', () => {
 
   afterAll(async () => {
     clearEventSchemas()
-    await dropInboxUseCaseOrganization(pool, ORG)
+    await dropInboxUseCaseTenant(pool, ORG, [PROP_A, PROP_B])
     await pool.end()
   })
 
   it('assigns the complete set and closes it with one sorted content-free fact', async () => {
     const { seed, assignees, factsOf, execute } = setup()
-    const second = item('00000000-0000-4000-8000-000000000002', PROP_B)
-    const first = item('00000000-0000-4000-8000-000000000001')
+    const second = item(runScopedId('00000000-0000-4000-8000-000000000002'), PROP_B)
+    const first = item(runScopedId('00000000-0000-4000-8000-000000000001'))
     await seed(second, first)
 
     const result = await execute(
@@ -170,7 +173,11 @@ describe.sequential('bulkAssignInboxItems', () => {
 
   it('releases and reassigns with explicit per-item outcomes', async () => {
     const { seed, execute } = setup()
-    const assigned = item('00000000-0000-4000-8000-000000000003', PROP_A, ASSIGNEE)
+    const assigned = item(
+      runScopedId('00000000-0000-4000-8000-000000000003'),
+      PROP_A,
+      ASSIGNEE,
+    )
     await seed(assigned)
 
     await expect(
@@ -183,8 +190,8 @@ describe.sequential('bulkAssignInboxItems', () => {
 
   it('does not write any row when one selected item is stale', async () => {
     const { seed, assignees, factsOf, execute, commandStore } = setup()
-    const first = item('00000000-0000-4000-8000-000000000004')
-    const second = item('00000000-0000-4000-8000-000000000005', PROP_B)
+    const first = item(runScopedId('00000000-0000-4000-8000-000000000004'))
+    const second = item(runScopedId('00000000-0000-4000-8000-000000000005'), PROP_B)
     await seed(first, { ...second, commandRevision: 2 })
     const storeCall = vi.spyOn(commandStore, 'bulkAssign')
 
@@ -208,8 +215,8 @@ describe.sequential('bulkAssignInboxItems', () => {
 
   it('does not disclose or mutate an inaccessible item and aborts the visible peer', async () => {
     const { seed, assignees, execute } = setup([PROP_A])
-    const first = item('00000000-0000-4000-8000-000000000006')
-    const second = item('00000000-0000-4000-8000-000000000007', PROP_B)
+    const first = item(runScopedId('00000000-0000-4000-8000-000000000006'))
+    const second = item(runScopedId('00000000-0000-4000-8000-000000000007'), PROP_B)
     await seed(first, second)
     const scopedManager = { ...adminCtx, role: 'PropertyManager' } as AuthContext
 
@@ -231,7 +238,11 @@ describe.sequential('bulkAssignInboxItems', () => {
 
   it('keeps unchanged items in the validated batch without recording a false transition', async () => {
     const { seed, factsOf, execute } = setup()
-    const current = item('00000000-0000-4000-8000-000000000008', PROP_A, ASSIGNEE)
+    const current = item(
+      runScopedId('00000000-0000-4000-8000-000000000008'),
+      PROP_A,
+      ASSIGNEE,
+    )
     await seed(current)
 
     await expect(
@@ -247,7 +258,7 @@ describe.sequential('bulkAssignInboxItems', () => {
 
   it('rejects duplicate selections and callers without assignment management', async () => {
     const { seed, execute } = setup()
-    const current = item('00000000-0000-4000-8000-000000000009')
+    const current = item(runScopedId('00000000-0000-4000-8000-000000000009'))
     await seed(current)
     await expect(
       execute(

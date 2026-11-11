@@ -4,11 +4,14 @@ import { addInboxNote } from './add-inbox-note'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
+  dropInboxUseCaseTenant,
+  runScopedId,
+} from '../../infrastructure/inbox-database-fixtures-use-case-ids'
+import {
   clearInboxUseCaseRows,
   createUseCaseCommandStore,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
-  dropInboxUseCaseOrganization,
   openFixturePool,
   readCommittedFacts,
 } from '../../infrastructure/inbox-database-fixtures-use-cases'
@@ -34,15 +37,15 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
-const FIXED_ID = inboxNoteId('7b000000-0000-4000-8000-0000000000a1')
+const FIXED_ID = inboxNoteId(runScopedId('7b000000-0000-4000-8000-0000000000a1'))
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-add-inbox-note-test')
-const ITEM_ID = inboxItemId('7b000000-0000-4000-8000-000000000011')
+const ITEM_ID = inboxItemId(runScopedId('7b000000-0000-4000-8000-000000000011'))
 const USER_ID = userId('user-1')
-const PROP_1 = propertyId('7b000000-0000-4000-8000-000000000001')
-const PROP_OTHER = propertyId('7b000000-0000-4000-8000-000000000002')
-const REVIEW_ID = reviewId('7b000000-0000-4000-8000-000000000021')
-const FEEDBACK_ID = feedbackId('7b000000-0000-4000-8000-000000000022')
+const PROP_1 = propertyId(runScopedId('7b000000-0000-4000-8000-000000000001'))
+const PROP_OTHER = propertyId(runScopedId('7b000000-0000-4000-8000-000000000002'))
+const REVIEW_ID = reviewId(runScopedId('7b000000-0000-4000-8000-000000000021'))
+const FEEDBACK_ID = feedbackId(runScopedId('7b000000-0000-4000-8000-000000000022'))
 
 const ctxFor = (role: Role): AuthContext =>
   ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
@@ -136,7 +139,7 @@ describe.sequential('addInboxNote', () => {
 
   afterAll(async () => {
     clearEventSchemas()
-    await dropInboxUseCaseOrganization(pool, ORG_ID)
+    await dropInboxUseCaseTenant(pool, ORG_ID, [PROP_1, PROP_OTHER])
     await pool.end()
   })
 

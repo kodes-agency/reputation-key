@@ -127,8 +127,7 @@ export const OneCountSubjectOnPace: Story = {
  * In a cell narrower than 24 rem (230 px here; a 320 px phone's row is 288 px and
  * a 390 px phone's 358 px, the page's gutters being all that is taken off) the
  * sentence and the pill do not fit one line, so the pill sits beside the bar and
- * the row keeps its height. The geometry is measured in Storybook proper
- * (`e2e/storybook-metrics/goal-live-line.metrics.ts`).
+ * the row keeps its height.
  */
 export const NarrowCellBelowPace: Story = {
   args: { goal: goal({ belowPace: 1 }) },
@@ -263,9 +262,7 @@ export const SeveralSubjectsNotJudged: Story = {
 /**
  * While the month is read, a count keeps the room of its line and its bar, so
  * the rows below do not jump when the figure arrives. The Vitest story runner
- * compiles no Tailwind, so what it can say is what the placeholder is; that it
- * is exactly as high as the line is measured in Storybook proper
- * (`e2e/storybook-metrics/goal-live-line.metrics.ts`).
+ * compiles no Tailwind, so what it can say is what the placeholder is.
  */
 export const PendingKeepsTheRoomOfACount: Story = {
   render: () => <PendingAbove live={goal()} />,
@@ -282,9 +279,7 @@ export const PendingKeepsTheRoomOfACount: Story = {
 /**
  * Whether a count has a pill, and which, is known only with its figure, so the
  * room kept while it is read is the same either way: the pill never adds a line
- * to the sentence, and the row it sits in is as high as the pill
- * (`e2e/storybook-metrics/goal-live-line.metrics.ts` measures it from a 200 px
- * cell to a desktop's).
+ * to the sentence, and the row it sits in is as high as the pill.
  */
 export const PendingKeepsTheRoomOfACountBelowPace: Story = {
   render: () => <PendingAbove live={goal({ belowPace: 1 })} />,

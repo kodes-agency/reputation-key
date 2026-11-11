@@ -511,8 +511,7 @@ export const Phone: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Both lines are in the document whatever the width: the Vitest story runner
-    // compiles no Tailwind. Which layout shows at which width is held in
-    // `e2e/storybook-metrics/portal-all-properties.metrics.ts`.
+    // compiles no Tailwind.
     await expect(canvas.getByText('1,607 scans · 4.4 ★ from 450')).toBeVisible()
     await expect(canvas.getByText('412 scans · 4.4 ★ from 118')).toBeVisible()
   },

@@ -11,8 +11,7 @@
 // default. That last one stands the utility layer in with one rule, which is
 // exactly the property that broke: the default used to sit outside every layer
 // and beat it. The classes themselves (nav ink, the sidebar's fill, semibold
-// and icon) are read in compiled Tailwind by
-// `e2e/storybook-metrics/link-ink.metrics.ts`.
+// and icon) need compiled Tailwind, which this runner does not have.
 //
 // Both themes run: the dark accent is lighter than the light one.
 import type { Meta, StoryObj } from '@storybook/react'

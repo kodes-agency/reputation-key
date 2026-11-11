@@ -7,10 +7,13 @@ import {
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
+  dropInboxUseCaseTenant,
+  runScopedId,
+} from '../../infrastructure/inbox-database-fixtures-use-case-ids'
+import {
   clearInboxUseCaseRows,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
-  dropInboxUseCaseOrganization,
   openFixturePool,
 } from '../../infrastructure/inbox-database-fixtures-use-cases'
 import {
@@ -35,13 +38,19 @@ import {
 const ORG_ID = organizationId('org-get-review-inbox-item-ids')
 const OTHER_ORG_ID = organizationId('org-get-review-inbox-item-ids-other')
 const USER_ID = userId('user-1')
-const PROPERTY = propertyId('7f000000-0000-4000-8000-000000000001')
-const FOREIGN_ORG_PROPERTY = propertyId('7f000000-0000-4000-8000-000000000003')
-const OTHER_PROPERTY = propertyId('7f000000-0000-4000-8000-000000000002')
-const REVIEW_WITH_ITEM = reviewId('10000000-0000-4000-8000-000000000001')
-const SECOND_REVIEW_WITH_ITEM = reviewId('10000000-0000-4000-8000-000000000002')
-const REVIEW_WITHOUT_ITEM = reviewId('10000000-0000-4000-8000-000000000003')
-const REVIEW_AT_OTHER_PROPERTY = reviewId('10000000-0000-4000-8000-000000000004')
+const PROPERTY = propertyId(runScopedId('7f000000-0000-4000-8000-000000000001'))
+const FOREIGN_ORG_PROPERTY = propertyId(
+  runScopedId('7f000000-0000-4000-8000-000000000003'),
+)
+const OTHER_PROPERTY = propertyId(runScopedId('7f000000-0000-4000-8000-000000000002'))
+const REVIEW_WITH_ITEM = reviewId(runScopedId('10000000-0000-4000-8000-000000000001'))
+const SECOND_REVIEW_WITH_ITEM = reviewId(
+  runScopedId('10000000-0000-4000-8000-000000000002'),
+)
+const REVIEW_WITHOUT_ITEM = reviewId(runScopedId('10000000-0000-4000-8000-000000000003'))
+const REVIEW_AT_OTHER_PROPERTY = reviewId(
+  runScopedId('10000000-0000-4000-8000-000000000004'),
+)
 
 const ctxWith = (...permissions: Permission[]): AuthContext => ({
   organizationId: ORG_ID,
@@ -117,10 +126,10 @@ describe.sequential('getReviewInboxItemIds', () => {
 
   async function setup(staffPublicApi: StaffPublicApi = staffWithAccess(null)) {
     await seed(
-      makeReviewItem('20000000-0000-4000-8000-000000000001', {
+      makeReviewItem(runScopedId('20000000-0000-4000-8000-000000000001'), {
         sourceId: REVIEW_WITH_ITEM,
       }),
-      makeReviewItem('20000000-0000-4000-8000-000000000002', {
+      makeReviewItem(runScopedId('20000000-0000-4000-8000-000000000002'), {
         sourceId: SECOND_REVIEW_WITH_ITEM,
       }),
     )
@@ -147,8 +156,8 @@ describe.sequential('getReviewInboxItemIds', () => {
 
   afterAll(async () => {
     clearEventSchemas()
-    await dropInboxUseCaseOrganization(pool, ORG_ID)
-    await dropInboxUseCaseOrganization(pool, OTHER_ORG_ID)
+    await dropInboxUseCaseTenant(pool, ORG_ID, [PROPERTY, OTHER_PROPERTY])
+    await dropInboxUseCaseTenant(pool, OTHER_ORG_ID, [FOREIGN_ORG_PROPERTY])
     await pool.end()
   })
 
@@ -164,8 +173,14 @@ describe.sequential('getReviewInboxItemIds', () => {
 
     expect(itemIds).toEqual(
       new Map([
-        [REVIEW_WITH_ITEM, inboxItemId('20000000-0000-4000-8000-000000000001')],
-        [SECOND_REVIEW_WITH_ITEM, inboxItemId('20000000-0000-4000-8000-000000000002')],
+        [
+          REVIEW_WITH_ITEM,
+          inboxItemId(runScopedId('20000000-0000-4000-8000-000000000001')),
+        ],
+        [
+          SECOND_REVIEW_WITH_ITEM,
+          inboxItemId(runScopedId('20000000-0000-4000-8000-000000000002')),
+        ],
       ]),
     )
   })
@@ -173,11 +188,11 @@ describe.sequential('getReviewInboxItemIds', () => {
   it('reads only the requested Property within the caller organization', async () => {
     const { useCase, findActiveReviewItemIds } = await setup()
     await seed(
-      makeReviewItem('20000000-0000-4000-8000-000000000003', {
+      makeReviewItem(runScopedId('20000000-0000-4000-8000-000000000003'), {
         sourceId: REVIEW_AT_OTHER_PROPERTY,
         propertyId: OTHER_PROPERTY,
       }),
-      makeReviewItem('20000000-0000-4000-8000-000000000004', {
+      makeReviewItem(runScopedId('20000000-0000-4000-8000-000000000004'), {
         sourceId: REVIEW_WITHOUT_ITEM,
         propertyId: FOREIGN_ORG_PROPERTY,
         organizationId: OTHER_ORG_ID,
@@ -239,7 +254,12 @@ describe.sequential('getReviewInboxItemIds', () => {
     )
 
     expect(itemIds).toEqual(
-      new Map([[REVIEW_WITH_ITEM, inboxItemId('20000000-0000-4000-8000-000000000001')]]),
+      new Map([
+        [
+          REVIEW_WITH_ITEM,
+          inboxItemId(runScopedId('20000000-0000-4000-8000-000000000001')),
+        ],
+      ]),
     )
   })
 

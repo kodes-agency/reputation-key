@@ -1,4 +1,4 @@
-// BQC-3.4 — rebuildInboxProjection unit tests.
+// rebuildInboxProjection against PostgreSQL.
 //
 // Rebuild derives review-sourced inbox state from canonical data and
 // reconciles missing items and reply milestone metadata without inferring a
@@ -8,12 +8,20 @@
 // It never touches inbox-owned fields, never deletes, and dryRun writes
 // nothing while reporting the same counts.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Pool } from 'pg'
 import { rebuildInboxProjection } from './rebuild-inbox-projection'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
+import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import {
+  clearInboxScope,
+  createInboxDatabaseStores,
+  fixtureUuid,
+  readOutboxFacts,
+  seedInboxScope,
+} from '../../infrastructure/inbox-database-fixtures-status'
+import { seedReviewSource } from '../../infrastructure/inbox-database-fixtures-projection'
 import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
@@ -37,19 +45,21 @@ import {
 import type { InboxItem } from '../../domain/types'
 
 const NOW = new Date('2026-06-15T12:00:00Z')
-const ORG = organizationId('org-1')
-const PROP = propertyId('prop-1')
+const SCOPE = 'rebuild-inbox-projection'
+const ORG = organizationId('org-rebuild-inbox-projection-test')
+const PROP = propertyId(fixtureUuid(SCOPE, 'prop-1'))
+const PROP_2 = propertyId(fixtureUuid(SCOPE, 'prop-2'))
 const USER = userId('user-1')
 
 let seq = 0
 function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
   seq += 1
   return {
-    id: inboxItemId(`ii-${String(seq).padStart(4, '0')}`),
+    id: inboxItemId(fixtureUuid(SCOPE, `item-${seq}`)),
     organizationId: ORG,
     propertyId: PROP,
     sourceType: 'review',
-    sourceId: reviewId(`rev-${seq}`),
+    sourceId: reviewId(fixtureUuid(SCOPE, `rev-${seq}`)),
     status: 'open',
     rating: null,
     sourceDate: new Date('2026-06-01'),
@@ -76,7 +86,7 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
 function makeSource(overrides: Partial<ReviewSourceMeta> = {}): ReviewSourceMeta {
   seq += 1
   return {
-    id: reviewId(`rev-${seq}`),
+    id: reviewId(fixtureUuid(SCOPE, `rev-${seq}`)),
     propertyId: PROP,
     platform: 'google',
     sourceEpoch: 1,
@@ -134,6 +144,8 @@ function fakeAuthority(answer: 'current' | 'obsolete') {
   return authority
 }
 
+const pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+
 function setup(opts: {
   items?: InboxItem[]
   sources?: ReviewSourceMeta[]
@@ -141,10 +153,7 @@ function setup(opts: {
   onGoogle?: ReadonlyArray<GoogleReplyHead>
   permit?: 'current' | 'obsolete'
 }) {
-  const repo = createInMemoryInboxRepo()
-  for (const item of opts.items ?? []) repo.items.push(item)
-  const events = createRecordedOutbox()
-  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
+  const { repo, commandStore } = createInboxDatabaseStores(() => NOW, createMockLogger())
   const reviewSourceLookup: ReviewSourceLookupPort = {
     getReviewSourceMetaById: vi.fn(async () => null),
     getReviewSourceMetaByIds: vi.fn(async () => []),
@@ -165,46 +174,76 @@ function setup(opts: {
     reviewSourceLookup,
     replyLookup,
     replyObservationAuthority: fakeAuthority(opts.permit ?? 'current'),
-    idGen: () => inboxItemId(`ii-new-${crypto.randomUUID()}`),
+    idGen: () => inboxItemId(crypto.randomUUID()),
     clock: () => NOW,
     logger: createMockLogger(),
   }
-  return { useCase: rebuildInboxProjection(deps), repo, events, deps }
+  const seed = async () => {
+    await seedInboxScope(pool, ORG, [PROP, PROP_2], opts.items ?? [], NOW)
+    for (const source of opts.sources ?? []) {
+      await seedReviewSource(pool, {
+        id: source.id,
+        organizationId: ORG,
+        propertyId: source.propertyId,
+        sourceDate: source.sourceDate,
+      })
+    }
+  }
+  const items = async () =>
+    (await repo.findFilteredPaginated({}, ORG, undefined, 100)).items
+  const events = {
+    status: () => readOutboxFacts(pool, ORG, 'inbox.inbox_item.status_changed'),
+    created: () => readOutboxFacts(pool, ORG, 'inbox.inbox_item.created'),
+    all: async () =>
+      (await pool.query('SELECT id FROM outbox_events WHERE organization_id = $1', [ORG]))
+        .rows,
+  }
+  return { useCase: rebuildInboxProjection(deps), seed, items, events, deps }
 }
 
-describe('rebuildInboxProjection', () => {
-  beforeEach(() => {
+describe.sequential('rebuildInboxProjection', () => {
+  registerAllEventSchemas()
+
+  beforeEach(async () => {
     seq = 0
+    await clearInboxScope(pool, ORG)
+  })
+
+  afterAll(async () => {
+    await clearInboxScope(pool, ORG)
+    await pool.end()
   })
 
   it('creates missing items for canonical reviews without recording created facts', async () => {
     const src = makeSource()
-    const { useCase, repo, events } = setup({ sources: [src] })
+    const { useCase, seed, items, events } = setup({ sources: [src] })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report.created).toBe(1)
-    expect(repo.items).toHaveLength(1)
-    expect(repo.items[0]!.sourceId).toBe(src.id)
-    expect(repo.items[0]!.status).toBe('open')
-    expect(repo.items[0]!.sourceDate).toEqual(src.sourceDate)
+    expect(await items()).toHaveLength(1)
+    expect((await items())[0]!.sourceId).toBe(src.id)
+    expect((await items())[0]!.status).toBe('open')
+    expect((await items())[0]!.sourceDate).toEqual(src.sourceDate)
     // Rebuild is repair, not new information: no created fact.
-    expect(events.byTag('inbox.inbox_item.created')).toHaveLength(0)
+    expect(await events.created()).toHaveLength(0)
   })
 
   it('creates a missing expired review open without inferring a handling outcome', async () => {
     const src = makeSource({ contentExpiresAt: new Date('2026-01-01') })
-    const { useCase, repo, events } = setup({ sources: [src] })
+    const { useCase, seed, items, events } = setup({ sources: [src] })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report).toMatchObject({ created: 1, closed: 0 })
-    expect(repo.items[0]).toMatchObject({
+    expect((await items())[0]).toMatchObject({
       sourceId: src.id,
       status: 'open',
       closedAt: null,
     })
-    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(await events.status()).toHaveLength(0)
   })
 
   it('creates a missing review open while preserving reply milestones', async () => {
@@ -219,12 +258,13 @@ describe('rebuildInboxProjection', () => {
         },
       ],
     ])
-    const { useCase, repo } = setup({ sources: [src], milestones })
+    const { useCase, seed, items } = setup({ sources: [src], milestones })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report).toMatchObject({ created: 1, closed: 0, milestones: 1 })
-    expect(repo.items[0]).toMatchObject({
+    expect((await items())[0]).toMatchObject({
       status: 'open',
       closedAt: null,
       firstReplySubmittedAt: new Date('2026-06-05T12:00:00Z'),
@@ -238,16 +278,17 @@ describe('rebuildInboxProjection', () => {
     const milestones: ReadonlyMap<string, ReplyMilestones> = new Map([
       [src.id as string, { firstSubmittedAt: null, firstPublishedAt: writtenOnGoogle }],
     ])
-    const { useCase, repo, events, deps } = setup({
+    const { useCase, seed, items, events, deps } = setup({
       sources: [src],
       milestones,
       onGoogle: [googleReply(src)],
     })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report).toMatchObject({ created: 1, closed: 1, milestones: 1 })
-    expect(repo.items[0]).toMatchObject({
+    expect((await items())[0]).toMatchObject({
       sourceId: src.id,
       status: 'closed',
       closedAt: READ_FROM_GOOGLE,
@@ -263,21 +304,22 @@ describe('rebuildInboxProjection', () => {
       }),
       expect.any(Function),
     )
-    expect(events.facts).toHaveLength(0)
+    expect(await events.all()).toHaveLength(0)
   })
 
   it('creates the item open when the Google reply moved after it was read', async () => {
     const src = makeSource()
-    const { useCase, repo } = setup({
+    const { useCase, seed, items } = setup({
       sources: [src],
       onGoogle: [googleReply(src)],
       permit: 'obsolete',
     })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report).toMatchObject({ created: 1, closed: 0 })
-    expect(repo.items[0]).toMatchObject({ status: 'open', closedAt: null })
+    expect((await items())[0]).toMatchObject({ status: 'open', closedAt: null })
   })
 
   it.each([
@@ -295,81 +337,87 @@ describe('rebuildInboxProjection', () => {
     ],
   ])('creates a missing item open when the Google reply %s', async (_case, head) => {
     const src = makeSource()
-    const { useCase, repo, deps } = setup({
+    const { useCase, seed, items, deps } = setup({
       sources: [src],
       onGoogle: [googleReply(src, head)],
     })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report).toMatchObject({ created: 1, closed: 0 })
-    expect(repo.items[0]!.status).toBe('open')
+    expect((await items())[0]!.status).toBe('open')
     expect(deps.replyObservationAuthority.withExactCurrent).not.toHaveBeenCalled()
   })
 
   it('never closes an existing open item, even when Google answers its review', async () => {
     const src = makeSource()
     const item = makeItem({ sourceId: src.id, status: 'open' })
-    const { useCase, repo, deps } = setup({
+    const { useCase, seed, items, deps } = setup({
       items: [item],
       sources: [src],
       onGoogle: [googleReply(src)],
     })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report.closed).toBe(0)
-    expect(repo.items[0]!.status).toBe('open')
+    expect((await items())[0]!.status).toBe('open')
     expect(deps.replyObservationAuthority.withExactCurrent).not.toHaveBeenCalled()
   })
 
   it('dryRun counts an item it would create closed without asking for a permit', async () => {
     const src = makeSource()
-    const { useCase, repo, deps } = setup({
+    const { useCase, seed, items, deps } = setup({
       sources: [src],
       onGoogle: [googleReply(src)],
     })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: true })
 
     expect(report).toMatchObject({ created: 1, closed: 1, dryRun: true })
-    expect(repo.items).toHaveLength(0)
+    expect(await items()).toHaveLength(0)
     expect(deps.replyObservationAuthority.withExactCurrent).not.toHaveBeenCalled()
   })
 
   it('does not close an open item whose review row is gone', async () => {
     const item = makeItem({ status: 'open' })
-    const { useCase, repo, events } = setup({ items: [item], sources: [] })
+    const { useCase, seed, items, events } = setup({ items: [item], sources: [] })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report.closed).toBe(0)
-    expect(repo.items[0]!.status).toBe('open')
-    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect((await items())[0]!.status).toBe('open')
+    expect(await events.status()).toHaveLength(0)
   })
 
   it('does not close an open item whose review content is expired', async () => {
     const src = makeSource({ contentExpiresAt: new Date('2026-01-01') })
     const item = makeItem({ sourceId: src.id, status: 'open' })
-    const { useCase, repo } = setup({ items: [item], sources: [src] })
+    const { useCase, seed, items } = setup({ items: [item], sources: [src] })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report.closed).toBe(0)
-    expect(repo.items[0]!.status).toBe('open')
+    expect((await items())[0]!.status).toBe('open')
   })
 
   it('leaves an open item alone when its review is live and no reply exists', async () => {
     const src = makeSource()
     const item = makeItem({ sourceId: src.id, status: 'open' })
-    const { useCase, repo } = setup({ items: [item], sources: [src] })
+    const { useCase, seed, items } = setup({ items: [item], sources: [src] })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report.closed).toBe(0)
     expect(report.created).toBe(0)
     expect(report.milestones).toBe(0)
-    expect(repo.items[0]!.status).toBe('open')
+    expect((await items())[0]!.status).toBe('open')
   })
 
   it('stamps missing reply milestones without a status fact', async () => {
@@ -381,19 +429,20 @@ describe('rebuildInboxProjection', () => {
         { firstSubmittedAt: new Date('2026-06-05'), firstPublishedAt: null },
       ],
     ])
-    const { useCase, repo, events } = setup({
+    const { useCase, seed, items, events } = setup({
       items: [item],
       sources: [src],
       milestones,
     })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report.milestones).toBe(1)
     expect(report.closed).toBe(0)
-    expect(repo.items[0]!.firstReplySubmittedAt).toEqual(new Date('2026-06-05'))
-    expect(repo.items[0]!.status).toBe('open')
-    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect((await items())[0]!.firstReplySubmittedAt).toEqual(new Date('2026-06-05'))
+    expect((await items())[0]!.status).toBe('open')
+    expect(await events.status()).toHaveLength(0)
   })
 
   it('stamps a published milestone without inferring a close', async () => {
@@ -408,18 +457,19 @@ describe('rebuildInboxProjection', () => {
         },
       ],
     ])
-    const { useCase, repo, events } = setup({
+    const { useCase, seed, items, events } = setup({
       items: [item],
       sources: [src],
       milestones,
     })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report.closed).toBe(0)
-    expect(repo.items[0]!.status).toBe('open')
-    expect(repo.items[0]!.firstReplyPublishedAt).toEqual(new Date('2026-06-06'))
-    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect((await items())[0]!.status).toBe('open')
+    expect((await items())[0]!.firstReplyPublishedAt).toEqual(new Date('2026-06-06'))
+    expect(await events.status()).toHaveLength(0)
   })
 
   it('stamps the published milestone on an already-closed item without a fact', async () => {
@@ -435,18 +485,19 @@ describe('rebuildInboxProjection', () => {
         { firstSubmittedAt: null, firstPublishedAt: new Date('2026-06-06') },
       ],
     ])
-    const { useCase, repo, events } = setup({
+    const { useCase, seed, items, events } = setup({
       items: [item],
       sources: [src],
       milestones,
     })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
     expect(report.milestones).toBe(1)
     expect(report.closed).toBe(0)
-    expect(repo.items[0]!.firstReplyPublishedAt).toEqual(new Date('2026-06-06'))
-    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect((await items())[0]!.firstReplyPublishedAt).toEqual(new Date('2026-06-06'))
+    expect(await events.status()).toHaveLength(0)
   })
 
   it('never touches inbox-owned fields (assignment, escalation)', async () => {
@@ -459,12 +510,13 @@ describe('rebuildInboxProjection', () => {
       escalatedAt: NOW,
       escalatedBy: USER,
     })
-    const { useCase, repo } = setup({ items: [item], sources: [src] })
+    const { useCase, seed, items } = setup({ items: [item], sources: [src] })
 
+    await seed()
     await useCase({ organizationId: ORG, dryRun: false })
 
-    expect(repo.items[0]!.assignedTo).toBe(USER)
-    expect(repo.items[0]!.isEscalated).toBe(true)
+    expect((await items())[0]!.assignedTo).toBe(USER)
+    expect((await items())[0]!.isEscalated).toBe(true)
   })
 
   it('dryRun reports the same counts but writes nothing', async () => {
@@ -472,27 +524,29 @@ describe('rebuildInboxProjection', () => {
     const missing = makeSource()
     const item = makeItem({ sourceId: srcLive.id, status: 'open' })
     const orphan = makeItem({ status: 'open' })
-    const { useCase, repo, events } = setup({
+    const { useCase, seed, items, events } = setup({
       items: [item, orphan],
       sources: [srcLive, missing],
     })
 
+    await seed()
     const report = await useCase({ organizationId: ORG, dryRun: true })
 
     expect(report.created).toBe(1)
     expect(report.closed).toBe(0)
     expect(report.dryRun).toBe(true)
-    expect(repo.items).toHaveLength(2)
-    expect(repo.items[0]!.status).toBe('open')
-    expect(repo.items[1]!.status).toBe('open')
-    expect(events.facts).toHaveLength(0)
+    expect(await items()).toHaveLength(2)
+    expect((await items())[0]!.status).toBe('open')
+    expect((await items())[1]!.status).toBe('open')
+    expect(await events.all()).toHaveLength(0)
   })
 
   it('is idempotent: a second run reconciles nothing', async () => {
     const src = makeSource()
     const orphan = makeItem({ status: 'open' })
-    const { useCase } = setup({ items: [orphan], sources: [src] })
+    const { useCase, seed } = setup({ items: [orphan], sources: [src] })
 
+    await seed()
     await useCase({ organizationId: ORG, dryRun: false })
     const second = await useCase({ organizationId: ORG, dryRun: false })
 
@@ -502,10 +556,11 @@ describe('rebuildInboxProjection', () => {
   })
 
   it('scopes to one property when propertyId is given', async () => {
-    const otherProp = propertyId('prop-2')
+    const otherProp = PROP_2
     const src = makeSource({ propertyId: otherProp })
-    const { useCase, repo } = setup({ sources: [src] })
+    const { useCase, seed, items } = setup({ sources: [src] })
 
+    await seed()
     const report = await useCase({
       organizationId: ORG,
       propertyId: otherProp,
@@ -513,6 +568,6 @@ describe('rebuildInboxProjection', () => {
     })
 
     expect(report.created).toBe(1)
-    expect(repo.items[0]!.propertyId).toBe(otherProp)
+    expect((await items())[0]!.propertyId).toBe(otherProp)
   })
 })

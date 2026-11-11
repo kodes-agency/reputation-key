@@ -5,10 +5,13 @@ import { correctFeedbackHandlingOutcome } from './correct-feedback-handling-outc
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
+  dropInboxUseCaseTenant,
+  runScopedId,
+} from '../../infrastructure/inbox-database-fixtures-use-case-ids'
+import {
   clearInboxUseCaseRows,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
-  dropInboxUseCaseOrganization,
   openFixturePool,
 } from '../../infrastructure/inbox-database-fixtures-use-cases'
 import {
@@ -30,12 +33,12 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 const NOW = new Date('2026-08-27T12:00:00.000Z')
 const ORG_ID = organizationId('org-feedback-handling')
-const ITEM_ID = inboxItemId('7a000000-0000-4000-8000-000000000021')
-const REVIEW_ITEM_ID = inboxItemId('7a000000-0000-4000-8000-000000000027')
-const PROPERTY_ID = propertyId('7a000000-0000-4000-8000-000000000022')
+const ITEM_ID = inboxItemId(runScopedId('7a000000-0000-4000-8000-000000000021'))
+const REVIEW_ITEM_ID = inboxItemId(runScopedId('7a000000-0000-4000-8000-000000000027'))
+const PROPERTY_ID = propertyId(runScopedId('7a000000-0000-4000-8000-000000000022'))
 const ACTOR_ID = userId('manager-feedback-handling')
-const PRIOR_OUTCOME_ID = '7a000000-0000-4000-8000-000000000025'
-const OUTCOME_ID = '7a000000-0000-4000-8000-000000000026'
+const PRIOR_OUTCOME_ID = runScopedId('7a000000-0000-4000-8000-000000000025')
+const OUTCOME_ID = runScopedId('7a000000-0000-4000-8000-000000000026')
 
 const item = (sourceType: 'feedback' | 'review' = 'feedback'): InboxItem => ({
   id: sourceType === 'feedback' ? ITEM_ID : REVIEW_ITEM_ID,
@@ -44,8 +47,8 @@ const item = (sourceType: 'feedback' | 'review' = 'feedback'): InboxItem => ({
   sourceType,
   sourceId:
     sourceType === 'feedback'
-      ? feedbackId('7a000000-0000-4000-8000-000000000023')
-      : reviewId('7a000000-0000-4000-8000-000000000024'),
+      ? feedbackId(runScopedId('7a000000-0000-4000-8000-000000000023'))
+      : reviewId(runScopedId('7a000000-0000-4000-8000-000000000024')),
   status: 'open',
   isEscalated: false,
   escalatedAt: null,
@@ -120,7 +123,7 @@ describe.sequential('feedback handling commands', () => {
 
   afterAll(async () => {
     clearEventSchemas()
-    await dropInboxUseCaseOrganization(pool, ORG_ID)
+    await dropInboxUseCaseTenant(pool, ORG_ID, [PROPERTY_ID])
     await pool.end()
   })
 

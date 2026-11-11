@@ -8,6 +8,7 @@ import type {
 import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
+  REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
   createRunReviewSourceContentLifecycle,
 } from './run-source-content-lifecycle'
 
@@ -446,5 +447,190 @@ describe('run Review source-content lifecycle', () => {
         checkpoint: first.nextCheckpoint!,
       }),
     ).rejects.toThrow('checkpoint scope does not match')
+  })
+
+  describe('refuses a continuation or page that is not bounded to its frozen window', () => {
+    const APPROVAL = {
+      approvalId: 'REV-01-cutover-2026-08-26',
+      evidenceSha256: 'a'.repeat(64),
+      approvedAt: '2026-08-26T10:00:00.000Z',
+    } as const
+    const CURSOR = {
+      createdAt: '2026-08-02T00:00:00.000Z',
+      reviewId: '00000000-0000-4000-8000-000000000002',
+    }
+    const checkpoint = (
+      patch: Partial<
+        NonNullable<
+          Parameters<
+            ReturnType<typeof createRunReviewSourceContentLifecycle>
+          >[0]['checkpoint']
+        >
+      > = {},
+    ) => ({
+      contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
+      mode: 'report' as const,
+      scope: EXPIRED_SCOPE,
+      evaluatedAt: EVALUATED_AT.toISOString(),
+      after: CURSOR,
+      ...patch,
+    })
+
+    it.each([
+      ['an unsupported contract', { contract: 'other-contract' as never }, 'unsupported'],
+      ['a missing scope', { scope: undefined as never }, 'scope is required'],
+      [
+        'an approval carried by an inspection',
+        { approval: APPROVAL },
+        'cannot carry apply approval',
+      ],
+      [
+        'a cursor that is not a Review ID',
+        { after: { ...CURSOR, reviewId: 'not-a-uuid' } },
+        'must be a UUID',
+      ],
+      [
+        'a cursor newer than its window',
+        { after: { ...CURSOR, createdAt: '2026-08-27T00:00:00.000Z' } },
+        'cannot be newer',
+      ],
+      [
+        'a window that is not a canonical timestamp',
+        { evaluatedAt: '2026-08-26' },
+        'canonical ISO timestamp',
+      ],
+    ])(
+      'rejects an inspection checkpoint with %s before reading storage',
+      async (_, patch, message) => {
+        const store = storeWith([inspection(3)])
+        const run = createRunReviewSourceContentLifecycle({
+          store,
+          clock: () => EVALUATED_AT,
+        })
+
+        await expect(
+          run({ mode: 'report', batchSize: 2, checkpoint: checkpoint(patch) }),
+        ).rejects.toThrow(message)
+        expect(store.readInspectionBatch).not.toHaveBeenCalled()
+      },
+    )
+
+    it('rejects an apply continuation that lost its frozen approval before authorizing anything', async () => {
+      const store = storeWith([inspection(3)])
+      const authorizeApply = vi.fn(async () => APPROVAL)
+      const run = createRunReviewSourceContentLifecycle({
+        store,
+        clock: () => EVALUATED_AT,
+        authorizeApply,
+      })
+
+      await expect(
+        run({
+          mode: 'apply',
+          batchSize: 2,
+          checkpoint: checkpoint({ mode: 'apply' }),
+          applyConfirmation: REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
+        }),
+      ).rejects.toThrow('must carry frozen approval evidence')
+      expect(authorizeApply).not.toHaveBeenCalled()
+      expect(store.applyLifecycleBatch).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      [
+        'an approval ID',
+        { ...APPROVAL, approvalId: '../escape' },
+        'approval ID is invalid',
+      ],
+      [
+        'an evidence digest',
+        { ...APPROVAL, evidenceSha256: 'A'.repeat(64) },
+        'evidence digest is invalid',
+      ],
+      [
+        'an approval time',
+        { ...APPROVAL, approvedAt: 'yesterday' },
+        'canonical ISO timestamp',
+      ],
+    ])('refuses to apply under %s that is malformed', async (_, approval, message) => {
+      const store = storeWith([inspection(3)])
+      const run = createRunReviewSourceContentLifecycle({
+        store,
+        clock: () => EVALUATED_AT,
+        authorizeApply: vi.fn(async () => approval),
+      })
+
+      await expect(
+        run({
+          mode: 'apply',
+          batchSize: 2,
+          applyConfirmation: REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
+        }),
+      ).rejects.toThrow(message)
+      expect(store.applyLifecycleBatch).not.toHaveBeenCalled()
+    })
+
+    it.each([0, -1, 1.5, Number.NaN, REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE + 1])(
+      'rejects a batch size of %s before reading storage',
+      async (batchSize) => {
+        const store = storeWith([inspection(1)])
+        const run = createRunReviewSourceContentLifecycle({
+          store,
+          clock: () => EVALUATED_AT,
+        })
+
+        await expect(run({ mode: 'report', batchSize })).rejects.toThrow(
+          'batchSize must be between 1',
+        )
+        expect(store.readInspectionBatch).not.toHaveBeenCalled()
+      },
+    )
+
+    it('rejects an inspection page larger than the one extra row it asked for', async () => {
+      const run = createRunReviewSourceContentLifecycle({
+        store: storeWith([inspection(1), inspection(2), inspection(3)]),
+        clock: () => EVALUATED_AT,
+      })
+
+      await expect(run({ mode: 'report', batchSize: 1 })).rejects.toThrow(
+        'returned an unbounded page',
+      )
+    })
+
+    it('rejects an applied page larger than its batch size', async () => {
+      const run = createRunReviewSourceContentLifecycle({
+        store: storeWith([inspection(1), inspection(2)]),
+        clock: () => EVALUATED_AT,
+        authorizeApply: vi.fn(async () => APPROVAL),
+      })
+
+      await expect(
+        run({
+          mode: 'apply',
+          batchSize: 1,
+          applyConfirmation: REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
+        }),
+      ).rejects.toThrow('applied an unbounded page')
+    })
+
+    it('ends an apply drain with no continuation once the store reports no more rows', async () => {
+      const rows = [inspection(3, { lifecycleClock: EVALUATED_AT })]
+      const store = storeWith(rows)
+      const run = createRunReviewSourceContentLifecycle({
+        store,
+        clock: () => EVALUATED_AT,
+        authorizeApply: vi.fn(async () => APPROVAL),
+      })
+
+      const result = await run({
+        mode: 'apply',
+        batchSize: 2,
+        checkpoint: checkpoint({ mode: 'apply', approval: APPROVAL }),
+        applyConfirmation: REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
+      })
+
+      expect(result.status).toBe('complete')
+      expect(result.nextCheckpoint).toBeNull()
+    })
   })
 })

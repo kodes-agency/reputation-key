@@ -11,10 +11,13 @@ import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
+  dropInboxUseCaseTenant,
+  runScopedId,
+} from '../../infrastructure/inbox-database-fixtures-use-case-ids'
+import {
   clearInboxUseCaseRows,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
-  dropInboxUseCaseOrganization,
   openFixturePool,
 } from '../../infrastructure/inbox-database-fixtures-use-cases'
 import {
@@ -35,16 +38,16 @@ import {
 const NOW = new Date('2026-08-30T12:00:00.000Z')
 const ORG = organizationId('org-response-target-read')
 const USER = userId('user-response-target-read')
-const PROPERTY = propertyId('78000000-0000-4000-8000-000000000001')
-const OTHER_PROPERTY = propertyId('78000000-0000-4000-8000-000000000002')
-const ITEM = inboxItemId('78000000-0000-4000-8000-000000000003')
+const PROPERTY = propertyId(runScopedId('78000000-0000-4000-8000-000000000001'))
+const OTHER_PROPERTY = propertyId(runScopedId('78000000-0000-4000-8000-000000000002'))
+const ITEM = inboxItemId(runScopedId('78000000-0000-4000-8000-000000000003'))
 
 const feedbackItem: InboxItem = {
   id: ITEM,
   organizationId: ORG,
   propertyId: PROPERTY,
   sourceType: 'feedback',
-  sourceId: feedbackId('78000000-0000-4000-8000-000000000004'),
+  sourceId: feedbackId(runScopedId('78000000-0000-4000-8000-000000000004')),
   status: 'open',
   isEscalated: false,
   escalatedAt: null,
@@ -117,7 +120,7 @@ describe.sequential('Response Target manager reads', () => {
       'DELETE FROM inbox_response_target_organization_policies WHERE organization_id = $1',
       [ORG],
     )
-    await dropInboxUseCaseOrganization(pool, ORG)
+    await dropInboxUseCaseTenant(pool, ORG, [PROPERTY, OTHER_PROPERTY])
     await pool.end()
   })
 
