@@ -5,13 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { setupHookRoot } from '#/shared/testing/hook-root'
-import type { SharePanel } from '#/components/features/portal/portal-detail/portal-detail-tab-panel'
+import type { PortalShare } from '#/components/features/portal/portal-share/portal-share'
 
 const screen = vi.hoisted(() => ({
   tab: 'share' as 'share' | 'page' | 'results' | 'history',
   allowedResults: true,
   share: vi.fn(),
   results: vi.fn(),
+  editor: vi.fn(),
   mounted: false,
 }))
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -31,22 +32,27 @@ vi.mock('./-portal-goal-line', () => ({
   usePortalGoalLine: () => ({ pending: false, line: null }),
 }))
 vi.mock('./-portal-results-fns', () => ({ portalResultsFns: {} }))
-vi.mock('#/components/features/portal/portal-detail/portal-detail-page', () => ({
-  PortalDetailPage: () => createElement('p', null, 'Page editor ready'),
+vi.mock('#/contexts/portal/editor/ui/portal-editor', () => ({
+  PortalEditor: (props: unknown) => {
+    screen.editor(props)
+    return createElement('p', null, 'Page editor ready')
+  },
 }))
-vi.mock(
-  '#/components/features/portal/portal-detail/portal-unsaved-changes-prompt',
-  () => ({ PortalUnsavedChangesPrompt: () => null }),
-)
+vi.mock('#/contexts/portal/workspace/ui/portal-unsaved-changes-prompt', () => ({
+  PortalUnsavedChangesPrompt: () => null,
+}))
 vi.mock('#/components/features/portal/portal-workspace/portal-link-issuance', () => ({
   usePortalLinkIssuance: () => ({}),
 }))
-vi.mock('#/components/features/portal/portal-detail/portal-detail-tab-panel', () => ({
-  SharePanel: (props: unknown) => {
+vi.mock('#/components/features/portal/portal-share/portal-share', () => ({
+  PortalShare: (props: unknown) => {
     screen.share(props)
     return screen.mounted ? null : createElement('p', null, 'Share ready')
   },
-  HistoryPanel: () => (screen.mounted ? null : createElement('p', null, 'History ready')),
+}))
+vi.mock('#/contexts/portal/workspace/ui/portal-history-tab', () => ({
+  PortalHistoryTab: () =>
+    screen.mounted ? null : createElement('p', null, 'History ready'),
 }))
 vi.mock('#/contexts/reporting/portal-results/ui/portal-results-screen', () => ({
   PortalResultsScreen: (props: unknown) => {
@@ -154,6 +160,7 @@ beforeEach(() => {
   screen.allowedResults = true
   screen.share.mockClear()
   screen.results.mockClear()
+  screen.editor.mockClear()
   vi.spyOn(Route, 'useParams').mockReturnValue({
     propertyId: 'property-1',
     portalId: 'portal-1',
@@ -168,7 +175,7 @@ beforeEach(() => {
 })
 describe('Portal commands across tab switches', () => {
   const root = setupHookRoot()
-  type ShareProps = ComponentProps<typeof SharePanel>
+  type ShareProps = ComponentProps<typeof PortalShare>
   const share = () => screen.share.mock.lastCall?.[0] as ShareProps
 
   async function show(client: QueryClient, tab: typeof screen.tab) {
@@ -181,14 +188,17 @@ describe('Portal commands across tab switches', () => {
   }
 
   it.each([
-    ['replacement', rotatePortalToken, 'rotateTokenMutation'],
-    ['revocation', revokePortalTokens, 'revokeTokenMutation'],
+    ['replacement', rotatePortalToken, 'rotateMutation'],
+    ['revocation', revokePortalTokens, 'revokeMutation'],
   ] as const)(
     'keeps a deferred code %s pending and retains its refusal after leaving Share',
     async (_name, command, actionName) => {
       screen.mounted = true
       const client = clientWithPortal()
-      client.setQueryData(portalKeys.responsibleManagers('portal-1'), { assignments: [] })
+      client.setQueryData(portalKeys.responsibleManagers('portal-1'), {
+        assignments: [],
+        eligibleManagers: [],
+      })
       client.setQueryData(['members'], { members: [] })
       client.setQueryData(portalKeys.publicationHistory('portal-1'), { current: null })
       const refusal = new Error('Code command refused')
@@ -281,18 +291,17 @@ describe('Portal tab reads', () => {
   })
   it('renders Share with its token, property and responsible managers', () => {
     const client = clientWithPortal()
-    const managers = { assignments: [{ userId: 'u1' }] }
-    const members = [{ userId: 'u1', name: 'Ana' }]
+    const managers = { assignments: [{ userId: 'u1' }], eligibleManagers: [] }
+    const members = [{ userId: 'u1', name: 'Ana', email: 'ana@example.com', role: null }]
     client.setQueryData(portalKeys.responsibleManagers('portal-1'), managers)
     client.setQueryData(['members'], { members })
     expect(render(client)).toContain('Share ready')
     expect(screen.share).toHaveBeenCalledWith(
       expect.objectContaining({
         tokenStatus: token,
-        propertyTimeZone: 'Europe/Sofia',
-        propertyCountryCode: 'BG',
-        responsibleManagers: managers,
-        responsibleManagerMembers: members,
+        timeZone: 'Europe/Sofia',
+        countryCode: 'BG',
+        managerNames: ['Ana'],
       }),
     )
   })
@@ -315,19 +324,40 @@ describe('Portal tab reads', () => {
         .find({ queryKey: portalKeys.responsibleManagers('portal-1') }),
     ).toBeUndefined()
   })
-  it('keeps a failed Page read local and lets the user switch to History', async () => {
+  it('opens the Page editor without waiting for its section reads', () => {
+    const client = clientWithPortal()
+    screen.tab = 'page'
+    expect(render(client)).toContain('Page editor ready')
+    const { resources } = screen.editor.mock.lastCall?.[0] as {
+      resources: { portal: unknown; reads: Record<string, unknown>; linktree: unknown }
+    }
+    expect(resources.portal).toBe(portal)
+    expect(resources.linktree).toBeUndefined()
+    expect(Object.keys(resources.reads).sort()).toEqual([
+      'approvedDestinations',
+      'languageCoverage',
+      'linktree',
+      'portalExperience',
+      'portalGroups',
+      'publicationHistory',
+      'responsibleManagerMembers',
+      'responsibleManagers',
+    ])
+  })
+  it('keeps a failed Page read with its section and lets the user switch to History', async () => {
     const client = clientWithPortal()
     await client
       .fetchQuery({
-        queryKey: portalKeys.links('portal-1'),
+        queryKey: portalKeys.linktree('portal-1'),
         queryFn: () => Promise.reject(new Error('private backend detail')),
       })
       .catch(() => undefined)
     screen.tab = 'page'
-    const html = render(client)
-    expect(html).toContain('page settings couldn’t be loaded.')
-    expect(html).toContain('Try again')
-    expect(html).not.toContain('private backend detail')
+    expect(render(client)).toContain('Page editor ready')
+    const { resources } = screen.editor.mock.lastCall?.[0] as {
+      resources: { reads: { linktree: { errorUpdateCount: number } } }
+    }
+    expect(resources.reads.linktree.errorUpdateCount).toBeGreaterThan(0)
     screen.tab = 'history'
     client.setQueryData(portalKeys.publicationHistory('portal-1'), { current: null })
     expect(render(client)).toContain('History ready')

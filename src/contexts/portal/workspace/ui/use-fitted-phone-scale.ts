@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { scaleToFitWidth } from '../portal-preview/preview-phone'
+import { scaleToFitWidth } from '#/components/features/portal/portal-preview/preview-phone'
 
 /**
  * The scale of a phone drawn in the element `ref` names: `wanted` where the

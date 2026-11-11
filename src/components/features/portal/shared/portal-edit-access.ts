@@ -12,8 +12,8 @@
 // person could act on them: a role that does not allow changes cannot restore a
 // portal either, and while changes are off nothing can be restored.
 
-import type { PortalAccess } from '../portal-overview/use-portal-access'
-import type { PortalPublicationState } from '../shared/types'
+import type { PortalAccess } from '#/components/features/portal/portal-overview/use-portal-access'
+import type { PortalPublicationState } from '#/components/features/portal/shared/types'
 
 export type PortalReadOnlyReason = 'role' | 'capability' | 'archived'
 

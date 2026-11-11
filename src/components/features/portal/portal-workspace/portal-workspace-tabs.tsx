@@ -12,7 +12,7 @@ import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import {
   PORTAL_DETAIL_TABS,
   type PortalDetailTab,
-} from '../portal-detail/portal-detail-rules'
+} from '#/contexts/portal/workspace/ui/portal-detail-rules'
 
 const TAB_LABELS: Readonly<Record<PortalDetailTab, string>> = {
   page: 'Page',
