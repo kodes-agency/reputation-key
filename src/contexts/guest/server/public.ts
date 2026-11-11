@@ -16,12 +16,14 @@ import type { GuestResponseScope } from '../application/ports/guest-response.rep
 import {
   CORRECTION_WINDOW_MS,
   GuestResponseLifecycleError,
-  canStartNewGuestResponse,
-  isQualifiedGuestResponse,
   RESPONSE_WITHDRAWAL_WINDOW_MS,
   type GuestResponseInput,
+} from '../responses/guest-response-lifecycle.server'
+import {
+  canStartNewGuestResponse,
+  isQualifiedGuestResponse,
   type GuestResponseView,
-} from '../application/use-cases/guest-response-lifecycle'
+} from '../responses/contracts'
 import type { PublicPortalData } from '../application/dto/public-portal.dto'
 import {
   guestPrivateFeedbackMutationDto,
