@@ -3,95 +3,18 @@ import type {
   GoogleReviewApiErrorCode,
 } from '#/contexts/review/application/public-api'
 import type { GoogleReviewApiFailure } from '#/contexts/review/application/ports/google-review-api.port'
-import { googleRetryFloorMs } from '#/shared/google-provider-control/provider-call'
-import { googleCallError, type GoogleCallError } from '../../domain/google-call-error'
+import {
+  executorErrorToReviewApiError,
+  isGoogleReviewApiError,
+  isProviderCallFailure,
+  reviewApiError,
+} from '#/contexts/review/application/public-api'
 import type { GoogleReviewCursorFailureCode } from '../google-review-cursor-store'
 
-// The review API adapter's error vocabulary: how a provider answer, a gateway
-// refusal, a cursor-store fault or an authorizer refusal becomes the typed
-// `GoogleReviewApiError` the review context branches on. Kept apart from the
-// adapter so that the mapping reads (and is tested) in one place.
-
-function defineEnumerable<T>(value: T): PropertyDescriptor {
-  return {
-    value,
-    enumerable: true,
-    writable: false,
-    configurable: false,
-  }
-}
-
-type ReviewApiErrorDetails = Readonly<{
-  retryAfterMs?: number
-  /** Dispatch evidence; when present the message names it (content-free). */
-  failure?: GoogleReviewApiFailure
-  /** The code or kind the message leads with; defaults to the review code. */
-  failureLabel?: string
-  /** `cursor_not_found` only: when the cursor store started. */
-  cursorStoreStartedAtMs?: number
-}>
-
-/** Reaches BullMQ's failedReason, so codes, dispatch and status only. */
-function failureMessage(label: string, failure: GoogleReviewApiFailure): string {
-  const status =
-    failure.providerStatus === null ? '' : `; status ${failure.providerStatus}`
-  return `Google review API request failed (${label}; ${failure.dispatch}${status})`
-}
-
-/** The two codes the snapshot use case retries, by code alone. */
-function isRetriedCode(code: GoogleReviewApiErrorCode, recoverable: boolean): boolean {
-  return (
-    recoverable && (code === 'provider_unavailable' || code === 'provider_rate_limited')
-  )
-}
-
-/**
- * `retryAfterMs` carries the provider's own backoff hint to the scheduler.
- *
- * Dropping it was a live amplification bug: a `quota_exhausted` admission
- * denial surfaces as `provider_rate_limited`, the snapshot use case checkpoints
- * WITHOUT advancing its cursor, and the sync job re-enqueued the continuation
- * with no delay - so a provider asking for a ~1s pause got hammered at queue
- * speed instead (observed: 3,225 denials over 344s, ~9/s, which starved every
- * other Google route sharing the quota, reply publishing included).
- *
- * The use case retries a recoverable `provider_unavailable` or
- * `provider_rate_limited` by its code alone, so every such error carries a
- * wait: the hint when there is one, otherwise the provider plane's floor. A
- * throw site that forgot the hint (a cursor store fault, a body that was not
- * JSON) re-ran at queue speed the same way.
- */
-export function reviewApiError(
-  code: GoogleReviewApiErrorCode,
-  recoverable: boolean,
-  details: ReviewApiErrorDetails = {},
-): GoogleReviewApiError {
-  const { failure } = details
-  const retryAfterMs =
-    details.retryAfterMs ??
-    (isRetriedCode(code, recoverable) ? googleRetryFloorMs(null) : undefined)
-  const error = new Error(
-    failure === undefined
-      ? 'Google review API request failed'
-      : failureMessage(details.failureLabel ?? code, failure),
-  ) as GoogleReviewApiError
-  Object.defineProperties(error, {
-    name: defineEnumerable('GoogleReviewApiError'),
-    _tag: defineEnumerable('GoogleReviewApiError'),
-    code: defineEnumerable(code),
-    recoverable: defineEnumerable(recoverable),
-    ...(retryAfterMs === undefined
-      ? {}
-      : { retryAfterMs: defineEnumerable(retryAfterMs) }),
-    ...(failure === undefined
-      ? {}
-      : { failure: defineEnumerable(Object.freeze({ ...failure })) }),
-    ...(details.cursorStoreStartedAtMs === undefined
-      ? {}
-      : { cursorStoreStartedAtMs: defineEnumerable(details.cursorStoreStartedAtMs) }),
-  })
-  return error
-}
+// The review API adapter's own faults: a cursor-store fault, an authorizer
+// refusal or a request it refuses before any provider call becomes the typed
+// `GoogleReviewApiError`. Provider failures are translated by the Review use
+// cases (`google-review-api-error.ts`).
 
 const NOT_SENT: GoogleReviewApiFailure = Object.freeze({
   executionCode: null,
@@ -116,80 +39,6 @@ function errorField(error: unknown, key: string): unknown {
 
 function contentFreeCode(value: unknown): string | null {
   return typeof value === 'string' && CONTENT_FREE_CODE.test(value) ? value : null
-}
-
-/**
- * Preserve the normalized provider facts at the consumer-owned Review port.
- * Only explicit `not_sent` evidence may make a failed write safe to retry.
- */
-function executorFailure(
-  error: unknown,
-  call: GoogleCallError,
-): Readonly<{ label: string; failure: GoogleReviewApiFailure }> {
-  return {
-    label: call.executionCode ?? call.code,
-    failure: {
-      executionCode: call.executionCode,
-      dispatch: call.dispatch,
-      providerStatus: call.providerStatus,
-      ...(errorField(error, 'providerErrorStatus') === undefined
-        ? {}
-        : { providerErrorStatus: call.providerErrorStatus }),
-    },
-  }
-}
-
-// Google's own statuses for "no such Location" and "this request is invalid".
-// Only an answered status counts: a gateway failure that carries one (a body cut
-// short after the headers) still names an execution code and stays retryable.
-const PERMANENT_ANSWER_STATUSES: ReadonlySet<number> = new Set([400, 404])
-
-function isPermanentProviderAnswer(
-  kind: unknown,
-  failure: GoogleReviewApiFailure,
-): boolean {
-  return (
-    kind === 'upstream_error' &&
-    failure.executionCode === null &&
-    failure.dispatch === 'answered' &&
-    failure.providerStatus !== null &&
-    PERMANENT_ANSWER_STATUSES.has(failure.providerStatus)
-  )
-}
-
-/** Map provider facts into the Review port without losing backoff or write evidence. */
-export function executorErrorToReviewApiError(error: unknown): GoogleReviewApiError {
-  const call = googleCallError(error)
-  const { code, retryAfterMs } = call
-  const { label, failure } = executorFailure(error, call)
-  // An authorization refusal is terminal even when no request was dispatched.
-  if (code === 'auth_failed' || code === 'permission_denied') {
-    return reviewApiError('authorization_changed', false, {
-      failure,
-      failureLabel: label,
-    })
-  }
-  // Repeating an answered invalid request or missing Location cannot repair it.
-  if (isPermanentProviderAnswer(code, failure)) {
-    return reviewApiError('provider_rejected', false, {
-      failure,
-      failureLabel: label,
-    })
-  }
-  // A rate limit or upstream failure keeps its hint. Other retryable failures
-  // receive the floor from reviewApiError so they cannot retry at queue speed.
-  const rateLimited = code === 'rate_limited'
-  return reviewApiError(
-    rateLimited ? 'provider_rate_limited' : 'provider_unavailable',
-    true,
-    {
-      ...(retryAfterMs !== null && (rateLimited || code === 'upstream_error')
-        ? { retryAfterMs }
-        : {}),
-      failure,
-      failureLabel: label,
-    },
-  )
 }
 
 /**
@@ -246,13 +95,15 @@ export function isAcceptedNonJsonWrite(error: unknown): boolean {
   )
 }
 
-export function isGoogleReviewApiError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    '_tag' in error &&
-    error._tag === 'GoogleReviewApiError'
-  )
+/**
+ * What an adapter read throws for a rejection: a provider failure travels as it
+ * is for the Review use case to translate, and any other fault the adapter
+ * cannot name itself is the retryable provider-unavailable error.
+ */
+export function readFailure(error: unknown): unknown {
+  return isGoogleReviewApiError(error) || isProviderCallFailure(error)
+    ? error
+    : executorErrorToReviewApiError(error)
 }
 
 export function cursorFailureCode(
