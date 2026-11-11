@@ -1,5 +1,6 @@
 // AI's executor for the manual rights script: Property and Organization
-// erasure of the retained AI derivatives.
+// erasure of the retained AI derivatives, and the Organization export of the
+// served review analysis and its manager corrections.
 //
 // The Organization body is the lifecycle purge's own delete loop. The Property
 // body retires every derivative the Property holds (the same erasure an
@@ -23,6 +24,7 @@ import {
   AI_PURGE_DELETE_TABLES,
   eraseAiOrganizationRows,
 } from './ai-organization-erasure'
+import { readAiOrganizationExport } from './ai-organization-export'
 import { eraseRetiredDerivatives } from './ai-review-analysis-erasure'
 
 const CONTEXT = 'ai'
@@ -272,7 +274,10 @@ export function createAiRightsExecutor(db: Database, now: () => Date): RightsExe
       return refusal ? { ok: false, error: refusal } : { ok: true }
     },
     report: (plan) => reportCounts(db, plan.organizationId, propertyScope(plan)),
-    exportFiles: async () => [],
+    exportFiles: async (plan) =>
+      plan.scope === 'organization'
+        ? readAiOrganizationExport(db, plan.organizationId, now())
+        : [],
     async apply(plan) {
       if (plan.scope !== 'organization' && plan.scope !== 'property') {
         return { ok: false, error: `no ${CONTEXT} erasure for ${plan.scope}` }
