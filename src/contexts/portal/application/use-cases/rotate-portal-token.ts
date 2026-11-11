@@ -22,7 +22,7 @@ import { publishNewCodeArtifacts } from '../new-code-artifacts'
 import { rotateToken } from '../../domain/portal-token'
 import { portalError } from '../../domain/errors'
 import { portalTokenRotated } from '../../domain/events'
-import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import type { PortalCommandStore } from '../../publication/portal-command-store-port.server'
 import { nextPortalCommandAt } from '../portal-command-version'
 
 const SECONDS_PER_DAY = 24 * 60 * 60

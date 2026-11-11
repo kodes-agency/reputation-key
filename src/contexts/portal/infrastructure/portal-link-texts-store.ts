@@ -10,7 +10,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { portalLinks, portalLinkTexts, portals } from '#/shared/db/schema'
 import { parseGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
 import type { Tx } from '#/shared/outbox/commit'
-import type { PortalLinkTextWrite } from '../application/ports/portal-command-store.port'
+import type { PortalLinkTextWrite } from '../publication/portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 
 export type PortalLinkTextScope = Readonly<{

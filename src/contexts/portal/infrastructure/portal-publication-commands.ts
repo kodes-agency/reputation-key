@@ -22,7 +22,7 @@ import { unbrand } from '#/shared/domain/ids'
 import type {
   PortalCommandStore,
   RepublishPortalCommand,
-} from '../application/ports/portal-command-store.port'
+} from '../publication/portal-command-store-port.server'
 import type {
   PortalPublicationActivation,
   PortalPublicationSnapshot,
