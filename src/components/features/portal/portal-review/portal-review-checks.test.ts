@@ -3,7 +3,7 @@ import type {
   MissingPortalText,
   ReviewCheck,
 } from '#/contexts/portal/application/portal-management-contracts'
-import { phraseText } from '../portal-history/portal-history-phrase'
+import { phraseText } from '#/contexts/portal/workspace/ui/portal-history-phrase'
 import {
   describeFixerLine,
   describeReviewCheck,
