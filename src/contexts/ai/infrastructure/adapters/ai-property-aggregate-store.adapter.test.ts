@@ -27,10 +27,13 @@ describe('mapAnalyzedReview legacy evidence boundary', () => {
     })
   })
 
-  it('does not treat a missing v2 aspect child as valid legacy evidence', () => {
-    expect(() =>
+  it('keeps a stored v2 contribution whose retired aspect rows are no longer read', () => {
+    expect(
       mapAnalyzedReview({ ...V1_ROW, analysisProfileVersion: 'review-analysis-v2' }),
-    ).toThrow(/Property analyzed Review evidence is invalid/)
+    ).toMatchObject({
+      analysisProfileVersion: 'review-analysis-v2',
+      aspects: [],
+    })
   })
 
   it.each([

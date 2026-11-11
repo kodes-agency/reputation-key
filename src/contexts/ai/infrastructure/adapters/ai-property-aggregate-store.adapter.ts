@@ -5,7 +5,6 @@ import {
   aiPropertyAggregateContributions,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
-  aiReviewAnalysisAspects,
   reviews,
 } from '#/shared/db/schema'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
@@ -180,31 +179,7 @@ export const createAiPropertyAggregateStoreAdapter = (
           primaryCategory: analysis.primaryCategory,
           attention: analysis.attention,
         }
-        // A v3 analysis has mentions, not aspects (migration 0078).
         const mentions = analysis.analysisProfileVersion === 'review-analysis-v3'
-        if (analysis.status === 'ready' && !mentions) {
-          const aspects = await tx
-            .select({ aspect: aiReviewAnalysisAspects.aspect })
-            .from(aiReviewAnalysisAspects)
-            .where(
-              and(
-                eq(aiReviewAnalysisAspects.organizationId, input.organizationId),
-                eq(aiReviewAnalysisAspects.propertyId, input.propertyId),
-                eq(aiReviewAnalysisAspects.reviewId, input.reviewId),
-                eq(aiReviewAnalysisAspects.sourceEpoch, input.sourceEpoch),
-                eq(aiReviewAnalysisAspects.sourceRevision, input.sourceRevision),
-                eq(aiReviewAnalysisAspects.analysisSequence, input.analysisSequence),
-              ),
-            )
-            .for('share')
-          if (
-            aspects.length > 5 ||
-            (aspects.length === 0 &&
-              analysis.analysisProfileVersion !== 'review-analysis-v1')
-          ) {
-            throw new Error('Property analysis aspect rows are invalid')
-          }
-        }
         const head = await lockAggregateHead(tx, input)
         if (settlement === 'replayed') {
           return { status: 'replayed', aggregateRevision: head.aggregateRevision }
@@ -321,23 +296,7 @@ export const createAiPropertyAggregateStoreAdapter = (
             latest.sentiment AS sentiment,
             latest.attention AS attention,
             analysis.issue_label AS "issueLabel",
-            COALESCE((
-              SELECT jsonb_agg(
-                jsonb_build_object(
-                  'aspect', contribution_aspect.aspect,
-                  'polarity', contribution_aspect.polarity,
-                  'intensity', contribution_aspect.intensity
-                )
-                ORDER BY contribution_aspect.aspect
-              )
-              FROM ai_review_analysis_aspects AS contribution_aspect
-              WHERE contribution_aspect.organization_id = latest.organization_id
-                AND contribution_aspect.property_id = latest.property_id
-                AND contribution_aspect.review_id = latest.review_id
-                AND contribution_aspect.source_epoch = latest.source_epoch
-                AND contribution_aspect.source_revision = latest.source_revision
-                AND contribution_aspect.analysis_sequence = latest.analysis_sequence
-            ), '[]'::jsonb) AS aspects,
+            '[]'::jsonb AS aspects,
             analysis.analysis_profile_version AS "analysisProfileVersion",
             ${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}::text AS "providerDeploymentProfileVersion",
             ${OPENAI_MODEL_SNAPSHOT}::text AS "modelSnapshot"
