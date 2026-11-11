@@ -436,6 +436,13 @@ describe('the superseded-copy redaction', () => {
 
   it('blanks the content of superseded copies past their clock and nothing else', async () => {
     await seedCopies()
+    // Rows written before observations stopped carrying text still hold it.
+    await getPool().query(
+      `UPDATE review_source_observations
+          SET original_text = 'Legacy copy', translated_text = 'Copie héritée'
+        WHERE review_id = $1`,
+      [REVIEW_A],
+    )
     const before = await rowsOf(REVIEW_A)
 
     const redacted = await retention().redactExpiredSupersededCopies({
@@ -448,7 +455,7 @@ describe('the superseded-copy redaction', () => {
     expect(after.map((row) => [row.sequence, row.state, row.text, row.rating])).toEqual([
       [1, 'source_expired', null, null],
       [2, 'source_expired', null, null],
-      [3, 'active', 'Noisy at night', 2],
+      [3, 'active', 'Legacy copy', 2],
     ])
     // History keeps what its readers use: digests and comparisons.
     expect(after.map((row) => [row.digest, row.comparison])).toEqual(

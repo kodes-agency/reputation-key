@@ -162,12 +162,12 @@ describe.sequential('provider content writes and serving', () => {
     expect(edited.sourceRevision).toBe(ingested.sourceRevision + 1)
     await assertServedText(EDITED)
     expect(await firstFetchHistory()).toEqual(NOW)
-    const history = await pool().query<{ original_text: string }>(
+    const history = await pool().query<{ original_text: string | null }>(
       `SELECT original_text FROM review_source_observations
        WHERE review_id = $1 ORDER BY observation_sequence`,
       [REVIEW],
     )
-    expect(history.rows.map((row) => row.original_text)).toEqual([ORIGINAL, EDITED])
+    expect(history.rows.map((row) => row.original_text)).toEqual([null, null])
   })
 
   it('keeps a provider restatement at the same revision and renews only its source clock', async () => {
