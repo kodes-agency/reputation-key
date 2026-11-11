@@ -145,9 +145,7 @@ export const Default: Story = {
       canvas.getByText(`${needsYouCount} notifications need you`),
     ).toBeInTheDocument()
     // A 36 px control on a phone bar (the top bar's compact density; size-8
-    // elsewhere); geometry is the Playwright metrics gate's, since Tailwind is not
-    // compiled in this runner. This only pins the class; the real check is
-    // `inbox-phone-chrome.metrics.ts` ("notification bell").
+    // elsewhere); Tailwind is not compiled in this runner, so this only pins the class.
     expect(bell).toHaveClass('max-md:min-w-(--control-touch)')
   },
 }
@@ -596,11 +594,8 @@ const tallFeed = TALL_FEED_TYPES.map((type, n) =>
 
 /**
  * The bell where the app puts it, at the right end of the top bar, on a phone,
- * where it opens a full-screen sheet (D8); the metrics file also opens this
- * story on a desktop-sized page, where it is the popover. Geometry is measured
- * against compiled Tailwind by
- * e2e/storybook-metrics/notification-popover.metrics.ts; this runner compiles
- * none, so its play only opens the bell.
+ * where it opens a full-screen sheet (D8). This runner compiles no Tailwind,
+ * so its play only opens the bell.
  */
 export const PhoneTopBar: Story = {
   args: { notificationFns: makeStatefulNotificationFns(tallFeed) },

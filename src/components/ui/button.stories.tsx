@@ -6,7 +6,6 @@
 // here. The plays prove what a screenshot cannot: a pending button is busy and
 // inert and its name does not move, a press on it does nothing, and a
 // `data-density="compact"` container changes the one token the controls read.
-// The pixels are measured by `pnpm test:storybook:metrics`.
 import type { Meta, StoryObj } from '@storybook/react'
 import { Plus } from 'lucide-react'
 import { expect, fn, userEvent, within } from 'storybook/test'
