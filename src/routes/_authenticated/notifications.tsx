@@ -1,8 +1,7 @@
 // /notifications — the full notification history.
 //
-// The bell popover was previously the ENTIRE notification surface: 320px wide,
-// 320px tall, no filters, no way to look further back than the first page.
-// This route is the real one; the popover links here. The filter tabs are links
+// The bell popover is only a glance (no filters, no way back past the first
+// page); this route is the full history and the popover links here. The filter tabs are links
 // to it (`?filter=`), so a filtered view is linkable and survives a refresh.
 
 import { useMemo } from 'react'

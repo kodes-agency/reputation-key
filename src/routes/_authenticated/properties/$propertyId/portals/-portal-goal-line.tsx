@@ -1,4 +1,4 @@
-// A Portal's Results line for the Monthly portal goal (PLAN PG-16): read through
+// A Portal's Results line for the Monthly portal goal: read through
 // the Goals route's Portal-goal queries, only for someone who may set the goal
 // (`goal.create`, with Goals on), only on the Results tab, and never for a
 // draft Portal, which has no line. While it is read the tab keeps its loading
