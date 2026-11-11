@@ -10,7 +10,16 @@ import {
   guestResponsePrivateFeedback,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
-import type { Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+import {
+  feedbackId,
+  organizationId,
+  portalId,
+  propertyId,
+  ratingId,
+} from '#/shared/domain/ids'
+import { guestFeedbackRetracted, guestRatingRetracted } from '../../domain/events'
 
 function journaledIds(entry: BackupErasureLedgerEntry, kind: string): string[] {
   if (
@@ -23,6 +32,70 @@ function journaledIds(entry: BackupErasureLedgerEntry, kind: string): string[] {
   return [...entry.journalTargets.ids]
 }
 
+type ResponseRow = typeof guestResponses.$inferSelect
+
+function attributionOf(row: ResponseRow): PrimaryStaffAttributionSnapshot | null {
+  return row.attributedStaffParticipantId &&
+    row.attributedStaffParticipationId &&
+    row.attributionResponsibilityId &&
+    row.staffAttributionEffectiveFrom
+    ? {
+        staffParticipantId: row.attributedStaffParticipantId,
+        staffParticipationId: row.attributedStaffParticipationId,
+        portalResponsibilityId: row.attributionResponsibilityId,
+        effectiveFrom: row.staffAttributionEffectiveFrom,
+        effectiveTo: row.staffAttributionEffectiveTo,
+      }
+    : null
+}
+
+/**
+ * Publish the retractions the original erasure published. A restore brings
+ * back the Inbox and Reporting readings built from the response, and their
+ * consumers scrub them only when they receive these facts again.
+ */
+async function publishRetractions(
+  tx: Tx,
+  rows: ReadonlyArray<ResponseRow>,
+  include: Readonly<{ rating: boolean }>,
+  occurredAt: Date,
+): Promise<number> {
+  let published = 0
+  for (const row of rows) {
+    const scope = {
+      organizationId: organizationId(row.organizationId),
+      portalId: portalId(row.portalId),
+      propertyId: propertyId(row.propertyId),
+      occurredAt,
+      staffAttribution: attributionOf(row),
+    }
+    if (include.rating && row.ratingSourceEventId) {
+      await insertOutboxRow(
+        tx,
+        guestRatingRetracted({
+          ...scope,
+          ratingId: ratingId(row.id),
+          supersedesSourceEventId: row.ratingSourceEventId,
+        }),
+      )
+      published += 1
+    }
+    if (row.feedbackSourceEventId) {
+      await insertOutboxRow(
+        tx,
+        guestFeedbackRetracted({
+          ...scope,
+          feedbackId: feedbackId(row.id),
+          supersedesSourceEventId: row.feedbackSourceEventId,
+          responseRevision: row.feedbackSubmissionRevision ?? undefined,
+        }),
+      )
+      published += 1
+    }
+  }
+  return published
+}
+
 /**
  * Re-erase the whole responses named by the entry, inside the entry's
  * Organization only. Convergent: a response already deleted is not counted.
@@ -33,6 +106,16 @@ export const createGuestResponseErasureReplayer = (): BackupErasureReplayer => (
   targetKind: 'guest_response',
   reErase: async (tx: Tx, entry: BackupErasureLedgerEntry): Promise<number> => {
     const ids = journaledIds(entry, 'guest_response')
+    const live = await tx
+      .select()
+      .from(guestResponses)
+      .where(
+        and(
+          eq(guestResponses.organizationId, entry.organizationId),
+          inArray(guestResponses.id, ids),
+          isNull(guestResponses.deletedAt),
+        ),
+      )
     const erased = await tx
       .update(guestResponses)
       .set({
@@ -74,6 +157,7 @@ export const createGuestResponseErasureReplayer = (): BackupErasureReplayer => (
         ),
       )
       .returning({ id: guestContactRequests.id })
+    await publishRetractions(tx, live, { rating: true }, entry.effectiveErasureAt)
     return erased.length + feedback.length + contact.length
   },
 })
@@ -85,6 +169,17 @@ export const createGuestFeedbackErasureReplayer = (): BackupErasureReplayer => (
   targetKind: 'guest_feedback',
   reErase: async (tx: Tx, entry: BackupErasureLedgerEntry): Promise<number> => {
     const ids = journaledIds(entry, 'guest_feedback')
+    const pending = await tx
+      .select()
+      .from(guestResponses)
+      .where(
+        and(
+          eq(guestResponses.organizationId, entry.organizationId),
+          inArray(guestResponses.id, ids),
+          sql`${guestResponses.feedbackSourceEventId} is not null`,
+          isNull(guestResponses.feedbackWithdrawnAt),
+        ),
+      )
     const feedback = await tx
       .delete(guestResponsePrivateFeedback)
       .where(
@@ -110,6 +205,7 @@ export const createGuestFeedbackErasureReplayer = (): BackupErasureReplayer => (
         ),
       )
       .returning({ id: guestResponses.id })
+    await publishRetractions(tx, pending, { rating: false }, entry.effectiveErasureAt)
     return feedback.length + flagged.length
   },
 })
