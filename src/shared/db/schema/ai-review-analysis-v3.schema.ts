@@ -1,7 +1,6 @@
 // Review Analysis v3 storage (migration 0078): what an analysis says about a
 // review as twelve topics with a cause and the sentences that state it, the
-// same mentions again under the Property's aggregate contribution, and the
-// daily count of every review by stars. Nothing here holds a quote, a sentence,
+// same mentions again under the Property's aggregate contribution. Nothing here holds a quote, a sentence,
 // a name or a provider response (ADR 0031); a sentence is only a number the live
 // display resolves against the original text, read through Review.
 //
@@ -10,14 +9,13 @@
 // Every row is a derivative that expires with its analysis (24 months, ADR
 // 0031): the two mention tables and the sentence table cascade from
 // `ai_review_analyses` and `ai_property_aggregate_contributions`, which the
-// retention sweep deletes on `expires_at`; the daily counts have their own rule.
+// retention sweep deletes on `expires_at`.
 
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
   bigint,
   check,
-  date,
   foreignKey,
   index,
   integer,
@@ -39,12 +37,7 @@ import {
 import { REVIEW_TOPICS_V3 } from '../../review-topic-taxonomy'
 import { aiPropertyAggregateContributions, aiReviewAnalyses } from './ai.schema'
 import { aiPropertyIssueGroups } from './ai-property-issue-groups.schema'
-import {
-  propertyTenantForeignKey,
-  sqlPatternLiteral,
-  sqlStringList,
-  timestamptz,
-} from './ai-schema-helpers'
+import { sqlPatternLiteral, sqlStringList } from './ai-schema-helpers'
 
 const SAFE_INTEGER_MAX = sql.raw("'9007199254740991'::bigint")
 const CAUSE_PATTERN = sqlPatternLiteral(REVIEW_CAUSE_PHRASE_PATTERN.source)
@@ -238,60 +231,5 @@ export const aiPropertyAggregateContributionMentions = pgTable(
       .on(t.organizationId, t.propertyId, t.issueGroupId)
       .where(sql`${t.issueGroupId} IS NOT NULL`),
     ...mentionRules(t, 'ai_property_aggregate_contribution_mentions'),
-  ],
-)
-
-/**
- * How many reviews a Property received on a local day, by stars: the
- * denominator of Guest voice's "worth up to about 0.2 stars", star-only
- * reviews included. A count has no review identity, quote or name. It is kept
- * 24 UTC calendar months from the day it counts (`local_date`), never from its
- * last update.
- */
-export const aiPropertyReviewPopulationDaily = pgTable(
-  'ai_property_review_population_daily',
-  {
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    localDate: date('local_date', { mode: 'string' }).notNull(),
-    sourceEpoch: integer('source_epoch').notNull(),
-    propertyProfileVersion: integer('property_profile_version').notNull(),
-    calendarProfileVersion: varchar('calendar_profile_version', {
-      length: 100,
-    }).notNull(),
-    reviewCount: integer('review_count').notNull(),
-    textReviewCount: integer('text_review_count').notNull(),
-    rating1Count: integer('rating_1_count').notNull(),
-    rating2Count: integer('rating_2_count').notNull(),
-    rating3Count: integer('rating_3_count').notNull(),
-    rating4Count: integer('rating_4_count').notNull(),
-    rating5Count: integer('rating_5_count').notNull(),
-    populationRevision: bigint('population_revision', { mode: 'number' }).notNull(),
-    updatedAt: timestamptz('updated_at').notNull(),
-  },
-  (t) => [
-    primaryKey({
-      columns: [
-        t.organizationId,
-        t.propertyId,
-        t.sourceEpoch,
-        t.propertyProfileVersion,
-        t.localDate,
-      ],
-      name: 'ai_property_review_population_daily_pk',
-    }),
-    propertyTenantForeignKey(t, 'ai_property_review_population_daily_tenant_fk'),
-    check(
-      'ai_property_review_population_daily_versions_valid',
-      sql`${t.sourceEpoch} >= 0 AND ${t.propertyProfileVersion} >= 1 AND char_length(${t.calendarProfileVersion}) BETWEEN 1 AND 100 AND ${t.populationRevision} BETWEEN 1 AND ${SAFE_INTEGER_MAX}`,
-    ),
-    check(
-      'ai_property_review_population_daily_counts_valid',
-      sql`${t.reviewCount} >= 0 AND ${t.textReviewCount} >= 0 AND ${t.textReviewCount} <= ${t.reviewCount}
-        AND ${t.rating1Count} >= 0 AND ${t.rating2Count} >= 0 AND ${t.rating3Count} >= 0 AND ${t.rating4Count} >= 0 AND ${t.rating5Count} >= 0
-        AND ${t.rating1Count} + ${t.rating2Count} + ${t.rating3Count} + ${t.rating4Count} + ${t.rating5Count} = ${t.reviewCount}`,
-    ),
-    // The retention sweep's batches read the oldest days first.
-    index('ai_property_review_population_daily_retention_idx').on(t.localDate),
   ],
 )

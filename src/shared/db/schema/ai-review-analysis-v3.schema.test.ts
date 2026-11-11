@@ -32,7 +32,6 @@ import {
 } from './ai.schema'
 import {
   aiPropertyAggregateContributionMentions,
-  aiPropertyReviewPopulationDaily,
   aiReviewAnalysisMentionSentences,
   aiReviewAnalysisMentions,
 } from './ai-review-analysis-v3.schema'
@@ -77,11 +76,13 @@ function modelChecks(table: PgTable): ReadonlyMap<string, string> {
   )
 }
 
+/** Created by migration 0078 and dropped again by a later one, so the model no longer declares it. */
+const DROPPED_TABLES = ['ai_property_review_population_daily'] as const
+
 const NEW_TABLES = [
   aiReviewAnalysisMentions,
   aiReviewAnalysisMentionSentences,
   aiPropertyAggregateContributionMentions,
-  aiPropertyReviewPopulationDaily,
 ] as const
 
 const CHANGED_TABLES = [
@@ -99,7 +100,9 @@ describe('migration 0078 Review Analysis v3 storage', () => {
       (match) => match[1],
     )
 
-    expect(created.sort()).toEqual(NEW_TABLES.map(getTableName).sort())
+    expect(created.sort()).toEqual(
+      [...NEW_TABLES.map(getTableName), ...DROPPED_TABLES].sort(),
+    )
   })
 
   it('declares every constraint and index the model has, by the model name', () => {
@@ -112,7 +115,7 @@ describe('migration 0078 Review Analysis v3 storage', () => {
       ]
       const v3Names = modelNames.filter(
         (name) =>
-          /^(ai_review_analysis_mention|ai_property_aggregate_contribution_mentions|ai_property_review_population_daily|ai_operations_(provider|vocabulary|normalization|v3)|properties_google_primary)/u.test(
+          /^(ai_review_analysis_mention|ai_property_aggregate_contribution_mentions|ai_operations_(provider|vocabulary|normalization|v3)|properties_google_primary)/u.test(
             name,
           ) && !name.includes('issue_group'),
       )
