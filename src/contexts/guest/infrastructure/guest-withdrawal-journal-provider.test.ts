@@ -31,10 +31,16 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-it('ships with guest journaling inactive and does not construct a bucket writer', () => {
-  const put = vi.spyOn(ErasureJournalBucket.prototype, 'put')
-  expect(createGuestWithdrawalJournal(deps())).toBeUndefined()
-  expect(put).not.toHaveBeenCalled()
+it('ships with guest journaling active and writes through the bucket adapter', async () => {
+  const put = vi.spyOn(ErasureJournalBucket.prototype, 'put').mockResolvedValue()
+  const journal = createGuestWithdrawalJournal(deps())
+  expect(journal).toBeDefined()
+  await journal!.put('private/erasure-journal/default', 'IDs-only evidence')
+  expect(put).toHaveBeenCalledWith('private/erasure-journal/default', 'IDs-only evidence')
+})
+
+it('builds no journal when explicitly switched off', () => {
+  expect(createGuestWithdrawalJournal(deps(), false)).toBeUndefined()
 })
 
 it('uses the existing journal bucket adapter when activated', async () => {
