@@ -19,12 +19,6 @@ const executors = composeRightsExecutors(
   false,
 )
 
-/** Tables a cascade removes that the schema barrel does not export (retired; dropped by the schema contraction). */
-const CASCADE_ONLY_TABLES: ReadonlySet<string> = new Set([
-  'ai_review_analysis_aspects',
-  'ai_property_aggregate_contribution_aspects',
-])
-
 /** Tables an erasure keeps on purpose, with the reason. */
 const RETAINED: Readonly<Record<string, string>> = {
   organization_lifecycle_events: 'lifecycle evidence',
@@ -117,7 +111,7 @@ describe('rights coverage', () => {
     const unknown = executors.flatMap((executor) =>
       Object.values(executor.tables)
         .flat()
-        .filter((table) => !known.has(table) && !CASCADE_ONLY_TABLES.has(table))
+        .filter((table) => !known.has(table))
         .map((table) => `${executor.name}: ${table}`),
     )
 
