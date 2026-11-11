@@ -16,7 +16,6 @@ import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { ifNoneMatchMatches, parseIdentityAssetKey } from '../application/identity-assets'
-import type { IdentityAssetReferencesPort } from '../application/ports/identity-asset-references.port'
 import {
   ALLOWED_IMAGE_CONTENT_TYPES,
   MAX_UPLOAD_BYTES,
@@ -34,7 +33,7 @@ const ISOLATION = {
 
 export type IdentityAssetServeDeps = Readonly<{
   storage: Pick<StoragePort, 'getObject'>
-  references: Pick<IdentityAssetReferencesPort, 'isReferenced'>
+  references: Readonly<{ isReferenced: (key: string) => Promise<boolean> }>
   logger: Pick<LoggerPort, 'error'>
 }>
 
