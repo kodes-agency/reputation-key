@@ -328,29 +328,6 @@ export const createAiOutputStoreAdapter = (
   >,
 ): AiOutputStorePort => {
   return {
-    async storeAnalysis(input) {
-      const result = input.result
-      if (result.status === 'ready') return false
-      return db.transaction(async (tx) => {
-        const verified = await verifyAnalysisWrite(tx, input, () => [
-          input.analysisProfileVersion === 'review-analysis-v2',
-        ])
-        if (!verified) return false
-
-        const inserted = await insertAnalysisRoot(tx, input, {
-          status: 'unavailable',
-          unavailableReason: result.reason,
-          sentiment: null,
-          primaryCategory: null,
-          issueLabel: null,
-          attention: null,
-          urgentReason: null,
-        })
-        if (!inserted) return false
-        await completeAnalysisOperation(tx, input, verified, {})
-        return true
-      })
-    },
     async storeAnalysisV3(input) {
       return db.transaction(async (tx) => {
         const verified = await verifyAnalysisWrite(tx, input, (operation) => [
