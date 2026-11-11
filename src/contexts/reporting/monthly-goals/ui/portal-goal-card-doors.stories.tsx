@@ -1,4 +1,4 @@
-// Every door from the Monthly portal goal card to its set sheet (PLAN PG-10):
+// Every door from the Monthly portal goal card to its set sheet:
 // "Change" on the ready card, "Set a private ratings number" with scans first,
 // "Set my own number" in the first weeks and while the recommendation cannot
 // be read, and "Set a number anyway" when nothing came in. Each opens the sheet
@@ -122,7 +122,7 @@ export const ReadyChangeOnANarrowPhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
-/** Scans first (P-2): the door is to private ratings, which have no number yet. */
+/** Scans first: the door is to private ratings, which have no number yet. */
 export const ScansOnlyPrivateRatings: Story = {
   args: { card: CARD_SCANS_ONLY },
   play: async ({ canvasElement }) => {

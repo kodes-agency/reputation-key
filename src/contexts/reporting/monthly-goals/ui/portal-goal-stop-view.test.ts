@@ -83,7 +83,7 @@ describe('stopWords', () => {
     })
   })
 
-  it('a goal for one portal, a group or the average asks to stop this portal goal (PG-21)', () => {
+  it('a goal for one portal, a group or the average asks to stop this portal goal', () => {
     expect(stopWords(goalOf(CARD_RUNNING), 'single')).toMatchObject({
       title: 'Stop this portal goal?',
       description:

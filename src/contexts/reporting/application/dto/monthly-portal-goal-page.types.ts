@@ -47,7 +47,7 @@ export type PortalGoalPageMonth = Readonly<{
   correction: PortalGoalMonthCorrection | null
 }>
 
-/** What the tiles say beside the month the goal is counting (P-4). */
+/** What the tiles say beside the month the goal is counting. */
 export type PortalGoalPageTiles = Readonly<{
   /** The month before this one: its result, or that it had no goal. */
   lastMonth: PortalGoalPageMonth | Readonly<{ key: string; outcome: 'no_goal' }>
@@ -58,7 +58,7 @@ export type PortalGoalPageTiles = Readonly<{
   usual: Readonly<{ about: number; weeks: 2 | 3 | 4 }> | null
 }>
 
-/** One published Portal's count this month, on the page (name order, P-1). */
+/** One published Portal's count this month, on the page (name order). */
 export type PortalGoalPagePortal = Readonly<{
   kind?: 'personal'
   portalId: string
@@ -81,7 +81,7 @@ export type PortalGoalPageRows = Readonly<{
   truncated: boolean
 }>
 
-/** An established Portal that has gone quiet (P-7): no scans since a day. */
+/** An established Portal that has gone quiet: no scans since a day. */
 export type PortalGoalQuietFact = Readonly<{
   /** The local day of its last scan. */
   noScansSince: string
@@ -98,7 +98,7 @@ type ChangeMade = Readonly<{
 }>
 
 /**
- * One dated fact about the goal, newest first (P-10…P-12): its number set from
+ * One dated fact about the goal, newest first: its number set from
  * a month, one month's own number set, the goal stopped, or Portals going live.
  */
 export type PortalGoalChange =

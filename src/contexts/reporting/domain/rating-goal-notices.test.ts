@@ -382,7 +382,7 @@ describe('entered New reviews too low', () => {
   })
 })
 
-describe('a fresh start after a pace change (Q3)', () => {
+describe('a fresh start after a pace change', () => {
   // The goal is 40 days old; a manager changed its pace 5 or 20 days ago.
   const changed = (days: number) => ({ paceSince: daysAgo(days) })
 

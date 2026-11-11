@@ -7,7 +7,7 @@ import {
 } from './portal-goal-sheet-view'
 import { SHEET_READY as READY } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
 
-// The set sheet's number box (copy deck S-11): what a typed text reads as, the
+// The set sheet's number box: what a typed text reads as, the
 // − and + along the goal grid, and what Enter or leaving the box writes. On
 // Seaview's Oct 23, 40 recommended for November.
 const ratings = { measure: 'portal_rating_count' } as const

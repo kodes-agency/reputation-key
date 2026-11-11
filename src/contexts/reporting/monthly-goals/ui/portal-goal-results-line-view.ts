@@ -26,7 +26,7 @@ export function resultsLineWords(
     const { value, target, measure } = ownGoal
     const left = value >= target ? 'Goal passed' : `${formatNumber(target - value)} to go`
     return {
-      // R-2: the unit follows the month's number, as the card's figure does.
+      // the unit follows the month's number, as the card's figure does.
       text: `${month} goal: ${formatNumber(value)} of ${formatNumber(target)} ${portalGoalUnit(measure, target)} · ${left}`,
       goal: { kind: 'own', programId: ownGoal.programId },
       open: OPEN_GOAL,
@@ -35,7 +35,6 @@ export function resultsLineWords(
   if (monthlyGoal === null) return null
   const { count, measure } = monthlyGoal
   return {
-    // R-1
     text: `${month} · ${portalName}’s ${portalGoalCount(measure, count)} ${count === 1 ? 'counts' : 'count'} toward the monthly portal goal.`,
     goal: { kind: 'monthly' },
     open: OPEN_GOAL,

@@ -25,7 +25,7 @@ type Props = Readonly<{
   openSheet?: (intent: PortalGoalSheetIntent) => void
 }>
 
-/** O-1: one line, one door to the card and "Not now". */
+/** One line, one door to the card and "Not now". */
 function Prompt({
   text,
   month,
@@ -90,7 +90,7 @@ export function PortalGoalOverview({
         />
       )
     case 'card':
-      // O-2: the card the Goals page draws, in this slot; O-3…O-6: with the
+      // the card the Goals page draws, in this slot, with the
       // check-in above it while one asks.
       return (
         <PortalGoalCardGoal

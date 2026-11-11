@@ -1,5 +1,5 @@
-// The other Portal goals as compact rows under the Monthly portal goal's card
-// (PLAN PG-21): each named for whom it counts and what, linked to its own
+// The other Portal goals as compact rows under the Monthly portal goal's card:
+// each named for whom it counts and what, linked to its own
 // page, with this month so far while it runs, and for a count with one subject
 // whose pace the rule judged the shared pace pill ("On pace", "Below pace").
 // The Goals page lists the first

@@ -497,7 +497,7 @@ export function recommendPortalGoal(
 }
 
 /**
- * PG-20: the same rule for one Portal, or one Portal Group, on its own. Its
+ * The same rule for one Portal, or one Portal Group, on its own. Its
  * rate is its joined members' rates summed (a Portal is its own one member),
  * and this month's choices stand on its own month so far. A measure the caller
  * found a quarantine-worthy reading in is unreadable; with no joined member,
@@ -519,7 +519,7 @@ export function subjectRecommendation(
 }
 
 /**
- * PG-21: the Property's recommendation narrowed to one Portal or one Portal
+ * The Property's recommendation narrowed to one Portal or one Portal
  * Group, for a goal of its own: its members (the Portal, or the group's Portals
  * now), the rule on its joined members' rates (`subjectRecommendation`), its own
  * month so far and the basis those members stand on, and, while none of them

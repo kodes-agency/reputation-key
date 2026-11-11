@@ -39,10 +39,10 @@ export type PortalGoalAverageChangeSheetProps = Readonly<{
   onOpenChange: (open: boolean) => void
   /** Saved: the page has been read again, and the sheet is done. */
   onSettled: () => void
-  /** F-1, F-2, F-4: the page reads the goal again and opens the sheet afresh. */
+  /** The page reads the goal again and opens the sheet afresh. */
   onBehind: (error: unknown) => void
   propertyId: string
-  /** The goal as the sheet opened on it (or read again after F-1). */
+  /** The goal as the sheet opened on it (or read again after a stale-goal refusal). */
   goal: PortalGoalAverageOfPage
   change: PortalGoalChangeFacts
   commands: PortalGoalAverageChangeCommands

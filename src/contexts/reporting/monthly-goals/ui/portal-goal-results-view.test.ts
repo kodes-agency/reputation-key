@@ -105,7 +105,7 @@ describe('whether the page has anything to show', () => {
 describe('the page title', () => {
   it('is the one its route names it by, for the tab and the fallbacks', () => {
     // The route spells its own: importing it here would put this module's
-    // dependencies on the route row, in first paint (PLAN §3.3).
+    // dependencies on the route row, in first paint.
     const route = readFileSync(
       join(
         process.cwd(),

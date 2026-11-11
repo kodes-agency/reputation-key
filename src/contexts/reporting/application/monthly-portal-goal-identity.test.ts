@@ -216,7 +216,7 @@ describe('isPropertyCountGoal', () => {
   })
 })
 
-describe('portalGoalPageOf (PG-21)', () => {
+describe('portalGoalPageOf', () => {
   it('a Property count goal is the Monthly portal goal: its page is /goals/portals', () => {
     expect(portalGoalPageOf(goal({ id: 'ratings' }))).toEqual({ kind: 'monthly' })
     expect(portalGoalPageOf(stoppedOnNov12('stopped'))).toEqual({ kind: 'monthly' })

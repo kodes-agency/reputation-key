@@ -1,19 +1,18 @@
-// Property Google rating goal — the notice-volume check of the pace anchor
-// (round 5 D-3, owner answer Q3; the round 4 X3 (d) pattern).
+// Property Google rating goal — the notice-volume check of the pace anchor.
 //
-// The 24 representative goals of the blend's check (the four golden Properties,
+// The 24 representative goals of the blend's check (four representative Properties,
 // new reviews as planned, 0.3★ below plan or too low for the target, at the
 // chosen pace or half of it) each get a pace change at week 6 (doubled, halved,
 // or none) and run through 26 weeks of the daily evaluation on the same seeded
 // review stream, under two rules:
 //   - old: the pace judged from the set, and a change of plan forgets the
-//     known status (the code before D-3);
+//     known status (the earlier code);
 //   - new: the pace judged from its change, getting started again for 14 days,
 //     the known status kept through that fresh start.
 // The check pins the below-pace notices of each rule, and which goals get more
 // under the new one (at most one more each):
 //   - a goal on pace when its pace was raised: the old rule forgot the known
-//     status, so the raised pace's Below pace was stored silently; Q3 tells it
+//     status, so the raised pace's Below pace was stored silently; the new rule tells it
 //     once, on leaving the fresh start (four goals);
 //   - one goal eased to about the pace it really has: judged on the days since
 //     the change (14 to 28 of them) instead of 28, it crosses 90% once more,

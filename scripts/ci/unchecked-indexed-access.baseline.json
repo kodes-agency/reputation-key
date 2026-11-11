@@ -78,7 +78,6 @@
   "src/contexts/property/application/use-cases/update-property.test.ts": 1,
   "src/contexts/property/infrastructure/repositories/property.repository.test.ts": 2,
   "src/contexts/reporting/infrastructure/repositories/dashboard.repository.test.ts": 13,
-  "src/contexts/reporting/portal-results/ui/portal-lifetime-reconciliation-presentation.ts": 2,
   "src/contexts/reputation/inbox/ui/inbox-thread-model-fold.test.ts": 5,
   "src/contexts/reputation/inbox/ui/inbox-thread-model.test.ts": 2,
   "src/contexts/reputation/inbox/ui/inbox-thread-model.ts": 1,

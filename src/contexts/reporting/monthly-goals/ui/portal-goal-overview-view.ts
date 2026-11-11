@@ -15,7 +15,7 @@ export type OverviewPortalGoalView =
   | Readonly<{ kind: 'nothing' }>
   | Readonly<{
       kind: 'prompt'
-      /** O-1 */
+      /** The line offering the number. */
       text: string
       /** `YYYY-MM`: the month "Not now" is for. */
       month: string
@@ -26,7 +26,7 @@ export type OverviewPortalGoalView =
       month: PortalGoalRunningMonth
       /** The Property's local day today. */
       today: string
-      /** O-3…O-6: the check-in that asks, drawn as the strip above the card; null when none does. */
+      /** The check-in that asks, drawn as the strip above the card; null when none does. */
       checkIn: Extract<PortalGoalCheckIn, { kind: 'offer' | 'nothing' }> | null
     }>
 
@@ -76,7 +76,7 @@ export function overviewPortalGoalView({
   }
 }
 
-/** O-1: "Your monthly portal goal for November is ready: 40 private ratings." */
+/** "Your monthly portal goal for November is ready: 40 private ratings." */
 export const overviewPromptWords = (
   prompt: PortalGoalPrompt,
   measure: PortalGoalMeasure,

@@ -133,7 +133,7 @@ describe('a pace the manager types', () => {
   })
 })
 
-describe('the Monday check-in’s Raise and Ease (E27)', () => {
+describe('the Monday check-in’s Raise and Ease', () => {
   it('step over 1 a week, 3 a week, then 1, 2, 3, 5 … 50 a day', () => {
     const steps = (pace: number) => [raisedPace(pace), easedPace(pace)]
 

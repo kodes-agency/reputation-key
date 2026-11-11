@@ -1,4 +1,4 @@
-// A new pace starts its own window (round 5 D-3, owner answer Q3), through the
+// A new pace starts its own window (the pace window), through the
 // use cases: a manager changes the pace of a running goal, and the card reads
 // that evaluate it afterwards decide its status and its notices.
 //
@@ -82,7 +82,7 @@ beforeEach(() => {
   world = exampleWorld()
 })
 
-describe('a pace change on a running goal (Q3)', () => {
+describe('a pace change on a running goal', () => {
   it('starts the goal afresh instead of reading a raised pace below at once', async () => {
     goalKnowing('on_pace')
 

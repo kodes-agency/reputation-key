@@ -27,7 +27,7 @@ type Props = Readonly<{
   /** A manager chose "Not now" (the setup checklist); undefined until it is read. */
   notNowChosen: boolean | undefined
   onStart: (intent: RatingGoalWizardIntent) => void
-  /** The Monday check-in's commands, from the page (E30). */
+  /** The Monday check-in's commands, from the page. */
   recap?: RatingGoalRecapCommands
 }>
 

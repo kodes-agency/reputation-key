@@ -1,5 +1,5 @@
-// The page of a goal for one Portal, one Portal Group or the average (PLAN
-// PG-21), on the mock's day, Nov 22: Reception's own goal of 22 private
+// The page of a goal for one Portal, one Portal Group or the average, on the
+// mock's day, Nov 22: Reception's own goal of 22 private
 // ratings a month, set by Elena on Oct 23 for November, 13 so far (and the same
 // with Reception holding a scans goal from December); the Rooms group's 35;
 // the Property's average private rating, 4.5, at 4.6 from 12 ratings or with 6

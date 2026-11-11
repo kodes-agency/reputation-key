@@ -1,4 +1,4 @@
-// The Monthly portal goal's page (PLAN PG-13; ADR 0068 amended 2026-11-01): Seaview
+// The Monthly portal goal's page (ADR 0068): Seaview
 // Hotel's goal on Nov 22, the mock's day. Where the goal stands comes first (what is
 // left, the days left and what a day takes, the ruler with a steady month's stop on
 // it); then three questions in bands: where they are coming from (each Portal's
@@ -13,8 +13,8 @@
 // theme. The Storybook Vitest project compiles no Tailwind, so the plays assert
 // words, roles, the heading outline and the calls. The sheet those doors open, as
 // the page hosts it, is in the route's `-portal-goal-sheet-host.stories.tsx`. Its
-// actions (PLAN PG-14) are in `portal-goal-page-actions.stories.tsx`, and the other
-// goals' pages (PLAN PG-21: one Portal, one group, the average) in
+// actions are in `portal-goal-page-actions.stories.tsx`, and the other
+// goals' pages (one Portal, one group, the average) in
 // `portal-goal-single-page.stories.tsx`. "More portal goals" has its way to add one,
 // as the route hands it in when the add sheet offers something; with nothing to add
 // and no other goal there is no such block.
@@ -233,7 +233,7 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
   // No month has closed yet, so no results to see; behind, so never "on pace".
   await expect(canvas.queryByRole('link', { name: 'All monthly results' })).toBeNull()
   await expect(canvas.queryByText(/on pace/u)).toBeNull()
-  // The other Portal goals, one click deeper (P-5).
+  // The other Portal goals, one click deeper.
   await expect(
     canvas.getByText(
       'Want a number for one portal as well? Most properties don’t need one.',

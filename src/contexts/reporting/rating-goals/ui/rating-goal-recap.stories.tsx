@@ -1,5 +1,5 @@
-// The Monday check-in above the Google rating goal's card (round 5, PLAN-D D-3,
-// owner answer Q4, mock D4) in every state it can be in: due on the Monday and
+// The Monday check-in above the Google rating goal's card in every state it can
+// be in: due on the Monday and
 // still on the Wednesday, last week's average from ten reviews, no reviews, a
 // pace changed during last week (the count alone), either end of the ladder, a
 // refusal, and the cards that carry none (answered, too low, a viewer who

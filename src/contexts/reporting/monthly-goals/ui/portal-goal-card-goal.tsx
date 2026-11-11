@@ -58,7 +58,7 @@ type Props = Readonly<{
 }>
 
 /**
- * G-29: a stopped goal still counts to the end of its month (when one is
+ * A stopped goal still counts to the end of its month (when one is
  * counting now), and the next goal can be set from the month after it. A line
  * under the card's headline; on the goal's page a notice, the first thing it says.
  */
@@ -105,7 +105,7 @@ export function PortalGoalStopped({
   )
 }
 
-/** G-20: the month and its number, with the day it starts and "Change" while scheduled. */
+/** The month and its number, with the day it starts and "Change" while scheduled. */
 function GoalLines({
   goal,
   today,
@@ -173,7 +173,7 @@ function MonthColumns({ goal, month, propertyId, openSheet, sameNumber }: Runnin
 }
 
 /**
- * G-25: a month whose figure cannot be read has no ruler to draw beside anything, so it takes the shape of a goal with no month running: one column
+ * A month whose figure cannot be read has no ruler to draw beside anything, so it takes the shape of a goal with no month running: one column
  * of lines, then "View details" under them.
  */
 function UnreadableMonth({
@@ -193,7 +193,7 @@ function UnreadableMonth({
   )
 }
 
-/** G-30 and G-31: the month before, under whichever body the card draws. */
+/** The month before, under whichever body the card draws. */
 function MonthBefore({ goal }: Readonly<{ goal: PortalGoalOfCard }>) {
   const last = goal.lastMonth === null ? null : lastMonthWords(goal.lastMonth)
   if (last === null) return null

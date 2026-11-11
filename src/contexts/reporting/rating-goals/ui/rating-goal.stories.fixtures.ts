@@ -131,7 +131,7 @@ export const CARD_JUST_SET: RatingGoalCardView = {
   stillNeeded: 454,
 }
 
-/** A goal to keep, which is set from a shown 4.7 (X1; R2-9 said 4.9). */
+/** A goal to keep, which is set from a shown 4.7. */
 export const CARD_KEEP: RatingGoalCardView = {
   ...CARD,
   mode: 'keep',

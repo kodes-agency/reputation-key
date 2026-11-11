@@ -24,7 +24,7 @@ const card = (
   recap: recap === null ? null : { ...RECAP, ...recap },
 })
 
-describe('what the Monday check-in says (Q4, PLAN-D §5.5)', () => {
+describe('what the Monday check-in says', () => {
   it('compares last week with the plan, more, fewer or as planned', () => {
     expect(recapWords(card({}))?.headline).toBe(
       '8 new Google reviews, 1 more than planned.',
@@ -88,7 +88,7 @@ describe('what the Monday check-in says (Q4, PLAN-D §5.5)', () => {
 })
 
 describe('what the check-in says once it is answered', () => {
-  it('confirms a kept pace, and a new one starting afresh (Q3)', () => {
+  it('confirms a kept pace, and a new one starting afresh', () => {
     expect(recapToasts.kept(70)).toBe('Kept 1 a day for this week.')
     expect(recapToasts.changed(140)).toBe(
       'Pace changed to 2 a day. Getting started again for 2 weeks.',

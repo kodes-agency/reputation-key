@@ -1,4 +1,4 @@
-// The Google rating goal detail's low reviews (round 5, PLAN-D D-2b, mock D3)
+// The Google rating goal detail's low reviews
 // as the server function hands them to the page: Harborline Suites twenty
 // days in (300 reviews at 4.02, 27 since the set, goal 4.1 at
 // 4.5★), with each review's setback worked out by the domain's own rule

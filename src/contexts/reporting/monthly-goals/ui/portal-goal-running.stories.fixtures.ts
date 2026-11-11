@@ -1,6 +1,6 @@
 // The running Monthly portal goal's story fixtures: Seaview Hotel's goal of 40
-// private ratings a month, set on Oct 23 for November (PLAN goldens G10, G11
-// and G18). Nov 22 is the mock's day: 23 of 40, 9 days left, below pace, and a
+// private ratings a month, set on Oct 23 for November. Nov 22 is the mock's
+// day: 23 of 40, 9 days left, below pace, and a
 // steady month would be at 29 on the ruler. Every
 // shape is the read's own type, from Reporting's application layer; nothing
 // here is worked out, only stated.
@@ -35,7 +35,7 @@ const NOVEMBER_22: PortalGoalRunningMonth = {
 
 /**
  * Spa has the most and Reception the fewest, and the rows are still in name
- * order: never sorted by count (P-1).
+ * order: never sorted by count.
  */
 const ROWS: PortalGoalRows = {
   kind: 'rows',
@@ -125,7 +125,7 @@ export const CARD_ON_PACE = goalCard(
 )
 
 /**
- * P-6, Nov 29: a goal of 4 expects fewer than 5 by today, so the rule judges
+ * Nov 29: a goal of 4 expects fewer than 5 by today, so the rule judges
  * nothing: no pill, though the ruler still marks where a steady month stands.
  */
 export const CARD_NOT_JUDGED = goalCard(

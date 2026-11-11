@@ -1,5 +1,5 @@
 // "Not now" on the Overview's Monthly portal goal prompt, on PostgreSQL (ADR
-// 0068, PLAN PG-16): one row per Property, moved only on. The rows are
+// 0068): one row per Property, moved only on. The rows are
 // committed, so each test has a Property of its own in an Organization of its
 // own.
 import { randomUUID } from 'node:crypto'

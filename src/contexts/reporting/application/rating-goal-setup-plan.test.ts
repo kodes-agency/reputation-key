@@ -346,7 +346,7 @@ describe('the edges', () => {
     expect(plan.average.ownMinTenths).toBe(42)
   })
 
-  it('needs a typed average when Google shows 4.6 but 4.7 is earned (D28, X1)', () => {
+  it('needs a typed average when Google shows 4.6 but 4.7 is earned', () => {
     const plan = planOf(inputs({ reviewCount: 500, displayedTenths: 46 }, 2330))
     expect(plan.average).toMatchObject({
       tenths: 49,

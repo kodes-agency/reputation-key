@@ -28,7 +28,7 @@ const loggedNumber = (value: string | null): number | null =>
   value === null || !Number.isInteger(Number(value)) ? null : Number(value)
 
 /**
- * What the goal was set with (E31): each field's oldest change's old value,
+ * What the goal was set with: each field's oldest change's old value,
  * else the value it has now (that field never changed).
  */
 export function initialPlan(
