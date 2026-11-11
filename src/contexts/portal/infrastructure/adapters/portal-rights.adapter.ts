@@ -27,10 +27,7 @@ const CONTEXT = 'portal'
 const LOCK_TIMEOUT = '5s'
 
 /** Tables that carry no `property_id`: they hang off a Portal or a group. */
-const PORTAL_KEYED_TABLES: ReadonlySet<string> = new Set([
-  'portal_link_categories',
-  'portal_group_members',
-])
+const PORTAL_KEYED_TABLES: ReadonlySet<string> = new Set(['portal_link_categories'])
 
 export type PortalRightsScope = Readonly<{
   organizationId: string

@@ -12,7 +12,7 @@ import {
 import manifest from '../../../test-fixtures/populated-upgrade/manifest.json'
 import { migrateJournal } from './migrate-journal.server'
 
-const CONTRACTION = '0127_drop_retired_reporting_tables'
+const CONTRACTION = '0128_drop_retired_reporting_tables'
 const TABLES = [
   'setup_checklist_milestones',
   'portal_metric_lifetime_aggregates',

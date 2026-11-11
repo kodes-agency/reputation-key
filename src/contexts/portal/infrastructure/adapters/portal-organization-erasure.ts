@@ -9,11 +9,7 @@
  *   and Staff rows whose data-fate owner is Staff, not Portal.
  * - `properties`: Property's row; Portal only references it.
  *
- * `portal_group_members` IS in the plan, as a ROW delete. It is a
- * physical-drop-blocked compatibility mirror that nothing reads or writes any
- * more: the rows are tenant content and must go, the table must not. Nothing in this plan is ever a DROP or a
- * TRUNCATE — physical contraction is a separate expand/backfill/contract
- * decision, never a lifecycle phase.
+ * Nothing in this plan is ever a DROP or a TRUNCATE.
  *
  * `portal_look_overrides` (a Portal's own photo, colours and name and logo, ADR
  * 0070) refers to a Portal and to the Property's images, both ON DELETE
@@ -36,7 +32,6 @@ export const PORTAL_PURGE_PLAN = Object.freeze([
   'portal_approved_destinations',
   'portal_responsible_managers',
   'portal_tokens',
-  'portal_group_members',
   'portal_localized_overrides',
   'portal_look_overrides',
   'property_portal_brand_contents',

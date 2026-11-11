@@ -66,21 +66,6 @@ The commands:
      AND l.updated_at > t.updated_at;
   ```
 
-  ```sql
-  -- portal-group-members-without-membership: a row of the legacy
-  -- portal_group_members mirror with no matching active
-  -- portal_group_memberships row. The Organization Export no longer carries the
-  -- mirror, so each row must be represented in the membership table (which the
-  -- Staff export carries); no rows means nothing is dropped.
-  SELECT m.organization_id, m.portal_group_id, m.portal_id
-    FROM portal_group_members m
-    LEFT JOIN portal_group_memberships g
-      ON g.organization_id = m.organization_id
-     AND g.portal_group_id = m.portal_group_id
-     AND g.portal_id = m.portal_id AND g.effective_to IS NULL
-   WHERE g.id IS NULL;
-  ```
-
 - Legacy avatar and logo addresses (round 4, slice 47j) — one read-only SQL query, run against the database of each environment. Migration 0053 clears them at deploy (before new code serves); run it before and after, and expect no rows after. A cleared picture shows the person's initials until they upload again.
 
   ```sql

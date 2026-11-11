@@ -3,19 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { portalLookOverrides } from '#/shared/db/schema/portal-look.schema'
 import { PORTAL_PURGE_PLAN } from './portal-organization-erasure'
 
-/** Physical-drop-blocked compatibility mirrors Portal may only DELETE from. */
-const COMPATIBILITY_MIRRORS = ['portal_group_members'] as const
-
 describe('Portal erasure plan', () => {
   it('names a bounded purge plan of row deletes, never drops', () => {
     expect(PORTAL_PURGE_PLAN).toContain('portals')
     expect(PORTAL_PURGE_PLAN).toContain('portal_groups')
     for (const table of PORTAL_PURGE_PLAN) {
       expect(table).not.toMatch(/drop|truncate/i)
-    }
-    // Compatibility mirrors are row-delete targets, never DROP targets.
-    for (const mirror of COMPATIBILITY_MIRRORS) {
-      expect(PORTAL_PURGE_PLAN).toContain(mirror)
     }
     // Other owners' rows are never in a Portal plan.
     for (const foreign of [
