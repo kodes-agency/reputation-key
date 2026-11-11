@@ -10,11 +10,13 @@ import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
 import {
   closeInbox,
+  inboxClosureRefusal,
   readInboxRightsExport,
   readInboxRightsReport,
 } from '#/shared/db/lifecycle/inbox-rights-store'
 import {
   closeReview,
+  reviewClosureRefusal,
   readReviewRightsExport,
   readReviewRightsReport,
 } from '#/shared/db/lifecycle/review-rights-store'
@@ -45,6 +47,16 @@ export function createReviewRightsExecutor(deps: ReviewRightsDeps): RightsExecut
   return Object.freeze({
     name: 'review',
     scopes: ['access', 'organization'] as const,
+    journalContexts: ['review'] as const,
+    async preflight(plan) {
+      const refusal = await reviewClosureRefusal(
+        deps.db,
+        requireReplyScopeEffects(deps.replyEffects),
+        plan.organizationId,
+        now(),
+      )
+      return refusal ? { ok: false, error: refusal } : { ok: true }
+    },
     report: (plan) => readReviewRightsReport(deps.db, plan.organizationId, now()),
     async exportFiles(plan) {
       return exportFile(
@@ -74,6 +86,11 @@ export function createInboxRightsExecutor(deps: ReviewInboxRightsDeps): RightsEx
   return Object.freeze({
     name: 'inbox',
     scopes: ['access', 'organization'] as const,
+    journalContexts: ['inbox'] as const,
+    async preflight(plan) {
+      const refusal = await inboxClosureRefusal(deps.db, plan.organizationId)
+      return refusal ? { ok: false, error: refusal } : { ok: true }
+    },
     report: (plan) => readInboxRightsReport(deps.db, plan.organizationId),
     async exportFiles(plan) {
       return exportFile(

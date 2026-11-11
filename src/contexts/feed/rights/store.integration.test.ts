@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
@@ -33,6 +33,14 @@ import { rightsRequestCommandSpec } from '#/shared/ops/rights/rights-request-com
 import { registerAllEventSchemas } from '#/shared/events/registry.server'
 import { createNotificationRightsExecutor } from '#/shared/ops/rights/notification-rights-executor'
 import { handleRightsRequest } from '#/shared/ops/rights/run-rights-request'
+import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
+import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import {
+  applyRestoreResurrectionFence,
+  type BackupErasureReplayer,
+} from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
+import type { Tx } from '#/shared/outbox/commit'
 
 let lease: TestLease
 let db: Database
@@ -205,6 +213,191 @@ const count = async (table: string, organizationId: string): Promise<number> =>
       )
     ).rows[0].n,
   )
+
+// Parents first, so a restore can re-insert in this order.
+const RIGHTS_TABLES = [
+  'notification_digest_batches',
+  'notifications',
+  'notification_email_queue',
+  'notification_digest_batch_members',
+  'notification_preferences',
+  'notification_category_defaults',
+  'notification_property_delivery_windows',
+  'notification_user_settings',
+  'notification_unsubscribe_scopes',
+] as const
+
+type RowDump = Readonly<Record<string, readonly Record<string, unknown>[]>>
+
+/** Every notification row of the Organization, as JSON, in a stable order. */
+async function dumpOrganization(organizationId: string): Promise<RowDump> {
+  return Object.fromEntries(
+    await Promise.all(
+      RIGHTS_TABLES.map(async (table) => {
+        const result = await lease.pool.query(
+          `SELECT to_jsonb(t) AS row FROM ${table} t
+            WHERE organization_id = $1 ORDER BY to_jsonb(t)::text`,
+          [organizationId],
+        )
+        return [table, result.rows.map((r) => r.row as Record<string, unknown>)] as const
+      }),
+    ),
+  )
+}
+
+const canonical = (dump: RowDump): string => canonicalizeRfc8785(dump)
+
+/** The rows that do not belong to the Property, digest members included. */
+function outsideProperty(dump: RowDump, propertyId: string): RowDump {
+  const propertyEmails = new Set(
+    (dump.notification_email_queue ?? [])
+      .filter((row) => row.property_id === propertyId)
+      .map((row) => row.id),
+  )
+  return Object.fromEntries(
+    Object.entries(dump).map(([table, rows]) => [
+      table,
+      rows.filter((row) =>
+        table === 'notification_digest_batch_members'
+          ? !propertyEmails.has(row.notification_email_id)
+          : row.property_id !== propertyId,
+      ),
+    ]),
+  )
+}
+
+async function restoreRows(dump: RowDump): Promise<void> {
+  for (const table of RIGHTS_TABLES) {
+    await lease.pool.query(
+      `INSERT INTO ${table}
+         SELECT * FROM jsonb_populate_recordset(null::${table}, $1::jsonb)
+       ON CONFLICT DO NOTHING`,
+      [JSON.stringify(dump[table] ?? [])],
+    )
+  }
+}
+
+const rowTotal = (dump: RowDump): number =>
+  Object.values(dump).reduce((sum, rows) => sum + rows.length, 0)
+
+const APPLY_TOKENS = [
+  '--apply',
+  '--reason',
+  'r',
+  '--ticket',
+  'T-1',
+  '--yes',
+  'ops:rights-request',
+  'verified=2026-11-01T10:00:00Z',
+  'verification=ticket:123',
+]
+
+async function runRights(
+  organizationId: string,
+  argv: readonly string[],
+  journal = createRightsJournal({ put: async () => {}, alert: () => {} }),
+) {
+  const parsed = parseOperatorArgs(
+    ['--operator', 'op', '--org', organizationId, ...argv],
+    rightsRequestCommandSpec,
+  )
+  if (!parsed.ok) throw new Error(parsed.error)
+  const ctx = {
+    operatorId: 'op',
+    correlationId: 'c',
+    organizationId,
+    propertyId: parsed.args.propertyId,
+    dryRun: !parsed.args.apply,
+    batchSize: parsed.args.batchSize,
+  } as unknown as OperatorContext
+  const out: string[] = []
+  const err: string[] = []
+  const enqueued: ManualFinalWarningJob[] = []
+  const io: OperatorIO = { out: (l) => out.push(l), err: (l) => err.push(l) }
+  const code = await handleRightsRequest(
+    {
+      production: false,
+      readFile: async () => '',
+      writeExportFile: async () => {},
+      journal,
+      executors: (finalWarning) => [
+        createNotificationRightsExecutor({
+          finalWarning,
+          run: (request) =>
+            runNotificationRights(
+              createNotificationRightsPort(db, async (job) => {
+                enqueued.push(job)
+              }),
+              request,
+            ),
+        }),
+      ],
+    },
+    ctx,
+    parsed.args,
+    io,
+  )
+  return { code, out, err, enqueued }
+}
+
+const propertyApply = (propertyId: string) => [
+  'property',
+  '--property',
+  propertyId,
+  ...APPLY_TOKENS,
+  `confirm=ERASE PROPERTY ${propertyId}`,
+]
+
+const organizationApply = (organizationId: string) => [
+  'organization',
+  ...APPLY_TOKENS,
+  `confirm=ERASE ORGANIZATION ${organizationId}`,
+]
+
+function capturingJournal() {
+  const puts: string[] = []
+  const alert = vi.fn()
+  return {
+    puts,
+    alert,
+    journal: createRightsJournal({
+      put: async (_key, bytes) => {
+        puts.push(bytes)
+      },
+      alert,
+    }),
+  }
+}
+
+/** Re-erases through the production purge, inside the fence's transaction. */
+const notificationReplayer = (
+  subjectClass: BackupErasureReplayer['subjectClass'],
+): BackupErasureReplayer => ({
+  context: 'notification',
+  subjectClass,
+  reErase: async (tx, entry) => {
+    const counts = await purgeNotificationRightsData(
+      tx,
+      {
+        organizationId: entry.organizationId,
+        ...(entry.propertyId ? { propertyId: entry.propertyId } : {}),
+      },
+      50,
+    )
+    return Object.values(counts).reduce((sum, n) => sum + n, 0)
+  },
+})
+
+async function replayThroughFence(entryBytes: string) {
+  const entry = decodeErasureJournalEntry(entryBytes)
+  return db.transaction((raw) =>
+    applyRestoreResurrectionFence(raw as unknown as Tx, {
+      entries: [entry],
+      restorePointAt: new Date(entry.effectiveErasureAt.getTime() - 60_000),
+      replayers: [notificationReplayer('property'), notificationReplayer('organization')],
+    }),
+  )
+}
 
 describe.sequential('Notification rights reads and purge', () => {
   beforeAll(async () => {
@@ -467,6 +660,7 @@ describe.sequential('Notification rights reads and purge', () => {
           production: false,
           readFile: async () => '',
           writeExportFile: async () => {},
+          journal: createRightsJournal({ put: async () => {}, alert: () => {} }),
           executors: (finalWarning) => [
             createNotificationRightsExecutor({
               finalWarning,
@@ -496,5 +690,182 @@ describe.sequential('Notification rights reads and purge', () => {
       expect(jobs[0]?.data.payload).toEqual({ organizationName: tenant.organizationName })
     }
     expect(await count('notifications', a.organizationId)).toBe(3)
+  })
+  describe('isolation between Properties and Organizations', () => {
+    it('reports the counts of each tenant and Property', async () => {
+      const a = await seedTenant()
+      const other = await seedTenant()
+
+      const org = await runRights(a.organizationId, ['access'])
+      const property = await runRights(a.organizationId, [
+        'property',
+        '--property',
+        a.propertyId,
+      ])
+      const otherOrg = await runRights(other.organizationId, ['access'])
+
+      expect(org.out).toEqual(
+        expect.arrayContaining([
+          'notification: notifications: 3',
+          'notification: preferences: 2',
+          'notification: user settings: 1',
+        ]),
+      )
+      expect(property.out).toEqual(
+        expect.arrayContaining([
+          'notification: notifications: 1',
+          'notification: preferences: 1',
+          'notification: user settings: 0',
+        ]),
+      )
+      expect(otherOrg.out).toEqual(
+        expect.arrayContaining([
+          'notification: notifications: 3',
+          'notification: preferences: 2',
+        ]),
+      )
+    })
+
+    it('erases Property A and leaves Property B and the other Organization byte-identical', async () => {
+      const a = await seedTenant()
+      const other = await seedTenant()
+      const before = await dumpOrganization(a.organizationId)
+      const otherBefore = await dumpOrganization(other.organizationId)
+
+      const result = await runRights(a.organizationId, propertyApply(a.propertyId))
+
+      expect(result.code).toBe(0)
+      const after = await dumpOrganization(a.organizationId)
+      expect(rowTotal(after)).toBeLessThan(rowTotal(before))
+      expect(canonical(outsideProperty(after, a.propertyId))).toBe(canonical(after))
+      expect(canonical(after)).toBe(canonical(outsideProperty(before, a.propertyId)))
+      expect(
+        (after.notifications ?? []).some((row) => row.property_id === a.otherPropertyId),
+      ).toBe(true)
+      expect(canonical(await dumpOrganization(other.organizationId))).toBe(
+        canonical(otherBefore),
+      )
+    })
+
+    it('erases an Organization and leaves the other Organization byte-identical', async () => {
+      const a = await seedTenant()
+      const other = await seedTenant()
+      const otherBefore = await dumpOrganization(other.organizationId)
+
+      const result = await runRights(
+        a.organizationId,
+        organizationApply(a.organizationId),
+      )
+
+      expect(result.code).toBe(0)
+      expect(rowTotal(await dumpOrganization(a.organizationId))).toBe(0)
+      expect(canonical(await dumpOrganization(other.organizationId))).toBe(
+        canonical(otherBefore),
+      )
+    })
+
+    it('erases Property A again when a restore brings it back and the fence replays the journal', async () => {
+      const a = await seedTenant()
+      const other = await seedTenant()
+      const before = await dumpOrganization(a.organizationId)
+      const otherBefore = await dumpOrganization(other.organizationId)
+      const { puts, journal } = capturingJournal()
+
+      const result = await runRights(
+        a.organizationId,
+        propertyApply(a.propertyId),
+        journal,
+      )
+      expect(result.code).toBe(0)
+      expect(puts).toHaveLength(1)
+      const survivors = await dumpOrganization(a.organizationId)
+
+      await restoreRows(before)
+      expect(canonical(await dumpOrganization(a.organizationId))).toBe(canonical(before))
+
+      const replay = await replayThroughFence(puts[0]!)
+
+      expect(replay.verified).toBe(true)
+      expect(replay.counts.ledgerEntriesReapplied).toBe(1)
+      expect(replay.counts.ledgerRowsReErased).toBeGreaterThan(0)
+      expect(canonical(await dumpOrganization(a.organizationId))).toBe(
+        canonical(survivors),
+      )
+      expect(canonical(await dumpOrganization(other.organizationId))).toBe(
+        canonical(otherBefore),
+      )
+    })
+
+    it('erases an Organization again when the fence replays its journal entry', async () => {
+      const a = await seedTenant()
+      const other = await seedTenant()
+      const before = await dumpOrganization(a.organizationId)
+      const otherBefore = await dumpOrganization(other.organizationId)
+      const { puts, journal } = capturingJournal()
+
+      expect(
+        (await runRights(a.organizationId, organizationApply(a.organizationId), journal))
+          .code,
+      ).toBe(0)
+      await restoreRows(before)
+      expect(rowTotal(await dumpOrganization(a.organizationId))).toBe(rowTotal(before))
+
+      const replay = await replayThroughFence(puts[0]!)
+
+      expect(replay.verified).toBe(true)
+      expect(rowTotal(await dumpOrganization(a.organizationId))).toBe(0)
+      expect(canonical(await dumpOrganization(other.organizationId))).toBe(
+        canonical(otherBefore),
+      )
+    })
+
+    it('does not erase when the journal write fails, and raises the alert', async () => {
+      const a = await seedTenant()
+      const other = await seedTenant()
+      const before = await dumpOrganization(a.organizationId)
+      const otherBefore = await dumpOrganization(other.organizationId)
+      const alert = vi.fn()
+      const journal = createRightsJournal({
+        put: async () => {
+          throw new Error('bucket unavailable')
+        },
+        alert,
+      })
+
+      for (const argv of [
+        propertyApply(a.propertyId),
+        organizationApply(a.organizationId),
+      ]) {
+        const result = await runRights(a.organizationId, argv, journal)
+        expect(result.code).not.toBe(0)
+      }
+
+      expect(alert).toHaveBeenCalledTimes(2)
+      expect(canonical(await dumpOrganization(a.organizationId))).toBe(canonical(before))
+      expect(canonical(await dumpOrganization(other.organizationId))).toBe(
+        canonical(otherBefore),
+      )
+    })
+
+    it('refuses a final warning for a Property before touching any row', async () => {
+      const a = await seedTenant()
+      const before = await dumpOrganization(a.organizationId)
+
+      const result = await runRights(a.organizationId, [
+        'property',
+        '--property',
+        a.propertyId,
+        'final-warning',
+        ...APPLY_TOKENS,
+        `confirm=ERASE PROPERTY ${a.propertyId}`,
+      ])
+
+      expect(result.code).toBe(1)
+      expect(result.err.join('\n')).toContain(
+        'Final warnings are sent for an Organization, not a Property',
+      )
+      expect(result.enqueued).toEqual([])
+      expect(canonical(await dumpOrganization(a.organizationId))).toBe(canonical(before))
+    })
   })
 })

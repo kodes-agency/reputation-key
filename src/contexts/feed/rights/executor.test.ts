@@ -10,6 +10,7 @@ import {
   type RightsRequestEffects,
 } from '#/shared/ops/rights/run-rights-request'
 import { rightsRequestCommandSpec } from '#/shared/ops/rights/rights-request-command'
+import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
 import {
   isEmailStopped,
   type OrganizationEmailStop,
@@ -129,6 +130,7 @@ async function runScript(
     writeExportFile: async (_path, bytes) => {
       exports.push(Buffer.from(bytes).toString('utf8'))
     },
+    journal: createRightsJournal({ put: async () => {}, alert: () => {} }),
     executors: (finalWarning) => [
       createNotificationRightsExecutor({
         finalWarning,

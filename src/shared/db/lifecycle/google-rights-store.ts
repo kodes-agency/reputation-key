@@ -326,6 +326,22 @@ export async function readGoogleRightsReport(
   )
 }
 
+/** The reason an Organization closure would be refused, or null. Writes nothing. */
+export async function googleClosureRefusal(
+  db: Database,
+  organizationId: string,
+  now: Date,
+): Promise<string | null> {
+  return db.transaction(
+    async (tx) => {
+      if (!(await organizationExists(tx, organizationId))) return 'organization not found'
+      const found = await blockers(tx, organizationId, now)
+      return found.length > 0 ? blockerError(found) : null
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' },
+  )
+}
+
 export async function closeGoogleIntegration(
   db: Database,
   organizationId: string,
@@ -413,6 +429,25 @@ async function deleteReturningIds(
   return result.rows.map((row) => String((row as Row).parent_id))
 }
 
+function inFlightError(inFlight: number): string {
+  return `Google integration is not ready to erase (in_flight_import_items=${inFlight})`
+}
+
+/** The reason a Property erase would be refused, or null. Writes nothing. */
+export async function googlePropertyErasureRefusal(
+  db: Database,
+  organizationId: string,
+  propertyId: string,
+): Promise<string | null> {
+  return db.transaction(
+    async (tx) => {
+      const held = await propertyFootprint(tx, organizationId, propertyId)
+      return held.inFlight > 0 ? inFlightError(held.inFlight) : null
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' },
+  )
+}
+
 /**
  * Deletes the Property's import items, then the imports those items leave empty. Other Properties' items in the same import keep their parent.
  */
@@ -421,23 +456,28 @@ export async function eraseGoogleIntegrationForProperty(
   organizationId: string,
   propertyId: string,
 ): Promise<GoogleClosureOutcome> {
-  return db.transaction(async (tx): Promise<GoogleClosureOutcome> => {
-    const held = await propertyFootprint(tx, organizationId, propertyId)
-    if (held.inFlight > 0) {
-      return {
-        ok: false,
-        error: `Google integration is not ready to erase (in_flight_import_items=${held.inFlight})`,
-      }
-    }
-    const newParents = await deleteReturningIds(
-      tx,
-      sql`DELETE FROM google_import_items
+  return db.transaction((tx) =>
+    eraseGoogleIntegrationForPropertyInTx(tx, organizationId, propertyId),
+  )
+}
+
+/** The erase inside a caller's transaction, for restore replay. */
+export async function eraseGoogleIntegrationForPropertyInTx(
+  tx: Tx,
+  organizationId: string,
+  propertyId: string,
+): Promise<GoogleClosureOutcome> {
+  const held = await propertyFootprint(tx, organizationId, propertyId)
+  if (held.inFlight > 0) return { ok: false, error: inFlightError(held.inFlight) }
+  const newParents = await deleteReturningIds(
+    tx,
+    sql`DELETE FROM google_import_items
           WHERE organization_id = ${organizationId}
             AND (destination_property_id = ${propertyId}
               OR existing_property_id = ${propertyId})
           RETURNING import_id AS parent_id`,
-    )
-    const imports = await tx.execute(sql`
+  )
+  const imports = await tx.execute(sql`
       DELETE FROM google_imports AS parent
       WHERE parent.organization_id = ${organizationId}
         AND parent.id = ANY(string_to_array(${newParents.join(',')}, ',')::uuid[])
@@ -446,10 +486,9 @@ export async function eraseGoogleIntegrationForProperty(
           WHERE item.organization_id = parent.organization_id
             AND item.import_id = parent.id)
       RETURNING 1`)
-    return {
-      ok: true,
-      deleted: newParents.length + imports.rows.length,
-      scrubbed: 0,
-    }
-  })
+  return {
+    ok: true,
+    deleted: newParents.length + imports.rows.length,
+    scrubbed: 0,
+  }
 }
