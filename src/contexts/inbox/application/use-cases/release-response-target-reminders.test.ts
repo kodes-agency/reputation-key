@@ -146,6 +146,7 @@ describe('releaseDueResponseTargetReminders', () => {
     expect(h.listDueReminderCandidates).toHaveBeenCalledWith({
       now: h.now(),
       limit: RESPONSE_TARGET_REMINDER_RELEASE_LIMIT,
+      extra: RESPONSE_TARGET_REMINDER_RELEASE_LIMIT,
     })
     expect(RESPONSE_TARGET_REMINDER_RELEASE_LIMIT).toBe(100)
     expect(RESPONSE_TARGET_REMINDER_GOOGLE_READ_CAP).toBe(20)
@@ -626,5 +627,26 @@ describe('releaseDueResponseTargetReminders', () => {
 
     const lookups = h.calls.filter((call) => call.startsWith('heads:')).slice(0, 2)
     expect(lookups).toEqual([`heads:${ORG}:2`, `heads:${OTHER_ORG}:1`])
+  })
+
+  it("releases another Organization's slot listed after 100 held ones, without spending reads on the held", async () => {
+    const held = Array.from({ length: RESPONSE_TARGET_REMINDER_RELEASE_LIMIT }, (_, i) =>
+      candidate(i + 1),
+    )
+    const other = candidate(500, {
+      organizationId: OTHER_ORG,
+      targetKind: 'private_feedback_handling',
+    })
+    const h = setup({
+      candidates: [...held, other],
+      heads: held.map((c, i) => answeringHead(i + 1, { reviewId: c.sourceId as never })),
+    })
+
+    const counts = await h.run()
+
+    expect(released(h)).toEqual([500])
+    expect(counts.released).toBe(1)
+    expect(counts.checked).toBe(0)
+    expect(h.check).not.toHaveBeenCalled()
   })
 })
