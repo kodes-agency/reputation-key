@@ -28,8 +28,11 @@ import {
   installAiOperationFixture,
   type AiOperationFixture,
 } from '#/shared/db/testing/ai-operation-fixture'
-import { createAiBudgetControl, type AiBudgetAdmissionInput } from './ai-budget'
-import { createPostgresAiAdmissionAuthority } from './postgres-admission-authority'
+import {
+  createAiBudgetControl,
+  type AiBudgetAdmissionInput,
+} from '#/shared/db/ai/ai-budget'
+import { createAiExecutionAdmissionAdapter } from './ai-execution-admission.adapter'
 
 type PropertyDescriptor = Extract<AiAdmissionDescriptorV1, { subjectKind: 'property' }>
 
@@ -175,7 +178,7 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
   const db = getDb()
   let fixture: AiOperationFixture
   const budget = createAiBudgetControl({ idGen: randomUUID, now: () => NOW })
-  const authority = createPostgresAiAdmissionAuthority({
+  const authority = createAiExecutionAdmissionAdapter({
     pool: getPool(),
     signingKid: SIGNING_KID,
     budgetControl: budget,
