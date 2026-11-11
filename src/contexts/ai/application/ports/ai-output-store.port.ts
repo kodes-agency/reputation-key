@@ -11,21 +11,6 @@ import type {
   ReviewAnalysisMentionV3,
   ReviewAnalysisReadV1,
 } from '../../domain/types'
-import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
-
-export type AiAnalysisAspect = Readonly<{
-  aspect: AspectTaxonomyV1Id
-  polarity: AspectPolarityV1
-  intensity: number
-}>
-
-export type AiAnalysisDerivative = Readonly<{
-  sentiment: 'positive' | 'neutral' | 'negative' | 'mixed'
-  primaryCategory: AspectTaxonomyV1Id
-  attention: 'urgent' | 'high' | 'medium' | 'low'
-  aspects: readonly AiAnalysisAspect[]
-  issueLabel: string | null
-}>
 
 /**
  * What a v3 analysis stores (contract section 3.1): the normalized answer and
@@ -43,10 +28,6 @@ export type AiAnalysisDerivativeV3 = Readonly<{
     droppedMentionCount: number
   }>
 }>
-
-export type AiAnalysisResult =
-  | Readonly<{ status: 'ready'; derivative: AiAnalysisDerivative }>
-  | Readonly<{ status: 'unavailable'; reason: 'language_not_supported' }>
 
 export type AiProviderCompletion = Readonly<{
   expectedAttempt: number
@@ -75,14 +56,9 @@ type AiAnalysisWrite = Readonly<{
 }>
 
 export type AiOutputStorePort = Readonly<{
-  storeAnalysis(
-    input: AiAnalysisWrite & Readonly<{ result: AiAnalysisResult }>,
-  ): Promise<boolean>
-
   /**
-   * The v3 counterpart of `storeAnalysis`: the same fences and the same atomic
-   * commit with the operation, writing the analysis root, its mentions and the
-   * sentence numbers each cites. False when a fence no longer holds.
+   * Writes the analysis root, its mentions and the sentence numbers each cites,
+   * atomically with the operation it came from. False when a fence no longer holds.
    */
   storeAnalysisV3(
     input: AiAnalysisWrite & Readonly<{ derivative: AiAnalysisDerivativeV3 }>,
@@ -121,7 +97,7 @@ export type AiOutputStorePort = Readonly<{
       organizationId: OrganizationId
       propertyIds?: readonly PropertyId[]
       reviewIds?: readonly ReviewId[]
-      attention: readonly AiAnalysisDerivative['attention'][]
+      attention: readonly ReviewAttentionLevelV2[]
       nowEpochMillis: number
     }>,
   ): Promise<readonly ReviewId[]>
