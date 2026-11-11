@@ -1,6 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { Pool } from 'pg'
 import { getLastVisitCount } from './get-last-visit-count'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { getDb } from '#/shared/db'
+import { getEnv } from '#/shared/config/env'
+import { createMockLogger } from '#/shared/testing/mock-logger'
+import {
+  seedInboxItem,
+  seedInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures'
+import { createInboxRepository } from '../../infrastructure/repositories/inbox.repository'
 import type { InboxViewRepository } from '../ports/inbox-view.repository'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -16,7 +24,9 @@ import {
 } from '#/shared/domain/ids'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
-const ORG_ID = organizationId('org-1')
+const ORG_ID = organizationId('org-last-visit-count-test')
+const PROP_1 = propertyId('1c000000-0000-0000-0000-000000000001')
+const PROP_2 = propertyId('1c000000-0000-0000-0000-000000000002')
 const USER_ID = userId('user-1')
 const SINCE = new Date('2026-08-26T10:00:00.000Z')
 
@@ -31,16 +41,17 @@ const ctxWith = (...permissions: Permission[]): AuthContext => ({
 })
 
 const makeItem = (
-  id: string,
   sourceType: 'review' | 'feedback',
-  itemPropertyId = propertyId('prop-1'),
+  itemPropertyId = PROP_1,
 ): InboxItem => ({
-  id: inboxItemId(id),
+  id: inboxItemId(crypto.randomUUID()),
   organizationId: ORG_ID,
   propertyId: itemPropertyId,
   sourceType,
   sourceId:
-    sourceType === 'review' ? reviewId(`review-${id}`) : feedbackId(`feedback-${id}`),
+    sourceType === 'review'
+      ? reviewId(crypto.randomUUID())
+      : feedbackId(crypto.randomUUID()),
   status: 'open',
   rating: 3,
   sourceDate: new Date('2026-08-26T12:00:00.000Z'),
@@ -72,13 +83,54 @@ const viewRepo: InboxViewRepository = {
   stampLastInboxView: async () => SINCE,
 }
 
-describe('getLastVisitCount', () => {
-  it('counts only source families the caller may read', async () => {
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(
-      makeItem('review-item', 'review'),
-      makeItem('feedback-item', 'feedback'),
+const TEST_NOW = new Date('2026-08-26T12:00:00.000Z')
+
+describe.sequential('getLastVisitCount', () => {
+  let pool: Pool
+  const db = getDb()
+
+  const seed = async (...items: InboxItem[]) => {
+    for (const item of items) await seedInboxItem(pool, db, item, () => TEST_NOW)
+    return createInboxRepository(
+      db,
+      {
+        reviewLookup: {
+          getReviewSnippetById: async () => ({ status: 'not_found' }),
+          getReviewSnippetsByIds: async () => new Map(),
+          findEligibleReviewIds: async () => [],
+        },
+        feedbackLookup: {
+          getFeedbackSnippetById: async () => null,
+          getFeedbackSnippetsByIds: async () => new Map(),
+          findEligibleFeedbackIds: async () => [],
+        },
+        propertyLookup: {
+          getPropertyNameById: async () => null,
+          getPropertyNamesByIds: async () => new Map(),
+        },
+      },
+      { clock: () => TEST_NOW, logger: createMockLogger() },
     )
+  }
+
+  const clearItems = () =>
+    pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG_ID])
+
+  beforeAll(async () => {
+    pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+    await seedInboxOrganization(pool, ORG_ID, [PROP_1, PROP_2])
+  })
+
+  beforeEach(clearItems)
+
+  afterAll(async () => {
+    await clearItems()
+    await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG_ID])
+    await pool.end()
+  })
+
+  it('counts only source families the caller may read', async () => {
+    const repo = await seed(makeItem('review'), makeItem('feedback'))
     const useCase = getLastVisitCount({ repo, viewRepo, staffPublicApi })
 
     const count = await useCase({}, ctxWith('inbox.read', 'review.read'))
@@ -87,8 +139,7 @@ describe('getLastVisitCount', () => {
   })
 
   it('returns zero when no owning source context is readable', async () => {
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem('review-item', 'review'))
+    const repo = await seed(makeItem('review'))
     const useCase = getLastVisitCount({ repo, viewRepo, staffPublicApi })
 
     const count = await useCase({}, ctxWith('inbox.read'))
@@ -97,15 +148,14 @@ describe('getLastVisitCount', () => {
   })
 
   it('intersects the source scope for the last-visit count', async () => {
-    const repo = createInMemoryInboxRepo()
-    repo.items.push(
-      makeItem('review-2', 'review', propertyId('prop-2')),
-      makeItem('feedback-1', 'feedback', propertyId('prop-1')),
-      makeItem('feedback-2', 'feedback', propertyId('prop-2')),
+    const repo = await seed(
+      makeItem('review', PROP_2),
+      makeItem('feedback', PROP_1),
+      makeItem('feedback', PROP_2),
     )
     const scopedStaffApi: StaffPublicApi = {
       ...staffPublicApi,
-      getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+      getAccessiblePropertyIds: async () => [PROP_1],
     }
     const useCase = getLastVisitCount({
       repo,
