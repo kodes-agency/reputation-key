@@ -77,6 +77,8 @@ type ControlState = Readonly<{
 }>
 
 export type ReplyWorkflowAiFixture = ReturnType<typeof createReplyWorkflowAiFixture>
+/** What a suggestion's token names as the execution that produced it. */
+export type AiSuggestionBinding = 'request_binding' | 'execution_permit'
 
 export function createReplyWorkflowAiFixture(
   input: Readonly<{
@@ -291,8 +293,13 @@ export function createReplyWorkflowAiFixture(
   /**
    * One finished AI reply operation for `text`, and the signed token the
    * browser would hold for it. Saving a draft with that token is the adoption.
+   * A permit-bound token names the execution permit and attempt, and its
+   * operation keeps no request binding HMAC.
    */
-  async function issueSuggestion(text: string): Promise<string> {
+  async function issueSuggestion(
+    text: string,
+    binding: AiSuggestionBinding = 'request_binding',
+  ): Promise<string> {
     const [review] = await db
       .select({
         sourceEpoch: reviews.sourceEpoch,
@@ -308,6 +315,8 @@ export function createReplyWorkflowAiFixture(
     )
     operationSequence += 1
     const operationId = operationUuid(2, operationSequence)
+    const executionPermitId = operationUuid(3, operationSequence)
+    const permitBound = binding === 'execution_permit'
     const now = await databaseNow()
     const fences = {
       sourceEpoch: review.sourceEpoch,
@@ -361,11 +370,11 @@ export function createReplyWorkflowAiFixture(
       capabilityControlId: capabilityControl!.controlId,
       capabilityControlGeneration: capabilityControl!.generation,
       routeKey: 'reply-suggestion',
-      executionPermitId: operationUuid(3, operationSequence),
-      admissionNonce: `nonce-${operationId}`,
-      requestBindingKeyId: 'binding-v1',
-      requestBindingHmac: REQUEST_BINDING_HMAC,
-      grantKid: 'grant-v1',
+      executionPermitId,
+      admissionNonce: permitBound ? null : `nonce-${operationId}`,
+      requestBindingKeyId: permitBound ? null : 'binding-v1',
+      requestBindingHmac: permitBound ? null : REQUEST_BINDING_HMAC,
+      grantKid: permitBound ? null : 'grant-v1',
       costWindowId: COST_WINDOW_ID,
       reservedMicros: 50_000,
       actualMicros: 42,
@@ -402,7 +411,9 @@ export function createReplyWorkflowAiFixture(
         organizationId,
         propertyId,
         reviewId,
-        requestBindingHmac: REQUEST_BINDING_HMAC,
+        ...(permitBound
+          ? { executionPermitId, executionAttempt: 1 }
+          : { requestBindingHmac: REQUEST_BINDING_HMAC }),
         replyDraftingEpoch: 1,
         modelSnapshot: 'gpt-5.4-mini-2026-03-17',
         promptVersion: 'reply-suggestion-prompt-v1',
