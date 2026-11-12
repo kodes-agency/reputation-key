@@ -130,17 +130,27 @@ async function footprint(tx: Tx, organizationId: string) {
 }
 
 /**
- * A permit whose Google call may still start or still be running. Once its
- * deadline passes the call is over, whatever state the permit was left in.
+ * A permit whose Google call may still start or still be running at `now`.
+ * Once its deadline passes the call is over, whatever state the permit was
+ * left in: a permit cannot start at or after its start deadline, nor complete
+ * at or after its operation deadline, and the start-deadline sweep reads the
+ * deadline against the same clock. A deadline equal to `now` has elapsed.
  */
-const LIVE_PERMIT = sql`(
-  (state = 'admitted' AND start_deadline_at > now())
-  OR (state = 'started' AND operation_deadline_at > now())
-)`
+function livePermit(now: Date) {
+  return sql`(
+    (state = 'admitted' AND start_deadline_at > ${now})
+    OR (state = 'started' AND operation_deadline_at > ${now})
+  )`
+}
 
 const IN_FLIGHT_ITEM = sql`status IN ('pending', 'processing')`
 
-async function propertyFootprint(tx: Tx, organizationId: string, propertyId: string) {
+async function propertyFootprint(
+  tx: Tx,
+  organizationId: string,
+  propertyId: string,
+  now: Date,
+) {
   const result = await tx.execute(sql`
     SELECT
       (SELECT count(*)::int FROM google_import_items
@@ -173,7 +183,7 @@ async function propertyFootprint(tx: Tx, organizationId: string, propertyId: str
       (SELECT count(*)::int FROM authorization_execution_permits
         WHERE organization_id = ${organizationId}
           AND property_id = ${propertyId}::uuid
-          AND ${LIVE_PERMIT}) AS live_permits
+          AND ${livePermit(now)}) AS live_permits
   `)
   const row = result.rows[0] as Row | undefined
   return {
@@ -468,10 +478,11 @@ export async function readGoogleRightsPropertyReport(
   db: Database,
   organizationId: string,
   propertyId: string,
+  now: Date,
 ): Promise<ReadonlyArray<string>> {
   return db.transaction(
     async (tx) => {
-      const held = await propertyFootprint(tx, organizationId, propertyId)
+      const held = await propertyFootprint(tx, organizationId, propertyId, now)
       const blocked = propertyBlockers(held)
       return [
         `import_items=${held.importItems} imports=${held.emptiedImports} ` +
@@ -547,11 +558,12 @@ export async function googlePropertyErasureRefusal(
   db: Database,
   organizationId: string,
   propertyId: string,
+  now: Date,
 ): Promise<string | null> {
   return db.transaction(
     async (tx) => {
       const blocked = propertyBlockers(
-        await propertyFootprint(tx, organizationId, propertyId),
+        await propertyFootprint(tx, organizationId, propertyId, now),
       )
       return blocked ? notReadyError(blocked) : null
     },
@@ -566,9 +578,10 @@ export async function eraseGoogleIntegrationForProperty(
   db: Database,
   organizationId: string,
   propertyId: string,
+  now: Date,
 ): Promise<GoogleClosureOutcome> {
   return db.transaction((tx) =>
-    eraseGoogleIntegrationForPropertyInTx(tx, organizationId, propertyId),
+    eraseGoogleIntegrationForPropertyInTx(tx, organizationId, propertyId, now),
   )
 }
 
@@ -599,10 +612,11 @@ export async function eraseGoogleIntegrationForPropertyInTx(
   tx: Tx,
   organizationId: string,
   propertyId: string,
+  now: Date,
 ): Promise<GoogleClosureOutcome> {
   await lockPropertyRows(tx, organizationId, propertyId)
   const blocked = propertyBlockers(
-    await propertyFootprint(tx, organizationId, propertyId),
+    await propertyFootprint(tx, organizationId, propertyId, now),
   )
   if (blocked) return { ok: false, error: notReadyError(blocked) }
   const newParents = await deleteReturningIds(
@@ -641,7 +655,7 @@ export async function eraseGoogleIntegrationForPropertyInTx(
       DELETE FROM authorization_execution_permits
       WHERE organization_id = ${organizationId}
         AND property_id = ${propertyId}::uuid
-        AND NOT ${LIVE_PERMIT}
+        AND NOT ${livePermit(now)}
       RETURNING 1`)
   return {
     ok: true,

@@ -3,7 +3,8 @@
 // Organization. Erasing A deletes A's finished permits only, journaled first,
 // refuses while a Google call for A is admitted or started before its
 // deadline, and a replay deletes them again. A permit left admitted or started
-// past its deadline is dead and goes with the Property.
+// past its deadline is dead and goes with the Property; the deadline is read
+// against the executor's clock, and one equal to it has passed.
 
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -81,9 +82,13 @@ async function permits(organizationId: string, propertyId?: string): Promise<unk
   return result.rows[0]?.rows as unknown[]
 }
 
-const erase = (seeded: RightsSeeded, store = recordingJournalStore().store) =>
+const erase = (
+  seeded: RightsSeeded,
+  store = recordingJournalStore().store,
+  now?: () => Date,
+) =>
   runRightsExecutor(
-    createGoogleRightsExecutor({ db }),
+    createGoogleRightsExecutor({ db, ...(now ? { now } : {}) }),
     rightsPlan('property', seeded.organizationId, { propertyId: seeded.propertyIds[0] }),
     store,
   )
@@ -173,6 +178,29 @@ describe('Google Property erasure and execution permits', () => {
       const bBefore = await permits(first.organizationId, b)
 
       const result = await erase(first)
+
+      expect(result.err).toEqual([])
+      expect(result.code).toBe(0)
+      expect(await permits(first.organizationId, a)).toEqual([])
+      expect(await permits(first.organizationId, b)).toEqual(bBefore)
+    },
+  )
+
+  it.each(['admitted', 'started'] as const)(
+    'reads a %s permit deadline against the executor clock, where a deadline equal to now has elapsed',
+    async (state) => {
+      const first = await seed(2)
+      const [a, b] = first.propertyIds as [string, string]
+      const deadline = IN_AN_HOUR()
+      await seedPermit(first.organizationId, a, state, deadline)
+      const bBefore = await permits(first.organizationId, b)
+
+      const early = await erase(first, undefined, () => new Date(deadline.getTime() - 1))
+
+      expect(early.code).toBe(1)
+      expect(early.err.join('\n')).toContain('live_execution_permits=1')
+
+      const result = await erase(first, undefined, () => deadline)
 
       expect(result.err).toEqual([])
       expect(result.code).toBe(0)
