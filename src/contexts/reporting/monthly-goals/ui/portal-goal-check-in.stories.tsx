@@ -188,7 +188,10 @@ export const CheckIn: Story = {
   },
 }
 
-/** At 320 px the buttons wrap, and each can be tapped. */
+/**
+ * At 320 px every button of the card is there and carries the wrap and touch-size
+ * classes; this runner compiles no Tailwind, so it measures neither.
+ */
 export const CheckIn320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   play: async ({ canvasElement }) => {
