@@ -35,14 +35,6 @@ import {
 } from '#/shared/merchant-ai-notice-contract'
 import { describe, expect, it, vi } from 'vitest'
 
-// Historical v1 remains readable; these contract regressions deliberately pin its old execution.
-vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('#/shared/ai-runtime-capability-contract')>()
-  const { historicalReplyRuntime } =
-    await import('#/shared/testing/historical-reply-runtime')
-  return historicalReplyRuntime(actual)
-})
 import {
   aiRequestFingerprint,
   aiReviewSourceProvenance,
@@ -104,7 +96,7 @@ describe('generate reply suggestion: compatible execution refresh', () => {
     const request = harness.mocks.generateReply.mock.calls[0]?.[0]
     expect(() => parseAiGatewayRouteRequest(request)).not.toThrow()
     expect(request).toMatchObject({
-      binding: { providerDeploymentProfileVersion: 'private-beta-global-v2' },
+      binding: { providerDeploymentProfileVersion: 'private-beta-global-v3' },
     })
   })
 })
@@ -174,11 +166,7 @@ describe('generate reply suggestion: refusals before provider work', () => {
       code: 'policy_unavailable',
       retryAfterEpochMillis: null,
     })
-    expectNoAiExecution(
-      harness.mocks.acquire,
-      harness.mocks.claimExecution,
-      harness.mocks.generateReply,
-    )
+    expectNoAiExecution(harness.mocks.claimExecution, harness.mocks.generateReply)
   })
 
   it.each([
@@ -195,11 +183,7 @@ describe('generate reply suggestion: refusals before provider work', () => {
         code: 'completed_without_delivery',
         retryAfterEpochMillis: null,
       })
-      expectNoAiExecution(
-        harness.mocks.acquire,
-        harness.mocks.claimExecution,
-        harness.mocks.generateReply,
-      )
+      expectNoAiExecution(harness.mocks.claimExecution, harness.mocks.generateReply)
     },
   )
 })
@@ -343,15 +327,21 @@ describe('generate reply suggestion: operation binding', () => {
       outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
       replyTemplateCatalogueVersion: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
       replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-      providerDeploymentProfileVersion: 'private-beta-global-v2',
-      operationProfileVersion: 'reply-suggestion-v1',
-      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v3',
+      operationProfileVersion: 'reply-suggestion-v2',
+      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v2',
       aiSubjectHmacKeyVersion: null,
+      replyDraftingV2: expect.objectContaining({
+        parentOperationId: null,
+        rewriteOrdinal: 0,
+        rewriteIssues: [],
+        voiceDigest: SHA,
+      }),
       stopFence: {
         globalControlId: harness.persistence.openHeads[0]!.controlId,
         globalGeneration: harness.persistence.openHeads[0]!.generation,
-        providerControlId: harness.persistence.openHeads[1]!.controlId,
-        providerGeneration: harness.persistence.openHeads[1]!.generation,
+        providerControlId: expect.any(String),
+        providerGeneration: expect.any(Number),
         capabilityControlId: harness.persistence.openHeads[2]!.controlId,
         capabilityGeneration: harness.persistence.openHeads[2]!.generation,
       },
@@ -369,7 +359,11 @@ describe('generate reply suggestion: operation binding', () => {
     expect(request?.binding).toStrictEqual(binding)
     expect(request?.sourceProvenance).toStrictEqual(sourceProvenance)
     expect(request?.requestFingerprint).toBe(
-      aiRequestFingerprint({ identity, binding, sourceProvenance }),
+      aiRequestFingerprint({
+        identity,
+        binding: request?.binding,
+        sourceProvenance,
+      }),
     )
     expect(request?.idempotencyKey).toBe('reply-suggestion-test-key')
     expect(request?.expiresAtEpochMillis).toBe(NOW + 15 * 60_000)

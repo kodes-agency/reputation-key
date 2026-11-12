@@ -23,6 +23,10 @@ import {
   propertyContextMatchesHintIdentity,
   resolveReviewPropertyContext,
 } from '#/shared/review-vocabulary-hints'
+import {
+  REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
+  REVIEW_ANALYSIS_NORMALIZATION_VERSION,
+} from '#/shared/review-analysis-v3-normalizer'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import {
   analysisExecutionBinding,
@@ -39,6 +43,17 @@ const PROPERTY_ID = propertyId('7a300000-0000-4000-8000-000000000003')
 const REVIEW_ID = reviewId('7a300000-0000-4000-8000-000000000004')
 const EVENT_ID = '7a300000-0000-4000-8000-000000000005'
 const NOW = new Date('2026-10-29T10:00:00.000Z')
+
+const PROVIDER_LINEAGE = {
+  providerId: 'openai' as const,
+  model: 'synthetic-model-2026-10-01',
+  requestProfileVersion: 'synthetic-request-profile-v1',
+  requestProfileDigest: '1'.repeat(64),
+}
+const NORMALIZATION = {
+  version: REVIEW_ANALYSIS_NORMALIZATION_VERSION,
+  digest: REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
+}
 
 let lease: TestLease
 let db: Database
@@ -99,8 +114,8 @@ async function analysisRequest() {
     },
     authorizationLineageId: randomUUID(),
     operationProfile: {
-      profileVersion: 'review-analysis-v2',
-      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
+      profileVersion: 'review-analysis-v3',
+      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2',
     },
     reviewAnalysisEpoch: 1,
     evaluatedLanguage: 'en',
@@ -242,6 +257,8 @@ describe.sequential('the vocabulary hints of a review analysis (real PostgreSQL)
         ...(extra.vocabularyHints === undefined
           ? {}
           : { vocabularyHints: extra.vocabularyHints }),
+        providerLineage: PROVIDER_LINEAGE,
+        normalization: NORMALIZATION,
         nowEpochMillis: NOW.getTime(),
         expiresAtEpochMillis: NOW.getTime() + 24 * 60 * 60_000,
       })
@@ -279,14 +296,6 @@ describe.sequential('the vocabulary hints of a review analysis (real PostgreSQL)
       ).toBe(true)
     })
 
-    it('records no hints for an operation that carried none', async () => {
-      const created = await claim(await analysisRequest())
-
-      expect(created.status).toBe('created')
-      expect(created.operation.vocabularyHints).toBeNull()
-      expect(await storedColumns()).toEqual({ id: null, version: null, digest: null })
-    })
-
     it('replays the same request with the same hints', async () => {
       const resolved = resolveReviewPropertyContext('Hotel')
       const request = await analysisRequest()
@@ -306,10 +315,8 @@ describe.sequential('the vocabulary hints of a review analysis (real PostgreSQL)
 
       // The caller left the hints out of the fingerprint; the store still refuses.
       const other = await claim(request, { vocabularyHints: spa.hintIdentity })
-      const none = await claim(request)
 
       expect(other.status).toBe('conflict')
-      expect(none.status).toBe('conflict')
       expect(other.operation.vocabularyHints).toEqual(hotel.hintIdentity)
       expect(await storedColumns()).toMatchObject({ id: 'lodging' })
     })

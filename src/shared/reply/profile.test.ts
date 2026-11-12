@@ -1,10 +1,13 @@
-import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from './reply-drafting-v2-schema'
+import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply-drafting-v2-schema'
 import { z } from 'zod/v4'
 import { describe, expect, it } from 'vitest'
-import { REPLY_DRAFTING_V2_OPERATION_PROFILE as profile } from './reply-drafting-v2-profile'
-import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from './reply-drafting-v2-contract'
-import { REPLY_BODY_LINT_DIGEST, lintReplyDraftingV2Body } from './reply-drafting-v2-lint'
-import { REPLY_DRAFTING_V2_APOLOGIES } from './domain/reply-drafting-v2'
+import { REPLY_DRAFTING_V2_OPERATION_PROFILE as profile } from './profile'
+import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply-drafting-v2-contract'
+import {
+  REPLY_BODY_LINT_DIGEST,
+  lintReplyDraftingV2Body,
+} from '#/shared/reply-drafting-v2-lint'
+import { REPLY_DRAFTING_V2_APOLOGIES } from '#/shared/domain/reply-drafting-v2'
 import {
   REPLY_DRAFTING_V2_EXAMPLES_DIGEST,
   pickReplyDraftingV2Examples,
@@ -12,19 +15,19 @@ import {
   resolveReplyDraftingV2Options,
   buildReplyDraftingV2Payload,
   validReplyDraftingV2Options,
-} from './reply-drafting-v2-request'
-import { REPLY_DRAFTING_V2_PROMPT } from './reply-drafting-v2-prompt'
+} from '#/shared/reply-drafting-v2-request'
+import { REPLY_DRAFTING_V2_PROMPT } from '#/shared/reply-drafting-v2-prompt'
 import {
   AI_RUNTIME_CAPABILITY_CATALOGUE,
   getAiRuntimeCapability,
   isExecutionCompatibleWithConsent,
-} from './ai-runtime-capability-contract'
+} from '#/shared/ai-runtime-capability-contract'
 import {
   MERCHANT_AI_NOTICE_VERSION,
   MERCHANT_AI_NOTICE_DIGEST,
-} from './merchant-ai-notice-contract'
-import ENGLISH from './reply-drafting-v2-examples.json'
-import BULGARIAN from './reply-drafting-v2-examples-bg.json'
+} from '#/shared/merchant-ai-notice-contract'
+import ENGLISH from '#/shared/reply-drafting-v2-examples.json'
+import BULGARIAN from '#/shared/reply-drafting-v2-examples-bg.json'
 
 const PINS = {
   profile: '96cc3926f0e9d0110b15e05be0233ff50270699ccee833caac0b4480c9b27642',

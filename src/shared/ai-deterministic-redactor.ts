@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
+import { digestOf } from './ai-digest'
 import {
   AI_CLOSED_PLACEHOLDERS,
   AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
@@ -30,10 +29,10 @@ const REDACTION_MANIFEST = Object.freeze({
   ]),
 })
 
-export const AI_REDACTION_PROFILE_DIGEST = createHash('sha256')
-  .update('repkey-ai-deterministic-redactor-profile-v1\0', 'utf8')
-  .update(canonicalizeRfc8785(REDACTION_MANIFEST), 'utf8')
-  .digest('hex')
+export const AI_REDACTION_PROFILE_DIGEST = digestOf(
+  'repkey-ai-deterministic-redactor-profile-v1\0',
+  REDACTION_MANIFEST,
+)
 
 export type AiRedactionCounts = Readonly<Record<AiClosedPlaceholder, number>>
 

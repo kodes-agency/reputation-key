@@ -65,7 +65,7 @@ import type {
   PrepareProviderInvocationInput,
 } from './provider-contracts'
 import type { ReplyBodyIssueCode } from '#/shared/domain/reply-body-lint-policy'
-import type { AiOperationProfile } from '#/shared/ai-operation-profile-core'
+import type { AiOperationProfile } from '#/shared/ai-operation-profile'
 
 type Dependencies = Readonly<{
   profile: Pick<
@@ -101,8 +101,7 @@ function assertPolicy(
     concrete.templateGroup !== target?.templateGroup ||
     request.replyProfileVersion !== REPLY_DRAFTING_V2_VERSIONS.profile ||
     !binding.replyDraftingV2 ||
-    !request.replyV2Frame ||
-    request.replyLocalFrame != null
+    !request.replyV2Frame
   )
     throw new GatewayPreparationError('invalid_request')
   if (
