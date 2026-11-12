@@ -103,6 +103,7 @@ type Options = Readonly<{
   stampActivity?: Error
   mode?: 'dark' | 'persist'
   withoutPersistDeps?: boolean
+  coverWrite?: Error
 }>
 
 function setup(options: Options = {}) {
@@ -139,6 +140,12 @@ function setup(options: Options = {}) {
       if (options.recordHeadFact) throw options.recordHeadFact
     }),
     recordRun: vi.fn(async () => undefined),
+    recordHeadCoverage: vi.fn(async () => {
+      if (options.coverWrite) throw options.coverWrite
+    }),
+    requestFullRead: vi.fn(async () => {
+      if (options.coverWrite) throw options.coverWrite
+    }),
   } satisfies ReviewHeadCheckRepository
   const persist = vi.fn(
     async (call: Parameters<ReviewProviderObservationWriter['persist']>[0]) => {
@@ -814,6 +821,138 @@ describe('runReviewHeadCheck: persist mode never throws and leaves no latch', ()
         storeFailed: 1,
         factWritten: false,
       }),
+      'Review head check finished',
+    )
+  })
+})
+
+describe('runReviewHeadCheck: the Property’s head cover', () => {
+  const fullPage = (count: number, over: (id: string) => Partial<GoogleReviewRead>) =>
+    Array.from({ length: count }, (_, index) =>
+      googleReview(`r-${index}`, over(`r-${index}`)),
+    )
+  const copiesOf = (count: number, over: Partial<HeadStoredCopy> = {}) =>
+    Array.from({ length: count }, (_, index) => storedCopy(`r-${index}`, over))
+
+  it('renews the cover from the start of the check when it stored everything that differed', async () => {
+    const { run, repository } = setup({ copies: [storedCopy('r-1')] })
+
+    await run()
+
+    expect(repository.recordHeadCoverage).toHaveBeenCalledExactlyOnceWith({
+      propertyId: PROPERTY,
+      coveredAt: T0,
+    })
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+  })
+
+  it('renews the cover when nothing on the page differed', async () => {
+    const { run, repository } = setup()
+
+    await run()
+
+    expect(repository.recordHeadCoverage).toHaveBeenCalledOnce()
+  })
+
+  it('renews nothing when a review on the page could not be stored', async () => {
+    const { run, repository } = setup({ copies: [], failPersistFor: new Set(['r-1']) })
+
+    await run()
+
+    expect(repository.recordHeadCoverage).not.toHaveBeenCalled()
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['no completed listing', { state: { ...readyState, hasCompletedListing: false } }],
+    ['an active snapshot run', { state: { ...readyState, snapshotActive: true } }],
+    ['a moved source epoch', { currentEpoch: EPOCH + 1 }],
+    ['dark mode', { mode: 'dark' as const }],
+    ['no persist dependencies', { withoutPersistDeps: true }],
+  ])('renews nothing and requests nothing with %s', async (_case, options) => {
+    const { run, repository } = setup({ copies: [], ...options })
+
+    await run()
+
+    expect(repository.recordHeadCoverage).not.toHaveBeenCalled()
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+  })
+
+  it('renews nothing and asks for a full read when the whole page changed and more pages follow', async () => {
+    const { run, repository, logger } = setup({
+      head: okHead(
+        fullPage(50, () => ({ sourceUpdatedAt: new Date(T0.getTime() - 1_000) })),
+        { hasMore: true, totalReviewCount: 120 },
+      ),
+      copies: copiesOf(30),
+    })
+
+    const result = await run()
+
+    expect(result).toMatchObject({
+      comparison: { listed: 50, newCount: 20, changedCount: 30, contentChangedCount: 50 },
+      persistence: { outcome: 'stored' },
+    })
+    expect(repository.recordHeadCoverage).not.toHaveBeenCalled()
+    expect(repository.requestFullRead).toHaveBeenCalledExactlyOnceWith({
+      propertyId: PROPERTY,
+      requestedAt: expect.any(Date),
+    })
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ cover: 'full_read_requested', contentChanged: 50 }),
+      'Review head check finished',
+    )
+  })
+
+  it('treats a page of routine five-day refreshes as covered, not as a whole page changed', async () => {
+    const { run, repository } = setup({
+      head: okHead(
+        fullPage(50, () => ({})),
+        { hasMore: true, totalReviewCount: 120 },
+      ),
+      copies: copiesOf(50, { lastFetchedAt: new Date(T0.getTime() - 6 * DAY_MS) }),
+    })
+
+    const result = await run()
+
+    expect(result).toMatchObject({
+      comparison: { leaseRefreshCount: 50, contentChangedCount: 0 },
+      persistence: { outcome: 'stored', storedOther: 50, failed: 0 },
+    })
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+    expect(repository.recordHeadCoverage).toHaveBeenCalledOnce()
+  })
+
+  it('renews the cover when the whole page changed but it is Google’s last page', async () => {
+    const { run, repository } = setup({
+      head: okHead(
+        fullPage(3, () => ({})),
+        { hasMore: false },
+      ),
+      copies: [],
+    })
+
+    await run()
+
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+    expect(repository.recordHeadCoverage).toHaveBeenCalledOnce()
+  })
+
+  it('still finishes, and logs a closed code, when the cover cannot be written', async () => {
+    const { run, logger } = setup({ coverWrite: new Error('db down CANARY') })
+
+    const result = await run()
+
+    expect(result).toMatchObject({
+      status: 'compared',
+      persistence: { outcome: 'stored' },
+    })
+    expect(logger.warn).toHaveBeenCalledWith(
+      { event: 'review_head_check_cover_not_recorded' },
+      'Review head check could not record its head cover',
+    )
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ cover: null }),
       'Review head check finished',
     )
   })

@@ -7863,7 +7863,9 @@ CREATE TABLE "public"."review_sync_state" (
     "last_terminal_error_at" timestamp with time zone,
     "error_class" "text",
     "error_retry_at" timestamp with time zone,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "head_covered_at" timestamp with time zone,
+    "full_read_requested_at" timestamp with time zone
 );
 
 

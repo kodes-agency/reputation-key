@@ -2,9 +2,15 @@
 // last COMPLETED reconciliation is recent.
 
 import { describe, it, expect } from 'vitest'
+import {
+  DISCOVERY_LOOK_MAX_GAP_MS,
+  HEAD_COVERAGE_FRESH_MS,
+} from '#/shared/domain/push-health'
 import { DISCOVERY_MAX_INTERVAL_MS } from './discovery-backoff'
 import {
+  DISCOVERY_RECONCILE_WITHIN_MAX_MS,
   DISCOVERY_RECONCILE_WITHIN_MS,
+  FULL_READ_REQUEST_SPACING_MS,
   discoveryLookFor,
   type DiscoveryLook,
 } from './discovery-reconciliation'
@@ -318,5 +324,259 @@ describe('discoveryLookFor: a configured reconciliation window', () => {
         reconcileWithinMs: DAY_MS,
       }),
     ).toEqual({ kind: 'skip', nextDueAt: new Date(deadline - HOT_MS) })
+  })
+})
+
+describe('discoveryLookFor: head cover and requested full reads', () => {
+  const DAY_MS = 24 * HOUR_MS
+  const WEEK_MS = 7 * DAY_MS
+
+  it('agrees with the ladder and the alert on how long cover lasts', () => {
+    expect(DISCOVERY_LOOK_MAX_GAP_MS).toBe(DISCOVERY_MAX_INTERVAL_MS)
+    expect(HEAD_COVERAGE_FRESH_MS).toBeGreaterThan(DISCOVERY_MAX_INTERVAL_MS)
+    expect(DISCOVERY_RECONCILE_WITHIN_MAX_MS).toBe(336 * HOUR_MS)
+  })
+
+  it('makes every decision the same at a window of a day or less, whatever the cover', () => {
+    const covers = [undefined, null, ago(MINUTE_MS), ago(8 * HOUR_MS), ago(WEEK_MS)]
+    for (const reconcileWithinMs of [6 * HOUR_MS, 12 * HOUR_MS, DAY_MS]) {
+      for (const interval of [HOT_MS, WARM_MS, COLD_MS]) {
+        for (let age = 0; age <= 26 * HOUR_MS; age += 10 * MINUTE_MS) {
+          for (const headChecks of [false, true]) {
+            const base = {
+              reconcileWithinMs,
+              interval,
+              headChecks,
+              lastReconciledAt: ago(age),
+            }
+            const expected = look(base)
+            for (const headCoveredAt of covers) {
+              expect(look({ ...base, headCoveredAt })).toEqual(expected)
+            }
+          }
+        }
+      }
+    }
+  })
+
+  it('lets a covered Property skip for the whole week', () => {
+    for (let age = 0; age < WEEK_MS - COLD_MS; age += HOUR_MS) {
+      expect(
+        look({
+          reconcileWithinMs: WEEK_MS,
+          interval: COLD_MS,
+          headChecks: true,
+          lastReconciledAt: ago(age),
+          headCoveredAt: ago(6 * HOUR_MS),
+        }),
+      ).toEqual({
+        kind: 'skip',
+        headCheck: true,
+        nextDueAt: new Date(NOW.getTime() + COLD_MS),
+      })
+    }
+    expect(
+      look({
+        reconcileWithinMs: WEEK_MS,
+        interval: COLD_MS,
+        headChecks: true,
+        lastReconciledAt: ago(WEEK_MS - COLD_MS),
+        headCoveredAt: ago(HOUR_MS),
+      }),
+    ).toEqual({ kind: 'full', reason: 'due' })
+  })
+
+  it('reads a Property in full once its listing is a day old when its cover has lapsed', () => {
+    const base = {
+      reconcileWithinMs: WEEK_MS,
+      interval: HOT_MS,
+      headChecks: true,
+      headCoveredAt: ago(HEAD_COVERAGE_FRESH_MS),
+    }
+    expect(look({ ...base, lastReconciledAt: ago(DAY_MS - HOT_MS - 1) }).kind).toBe(
+      'skip',
+    )
+    expect(look({ ...base, lastReconciledAt: ago(DAY_MS - HOT_MS) })).toEqual({
+      kind: 'full',
+      reason: 'uncovered',
+    })
+    expect(look({ ...base, lastReconciledAt: ago(3 * DAY_MS) })).toEqual({
+      kind: 'full',
+      reason: 'uncovered',
+    })
+    // Never covered at all, and no head checks running.
+    expect(
+      look({
+        reconcileWithinMs: WEEK_MS,
+        interval: HOT_MS,
+        lastReconciledAt: ago(DAY_MS),
+      }),
+    ).toEqual({ kind: 'full', reason: 'uncovered' })
+  })
+
+  it('wakes an uncovered Property without head checks once, a day after its listing', () => {
+    const reconciled = ago(HOUR_MS)
+    const first = look({
+      reconcileWithinMs: WEEK_MS,
+      interval: HOT_MS,
+      lastReconciledAt: reconciled,
+    })
+    expect(first).toEqual({
+      kind: 'skip',
+      nextDueAt: new Date(reconciled.getTime() + DAY_MS - HOT_MS),
+    })
+    if (first.kind !== 'skip') throw new Error('expected a skip')
+    expect(
+      discoveryLookFor({
+        reconcileWithinMs: WEEK_MS,
+        lastReconciledAt: reconciled,
+        hasOutstandingFailure: false,
+        skipEnabled: true,
+        now: first.nextDueAt,
+        interval: HOT_MS,
+      }),
+    ).toEqual({ kind: 'full', reason: 'uncovered' })
+  })
+
+  it('keeps a quiet Property at a weekly window covered by a head check every six hours', () => {
+    const start = NOW.getTime()
+    let at = start
+    let coveredAt: Date | null = new Date(start)
+    let fullReads = 0
+    let lastReconciledAt = new Date(start)
+    while (at < start + 3 * WEEK_MS) {
+      const decision = discoveryLookFor({
+        reconcileWithinMs: WEEK_MS,
+        lastReconciledAt,
+        hasOutstandingFailure: false,
+        skipEnabled: true,
+        headChecks: true,
+        headCoveredAt: coveredAt,
+        now: new Date(at),
+        interval: COLD_MS,
+      })
+      if (decision.kind === 'full') {
+        expect(decision.reason).toBe('due')
+        fullReads++
+        lastReconciledAt = new Date(at)
+        at += COLD_MS
+        continue
+      }
+      expect(decision.nextDueAt.getTime() - at).toBe(COLD_MS)
+      // The head job starts inside the ten-minute spread and stores the page.
+      coveredAt = new Date(at + 10 * MINUTE_MS)
+      at = decision.nextDueAt.getTime()
+    }
+    // One full read a week, not one a day.
+    expect(fullReads).toBe(3)
+  })
+
+  it('honours a request once the listing is six hours old, and only once', () => {
+    const reconciled = ago(5 * HOUR_MS)
+    const base = {
+      reconcileWithinMs: WEEK_MS,
+      interval: HOT_MS,
+      headChecks: true,
+      headCoveredAt: ago(MINUTE_MS),
+      fullReadRequestedAt: ago(HOUR_MS),
+    }
+    expect(look({ ...base, lastReconciledAt: reconciled }).kind).toBe('skip')
+    expect(
+      look({ ...base, lastReconciledAt: ago(FULL_READ_REQUEST_SPACING_MS) }),
+    ).toEqual({
+      kind: 'full',
+      reason: 'requested',
+    })
+    // The listing it brought completes after the request: the request is spent.
+    expect(look({ ...base, lastReconciledAt: ago(30 * MINUTE_MS) }).kind).toBe('skip')
+    expect(
+      look({
+        ...base,
+        lastReconciledAt: ago(30 * MINUTE_MS),
+        now: new Date(NOW.getTime() + 6 * HOUR_MS),
+      }).kind,
+    ).toBe('skip')
+  })
+
+  it('never runs two requested reads within six hours of a listing, however often asked', () => {
+    let lastReconciledAt = ago(DAY_MS)
+    let fullReads = 0
+    for (let at = NOW.getTime(); at < NOW.getTime() + 2 * DAY_MS; at += HOT_MS) {
+      const decision = discoveryLookFor({
+        reconcileWithinMs: WEEK_MS,
+        lastReconciledAt,
+        hasOutstandingFailure: false,
+        skipEnabled: true,
+        headChecks: true,
+        headCoveredAt: new Date(at - MINUTE_MS),
+        // Asked again on every look.
+        fullReadRequestedAt: new Date(at - 1),
+        now: new Date(at),
+        interval: HOT_MS,
+      })
+      if (decision.kind === 'full') {
+        expect(at - lastReconciledAt.getTime()).toBeGreaterThanOrEqual(
+          FULL_READ_REQUEST_SPACING_MS,
+        )
+        fullReads++
+        lastReconciledAt = new Date(at)
+      }
+    }
+    expect(fullReads).toBe(8)
+  })
+
+  it('wakes a skipped look without head checks when a pending request may run', () => {
+    const reconciled = ago(2 * HOUR_MS)
+    expect(
+      look({
+        reconcileWithinMs: DAY_MS,
+        interval: HOT_MS,
+        lastReconciledAt: reconciled,
+        fullReadRequestedAt: ago(HOUR_MS),
+      }),
+    ).toEqual({
+      kind: 'skip',
+      nextDueAt: new Date(reconciled.getTime() + FULL_READ_REQUEST_SPACING_MS),
+    })
+  })
+
+  it('ignores a request older than the last listing', () => {
+    expect(
+      look({
+        lastReconciledAt: ago(10 * HOUR_MS),
+        reconcileWithinMs: DAY_MS,
+        interval: HOT_MS,
+        headChecks: true,
+        fullReadRequestedAt: ago(11 * HOUR_MS),
+      }).kind,
+    ).toBe('skip')
+  })
+
+  it('reports due before requested before uncovered', () => {
+    const requested = { fullReadRequestedAt: ago(MINUTE_MS) }
+    expect(
+      look({ ...requested, reconcileWithinMs: DAY_MS, lastReconciledAt: ago(DAY_MS) }),
+    ).toEqual({ kind: 'full', reason: 'due' })
+    expect(
+      look({
+        ...requested,
+        reconcileWithinMs: WEEK_MS,
+        lastReconciledAt: ago(2 * DAY_MS),
+      }),
+    ).toEqual({ kind: 'full', reason: 'requested' })
+  })
+
+  it('never lets a listing grow older than fourteen days, whatever the window', () => {
+    const covered = { headChecks: true, headCoveredAt: ago(MINUTE_MS), interval: HOT_MS }
+    const cap = 336 * HOUR_MS
+    for (const reconcileWithinMs of [cap, cap + HOUR_MS, 30 * DAY_MS, Infinity]) {
+      expect(
+        look({ ...covered, reconcileWithinMs, lastReconciledAt: ago(cap - HOT_MS - 1) })
+          .kind,
+      ).toBe('skip')
+      expect(
+        look({ ...covered, reconcileWithinMs, lastReconciledAt: ago(cap - HOT_MS) }),
+      ).toEqual({ kind: 'full', reason: 'due' })
+    }
   })
 })

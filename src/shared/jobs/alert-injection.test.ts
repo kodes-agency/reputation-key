@@ -267,6 +267,7 @@ describe('alert registry contract (BQC-7.4)', () => {
       'security.scan',
       'source.freshness-deadline',
       'sync.failed-nonzero',
+      'sync.head-coverage',
       'sync.push-missed',
       'sync.push-silent',
       'sync.reconciliation-age',
@@ -527,6 +528,24 @@ const BREACHES: readonly Breach[] = [
           ...s.syncPush.reconciliation,
           overdueCount: 1,
           oldestAgeMs: 9 * 60 * 60 * 1000,
+        },
+      }
+    },
+  },
+  {
+    name: 'sync.head-coverage',
+    severity: 'P2',
+    runbook: 'runbooks.md §13',
+    threshold: 24 * 60 * 60 * 1000,
+    windowMs: 24 * 60 * 60 * 1000,
+    value: 30 * 60 * 60 * 1000,
+    apply: (s) => {
+      s.syncPush = {
+        ...s.syncPush,
+        headCoverage: {
+          active: true,
+          uncoveredCount: 2,
+          oldestUncoveredAgeMs: 30 * 60 * 60 * 1000,
         },
       }
     },

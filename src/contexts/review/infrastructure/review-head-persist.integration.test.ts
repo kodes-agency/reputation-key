@@ -173,6 +173,10 @@ type HeadOptions = Readonly<{
   mode?: 'dark' | 'persist'
   /** Replaces the read generation the check takes right after Google answers. */
   generation?: number
+  /** Google says more pages follow this one. */
+  hasMore?: boolean
+  /** The observation write of this review fails. */
+  failPersistOf?: string
 }>
 
 /** Run one head check against a page Google returns. */
@@ -185,7 +189,7 @@ async function headCheck(
     reviews,
     totalReviewCount: options.total ?? reviews.length,
     averageRating: options.average === undefined ? 4 : options.average,
-    hasMore: false,
+    hasMore: options.hasMore ?? false,
   }
   const warn = vi.fn()
   const run = createRunReviewHeadCheck({
@@ -194,13 +198,18 @@ async function headCheck(
     logger: { info: vi.fn(), warn },
     clock: () => new Date(clockAt.getTime() + tick++),
     persist: {
-      observationWriter:
-        options.generation === undefined
-          ? writer
-          : {
-              ...writer,
-              allocateReplyReadGeneration: async () => options.generation as number,
-            },
+      observationWriter: {
+        ...writer,
+        ...(options.generation === undefined
+          ? {}
+          : { allocateReplyReadGeneration: async () => options.generation as number }),
+        persist: async (call) => {
+          if (call.review.externalId === options.failPersistOf) {
+            throw new Error('observation write failed')
+          }
+          return writer.persist(call)
+        },
+      },
       subjectKeyService,
       subjectSightings: createReviewProviderSubjectSightings(db, { warn }),
       propertySourceEpoch: { getSourceEpoch: async () => ({ sourceEpoch: EPOCH }) },
@@ -749,6 +758,78 @@ describe('a persisting head check stores nothing where it must not (real Postgre
       SELECT count(*)::int AS count FROM reviews WHERE organization_id = ${OTHER_ORG}
     `)
     expect(other).toBe(0)
+  })
+})
+
+describe('the head cover a persisting check keeps (real PostgreSQL)', () => {
+  const syncRow = async () =>
+    (
+      await db.execute(sql`
+        SELECT head_covered_at, full_read_requested_at FROM review_sync_state
+        WHERE property_id = ${PROPERTY} AND source = 'google'
+      `)
+    ).rows.at(0)
+  const datedBySweep = () =>
+    db.execute(sql`
+      INSERT INTO review_sync_state (property_id, source, next_incremental_at)
+      VALUES (${PROPERTY}, 'google', now() + interval '15 minutes')
+    `)
+
+  it('renews the cover only when the whole page was stored', async () => {
+    await datedBySweep()
+    await insertFact({ count: 0, average: null, listingComplete: false })
+
+    await headCheck([providerReview('fresh')], { total: 1, average: 4 })
+    expect(await syncRow()).toEqual({
+      head_covered_at: null,
+      full_read_requested_at: null,
+    })
+
+    await insertFact({ count: 0, average: null })
+    await headCheck([providerReview('first'), providerReview('second')], {
+      total: 2,
+      average: 4,
+      failPersistOf: 'head-persist-second',
+    })
+    expect(await syncRow()).toEqual({
+      head_covered_at: null,
+      full_read_requested_at: null,
+    })
+
+    const { result } = await headCheck(
+      [providerReview('first'), providerReview('second')],
+      { total: 2, average: 4 },
+    )
+    expect(result).toMatchObject({ persistence: { outcome: 'stored', failed: 0 } })
+    expect((await syncRow())?.head_covered_at).not.toBeNull()
+    expect((await syncRow())?.full_read_requested_at).toBeNull()
+  })
+
+  it('renews nothing in dark mode', async () => {
+    await datedBySweep()
+    await insertFact({ count: 0, average: null })
+
+    await headCheck([providerReview('fresh')], { total: 1, average: 4, mode: 'dark' })
+
+    expect(await syncRow()).toEqual({
+      head_covered_at: null,
+      full_read_requested_at: null,
+    })
+  })
+
+  it('asks for a full read instead when every review on the page changed and more pages follow', async () => {
+    await datedBySweep()
+    await insertFact({ count: 0, average: null })
+
+    await headCheck([providerReview('one'), providerReview('two')], {
+      total: 60,
+      average: 4,
+      hasMore: true,
+    })
+
+    const row = await syncRow()
+    expect(row?.head_covered_at).toBeNull()
+    expect(row?.full_read_requested_at).not.toBeNull()
   })
 })
 

@@ -334,6 +334,61 @@ describe.sequential(
   },
 )
 
+describe.sequential(
+  'reviewHeadCheckRepository head cover and full-read requests (real PostgreSQL)',
+  () => {
+    const repo = createReviewHeadCheckRepository(db)
+    const syncRow = async (property: string) =>
+      (
+        await pool.query(
+          `SELECT head_covered_at, full_read_requested_at, next_incremental_at
+             FROM review_sync_state WHERE property_id = $1 AND source = 'google'`,
+          [property],
+        )
+      ).rows.at(0)
+    const dated = (property: string) =>
+      pool.query(
+        `INSERT INTO review_sync_state (property_id, source, next_incremental_at)
+         VALUES ($1, 'google', $2)`,
+        [property, NOW],
+      )
+
+    it('stamps the cover and never moves it backwards', async () => {
+      await dated(PROP_A)
+
+      await repo.recordHeadCoverage({ propertyId: PROP_A, coveredAt: NOW })
+      await repo.recordHeadCoverage({ propertyId: PROP_A, coveredAt: ago(60_000) })
+
+      expect(await syncRow(PROP_A)).toEqual({
+        head_covered_at: NOW,
+        full_read_requested_at: null,
+        next_incremental_at: NOW,
+      })
+      expect(await syncRow(PROP_B)).toBeUndefined()
+    })
+
+    it('records a request and never moves it backwards', async () => {
+      await dated(PROP_A)
+
+      await repo.requestFullRead({ propertyId: PROP_A, requestedAt: NOW })
+      await repo.requestFullRead({ propertyId: PROP_A, requestedAt: ago(60_000) })
+
+      expect(await syncRow(PROP_A)).toMatchObject({
+        head_covered_at: null,
+        full_read_requested_at: NOW,
+        next_incremental_at: NOW,
+      })
+    })
+
+    it('inserts no row for a Property the sweep never dated: it would read as never polled', async () => {
+      await repo.recordHeadCoverage({ propertyId: PROP_B, coveredAt: NOW })
+      await repo.requestFullRead({ propertyId: PROP_B, requestedAt: NOW })
+
+      expect(await syncRow(PROP_B)).toBeUndefined()
+    })
+  },
+)
+
 describe.sequential('reviewHeadCheckRepository.recordRun (real PostgreSQL)', () => {
   const repo = createReviewHeadCheckRepository(db)
   const STARTED = new Date('2026-10-21T12:00:00.000Z')
@@ -344,6 +399,7 @@ describe.sequential('reviewHeadCheckRepository.recordRun (real PostgreSQL)', () 
     changedCount: 1,
     replyChangedCount: 3,
     leaseRefreshCount: 4,
+    contentChangedCount: 6,
     wouldPersist: 8,
     googleTotal: 120,
     storedLiveCount: 117,
@@ -698,6 +754,7 @@ describe.sequential(
       changedCount: 1,
       replyChangedCount: 3,
       leaseRefreshCount: 4,
+      contentChangedCount: 6,
       wouldPersist: 8,
       googleTotal: 120,
       storedLiveCount: 117,

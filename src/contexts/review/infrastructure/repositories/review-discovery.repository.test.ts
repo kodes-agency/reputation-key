@@ -303,6 +303,8 @@ describe('reviewDiscoveryRepository (integration)', () => {
       },
       lastReconciledAt: null,
       hasOutstandingFailure: false,
+      headCoveredAt: null,
+      fullReadRequestedAt: null,
     })
   })
 
