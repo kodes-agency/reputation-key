@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import {
   buildGuestResponseHandlers,
   type GuestResponseActions,
