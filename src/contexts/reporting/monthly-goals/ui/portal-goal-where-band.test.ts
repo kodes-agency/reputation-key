@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalPageView } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
+import type { PortalGoalPageView } from '#/contexts/reporting/monthly-goals/contracts'
 import { whereBand } from './portal-goal-bands-view'
 import { PORTAL_NO_SCAN_HINT } from './portal-goal-copy'
 import { fromPortalsWords } from './portal-goal-page-view'

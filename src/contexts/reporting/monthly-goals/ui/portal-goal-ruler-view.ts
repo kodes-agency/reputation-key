@@ -1,7 +1,7 @@
 // The steady-month marker is not a forecast. Hide it during the first quiet days and
 // after the target is passed.
 
-import type { PortalGoalRunningMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalRunningMonth } from '#/contexts/reporting/monthly-goals/contracts'
 import { formatNumber } from '#/lib/format'
 import {
   rulerModel,

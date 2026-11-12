@@ -5,7 +5,7 @@ import type {
   RecommendationPortal,
 } from '../domain/goal-recommendation-types'
 import { setMonthlyPortalGoalSchema } from '../application/dto/monthly-portal-goal.dto'
-import type { SetMonthlyPortalGoalRequest } from '../application/dto/monthly-portal-goal.types'
+import type { SetMonthlyPortalGoalRequest } from './contracts'
 import type {
   GoalProgramBundle,
   GoalProgramVersion,

@@ -1,4 +1,4 @@
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 
 /** A set: the measure its door names, and the one month a stopped goal's door names. */
 export type PortalGoalSetIntent = Readonly<{

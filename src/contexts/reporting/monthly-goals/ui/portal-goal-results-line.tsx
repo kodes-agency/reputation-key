@@ -1,5 +1,5 @@
 import { Target } from 'lucide-react'
-import type { PortalGoalLineView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalLineView } from '#/contexts/reporting/monthly-goals/contracts'
 import { InlineLink } from '#/components/ui/inline-link'
 import { resultsLineWords } from './portal-goal-results-line-view'
 

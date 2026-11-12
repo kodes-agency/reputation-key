@@ -2,12 +2,12 @@
 // throwing. Number steps and own-number feedback use Reporting's rules, shared with the
 // add sheet.
 
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalOffer,
   PortalGoalSheetFacts,
   SetMonthlyPortalGoalRequest,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import {
   goalStepDown,
   goalStepUp,

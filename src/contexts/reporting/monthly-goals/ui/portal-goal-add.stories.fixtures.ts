@@ -4,7 +4,7 @@
 import type {
   PortalGoalAddOffer,
   PortalGoalAddOptions,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 
 const RECEPTION = 'a0000000-0000-4000-8000-000000000001'
 const RESTAURANT = 'a0000000-0000-4000-8000-000000000002'

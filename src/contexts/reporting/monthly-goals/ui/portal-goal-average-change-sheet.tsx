@@ -6,8 +6,8 @@ import type {
   ChangeMonthlyPortalGoalNowRequest,
   PortalGoalChangeFacts,
   ReviseMonthlyPortalGoalRequest,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import type { PortalGoalAverageOfPage } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
+import type { PortalGoalAverageOfPage } from '#/contexts/reporting/monthly-goals/contracts'
 import { GoalSheetFrame } from '../../../../components/goals/goal-sheet-frame'
 import { PortalGoalAverageChangeBody } from './portal-goal-average-change-body'
 import {

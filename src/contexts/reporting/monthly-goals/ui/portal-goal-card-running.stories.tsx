@@ -12,7 +12,7 @@
 // nothing scrolls sideways.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import { PortalGoalSection } from './portal-goal-section'
 import { SEAVIEW } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
 import {

@@ -1,12 +1,12 @@
 // Keep Portals in name order with plain counts, never ranked. The read owns figures and
 // states; a named quiet Portal is an action opportunity, not a winner.
 
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalPageMonth,
   PortalGoalPageTiles,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
-import type { PortalGoalRunningMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
+import type { PortalGoalRunningMonth } from '#/contexts/reporting/monthly-goals/contracts'
 import type { Tone } from '#/components/ui/tone'
 import { formatNumber } from '#/lib/format'
 import type { GoalColumn } from '../../../../components/goals/goal-columns-view'

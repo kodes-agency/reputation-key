@@ -8,8 +8,8 @@ import {
   firstFullMonthlyPeriodAtOrAfter,
   monthKeyOf,
 } from '../domain/goal-start'
-import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
-import type { PortalGoalChangeFacts } from '../application/dto/monthly-portal-goal.types'
+import type { PortalGoalRecommendation } from './contracts'
+import type { PortalGoalChangeFacts } from './contracts'
 import { monthTargetPlan } from '../application/goal-month-target-plan'
 import { nextRevisionStart } from '../application/goal-revision-start'
 import type { PropertyCountGoal } from '../application/monthly-portal-goal-identity'

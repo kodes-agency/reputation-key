@@ -2,7 +2,11 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import type { MetricKey } from '#/shared/domain/metric-keys'
 import { goalVersionIsUsable } from '../../domain/goal-metric-version-usable'
-import { METRIC_VERSION_IDS, type GovernedMetricVersion } from '../../readings/contracts'
+import {
+  METRIC_VERSION_IDS,
+  type GovernedMetricVersion,
+  type MetricRegistry,
+} from '../../readings/contracts'
 import type {
   GoalMetricSourceHead,
   GoalMetricSourceStatus,
@@ -12,7 +16,6 @@ import type {
   GoalMetricAggregateQuery,
   GoalMetricSubject,
 } from '../ports/metric.repository'
-import type { MetricRegistryRepository } from '../ports/metric-registry.repository.port'
 
 type GoalMetricSpec = Readonly<{
   metricKey: MetricKey
@@ -75,7 +78,7 @@ export type QueryGoalMetricDeps = Readonly<{
       sourceHead?: GoalMetricSourceHead
     }>
   >
-  registry: MetricRegistryRepository
+  registry: MetricRegistry
   validateSubject(
     organizationId: OrganizationId,
     propertyId: PropertyId,
@@ -229,7 +232,7 @@ export const queryGoalMetric =
 
 /** Eligibility shared by a single read and the live figures' set-based read. */
 export async function prepareGoalMetricQuery(
-  registry: MetricRegistryRepository,
+  registry: MetricRegistry,
   query: GovernedGoalMetricQuery,
 ) {
   if (

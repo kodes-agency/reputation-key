@@ -4,10 +4,7 @@
 // have no line; zero contribution without an own goal also has none.
 
 import type { PortalFacts } from '../domain/goal-recommendation-types'
-import type {
-  MonthlyPortalGoalLineRequest,
-  PortalGoalLineView,
-} from '../application/dto/monthly-portal-goal.types'
+import type { MonthlyPortalGoalLineRequest, PortalGoalLineView } from './contracts'
 import {
   isPortalGoalMeasure,
   type PropertyCountGoal,
