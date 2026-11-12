@@ -15,7 +15,7 @@ function Checkbox({
       className={cn(
         'peer size-4 shrink-0 rounded-[4px] border border-input shadow-xs transition-shadow outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:bg-input/30 dark:aria-invalid:ring-destructive/40 dark:data-[state=checked]:bg-primary',
         touch &&
-          "max-md:relative max-md:after:absolute max-md:after:inset-[calc((1rem-var(--control-touch))/2)] max-md:after:content-['']",
+          "max-md:relative max-md:after:absolute max-md:after:inset-[calc((1rem-var(--control-touch))/2-1px)] max-md:after:content-['']",
         className,
       )}
       {...props}
