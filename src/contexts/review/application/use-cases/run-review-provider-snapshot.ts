@@ -795,11 +795,17 @@ const confirmTargetedCandidate = async (
     deps.logger.warn({ err: error }, 'Targeted Review observation write failed')
     return failAndDiscard(deps, input, run.id, 'observation_failed')
   }
-  await deps.repository.recordCandidateObservation({
+  const recorded = await deps.repository.recordCandidateObservation({
     runId: run.id,
     organizationId: input.organizationId,
     observation,
   })
+  if (recorded === 'unlisted_again_run_failed') {
+    deps.logger.warn(
+      { event: 'review_snapshot_unlisted_review_still_found' },
+      'Google still returns a review its full listing leaves out',
+    )
+  }
   return failAndDiscard(deps, input, run.id, 'confirmation_set_changed')
 }
 

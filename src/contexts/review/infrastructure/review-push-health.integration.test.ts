@@ -34,6 +34,7 @@ import { runTargetedGoogleReviewFetch } from '../application/use-cases/run-targe
 import { createGoogleReplyObservationStore } from './google-reply-observation-store'
 import { createAtomicReviewCommandStore } from './review-command-store'
 import { createReviewFirstSightingRecorder } from './repositories/review-first-sighting.repository'
+import { createReviewProviderSubjectSightings } from './repositories/review-provider-subject-link'
 import { createReviewProviderSnapshotRepository } from './repositories/review-provider-snapshot.repository'
 import { createReviewRepository } from './repositories/review.repository'
 
@@ -171,6 +172,7 @@ function targetedFetch(review: GoogleReview) {
     },
     observationWriter: writer,
     subjectKeyService,
+    subjectSightings: createReviewProviderSubjectSightings(db, { warn: vi.fn() }),
     syncActivity: {
       recordNewReviewObserved: vi.fn(async () => undefined),
       recordPushObserved: vi.fn(async () => undefined),

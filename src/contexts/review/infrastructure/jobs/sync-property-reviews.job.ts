@@ -365,9 +365,10 @@ async function runHeadCheckStep(
  * - `listing_changed`: Google's listing moved while the run was reading it,
  *   most likely a guest posting mid-run (a different set between the two
  *   scans, a different total or average from one page to the next, a review on
- *   two pages), so the run removed nothing. The store records the specific
- *   code (`confirmation_set_changed`, `total_changed`, `average_changed`,
- *   `duplicate_resource`) instead once the Property's runs keep moving
+ *   two pages, a review edited while it was listed), so the run removed
+ *   nothing. The store records the specific code (`confirmation_set_changed`,
+ *   `total_changed`, `average_changed`, `duplicate_resource`,
+ *   `review_mutation`) instead once the Property's runs keep moving
  *   (application/snapshot-listing-change.ts).
  */
 const RESTARTED_AT_ONCE: ReadonlySet<ReviewProviderSnapshotFailureCode> = new Set([
