@@ -175,7 +175,6 @@ export function ReviewReplyPublishedEditor({
             Cancel
           </Button>
           <ConfirmationDialog
-            density="compact"
             trigger={
               <Button
                 size="sm"

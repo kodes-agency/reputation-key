@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PRODUCT_UPDATES } from '#/shared/whats-new/entries'
-import { storyAiNoticeUpdate } from '../../../../.storybook/stubs/merchant-ai-notice-updates-server'
+import { storyAiNoticeUpdate } from '../../../../../.storybook/stubs/merchant-ai-notice-updates-server'
 import { AiUpdateSection } from './ai-update-section'
 import { ProductUpdatesModal } from './product-updates-modal'
 

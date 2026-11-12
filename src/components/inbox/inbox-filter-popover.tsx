@@ -59,7 +59,6 @@ export function InboxFilterPopover({ queue, value, onChange }: Props) {
       <PopoverContent
         align="end"
         collisionPadding={8}
-        data-density="compact"
         className="w-72"
         aria-labelledby={TITLE_ID}
       >
@@ -68,6 +67,7 @@ export function InboxFilterPopover({ queue, value, onChange }: Props) {
           {/* No search is in force here: the header shows the search instead of this control. */}
           <ClearFiltersButton
             size="xs"
+            touch
             searching={false}
             disabled={activeCount === 0}
             onClear={() => onChange(CLEARED_INBOX_LIST_FILTERS)}

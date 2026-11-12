@@ -212,3 +212,12 @@ export type GoogleReviewApiPort = Readonly<{
     input: GoogleReplyPublicationRequest,
   ): Promise<GoogleReplyPublicationResult>
 }>
+
+/** Where a Google connection stands, as far as publishing a reply needs to know. */
+export type GoogleConnectionStatusPort = Readonly<{
+  /** Null when the connection does not exist. Rejects when it cannot be read. */
+  findStatus(
+    organizationId: OrganizationId,
+    connectionId: GoogleConnectionId,
+  ): Promise<string | null>
+}>

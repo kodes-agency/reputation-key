@@ -48,7 +48,13 @@ describe('RangeControl', () => {
   })
 
   it('draws the segments as tap targets below md', () => {
-    expect(render()).toContain('max-md:min-h-(--control-touch)')
+    const segments = render().match(/<button[^>]*role="radio"[^>]*>/g) ?? []
+
+    expect(segments).toHaveLength(3)
+    for (const segment of segments) {
+      expect(segment).toContain('max-md:min-h-11')
+      expect(segment).toContain('max-md:min-w-11')
+    }
   })
 
   it('shows the segments from sm and a Select below it, never both', () => {

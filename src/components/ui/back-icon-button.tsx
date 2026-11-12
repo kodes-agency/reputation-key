@@ -19,7 +19,11 @@ type BackIconButtonProps = Omit<IconButtonProps, 'children' | 'size' | 'variant'
 
 function BackIconButton({ flush, className, ...props }: BackIconButtonProps) {
   return (
-    <IconButton {...props} size="icon-sm" className={cn(flush && '-ml-2.5', className)}>
+    <IconButton
+      {...props}
+      size="icon-sm"
+      className={cn(flush && '-ml-2.5 max-md:-ml-3.5', className)}
+    >
       <ArrowLeft />
     </IconButton>
   )

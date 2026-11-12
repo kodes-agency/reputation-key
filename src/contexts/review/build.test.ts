@@ -39,6 +39,7 @@ function setup() {
     idGen: () => 'review-build-id',
     snapshotRunIdGen: () => 'review-build-snapshot-run-id',
     googleReviewApi: {} as never,
+    googleConnectionStatus: { findStatus: async () => null },
     jobQueue: jobQueue as unknown as Queue,
     workerRuntime: {
       pool: {} as never,

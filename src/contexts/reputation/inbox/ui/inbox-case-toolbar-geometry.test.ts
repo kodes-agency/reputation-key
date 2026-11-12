@@ -176,7 +176,7 @@ describe('the owner is the member that gives when the group is too wide', () => 
 
     expect(owner).toContain('md:flex-1')
     expect(owner).toContain('md:min-w-18')
-    // Below `md` it is still the fixed 36 px square.
+    // Below `md` it is still the fixed touch-height square.
     expect(owner).toContain('max-md:w-(--control-touch)')
   })
 })

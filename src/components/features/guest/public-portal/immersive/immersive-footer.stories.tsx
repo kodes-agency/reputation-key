@@ -16,7 +16,9 @@ import {
   InertImmersiveFooterView,
 } from './immersive-footer'
 import { immersiveFooterCopy } from './immersive-footer-copy'
+import { FOOTER_TEXT_ALPHA } from './immersive-footer-styles'
 import { ImmersiveShell } from './immersive-shell'
+import { selectorsReachingOutside } from './__fixtures__/outside-the-page'
 
 const NAME = 'Avela Resort'
 /** The privacy link's name starts with its text; a screen reader hears that it opens a new tab after it. */
@@ -93,6 +95,21 @@ export const G01NoticeShowing: Story = {
       expect(target.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
     }
     expect(canvas.queryByText('Made with Reputation Key')).toBeNull()
+    // The notice text is the white the contrast checks assume.
+    const white = document.createElement('span')
+    white.style.color = `rgba(255, 255, 255, ${FOOTER_TEXT_ALPHA.notice})`
+    canvasElement.appendChild(white)
+    const text = canvasElement.querySelector<HTMLElement>('.ih-footer__text')
+    expect(text && getComputedStyle(text).color).toBe(getComputedStyle(white).color)
+    white.remove()
+    // No page rule reaches markup the app draws, and the footer's own rules all sit under the page root.
+    expect(selectorsReachingOutside(canvasElement)).toEqual([])
+    expect(
+      selectorsReachingOutside(canvasElement, {
+        keepClasses: true,
+        sheetHolding: '.ih-footer',
+      }),
+    ).toEqual([])
   },
 }
 
@@ -109,6 +126,11 @@ export const G04Acknowledged: Story = {
       made.getBoundingClientRect().left,
     )
     expect(link.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
+    const white = document.createElement('span')
+    white.style.color = `rgba(255, 255, 255, ${FOOTER_TEXT_ALPHA.made})`
+    canvasElement.appendChild(white)
+    expect(getComputedStyle(made).color).toBe(getComputedStyle(white).color)
+    white.remove()
   },
 }
 
@@ -184,12 +206,16 @@ function liveFooter(acknowledged: boolean) {
   )
 }
 
+const withCountedVisit = async (canvasElement: HTMLElement) => {
+  await waitFor(() => expect(recordVisit).toHaveBeenCalledTimes(1))
+  return within(canvasElement)
+}
+
 /** A first visit counts as soon as the page mounts, before the guest touches the notice. */
 export const FirstVisitIsCountedBeforeAcknowledging: Story = {
   render: () => liveFooter(false),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await waitFor(() => expect(recordVisit).toHaveBeenCalledTimes(1))
+    const canvas = await withCountedVisit(canvasElement)
     expect(canvas.getByRole('region', { name: 'Visit counting' })).toBeVisible()
   },
 }
@@ -198,8 +224,7 @@ export const FirstVisitIsCountedBeforeAcknowledging: Story = {
 export const AcknowledgeHidesTheNotice: Story = {
   render: () => liveFooter(false),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await waitFor(() => expect(recordVisit).toHaveBeenCalledTimes(1))
+    const canvas = await withCountedVisit(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Got it' }))
     expect(localStorage.getItem(VISIT_NOTICE_ACKNOWLEDGED_KEY)).toBe('true')
     await waitFor(() =>

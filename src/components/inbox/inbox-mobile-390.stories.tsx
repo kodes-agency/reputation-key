@@ -54,6 +54,7 @@ import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
 import { InboxDetailSheet } from '../../contexts/reputation/inbox/ui/inbox-detail-sheet'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { InboxHistoryEntry } from '../../contexts/reputation/inbox/ui/inbox-thread-model'
@@ -610,10 +611,11 @@ type Story = StoryObj<typeof InboxDetailSheet>
 /**
  * Open. The whole anatomy on one phone screen: dismissal, case toolbar with a
  * live reply-due detail, the guest's review, and a composer offering both
- * surfaces.
+ * surfaces. Played in both themes, so the axe `color-contrast` pass sees each
+ * palette the pane ships.
  */
 export const ReviewOpen: Story = {
-  play: async () => {
+  play: playInThemes(async () => {
     const canvas = pane()
     expectTheMobileFrame(canvas)
     await expect(canvas.getByText('Open')).toBeVisible()
@@ -629,7 +631,7 @@ export const ReviewOpen: Story = {
     await expect(canvas.getByRole('tab', { name: REPLY_TAB })).toBeVisible()
     await expect(canvas.getByRole('tab', { name: NOTE_TAB })).toBeVisible()
     expectNoRawIds()
-  },
+  }),
 }
 
 /**
@@ -1237,23 +1239,6 @@ export const CheckOnGoogleFromThePhoneSheet: Story = {
     expect(items[1]).toHaveAccessibleName(/^Check on Google/)
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(canvas.queryByRole('menu')).toBeNull())
-  },
-}
-
-/**
- * Light, at 390. Dark is this project's default and every story above runs in
- * it, so without this the axe `color-contrast` pass — which is on — would only
- * ever have seen one of the two palettes the pane ships.
- */
-export const ReviewOpenLight: Story = {
-  parameters: {
-    theme: 'light',
-    viewport: { defaultViewport: 'mobileStaff' },
-  },
-  play: async () => {
-    const canvas = pane()
-    expectTheMobileFrame(canvas)
-    expectGuestMessage(canvas, 'Guest review', REVIEW_TEXT)
   },
 }
 

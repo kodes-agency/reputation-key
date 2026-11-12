@@ -48,6 +48,7 @@ export const GUEST_TARGET_MIN_PX = 44
 export const MEASURED_GUEST_STORIES: ReadonlyArray<string> = [
   // Features/Guest/ImmersiveHeader
   'features-guest-immersiveheader--g-01-header-and-title',
+  'features-guest-immersiveheader--title-same-as-the-name-is-one-large-heading',
   'features-guest-immersiveheader--g-02-language-sheet',
   'features-guest-immersiveheader--sheet-keyboard-and-focus',
   'features-guest-immersiveheader--g-10-german',

@@ -10,7 +10,7 @@ import { PRODUCT_UPDATES } from '#/shared/whats-new/entries'
 import {
   productUpdatesStoryState,
   productUpdatesStoryClient as client,
-} from '../../../../.storybook/stubs/product-updates-server'
+} from '../../../../../.storybook/stubs/product-updates-server'
 import { WhatsNewMenuItem } from './whats-new-menu-item'
 
 const meta = {

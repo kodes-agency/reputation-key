@@ -119,7 +119,7 @@ describe('SegmentedControl', () => {
     const html = render('en')
 
     expect(html).toContain('h-[26px]')
-    expect(html).not.toContain('max-md:min-h-(--control-touch)')
+    expect(html).not.toContain('max-md:min-h-11')
   })
 
   it('grows each segment to the touch height below md when asked, so the segment is the target', () => {
@@ -134,7 +134,7 @@ describe('SegmentedControl', () => {
     )
 
     // The segment, not the pill, is what a thumb hits, so it carries the token.
-    expect(html).toContain('max-md:min-h-(--control-touch)')
+    expect(html).toContain('max-md:min-h-11')
     expect(html).toContain('h-[26px]')
   })
 

@@ -329,36 +329,6 @@ function isReviewApiErrorShape(err: unknown): err is Readonly<{ code: string }> 
   )
 }
 
-type GbpApiErrorShape = Readonly<{
-  kind:
-    | 'auth_failed'
-    | 'rate_limited'
-    | 'permission_denied'
-    | 'upstream_error'
-    | 'parse_error'
-}>
-
-/** Structural check — the review domain must not import the integration context. */
-function isGbpApiErrorShape(err: unknown): err is GbpApiErrorShape {
-  if (
-    typeof err !== 'object' ||
-    err === null ||
-    !('_tag' in err) ||
-    (err as { _tag?: unknown })._tag !== 'GbpApiError' ||
-    !('kind' in err)
-  ) {
-    return false
-  }
-  const kind = (err as { kind?: unknown }).kind
-  return (
-    kind === 'auth_failed' ||
-    kind === 'rate_limited' ||
-    kind === 'permission_denied' ||
-    kind === 'upstream_error' ||
-    kind === 'parse_error'
-  )
-}
-
 function isAbortError(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -417,9 +387,8 @@ function fieldOf(value: unknown, key: string): unknown {
 }
 
 /**
- * Structural read of the dispatch evidence on either provider error shape: the
- * review port's `failure` record, or the gateway GbpApiError's own fields
- * (where the admission code is the more specific of its two codes).
+ * Structural read of the dispatch evidence on the review port's error: its
+ * `failure` record.
  */
 export function publicationFailureEvidence(err: unknown): PublicationFailureEvidence {
   if (isReviewApiErrorShape(err)) {
@@ -429,15 +398,6 @@ export function publicationFailureEvidence(err: unknown): PublicationFailureEvid
       executionCode: readCode(fieldOf(failure, 'executionCode')),
       dispatch: readDispatch(fieldOf(failure, 'dispatch')),
       providerStatus: readStatus(fieldOf(failure, 'providerStatus')),
-    }
-  }
-  if (isGbpApiErrorShape(err)) {
-    return {
-      executionCode:
-        readCode(fieldOf(err, 'executionAdmissionCode')) ??
-        readCode(fieldOf(err, 'executionCode')),
-      dispatch: readDispatch(fieldOf(err, 'dispatch')),
-      providerStatus: readStatus(fieldOf(err, 'providerStatus')),
     }
   }
   return NO_EVIDENCE
@@ -465,19 +425,6 @@ function classifyByDispatch(
     return 'ambiguous'
   }
   return null
-}
-
-function classifyGatewayError(err: GbpApiErrorShape): PublicationFailureClass {
-  // A refusal stays terminal before the dispatch rules, as
-  // `authorization_changed` does for the review port (rule 2): retrying a
-  // permission decision cannot turn it into an acceptance.
-  if (err.kind === 'auth_failed' || err.kind === 'permission_denied') {
-    return 'terminal_rejection'
-  }
-  const byDispatch = classifyByDispatch(publicationFailureEvidence(err))
-  if (byDispatch) return byDispatch
-  if (err.kind === 'rate_limited') return 'retryable'
-  return 'ambiguous'
 }
 
 function classifyReviewApiError(
@@ -512,7 +459,6 @@ export function publicationFailureCause(err: unknown): PublicationFailureCause |
 export function classifyPublicationFailure(err: unknown): PublicationFailureClass {
   // Timeout/abort: the PUT may have landed — outcome is honestly unknown.
   if (isAbortError(err)) return 'ambiguous'
-  if (isGbpApiErrorShape(err)) return classifyGatewayError(err)
   if (isReviewApiErrorShape(err)) return classifyReviewApiError(err)
   if (!isIntegrationErrorShape(err)) {
     // A transport rejection provides no evidence that the provider did not
