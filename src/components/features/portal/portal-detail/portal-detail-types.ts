@@ -105,9 +105,9 @@ export type PortalDetailResources = Readonly<{
   /** The Share tab's print kit read. Absent (with its download): the tab offers no print kit. */
   getPortalPrintKit?: PortalPrintKitReader
   /** The Share tab's print kit download: makes the PDF on the server. */
-  /** The final print kit's download, which the tab uses where the server shows the final kit. */
-  downloadPrintFinalMutation?: PortalPrintKitResources['downloadFinalMutation']
-  /** "Save wording" in the final print kit: Share opens on the words saved. */
+  /** The print kit's download, which the tab uses where the server shows the kit. */
+  downloadPrintMutation?: PortalPrintKitResources['downloadPrintMutation']
+  /** "Save wording" in the print kit: Share opens on the words saved. */
   savePrintWordingMutation?: PortalPrintKitResources['saveWordingMutation']
   /** C2: whether a public link is live. The raw URL is never part of this. */
   tokenStatus: PortalTokenStatus

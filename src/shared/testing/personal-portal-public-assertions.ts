@@ -5,10 +5,7 @@ import { resolvePublicPortalToken } from '#/contexts/portal/application/use-case
 import { toPublicPortalLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
 import { loadPortalPrintKitContext } from '#/contexts/portal/application/load-portal-print-kit-context'
 import { printKitFileName } from '#/shared/domain/portal-print-kit'
-import {
-  printFinalFileName,
-  printFinalDocumentTitle,
-} from '#/shared/domain/portal-print-final-how-to'
+import { printFileName, printDocumentTitle } from '#/shared/domain/portal-print-how-to'
 
 /** Runs the actual guest and print projections on a personal Portal's first snapshot. */
 export async function assertPersonalPortalNameSeparation(
@@ -86,8 +83,8 @@ export async function assertPersonalPortalNameSeparation(
       style: 'paper',
       paper: 'letter',
     }),
-    finalTitle: printFinalDocumentTitle(print.portalName, 'counter'),
-    finalFile: printFinalFileName(print.portalName, {
+    finalTitle: printDocumentTitle(print.portalName, 'counter'),
+    finalFile: printFileName(print.portalName, {
       piece: 'counter',
       orientation: 'upright',
       look: 'paper',

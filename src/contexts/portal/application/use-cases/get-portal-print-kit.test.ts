@@ -13,8 +13,8 @@ import {
   propertyId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-last'
-import type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
+import type { PrintLastSettings } from '#/shared/domain/portal-print-last'
+import type { PrintSavedWording } from '#/shared/domain/portal-print-wording'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import {
   immersiveConfiguration,
@@ -33,7 +33,7 @@ const staffApi = (accessible: readonly PropertyId[] | null): StaffPublicApi => (
   getAssignedPortals: async () => [],
 })
 
-const LAST_SETTINGS: PrintFinalLastSettings = {
+const LAST_SETTINGS: PrintLastSettings = {
   piece: 'tent',
   orientation: 'wide',
   look: 'immersive',
@@ -61,12 +61,12 @@ function setup(
     heroUploadedAt?: Date
     /** What the Portal's last print was made with: nothing remembered unless told otherwise. */
     last?: Readonly<{
-      settings?: Partial<PrintFinalLastSettings>
+      settings?: Partial<PrintLastSettings>
       photoAssetId?: string | null
       printedAt?: Date
     }>
     /** The wording the Portal saved for Share to open on: none unless told otherwise. */
-    saved?: PrintFinalSavedWording
+    saved?: PrintSavedWording
   }> = {},
 ) {
   const portal = buildTestPortal({ name: 'Harbor lobby' })
@@ -179,17 +179,17 @@ describe('getPortalPrintKit', () => {
   })
 
   describe('the last print', () => {
-    const readFinal = async (options: Parameters<typeof setup>[0] = {}) => {
+    const readPrint = async (options: Parameters<typeof setup>[0] = {}) => {
       const { portal, read } = setup(options)
       return read({ portalId: portal.id }, buildTestAuthContext())
     }
 
     it('is null for a Portal that was never printed', async () => {
-      expect((await readFinal()).lastPrint).toBeNull()
+      expect((await readPrint()).lastPrint).toBeNull()
     })
 
     it('carries what was printed and when, the photo unchanged', async () => {
-      const view = await readFinal({ last: {} })
+      const view = await readPrint({ last: {} })
 
       expect(view.lastPrint).toEqual({
         printedAt: PRINTED_AT.toISOString(),
@@ -201,7 +201,7 @@ describe('getPortalPrintKit', () => {
     it('says a photo uploaded since the print changed on the day it was uploaded', async () => {
       const uploaded = new Date('2026-10-20T08:00:00.000Z')
 
-      const view = await readFinal({
+      const view = await readPrint({
         last: { photoAssetId: OTHER_PHOTO },
         heroUploadedAt: uploaded,
       })
@@ -213,7 +213,7 @@ describe('getPortalPrintKit', () => {
     })
 
     it('says a photo chosen from the earlier uploads changed, with no day', async () => {
-      const view = await readFinal({
+      const view = await readPrint({
         last: { photoAssetId: OTHER_PHOTO },
         heroUploadedAt: new Date('2026-09-01T08:00:00.000Z'),
       })
@@ -222,7 +222,7 @@ describe('getPortalPrintKit', () => {
     })
 
     it('has nothing to say about the photo of a Paper print', async () => {
-      const view = await readFinal({
+      const view = await readPrint({
         last: { settings: { look: 'paper' }, photoAssetId: null },
         heroUploadedAt: new Date('2026-10-20T08:00:00.000Z'),
       })
@@ -231,32 +231,32 @@ describe('getPortalPrintKit', () => {
     })
 
     it('carries no address and no code', async () => {
-      const view = await readFinal({ last: {} })
+      const view = await readPrint({ last: {} })
 
       expect(JSON.stringify(view.lastPrint)).not.toMatch(/railway|\/p\/|token|url/iu)
     })
   })
 
   describe('the saved wording', () => {
-    const SAVED: PrintFinalSavedWording = {
+    const SAVED: PrintSavedWording = {
       callToAction: 'how_was_stay',
       customWords: { en: { headline: 'Thanks for staying', subline: 'Tell us more' } },
     }
-    const readFinal = async (options: Parameters<typeof setup>[0] = {}) => {
+    const readPrint = async (options: Parameters<typeof setup>[0] = {}) => {
       const { portal, read } = setup(options)
       return read({ portalId: portal.id }, buildTestAuthContext())
     }
 
     it('is null for a Portal that saved none', async () => {
-      expect((await readFinal()).savedWording).toBeNull()
+      expect((await readPrint()).savedWording).toBeNull()
     })
 
     it('carries the wording and the own words the Portal saved', async () => {
-      expect((await readFinal({ saved: SAVED })).savedWording).toEqual(SAVED)
+      expect((await readPrint({ saved: SAVED })).savedWording).toEqual(SAVED)
     })
 
     it('stands beside the last print, which keeps its own wording', async () => {
-      const view = await readFinal({ saved: SAVED, last: {} })
+      const view = await readPrint({ saved: SAVED, last: {} })
       expect(view.savedWording).toEqual(SAVED)
       expect(view.lastPrint?.settings.callToAction).toBe('how_did_we_do')
     })

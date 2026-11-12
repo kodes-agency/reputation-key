@@ -241,7 +241,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   // Silent on success (the browser's own download is the acknowledgement); a
   // refusal is a toast, because a download is an immediate action.
   // The print download, silent the same way.
-  const downloadPrintFinal = useActionMutation(downloadPortalPrintFinal, {
+  const downloadPrint = useActionMutation(downloadPortalPrintFinal, {
     errorMessage: actionErrorMessage,
   })
   // "Save wording" beside it: a manager who saves asked for it, so it says so,
@@ -306,7 +306,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     rotateToken,
     revokeToken,
     revealAddress,
-    downloadPrintFinal,
+    downloadPrint,
     savePrintWording,
     completeReview,
     updateResponsibleManagers,

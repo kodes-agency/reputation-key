@@ -1,4 +1,4 @@
-// Portal context — Drizzle schema for portal_print_wordings (final print kit,
+// Portal context — Drizzle schema for portal_print_wordings (print kit,
 // saved wording).
 //
 // One row per Portal: the call to action a manager saved from Share ("Save

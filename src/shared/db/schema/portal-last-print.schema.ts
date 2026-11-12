@@ -1,6 +1,6 @@
-// Portal context — Drizzle schema for portal_last_prints (final print kit, slice 12).
+// Portal context — Drizzle schema for portal_last_prints (print kit).
 //
-// One row per Portal: the choices of the last final print and the photo it used,
+// One row per Portal: the choices of the last print and the photo it used,
 // replaced by every print. Share reads it to say "Last printed Oct 12 · …", to set
 // the same choices again, and to say the photo has changed since. A row holds
 // choices and a day only: never the address, a print code or a file.
@@ -20,7 +20,7 @@ import {
 import { sql } from 'drizzle-orm'
 import { portals } from './portal.schema'
 
-// The closed vocabularies of the final kit. `portal-last-print.schema.test.ts`
+// The closed vocabularies of the print kit. `portal-last-print.schema.test.ts`
 // holds each list to the domain's own, so a piece or a look added there asks for
 // a widening migration here instead of a refused write.
 export const PORTAL_LAST_PRINT_PIECE_SQL_LIST = "'counter', 'tent', 'small'"

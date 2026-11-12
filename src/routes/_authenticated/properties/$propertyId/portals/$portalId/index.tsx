@@ -117,7 +117,7 @@ function PortalShareTab({ actions }: PortalTabActions) {
       revokeTokenMutation={actions.revokeToken}
       revealAddressMutation={actions.revealAddress}
       getPortalPrintKit={getPortalPrintKit}
-      downloadPrintFinalMutation={actions.downloadPrintFinal}
+      downloadPrintMutation={actions.downloadPrint}
       savePrintWordingMutation={actions.savePrintWording}
       {...issuance}
     />
@@ -200,7 +200,7 @@ function PortalPageTab({ actions }: PortalTabActions) {
       revokeTokenMutation={actions.revokeToken}
       revealAddressMutation={actions.revealAddress}
       getPortalPrintKit={getPortalPrintKit}
-      downloadPrintFinalMutation={actions.downloadPrintFinal}
+      downloadPrintMutation={actions.downloadPrint}
       savePrintWordingMutation={actions.savePrintWording}
       getPortalAnalytics={getPortalAnalyticsFn}
       getPortalLinkTaps={portalResultsFns.getLinkTaps}

@@ -10,7 +10,7 @@ import { PortalCodeBlock } from './portal-code-block'
 import { PortalLinkIssueForm } from './portal-link-issue-form'
 import { PortalPrintKitNotLive } from './portal-print-kit-not-live'
 import {
-  PortalSharePrintFinalSection,
+  PortalSharePrintSection,
   PortalSharePrintKitAside,
 } from './portal-share-print-kit'
 import { PortalLinkReveal } from './portal-link-reveal'
@@ -95,7 +95,7 @@ export function PortalShare(props: PortalShareProps) {
           />
         )}
 
-        <PortalSharePrintFinalSection kit={kit} countryCode={props.countryCode ?? null} />
+        <PortalSharePrintSection kit={kit} countryCode={props.countryCode ?? null} />
 
         <section
           className={cn('flex flex-col gap-4', kit.settling && 'hidden')}

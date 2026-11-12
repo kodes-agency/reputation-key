@@ -1,0 +1,165 @@
+// The pictures of an Immersive print, made ready for the page (design
+// spec §4, §6.1 and §6.2): the photo decoded small to be read (the
+// ground, the kicker, every word's contrast), the photo cropped to cover its
+// box with bleed under the manager's framing, its scrims baked into its pixels
+// and its fade (and any clearing) as a soft mask, and the logo read for how
+// light its ink is. Baked, a scrim darkens the photo only and fades with it: it
+// never prints over the bare ground. `sharp` decodes, imported when a
+// print is made, as for today's kit.
+
+import type { PrintArt } from '#/shared/domain/portal-print-art'
+import {
+  PRINT_LOGO_TONE_SIZE_PX,
+  printMedianInkLuminance,
+} from '#/shared/domain/portal-print-brand'
+import type { PrintScenePhoto } from '#/shared/domain/portal-print-contrast'
+import { printPhotoCrop, type PrintFraming } from '#/shared/domain/portal-print-framing'
+import { printScrimAlpha } from '#/shared/domain/portal-print-photo-clear'
+import {
+  PRINT_DETAIL_WIDTH_PX,
+  PRINT_SAMPLE_WIDTH_PX,
+  PRINT_SCRIM_INK,
+  type PrintPhotoSample,
+} from '#/shared/domain/portal-print-photo-sample'
+import type { PrintKitPhoto } from '../../printing/contracts'
+import { jpegImage, rampMask, type PdfRasterImage } from './print-kit-raster'
+
+async function sharpFactory() {
+  const { default: sharp } = await import('sharp')
+  return sharp
+}
+
+/** The photo prints at this many dots per inch at most: what a print shop asks for. */
+const PRINT_DPI = 300
+const JPEG_QUALITY = 88
+/** EXIF orientations 5 to 8 turn the picture a quarter: its width and height swap. */
+const QUARTER_TURN_ORIENTATION = 5
+
+/** The photo as a face reads it: its sample, its own size as shown upright, its focal point and framing. */
+export async function scenePhoto(
+  photo: PrintKitPhoto,
+  framing: PrintFraming,
+): Promise<PrintScenePhoto> {
+  const sharp = await sharpFactory()
+  const meta = await sharp(photo.bytes).metadata()
+  const { width = 0, height = 0, orientation = 1 } = meta
+  if (width === 0 || height === 0) throw new Error('unsupported image format')
+  const turned = orientation >= QUARTER_TURN_ORIENTATION
+  const decode = async (widthPx: number): Promise<PrintPhotoSample> => {
+    const { data, info } = await sharp(photo.bytes)
+      .rotate()
+      .resize({ width: widthPx })
+      .flatten({ background: '#000000' })
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    return { widthPx: info.width, heightPx: info.height, rgb: data }
+  }
+  return {
+    sample: await decode(PRINT_SAMPLE_WIDTH_PX),
+    detail: await decode(Math.min(PRINT_DETAIL_WIDTH_PX, turned ? height : width)),
+    pixels: { widthPx: turned ? height : width, heightPx: turned ? width : height },
+    focal: { x: photo.focalX, y: photo.focalY },
+    framing,
+  }
+}
+
+const clampInt = (value: number, low: number, high: number) =>
+  Math.min(high, Math.max(low, Math.round(value)))
+
+/** `rgb` (width × height pixels covering `cover`) under the scrims' ink, as a copy. */
+function bakeScrims(
+  rgb: Buffer,
+  size: Readonly<{ width: number; height: number }>,
+  cover: PrintArt['groundBox'],
+  scrims: PrintArt['scrims'],
+): Buffer {
+  const out = Buffer.from(rgb)
+  const ptPerPx = (cover.rightPt - cover.leftPt) / size.width
+  const ptPerRow = (cover.bottomPt - cover.topPt) / size.height
+  for (let row = 0; row < size.height; row++) {
+    const y = cover.topPt + (row + 0.5) * ptPerRow
+    for (let column = 0; column < size.width; column++) {
+      const alpha = printScrimAlpha(scrims, cover.leftPt + (column + 0.5) * ptPerPx, y)
+      if (alpha <= 0) continue
+      const at = (row * size.width + column) * 3
+      for (let channel = 0; channel < 3; channel++) {
+        const value = out[at + channel] ?? 0
+        out[at + channel] = Math.round(
+          value + ((PRINT_SCRIM_INK[channel] ?? 0) - value) * alpha,
+        )
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * The photo as the face draws it: the part that covers the art's cover box
+ * under the framing, at up to 300 dpi (never more pixels than the crop has),
+ * darkened by the art's scrims, as a JPEG whose soft mask is the fade times any
+ * clearing.
+ */
+export async function photoImage(
+  doc: PDFKit.PDFDocument,
+  bytes: Uint8Array,
+  scene: PrintScenePhoto,
+  art: PrintArt,
+): Promise<PdfRasterImage | null> {
+  const { photo } = art
+  if (photo === null) return null
+  const { cover } = photo
+  const coverWidth = cover.rightPt - cover.leftPt
+  const coverHeight = cover.bottomPt - cover.topPt
+  const crop = printPhotoCrop(
+    scene.pixels,
+    { widthPt: coverWidth, heightPt: coverHeight },
+    scene.focal,
+    scene.framing,
+  )
+  const { widthPx, heightPx } = scene.pixels
+  const left = clampInt(crop.leftPx, 0, widthPx - 1)
+  const top = clampInt(crop.topPx, 0, heightPx - 1)
+  const region = {
+    left,
+    top,
+    width: clampInt(crop.widthPx, 1, widthPx - left),
+    height: clampInt(crop.heightPx, 1, heightPx - top),
+  }
+  const width = Math.max(
+    1,
+    Math.min(region.width, Math.round((coverWidth / 72) * PRINT_DPI)),
+  )
+  const height = Math.max(1, Math.round((width * coverHeight) / coverWidth))
+  const sharp = await sharpFactory()
+  const rgb = await sharp(bytes)
+    .rotate()
+    .extract(region)
+    .resize(width, height, { fit: 'fill' })
+    .flatten({ background: '#000000' })
+    .removeAlpha()
+    .raw()
+    .toBuffer()
+  const jpeg = await sharp(bakeScrims(rgb, { width, height }, cover, art.scrims), {
+    raw: { width, height, channels: 3 },
+  })
+    .jpeg({ quality: JPEG_QUALITY })
+    .toBuffer()
+  const ramps = photo.clear === null ? [photo.fade] : [photo.fade, photo.clear]
+  return jpegImage(doc, { bytes: jpeg, width, height }, rampMask(doc, ramps, cover))
+}
+
+/** The median luminance of a logo's drawn pixels, read at most 200 px across; null when nothing is drawn. */
+export async function logoTone(bytes: Uint8Array): Promise<number | null> {
+  const sharp = await sharpFactory()
+  const { data, info } = await sharp(bytes)
+    .rotate()
+    .ensureAlpha()
+    .resize(PRINT_LOGO_TONE_SIZE_PX, PRINT_LOGO_TONE_SIZE_PX, {
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  return printMedianInkLuminance(data, info)
+}

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { PROPERTY } from '#/shared/testing/portal-create-setup'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { portalId, propertyId } from '#/shared/domain/ids'
-import { PRINT_FINAL_DEFAULT_WORDING } from '#/shared/domain/portal-print-final-wording'
+import { PRINT_DEFAULT_WORDING } from '#/shared/domain/portal-print-wording'
 import { portalError } from '../../domain/errors'
 import { ctx, setup } from '#/shared/testing/personal-portal-setup'
 import {
@@ -206,7 +206,7 @@ describe('updatePersonalGuestPage', () => {
   it('writes the default print wording over the page’s when the source has none of its own', async () => {
     const { update, replace, reception } = world()
     await update({ portalId: PERSON, sourcePortalId: reception.id }, ctx)
-    expect(replace.mock.calls[0]![0].printWording).toEqual(PRINT_FINAL_DEFAULT_WORDING)
+    expect(replace.mock.calls[0]![0].printWording).toEqual(PRINT_DEFAULT_WORDING)
   })
 
   it('refuses a source whose guest wording would name the person', async () => {

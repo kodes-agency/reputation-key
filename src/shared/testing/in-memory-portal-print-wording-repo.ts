@@ -4,7 +4,7 @@ import type {
   PortalPrintWordingRepository,
   RecordPortalPrintWordingInput,
 } from '#/contexts/portal/application/ports/portal-print-wording.repository'
-import type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
+import type { PrintSavedWording } from '#/shared/domain/portal-print-wording'
 
 export type InMemoryPortalPrintWordingRepo = PortalPrintWordingRepository &
   Readonly<{
@@ -17,7 +17,7 @@ export type InMemoryPortalPrintWordingRepo = PortalPrintWordingRepository &
 const keyOf = (organizationId: string, portalId: string) =>
   `${organizationId}:${portalId}`
 
-type Stored = Readonly<{ wording: PrintFinalSavedWording; savedAt: Date }>
+type Stored = Readonly<{ wording: PrintSavedWording; savedAt: Date }>
 
 export const createInMemoryPortalPrintWordingRepo = (
   seed: ReadonlyArray<RecordPortalPrintWordingInput> = [],

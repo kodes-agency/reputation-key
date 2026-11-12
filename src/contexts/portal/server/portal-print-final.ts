@@ -3,7 +3,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
-import { downloadPortalPrintFinalInputSchema } from '../application/dto/portal-print-final.dto'
+import { downloadPortalPrintInputSchema } from '../application/dto/portal-print.dto'
 import { savePortalPrintWordingInputSchema } from '../application/dto/portal-print-wording.dto'
 import {
   downloadPortalPrintFile,
@@ -14,7 +14,7 @@ import { requirePortalResourceScope } from './property-scope'
 
 /** Makes the PDF behind the shared print guards. */
 export const downloadPortalPrintFinal = createServerFn({ method: 'POST' })
-  .validator(downloadPortalPrintFinalInputSchema)
+  .validator(downloadPortalPrintInputSchema)
   .handler(
     tracedHandler(
       ({ data }) =>
@@ -26,8 +26,7 @@ export const downloadPortalPrintFinal = createServerFn({ method: 'POST' })
               capability: 'portal.write',
               ...portalPrintScope(data.portalId),
             }),
-          (ctx) =>
-            getContainer().portalPublicApi.management.createPortalPrintFinal(data, ctx),
+          (ctx) => getContainer().portalPublicApi.management.createPortalPrint(data, ctx),
         ),
       'POST',
       'portal.downloadPortalPrintFinal',

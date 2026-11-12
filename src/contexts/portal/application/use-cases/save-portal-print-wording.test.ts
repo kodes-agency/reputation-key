@@ -1,4 +1,4 @@
-// Portal context — saving the final kit's wording (2026-10-27): who may, what it
+// Portal context — saving the print kit's wording (2026-10-27): who may, what it
 // refuses, what it stores, and whose Portal it reaches.
 
 import { describe, expect, it } from 'vitest'

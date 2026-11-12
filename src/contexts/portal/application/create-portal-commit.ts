@@ -30,7 +30,7 @@ export type NewPortalPlan = Readonly<{
   group: PortalGroup | null
   source: PortalCopySource | null
   personalPortal?: Readonly<{
-    printWording?: import('#/shared/domain/portal-print-final-wording').PrintFinalSavedWording
+    printWording?: import('#/shared/domain/portal-print-wording').PrintSavedWording
     publicName: string
     sourceFence?: CreatePortalCommand['personalSourceFence']
   }>

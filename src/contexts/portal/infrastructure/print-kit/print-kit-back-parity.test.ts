@@ -1,0 +1,119 @@
+import { describe, expect, it } from 'vitest'
+import { previewBackLayout } from '#/components/features/portal/portal-share/print-face-layout'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
+import { PRINT_ORIENTATIONS, type PrintFace } from '#/shared/domain/portal-print'
+import { layoutPrintBack } from '#/shared/domain/portal-print-back'
+import { ptMm } from '#/shared/domain/portal-print-measures'
+import { newDocument } from './__fixtures__/print-kit-face-fixtures'
+import { pdfMeasurer } from './print-kit-face'
+
+// The Share tab's preview lays a back page out from estimates, the PDF from the
+// fonts, with one planner. The estimates err on the crowded side, so the preview
+// breaks the name into as many lines as the file, never fewer and never wider,
+// and puts the block where the file does to within a millimetre.
+
+const { doc, fonts } = newDocument()
+const measurer = pdfMeasurer(doc, fonts)
+
+const NAMES = [
+  'Harborline Inn Millbrook-Near The Arboretum',
+  'Oakmere by Larkspur Hotel Millbrook Field Airport',
+  'Hampton Inn Houston-Near The Galleria',
+  'Hotel Elegance',
+  'The Grand Harborline Inn and Suites Millbrook Near The Old Arboretum',
+  'Hôtel de la Paix Genève',
+  'Хотел Рила',
+]
+
+const look = (propertyName: string, logo: boolean): PortalPrintKitView['look'] => ({
+  wordmark: 'Hotel Elegance',
+  propertyName,
+  accentColour: '#A8C6FE',
+  fieldColour: '#001E57',
+  heroUrl: null,
+  heroFocal: null,
+  heroSize: null,
+  logoUrl: logo ? 'data:image/png;base64,' : null,
+})
+
+const FACES: readonly PrintFace[] = (['us', 'eu'] as const).flatMap((region) =>
+  (['counter', 'small'] as const).flatMap((piece) =>
+    PRINT_ORIENTATIONS.flatMap((orientation) =>
+      (['paper', 'immersive'] as const).map((faceLook) => ({
+        piece,
+        orientation,
+        look: faceLook,
+        region,
+      })),
+    ),
+  ),
+)
+
+describe('the preview’s back pages', () => {
+  it.each(
+    FACES.map((f) => [`${f.look} ${f.piece} ${f.orientation} (${f.region})`, f] as const),
+  )('%s: break the name as the file does and put the block where it does', (_, face) => {
+    for (const name of NAMES)
+      for (const logo of [true, false]) {
+        const preview = previewBackLayout({
+          face,
+          look: look(name, logo),
+          logoAspect: 2,
+          onPlate: face.look === 'immersive',
+        })
+        const file = layoutPrintBack({
+          face,
+          brand: logo
+            ? {
+                kind: 'logo',
+                inkWidth: 2,
+                inkHeight: 1,
+                onPlate: face.look === 'immersive',
+              }
+            : { kind: 'wordmark', text: 'Hotel Elegance' },
+          propertyName: name,
+          measurer,
+        })
+        const what = `${name} · logo ${logo}`
+        const lines = (layout: typeof file) =>
+          layout.contents.flatMap((c) => (c.kind === 'name' ? [c.set.lines.length] : []))
+        expect(lines(preview), what).toEqual(lines(file))
+        expect(
+          preview.plan.parts.map((p) => p.key),
+          what,
+        ).toEqual(file.plan.parts.map((p) => p.key))
+        const [previewBlock, fileBlock] = [preview.plan.block, file.plan.block]
+        if (previewBlock === null || fileBlock === null) continue
+        expect(
+          Math.abs(ptMm(previewBlock.topPt) - ptMm(fileBlock.topPt)),
+          what,
+        ).toBeLessThan(1)
+        // Never narrower than the file's block.
+        expect(previewBlock.rightPt - previewBlock.leftPt, what).toBeGreaterThanOrEqual(
+          fileBlock.rightPt - fileBlock.leftPt - 0.5,
+        )
+        if (file.plan.fits) expect(preview.plan.fits, what).toBe(true)
+      }
+  })
+})
+
+it.each(FACES)(
+  'preview and real fonts refuse an unbreakable back name on $region $look $piece $orientation',
+  (face) => {
+    const name = 'W'.repeat(60)
+    const preview = previewBackLayout({
+      face,
+      look: look(name, false),
+      logoAspect: null,
+      onPlate: false,
+    })
+    const file = layoutPrintBack({
+      face,
+      brand: { kind: 'wordmark', text: 'Hotel Elegance' },
+      propertyName: name,
+      measurer,
+    })
+    expect(preview.plan.fits).toBe(false)
+    expect(file.plan.fits).toBe(false)
+  },
+)

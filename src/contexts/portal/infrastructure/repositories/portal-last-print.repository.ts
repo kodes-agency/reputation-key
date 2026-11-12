@@ -4,13 +4,13 @@ import type { Database } from '#/shared/db'
 import { portalLastPrints } from '#/shared/db/schema/portal-last-print.schema'
 import { unbrand } from '#/shared/domain/ids'
 import {
-  PRINT_FINAL_LOOKS,
-  PRINT_FINAL_ORIENTATIONS,
-  PRINT_FINAL_PIECES,
-  PRINT_FINAL_PRINTERS,
-} from '#/shared/domain/portal-print-final'
+  PRINT_LOOKS,
+  PRINT_ORIENTATIONS,
+  PRINT_PIECES,
+  PRINT_PRINTERS,
+} from '#/shared/domain/portal-print'
 import { PRINT_KIT_PAPERS } from '#/shared/domain/portal-print-kit'
-import { PRINT_FINAL_CALLS_TO_ACTION } from '#/shared/domain/portal-print-final-copy'
+import { PRINT_CALLS_TO_ACTION } from '#/shared/domain/portal-print-copy'
 import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
 import { trace } from '#/shared/observability/trace'
 import type {
@@ -21,18 +21,18 @@ import type {
 
 /** The row as the table keeps it, read through the same vocabularies the kit's download is. */
 const rowSchema = z.object({
-  piece: z.enum(PRINT_FINAL_PIECES),
-  orientation: z.enum(PRINT_FINAL_ORIENTATIONS),
-  look: z.enum(PRINT_FINAL_LOOKS),
+  piece: z.enum(PRINT_PIECES),
+  orientation: z.enum(PRINT_ORIENTATIONS),
+  look: z.enum(PRINT_LOOKS),
   paper: z.enum(PRINT_KIT_PAPERS),
-  printer: z.enum(PRINT_FINAL_PRINTERS),
+  printer: z.enum(PRINT_PRINTERS),
   quantity: z.number().int(),
   fillSpares: z.boolean(),
   perSheet: z.number().int().nullable(),
   cropMarks: z.boolean(),
   backPage: z.boolean(),
   languages: z.array(guestLocaleSchema).min(1),
-  callToAction: z.enum(PRINT_FINAL_CALLS_TO_ACTION),
+  callToAction: z.enum(PRINT_CALLS_TO_ACTION),
   // Words a later rule would refuse are still the words that printed: only their shape is read.
   callToActionCustom: z
     .partialRecord(

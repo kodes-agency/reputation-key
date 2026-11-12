@@ -1,4 +1,4 @@
-// The saved wording of the final print kit over real PostgreSQL (2026-10-27): what
+// The saved wording of the print kit over real PostgreSQL (2026-10-27): what
 // "Save wording" stores, what the print kit read says of it, and whose Portal each
 // of them reaches. The use cases are the real ones over the real repositories and
 // the real Portal rows; the repository's own constraints are its own test's.

@@ -1,0 +1,182 @@
+import { describe, expect, it } from 'vitest'
+import {
+  PRINT_MODULE_MIN_MM,
+  choosePrintTile,
+  printCodeBlock,
+  printModuleMm,
+} from './portal-print-code'
+import { inPt, mmPt, ptMm } from './portal-print-measures'
+import {
+  PRINT_MAX_QUANTITY,
+  PRINT_PER_SHEET,
+  printChoiceProblem,
+  printChoiceTile,
+  printPieceCount,
+  printSheetCount,
+  type PrintChoice,
+  type PrintCodeFacts,
+} from './portal-print-offer'
+
+/** Modules along one side, quiet zone not included: version 3, 4 and 9. */
+const V3 = 29
+const V4 = 33
+const V9 = 53
+const SHORT: PrintCodeFacts = { address: 'short', symbolModules: V3 }
+const LOWERCASE: PrintCodeFacts = { address: 'short', symbolModules: V4 }
+const LONG: PrintCodeFacts = { address: 'long', symbolModules: V9 }
+const choice = (over: Partial<PrintChoice> = {}): PrintChoice => ({
+  piece: 'counter',
+  orientation: 'upright',
+  look: 'paper',
+  paper: 'letter',
+  printer: 'my_printer',
+  quantity: 10,
+  languageCount: 1,
+  ...over,
+})
+const refusalOf = (over: Partial<PrintChoice>, code: PrintCodeFacts = SHORT) => {
+  const tile = printChoiceTile(choice(over), code)
+  return tile.isOk() ? null : tile.error.code
+}
+
+describe('the module rule (spec 9)', () => {
+  it('prints every piece on the short address with modules of 0.85 mm or more', () => {
+    const modules = (['counter', 'tent', 'small'] as const).map(
+      (piece) =>
+        choosePrintTile({
+          piece,
+          orientation: 'wide',
+          region: 'us',
+          address: 'short',
+          symbolModules: V3,
+        })._unsafeUnwrap().moduleMm,
+    )
+    expect(modules.map((m) => Number(m.toFixed(2)))).toEqual([1.03, 0.96, 0.86])
+    expect(Math.min(...modules)).toBeGreaterThanOrEqual(PRINT_MODULE_MIN_MM)
+  })
+
+  it('counts the quiet zone in the module', () => {
+    expect(printModuleMm(inPt(1.5), V3)).toBeCloseTo(38.1 / 37, 10)
+  })
+
+  it('prints only the Counter card on the long address, on its 2.1 in tile', () => {
+    const counter = choosePrintTile({
+      piece: 'counter',
+      orientation: 'upright',
+      region: 'us',
+      address: 'long',
+      symbolModules: V9,
+    })
+    expect(counter._unsafeUnwrap().tilePt).toBe(inPt(2.1))
+    expect(Number(counter._unsafeUnwrap().moduleMm.toFixed(2))).toBe(0.87)
+    expect(refusalOf({ piece: 'tent' }, LONG)).toBe('needs_short_code')
+    expect(refusalOf({ piece: 'small' }, LONG)).toBe('needs_short_code')
+    expect(refusalOf({ piece: 'counter', paper: 'a4' }, LONG)).toBeNull()
+  })
+
+  it('refuses the Small card on the lower-case fallback, in both regions', () => {
+    expect(refusalOf({ piece: 'small' }, LOWERCASE)).toBe('address_host_too_long')
+    expect(refusalOf({ piece: 'small', paper: 'a4' }, LOWERCASE)).toBe(
+      'address_host_too_long',
+    )
+    expect(refusalOf({ piece: 'tent' }, LOWERCASE)).toBeNull()
+    expect(refusalOf({ piece: 'counter' }, LOWERCASE)).toBeNull()
+  })
+
+  it('steps a tile up one rung, except the wide Small card, which has no room', () => {
+    const tent = choosePrintTile({
+      piece: 'tent',
+      orientation: 'wide',
+      region: 'us',
+      address: 'short',
+      symbolModules: V3,
+      rung: 'step_up',
+    })
+    expect(tent._unsafeUnwrap().tilePt).toBe(inPt(1.5))
+    expect(
+      refusalOf({ piece: 'small', orientation: 'wide' }, { ...SHORT, rung: 'step_up' }),
+    ).toBe('tile_does_not_fit')
+    expect(
+      refusalOf(
+        { piece: 'small', orientation: 'upright' },
+        { ...SHORT, rung: 'step_up' },
+      ),
+    ).toBeNull()
+  })
+})
+
+describe('the code block (spec 5.2)', () => {
+  it('draws the Paper outline outside the cream square and the bar', () => {
+    const tile = { tilePt: inPt(1.5), bars: { onePt: inPt(0.36), twoPt: inPt(0.46) } }
+    const paper = printCodeBlock({ look: 'paper' }, tile, 1)
+    expect(ptMm(paper.widthPt)).toBeCloseTo(38.1 + 0.7, 6)
+    expect(ptMm(paper.heightPt)).toBeCloseTo(47.24 + 0.7, 2)
+    expect(paper.radiusPt).toBeCloseTo(inPt(0.075) + mmPt(0.35), 6)
+    const immersive = printCodeBlock({ look: 'immersive' }, tile, 2)
+    expect(immersive.widthPt).toBe(inPt(1.5))
+    expect(immersive.heightPt).toBeCloseTo(inPt(1.96), 6)
+  })
+})
+
+describe('choices and refusals (spec 12)', () => {
+  it('keeps tents off the print shop', () => {
+    expect(refusalOf({ piece: 'tent', printer: 'print_shop' })).toBe('tents_office_only')
+    expect(
+      refusalOf({ piece: 'counter', printer: 'print_shop', look: 'immersive' }),
+    ).toBeNull()
+    expect(refusalOf({ piece: 'small', printer: 'print_shop' })).toBeNull()
+  })
+
+  it('gives the cards a back page and leaves the tent’s two faces the front', () => {
+    for (const printer of ['my_printer', 'print_shop'] as const) {
+      expect(refusalOf({ piece: 'counter', printer, backPage: true })).toBeNull()
+      expect(refusalOf({ piece: 'small', printer, backPage: true })).toBeNull()
+    }
+    expect(refusalOf({ piece: 'tent', backPage: true })).toBe('no_back_for_tents')
+    expect(refusalOf({ piece: 'tent', backPage: false })).toBeNull()
+    expect(refusalOf({ piece: 'tent' })).toBeNull()
+    expect(printChoiceProblem(choice({ piece: 'tent', backPage: true }))).toEqual({
+      code: 'no_back_for_tents',
+    })
+  })
+
+  it('takes a whole quantity from 1 to 1000 and one or two languages', () => {
+    expect(refusalOf({ quantity: 0 })).toBe('quantity_out_of_range')
+    expect(refusalOf({ quantity: 2.5 })).toBe('quantity_out_of_range')
+    expect(refusalOf({ quantity: PRINT_MAX_QUANTITY + 1 })).toBe('quantity_out_of_range')
+    expect(refusalOf({ quantity: PRINT_MAX_QUANTITY })).toBeNull()
+    expect(PRINT_MAX_QUANTITY).toBe(1000)
+    expect(refusalOf({ languageCount: 3 })).toBe('languages_out_of_range')
+    expect(refusalOf({ languageCount: 0 })).toBe('languages_out_of_range')
+  })
+  it('says what is wrong with a choice before its code is known', () => {
+    expect(printChoiceProblem(choice())).toBeNull()
+    expect(printChoiceProblem(choice({ piece: 'tent', printer: 'print_shop' }))).toEqual({
+      code: 'tents_office_only',
+    })
+  })
+})
+
+describe('sheets (fixed rule Y)', () => {
+  it('fits Paper 3 / 4 / 10 and Immersive 2 / 2 / 8 on Letter, Paper 4 / 4 / 10 and Immersive 2 / 2 / 9 on A4', () => {
+    expect(PRINT_PER_SHEET.counter).toEqual({
+      paper: { letter: 3, a4: 4 },
+      immersive: { letter: 2, a4: 2 },
+    })
+    expect(PRINT_PER_SHEET.tent).toEqual({
+      paper: { letter: 4, a4: 4 },
+      immersive: { letter: 2, a4: 2 },
+    })
+    expect(PRINT_PER_SHEET.small).toEqual({
+      paper: { letter: 10, a4: 10 },
+      immersive: { letter: 8, a4: 9 },
+    })
+  })
+
+  it('lets the quantity decide the sheets, and fills the last one only when asked', () => {
+    expect(printSheetCount(10, 4)).toBe(3)
+    expect(printSheetCount(8, 4)).toBe(2)
+    expect(printPieceCount(10, 4, false)).toBe(10)
+    expect(printPieceCount(10, 4, true)).toBe(12)
+  })
+})
