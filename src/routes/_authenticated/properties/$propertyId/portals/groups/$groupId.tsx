@@ -1,10 +1,10 @@
+import { useServedNow } from '#/components/hooks/served-clock'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // fallow-ignore-file code-duplication
 // r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // A portal group's page: its results, its portals, the goal it shares and its
 // history (board 13). A group is a collection of Portals inside one Property for
 // shared results and goals; guests never see it.
-import { useState } from 'react'
 import { createFileRoute, notFound } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import {
@@ -124,7 +124,7 @@ function PortalGroupRoute() {
   const queryClient = useQueryClient()
   const { can: canDo, role } = usePermissions()
   const { has } = useCapabilities()
-  const [now] = useState(() => new Date())
+  const now = useServedNow()
   const { data: overview } = useSuspenseQuery(portalOverviewQuery(propertyId))
   const { data: groupsData } = useSuspenseQuery(portalGroupsQuery(propertyId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
