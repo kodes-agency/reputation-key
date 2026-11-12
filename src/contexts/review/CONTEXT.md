@@ -291,14 +291,18 @@ only (ADR 0055, notes 2026-10-18 and 2026-10-19).
 A run whose Google listing moves while it reads (the confirmation listing finds
 a different set than its main listing: a review the main listing did not have,
 one it had that is now missing, or a removal candidate Google shows after all;
-Google's total or average differs from one page to the next; or one review
-closes a main-scan page and opens the next) ends without removing anything. The
+Google's total or average differs from one page to the next; one review
+closes a main-scan page and opens the next; or a head check or a push maps a
+review, or stores its edit, after the run began: while the page listing it
+commits, or between reading its removal candidate and confirming it gone, which
+makes that candidate stale) ends without removing anything. The
 store records it as `listing_changed`, most likely a guest posting mid-run,
 unless the Property's two runs before it in the epoch also saw their listing
 move, of any kind, skipping runs lost as `cursor_lost` or ended as
 `connection_unusable`; then it records the
 code that says what moved (`confirmation_set_changed`, `total_changed`,
-`average_changed`, or `duplicate_resource` for the review on two pages), a
+`average_changed`, `duplicate_resource` for the review on two pages, or
+`review_mutation` for the review a head check or a push moved on), a
 listing that keeps moving. A review twice on one page, or one review id linked
 to two provider resources, is not a move: it is `duplicate_resource` on its
 first run (`application/snapshot-listing-change.ts`; ADR 0055, notes
