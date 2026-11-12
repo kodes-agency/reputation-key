@@ -8,6 +8,13 @@
 // Organization, and the participant scope erases a person. Merchant
 // AI consent evidence and the enablement head stay too (the coverage gate lists
 // why).
+//
+// A trigger refuses to delete an Organization's last owner, which every live
+// Organization has. A closure removes every member, so that trigger is off
+// only inside the closure's transaction, under a five-second lock timeout, and
+// is on again before the commit. The lock it takes keeps every other write to
+// `member` waiting meanwhile, and a failure rolls the change back with the
+// deletes.
 
 import { sql } from 'drizzle-orm'
 import type { Tx } from '#/shared/outbox/commit'
@@ -17,6 +24,12 @@ const TENANT_COLUMN: Readonly<Record<string, string>> = {
   member: 'organizationId',
   invitation: 'organizationId',
 }
+
+const LOCK_TIMEOUT = '5s'
+const LAST_OWNER_GUARD = Object.freeze({
+  table: 'member',
+  trigger: 'member_last_owner_del',
+} as const)
 
 /** No table here references another, so the order is only for reading. */
 export const IDENTITY_ORGANIZATION_TABLES: readonly string[] = Object.freeze([
@@ -48,11 +61,21 @@ export async function countIdentityOrganizationRows(
   return counts
 }
 
-/** Deletes the Organization's Identity rows; returns the rows removed. */
+/**
+ * Deletes the Organization's Identity rows inside the caller's transaction;
+ * returns the rows removed.
+ */
 export async function deleteIdentityOrganizationRows(
   tx: Tx,
   organizationId: string,
 ): Promise<number> {
+  await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`))
+  await tx.execute(
+    sql`ALTER TABLE ${sql.identifier(LAST_OWNER_GUARD.table)}
+        DISABLE TRIGGER ${sql.identifier(LAST_OWNER_GUARD.trigger)}`,
+  )
+  // No try/finally: a failed statement aborts the transaction, and the
+  // rollback restores the guard.
   let deleted = 0
   for (const table of IDENTITY_ORGANIZATION_TABLES) {
     const result = await tx.execute(sql`
@@ -62,5 +85,9 @@ export async function deleteIdentityOrganizationRows(
     `)
     deleted += result.rows.length
   }
+  await tx.execute(
+    sql`ALTER TABLE ${sql.identifier(LAST_OWNER_GUARD.table)}
+        ENABLE TRIGGER ${sql.identifier(LAST_OWNER_GUARD.trigger)}`,
+  )
   return deleted
 }

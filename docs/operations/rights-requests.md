@@ -113,8 +113,9 @@ private bucket by hand and delete the local copy.
 - **identity** (`property`, `organization`): a Property erasure deletes its
   access grants and AI decide-later records; a closure deletes them for every
   Property, plus every member's AI notice receipts and product update receipts
-  and settings, and the Organization's memberships and invitations. Login
-  identities stay: a person may belong to another Organization.
+  and settings, and the Organization's memberships, its owners' included, and
+  invitations. Login identities stay: a person may belong to another
+  Organization.
 - **property** (`property`, `organization`): each Property becomes a
   content-free tombstone (`purged`, no name, address or Google binding) and
   its Responsible Managers are deleted. A closure tombstones every Property of
