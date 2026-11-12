@@ -4,8 +4,8 @@
 // Every app-owned table across every module is exported here (no
 // tablesFilter whitelist — the barrel itself is the boundary). The auth tables
 // (user, session, account, verification, organization, member, invitation)
-// live in ./auth.ts, are managed by `pnpm auth:migrate`
-// (the Better Auth schema API), and are deliberately NOT exported here.
+// live in ./auth.ts, mirror the pinned Better Auth runtime's schema, and are
+// deliberately NOT exported here.
 //
 // Keep this barrel in lockstep with ./index.ts minus ./auth.ts — the semantic
 // drift test (../migration-verification.test.ts) fails if a migration-owned

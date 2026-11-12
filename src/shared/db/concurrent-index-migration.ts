@@ -2,8 +2,10 @@
 
 import { randomUUID } from 'node:crypto'
 import type { QueryResult } from 'pg'
-import type { ConcurrentIndexSpec } from './concurrent-index-registry'
-import { journalConcurrentIndex } from './journal-concurrent-index'
+import {
+  journalConcurrentIndex,
+  type ConcurrentIndexSpec,
+} from './journal-concurrent-index'
 
 const LOCK_NAMESPACE = 'repkey-concurrent-index-sidecar-v1'
 
@@ -171,7 +173,7 @@ function definitionMatches(
 }
 
 /**
- * Builds one registered index if it does not already exist in a matching,
+ * Builds one journaled index if it does not already exist in a matching,
  * valid state. Never runs inside a transaction — `CREATE INDEX CONCURRENTLY`
  * would be refused.
  */
