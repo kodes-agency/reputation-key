@@ -120,12 +120,9 @@ describe('current notice corrections', () => {
   it('publishes the erasure record and restore replay only where main writes and replays it', () => {
     const privacy = legalBody('privacy-notice')
     expect(privacy).toContain(
-      'Before an approved erasure request or a one-off purge deletes information, the Service saves a separate record containing only the identifiers needed to repeat that erasure after a restore. These records are kept in separate object storage for 45 days. If saving the record fails, the erasure waits and Reputation Key is alerted. After a restore, the records are used to repeat those erasures before the restored Service returns to use. Routine deletion of information that has reached its age limit runs again after a restore and needs no separate erasure record.',
+      'Before a guest withdrawal, an approved erasure request or a one-off purge deletes information, the Service saves a separate record containing only the identifiers needed to repeat that erasure after a restore. These records are kept in separate object storage for 45 days. If saving the record fails, the erasure waits and Reputation Key is alerted. After a restore, the records are used to repeat those erasures before the restored Service returns to use. Routine deletion of information that has reached its age limit runs again after a restore and needs no separate erasure record.',
     )
-    expect(privacy).toContain(
-      'A guest withdrawal does not yet save such a record, so restoring an older backup can bring back a response a guest withdrew after that backup was made.',
-    )
-    expect(privacy).not.toContain('Before a guest withdrawal deletes information')
+    expect(privacy).not.toContain('does not yet save such a record')
     expect(privacy).toContain(
       'confirmed erasure with a record that allows it to be repeated after a restore.',
     )

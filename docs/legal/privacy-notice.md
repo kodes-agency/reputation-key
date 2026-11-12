@@ -400,16 +400,14 @@ The accepted rules for the remaining information classes are:
 - there is no quarantine retention class because no quarantine tables remain.
 
 Database backups are deleted on a fixed schedule within 30 days: daily copies after six days and weekly copies after 27 days. Database
-backups and point-in-time recovery are enabled. Before an approved erasure
+backups and point-in-time recovery are enabled. Before a guest withdrawal, an approved erasure
 request or a one-off purge deletes information, the Service saves a separate
 record containing only the identifiers needed to repeat that erasure after a
 restore. These records are kept in separate object storage for 45 days. If
 saving the record fails, the erasure waits and Reputation Key is alerted. After
 a restore, the records are used to repeat those erasures before the restored
 Service returns to use. Routine deletion of information that has reached its age
-limit runs again after a restore and needs no separate erasure record. A guest
-withdrawal does not yet save such a record, so restoring an older backup can
-bring back a response a guest withdrew after that backup was made.
+limit runs again after a restore and needs no separate erasure record.
 
 ## 7. Choices, corrections, and withdrawal
 
@@ -441,7 +439,7 @@ the owner through the operator script, not through self-service account
 controls. Write to [denev@kodes.agency](mailto:denev@kodes.agency) using the
 identity checks above. We answer within 30 days and provide an export on request
 within seven days from verified identity. Exports are delivered as a 24-hour download link to a file in the private bucket, deleted after download and after seven days at the latest, never as an email attachment. Permanent Property erasure must be requested by an AccountAdmin. Organization
-closure includes suspension, mandatory warnings, an export on request and
+closure includes suspension, mandatory warnings, an export on request, and
 confirmed erasure with a record that allows it to be repeated after a restore.
 
 ## 8. Security and deployment posture
@@ -589,4 +587,4 @@ Version 3.6 (2026-11-07) explains that unusually busy periods or abuse can preve
 
 Version 3.7 (2026-11-11) states that Property Trends has ended, so Review Analysis and Reply Drafting are the two Property AI choices, and that the stored business category is removed when Google is disconnected and when AI results are purged. It replaces the Organization Export object retention row and the closure workflow wording with the manual procedure: exports, closure, permanent Property erasure and privacy requests are handled by the owner through the operator script, with an export provided within seven days from verified identity as a 24-hour download link that is deleted after download and after seven days at the latest, never as an email attachment. It takes effect on publication without a waiting period, on the accountable owner's decision for the two closed-beta Organizations the owner controls. Existing users are not asked to accept again.
 
-Version 3.8 (2026-11-11) states that erasures made through the manual procedure and one-off purges are recorded before they delete anything, in separate object storage for 45 days, and repeated after a restore, and that a guest withdrawal does not yet save such a record. It explains how Portal “All Time” totals are calculated, and states that the Service no longer records separate per-review star values in Reporting while existing copies are being removed. It takes effect on publication without a waiting period, on the accountable owner's decision for the two closed-beta Organizations the owner controls. Existing users are not asked to accept again.
+Version 3.8 (2026-11-11) states that erasures made through the manual procedure and one-off purges are recorded before they delete anything, in separate object storage for 45 days, and repeated after a restore, and that guest withdrawals are recorded in the same way. It explains how Portal “All Time” totals are calculated, and states that the Service no longer records separate per-review star values in Reporting while existing copies are being removed. It takes effect on publication without a waiting period, on the accountable owner's decision for the two closed-beta Organizations the owner controls. Existing users are not asked to accept again.
