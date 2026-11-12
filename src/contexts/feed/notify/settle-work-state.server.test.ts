@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type { HandlingCycleNotificationFacts } from './ports/notification-inbox-item-lookup.port'
-import type { ReplyWorkStatus } from './ports/reply-work-state.port'
-import { createNotificationWorkState } from './notification-work-state'
+import type { HandlingCycleNotificationFacts } from '../application/ports/notification-inbox-item-lookup.port'
+import type { ReplyWorkStatus } from '../application/ports/reply-work-state.port'
+import { createNotificationWorkState } from './settle.server'
+import type { NotificationType } from '../domain/notification-types'
 
 const ORG = organizationId('org-work')
 const ITEM = inboxItemId('item-work')
@@ -354,5 +355,42 @@ describe('which of a settling fact’s types are finished', () => {
         types: ['integration.reauthorization_required'],
       }),
     ).resolves.toEqual(['integration.reauthorization_required'])
+  })
+})
+
+describe('asking about many notices at once', () => {
+  it('answers each notice in order and reads each item once', async () => {
+    const cycleOf = vi.fn((_item: string) => cycle())
+    const state = build({ cycleOf })
+    const subject = (type: NotificationType, resourceId: string) => ({
+      organizationId: ORG,
+      type,
+      resourceId,
+    })
+    await expect(
+      state.isWaitingMany([
+        subject('review.created', ITEM),
+        subject('inbox.reopened', ITEM),
+        subject('integration.reauthorization_required', 'connection-1'),
+        subject('feedback.created', 'other-item'),
+      ]),
+    ).resolves.toEqual([true, true, true, true])
+    expect(cycleOf.mock.calls.map(([item]) => item).sort()).toEqual([ITEM, 'other-item'])
+  })
+
+  it('matches the single question for a closed item and a reconnect request', async () => {
+    const state = build({ cycle: cycle({ status: 'closed' }) })
+    const subjects = [
+      { organizationId: ORG, type: 'review.created' as const, resourceId: ITEM },
+      {
+        organizationId: ORG,
+        type: 'integration.reauthorization_required' as const,
+        resourceId: 'connection-1',
+      },
+    ]
+    await expect(state.isWaitingMany(subjects)).resolves.toEqual([
+      await state.isWaiting(subjects[0]!),
+      await state.isWaiting(subjects[1]!),
+    ])
   })
 })

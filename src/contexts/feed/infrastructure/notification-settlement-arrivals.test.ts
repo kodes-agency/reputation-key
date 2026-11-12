@@ -19,7 +19,7 @@ import {
   type NotificationId,
 } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { isStillActionable } from '../domain/notification-settlement'
+import { isStillActionable } from '../domain/notification-actionable'
 import { handleNotificationSettlementEvent } from './notification-settlement-outbox-consumers'
 import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
 

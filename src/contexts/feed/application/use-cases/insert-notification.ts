@@ -23,10 +23,8 @@ import type {
 import { isOrganizationScopedNotice } from '../../domain/notification-delivery-policy'
 import { getDefaultCadence, getDefaultEnabled } from '../../domain/notification-policy'
 import type { NotificationAudience } from '../notification-audience'
-import {
-  SETTLED_EMAIL_REASON,
-  SUPERSEDED_FOR_READER,
-} from '../../domain/notification-settlement'
+import { SUPERSEDED_FOR_READER } from '../../notify/settle.server'
+import { SETTLED_EMAIL_REASON } from '../../domain/notification-actionable'
 import { isLowFor, RATED_NOTIFICATION_TYPES } from '../../domain/notification-low-ratings'
 import { getDefaultMaxRating } from '../../domain/notification-policy'
 import { parseNotificationPayload } from '../../domain/notification-payload'

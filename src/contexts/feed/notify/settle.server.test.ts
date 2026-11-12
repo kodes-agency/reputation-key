@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ACTIONABLE_NOTIFICATION_TYPES,
   isSettleableNotificationType,
-  isStillActionable,
   settledNotificationTypes,
   SUPERSEDED_FOR_READER,
   type SettlingFact,
-} from './notification-settlement'
-import { NOTIFICATION_TYPES, type NotificationType } from './notification-types'
+} from './settle.server'
+import {
+  ACTIONABLE_NOTIFICATION_TYPES,
+  isStillActionable,
+} from '../domain/notification-actionable'
+import { NOTIFICATION_TYPES, type NotificationType } from '../domain/notification-types'
 
 const row = (
   over: Partial<{

@@ -67,7 +67,7 @@ import {
   nullableString as nullablePayloadString,
   requiredString as requiredPayloadString,
 } from './outbox-payload-fields'
-import type { RetireMovedAssignment } from '../application/retire-moved-assignment'
+import { type RetireMovedAssignment } from '../notify/settle.server'
 
 export const WORKFLOW_NOTIFICATION_CONSUMERS = [
   {
