@@ -4,12 +4,12 @@
 
 import type { PortalFacts } from '../domain/goal-recommendation-types'
 import { localDateOf } from '../domain/local-days'
-import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
+import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalCardView,
   PortalGoalFirstWeeks,
   PortalReadinessRow,
-} from '../application/dto/monthly-portal-goal.types'
+} from './contracts'
 import {
   monthlyPortalGoalOf,
   type PropertyCountGoal,

@@ -1,7 +1,7 @@
 // An unreadable figure replaces the headline and ruler; never render it as zero. Pace
 // belongs to the card pill or page header.
 
-import type { PortalGoalRunningMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalRunningMonth } from '#/contexts/reporting/monthly-goals/contracts'
 import { GoalHeadline } from '../../../../components/goals/goal-headline'
 import { GoalRuler } from '../../../../components/goals/goal-ruler'
 import { portalGoalRuler } from './portal-goal-ruler-view'

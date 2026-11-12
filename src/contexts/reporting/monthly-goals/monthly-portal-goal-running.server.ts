@@ -9,14 +9,14 @@ import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { goalMonthDays, goalPace } from '../domain/goal-pace'
 import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
 import { addLocalDays, localDateOf } from '../domain/local-days'
-import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
+import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalLastMonth,
   PortalGoalOfCard,
   PortalGoalPortalCount,
   PortalGoalRows,
   PortalGoalRunningMonth,
-} from '../application/dto/monthly-portal-goal.types'
+} from './contracts'
 import { effectiveMonthTarget } from '../application/goal-effective-month-target'
 import type { GoalSubject } from '../domain/goal-subject'
 import {

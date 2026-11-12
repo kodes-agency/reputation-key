@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalAverageOfPage } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
+import type { PortalGoalAverageOfPage } from '#/contexts/reporting/monthly-goals/contracts'
 import {
   AVERAGE_GOAL_LINE,
   averageGoalLine,

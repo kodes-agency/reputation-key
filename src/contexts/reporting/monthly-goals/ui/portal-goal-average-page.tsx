@@ -3,7 +3,7 @@
 // the opener or page title.
 
 import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react'
-import type { PortalGoalSinglePageView } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
+import type { PortalGoalSinglePageView } from '#/contexts/reporting/monthly-goals/contracts'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'

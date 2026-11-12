@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalPageMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
+import type { PortalGoalPageMonth } from '#/contexts/reporting/monthly-goals/contracts'
 import { monthBars } from './portal-goal-bands-view'
 import { PAGE_LATER, PAGE_RUNNING } from './portal-goal-page.stories.fixtures'
 

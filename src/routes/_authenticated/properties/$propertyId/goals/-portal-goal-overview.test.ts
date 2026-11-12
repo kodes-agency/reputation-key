@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import { CARD_RUNNING } from '#/contexts/reporting/monthly-goals/ui/portal-goal-running.stories.fixtures'
 import {
   CARD_READY,
