@@ -511,17 +511,6 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
     { retryAttempts: 5, retryBackoff: 'exponential:30000' },
   ),
-  job(
-    'insert-notification',
-    'src/contexts/feed/infrastructure/jobs/insert-notification.job.ts',
-    {
-      queue: 'default',
-      capability: 'none',
-      action: 'system:notification.insert',
-      schedule: 'none',
-      registration: 'enabled',
-    },
-  ),
   job('urgent-email', 'src/contexts/feed/email/send-emails.server.ts', {
     queue: 'default',
     capability: 'notification.send_email',

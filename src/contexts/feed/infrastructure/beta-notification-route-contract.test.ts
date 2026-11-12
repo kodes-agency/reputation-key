@@ -31,7 +31,6 @@ import {
   gateDispatcherConsumer,
   gateJob,
 } from '#/shared/jobs/delayed-execution-gate'
-import { type ConsumerEvent } from '#/shared/outbox/envelope'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   assertBetaNotificationTriggerMatrix,
@@ -41,9 +40,7 @@ import {
   createNotificationAudienceAuthorizer,
   parseNotificationAudience,
 } from '../application/notification-audience'
-import { notificationScopeForType } from '../domain/notification-delivery-policy'
 import type { NotificationType } from '../domain/notification-types'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 import {
   MANDATORY_EMAIL_JOB_NAME,
   URGENT_EMAIL_JOB_NAME,
@@ -77,20 +74,8 @@ import {
   registerNotificationRoutes,
   type RouteDeps,
 } from '#/shared/testing/notification-route-test-harness'
-/** The job a route queues for one notification type, scoped as the type demands. */
-function insertNotificationJob(type: NotificationType, envelope: ConsumerEvent) {
-  return {
-    userId: RECIPIENT,
-    organizationId: envelope.organizationId,
-    propertyId: notificationScopeForType(type) === 'organization' ? null : PROPERTY,
-    type,
-    resourceType: 'inbox_item',
-    resourceId: ITEM,
-    eventId: envelope.eventId,
-  }
-}
 
-/** The immediate-email job the insert path queues, with its execution envelope. */
+/** The immediate-email job a written notice queues, with its execution envelope. */
 function urgentEmailJob(scope: Readonly<{ propertyId?: string }>) {
   return {
     notificationEmailId: '4d1f0c1e-2b7a-4c55-9a51-000000000012',
@@ -164,20 +149,6 @@ describe('every beta notification route passes the delayed execution gate', () =
       )
 
       expect(outcome.decision.reason).toBe('allowed')
-    })
-
-    it(`${route.eventType}: the insert-notification jobs it queues are allowed`, async () => {
-      const envelope = deliveredEnvelope(PRODUCED_FACTS[route.eventType]!())
-
-      for (const { type } of route.notifications) {
-        const outcome = await gateJob(
-          INSERT_NOTIFICATION_JOB_NAME,
-          insertNotificationJob(type as NotificationType, envelope),
-          'worker:default',
-          'worker',
-        )
-        expect(outcome.decision.reason, type).toBe('allowed')
-      }
     })
   }
 
@@ -502,13 +473,6 @@ describe('every beta notification route queues its notice from its real producer
           consumerName: route.consumerName,
         })
         expect(parseNotificationAudience(job.audience), job.type).not.toBeNull()
-        const gate = await gateJob(
-          INSERT_NOTIFICATION_JOB_NAME,
-          job,
-          'worker:default',
-          'worker',
-        )
-        expect(gate.decision.reason, job.type).toBe('allowed')
       }
     })
   }

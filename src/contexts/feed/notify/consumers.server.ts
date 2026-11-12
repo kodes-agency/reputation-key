@@ -1,3 +1,4 @@
+import type { Tx } from '#/shared/db'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -49,6 +50,18 @@ export type NoticeWriter = Readonly<{
   ) => Promise<ReceiptStatus | 'duplicate'>
 }>
 
+/**
+ * Writes notices that no outbox event announced, all on one transaction and
+ * with no receipt: a source event with no outbox row has nothing to claim.
+ * The same eligibility checks apply; a repeat of the same event folds into the
+ * recipient's waiting row without a second email.
+ */
+export type DirectNoticeWriter = Readonly<{
+  writeDirect: (
+    delivery: Readonly<{ eventId: string; notices: ReadonlyArray<Notice> }>,
+  ) => Promise<ReceiptStatus>
+}>
+
 type NoticeWriterDeps = NoticeWriteSettings &
   Readonly<{
     authorizeAudience: NotificationAudienceAuthorizer
@@ -66,8 +79,14 @@ type NoticeWriterDeps = NoticeWriteSettings &
  * its receipt `obsolete` and logs why. Redis sees the immediate emails only
  * after commit.
  */
-export const createNoticeWriter = (deps: NoticeWriterDeps): NoticeWriter => ({
-  write: async ({ eventId, consumerName, status, notices }) => {
+export const createNoticeWriter = (
+  deps: NoticeWriterDeps,
+): NoticeWriter & DirectNoticeWriter => {
+  const decide = async (
+    eventId: string,
+    status: ReceiptStatus,
+    notices: ReadonlyArray<Notice>,
+  ) => {
     const deliverable: InsertNotificationInput[] = []
     const audiences: NotificationAudience[] = []
     for (const { audience, ...notice } of notices) {
@@ -104,27 +123,56 @@ export const createNoticeWriter = (deps: NoticeWriterDeps): NoticeWriter => ({
     }
     const settledStatus: ReceiptStatus =
       notices.length > 0 && deliverable.length === 0 ? 'obsolete' : status
+    return { deliverable, audiences, settledStatus }
+  }
 
-    const outcome = await deps.db.transaction(async (tx) => {
-      const claimed = await tx
-        .insert(eventConsumerReceipts)
-        .values({ eventId, consumerName, status: settledStatus })
-        .onConflictDoNothing()
-        .returning({ eventId: eventConsumerReceipts.eventId })
-      if (claimed.length === 0) return null
+  const writeAll = async (
+    tx: Tx,
+    deliverable: ReadonlyArray<InsertNotificationInput>,
+    audiences: ReadonlyArray<NotificationAudience>,
+  ) => {
+    const emails = []
+    for (const [index, input] of deliverable.entries()) {
+      emails.push(await writeNoticeInTransaction(deps, tx, input, audiences[index]!))
+    }
+    return emails
+  }
 
-      const emails = []
-      for (const [index, input] of deliverable.entries()) {
-        emails.push(await writeNoticeInTransaction(deps, tx, input, audiences[index]!))
-      }
-      return emails
-    })
+  return {
+    write: async ({ eventId, consumerName, status, notices }) => {
+      const { deliverable, audiences, settledStatus } = await decide(
+        eventId,
+        status,
+        notices,
+      )
+      const outcome = await deps.db.transaction(async (tx) => {
+        const claimed = await tx
+          .insert(eventConsumerReceipts)
+          .values({ eventId, consumerName, status: settledStatus })
+          .onConflictDoNothing()
+          .returning({ eventId: eventConsumerReceipts.eventId })
+        if (claimed.length === 0) return null
+        return writeAll(tx, deliverable, audiences)
+      })
 
-    if (outcome === null) return 'duplicate'
-    for (const email of outcome) await enqueueImmediateAfterCommit(deps, email)
-    return settledStatus
-  },
-})
+      if (outcome === null) return 'duplicate'
+      for (const email of outcome) await enqueueImmediateAfterCommit(deps, email)
+      return settledStatus
+    },
+    writeDirect: async ({ eventId, notices }) => {
+      const { deliverable, audiences, settledStatus } = await decide(
+        eventId,
+        'applied',
+        notices,
+      )
+      const emails = await deps.db.transaction((tx) =>
+        writeAll(tx, deliverable, audiences),
+      )
+      for (const email of emails) await enqueueImmediateAfterCommit(deps, email)
+      return settledStatus
+    },
+  }
+}
 
 export type NoticeDeliveryDeps = Readonly<{
   noticeWriter: NoticeWriter

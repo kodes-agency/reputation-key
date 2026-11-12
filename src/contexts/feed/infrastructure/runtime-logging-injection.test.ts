@@ -7,11 +7,7 @@ const read = (file: string): string =>
 
 describe('Notification runtime logging injection', () => {
   it('keeps jobs and durable consumers independent from the ambient logger', () => {
-    for (const file of [
-      'jobs/insert-notification.job.ts',
-      'notification-outbox-consumers.ts',
-    ]) {
-      expect(read(file), file).not.toMatch(/\bgetLogger\s*\(/u)
-    }
+    const file = 'notification-outbox-consumers.ts'
+    expect(read(file), file).not.toMatch(/\bgetLogger\s*\(/u)
   })
 })

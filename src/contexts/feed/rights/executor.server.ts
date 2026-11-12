@@ -5,16 +5,20 @@
 // field allowlists are exercised without one. A row that belongs to another
 // Organization or Property than the request stops the run before any output.
 
-import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
-import { organizationId as brandOrganization, unbrand } from '#/shared/domain/ids'
+import {
+  organizationId as brandOrganization,
+  unbrand,
+  userId as brandUser,
+} from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 import type { NotificationPayload } from '../domain/notification-payload'
 import { createDisplayNameLookupAdapter } from '../infrastructure/adapters/display-name-lookup.adapter'
 import { buildOrganizationPayload } from '../infrastructure/notification-payload-facts'
 import { createNotificationDbUserLookupAdapter } from '../infrastructure/adapters/notification-db-user-lookup.adapter'
-import { INSERT_NOTIFICATION_JOB_NAME } from '../infrastructure/jobs/insert-notification.job'
+import type { NotificationAudience } from '../application/notification-audience'
+import type { InsertNotificationInput } from '../application/use-cases/insert-notification'
 import {
   getFormerMemberRemovals,
   getNotificationHistory,
@@ -29,26 +33,18 @@ import {
   type NotificationPurgeCounts,
 } from './purge.server'
 
-export type ManualFinalWarningJob = Readonly<{
-  name: typeof INSERT_NOTIFICATION_JOB_NAME
-  jobId: string
-  data: Readonly<{
-    userId: string
-    organizationId: string
-    propertyId: null
-    type: 'account.organization_purge_pending'
-    resourceType: 'organization'
-    resourceId: string
-    eventId: string
-    payload: NotificationPayload
-    audience:
-      | Readonly<{ kind: 'account_admin' }>
-      | Readonly<{
-          kind: 'affected_organization_user'
-          eventId: string
-          eventType: 'identity.member.removed'
-        }>
-  }>
+type FinalWarningNotice = Omit<InsertNotificationInput, 'eventId'> &
+  Readonly<{ audience: NotificationAudience }>
+
+/** Every notice of one request, written together under one source event. */
+export type ManualFinalWarning = Readonly<{
+  eventId: string
+  notices: readonly FinalWarningNotice[]
+}>
+
+/** Writes a request's notices on one transaction; Feed's notice writer is one. */
+export type FinalWarningWriter = Readonly<{
+  writeDirect: (warning: ManualFinalWarning) => Promise<unknown>
 }>
 
 export type NotificationRightsPort = Readonly<{
@@ -64,7 +60,7 @@ export type NotificationRightsPort = Readonly<{
     scope: NotificationRightsScope,
     batchSize: number,
   ) => Promise<NotificationPurgeCounts>
-  enqueue: (job: ManualFinalWarningJob) => Promise<void>
+  send: (warning: ManualFinalWarning) => Promise<void>
 }>
 
 export type NotificationRightsRequest = Readonly<{
@@ -75,7 +71,7 @@ export type NotificationRightsRequest = Readonly<{
   batchSize: number
   /** With apply on an Organization: send the final warnings instead of purging. */
   finalWarning?: boolean
-  /** The verified request's reference; it makes the warning jobs repeat-safe. */
+  /** The verified request's reference; it names the warning's source event. */
   requestRef?: string
 }>
 
@@ -120,53 +116,47 @@ function tenantChecked(
 }
 
 /**
- * One job per current AccountAdmin and one per former member. The job has no
- * Property. A former member is admitted by the fact that ended their access,
+ * One notice per current AccountAdmin and one per former member. The notice has
+ * no Property. A former member is admitted by the fact that ended their access,
  * which is why they are found through their removal notice and not a role.
  */
-export function buildManualFinalWarningJobs(input: {
+export function buildManualFinalWarning(input: {
   organizationId: string
   requestRef: string
   payload: NotificationPayload
   accountAdmins: readonly string[]
   formerMembers: readonly Readonly<{ userId: string; removalEventId: string }>[]
-}): readonly ManualFinalWarningJob[] {
-  const eventId = `manual-final-warning:${input.organizationId}:${input.requestRef}`
-  // The request ref is free text and may carry ':', which BullMQ refuses in a
-  // custom job id, so the id carries a digest of the event id instead.
-  const jobScope = `manual-final-warning-${createHash('sha256').update(eventId).digest('hex').slice(0, 32)}`
+}): ManualFinalWarning {
   const base = {
-    organizationId: input.organizationId,
+    organizationId: brandOrganization(input.organizationId),
     propertyId: null,
     type: 'account.organization_purge_pending',
     resourceType: 'organization',
     resourceId: input.organizationId,
-    eventId,
     payload: input.payload,
   } as const
   const admins = new Set(input.accountAdmins)
-  return [
-    ...[...admins].map((userId) => ({
-      name: INSERT_NOTIFICATION_JOB_NAME as typeof INSERT_NOTIFICATION_JOB_NAME,
-      jobId: `${jobScope}-${userId}`,
-      data: { ...base, userId, audience: { kind: 'account_admin' } as const },
-    })),
-    ...input.formerMembers
-      .filter((member) => !admins.has(member.userId))
-      .map((member) => ({
-        name: INSERT_NOTIFICATION_JOB_NAME as typeof INSERT_NOTIFICATION_JOB_NAME,
-        jobId: `${jobScope}-${member.userId}`,
-        data: {
+  return {
+    eventId: `manual-final-warning:${input.organizationId}:${input.requestRef}`,
+    notices: [
+      ...[...admins].map((userId) => ({
+        ...base,
+        userId: brandUser(userId),
+        audience: { kind: 'account_admin' } as const,
+      })),
+      ...input.formerMembers
+        .filter((member) => !admins.has(member.userId))
+        .map((member) => ({
           ...base,
-          userId: member.userId,
+          userId: brandUser(member.userId),
           audience: {
             kind: 'affected_organization_user',
             eventId: member.removalEventId,
             eventType: 'identity.member.removed',
           } as const,
-        },
-      })),
-  ]
+        })),
+    ],
+  }
 }
 
 function formerMemberRecipients(rows: readonly RightsRow[]) {
@@ -247,7 +237,7 @@ async function sendFinalWarnings(
   ])
   // The last notice before an erasure is often read out of context, so it
   // names the Organization the way the automated warning does.
-  const jobs = buildManualFinalWarningJobs({
+  const warning = buildManualFinalWarning({
     organizationId: request.organizationId,
     requestRef: request.requestRef ?? 'manual',
     payload: await port.organizationPayload(request.organizationId),
@@ -256,8 +246,8 @@ async function sendFinalWarnings(
       tenantChecked(former, request, { propertyBound: false }),
     ),
   })
-  for (const job of jobs) await port.enqueue(job)
-  return { lines: [`final warnings queued: ${jobs.length}`] }
+  await port.send(warning)
+  return { lines: [`final warnings queued: ${warning.notices.length}`] }
 }
 
 async function purge(
@@ -291,7 +281,7 @@ export async function runNotificationRights(
 
 export function createNotificationRightsPort(
   db: Database,
-  enqueue: NotificationRightsPort['enqueue'],
+  noticeWriter: FinalWarningWriter,
 ): NotificationRightsPort {
   const users = createNotificationDbUserLookupAdapter(db)
   const names = { displayNames: createDisplayNameLookupAdapter(db), logger: getLogger() }
@@ -308,6 +298,8 @@ export function createNotificationRightsPort(
       buildOrganizationPayload(names, brandOrganization(organizationId)),
     rowCounts: (scope) => countNotificationRightsData(db, scope),
     purge: (scope, batchSize) => purgeNotificationRightsData(db, scope, batchSize),
-    enqueue,
+    send: async ({ eventId, notices }) => {
+      await noticeWriter.writeDirect({ eventId, notices })
+    },
   }
 }
