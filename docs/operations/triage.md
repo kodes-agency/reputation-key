@@ -30,17 +30,18 @@ keeps firing and a quiet one stays quiet until the read answers again.
 
 ## Google
 
-| Symptom                                                                   | Check                                                                                    | Action                                                                      |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Failed syncs (`sync.failed-nonzero`)                                      | Failure codes in the alert facts; `provider_rejected` means Google refused that location | §13; a refused location needs the manager to fix it in Google, not a retry. |
-| Property without a recent full reconciliation (`sync.reconciliation-age`) | Whether the Property is bound and its connection usable                                  | §13, §2 for authorization.                                                  |
-| New reviews not arriving (`sync.sweep-lag`)                               | Oldest overdue Property and push state                                                   | §13.                                                                        |
-| Newest page not covered by head checks (`sync.head-coverage`)             | `REVIEW_HEAD_CHECKS` is `persist` on the worker, and head-check outcomes                 | §13.                                                                        |
-| Push missed or silent (`sync.push-missed`, `sync.push-silent`)            | Pub/Sub backlog and dead-letter queue                                                    | §4.                                                                         |
-| 429 or 403 from Google                                                    | `classifySyncError` output, Cloud console quota                                          | §3.                                                                         |
-| Import stuck or partial                                                   | Import state for the connection                                                          | §5.                                                                         |
-| Reply outcome uncertain                                                   | Read the review back from Google first                                                   | §6; never resend a write.                                                   |
-| Review content nearing expiry (`source.freshness-deadline`)               | Refresh sweep and connection status                                                      | §3, §13.                                                                    |
+| Symptom                                                                          | Check                                                                                    | Action                                                                      |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Failed syncs (`sync.failed-nonzero`)                                             | Failure codes in the alert facts; `provider_rejected` means Google refused that location | §13; a refused location needs the manager to fix it in Google, not a retry. |
+| Property without a recent full reconciliation (`sync.reconciliation-age`)        | Whether the Property is bound and its connection usable                                  | §13, §2 for authorization.                                                  |
+| New reviews not arriving (`sync.sweep-lag`)                                      | Oldest overdue Property and push state                                                   | §13.                                                                        |
+| Newest page not covered by head checks (`sync.head-coverage`)                    | `REVIEW_HEAD_CHECKS` is `persist` on the worker, and head-check outcomes                 | §13.                                                                        |
+| Google counts fewer reviews than a Property shows (`sync.count-drop-persistent`) | The newest snapshot run's expected total and unique count                                | §13; no review is removed on the count alone.                               |
+| Push missed or silent (`sync.push-missed`, `sync.push-silent`)                   | Pub/Sub backlog and dead-letter queue                                                    | §4.                                                                         |
+| 429 or 403 from Google                                                           | `classifySyncError` output, Cloud console quota                                          | §3.                                                                         |
+| Import stuck or partial                                                          | Import state for the connection                                                          | §5.                                                                         |
+| Reply outcome uncertain                                                          | Read the review back from Google first                                                   | §6; never resend a write.                                                   |
+| Review content nearing expiry (`source.freshness-deadline`)                      | Refresh sweep and connection status                                                      | §3, §13.                                                                    |
 
 ## Queue and Redis
 

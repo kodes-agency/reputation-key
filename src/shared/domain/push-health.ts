@@ -87,6 +87,14 @@ export const DISCOVERY_LOOK_MAX_GAP_MS = 6 * 60 * 60 * 1000
 /** The head-coverage alert counts Properties left without cover this long. */
 export const HEAD_COVERAGE_ALERT_AFTER_MS = 24 * 60 * 60 * 1000
 
+/**
+ * Head checks ask for full reads about a drop in Google's review total for this
+ * long after they first saw it: twelve reads at most, one per six hours. A drop
+ * still there afterwards is not one a listing resolves, so the checks stop
+ * asking and the count-drop alert counts the Property instead.
+ */
+export const COUNT_DROP_PERSISTENT_AFTER_MS = 72 * 60 * 60 * 1000
+
 /** A location is suspect after this many missed pushes in the health window. */
 const LOCATION_SUSPECT_MISSED = 1
 

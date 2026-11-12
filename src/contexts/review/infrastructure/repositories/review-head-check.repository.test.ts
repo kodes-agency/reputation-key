@@ -383,8 +383,46 @@ describe.sequential(
     it('inserts no row for a Property the sweep never dated: it would read as never polled', async () => {
       await repo.recordHeadCoverage({ propertyId: PROP_B, coveredAt: NOW })
       await repo.requestFullRead({ propertyId: PROP_B, requestedAt: NOW })
+      await expect(
+        repo.recordCountDrop({ propertyId: PROP_B, seenAt: NOW }),
+      ).resolves.toBeNull()
+      await repo.clearCountDrop({ propertyId: PROP_B })
 
       expect(await syncRow(PROP_B)).toBeUndefined()
+    })
+
+    const dropOf = async (property: string) =>
+      (
+        await pool.query(
+          `SELECT count_drop_seen_at, updated_at FROM review_sync_state
+            WHERE property_id = $1 AND source = 'google'`,
+          [property],
+        )
+      ).rows.at(0)
+
+    it('keeps the first sighting of a drop and returns it to every later check', async () => {
+      await dated(PROP_A)
+
+      await expect(
+        repo.recordCountDrop({ propertyId: PROP_A, seenAt: ago(60_000) }),
+      ).resolves.toEqual(ago(60_000))
+      await expect(
+        repo.recordCountDrop({ propertyId: PROP_A, seenAt: NOW }),
+      ).resolves.toEqual(ago(60_000))
+
+      expect(await dropOf(PROP_A)).toMatchObject({ count_drop_seen_at: ago(60_000) })
+    })
+
+    it('clears a drop, and writes nothing when there is none to clear', async () => {
+      await dated(PROP_A)
+      await repo.recordCountDrop({ propertyId: PROP_A, seenAt: NOW })
+
+      await repo.clearCountDrop({ propertyId: PROP_A })
+      const cleared = await dropOf(PROP_A)
+      await repo.clearCountDrop({ propertyId: PROP_A })
+
+      expect(cleared).toMatchObject({ count_drop_seen_at: null })
+      expect(await dropOf(PROP_A)).toEqual(cleared)
     })
   },
 )

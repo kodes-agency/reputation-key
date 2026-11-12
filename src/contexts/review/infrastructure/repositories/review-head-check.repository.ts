@@ -8,10 +8,11 @@ import { reviewSourceContents } from '#/shared/db/schema/review-source-content.s
 // erased with the organization) and, in persist mode only, a head fact
 // (`recordHeadFact`: Google's count and average, `listing_complete = false`,
 // with the verified-snapshot event), and the Property's head cover or a full-read
-// request on its discovery row. It writes nothing about a review; reviews are
+// request on its discovery row. In either mode it keeps the stamp of a drop in
+// Google's total on that row. It writes nothing about a review; reviews are
 // stored through the observation writer.
 
-import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   organizationId as toOrganizationId,
@@ -342,6 +343,40 @@ export const createReviewHeadCheckRepository = (
             and(
               eq(reviewSyncState.propertyId, propertyId),
               eq(reviewSyncState.source, SYNC_SOURCE),
+            ),
+          )
+      }),
+
+    recordCountDrop: async ({ propertyId, seenAt }) =>
+      trace('review.headCheck.recordCountDrop', async () => {
+        // Update only, as for the cover. The stamp keeps the first sighting.
+        const rows = await db
+          .update(reviewSyncState)
+          .set({
+            countDropSeenAt: sql`COALESCE(${reviewSyncState.countDropSeenAt}, ${seenAt})`,
+            updatedAt: sql`transaction_timestamp()`,
+          })
+          .where(
+            and(
+              eq(reviewSyncState.propertyId, propertyId),
+              eq(reviewSyncState.source, SYNC_SOURCE),
+            ),
+          )
+          .returning({ seenAt: reviewSyncState.countDropSeenAt })
+        return rows[0]?.seenAt ?? null
+      }),
+
+    clearCountDrop: async ({ propertyId }) =>
+      trace('review.headCheck.clearCountDrop', async () => {
+        // Most checks find no drop: write only when there is one to clear.
+        await db
+          .update(reviewSyncState)
+          .set({ countDropSeenAt: null, updatedAt: sql`transaction_timestamp()` })
+          .where(
+            and(
+              eq(reviewSyncState.propertyId, propertyId),
+              eq(reviewSyncState.source, SYNC_SOURCE),
+              isNotNull(reviewSyncState.countDropSeenAt),
             ),
           )
       }),

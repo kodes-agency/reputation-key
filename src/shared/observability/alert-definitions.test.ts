@@ -1016,6 +1016,50 @@ describe('sync.head-coverage', () => {
   )
 })
 
+describe('sync.count-drop-persistent', () => {
+  const HOUR_MS = 3_600_000
+  const dropped = (count: number, oldest: number | null) => {
+    const s = healthy()
+    s.syncPush = {
+      ...s.syncPush,
+      countDrop: { persistentCount: count, oldestAgeMs: oldest },
+    }
+    return s
+  }
+
+  it('fires when a drop in Google’s total has lasted 72 hours', () => {
+    expect(
+      evaluateOne('sync.count-drop-persistent', dropped(2, 80 * HOUR_MS)),
+    ).toMatchObject({
+      name: 'sync.count-drop-persistent',
+      severity: 'P2',
+      runbook: 'runbooks.md §13',
+      value: 80 * HOUR_MS,
+      threshold: 72 * HOUR_MS,
+      windowMs: 72 * HOUR_MS,
+      facts: { count: 2 },
+    })
+  })
+
+  it('stays silent while no drop has lasted 72 hours', () => {
+    expect(evaluateOne('sync.count-drop-persistent', dropped(0, null))).toBeNull()
+    expect(evaluateOne('sync.count-drop-persistent', healthy())).toBeNull()
+  })
+
+  it.each(['health.sync', 'health.syncPush'] as const)(
+    'is held while %s is degraded',
+    (section) => {
+      const s = dropped(1, 73 * HOUR_MS)
+      s.degraded = [section]
+
+      const result = evaluateAlerts(s, AUX, new Set(), new Set())
+
+      expect(result.held).toContain('sync.count-drop-persistent')
+      expect(result.firing).not.toContain('sync.count-drop-persistent')
+    },
+  )
+})
+
 // ── notification delivery ─────────────────────────────────────────
 
 describe('notification.in-app-delivery-lag', () => {

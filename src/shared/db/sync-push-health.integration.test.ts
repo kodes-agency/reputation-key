@@ -639,3 +639,29 @@ describe('a reconciliation window over a day (real reads)', () => {
     })
   })
 })
+
+describe('a drop in Google’s total that outlasts the requested reads (real reads)', () => {
+  async function seedDrop(propertyId: string, seenMinutesAgo: number) {
+    await db.execute(sql`
+      INSERT INTO review_sync_state (property_id, source, count_drop_seen_at, updated_at)
+      VALUES (${propertyId}, 'google',
+              NOW() - (${seenMinutesAgo} * INTERVAL '1 minute'), NOW())
+    `)
+  }
+
+  it.each([6, 24, 168])(
+    'counts Properties whose drop was first seen 72 hours ago or more at a %ih window',
+    async (window) => {
+      const baseline = (await readSyncPushHealth(db, false, window)).countDrop
+      const persistent = await seedProperty({ suffix: `5${window % 10}` })
+      const recent = await seedProperty({ suffix: `6${window % 10}` })
+      await seedDrop(persistent, 73 * HOUR)
+      await seedDrop(recent, 71 * HOUR)
+
+      const after = (await readSyncPushHealth(db, false, window)).countDrop
+
+      expect(after.persistentCount).toBe(baseline.persistentCount + 1)
+      expect(after.oldestAgeMs).toBeGreaterThanOrEqual(73 * HOUR * 60_000)
+    },
+  )
+})

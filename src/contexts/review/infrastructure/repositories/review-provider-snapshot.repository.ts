@@ -45,6 +45,7 @@ import {
   foundUnlistedBefore,
   listingAgreement,
   recordMissingFromListing,
+  requestFullReadAfterFirstMiss,
   refuseRemovalWithoutExactListing,
 } from './review-provider-snapshot-listing'
 import { recordedFailureCode } from './review-provider-snapshot-listing-change'
@@ -1389,7 +1390,10 @@ export const createReviewProviderSnapshotRepository = (
               .limit(1)
           : []
       const done = more.length === 0
-      if (done) await recordCompletionFacts(tx, run)
+      if (done) {
+        await recordCompletionFacts(tx, run)
+        await requestFullReadAfterFirstMiss(tx, run)
+      }
       const updated = await tx
         .update(reviewProviderSnapshotRuns)
         .set(

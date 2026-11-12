@@ -159,6 +159,7 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `sync.push-silent`                             | P2  | topic set; polling found new reviews in 24h and Pub/Sub accepted no push at all in that time                                      | §4      |
 | `sync.reconciliation-age`                      | P2  | a syncable Property's reconciliation exceeds its window + 2h (above 24h: 24h without head cover; includes failures; no push)      | §13     |
 | `sync.head-coverage`                           | P2  | window over 24h only: a syncable Property had no persisting head check store its newest page for 24h                              | §13     |
+| `sync.count-drop-persistent`                   | P2  | Google's review total below a syncable Property's stored count 72h after a head check first saw it; head checks stop asking       | §13     |
 | `ai.review-analysis-stalled`                   | P2  | incomplete enabled coverage with no new settlement for > 15min; monitor failure also fires                                        | §22     |
 | `ai.review-analysis-empty-enrollment`          | P2  | any queued/running zero-snapshot enrollment while eligible reviews exist                                                          | §22     |
 | `retention.failure`                            | P1  | latest retention run failed for any subject; monitor failure (the `retention_runs` read) also fires                               | §8      |

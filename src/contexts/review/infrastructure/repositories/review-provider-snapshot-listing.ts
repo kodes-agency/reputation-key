@@ -150,6 +150,35 @@ export async function recordMissingFromListing(tx: Tx, run: RunRow): Promise<voi
 }
 
 /**
+ * A run whose listing recorded a first miss asks the discovery sweep for the
+ * next full read, so the listing that can confirm the miss comes six hours
+ * after this one rather than a whole reconciliation window later (Google's
+ * first page never shows a deletion). Called by the transaction that completes
+ * the run, so the request carries the same instant as the run's verified fact;
+ * the sweep counts a request made no earlier than the last listing and runs it
+ * once that listing is six hours old. A later run that misses the same Review
+ * again does not ask: its first miss belongs to this run. Writes nothing for a
+ * Property the sweep has never looked at.
+ */
+export async function requestFullReadAfterFirstMiss(tx: Tx, run: RunRow): Promise<void> {
+  await tx.execute(sql`
+    UPDATE review_sync_state
+    SET full_read_requested_at = GREATEST(full_read_requested_at, transaction_timestamp()),
+        updated_at = transaction_timestamp()
+    WHERE property_id = ${run.propertyId}
+      AND source = 'google'
+      AND EXISTS (
+        SELECT 1 FROM review_provider_subjects s
+        WHERE s.organization_id = ${run.organizationId}
+          AND s.property_id = ${run.propertyId}
+          AND s.source_epoch = ${run.sourceEpoch}
+          AND s.state IN ('linked', 'source_expired')
+          AND s.first_missing_snapshot_run_id = ${run.id}
+      )
+  `)
+}
+
+/**
  * Whether a pending candidate's mapping was moved to a newer revision than the
  * candidate was found under, by a head check or a push after the run began:
  * the Review was edited on Google after the listing that missed it, so the

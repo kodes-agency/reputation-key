@@ -1,13 +1,15 @@
-// The readings behind the push health, reconciliation-age and head-coverage alerts
-// (alert-definitions.ts declares the alerts; this holds what they measure).
+// The readings behind the push health, reconciliation-age, head-coverage and
+// count-drop alerts (alert-definitions.ts declares the alerts; this holds what
+// they measure).
 //
-// All four are P2: each is a degraded fast path or a slipping safety net, not
+// All five are P2: each is a degraded fast path or a slipping safety net, not
 // lost data. Polling provides the full-read safety net within the configured
 // window. Their facts are counts only (alert-facts.ts).
 
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
 import type { AlertReading } from './alert-reading'
 import {
+  COUNT_DROP_PERSISTENT_AFTER_MS,
   HEAD_COVERAGE_ALERT_AFTER_MS,
   PUSH_MISSED_AFTER_MS,
 } from '#/shared/domain/push-health'
@@ -79,5 +81,24 @@ export function readHeadCoverage(snapshot: OperationsSnapshot): AlertReading | n
     value: oldestUncoveredAgeMs ?? 0,
     detail: `${uncoveredCount} syncable property(ies) had no head check store their newest page in the last ${HEAD_COVERAGE_ALERT_AFTER_MS}ms while the reconciliation window is over a day; they are listed in full daily instead`,
     facts: { count: uncoveredCount },
+  }
+}
+
+/**
+ * Google's review total has stayed below what a Property shows for 72 hours
+ * after a head check first saw it, through up to twelve full reads the checks
+ * asked for. A listing did not resolve it: Google may count a review it no
+ * longer lists, or the reverse, or keep a deleted review in its list. The
+ * checks stop asking for reads; someone looks at the Property instead.
+ */
+export function readCountDropPersistent(
+  snapshot: OperationsSnapshot,
+): AlertReading | null {
+  const { persistentCount, oldestAgeMs } = snapshot.syncPush.countDrop
+  if (persistentCount <= 0) return null
+  return {
+    value: oldestAgeMs ?? COUNT_DROP_PERSISTENT_AFTER_MS,
+    detail: `${persistentCount} syncable property(ies) still show more reviews than Google's total ${COUNT_DROP_PERSISTENT_AFTER_MS}ms after a head check first saw it; head checks stopped asking for full reads`,
+    facts: { count: persistentCount },
   }
 }
