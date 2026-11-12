@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BACKUP_ERASURE_LEDGER_CONTENT_ERROR,
   applyRestoreResurrectionFence,
+  orderForReplay,
   planBackupErasureReplay,
   validateBackupErasureLedgerAppend,
   type BackupErasureLedgerAppend,
@@ -115,6 +116,59 @@ describe('restore replay plan (LIF-01-T15)', () => {
     expect(planBackupErasureReplay([released], before)[0]?.disposition).toBe(
       'replay_required',
     )
+  })
+})
+
+describe('restore replay order', () => {
+  const PLAN = '44444444-4444-4444-8444-444444444444'
+  const OTHER_PLAN = '55555555-5555-4555-8555-555555555555'
+  const ids = [
+    'f0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002',
+    'c0000000-0000-4000-8000-000000000003',
+  ]
+  const step = (index: number, planId = PLAN): BackupErasureLedgerEntry =>
+    entry({
+      id: ids[index]!,
+      recordedBeforeErasure: true,
+      applyOrder: { planId, position: index },
+    })
+
+  it('replays one erasure in the order it applied, whatever order the journal lists', () => {
+    // Ids are hashes, so id order would put the last-applied context first.
+    const before = new Date(ERASED_AT.getTime() - 60_000)
+    for (const listed of [
+      [0, 1, 2],
+      [2, 1, 0],
+      [1, 2, 0],
+    ]) {
+      const plan = planBackupErasureReplay(
+        listed.map((index) => step(index)),
+        before,
+      )
+      expect(plan.map(({ entry: e }) => e.applyOrder?.position)).toEqual([0, 1, 2])
+    }
+  })
+
+  it('replays older erasures first and keeps each erasure together', () => {
+    const later = entry({
+      id: 'b0000000-0000-4000-8000-000000000009',
+      recordedBeforeErasure: true,
+      effectiveErasureAt: new Date(ERASED_AT.getTime() + 1_000),
+      applyOrder: { planId: OTHER_PLAN, position: 0 },
+    })
+    const unordered = entry({
+      id: '00000000-0000-4000-8000-00000000000a',
+      recordedBeforeErasure: true,
+    })
+    const ordered = orderForReplay([later, step(2), unordered, step(0), step(1)])
+    expect(ordered.map(({ id }) => id)).toEqual([
+      unordered.id,
+      ids[0],
+      ids[1],
+      ids[2],
+      later.id,
+    ])
   })
 })
 

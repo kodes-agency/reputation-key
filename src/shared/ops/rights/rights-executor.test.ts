@@ -4,6 +4,7 @@ import {
   type RightsApplyOutcome,
   type RightsExecutor,
 } from './rights-executor'
+import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
 import { createRightsJournal, type RightsJournalStore } from './rights-journal'
 import type { RightsRequestPlan } from './rights-request-command'
 
@@ -17,6 +18,9 @@ function planOf(overrides: Partial<RightsRequestPlan>): RightsRequestPlan {
   }
 }
 
+// Composed executors journal distinct contexts; one apply never journals a context twice.
+const CONTEXT_OF: Readonly<Record<string, 'review' | 'inbox'>> = { second: 'inbox' }
+
 function executor(
   name: string,
   overrides: Partial<RightsExecutor> & { outcome?: RightsApplyOutcome } = {},
@@ -26,7 +30,7 @@ function executor(
     name,
     scopes: ['access', 'organization'],
     tables: {},
-    journalContexts: ['review'],
+    journalContexts: [CONTEXT_OF[name] ?? 'review'],
     report: vi.fn(async () => [`${name} report`]),
     exportFiles: vi.fn(async () => [
       { path: `${name}/data.json`, bytes: Buffer.from('{}') },
@@ -375,12 +379,13 @@ describe('runRightsExecutors', () => {
     const h = harness()
     const first = executor('first')
     const second = executor('second')
+    const { store, puts } = storeOf()
 
     const exit = await runRightsExecutors({
       plan: applyPlan(),
       executors: [first, second],
       io: h.io,
-      journal: createRightsJournal(storeOf().store),
+      journal: createRightsJournal(store),
       writeExportFile: h.writeExportFile,
     })
 
@@ -390,5 +395,9 @@ describe('runRightsExecutors', () => {
       'second: done',
     ])
     expect(h.out.filter((line) => line.startsWith('audit: '))).toHaveLength(2)
+    // Restore replays the entries in the order the executors applied.
+    expect(
+      puts.map(({ bytes }) => decodeErasureJournalEntry(bytes).applyOrder?.position),
+    ).toEqual([0, 1])
   })
 })

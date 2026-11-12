@@ -122,10 +122,14 @@ async function subjectRefusalOf(input: RunRightsExecutorsInput): Promise<string 
 async function applyJournaled(
   input: RunRightsExecutorsInput,
   executor: RightsExecutor,
+  planContexts: ReadonlyArray<BackupErasureLedgerContext>,
 ): Promise<RightsApplyOutcome> {
   try {
-    return await input.journal.run(input.plan, executor.journalContexts, () =>
-      executor.apply(input.plan),
+    return await input.journal.run(
+      input.plan,
+      executor.journalContexts,
+      planContexts,
+      () => executor.apply(input.plan),
     )
   } catch (error) {
     return { ok: false, error: errorMessage(error) }
@@ -143,10 +147,11 @@ async function applyAll(
     io.err(`rights-request: ${refusal}; nothing was changed`)
     return 1
   }
+  const planContexts = covering.flatMap((executor) => executor.journalContexts)
   const applied: string[] = []
   let failure: string | null = null
   for (const executor of covering) {
-    const outcome = await applyJournaled(input, executor)
+    const outcome = await applyJournaled(input, executor, planContexts)
     if (!outcome.ok) {
       const done = applied.length > 0 ? applied.join(', ') : 'none'
       failure = `rights-request: ${executor.name}: ${outcome.error}; executors applied before it: ${done}`
