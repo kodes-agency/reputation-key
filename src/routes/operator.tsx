@@ -10,7 +10,7 @@
 import { createFileRoute, notFound, redirect, useRouter } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { OperatorConsolePage } from '#/components/features/platform'
+import { OperatorConsolePage } from '#/contexts/identity/operator/ui/operator-console-page'
 import {
   actionErrorMessage,
   useActionMutation,

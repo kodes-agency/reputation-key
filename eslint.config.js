@@ -98,7 +98,7 @@ const ROUTE_SOURCES = ['src/routes/**/*.{ts,tsx}']
 // raw action in the same file still fails. The guest renderer remains separate.
 const SELECTABLE_BUTTONS = [
   // The radio cards keep their roving focus and card geometry rather than action-button styling.
-  ['src/components/features/beta-feedback/beta-feedback-choice.tsx', 'picker-tile'],
+  ['src/contexts/identity/feedback/ui/beta-feedback-choice.tsx', 'picker-tile'],
   // The selectable account rows keep their multiline identity and active border.
   [
     'src/components/features/integration/google-import-manager/google-import-account-list.tsx',

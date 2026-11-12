@@ -23,7 +23,7 @@ import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
 import type { StaffHomeFns } from './types'
 
 const FeedbackBody = lazy(
-  () => import('#/components/features/beta-feedback/beta-feedback-dialog-body'),
+  () => import('#/contexts/identity/feedback/ui/beta-feedback-dialog-body'),
 )
 
 export function StaffAccountMenu({ fns }: Readonly<{ fns: StaffHomeFns }>) {
