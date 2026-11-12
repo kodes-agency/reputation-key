@@ -45,13 +45,15 @@ import { createNotificationAudienceAuthorizer } from './application/notification
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
 import { createGroupedReopenStore } from './infrastructure/repositories/notification-grouped-reopen.repository'
 import { createActivePropertyLookup } from './infrastructure/repositories/active-property'
-import { createNotificationWorkState } from './application/notification-work-state'
+import {
+  createNotificationWorkState,
+  createRetireMovedAssignment,
+} from './notify/settle.server'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
 import { registerNotificationConsumers } from './infrastructure/notification-outbox-consumers'
 import { registerWorkflowNotificationConsumers } from './infrastructure/workflow-outbox-consumers'
-import { createRetireMovedAssignment } from './application/retire-moved-assignment'
 import { registerPortalNotificationConsumers } from './infrastructure/portal-outbox-consumers'
 import { registerPortalDestinationNotificationConsumer } from './infrastructure/portal-destination-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './infrastructure/property-outbox-consumers'

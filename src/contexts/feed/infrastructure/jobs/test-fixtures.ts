@@ -32,10 +32,8 @@ import {
   type ResendSendResult,
 } from '../adapters/resend-email.adapter'
 import type { DigestItem } from './digest-assembly'
-import type {
-  NotificationWorkDecision,
-  NotificationWorkState,
-} from '../../application/notification-work-state'
+import { type NotificationWorkDecision } from '../../domain/notification-actionable'
+import { type NotificationWorkState } from '../../application/ports/notification-work-state.port'
 
 const NOW = new Date('2026-08-21T08:00:00.000Z')
 const ORG = 'org-1'
@@ -226,6 +224,10 @@ export const waitingWorkState = () => ({
   isWaiting: vi.fn(
     async (_subject: Parameters<NotificationWorkState['isWaiting']>[0]) =>
       true as NotificationWorkDecision,
+  ),
+  isWaitingMany: vi.fn(
+    async (subjects: Parameters<NotificationWorkState['isWaitingMany']>[0]) =>
+      subjects.map(() => true as NotificationWorkDecision),
   ),
   finished: vi.fn(
     async ({ types }: Parameters<NotificationWorkState['finished']>[0]) => types,

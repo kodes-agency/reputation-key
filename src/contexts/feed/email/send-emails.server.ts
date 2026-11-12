@@ -45,8 +45,10 @@ import type { FrozenEmailRequest } from '../domain/notification-types'
 import type { NotificationRecipientStanding } from '../application/notification-recipient-standing'
 import {
   withStandingItemCount,
-  type NotificationWorkState,
-} from '../application/notification-work-state'
+  isStillActionable,
+  NOT_ACTIONABLE_EMAIL_REASON,
+} from '../domain/notification-actionable'
+import { type NotificationWorkState } from '../application/ports/notification-work-state.port'
 import type { NotificationPropertyScopeResolver } from '../infrastructure/repositories/notification-property-scope.repository'
 import type { NotificationOrganizationScopeResolver } from '../infrastructure/repositories/notification-organization-scope.repository'
 import {
@@ -55,10 +57,6 @@ import {
 } from '../domain/notification-delivery-policy'
 import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../domain/email-freshness'
 import { isEmailCategoryOfNotice } from '../domain/notification-low-ratings'
-import {
-  isStillActionable,
-  NOT_ACTIONABLE_EMAIL_REASON,
-} from '../domain/notification-settlement'
 import {
   notificationLink,
   notificationReplyTo,

@@ -34,7 +34,7 @@ import {
 import { handleNotificationInboxItemCreated } from '#/contexts/feed/infrastructure/notification-outbox-consumers'
 import type { InsertNotificationJobData } from '#/contexts/feed/infrastructure/jobs/insert-notification.job'
 import { insertNotification } from '#/contexts/feed/application/use-cases/insert-notification'
-import { createNotificationWorkState } from '#/contexts/feed/application/notification-work-state'
+import { createNotificationWorkState } from '#/contexts/feed/notify/settle.server'
 import { resolveCategoryPreference } from '#/contexts/feed/domain/notification-preference-resolution'
 import { buildFakeInsertNotificationDeps } from '#/contexts/feed/application/use-cases/test-fixtures'
 

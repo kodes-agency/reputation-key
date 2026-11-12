@@ -16,9 +16,9 @@ import {
   type NotificationId,
 } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import type { NotificationWorkDecision } from '../application/notification-work-state'
-import { handleNotificationSettlementEvent } from './notification-settlement-outbox-consumers'
-import { settleGroupedReopens } from './grouped-reopen-settlement'
+import { settleGroupedReopens } from './settle.server'
+import { type NotificationWorkDecision } from '../domain/notification-actionable'
+import { handleNotificationSettlementEvent } from '../infrastructure/notification-settlement-outbox-consumers'
 import type { WaitingGroupedReopen } from '../application/ports/grouped-reopen-store.port'
 
 const ORG = 'organization-grouped-reopen'
