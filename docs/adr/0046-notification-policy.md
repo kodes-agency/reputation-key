@@ -110,8 +110,7 @@ so template corrections reach every channel and historical row.
 
 ## Merged from ADR 0011
 
-Notification jobs are bounded inserts (`insert-notification`) or single sends
-(`urgent-email`) on the shared `default` BullMQ queue. They use its concurrency,
+Notification jobs are single sends (`urgent-email`) or digests on the shared `default` BullMQ queue. They use its concurrency,
 rate limiting, retry, and durable outbox authority; no dedicated queue exists.
 
 ## Merged from ADR 0022

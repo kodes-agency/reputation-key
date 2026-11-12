@@ -303,7 +303,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   // enforces each type's scope (notificationScopeForType) in the notification
   // and email constructors and their CHECKs; a job that carries a Property is
   // still decided at that Property.
-  job('insert-notification', 'system:notification.insert', 'none', 'organization'),
   job(
     'urgent-email',
     'system:notification.email_urgent',

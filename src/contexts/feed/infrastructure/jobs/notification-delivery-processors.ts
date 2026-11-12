@@ -18,8 +18,6 @@ import {
 } from '../../email/send-emails.server'
 import type { NotificationWorkState } from '../../application/ports/notification-work-state.port'
 import type { ImmediateEmailJobQueue } from '../../email/send-emails.server'
-import { createInsertNotificationDrainHandler } from './insert-notification.job'
-import type { NoticeWriter } from '../../notify/consumers.server'
 import {
   createSendEmailsHandler,
   type SendEmailsDeps,
@@ -42,7 +40,6 @@ export type NotificationDeliveryParts = Readonly<{
   userLookup: SendEmailsDeps['userLookup']
   recipientStanding: SendEmailsDeps['isRecipientEligible']
   workState: SendEmailsDeps['workState'] & Pick<NotificationWorkState, 'isWaitingMany'>
-  noticeWriter: NoticeWriter
   clock: () => Date
   logger: LoggerPort
 }>
@@ -64,7 +61,6 @@ export type NotificationDeliveryWorkerInput = Readonly<{
 }>
 
 export type NotificationDeliveryProcessors = Readonly<{
-  insert: (job: Job) => Promise<void>
   /** One processor serves both the optional and the mandatory name. */
   email: (job: Job) => Promise<void>
   digest: (job: Job) => Promise<void>
@@ -80,11 +76,6 @@ export const createNotificationDeliveryProcessors = (
   const resolveOrganizationScope = createNotificationOrganizationScopeResolver(
     worker.pool,
   )
-  const insertHandler = createInsertNotificationDrainHandler({
-    noticeWriter: parts.noticeWriter,
-    logger: parts.logger,
-  })
-
   const urgentEmailHandler = createSendEmailsHandler({
     emailRepo: parts.emailRepo,
     notifRepo: parts.notificationRepo,
@@ -131,9 +122,6 @@ export const createNotificationDeliveryProcessors = (
   })
 
   return Object.freeze({
-    insert: async (job: Job) => {
-      await insertHandler(job)
-    },
     email: async (job: Job) => {
       await urgentEmailHandler(job as Job<SendEmailJobData>)
     },

@@ -13,7 +13,7 @@ import {
   noticeWriterOver,
 } from './notification-consumer-test-fixtures'
 import { handleNotificationBulkAssignmentCompleted } from '../notify/inbox.server'
-import type { InsertNotificationJobData } from './jobs/insert-notification.job'
+import type { QueuedNotice } from './notification-consumer-test-fixtures'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { notificationLink, renderNotification } from '../domain/notification-templates'
 
@@ -81,9 +81,7 @@ const makeDeps = () => {
 
 const unassignedNotices = (deps: ReturnType<typeof makeDeps>) =>
   deps.fakes.jobs
-    .filter(
-      (job) => (job.data as InsertNotificationJobData).type === 'inbox.bulk_unassigned',
-    )
+    .filter((job) => (job.data as QueuedNotice).type === 'inbox.bulk_unassigned')
     .map((job) => ({ data: job.data, opts: job.opts }))
 
 describe('a bulk reassignment and the people who held the items', () => {
@@ -149,7 +147,7 @@ describe('a bulk reassignment and the people who held the items', () => {
 
     expect(
       unassignedNotices(deps).map(({ data }) => {
-        const job = data as InsertNotificationJobData
+        const job = data as QueuedNotice
         return [job.userId, (job.payload as { itemCount: number }).itemCount]
       }),
     ).toEqual([
@@ -171,9 +169,9 @@ describe('a bulk reassignment and the people who held the items', () => {
       ]),
     )
 
-    expect(
-      deps.fakes.jobs.map((job) => (job.data as InsertNotificationJobData).type),
-    ).toEqual(['inbox.bulk_unassigned'])
+    expect(deps.fakes.jobs.map((job) => (job.data as QueuedNotice).type)).toEqual([
+      'inbox.bulk_unassigned',
+    ])
     expect(unassignedNotices(deps)[0]!.data).toMatchObject({
       userId: HOLDER,
       payload: { itemCount: 2 },
@@ -215,7 +213,7 @@ describe('a bulk reassignment and the people who held the items', () => {
       deps,
       completed([moved(ITEM_1, PROPERTY_A, HOLDER), moved(ITEM_2, PROPERTY_A, HOLDER)]),
     )
-    const job = unassignedNotices(deps)[0]!.data as InsertNotificationJobData
+    const job = unassignedNotices(deps)[0]!.data as QueuedNotice
 
     expect(
       renderNotification('inbox.bulk_unassigned', parseNotificationPayload(job.payload)),

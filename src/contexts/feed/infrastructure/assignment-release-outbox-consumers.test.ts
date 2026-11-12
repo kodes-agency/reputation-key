@@ -16,7 +16,7 @@ import {
   handleNotificationAssignmentsReleased,
   ON_INBOX_ASSIGNMENTS_RELEASED_CONSUMER,
 } from '../notify/inbox.server'
-import type { InsertNotificationJobData } from './jobs/insert-notification.job'
+import type { QueuedNotice } from './notification-consumer-test-fixtures'
 
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
@@ -75,7 +75,7 @@ const makeDeps = () => {
 }
 
 const jobs = (deps: ReturnType<typeof makeDeps>) =>
-  deps.fakes.jobs.map((job) => job.data as InsertNotificationJobData)
+  deps.fakes.jobs.map((job) => job.data as QueuedNotice)
 
 describe('an offboarding release tells whoever now owns the gap', () => {
   beforeEach(() => {
