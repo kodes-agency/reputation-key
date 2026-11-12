@@ -86,7 +86,6 @@ export type GoogleImportDiscoveryController = Readonly<{
   setSearch: (value: string) => void
   visibleCandidates: readonly ImportCandidateDto[]
   reviewDraft: ImportReviewDraft | null
-  reviewCandidates: readonly ImportCandidateDto[]
   changeConnection: (connectionId: string) => Promise<void>
   resumeDiscovery: () => void
   selectAccount: (accountRef: string) => void

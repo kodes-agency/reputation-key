@@ -98,7 +98,7 @@ export function GoogleImportManagerView({
       />
 
       {discovery.contentActive &&
-      discovery.reviewCandidates.length > 0 &&
+      discovery.reviewDraft !== null &&
       discovery.step === 'discover' ? (
         <Button type="button" variant="ghost" onClick={() => discovery.setStep('review')}>
           Return to current review
