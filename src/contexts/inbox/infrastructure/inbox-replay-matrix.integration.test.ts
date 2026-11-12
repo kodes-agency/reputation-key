@@ -43,7 +43,7 @@ import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/rev
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
-} from './inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from './repositories/inbox.repository'
 import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
 import { createFeedbackHandlingStore } from './feedback-handling.store'

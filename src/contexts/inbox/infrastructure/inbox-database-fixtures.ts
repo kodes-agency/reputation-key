@@ -24,7 +24,7 @@ import type { InboxItem, InboxStatus, SourceType } from '../domain/types'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
-} from './inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from './repositories/inbox.repository'
 import { createInboxNoteRepository } from './repositories/inbox-note.repository'
 import { createReviewHandlingCycleStore } from './review-handling-cycle.store'

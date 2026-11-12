@@ -15,7 +15,7 @@ import type { InboxItem } from '../domain/types'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
-} from './inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
 
 const ORG_ID = organizationId('org-inbox-cycles-0000000000000001')

@@ -132,6 +132,8 @@ export async function reopenLockedBulkItem(
     explanation: string | null
     bulkId: string
     responseTarget: ReviewCycleTargetAnchor | undefined
+    /** The command's one authority decision already covered this assignee. */
+    assigneeAuthorized?: boolean
     now: Date
   }>,
 ): Promise<InboxBulkReopenedCycle> {
@@ -150,6 +152,7 @@ export async function reopenLockedBulkItem(
     itemRow,
     actorId,
     now,
+    input.assigneeAuthorized,
   )
 
   if (!headRow) {

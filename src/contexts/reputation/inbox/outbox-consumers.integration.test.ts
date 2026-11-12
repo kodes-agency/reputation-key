@@ -47,7 +47,7 @@ import type {
   ReviewResponseTargetAuthorityPort,
   ReviewResponseTargetExpectation,
 } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
-import { createAtomicInboxCommandStore } from '#/contexts/inbox/infrastructure/inbox-command-store'
+import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import {

@@ -73,7 +73,7 @@ import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositor
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
-} from '#/contexts/inbox/infrastructure/inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'

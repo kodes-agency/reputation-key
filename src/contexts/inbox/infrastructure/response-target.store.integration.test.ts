@@ -20,7 +20,7 @@ import { inboxItemStatusChanged } from '../domain/events'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
-} from './inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createFeedbackHandlingStore } from './feedback-handling.store'
 import { createResponseTargetStore } from './response-target.store'
 import { completeGoogleReviewTarget } from './google-review-target-completion'

@@ -1,5 +1,5 @@
 // The assignee half of a bulk reopen (invariant 4), for the atomic inbox
-// command store. Split out of inbox-command-store.ts (to keep it within its
+// command store. Split out of the command store (to keep it within its
 // length ratchet when manager priority arrived, ADR 0071): it reads the
 // assignee's authority and builds the unassignment fact, and writes nothing —
 // so it is outside inbox-status-mirror.guard.test.ts's writer fence.
@@ -26,6 +26,7 @@ export async function resolveBulkReopenAssignee(
   itemRow: PersistedItem,
   actorId: string,
   now: Date,
+  assigneeAlreadyAuthorized = false,
 ): Promise<
   Readonly<{
     assignedTo: string | null
@@ -34,6 +35,7 @@ export async function resolveBulkReopenAssignee(
 > {
   const assignedTo = itemRow.assignedTo
   if (assignedTo === null) return { assignedTo: null, unassignedFact: null }
+  if (assigneeAlreadyAuthorized) return { assignedTo, unassignedFact: null }
   const eligibility = await authorizeCommand(tx, {
     organizationId: itemRow.organizationId,
     at: now,

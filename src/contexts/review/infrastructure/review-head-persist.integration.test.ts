@@ -24,7 +24,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
 import type { InboxItem } from '#/contexts/inbox/domain/types'
-import { createAtomicInboxCommandStore } from '#/contexts/inbox/infrastructure/inbox-command-store'
+import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import type {
   GoogleReviewHeadResult,

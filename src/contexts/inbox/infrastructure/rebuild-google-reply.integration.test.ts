@@ -44,7 +44,7 @@ import { createReviewReplyObservationAuthority } from '#/contexts/reputation/rev
 import type { InboxItem } from '../domain/types'
 import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import { createInboxRepository } from './repositories/inbox.repository'
-import { createAtomicInboxCommandStore } from './inbox-command-store'
+import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewSourceLookupAdapter } from './adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from './adapters/reply-lookup.adapter'
 
