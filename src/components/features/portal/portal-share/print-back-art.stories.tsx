@@ -165,4 +165,11 @@ export const NoLogo: Story = {
       fieldColour: '#2A1712',
     }),
   },
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelectorAll('[data-final-back]')).toHaveLength(4)
+    await expect(canvasElement.querySelectorAll('img')).toHaveLength(0)
+    const text = canvasElement.textContent?.toUpperCase() ?? ''
+    await expect(text).toContain('ELEGANCE')
+    await expect(text).toContain('HOTEL ELEGANCE LISBON')
+  },
 }
