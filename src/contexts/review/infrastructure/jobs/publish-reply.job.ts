@@ -78,7 +78,11 @@ import type { PublishReplyJobData } from '../../application/ports/reply-queue.po
 import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { ReplyCommandStore } from '../../application/ports/reply-command-store.port'
-import type { GoogleReviewApiPort } from '../../application/ports/google-review-api.port'
+import type {
+  GoogleConnectionStatusPort,
+  GoogleReviewApiPort,
+} from '../../application/ports/google-review-api.port'
+import { publishReplyToGoogle } from '../../application/use-cases/publish-reply-to-google'
 import type { GoogleReplyObservationStore } from '../../application/ports/google-reply-observation-store.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../../application/ports/reply-publication-dispatch-evidence.port'
 import type { ReadReviewBeforePublish } from '../../application/use-cases/read-review-before-publish'
@@ -117,6 +121,8 @@ type PublishHandlerDeps = Readonly<{
   replyRepo: ReplyRepository
   reviewRepo: ReviewRepository
   googleReviewApi: GoogleReviewApiPort
+  /** Where the Property's Google connection stands, to tell a reconnect refusal apart. */
+  googleConnectionStatus: GoogleConnectionStatusPort
   googleReplyObservationStore: GoogleReplyObservationStore
   /** One `reviews.get` of the review, recorded through the sync writer, made
    * before a fresh publication is claimed (publish-reply-preread.ts). */
@@ -327,7 +333,11 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
       }
 
       try {
-        const providerOutcome = await deps.googleReviewApi.replyToReview({
+        const providerOutcome = await publishReplyToGoogle({
+          googleReviewApi: deps.googleReviewApi,
+          connectionStatus: deps.googleConnectionStatus,
+          logger,
+        })({
           organizationId: orgId,
           propertyId: review.propertyId,
           connectionId: review.googleConnectionId,

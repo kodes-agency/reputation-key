@@ -262,6 +262,7 @@ function reviewWorkerConsumers() {
     idGen: () => crypto.randomUUID(),
     snapshotRunIdGen: () => crypto.randomUUID(),
     googleReviewApi: {} as never,
+    googleConnectionStatus: { findStatus: async () => null },
     jobQueue: { add: vi.fn() } as unknown as Queue,
     workerRuntime: {
       pool: {} as never,
@@ -363,6 +364,7 @@ function publishWorker() {
       replyScopeEffects,
     ),
     googleReviewApi: googleReviewApi as never,
+    googleConnectionStatus: { findStatus: async () => null },
     googleReplyObservationStore: createGoogleReplyObservationStore(db),
     // The read of Google before the claim is the real use case; the Property's
     // source epoch is the one the archive and restore tests commit.

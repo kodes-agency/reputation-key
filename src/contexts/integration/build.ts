@@ -32,6 +32,7 @@ import type {
   PropertyPublicApi,
 } from '#/contexts/property/application/public-api'
 import {
+  type GoogleConnectionStatusPort,
   type GoogleReviewApiPort,
   type TargetedGoogleReviewReferenceResolver,
   type ReviewQueuePort,
@@ -245,6 +246,8 @@ export type IntegrationContextApi = Readonly<{
   reviewSync: Readonly<{
     /** BQC-5.2: the Google review API adapter, typed by Review's port. */
     googleReviewApi: GoogleReviewApiPort
+    /** Where a Google connection stands, for the reply publish job. */
+    googleConnectionStatus: GoogleConnectionStatusPort
     /** Identifier-only reference resolver consumed by Review's targeted job. */
     googleReviewPushTargetResolver: TargetedGoogleReviewReferenceResolver
   }>
@@ -606,6 +609,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ── Review-facing adapter + webhook binder ─────────────────────
   const {
     googleReviewApi,
+    googleConnectionStatus,
     googleReviewPushTargetResolver,
     notification: googleNotificationAuthority,
   } = createGoogleReviewSyncRuntime({
@@ -685,6 +689,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     // The root forwards this named group instead of reaching into `internal`.
     reviewSync: Object.freeze({
       googleReviewApi,
+      googleConnectionStatus,
       googleReviewPushTargetResolver,
     }),
     internal: {

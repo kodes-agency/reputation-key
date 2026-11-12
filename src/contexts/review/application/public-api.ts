@@ -63,6 +63,7 @@ export {
 
 // Port types needed by cross-context consumers (e.g., integration context)
 export type {
+  GoogleConnectionStatusPort,
   GoogleReviewApiPort,
   GoogleReviewApiErrorCode,
   GoogleReviewApiError,
