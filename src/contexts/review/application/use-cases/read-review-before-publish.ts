@@ -4,6 +4,7 @@ import { sha256Hex } from '#/shared/domain/sha256'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
+import type { ReviewProviderSubjectSightings } from '../ports/review-provider-subject-sightings.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 import { persistGoogleReviewObservation } from './persist-google-review-observation'
 
@@ -33,6 +34,7 @@ export type ReadReviewBeforePublishDeps = Readonly<{
   propertySourceEpoch: PropertySourceEpochPort
   observationWriter: ReviewProviderObservationWriter
   subjectKeyService: ReviewProviderSubjectKeyService
+  subjectSightings: ReviewProviderSubjectSightings
 }>
 
 /**

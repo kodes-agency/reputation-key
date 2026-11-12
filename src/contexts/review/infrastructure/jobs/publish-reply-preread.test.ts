@@ -711,6 +711,7 @@ describe('publish-reply read before the claim over the real review adapter', () 
         persist: vi.fn(),
       },
       subjectKeyService: {} as never,
+      subjectSightings: {} as never,
     } as never)
     const handler = createPublishReplyHandler({ ...deps, readBeforePublish } as never)
     return { deps, handler, execute }

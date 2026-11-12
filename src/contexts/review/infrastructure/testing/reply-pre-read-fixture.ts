@@ -80,6 +80,8 @@ export function createReplyPreReadForTests(
       activateTrustedNext: async () => {},
       removeRetiring: async () => {},
     },
+    // Provider subject mapping is not what these reads exercise.
+    subjectSightings: { record: async () => 'already_mapped' },
   })
   return (request) =>
     read(

@@ -77,6 +77,7 @@ export type RunReviewHeadCheckDeps = Readonly<{
     PersistReviewHeadPageDeps,
     | 'observationWriter'
     | 'subjectKeyService'
+    | 'subjectSightings'
     | 'propertySourceEpoch'
     | 'syncActivity'
     | 'newId'

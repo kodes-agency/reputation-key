@@ -13,6 +13,7 @@ import {
 } from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
+import type { ReviewProviderSubjectSightings } from '../ports/review-provider-subject-sightings.port'
 import type { ReviewFirstSightingRecorder } from '../ports/review-first-sighting-recorder.port'
 import type { GoogleReviewPushNotificationKind } from '../ports/review-queue.port'
 import type { ReviewSyncActivityRecorder } from '../ports/review-sync-activity.port'
@@ -65,6 +66,7 @@ export type RunTargetedGoogleReviewFetchDeps = Readonly<{
   propertySourceEpoch: PropertySourceEpochPort
   observationWriter: ReviewProviderObservationWriter
   subjectKeyService: ReviewProviderSubjectKeyService
+  subjectSightings: ReviewProviderSubjectSightings
   syncActivity: ReviewSyncActivityRecorder
   firstSightings: ReviewFirstSightingRecorder
   clock: () => Date

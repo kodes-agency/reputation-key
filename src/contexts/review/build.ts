@@ -77,6 +77,7 @@ import type { ReviewReplyObservationAuthority } from './application/ports/reply-
 import { createReviewSourceTransitionAuthority } from './infrastructure/source-transition-authority'
 import type { ReviewSourceTransitionAuthority } from './application/ports/source-transition-authority.port'
 import { createReviewProviderObservationWriter } from './application/use-cases/sync-reviews'
+import { createReviewProviderSubjectSightings } from './infrastructure/repositories/review-provider-subject-link'
 import { admitReviewSync } from './application/use-cases/admit-review-sync'
 import { createAiReviewSource } from './application/ai-review-source'
 import type { AiReviewSourcePort } from './application/ports/ai-review-source.port'
@@ -546,6 +547,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     historyCutoffs: snapshotRepository,
   })
   const syncActivity = createReviewSyncActivityRecorder(input.db)
+  const subjectSightings = createReviewProviderSubjectSightings(input.db, input.logger)
   const targetedReviewReferences: TargetedGoogleReviewReferenceResolver =
     input.targetedReviewReferences ?? {
       resolve: async () => ({ status: 'obsolete' }),
@@ -565,6 +567,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     propertySourceEpoch: propertySourceEpochLookup,
     observationWriter,
     subjectKeyService: providerSubjectKeys,
+    subjectSightings,
   })
   const useCases = {
     ...wireReplyUseCases({
@@ -592,6 +595,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       propertySourceEpoch: propertySourceEpochLookup,
       observationWriter,
       subjectKeyService: providerSubjectKeys,
+      subjectSightings,
       syncActivity,
       firstSightings: createReviewFirstSightingRecorder(input.db),
       clock: input.clock,
@@ -692,6 +696,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       headCheckQueue,
       observationWriter,
       subjectKeyService: providerSubjectKeys,
+      subjectSightings,
     })
   }
 

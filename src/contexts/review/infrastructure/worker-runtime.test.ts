@@ -59,6 +59,7 @@ describe('registerReviewWorkerJobs', () => {
         persist: vi.fn(),
       },
       subjectKeyService: {} as never,
+      subjectSightings: {} as never,
     })
 
     expect(registered.sort()).toEqual(

@@ -13,6 +13,7 @@ import type {
 import type { GoogleReview } from '../../domain/types'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
+import type { ReviewProviderSubjectSightings } from '../ports/review-provider-subject-sightings.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 import type { TargetedGoogleReviewReferenceResolver } from '../ports/targeted-google-review-reference.port'
 import { runTargetedGoogleReviewFetch } from './run-targeted-google-review-fetch'
@@ -120,6 +121,9 @@ function setup(
     recordPushObserved: vi.fn(async () => undefined),
   }
   const markPushArrived = vi.fn(async () => undefined)
+  const recordSighting = vi.fn<ReviewProviderSubjectSightings['record']>(
+    async () => 'linked',
+  )
   const useCase = runTargetedGoogleReviewFetch({
     references: {
       resolve: vi.fn<TargetedGoogleReviewReferenceResolver['resolve']>(async () =>
@@ -138,11 +142,20 @@ function setup(
     },
     observationWriter,
     subjectKeyService,
+    subjectSightings: { record: recordSighting },
     syncActivity,
     firstSightings: { markPushArrived },
     clock: () => new Date('2026-08-27T08:00:00.000Z'),
   })
-  return { useCase, getReview, observationWriter, persist, syncActivity, markPushArrived }
+  return {
+    useCase,
+    getReview,
+    observationWriter,
+    persist,
+    syncActivity,
+    markPushArrived,
+    recordSighting,
+  }
 }
 
 const request = {
@@ -281,6 +294,37 @@ describe('runTargetedGoogleReviewFetch', () => {
     await useCase({ ...request, notificationKind: 'UPDATED_REVIEW' })
 
     expect(markPushArrived).not.toHaveBeenCalled()
+  })
+
+  it('maps the stored review to the provider subject it was written with, after the write', async () => {
+    const { useCase, observationWriter, persist, recordSighting } = setup()
+
+    await useCase(request)
+
+    const written = vi.mocked(observationWriter.persist).mock.calls[0]?.[0]
+    expect(written?.subjects).toHaveLength(1)
+    expect(recordSighting).toHaveBeenCalledWith({
+      organizationId,
+      propertyId,
+      sourceEpoch: 6,
+      reviewId,
+      sourceRevision: 3,
+      subjects: written?.subjects,
+    })
+    expect(persist.mock.invocationCallOrder[0]).toBeLessThan(
+      recordSighting.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('maps nothing when Google no longer has the review, or the write failed', async () => {
+    const gone = setup({ getResult: { status: 'not_found' } })
+    await gone.useCase(request)
+    expect(gone.recordSighting).not.toHaveBeenCalled()
+
+    const failed = setup()
+    failed.persist.mockRejectedValueOnce(new Error('write failed'))
+    await expect(failed.useCase(request)).rejects.toThrow('write failed')
+    expect(failed.recordSighting).not.toHaveBeenCalled()
   })
 
   it('pairs nothing when the push falls back to a full reconciliation', async () => {

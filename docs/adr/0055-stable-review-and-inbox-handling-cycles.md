@@ -557,7 +557,8 @@ the look interval. The full two-pass snapshot is then needed only for the
   provider-subject mapping at the next completed snapshot, which is the only
   path that writes one. The limit: a review created by a head check and deleted
   on Google before the next full run is only marked observed, never missing.
-  The six-hour reconciliation still owns deletions.
+  The six-hour reconciliation still owns deletions. (Superseded by the note of
+  2026-11-12: head checks and pushes now map what they store.)
 - **A head page can overwrite a fresher edit of the same review.** A head page is
   read once and then written review by review. A push fetch or a snapshot page
   that reads and writes a fresher edit of one of those reviews in between is
@@ -1157,6 +1158,12 @@ A reply observation's `content_expires_at` was written only when the row was ins
 ## Note 2026-11-04 (b) — the reconciliation-age alert counts a Property with a recorded failure
 
 `sync.reconciliation-age` left out any Property with an `error_class`, because `sync.failed-nonzero` already names a coded failure. That alert raises only when a retry date passes before the next look re-dates the row, so a Property that failed every full read for days raised no standing signal at all. The read now judges every syncable Property alike. A Property whose connection needs reauthorization (`reauth_required`, which is also how `provider_revoked` is recorded) is not syncable, so it is still left to the reconnect notice.
+
+## Note 2026-11-12 — head checks and pushes map the reviews they store
+
+A review only a head check or a push had stored had no provider-subject mapping, so a full listing could never find it missing: deleted on Google, it stayed until its content expired 30 days later. Both now record a sighting after each review they store (`ReviewProviderSubjectSightings`, `recordSubjectSighting` in `review-provider-subject-link.ts`), and so does the read before a reply is published, which shares the push's write path. A sighting links a missing mapping with no snapshot run, seen at its own transaction instant, under the active key. For a mapping that already maps the same review it only keeps the revision current (never backwards, and only while linked), seen at that instant, so the removal step's revision check still matches the Review after a later edit; it never changes a mapping's key, review, state, or what a run saw or missed. A mapping of the locator or of the review that belongs to another resource is a collision: left as it is and logged without identifiers. A sighting writes nothing when the key it was derived under is no longer the active one, and never fails the write it follows (a failure is logged and the next listing maps the review). Candidates are never derived under a staged next key; a mapping written under the active key while one is staged is safe, because activation needs no mapping under the next key and a retiring key cannot be removed while a mapping uses it. Sightings and snapshot pages lock the key versions shared, then the subject rows: they do not wait for each other, and a rotation, which updates the key rows, waits for both. A sighting that stores a review's edit after a run has written the older revision but before that page commits leaves the mapping ahead of the run's own sighting; the run ends as a listing that moved (`review_edited`: quiet `listing_changed` and a fresh run at once, stored as `review_mutation` once the Property's runs keep moving). Removal is unchanged: two listings that agree with Google's total, at least 15 minutes apart, and a direct read that returns not found. A run never judges a mapping written after it started (`last_observed_at <= started_at`).
+
+A review the direct read finds although an agreeing listing left it out ends its run as a listing that moved. Google could keep doing that, which would cost a wasted listing and a `reviews.get` every other run with no alert, so such a review is left out of the removal candidates for `UNLISTED_REVIEW_HOLD_RUNS` (28) completed runs, about a week at the six-hour window, unless a listing sees it first. Found left out again once that ran out, the run fails loudly as `confirmation_set_changed` and logs `review_snapshot_unlisted_review_still_found`; the hold then starts again. A review deleted on Google during a hold is removed once it ends. Google calls do not grow per hour; each extra deletion candidate costs the one `reviews.get` every candidate costs.
 
 ## Merged from ADR 0003
 
