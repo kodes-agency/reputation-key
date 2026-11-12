@@ -3,7 +3,6 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import { createTanstackRequestContext } from '#/shared/auth/tanstack-request-context'
 import { createBetterAuthSessionPort } from '#/shared/auth/better-auth-session'
-import { isOrgInAllowlist } from '#/shared/auth/beta-capabilities'
 import { buildIdentityContext, buildPlatformConsole } from '#/contexts/identity/build'
 import { createStaffInvitationBudget } from '#/contexts/identity/infrastructure/staff-invitation-budget'
 import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
@@ -172,6 +171,5 @@ export function buildIdentityPlatform({
     sendEmail: options?.email ?? sendInvitationEmail,
     baseUrl: env.BETTER_AUTH_URL,
     invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
-    isControlledBetaEnabled: (id) => isOrgInAllowlist(env, id),
   })
 }

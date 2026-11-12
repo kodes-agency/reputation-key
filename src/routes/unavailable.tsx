@@ -45,21 +45,14 @@ export const unavailableSearch = z.object({
   // account with no workspace recovers, so it has to draw.
   reason: z.literal('workspace_access').optional().catch(undefined),
   category: z.enum(CAPABILITY_REFUSAL_CATEGORIES).optional().catch(undefined),
-  propertyId: z.uuid().optional().catch(undefined),
 })
 
 type UnavailableSearch = z.infer<typeof unavailableSearch>
 
-type UnavailableLink =
-  | Readonly<{
-      label: string
-      to: '/accept-invitation' | '/properties'
-    }>
-  | Readonly<{
-      label: string
-      to: '/properties/$propertyId/settings'
-      params: Readonly<{ propertyId: string }>
-    }>
+type UnavailableLink = Readonly<{
+  label: string
+  to: '/accept-invitation' | '/properties'
+}>
 
 type UnavailablePageContent = Readonly<{
   title: string
@@ -77,7 +70,7 @@ export type UnavailableAccountState = Readonly<{
 }>
 
 export function unavailablePageContent(
-  { feature, reason, category, propertyId }: UnavailableSearch,
+  { feature, reason, category }: UnavailableSearch,
   account: UnavailableAccountState = { accessRemoved: false },
 ): UnavailablePageContent {
   if (reason === 'workspace_access') {
@@ -125,20 +118,11 @@ export function unavailablePageContent(
 
   if (category !== undefined) {
     const copy = REFUSAL_COPY[category]
-    const link: UnavailableLink =
-      copy.next === 'property_settings' && propertyId
-        ? {
-            label: 'Open property settings',
-            to: '/properties/$propertyId/settings',
-            params: { propertyId },
-          }
-        : { label: 'Back to properties', to: '/properties' }
-
     return {
       title: copy.title(feature ?? 'This feature'),
       description: copy.description,
       guidance: null,
-      link,
+      link: { label: 'Back to properties', to: '/properties' },
     }
   }
 
@@ -188,17 +172,8 @@ export const Route = createFileRoute('/unavailable')({
 })
 
 function UnavailablePageLink({ link }: Readonly<{ link: UnavailableLink }>) {
-  const className = 'text-link underline underline-offset-4'
-  if (link.to === '/properties/$propertyId/settings') {
-    return (
-      <Link to={link.to} params={link.params} className={className}>
-        {link.label}
-      </Link>
-    )
-  }
-
   return (
-    <Link to={link.to} className={className}>
+    <Link to={link.to} className="text-link underline underline-offset-4">
       {link.label}
     </Link>
   )

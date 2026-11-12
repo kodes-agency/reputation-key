@@ -44,40 +44,23 @@ export function hasCompetingAdminInvitations(
 }
 
 export type OrganizationFlag = Readonly<{
-  id: 'needs-account-admin' | 'controlled-beta-off'
+  id: 'needs-account-admin'
   label: string
-  /** Only `controlled-beta-off`: the id the allowlist needs. */
-  detail?: string
 }>
 
-/**
- * What the operator can act on, most actionable first: the Organization has no
- * Account Admin, or controlled-beta capabilities are dark for it.
- */
+/** What the operator can act on: the Organization has no Account Admin. */
 export function organizationFlags(
   organization: PlatformOrganizationView,
 ): ReadonlyArray<OrganizationFlag> {
-  return [
-    ...(organization.accountAdminCount === 0
-      ? [{ id: 'needs-account-admin', label: 'Needs an Account Admin' } as const]
-      : []),
-    ...(organization.controlledBetaEnabled
-      ? []
-      : [
-          {
-            id: 'controlled-beta-off',
-            label: 'Controlled beta off',
-            detail: organization.id,
-          } as const,
-        ]),
-  ]
+  return organization.accountAdminCount === 0
+    ? [{ id: 'needs-account-admin', label: 'Needs an Account Admin' }]
+    : []
 }
 
 export type ConsoleSummary = Readonly<{
   organizations: number
   needAccountAdmin: number
   openAdminInvitations: number
-  darkForControlledBeta: number
 }>
 
 export function summarizeOrganizations(
@@ -91,8 +74,6 @@ export function summarizeOrganizations(
       (total, entry) => total + entry.pendingAdminInvitations.length,
       0,
     ),
-    darkForControlledBeta: organizations.filter((entry) => !entry.controlledBetaEnabled)
-      .length,
   }
 }
 

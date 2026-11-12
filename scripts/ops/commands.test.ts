@@ -265,9 +265,7 @@ describe('what the report-only commands point to, under the runbook stops', () =
   const decisionsFor = (capability: Capability) =>
     Object.fromEntries(
       Object.entries(STOPS).map(([stop, env]) => {
-        initCapabilityPolicyStore(
-          createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: '*', ...env }),
-        )
+        initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
         return [
           stop,
           checkScopedCapability({ organizationId: ORGANIZATION }, capability).reason,
@@ -317,7 +315,7 @@ describe('what the report-only commands point to, under the runbook stops', () =
       passage.includes(
         'refuses that disconnect while the Organization is in `BETA_SUSPENDED_ORGS`',
       ) &&
-      passage.includes(`names \`${IN_APP_DISCONNECT}\``) &&
+      passage.includes('while `BETA_CAPABILITIES_OFF` is `all`') &&
       passage.includes('disconnect before you suspend the Organization')
     const passages = passagesNaming('Settings, Integrations')
 
@@ -351,7 +349,7 @@ describe('what the report-only commands point to, under the runbook stops', () =
 
   it('runbook §6 says what happens to a due reply while its read is refused, and what the operator does', () => {
     expect(section(6)).toContain('each due check passes without a read')
-    expect(section(6)).toContain('stop `property.publish_reply` alone')
+    expect(section(6)).toContain('no switch stops sending alone')
     expect(section(6)).toContain('until the capabilities are back for that Organization')
   })
 })

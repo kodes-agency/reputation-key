@@ -55,7 +55,7 @@ type Surface = (typeof surfaces)[number]
 
 beforeEach(() => {
   resetCapabilityPolicyStore()
-  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: '*' }))
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
 })
 afterEach(resetCapabilityPolicyStore)
 

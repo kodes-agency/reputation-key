@@ -119,10 +119,35 @@ objects and removal of the stored objects on an Organization purge shipped
 before the switch, because a stored object that nothing can delete is the one
 thing the design must not allow.
 
+## Amendment 2026-11-12 — four switches, no admission list
+
+The owner reduced feature switches to four. `BETA_CAPABILITIES_OFF` takes
+`all` or a comma list of `google` (every Google call), `ai` (every AI call),
+`guest_pages` (guest pages and submissions) and `optional_email` (notification
+emails: urgent alerts and daily digests; mandatory notices, invitations,
+password reset, email verification and staff code emails still go out); any
+other name refuses startup of web and worker, so a
+per-capability name left from before cannot quietly turn back on what it
+stopped. Each capability names its switch, or none, in `capability-fate.ts`.
+
+Organization admission is gone. `controlled_beta` capabilities became `core`:
+on for every Organization unless their switch, everything off or a suspension
+stops them. They keep `needsOrganization`: a call that names no Organization
+is refused them, as admission refused it before. The beta ran
+`BETA_ALLOWLIST_ORGS=*`, so no Organization lost or gained anything. `BETA_ALLOWLIST_ORGS` and `BETA_E2E_GLOBAL_CAPABILITIES` are
+no longer read, but an older release still reads the allowlist, so it stays
+`*` until no rollback target predates this change; the refusal categories `not_enabled_for_organization` and
+`needs_admin_enablement`, which only admission produced, went with it.
+
+Everything off, `BETA_SUSPENDED_ORGS`, restore isolation, blocked fates and
+merchant per-Property AI consent are unchanged. The database-held Google and
+AI controls keep their per-capability rows: provider attempt fences key on
+them. `STAFF_SCAN_TARGETS_ENABLED` stays until the owner's phone test passes.
+
 ## Consequences
 
 - UI affordances may explain a refusal but cannot bypass it.
-- Core, controlled-beta, and blocked membership is changed in the fate table,
-  not copied into this ADR.
+- Core and blocked membership, and each capability's switch, are changed in
+  the fate table, not copied into this ADR.
 - Capability and authorization remain separate decisions: enabled work still
   requires the correct principal and tenant scope.

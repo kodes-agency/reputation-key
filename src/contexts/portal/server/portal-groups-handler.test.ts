@@ -88,15 +88,13 @@ describe('movePortalToGroup server function', () => {
   })
 
   it('does not move anything when the property is not allowed to be written', async () => {
-    mocks.requireExecutionAllowed.mockRejectedValue(
-      policyDenial('property_not_allowlisted'),
-    )
+    mocks.requireExecutionAllowed.mockRejectedValue(policyDenial('capability_disabled'))
 
     await expect(
       withStartContext(() => movePortalToGroup({ data: move })),
     ).rejects.toMatchObject({
       name: 'AuthError',
-      code: 'property_not_allowlisted',
+      code: 'capability_disabled',
       status: 403,
     })
     expect(mocks.movePortalToGroup).not.toHaveBeenCalled()

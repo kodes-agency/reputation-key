@@ -124,7 +124,7 @@ beforeAll(() => {
 beforeEach(() => {
   // Every capability a route needs is granted, so the only thing left for the
   // gate to judge is the scope each envelope and job carries.
-  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: ORG }))
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
   initDelayedExecutionPolicy(
     createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
   )
@@ -199,8 +199,10 @@ describe('every beta notification route passes the delayed execution gate', () =
     expect(propertyNotice.decision.reason).toBe('allowed')
   })
 
-  it('sends a mandatory notice from an Organization the email allowlist does not admit', async () => {
-    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+  it('sends a mandatory notice while optional email is switched off', async () => {
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'optional_email' }),
+    )
 
     const mandatoryNotice = await gateJob(
       MANDATORY_EMAIL_JOB_NAME,
@@ -216,17 +218,14 @@ describe('every beta notification route passes the delayed execution gate', () =
     )
 
     // A final deletion warning nobody receives is worse than an extra email;
-    // ordinary product mail still waits for the allowlist.
+    // ordinary product mail waits for the switch.
     expect(mandatoryNotice.decision.reason).toBe('allowed')
-    expect(optionalNotice.decision.reason).toBe('org_not_allowlisted')
+    expect(optionalNotice.decision.reason).toBe('capability_disabled')
   })
 
   it('still stops mandatory mail for the environment stop and for a suspended tenant', async () => {
     initCapabilityPolicyStore(
-      createEnvCapabilityPolicyStore({
-        BETA_ALLOWLIST_ORGS: ORG,
-        BETA_SUSPENDED_ORGS: ORG,
-      }),
+      createEnvCapabilityPolicyStore({ BETA_SUSPENDED_ORGS: ORG }),
     )
     const suspended = await gateJob(
       MANDATORY_EMAIL_JOB_NAME,

@@ -61,19 +61,16 @@ async function bootPolicyRuntime(env: () => Env): Promise<PolicyBoot> {
   const [
     { getDb },
     { buildCapabilityPolicyHandle },
-    { getLogger },
     { bindProcessPolicies, releaseProcessPolicies },
   ] = await Promise.all([
     import('../../src/shared/db'),
     import('../../src/contexts/identity/infrastructure/policy-store-init'),
-    import('../../src/shared/observability/logger'),
     import('../../src/shared/auth/process-policy-binding'),
   ])
   const handle = buildCapabilityPolicyHandle({
     db: getDb(),
     env: settings,
     clock: () => new Date(),
-    logger: getLogger(process.stderr),
   })
   // This is the ops process's one static policy installation. Tenant grants
   // and consent remain live through the execution policy's repositories.

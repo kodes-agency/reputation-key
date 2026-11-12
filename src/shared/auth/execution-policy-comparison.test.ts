@@ -191,10 +191,10 @@ describe('old-vs-new synthetic decision comparison (BQC-2.4; old path deleted in
   })
 
   it('capability/permission denies were identical old vs new (recorded)', async () => {
-    // Kill the capability: both paths denied in the BQC-2.4 shadow run
+    // Everything off: both paths denied in the BQC-2.4 shadow run
     // (old recorded: allowed=false, reason capability_disabled).
     initCapabilityPolicyStore(
-      createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'property.create' }),
+      createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'all' }),
     )
     const spec = IDENTITIES[0]
     const policy = createExecutionPolicy({

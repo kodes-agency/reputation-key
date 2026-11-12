@@ -7,12 +7,12 @@ describe('accepted beta capability fate authority', () => {
     expect(Object.keys(CAPABILITY_FATE).sort()).toEqual([...listAllCapabilities()])
   })
 
-  it('opens portal.upload as controlled beta, with the removed SAFE-01 ceremony and the kept safeguards on record', () => {
+  it('opens portal.upload, with the removed SAFE-01 ceremony and the kept safeguards on record', () => {
     // The owner removed the SAFE-01 completion ceremony on 2026-09-30 (ADR 0063).
-    // The fate is no longer a block, but it is not core either: tenant policy still
-    // decides who may upload, and the record says what stayed in the build.
+    // The fate is no longer a block, and the record says what stayed in the build.
     expect(CAPABILITY_FATE['portal.upload']).toMatchObject({
-      fate: 'controlled_beta',
+      fate: 'core',
+      featureSwitch: null,
       authority: expect.stringMatching(/removed the SAFE-01.*2026-09-30/u),
       activation: CAPABILITY_FATE['portal.write'].activation,
     })
@@ -32,20 +32,29 @@ describe('accepted beta capability fate authority', () => {
     expect(CAPABILITY_FATE['identity.custom_roles'].fate).toBe('beta_disabled')
   })
 
-  it('keeps each independently authorized AI operation controlled and opt-in', () => {
-    expect(CAPABILITY_FATE['ai.analyze'].fate).toBe('controlled_beta')
-    expect(CAPABILITY_FATE['ai.generate_reply'].fate).toBe('controlled_beta')
+  it('puts each AI operation under the AI switch; consent still decides per Property', () => {
+    expect(CAPABILITY_FATE['ai.analyze']).toMatchObject({
+      fate: 'core',
+      featureSwitch: 'ai',
+    })
+    expect(CAPABILITY_FATE['ai.generate_reply']).toMatchObject({
+      fate: 'core',
+      featureSwitch: 'ai',
+    })
     expect(CAPABILITY_FATE['ai.detect_trends'].fate).toBe('beta_disabled')
   })
 })
 
 describe('staff account activation', () => {
-  it('is controlled by the cohort while targets keep their separate switch', () => {
-    expect(CAPABILITY_FATE['staff.accounts'].fate).toBe('controlled_beta')
+  it('is on for every Organization while targets keep their separate switch', () => {
+    expect(CAPABILITY_FATE['staff.accounts']).toMatchObject({
+      fate: 'core',
+      featureSwitch: null,
+    })
     expect(CAPABILITY_FATE['staff.accounts'].authority).toContain(
       'STAFF_SCAN_TARGETS_ENABLED',
     )
-    expect(listCapabilitiesByFate('controlled_beta')).toHaveLength(13)
+    expect(listCapabilitiesByFate('core')).toHaveLength(27)
     expect(listCapabilitiesByFate('beta_disabled')).toHaveLength(6)
   })
 })

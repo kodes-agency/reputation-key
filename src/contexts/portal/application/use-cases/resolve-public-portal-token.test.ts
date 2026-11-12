@@ -244,7 +244,7 @@ describe('resolvePublicPortalToken', () => {
     const denied = setup({
       decide: vi.fn(async () => ({
         allowed: false,
-        reason: 'property_not_allowlisted' as const,
+        reason: 'capability_disabled' as const,
         action: 'portal.public_read',
         policyVersion: 'test',
       })),

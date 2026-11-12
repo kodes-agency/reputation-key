@@ -1,45 +1,46 @@
-// BetaCapabilities — server-side feature-gate policy for controlled beta (B0.5).
+// BetaCapabilities — server-side feature-gate policy for the closed beta.
 //
 // Capabilities are distinct from permissions. Permissions are role-based
-// ("can user X do action Y in their org?"). Capabilities are feature-gate-based
-// ("is feature Y enabled for this org/property in this environment?").
+// ("can user X do action Y in their org?"). Capabilities are feature gates
+// ("is feature Y running for this org in this environment?").
 //
 // A server function should check capability FIRST, then permission:
 //   1. checkBetaCapability(ctx, 'property.publish_reply') — is the feature on?
 //   2. canForContext(ctx, 'property.publish_reply') — does the role allow it?
 //
-// Default posture: core capabilities on, non-core off. Unknown capabilities
-// and missing policy fail closed for mutations and external effects.
+// Every capability whose fate allows it is on. Four switches turn groups of
+// them off (capability-fate.ts says which group each belongs to): Google
+// calls, AI calls, Guest pages and Optional email. Two controls sit above
+// them: everything off, and one suspended Organization. Blocked fates never
+// run. Merchant per-Property AI consent is decided by the ExecutionPolicy, not
+// here.
 //
-// BQC-0.3: tests should inject a policy store via initCapabilityPolicyStore
-// (dependency-injected adapters). The BETA_E2E_GLOBAL_CAPABILITIES environment
-// backdoor exists only for browser E2E, where the app runs as a separate
-// process; it is guarded at boot by capability-boot-guard.ts.
-//
-// BQC-7.8: RESTORE_MODE=isolated (restore drills) overrides every installed
-// or configured store at the getStore() seam below — all capabilities deny
+// RESTORE_MODE=isolated (restore drills) overrides every installed or
+// configured store at the getStore() seam below: all capabilities deny
 // fail-closed while the mode is set.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { isRestoreIsolated } from '#/shared/config/restore-mode'
 import {
   CAPABILITIES,
+  CAPABILITY_FATE,
+  FEATURE_SWITCHES,
   listCapabilitiesByFate,
+  listCapabilitiesNeedingOrganization,
   type Capability,
+  type FeatureSwitch,
 } from '#/shared/governance/capability-fate'
 
-export { CAPABILITIES }
-export type { Capability }
+export { CAPABILITIES, FEATURE_SWITCHES }
+export type { Capability, FeatureSwitch }
 
 /**
  * Capability-policy version. Bump when capability vocabulary or posture changes.
  * Recorded in the boot and release manifests.
  */
-export const CAPABILITY_POLICY_VERSION = 'beta-local-12'
+export const CAPABILITY_POLICY_VERSION = 'beta-local-13'
 
 // ── Runtime capability posture ──────────────────────────────────────
-
-const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set(listCapabilitiesByFate('core'))
 
 const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set([
   ...listCapabilitiesByFate('beta_disabled'),
@@ -47,17 +48,14 @@ const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set([
   ...listCapabilitiesByFate('permanently_denied'),
 ])
 
+const ORGANIZATION_CAPABILITIES: ReadonlySet<Capability> = new Set(
+  listCapabilitiesNeedingOrganization(),
+)
+
 // ── Decision types ──────────────────────────────────────────────────
 
 export type CapabilityDenyReason =
-  | 'capability_disabled'
-  | 'org_not_allowlisted'
-  | 'property_not_allowlisted'
-  | 'org_suspended'
-  | 'property_suspended'
-  | 'unknown_capability'
-  | 'missing_policy'
-  | 'capability_blocked'
+  'capability_disabled' | 'org_suspended' | 'capability_blocked'
 
 export type CapabilityDecision = Readonly<{
   allowed: boolean
@@ -67,77 +65,90 @@ export type CapabilityDecision = Readonly<{
 
 // ── Policy store interface ──────────────────────────────────────────
 
-/**
- * The policy store determines which orgs/properties are allowlisted for
- * non-core capabilities. The initial implementation is in-memory and
- * configured via environment; a future DB-backed implementation will
- * persist allowlists and operator decisions.
- */
+/** The environment's switches and suspensions, fixed for the process lifetime. */
 export type CapabilityPolicyStore = Readonly<{
-  isCapabilityGloballyEnabled: (cap: Capability) => boolean
-  /** Environment stop control; authoritative over tenant allowlists. */
-  isCapabilityKilled?: (cap: Capability) => boolean
-  isOrgAllowlisted: (orgId: string, cap: Capability) => boolean
-  /**
-   * Every Organization is allowlisted for `cap` and it is not killed — the
-   * `*` allowlist. Absent = never (a store that cannot say, says no).
-   */
-  admitsEveryOrganization?: (cap: Capability) => boolean
+  /** Everything off, or the capability's switch is off. */
+  isCapabilityKilled: (cap: Capability) => boolean
   isOrgSuspended: (orgId: string) => boolean
 }>
 
-// ── Organization allowlist ──────────────────────────────────────────
+/** The Organization IDs named in `BETA_SUSPENDED_ORGS`. */
+export function parseSuspendedOrgs(value: string | undefined): ReadonlySet<string> {
+  return new Set(
+    (value ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  )
+}
 
 /**
- * The value that admits every Organization in the environment. It exists
- * because the list names Organization IDs, and every fresh database mints new
- * ones: without it each reset, new cell or local stack silently darkens all
- * controlled-beta capabilities for the Organization someone just created. It
- * is still an explicit operator input (ADR 0032, amended 2026-09-27) and
- * widens only the allowlist question — the kill switch, suspension and blocked
- * fates are decided before it and still win.
+ * Minimal env shape the policy reads. Structural, so the parsed Env from
+ * getEnv() fits directly. Suspension fields are accepted (so callers can pass
+ * the full env) but never recorded.
  */
-const ALLOWLIST_ALL_ORGS = '*'
+export type CapabilityPolicyEnv = Readonly<{
+  NODE_ENV?: string
+  BETA_E2E_EXECUTION_IDENTITY?: string
+  // The auth rate-limit hatch, authorized by the execution identity above;
+  // read by isE2ERateLimitBypassAuthorized / assertE2ERateLimitBypassIdentity.
+  E2E?: string
+  BETA_CAPABILITIES_OFF?: string
+  BETA_SUSPENDED_ORGS?: string
+  // Named-operator allowlist — read by the policy-store init when binding the
+  // ExecutionPolicy operator branch (parseOperatorIdentities).
+  OPS_OPERATOR_IDENTITIES?: string
+  // Railway's deployment identity — read only by isDeployedProcess, to refuse
+  // every test-only override in a deployed process.
+  RAILWAY_PROJECT_ID?: string
+  RAILWAY_ENVIRONMENT_ID?: string
+}>
 
-type ParsedOrgAllowlist = Readonly<{ all: boolean; orgIds: ReadonlySet<string> }>
+/** True when BETA_CAPABILITIES_OFF is the everything-off form ('1'/'true'/'all'). */
+export function isKillSwitchAll(env: CapabilityPolicyEnv): boolean {
+  const raw = (env.BETA_CAPABILITIES_OFF ?? '').trim().toLowerCase()
+  return raw === '1' || raw === 'true' || raw === 'all'
+}
 
-/** One reading of BETA_ALLOWLIST_ORGS for the store, the manifest and operators. */
-function parseOrgAllowlist(raw: string | undefined): ParsedOrgAllowlist {
-  const entries = (raw ?? '')
+function isFeatureSwitch(value: string): value is FeatureSwitch {
+  return FEATURE_SWITCHES.some((name) => name === value)
+}
+
+/**
+ * Why BETA_CAPABILITIES_OFF cannot be read, or null when it can. Anything but
+ * everything-off or a comma list of switch names is refused rather than
+ * ignored: a capability name left over from the old per-capability list would
+ * otherwise turn back on what its operator turned off.
+ */
+export function capabilitiesOffProblem(value: string | undefined): string | null {
+  if (isKillSwitchAll({ BETA_CAPABILITIES_OFF: value })) return null
+  const unknown = (value ?? '')
     .split(',')
     .map((s) => s.trim())
-    .filter(Boolean)
-  return {
-    all: entries.includes(ALLOWLIST_ALL_ORGS),
-    orgIds: new Set(entries.filter((entry) => entry !== ALLOWLIST_ALL_ORGS)),
-  }
+    .filter((s) => s.length > 0)
+    .find((entry) => !isFeatureSwitch(entry))
+  if (unknown === undefined) return null
+  return (
+    `BETA_CAPABILITIES_OFF names "${unknown}", which is not a switch. Use all, or a ` +
+    `comma list of: ${FEATURE_SWITCHES.join(', ')}.`
+  )
 }
 
 /**
- * The allowlist's shape, safe to record: a mode and a count, never an ID —
- * the startup manifest carries no tenant identifiers.
+ * Sorted switches BETA_CAPABILITIES_OFF turns off. Empty when the variable is
+ * absent or in everything-off form (see isKillSwitchAll). Throws on a name
+ * that is not a switch (capabilitiesOffProblem).
  */
-export type OrgAllowlistMode =
-  | Readonly<{ mode: 'all' }>
-  | Readonly<{ mode: 'listed'; count: number }>
-  | Readonly<{ mode: 'none' }>
-
-export function describeOrgAllowlist(
-  env: Pick<CapabilityPolicyEnv, 'BETA_ALLOWLIST_ORGS'>,
-): OrgAllowlistMode {
-  const parsed = parseOrgAllowlist(env.BETA_ALLOWLIST_ORGS)
-  if (parsed.all) return { mode: 'all' }
-  if (parsed.orgIds.size === 0) return { mode: 'none' }
-  return { mode: 'listed', count: parsed.orgIds.size }
-}
-
-/** Whether controlled-beta capabilities are open to this Organization here. */
-export function isOrgInAllowlist(
-  env: Pick<CapabilityPolicyEnv, 'BETA_ALLOWLIST_ORGS'>,
-  organizationId: string,
-): boolean {
-  const parsed = parseOrgAllowlist(env.BETA_ALLOWLIST_ORGS)
-  return parsed.all || parsed.orgIds.has(organizationId)
+export function parseSwitchesOff(env: CapabilityPolicyEnv): ReadonlyArray<FeatureSwitch> {
+  const problem = capabilitiesOffProblem(env.BETA_CAPABILITIES_OFF)
+  if (problem !== null) throw new Error(`[CAPABILITY POLICY] ${problem}`)
+  if (isKillSwitchAll(env)) return []
+  return FEATURE_SWITCHES.filter((name) =>
+    (env.BETA_CAPABILITIES_OFF ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .includes(name),
+  )
 }
 
 // ── Default in-memory policy store ──────────────────────────────────
@@ -156,151 +167,35 @@ function isDeployedProcess(
 }
 
 /**
- * True when BETA_E2E_GLOBAL_CAPABILITIES is set and createEnvCapabilityPolicyStore
- * ignores it because the process is deployed. The worker's boot guard refuses
- * startup in that state; the web process runs no boot guard, so the caller that
- * builds its store logs this instead of dropping the override without a trace.
- */
-export function ignoresE2EGlobalOverride(
-  env: Readonly<Record<string, string | undefined>>,
-): boolean {
-  return (
-    isDeployedProcess(env) && (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '').trim().length > 0
-  )
-}
-
-/** The Organization IDs named in `BETA_SUSPENDED_ORGS`. */
-export function parseSuspendedOrgs(value: string | undefined): ReadonlySet<string> {
-  return new Set(
-    (value ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean),
-  )
-}
-
-/**
- * Creates a policy store from environment configuration.
+ * Creates a policy store from environment configuration. Throws when
+ * BETA_CAPABILITIES_OFF names something that is not a switch.
  *
  * Environment variables:
- * - BETA_CAPABILITIES_OFF — capability kill switch (BQC-0.4): '1'/'true'/'all'
- *   disables ALL capabilities; a comma-separated list disables exactly those
- *   capabilities (e.g. property.connect_gbp,property.publish_reply stops
- *   Google sync/import/publish). Empty/absent = none off.
- * - BETA_ALLOWLIST_ORGS — comma-separated Organization IDs (not slugs) allowed to
- *   use controlled-beta capabilities, or `*` for every Organization in this
- *   environment. Absent/empty admits none. See parseOrgAllowlist.
- * - BETA_SUSPENDED_ORGS — comma-separated Organization IDs (not slugs) whose every
- *   capability check is denied with `org_suspended`. Absent/empty suspends none.
- * - BETA_E2E_GLOBAL_CAPABILITIES — comma-separated non-core capabilities forced ON
- *   globally for E2E/CI only (never blocked capabilities). Used so Playwright
- *   can exercise register/login without changing production beta posture.
- *   Ignored in a deployed process (isDeployedProcess): this factory is also
- *   what the web process builds its store from, and no boot guard runs there.
+ * - BETA_CAPABILITIES_OFF — '1'/'true'/'all' turns everything off; a comma
+ *   list of switches (google, ai, guest_pages, optional_email) turns those
+ *   groups off. Empty/absent = everything on.
+ * - BETA_SUSPENDED_ORGS — comma-separated Organization IDs (not slugs) whose
+ *   every capability check is denied with `org_suspended`. Absent/empty
+ *   suspends none.
  */
 export function createEnvCapabilityPolicyStore(
   env: Readonly<Record<string, string | undefined>>,
 ): CapabilityPolicyStore {
   const killAll = isKillSwitchAll(env)
-  const killedCapabilities = new Set(parseKilledCapabilities(env))
-  const orgAllowlist = parseOrgAllowlist(env.BETA_ALLOWLIST_ORGS)
+  const switchesOff = new Set<FeatureSwitch>(parseSwitchesOff(env))
   const suspendedOrgs = parseSuspendedOrgs(env.BETA_SUSPENDED_ORGS)
-  const e2eGlobalCapabilities = new Set(
-    isDeployedProcess(env)
-      ? []
-      : (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '')
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean),
-  )
 
   return {
-    isCapabilityKilled: (cap) => killAll || killedCapabilities.has(cap),
-    isCapabilityGloballyEnabled: (cap) => {
-      if (killAll) return false
-      // BQC-0.4: per-capability kill list (granular stop control)
-      if (killedCapabilities.has(cap)) return false
-      // Blocked capabilities are never globally enabled
-      if (BLOCKED_CAPABILITIES.has(cap)) return false
-      // Core capabilities are globally enabled
-      if (CORE_CAPABILITIES.has(cap)) return true
-      // E2E/CI override for selected non-core capabilities
-      if (e2eGlobalCapabilities.has(cap)) return true
-      // Non-core capabilities require per-org allowlist
-      return false
+    isCapabilityKilled: (cap) => {
+      if (killAll) return true
+      const featureSwitch = CAPABILITY_FATE[cap].featureSwitch
+      return featureSwitch !== null && switchesOff.has(featureSwitch)
     },
-    isOrgAllowlisted: (orgId, cap) => {
-      // Core capabilities don't need allowlisting
-      if (CORE_CAPABILITIES.has(cap)) return true
-      // Blocked capabilities are never allowlisted
-      if (BLOCKED_CAPABILITIES.has(cap)) return false
-      // Non-core: check the allowlist
-      return orgAllowlist.all || orgAllowlist.orgIds.has(orgId)
-    },
-    admitsEveryOrganization: (cap) =>
-      orgAllowlist.all && !killAll && !killedCapabilities.has(cap),
     isOrgSuspended: (orgId) => suspendedOrgs.has(orgId),
   }
 }
 
-// ── Test-only override guard (BQC-0.3 / SPEC-P0-03) ─────────────────
-
-/**
- * Minimal env shape the override guard reads. Structural, so the parsed Env
- * from getEnv() fits directly. Allowlist/suspension fields are accepted (so
- * callers can pass the full env) but never recorded.
- */
-export type CapabilityPolicyEnv = Readonly<{
-  NODE_ENV?: string
-  BETA_E2E_GLOBAL_CAPABILITIES?: string
-  BETA_E2E_EXECUTION_IDENTITY?: string
-  // Review §5.1 / BQC-6.8: the auth rate-limit hatch. Sibling of the
-  // capability override above and authorized by the same execution identity;
-  // read by isE2ERateLimitBypassAuthorized / assertE2ERateLimitBypassIdentity.
-  E2E?: string
-  BETA_CAPABILITIES_OFF?: string
-  BETA_ALLOWLIST_ORGS?: string
-  BETA_SUSPENDED_ORGS?: string
-  // BQC-7.5: named-operator allowlist — read by the policy-store init when
-  // binding the ExecutionPolicy operator branch (parseOperatorIdentities).
-  OPS_OPERATOR_IDENTITIES?: string
-  // Railway's deployment identity — read only by isDeployedProcess, to refuse
-  // every test-only override in a deployed process.
-  RAILWAY_PROJECT_ID?: string
-  RAILWAY_ENVIRONMENT_ID?: string
-}>
-
-/** Parse the override variable into non-empty, blocked-filtered capabilities. */
-export function parseE2EGlobalOverrides(
-  env: CapabilityPolicyEnv,
-): ReadonlyArray<Capability> {
-  return (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s): s is Capability => s.length > 0)
-    .filter((cap) => !isBlockedCapability(cap))
-    .sort()
-}
-
-/** True when BETA_CAPABILITIES_OFF is the whole-switch form ('1'/'true'/'all'). */
-export function isKillSwitchAll(env: CapabilityPolicyEnv): boolean {
-  const raw = (env.BETA_CAPABILITIES_OFF ?? '').trim().toLowerCase()
-  return raw === '1' || raw === 'true' || raw === 'all'
-}
-
-/**
- * Sorted per-capability kill list from BETA_CAPABILITIES_OFF (BQC-0.4 stop
- * control). Empty when the switch is absent or in whole-switch form (see
- * isKillSwitchAll). Unknown entries are inert but recorded for truthfulness.
- */
-export function parseKilledCapabilities(env: CapabilityPolicyEnv): ReadonlyArray<string> {
-  if (isKillSwitchAll(env)) return []
-  return (env.BETA_CAPABILITIES_OFF ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-    .sort()
-}
+// ── Test-only execution identity ────────────────────────────────────
 
 /**
  * The single authorization rule for every test-only override in this module:
@@ -335,24 +230,6 @@ function e2eOverrideRefusal(env: CapabilityPolicyEnv, variable: string): string 
   )
 }
 
-/**
- * Refuse when BETA_E2E_GLOBAL_CAPABILITIES is non-empty outside an explicit
- * test/CI execution identity, or in any deployed process (see
- * hasE2EExecutionIdentity). Throws on violation.
- */
-export function assertE2EOverrideIdentity(env: CapabilityPolicyEnv): void {
-  const hasOverride = (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '')
-    .split(',')
-    .some((s) => s.trim().length > 0)
-  if (!hasOverride) return
-  if (hasE2EExecutionIdentity(env)) return
-
-  throw new Error(
-    '[CAPABILITY POLICY] BETA_E2E_GLOBAL_CAPABILITIES is a test-only override and ' +
-      e2eOverrideRefusal(env, 'BETA_E2E_GLOBAL_CAPABILITIES'),
-  )
-}
-
 // ── Auth rate-limit hatch (review §5.1) ─────────────────────────────
 //
 // E2E stands both auth brute-force layers down for the Playwright-launched
@@ -360,9 +237,8 @@ export function assertE2EOverrideIdentity(env: CapabilityPolicyEnv): void {
 // (routes/api/auth/$.ts) and better-auth's own limiter (shared/auth/auth.ts).
 // It used to be read as bare truthiness with no schema entry, no boot guard
 // and no log line, so one stray env var opened credential stuffing against a
-// closed-beta deployment silently. It is now a sibling of the capability
-// override above: an exact value, the same execution-identity authorization,
-// the same startup refusal, and fail-closed (limiters stay ON) wherever the
+// closed-beta deployment silently. It is now an exact value with an
+// execution-identity authorization and a startup refusal, and fail-closed (limiters stay ON) wherever the
 // claim is unauthorized — including the web process, whose nitro plugins are
 // registered explicitly (vite.config.ts) and do NOT include the capability
 // boot guard, so no startup assertion runs there. Web is guarded only by these
@@ -391,9 +267,8 @@ export function isE2ERateLimitBypassAuthorized(env: CapabilityPolicyEnv): boolea
 
 /**
  * Refuse startup when E2E is set outside an explicit test/CI execution
- * identity, or in any deployed process (see hasE2EExecutionIdentity). The
- * counterpart of assertE2EOverrideIdentity for the rate-limit hatch. Throws on
- * violation.
+ * identity, or in any deployed process (see hasE2EExecutionIdentity). Throws
+ * on violation.
  */
 export function assertE2ERateLimitBypassIdentity(env: CapabilityPolicyEnv): void {
   if (!claimsE2ERateLimitBypass(env)) return
@@ -405,44 +280,25 @@ export function assertE2ERateLimitBypassIdentity(env: CapabilityPolicyEnv): void
   )
 }
 
-/**
- * Production boot assertion: no blocked capability may be globally enabled,
- * regardless of policy-store configuration. Throws on violation.
- */
-export function assertBlockedCapabilitiesContained(store: CapabilityPolicyStore): void {
-  for (const cap of listBlockedCapabilities()) {
-    if (store.isCapabilityGloballyEnabled(cap)) {
-      throw new Error(
-        `[CAPABILITY POLICY] blocked capability "${cap}" is globally enabled at boot. ` +
-          'Blocked capabilities must never boot enabled.',
-      )
-    }
-  }
-}
-
 // ── Capability checker ──────────────────────────────────────────────
 
 let _store: CapabilityPolicyStore | undefined
 
 /**
- * BQC-7.8: the restore-isolated policy store — every capability globally
- * disabled, no org/property allowlisted. Core capabilities deny
- * 'capability_disabled', non-core 'org_not_allowlisted', blocked
- * 'capability_blocked' (the blocked check runs first in checkBetaCapability).
- * The effect: every capability-gated server function, job gate, and operator
- * command that declares a capability denies fail-closed while reads stay
- * available — the restore drill's verification posture.
+ * The restore-isolated policy store: everything off, so every
+ * capability-gated server function, job gate and operator command that
+ * declares a capability denies fail-closed while reads stay available — the
+ * restore drill's verification posture.
  */
 const RESTORE_ISOLATED_STORE: CapabilityPolicyStore = {
-  isCapabilityGloballyEnabled: () => false,
-  isOrgAllowlisted: () => false,
+  isCapabilityKilled: () => true,
   isOrgSuspended: () => false,
 }
 
 /**
  * Initialize the capability policy store. Call once at startup.
  *
- * ARC-03-T8: application processes install through the single owner
+ * Application processes install through the single owner
  * (shared/auth/process-policy-binding.bindProcessPolicies), which binds this
  * store together with the two policies that read it — a half-swapped trio can
  * make a decision consult another container's tenant state or consent reader.
@@ -454,22 +310,12 @@ export function initCapabilityPolicyStore(store: CapabilityPolicyStore): void {
 
 /** Get the current policy store, initializing from env if not yet set. */
 function getStore(): CapabilityPolicyStore {
-  // BQC-7.8: restore-isolated mode wins over ANY installed/configured store
-  // (env, composite env+persisted, or test-injected) — read per evaluation so
-  // the posture holds in every process shape (built server, vite dev, worker)
-  // and lifts the moment RESTORE_MODE is unset. See src/shared/config/
-  // restore-mode.ts.
+  // Restore-isolated mode wins over ANY installed or configured store, read
+  // per evaluation so the posture holds in every process shape (built server,
+  // vite dev, worker) and lifts the moment RESTORE_MODE is unset. See
+  // src/shared/config/restore-mode.ts.
   if (isRestoreIsolated(process.env)) return RESTORE_ISOLATED_STORE
-  if (!_store) {
-    // BQC-0.3: this lazy env fallback is the backdoor SPEC-P0-03 warns about.
-    // Fail closed when the test-only override leaks outside an explicit
-    // test/CI identity — covers processes the startup boot guard cannot
-    // reach (e.g. vite dev server, where Nitro plugins do not execute).
-    assertE2EOverrideIdentity(process.env)
-    const store = createEnvCapabilityPolicyStore(process.env)
-    assertBlockedCapabilitiesContained(store)
-    _store = store
-  }
+  _store ??= createEnvCapabilityPolicyStore(process.env)
   return _store
 }
 
@@ -492,19 +338,11 @@ export function checkScopedCapability(
   if (BLOCKED_CAPABILITIES.has(capability)) {
     return { allowed: false, reason: 'capability_blocked', capability }
   }
-  if (store.isCapabilityKilled?.(capability)) {
+  if (store.isCapabilityKilled(capability)) {
     return { allowed: false, reason: 'capability_disabled', capability }
   }
   if (store.isOrgSuspended(scope.organizationId)) {
     return { allowed: false, reason: 'org_suspended', capability }
-  }
-  if (!store.isCapabilityGloballyEnabled(capability)) {
-    if (CORE_CAPABILITIES.has(capability)) {
-      return { allowed: false, reason: 'capability_disabled', capability }
-    }
-    if (!store.isOrgAllowlisted(scope.organizationId, capability)) {
-      return { allowed: false, reason: 'org_not_allowlisted', capability }
-    }
   }
   return { allowed: true, reason: 'allowed', capability }
 }
@@ -536,35 +374,34 @@ export function assertBetaCapability(
 }
 
 /**
- * Check if a capability is globally enabled (no org/property context).
- * Use in unauthenticated endpoints (registration, public APIs) where
- * there is no AuthContext yet.
+ * Check a capability for a call that names no Organization: blocked fates and
+ * the switches decide, suspension cannot. A capability that runs only for a
+ * named Organization fails closed here, so an org-less caller cannot reach
+ * tenant work. Use in unauthenticated endpoints (registration, public APIs).
  */
 export function checkGlobalCapability(capability: Capability): CapabilityDecision {
-  const store = getStore()
-
   if (BLOCKED_CAPABILITIES.has(capability)) {
     return { allowed: false, reason: 'capability_blocked', capability }
   }
-
-  if (!store.isCapabilityGloballyEnabled(capability)) {
+  if (getStore().isCapabilityKilled(capability)) {
     return { allowed: false, reason: 'capability_disabled', capability }
   }
-
+  if (ORGANIZATION_CAPABILITIES.has(capability)) {
+    return { allowed: false, reason: 'capability_disabled', capability }
+  }
   return { allowed: true, reason: 'allowed', capability }
 }
 
 /**
- * Whether a capability is live for every Organization here with no tenant to
- * look up: globally enabled, or admitted through `BETA_ALLOWLIST_ORGS=*` and
- * not killed. checkGlobalCapability answers only the first, so a `*`
- * environment — where controlled-beta features really are live — read as
- * dark to anything built on it. Suspension stays a per-scope decision.
+ * Whether a capability runs for every Organization here, read with no tenant
+ * to look up: not blocked and not switched off. An environment-wide reading
+ * (operations health), never an authorization. Suspension stays a per-scope
+ * decision.
  */
 export function isCapabilityOpenToEveryOrganization(capability: Capability): boolean {
-  if (checkGlobalCapability(capability).allowed) return true
-  if (BLOCKED_CAPABILITIES.has(capability)) return false
-  return getStore().admitsEveryOrganization?.(capability) === true
+  return (
+    !BLOCKED_CAPABILITIES.has(capability) && !getStore().isCapabilityKilled(capability)
+  )
 }
 
 /**
@@ -586,20 +423,11 @@ export class BetaCapabilityError extends Error {
   }
 }
 
-export function isCoreCapability(cap: Capability): boolean {
-  return CORE_CAPABILITIES.has(cap)
-}
-
 export function isBlockedCapability(cap: Capability): boolean {
   return BLOCKED_CAPABILITIES.has(cap)
 }
 
-/** Sorted core capability list — for the boot manifest (BQC-0.3). */
-export function listCoreCapabilities(): ReadonlyArray<Capability> {
-  return [...CORE_CAPABILITIES].sort()
-}
-
-/** Sorted blocked capability list — for boot assertions and the manifest. */
+/** Sorted blocked capability list — for the boot manifest. */
 export function listBlockedCapabilities(): ReadonlyArray<Capability> {
   return [...BLOCKED_CAPABILITIES].sort()
 }
@@ -610,9 +438,9 @@ export function listAllCapabilities(): ReadonlyArray<Capability> {
 }
 
 /**
- * Registration gate for handlers and schedules. Promotable jobs stay
- * registered even while no tenant is allowlisted; enqueue, dispatch, and
- * execution perform scoped decisions. Restore isolation and permanent
+ * Registration gate for handlers and schedules. Jobs stay registered while
+ * their switch is off; enqueue, dispatch, and execution perform scoped
+ * decisions. Restore isolation and permanent
  * prohibitions remain contained at registration.
  */
 export function isCapabilityJobEnabled(capability: Capability): boolean {

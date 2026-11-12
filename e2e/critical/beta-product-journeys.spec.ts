@@ -68,13 +68,9 @@ async function expectControlledUnavailable(
   const copy = REFUSAL_COPY[category]
   await expect(main.getByText(copy.title(feature))).toBeVisible()
   await expect(main.getByText(copy.description)).toBeVisible()
-  if (copy.next === null) {
-    // No setting can lift this refusal, so none may be offered.
-    await expect(main.getByRole('link', { name: 'Open property settings' })).toHaveCount(
-      0,
-    )
-    await expect(main.getByRole('link', { name: 'Back to properties' })).toBeVisible()
-  }
+  // No setting can lift a capability refusal, so none may be offered.
+  await expect(main.getByRole('link', { name: 'Open property settings' })).toHaveCount(0)
+  await expect(main.getByRole('link', { name: 'Back to properties' })).toBeVisible()
 }
 
 /**
@@ -604,7 +600,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
 
     // Capability policy is organization-wide (WP3.3-C): P2 is an ordinary
-    // property of the allowlisted org, so its promoted route serves.
+    // property of org A, which is not suspended, so its promoted route serves.
     await page.goto(`/properties/${seed.p2PropertyId}/portals`)
     await expect(page).not.toHaveURL(/\/unavailable/)
     await expect(page.getByRole('heading', { name: /portals/i }).first()).toBeVisible()
@@ -629,25 +625,21 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     log.assertNoMutations()
     log.assertNoExternalHosts([BASE_HOST])
   })
-  test('locked Org B manager cannot activate promoted P3 entry paths', async ({
+  test('suspended Org B manager cannot activate promoted P3 entry paths', async ({
     page,
   }) => {
     await signIn(page, seed.lockedManagerEmail, seed.lockedManagerPassword, BASE_ORIGIN)
 
     for (const [url, feature, category] of [
-      // Org B is dark because the allowlist does not name it: an operator
-      // input, so the page must not offer Property settings as the fix.
-      [
-        `/properties/${seed.p3PropertyId}/portals`,
-        'Portals',
-        'not_enabled_for_organization',
-      ],
-      [`/properties/${seed.p3PropertyId}/goals`, 'Goals', 'not_enabled_for_organization'],
+      // Org B is in BETA_SUSPENDED_ORGS (e2e/stack.env): an operator input, so
+      // the page must not offer Property settings as the fix.
+      [`/properties/${seed.p3PropertyId}/portals`, 'Portals', 'temporarily_unavailable'],
+      [`/properties/${seed.p3PropertyId}/goals`, 'Goals', 'temporarily_unavailable'],
       // The Google rating goal's detail page sits behind the same Goals gate.
       [
         `/properties/${seed.p3PropertyId}/goals/google-rating`,
         'Goals',
-        'not_enabled_for_organization',
+        'temporarily_unavailable',
       ],
     ] as const satisfies readonly (readonly [
       string,
@@ -1087,7 +1079,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.reload()
     await expect(resultRow).toHaveCount(1)
 
-    // P2 is an ordinary property of the allowlisted org (WP3.3-C): its goals
+    // P2 is an ordinary property of org A (WP3.3-C): its goals
     // surface serves and carries none of P1's program. Cross-tenant P3 answers
     // not-found without leaking the program.
     await page.goto(`/properties/${seed.p2PropertyId}/goals`)

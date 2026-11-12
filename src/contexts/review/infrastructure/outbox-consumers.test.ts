@@ -356,9 +356,7 @@ describe('google account disconnected consumer authorization', () => {
   beforeEach(() => {
     // Every capability is granted, so the gate judges only the scope the
     // delivered fact carries.
-    initCapabilityPolicyStore(
-      createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: ORGANIZATION }),
-    )
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
     initDelayedExecutionPolicy(
       createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
     )
@@ -530,12 +528,9 @@ describe('property archived consumer authorization', () => {
     })
 
   beforeEach(() => {
-    // The Organization is admitted, and reply publication is stopped.
+    // Google, and with it reply publication, is stopped.
     initCapabilityPolicyStore(
-      createEnvCapabilityPolicyStore({
-        BETA_ALLOWLIST_ORGS: ORGANIZATION,
-        BETA_CAPABILITIES_OFF: 'property.publish_reply',
-      }),
+      createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'google' }),
     )
     initDelayedExecutionPolicy(
       createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),

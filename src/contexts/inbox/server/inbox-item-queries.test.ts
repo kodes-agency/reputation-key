@@ -68,9 +68,7 @@ const expectedFence = {
 beforeEach(() => {
   vi.clearAllMocks()
   resetCapabilityPolicyStore()
-  initCapabilityPolicyStore(
-    createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: 'org' }),
-  )
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
   mocks.consent.mockResolvedValue({
     subjectType: 'property',
     subjectId: propertyId,

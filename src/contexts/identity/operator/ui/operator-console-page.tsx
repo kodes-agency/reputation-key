@@ -85,15 +85,6 @@ function ConsoleSummary({
           )}
         />
       </Metric>
-      <Metric
-        label="Controlled beta off"
-        state={summary.darkForControlledBeta > 0 ? 'ready' : 'unavailable'}
-      >
-        <MetricValue
-          value={summary.darkForControlledBeta}
-          detail="Not on BETA_ALLOWLIST_ORGS"
-        />
-      </Metric>
     </MetricStrip>
   )
 }

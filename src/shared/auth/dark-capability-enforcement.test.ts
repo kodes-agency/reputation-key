@@ -11,11 +11,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import {
-  DARK_CONTEXT_CAPABILITIES,
-  PORTAL_DARK_CAPABILITIES,
-  isCoreCapability,
-} from './beta-capabilities'
+import { DARK_CONTEXT_CAPABILITIES, PORTAL_DARK_CAPABILITIES } from './beta-capabilities'
 import {
   JOB_OPERATIONAL_CONTRACTS,
   createOperationalSchedulerPlan,
@@ -86,13 +82,6 @@ describe('BQR-0: Dark context capability enforcement', () => {
       }
     })
   }
-
-  it('does not treat controlled capabilities as core', () => {
-    expect(isCoreCapability('portal.read')).toBe(false)
-    expect(isCoreCapability('portal.write')).toBe(false)
-    expect(isCoreCapability('portal.upload')).toBe(false)
-    expect(isCoreCapability('goal.use')).toBe(false)
-  })
 })
 
 describe('BQR-0: Dark job / schedule containment', () => {

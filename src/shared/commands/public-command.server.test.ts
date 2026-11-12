@@ -55,11 +55,7 @@ beforeEach(() => {
   resolveScope.mockResolvedValue(scope)
   limit.mockResolvedValue(undefined)
   run.mockResolvedValue({ accepted: true })
-  initCapabilityPolicyStore({
-    ...createEnvCapabilityPolicyStore({}),
-    isCapabilityGloballyEnabled: () => true,
-    isOrgAllowlisted: () => true,
-  })
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
   initExecutionPolicy(
     createExecutionPolicy({ listAccessiblePropertyIds: async () => [] }),
   )

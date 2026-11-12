@@ -78,7 +78,6 @@ export async function readPermittedInvitation(
 
 export function toPlatformOrganizationView(
   row: PlatformOrganizationRow,
-  controlledBetaEnabled: boolean,
   now: Date,
 ): PlatformOrganizationView {
   const administered = row.accountAdminCount > 0
@@ -90,7 +89,6 @@ export function toPlatformOrganizationView(
     memberCount: row.memberCount,
     accountAdminCount: row.accountAdminCount,
     pendingInvitationCount: row.pendingInvitationCount,
-    controlledBetaEnabled,
     pendingAdminInvitations: administered
       ? []
       : row.adminInvitations.map((invitation) => ({
