@@ -19,12 +19,12 @@ import type { InboxHistoryEntry } from '../../domain/handling-history'
 import { isInboxError } from '../../domain/errors'
 import type { InboxHistoryRepository } from '../ports/inbox-history.repository'
 import { getInboxItemHistory } from './get-inbox-item-history'
-import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
 import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
-} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
+  seedInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures'
 
 const ORG_ID = organizationId('org-inbox-history-test')
 const ITEM_ID = inboxItemId('94a30000-0000-4000-8000-000000000001')

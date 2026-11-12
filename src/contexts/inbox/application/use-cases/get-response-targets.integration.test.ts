@@ -11,16 +11,12 @@ import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
-  dropInboxUseCaseTenant,
-  runScopedId,
-} from '../../infrastructure/inbox-database-fixtures-use-case-ids'
-import {
-  clearInboxUseCaseRows,
+  clearInboxOrganization,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
+  dropInboxUseCaseTenant,
   openFixturePool,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
-import {
+  runScopedId,
   seedInboxItem,
   seedInboxOrganization,
 } from '../../infrastructure/inbox-database-fixtures'
@@ -107,7 +103,7 @@ describe.sequential('Response Target manager reads', () => {
   })
 
   beforeEach(async () => {
-    await clearInboxUseCaseRows(pool, ORG)
+    await clearInboxOrganization(pool, ORG)
     await pool.query(
       'DELETE FROM inbox_response_target_organization_policies WHERE organization_id = $1',
       [ORG],
