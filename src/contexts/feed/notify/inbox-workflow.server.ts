@@ -5,7 +5,7 @@
 // acknowledges only after every enqueue succeeds. Redelivery therefore
 // converges on the same BullMQ job identities.
 
-import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerEvent } from '#/shared/outbox'
 import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
@@ -42,13 +42,9 @@ import {
   replyAuthorNotices,
   type DurableReplyPublishFailed,
   type DurableReplyRejected,
-} from '../notify/inbox.server'
-import {
-  deliverNotices,
-  type Notice,
-  type NoticeDeliveryDeps,
-} from '../notify/consumers.server'
-import { buildInboxItemPayload } from './notification-payload-facts'
+} from './inbox.server'
+import { deliverNotices, type Notice, type NoticeDeliveryDeps } from './consumers.server'
+import { buildInboxItemPayload } from '../infrastructure/notification-payload-facts'
 import {
   inboxNotificationAudience,
   resolveInboxResponsibleRecipients,
@@ -61,13 +57,13 @@ import type { NotificationAudience } from '../application/notification-audience'
 import {
   publicationCancelledNotices,
   type DurableReplyPublicationCancelled,
-} from './publication-cancelled-notifications'
+} from '../infrastructure/publication-cancelled-notifications'
 import {
   isRecordPayload,
   nullableString as nullablePayloadString,
   requiredString as requiredPayloadString,
-} from './outbox-payload-fields'
-import { type RetireMovedAssignment } from '../notify/settle.server'
+} from '../infrastructure/outbox-payload-fields'
+import { type RetireMovedAssignment } from './settle.server'
 
 export const WORKFLOW_NOTIFICATION_CONSUMERS = [
   {
@@ -634,65 +630,4 @@ export async function handleWorkflowNotificationEvent(
     consumerNameFor(event.eventType),
     await noticesFor(deps, parsed),
   )
-}
-
-export function registerWorkflowNotificationConsumers(
-  registry: ConsumerRegistry,
-  deps: WorkflowNotificationConsumerDeps,
-): void {
-  const { registerConsumer } = registry
-  registerConsumer({
-    eventType: 'inbox.inbox_item.assigned',
-    consumerName: 'notification.on-inbox-inbox_item-assigned',
-    module: 'notification.workflow-outbox-consumers',
-    handler: (event) => handleWorkflowNotificationEvent(deps, event),
-  })
-  registerConsumer({
-    eventType: 'inbox.inbox_item.escalated',
-    consumerName: 'notification.on-inbox-inbox_item-escalated',
-    module: 'notification.workflow-outbox-consumers',
-    handler: (event) => handleWorkflowNotificationEvent(deps, event),
-  })
-  registerConsumer({
-    eventType: 'inbox.inbox_note.added',
-    consumerName: 'notification.on-inbox-inbox_note-added',
-    module: 'notification.workflow-outbox-consumers',
-    handler: (event) => handleWorkflowNotificationEvent(deps, event),
-  })
-  registerConsumer({
-    eventType: 'review.reply.submitted',
-    consumerName: 'notification.on-review-reply-submitted',
-    module: 'notification.workflow-outbox-consumers',
-    handler: (event) => handleWorkflowNotificationEvent(deps, event),
-  })
-  registerConsumer({
-    eventType: 'review.reply.approved',
-    consumerName: 'notification.on-review-reply-approved',
-    module: 'notification.workflow-outbox-consumers',
-    handler: (event) => handleWorkflowNotificationEvent(deps, event),
-  })
-  registerConsumer({
-    eventType: 'review.reply.rejected',
-    consumerName: 'notification.on-review-reply-rejected',
-    module: 'notification.workflow-outbox-consumers',
-    handler: (event) => handleWorkflowNotificationEvent(deps, event),
-  })
-  registerConsumer({
-    eventType: 'review.reply.published',
-    consumerName: 'notification.on-review-reply-published',
-    module: 'notification.workflow-outbox-consumers',
-    handler: (event) => handleWorkflowNotificationEvent(deps, event),
-  })
-  registerConsumer({
-    eventType: 'review.reply.publish_failed',
-    consumerName: 'notification.on-review-reply-publish_failed',
-    module: 'notification.workflow-outbox-consumers',
-    handler: (event) => handleWorkflowNotificationEvent(deps, event),
-  })
-  registerConsumer({
-    eventType: 'review.reply.publication_cancelled',
-    consumerName: 'notification.on-review-reply-publication_cancelled',
-    module: 'notification.workflow-outbox-consumers',
-    handler: (event) => handleWorkflowNotificationEvent(deps, event),
-  })
 }
