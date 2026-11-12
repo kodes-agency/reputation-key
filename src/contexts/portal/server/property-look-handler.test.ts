@@ -9,7 +9,6 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { portalError } from '../domain/errors'
 
 const mocks = vi.hoisted(() => ({
-  savePropertyLook: vi.fn(),
   savePropertyHero: vi.fn(),
   savePropertyLogo: vi.fn(),
   savePropertyDefaultGuestLocales: vi.fn(),
@@ -31,7 +30,6 @@ vi.mock('#/composition', () => ({
   getContainer: vi.fn(() => ({
     portalPublicApi: {
       management: {
-        savePropertyLook: mocks.savePropertyLook,
         savePropertyHero: mocks.savePropertyHero,
         savePropertyLogo: mocks.savePropertyLogo,
         savePropertyDefaultGuestLocales: mocks.savePropertyDefaultGuestLocales,
@@ -47,7 +45,6 @@ import {
   savePropertyDefaultGuestLocales,
   savePropertyHero,
   savePropertyLogo,
-  savePropertyLook,
 } from './property-look'
 
 const ACTOR = {
@@ -61,49 +58,6 @@ describe('Property look server functions', () => {
     vi.clearAllMocks()
     mocks.resolveTenantContext.mockResolvedValue(ACTOR)
     mocks.requireExecutionAllowed.mockResolvedValue(undefined)
-  })
-
-  it('asks the Property policy for portal.write before saving the look', async () => {
-    mocks.savePropertyLook.mockResolvedValue({ lookVersion: 3 })
-    const data = {
-      propertyId: 'property-1',
-      accentColour: '#EAD6A8',
-      backgroundMode: 'auto' as const,
-    }
-
-    await withStartContext(() => savePropertyLook({ data }))
-
-    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actor: ACTOR,
-        action: 'portal.update',
-        capability: 'portal.write',
-        propertyId: 'property-1',
-      }),
-    )
-    expect(mocks.savePropertyLook).toHaveBeenCalledWith(data, ACTOR)
-    expect(mocks.requireExecutionAllowed.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.savePropertyLook.mock.invocationCallOrder[0]!,
-    )
-  })
-
-  it('carries a refused look out as a tagged Portal error', async () => {
-    mocks.savePropertyLook.mockRejectedValue(
-      portalError('invalid_theme', 'Page text cannot be read on this background'),
-    )
-
-    await expect(
-      withStartContext(() =>
-        savePropertyLook({
-          data: {
-            propertyId: 'property-1',
-            accentColour: '#EAD6A8',
-            backgroundMode: 'manual',
-            backgroundColour: '#E8E8E8',
-          },
-        }),
-      ),
-    ).rejects.toMatchObject({ _tag: 'PortalError', code: 'invalid_theme' })
   })
 
   it('saves the default languages in the order given', async () => {

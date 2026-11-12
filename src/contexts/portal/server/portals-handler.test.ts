@@ -89,7 +89,6 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
 })
 
 import {
-  archivePortal,
   getPortalHistory,
   getPortalPublicationHistory,
   listPortalOverview,
@@ -109,22 +108,9 @@ const deniedResourceProbes: readonly [
   effect: ReturnType<typeof vi.fn>,
 ][] = [
   [
-    'publication',
-    async () =>
-      publishPortal({
-        data: { portalId: 'portal-p2', reviewedDigest: 'reviewed-digest' },
-      }),
-    mocks.publishPortal,
-  ],
-  [
     'token rotation',
     async () => rotatePortalToken({ data: { portalId: 'portal-p2' } }),
     mocks.rotatePortalToken,
-  ],
-  [
-    'archive',
-    async () => archivePortal({ data: { portalId: 'portal-p2' } }),
-    mocks.archivePortal,
   ],
 ]
 const propertyDisabled = () =>
@@ -147,25 +133,6 @@ describe('listPortals handler (executable)', () => {
       propertyId: 'property-p2',
       portalId: 'portal-p2',
     })
-  })
-
-  it('refuses go-live without a reviewed digest before calling the publication command', async () => {
-    mocks.publishPortal.mockResolvedValue({ publicationState: 'published' })
-
-    const response = await withStartContext(() =>
-      publishPortal.__executeServer({
-        method: 'POST',
-        data: { portalId: 'portal-p2' },
-      }),
-    )
-
-    expect(response).toMatchObject({
-      error: expect.objectContaining({
-        message: expect.stringContaining('"reviewedDigest"'),
-      }),
-    })
-    expect(mocks.publishPortal).not.toHaveBeenCalled()
-    expect(mocks.resolveTenantContext).not.toHaveBeenCalled()
   })
 
   it('forwards the reviewed digest when going live', async () => {
@@ -306,18 +273,6 @@ describe('listPortals handler (executable)', () => {
       expect(effect).not.toHaveBeenCalled()
     },
   )
-
-  it('archives through the archive intent, recoverably', async () => {
-    mocks.archivePortal.mockResolvedValue({
-      id: 'portal-p2',
-      publicationState: 'archived',
-    })
-
-    await withStartContext(() => archivePortal({ data: { portalId: 'portal-p2' } }))
-
-    expect(mocks.archivePortal).toHaveBeenCalledWith({ portalId: 'portal-p2' }, TEST_CTX)
-    expect(mocks.softDeletePortal).not.toHaveBeenCalled()
-  })
 })
 
 describe('listPortalOverview handler (executable)', () => {

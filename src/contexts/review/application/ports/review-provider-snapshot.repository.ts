@@ -298,6 +298,11 @@ export type ReviewProviderSnapshotRepository = Readonly<{
    * `commitPage`, `finishConfirmationScan` and `failRun` answer with the code
    * recorded; this one answers a status, and the caller reads the code back
    * from `failRun`.
+   *
+   * A Review found this way stays out of the next runs' candidates for a
+   * while (`UNLISTED_REVIEW_HOLD_RUNS`). Found so again once that ran out, with
+   * no listing of it in between, the run is recorded loudly as
+   * `confirmation_set_changed` and this answers `unlisted_again_run_failed`.
    */
   recordCandidateObservation(
     input: Readonly<{
@@ -305,7 +310,7 @@ export type ReviewProviderSnapshotRepository = Readonly<{
       organizationId: OrganizationId
       observation: ReviewProviderPersistedObservation
     }>,
-  ): Promise<'observed_run_failed' | 'stale' | 'run_failed'>
+  ): Promise<'observed_run_failed' | 'unlisted_again_run_failed' | 'stale' | 'run_failed'>
 
   beginConfirmationScan(
     input: Readonly<{

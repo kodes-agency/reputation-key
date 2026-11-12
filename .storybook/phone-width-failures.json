@@ -9216,18 +9216,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-workspacetabs--history-tab",
-    "state": "History Tab",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--history-tab",
-    "state": "History Tab",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "portal-workspacetabs--linktree-section",
     "state": "Linktree Section",
     "width": 320,

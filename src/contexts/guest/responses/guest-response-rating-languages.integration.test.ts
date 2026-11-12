@@ -10,6 +10,8 @@ import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import { getPortalRatingLanguages } from '../application/use-cases/get-portal-rating-languages'
+import { getPortalResponseIntegritySummary } from '../application/use-cases/get-portal-response-integrity-summary'
 import { createGuestResponseRepository } from './guest-response.repository.server'
 
 const db = getDb()
@@ -208,5 +210,92 @@ describe('summarizePortalRatingLanguages (integration)', () => {
     )
 
     expect(summary).toEqual({ total: 0, languages: [], unrecorded: 0 })
+  })
+})
+
+describe('the Portal results reads, through the use cases', () => {
+  const period = { startAt: START, endAt: END }
+
+  it('reads the languages of one tenant, Property and Portal over the period', async () => {
+    const read = getPortalRatingLanguages(repository())
+
+    await expect(read({ ...scope(), ...period })).resolves.toMatchObject({
+      total: 5,
+      unrecorded: 1,
+    })
+    await expect(read({ ...scope(SIBLING_PORTAL), ...period })).resolves.toEqual({
+      total: 1,
+      languages: [{ locale: 'de', count: 1 }],
+      unrecorded: 0,
+    })
+    await expect(read({ ...scope(OTHER_PORTAL), ...period })).resolves.toEqual({
+      total: 0,
+      languages: [],
+      unrecorded: 0,
+    })
+  })
+
+  it('counts the period half-open: the start is in, the end is out', async () => {
+    const read = getPortalRatingLanguages(repository())
+
+    // Response 10 is submitted exactly at END; response 9 is before START.
+    const september = await read({ ...scope(), ...period })
+    const october = await read({
+      ...scope(),
+      startAt: END,
+      endAt: new Date('2026-11-01T00:00:00.000Z'),
+    })
+
+    expect(september.total).toBe(5)
+    expect(october).toEqual({
+      total: 1,
+      languages: [{ locale: 'en', count: 1 }],
+      unrecorded: 0,
+    })
+  })
+
+  it('refuses an empty or reversed period', async () => {
+    const read = getPortalRatingLanguages(repository())
+
+    await expect(read({ ...scope(), startAt: START, endAt: START })).rejects.toThrow(
+      'rating languages period is invalid',
+    )
+    await expect(read({ ...scope(), startAt: END, endAt: START })).rejects.toThrow(
+      'rating languages period is invalid',
+    )
+  })
+
+  it('summarizes the integrity outcomes of one Portal over the period', async () => {
+    const summarize = getPortalResponseIntegritySummary(repository())
+
+    await expect(summarize({ ...scope(), ...period })).resolves.toEqual({
+      accepted: 5,
+      filteredAutomatically: 1,
+      underReview: 1,
+      total: 7,
+    })
+    await expect(summarize({ ...scope(SIBLING_PORTAL), ...period })).resolves.toEqual({
+      accepted: 1,
+      filteredAutomatically: 0,
+      underReview: 0,
+      total: 1,
+    })
+    await expect(summarize({ ...scope(OTHER_PORTAL), ...period })).resolves.toEqual({
+      accepted: 0,
+      filteredAutomatically: 0,
+      underReview: 0,
+      total: 0,
+    })
+  })
+
+  it('refuses an empty or reversed integrity period', async () => {
+    const summarize = getPortalResponseIntegritySummary(repository())
+
+    await expect(summarize({ ...scope(), startAt: END, endAt: END })).rejects.toThrow(
+      'integrity summary period is invalid',
+    )
+    await expect(summarize({ ...scope(), startAt: END, endAt: START })).rejects.toThrow(
+      'integrity summary period is invalid',
+    )
   })
 })

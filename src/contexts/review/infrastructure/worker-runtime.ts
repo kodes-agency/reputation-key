@@ -16,9 +16,13 @@ import type {
 } from '../application/ports/review-queue.port'
 import type { ReviewHeadChecksMode } from '../domain/head-check'
 import type { ReviewProviderObservationWriter } from '../application/ports/review-provider-observation-writer.port'
+import type { ReviewProviderSubjectSightings } from '../application/ports/review-provider-subject-sightings.port'
 import type { ReviewProviderSubjectKeyService } from '../application/provider-subject-keyring'
 import { createRunReviewHeadCheck } from '../application/use-cases/run-review-head-check'
-import type { GoogleReviewApiPort } from '../application/ports/google-review-api.port'
+import type {
+  GoogleConnectionStatusPort,
+  GoogleReviewApiPort,
+} from '../application/ports/google-review-api.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../application/ports/reply-publication-dispatch-evidence.port'
 import type { ReadReviewBeforePublish } from '../application/use-cases/read-review-before-publish'
 import {
@@ -79,6 +83,7 @@ export type ReviewWorkerRegistrationInput = Readonly<{
   replyRepo: ReplyRepository
   replyCommandStore: ReplyCommandStore
   googleReviewApi: GoogleReviewApiPort
+  googleConnectionStatus: GoogleConnectionStatusPort
   staffPublicApi: StaffPublicApi
   propertySourceEpoch: SyncHandlerDependencies['propertySourceEpoch']
   runSnapshot: SyncHandlerDependencies['runSnapshot']
@@ -104,6 +109,7 @@ export type ReviewWorkerRegistrationInput = Readonly<{
   /** What a persisting head check writes through (unused while `headChecks` is not `persist`). */
   observationWriter: ReviewProviderObservationWriter
   subjectKeyService: ReviewProviderSubjectKeyService
+  subjectSightings: ReviewProviderSubjectSightings
 }>
 
 /**
@@ -140,6 +146,7 @@ export async function registerReviewWorkerJobs(
       persist: {
         observationWriter: input.observationWriter,
         subjectKeyService: input.subjectKeyService,
+        subjectSightings: input.subjectSightings,
         propertySourceEpoch: input.propertySourceEpoch,
         syncActivity: reviewSyncActivity,
         newId: input.idGen,
@@ -283,6 +290,7 @@ export async function registerReviewWorkerJobs(
     replyRepo: input.replyRepo,
     reviewRepo: input.reviewRepo,
     googleReviewApi: input.googleReviewApi,
+    googleConnectionStatus: input.googleConnectionStatus,
     googleReplyObservationStore: createGoogleReplyObservationStore(input.db),
     readBeforePublish: input.readReviewBeforePublish,
     replyCommandStore: input.replyCommandStore,

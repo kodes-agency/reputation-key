@@ -54,6 +54,7 @@ const buttonVariants = cva(
     },
     compoundVariants: [
       { size: 'icon-xs', touch: true, className: 'max-md:min-w-(--control-touch)' },
+      { size: 'inline', touch: true, className: 'max-md:min-w-(--control-touch)' },
     ],
     defaultVariants: {
       variant: 'default',

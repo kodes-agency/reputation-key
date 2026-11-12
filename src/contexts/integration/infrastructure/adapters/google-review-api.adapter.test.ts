@@ -1,3 +1,5 @@
+import { classifyPublicationFailure } from '#/contexts/review/domain/reply-publication-workflow'
+import { publishReplyToGoogle } from '#/contexts/review/application/use-cases/publish-reply-to-google'
 import { describe, expect, it, vi, type Mock } from 'vitest'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
@@ -135,18 +137,29 @@ function createAdapter(
       authorization: publicationAuthorization,
     })
   const warn = vi.fn()
+  const adapter = createGoogleReviewApiAdapter({
+    connectionRepo: { findById } as never,
+    logger: { info: vi.fn(), warn } as never,
+    cursorStore: input.cursors ?? cursorStore(),
+    executor: { execute: input.execute },
+    authorizeReviewSyncProviderCall: authorizeProviderCall,
+    authorizeReplyPublicationProviderCall,
+    nowMs: () => Date.parse('2026-08-12T12:00:00.000Z'),
+  })
   return {
-    api: translatedGoogleReviewApi(
-      createGoogleReviewApiAdapter({
-        connectionRepo: { findById } as never,
-        logger: { info: vi.fn(), warn } as never,
-        cursorStore: input.cursors ?? cursorStore(),
-        executor: { execute: input.execute },
-        authorizeReviewSyncProviderCall: authorizeProviderCall,
-        authorizeReplyPublicationProviderCall,
-        nowMs: () => Date.parse('2026-08-12T12:00:00.000Z'),
+    // Reads are translated by the Review use cases and the reply write by the
+    // reply use case, so the port is seen the way the use cases see it.
+    api: {
+      ...translatedGoogleReviewApi(adapter),
+      replyToReview: publishReplyToGoogle({
+        googleReviewApi: adapter,
+        connectionStatus: {
+          findStatus: async (organizationId, connectionId) =>
+            (await findById(organizationId, connectionId))?.status ?? null,
+        },
+        logger: { warn },
       }),
-    ),
+    },
     authorizeProviderCall,
     authorizeReplyPublicationProviderCall,
     findById,
@@ -1082,17 +1095,16 @@ describe('GoogleReviewApiAdapter', () => {
 
   it('fails closed before credential/provider access when publication authority is absent', async () => {
     const execute = vi.fn()
-    const api = translatedGoogleReviewApi(
-      createGoogleReviewApiAdapter({
-        connectionRepo: { findById: vi.fn() } as never,
-        logger: { warn: vi.fn() } as never,
-        cursorStore: cursorStore(),
-        executor: { execute },
-      }),
-    )
+    const api = createGoogleReviewApiAdapter({
+      connectionRepo: { findById: vi.fn() } as never,
+      logger: { warn: vi.fn() } as never,
+      cursorStore: cursorStore(),
+      executor: { execute },
+    })
     await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
-      code: 'provider_unavailable',
-      recoverable: false,
+      _tag: 'GbpApiError',
+      code: 'upstream_error',
+      dispatch: 'unknown',
     })
     expect(execute).not.toHaveBeenCalled()
   })
@@ -1718,12 +1730,18 @@ describe('GoogleReviewApiAdapter reply failure evidence (D2)', () => {
       replyAdapter(execute).replyToReview({ ...replyInput(), ...override }),
     )
 
+    // The same refusal the compile step gives: never sent, and never retried.
     expect(error).toMatchObject({
-      code: 'invalid_request',
-      failure: { executionCode: null, dispatch: 'not_sent', providerStatus: null },
+      code: 'provider_unavailable',
+      failure: {
+        executionCode: 'malformed_request',
+        dispatch: 'not_sent',
+        providerStatus: null,
+      },
     })
+    expect(classifyPublicationFailure(error)).toBe('terminal_rejection')
     expect(error.message).toBe(
-      'Google review API request failed (invalid_request; not_sent)',
+      'Google review API request failed (malformed_request; not_sent)',
     )
     expect(execute).not.toHaveBeenCalled()
   })
@@ -1767,9 +1785,9 @@ describe('GoogleReviewApiAdapter reply failure evidence (D2)', () => {
     )
 
     expect(error).toMatchObject({
-      code: 'invalid_request',
-      failure: { dispatch: 'not_sent' },
+      failure: { executionCode: 'malformed_request', dispatch: 'not_sent' },
     })
+    expect(classifyPublicationFailure(error)).toBe('terminal_rejection')
     expect(execute).not.toHaveBeenCalled()
   })
 })

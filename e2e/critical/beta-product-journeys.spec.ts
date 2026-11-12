@@ -46,32 +46,11 @@ import {
 } from '../helpers/portal-look-fixtures'
 import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../src/contexts/reporting/domain/goal-start'
 import { formatMonthName } from '../../src/lib/format'
-import {
-  REFUSAL_COPY,
-  type CapabilityRefusalCategory,
-} from '../../src/shared/auth/capability-refusal-category'
+import { REFUSAL_COPY } from '../../src/shared/auth/capability-refusal-category'
 
 const seed = requireE2eSeedState()
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 const BASE_HOST = new URL(BASE_ORIGIN).host
-
-async function expectControlledUnavailable(
-  page: Page,
-  feature: string,
-  category: CapabilityRefusalCategory,
-) {
-  // The refusal is drawn in the app shell, at the address that was asked for:
-  // the page keeps its name, says what is wrong and why, and offers the way back.
-  await expect(page).not.toHaveURL(/\/unavailable/)
-  const main = page.getByRole('main')
-  await expect(main.getByRole('heading', { level: 1, name: feature })).toBeVisible()
-  const copy = REFUSAL_COPY[category]
-  await expect(main.getByText(copy.title(feature))).toBeVisible()
-  await expect(main.getByText(copy.description)).toBeVisible()
-  // No setting can lift a capability refusal, so none may be offered.
-  await expect(main.getByRole('link', { name: 'Open property settings' })).toHaveCount(0)
-  await expect(main.getByRole('link', { name: 'Back to properties' })).toBeVisible()
-}
 
 /**
  * End every goal program still open on a Property.
@@ -630,24 +609,24 @@ test.describe('Critical: beta-local-1 product journeys', () => {
   }) => {
     await signIn(page, seed.lockedManagerEmail, seed.lockedManagerPassword, BASE_ORIGIN)
 
-    for (const [url, feature, category] of [
-      // Org B is in BETA_SUSPENDED_ORGS (e2e/stack.env): an operator input, so
-      // the page must not offer Property settings as the fix.
-      [`/properties/${seed.p3PropertyId}/portals`, 'Portals', 'temporarily_unavailable'],
-      [`/properties/${seed.p3PropertyId}/goals`, 'Goals', 'temporarily_unavailable'],
+    // Org B is in BETA_SUSPENDED_ORGS (e2e/stack.env): the whole workspace is
+    // paused, an operator input, so the page offers no setting as the fix.
+    for (const url of [
+      `/properties/${seed.p3PropertyId}/portals`,
+      `/properties/${seed.p3PropertyId}/goals`,
       // The Google rating goal's detail page sits behind the same Goals gate.
-      [
-        `/properties/${seed.p3PropertyId}/goals/google-rating`,
-        'Goals',
-        'temporarily_unavailable',
-      ],
-    ] as const satisfies readonly (readonly [
-      string,
-      string,
-      CapabilityRefusalCategory,
-    ])[]) {
+      `/properties/${seed.p3PropertyId}/goals/google-rating`,
+    ]) {
       await page.goto(url)
-      await expectControlledUnavailable(page, feature, category)
+      await expect(page).toHaveURL(/\/unavailable/)
+      const main = page.getByRole('main')
+      const copy = REFUSAL_COPY.temporarily_unavailable
+      await expect(main.getByText(copy.title('Workspace'))).toBeVisible()
+      await expect(main.getByText(copy.description)).toBeVisible()
+      await expect(
+        main.getByRole('link', { name: 'Open property settings' }),
+      ).toHaveCount(0)
+      await expect(main.getByRole('link', { name: 'Back to properties' })).toBeVisible()
     }
 
     const emailDenial = await callServerFnExpectError(page, {
