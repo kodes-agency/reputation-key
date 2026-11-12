@@ -2,7 +2,7 @@ import { getProductUpdatesClient } from '../-product-updates-client'
 import { createFileRoute } from '@tanstack/react-router'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
-import { ProductUpdatePreferences } from '#/components/features/whats-new/product-update-preferences'
+import { ProductUpdatePreferences } from '#/contexts/identity/updates/ui/product-update-preferences'
 import { PreferencesSettingsPage } from '#/components/features/settings'
 
 export const Route = createFileRoute('/_authenticated/settings/preferences')({

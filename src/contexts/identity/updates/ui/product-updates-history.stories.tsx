@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { PRODUCT_UPDATES } from '#/shared/whats-new/entries'
-import { PageGutterDecorator } from '../../../../.storybook/PageGutterDecorator'
+import { PageGutterDecorator } from '../../../../../.storybook/PageGutterDecorator'
 import {
   productUpdatesStoryState,
   productUpdatesStoryClient as client,
-} from '../../../../.storybook/stubs/product-updates-server'
+} from '../../../../../.storybook/stubs/product-updates-server'
 import { ProductUpdatesHistory } from './product-updates-history'
 
 const meta = {

@@ -6,17 +6,17 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { expect, spyOn, userEvent, waitFor, within } from 'storybook/test'
-import { withRole } from '../../../../.storybook/AuthedRouterDecorator'
+import { withRole } from '../../../../../.storybook/AuthedRouterDecorator'
 import { merchantAiNoticeUpdateQuery } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-query'
 import { PRODUCT_UPDATES } from '#/shared/whats-new/entries'
 import {
   aiNoticeStoryState,
   storyAiNoticeUpdate,
-} from '../../../../.storybook/stubs/merchant-ai-notice-updates-server'
+} from '../../../../../.storybook/stubs/merchant-ai-notice-updates-server'
 import {
   productUpdatesStoryClient,
   productUpdatesStoryState,
-} from '../../../../.storybook/stubs/product-updates-server'
+} from '../../../../../.storybook/stubs/product-updates-server'
 import ProductUpdatesController from './product-updates-controller'
 
 const ORGANIZATION = 'story-organization'

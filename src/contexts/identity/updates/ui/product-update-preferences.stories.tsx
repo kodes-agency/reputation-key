@@ -5,7 +5,7 @@ import { PRODUCT_UPDATES } from '#/shared/whats-new/entries'
 import {
   productUpdatesStoryState,
   productUpdatesStoryClient as client,
-} from '../../../../.storybook/stubs/product-updates-server'
+} from '../../../../../.storybook/stubs/product-updates-server'
 import { ProductUpdatePreferences } from './product-update-preferences'
 
 const meta = {
