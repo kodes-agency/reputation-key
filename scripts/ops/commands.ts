@@ -33,7 +33,6 @@ export const COMMANDS: Readonly<
   'rebuild-projection': ['scripts/ops/rebuild-projection.ts'],
   'reconcile-publication': ['scripts/ops/reconcile-publication.ts'],
   refresh: ['scripts/ops/enqueue-refresh.ts'],
-  'reparse-review-translations': ['scripts/ops/reparse-review-translations.ts'],
   'report-capability-refusal': ['scripts/ops/report-capability-refusal.ts'],
   'restore-preflight': ['scripts/ops/restore-preflight.ts'],
   'restore-verify': ['scripts/ops/restore-verify.ts'],
