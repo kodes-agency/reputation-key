@@ -613,14 +613,6 @@ async function registerNotificationJobs(
       'system:notification.email_mandatory',
     ),
   })
-  const { INSERT_NOTIFICATION_JOB_NAME } =
-    await import('#/contexts/feed/infrastructure/jobs/insert-notification.job')
-  container.jobRegistry.register(INSERT_NOTIFICATION_JOB_NAME, processors.insert)
-  logger.info(
-    { job: INSERT_NOTIFICATION_JOB_NAME },
-    'registered insert-notification job handler',
-  )
-
   // Outbound email is CONTROLLED, not blocked: the handler exists, and the
   // delayed execution gate decides each send against current tenant policy.
   // A family that were blocked would retain no executable handler, so queued

@@ -8,8 +8,8 @@
 // budget gives every queue the clients its configured concurrency can hold, so
 // none of them waits on the pool at its planned load.
 //
-// Parallel reads that fan out per recipient or per cycle (insert-notification,
-// the feed consumers) are not bounded here. They hold no lock while waiting for
+// Parallel reads that fan out per recipient or per cycle (the feed
+// consumers) are not bounded here. They hold no lock while waiting for
 // a client, so past the budget they only queue.
 
 import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/public-api'

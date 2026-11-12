@@ -620,7 +620,7 @@ assigned to its recipient on that Property (the work check is given the
 recipient for it). Both counts are restated at send. A closed cycle settles a grouped
 reopen in-app once none of its items stands, except a row that coalesced a
 second bulk reopen.
-Notification jobs perform immediate-email and digest work. The `insert-notification` processor only drains jobs an earlier release left in Redis, writing each through the notice writer.
+Notification jobs perform immediate-email and digest work. Notices are written by the notice writer, in the transaction of the step they report; the operator's manual final warning writes through its direct form, all recipients on one transaction.
 `email/send-emails.server.ts` sends immediate mail: it renders a row once, stores the
 provider request on the row (`provider_request`) before the first attempt, and every
 retry re-checks the recipient and sends that stored request under the same key until the

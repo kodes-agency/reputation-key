@@ -37,15 +37,9 @@ import {
   type EntryPointRow,
 } from '#/shared/governance/entry-point-catalogue'
 import { gateJob } from '#/shared/jobs/delayed-execution-gate'
-import type { OutboxRepository } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
-import { handleInvitationAcceptedInviterNotice } from '#/contexts/feed/infrastructure/invitation-accepted-inviter-notice'
 import { createImmediateEmailEnqueue } from '#/contexts/feed/email/send-emails.server'
-import {
-  createNotificationConsumerDeps,
-  noticeWriterOver,
-} from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
 import { createGoogleImportV2Queue } from '#/contexts/integration/infrastructure/google-import-v2-queue'
 import { buildReviewContext } from '#/contexts/review/build'
 
@@ -121,8 +115,6 @@ function reviewContext(jobQueue: Queue) {
   })
 }
 
-const receipts = { insertReceipt: async () => undefined } as unknown as OutboxRepository
-
 const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
   'import-gbp-property-item': producer(async (queue) => {
     await createGoogleImportV2Queue(queue).addImportItemJobs([
@@ -185,33 +177,6 @@ const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
       propertyId: PROPERTY,
       reviewId: ID(8),
     })
-  }),
-  // An Organization-wide notice: the notification with no Property to lean on.
-  'insert-notification': producer(async (queue) => {
-    const fakes = createNotificationConsumerDeps()
-    await handleInvitationAcceptedInviterNotice(
-      {
-        noticeWriter: noticeWriterOver(queue, receipts),
-        displayNames: fakes.displayNames,
-        logger: fakes.logger,
-      },
-      {
-        eventId: ID(9),
-        eventType: 'identity.invitation.accepted',
-        eventVersion: 1,
-        payload: {
-          organizationId: ORGANIZATION,
-          userId: 'member-1',
-          invitationId: 'invitation-1',
-          inviterId: 'admin-1',
-        },
-        organizationId: ORGANIZATION,
-        propertyId: null,
-        sourceContext: 'identity',
-        sourceAggregateId: 'invitation-1',
-        recordedAt: '2026-10-11T00:00:00.000Z',
-      },
-    )
   }),
   'urgent-email': producer(async (queue) => {
     await createImmediateEmailEnqueue(

@@ -8,7 +8,6 @@ import {
 } from '../preferences/copy-category-defaults.server'
 import type {
   createNotificationRightsPort,
-  ManualFinalWarningJob,
   NotificationRightsRequest,
 } from '../rights/executor.server'
 
@@ -31,17 +30,17 @@ export const getAuditEventRetentionRule = createServerOnlyFn(
   () => AUDIT_EVENT_RETENTION_RULE,
 )
 
-export type { ManualFinalWarningJob, NotificationRightsRequest }
+export type { NotificationRightsRequest }
 // Loaded on demand so browser bundles and stories never pull in server code.
 export const runNotificationRightsRequest = createServerOnlyFn(
   async (
     db: Parameters<typeof createNotificationRightsPort>[0],
-    enqueue: (job: ManualFinalWarningJob) => Promise<void>,
+    noticeWriter: Parameters<typeof createNotificationRightsPort>[1],
     request: NotificationRightsRequest,
   ) => {
     const executor = await import('../rights/executor.server')
     return executor.runNotificationRights(
-      executor.createNotificationRightsPort(db, enqueue),
+      executor.createNotificationRightsPort(db, noticeWriter),
       request,
     )
   },

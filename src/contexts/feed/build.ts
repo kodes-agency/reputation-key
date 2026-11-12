@@ -782,7 +782,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
             userLookup,
             recipientStanding,
             workState,
-            noticeWriter,
             clock: input.clock,
             logger: input.logger,
           },

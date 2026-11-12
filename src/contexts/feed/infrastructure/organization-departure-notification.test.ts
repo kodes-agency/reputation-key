@@ -12,7 +12,7 @@ import {
 } from './notification-consumer-test-fixtures'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
-import type { InsertNotificationJobData } from './jobs/insert-notification.job'
+import type { QueuedNotice } from './notification-consumer-test-fixtures'
 
 const ORG = organizationId('org-departure-notice')
 const MEMBER = userId('departing-member')
@@ -48,7 +48,7 @@ async function noticeFor(removedBy: typeof MEMBER) {
     }),
   )
   expect(fakes.jobs).toHaveLength(1)
-  const data = fakes.jobs[0]!.data as InsertNotificationJobData
+  const data = fakes.jobs[0]!.data as QueuedNotice
   expect(data.userId).toBe(MEMBER)
   return {
     rendered: renderNotification(

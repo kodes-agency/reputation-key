@@ -1,7 +1,7 @@
 /**
  * Receipt-name prefixes a queued `insert-notification` delivery wrote: one when
  * Redis accepted the job, one when PostgreSQL materialized it. The health reads
- * still honour them while such jobs drain.
+ * still honour them for the deliveries already settled.
  */
 export const notificationDeliveryReceiptPrefixes = {
   enqueue: 'notification.enqueue:',
