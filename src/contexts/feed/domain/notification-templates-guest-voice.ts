@@ -9,12 +9,12 @@
 // word about one (ADR 0046 r.8; ADR 0031): the Urgent alert says that an urgent review
 // needs its reader and where, and nothing of why. The reason a model gave is read in the
 // app, where the notice opens the review.
-import type { NotificationPayload } from './notification-payload'
 import type {
   NotificationGuestVoiceLine,
   NotificationGuestVoiceTopic,
   NotificationGuestVoiceWindow,
-} from './notification-payload-guest-voice'
+  NotificationPayload,
+} from './notification-payload'
 
 /** What a Guest voice renderer returns; assignable to the templates' own copy type. */
 type GuestVoiceNoticeCopy = Readonly<{

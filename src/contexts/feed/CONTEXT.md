@@ -382,7 +382,7 @@ summary") is opt-in on both channels and offers `immediate` only, so its email i
 its own on that Monday morning and never a line of the daily digest. The row is filed under
 the Property and the day (`<property>:<day>`), so last week's unread row never swallows this
 week's email. Its payload is the kind, the window and at most three lines of fixed facts
-(`guestVoice*`, `domain/notification-payload-guest-voice.ts`): one of the twelve topics, counts
+(`guestVoice*`, `domain/notification-payload.ts`): one of the twelve topics, counts
 of reviews, which way a change went, and the stars a fix-first problem may be worth to the
 nearest 0.05; never an issue name, a cause, a quote or a review. The email lists the
 sentences as paragraphs (`RenderedNotification.lines`).

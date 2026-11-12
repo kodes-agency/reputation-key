@@ -5,13 +5,14 @@
 // of ./notification-templates.ts, which lists these renderers in its table.
 // Named exports, as the account and rating goal notices are: a spread of an
 // imported record moved a whole module's copy into first paint's chunk. This
-// module is a leaf; its copy type is restated structurally below.
+// module imports only the shared phrase joiners.
 //
 // The wording was approved under P-8 (PROPOSAL §4.5): a notice names whose
 // goal it is — the Property, or the Portal or Portal Group it is on — the
 // month, and for a count the month's figure against its target. Every field is
 // optional: a missing figure sends the reader to the goal instead, and a
 // payload that reached a template unparsed renders rather than throws.
+import { sentence } from './notification-copy-kit'
 import type {
   NotificationGoalMarker,
   NotificationGoalMeasure,
@@ -30,10 +31,6 @@ type PortalGoalNoticeCopy = Readonly<{
 
 const SEE_THE_GOAL = 'See the goal'
 const OPEN_FOR_NUMBERS = 'Open the goal to see the numbers.'
-
-/** Joins non-empty sentences with a single space. */
-const sentence = (...parts: ReadonlyArray<string>): string =>
-  parts.filter((part) => part !== '').join(' ')
 
 /** One formatter for the month name; the key is already Property-local. */
 let monthFormat: Intl.DateTimeFormat | undefined
