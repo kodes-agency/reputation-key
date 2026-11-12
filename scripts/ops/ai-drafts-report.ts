@@ -4,13 +4,13 @@ import {
   parseDraftsReportArgs,
   draftsReportCommandSpec,
 } from '../../src/shared/ops/ai-drafts-report-command'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand } from './operator-command'
 
 async function main() {
   const argv = process.argv.slice(2)
   const sinceIndex = argv.indexOf('--since')
   const filter = parseDraftsReportArgs(sinceIndex < 0 ? [] : argv.splice(sinceIndex, 2))
-  const result = await runOperatorCommand(
+  const result = await runDatabaseOperatorCommand(
     draftsReportCommandSpec,
     async (_ctx, args, io) => {
       if (args.positionals.length !== 1 || args.positionals[0] !== 'drafts-report')

@@ -1,5 +1,16 @@
-import type { ConcurrentIndexSpec } from './concurrent-index-registry'
 import { migrationTokens } from './migration-safety'
+
+export type ConcurrentIndexSpec = Readonly<{
+  name: string
+  table: string
+  /** Column order exactly as PostgreSQL reports it via `unnest(pg_index.indkey)`. */
+  columns: readonly string[]
+  unique: boolean
+  /** Whether the index carries a `WHERE` clause; its expression comes from createSql. */
+  hasPredicate: boolean
+  /** The file's one statement. Never executed inside a transaction. */
+  createSql: string
+}>
 
 /** Nontransactional files contain exactly one recoverable index build. */
 export function journalConcurrentIndex(

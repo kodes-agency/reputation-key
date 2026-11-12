@@ -63,23 +63,19 @@ import {
   registerIntegrationNotificationConsumers,
   type GoogleConnectionPropertyLookup,
 } from './infrastructure/integration-outbox-consumers'
-import { registerBulkAssignmentNotificationConsumer } from './infrastructure/bulk-assignment-outbox-consumers'
-import { registerAssignmentReleaseNotificationConsumer } from './infrastructure/assignment-release-outbox-consumers'
-import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
+import {
+  registerAssignmentReleaseNotificationConsumer,
+  registerBulkAssignmentNotificationConsumer,
+  registerEscalationResolutionNotificationConsumer,
+  registerResponseTargetNotificationConsumer,
+} from './infrastructure/inbox-notice-routes'
 import { registerGoalNotificationConsumer } from './infrastructure/goal-notice-routes'
 import { registerAiGuestVoiceSummaryNoticeConsumer } from './infrastructure/goal-notice-routes'
 import { registerAiUrgentReviewNoticeConsumer } from './infrastructure/goal-notice-routes'
 import { registerRatingGoalNoticeConsumer } from './infrastructure/goal-notice-routes'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './infrastructure/notification-settlement-outbox-consumers'
-import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
 import { createAccountAccessRemovalReader } from './infrastructure/repositories/account-access-removal.repository'
-import {
-  createNotificationGapRepository,
-  NOTIFICATION_GAP_GRACE_MS,
-  NOTIFICATION_GAP_LOOKBACK_MS,
-  NOTIFICATION_GAP_SCAN_LIMIT,
-} from './infrastructure/repositories/notification-gap.repository'
 import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'
 import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
 import type { LowRatingThreshold } from './domain/notification-low-ratings'
@@ -277,7 +273,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     clock: input.clock,
   })
   const accessRemovalReader = createAccountAccessRemovalReader(input.db)
-  const gapRepo = createNotificationGapRepository(input.db)
   const deliveryLagRepo = createNotificationDeliveryLagRepository(
     input.db,
     input.isEmailDeliveryAllowed,
@@ -379,18 +374,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     logger: input.logger,
   }
 
-  /**
-   * The window of Inbox items the missing-notification gauge judges: old
-   * enough to judge (past the grace edge) and recent enough to be news.
-   */
-  const gapWindow = () => {
-    const now = input.clock().getTime()
-    return {
-      createdAtOrAfter: new Date(now - NOTIFICATION_GAP_LOOKBACK_MS),
-      createdBefore: new Date(now - NOTIFICATION_GAP_GRACE_MS),
-    }
-  }
-
   const enqueueImmediateEmail = input.queue
     ? createImmediateEmailEnqueue(input.queue, 'notification:urgent-enqueue')
     : undefined
@@ -419,19 +402,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
      * subject from the session, never from the request body.
      */
     readAccountAccessRemoval: accessRemovalReader.findLatestForUser,
-
-    /**
-     * Feeds the `notification.missing_for_inbox_item` gauge. Exposed here
-     * because `src/shared/observability/health-metrics.ts` cannot import a
-     * context — the composition root injects this reader instead. PostgreSQL
-     * cancels a count that outlasts its statement timeout.
-     */
-    readMissingNotificationCount: (): Promise<number> =>
-      gapRepo.countItemsMissingNotifications({
-        ...gapWindow(),
-        scanLimit: NOTIFICATION_GAP_SCAN_LIMIT,
-        statementTimeoutMs: NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS,
-      }),
 
     /**
      * Payload-free evidence for durable-source→Redis and Redis→Postgres

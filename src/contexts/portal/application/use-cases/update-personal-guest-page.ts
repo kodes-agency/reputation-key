@@ -20,7 +20,7 @@ import {
   assertPropertyAllowsPublication,
   loadVerifiedGoogleReviewDestination,
 } from '../portal-publication-readiness'
-import type { CreatePortalCopiedContent } from '../ports/portal-command-store.port'
+import type { CreatePortalCopiedContent } from '../../publication/portal-command-store-port.server'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import {
   copiedPrintWording,

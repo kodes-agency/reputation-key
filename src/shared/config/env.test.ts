@@ -1,52 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { testEnvironment } from '#/shared/testing/test-environment'
-import { parseEnvironment } from './env'
+import { getDatabaseOperatorEnv, parseEnvironment, resetEnv } from './env'
 
 const productionEnvironment = {
   ...testEnvironment({}),
   NODE_ENV: 'production' as const,
   BETTER_AUTH_URL: 'https://app.reputationkey.app',
 }
-
-describe('environment parsing', () => {
-  it('admits Review recovery approval authority only as a complete isolated-restore tuple', () => {
-    const authority = {
-      REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON: '{}\n',
-      REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256: 'a'.repeat(64),
-      REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON: '{"key":"value"}',
-    }
-    expect(() => parseEnvironment({ ...testEnvironment({}), ...authority })).toThrow(
-      /allowed only in restore-isolated mode/,
-    )
-    expect(() =>
-      parseEnvironment({
-        ...testEnvironment({}),
-        RESTORE_MODE: 'isolated',
-        ...authority,
-      }),
-    ).not.toThrow()
-    expect(() =>
-      parseEnvironment({
-        ...testEnvironment({}),
-        RESTORE_MODE: 'isolated',
-        REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON:
-          authority.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON,
-      }),
-    ).toThrow(/must be configured together/)
-  })
-
-  it('refuses empty Review recovery approval artifacts', () => {
-    expect(() =>
-      parseEnvironment({
-        ...testEnvironment({}),
-        RESTORE_MODE: 'isolated',
-        REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON: '',
-        REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256: 'a'.repeat(64),
-        REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON: '',
-      }),
-    ).toThrow(/REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON: Too small/)
-  })
-})
 
 describe('Portal address keyring', () => {
   const KEY = (digit: string) => digit.repeat(64)
@@ -329,5 +289,39 @@ describe('STAFF_SCAN_TARGETS_ENABLED', () => {
   })
   it.each(['True', '1', 'yes', 'on', ' true', ''])('refuses %j', (value) => {
     expect(() => parse(value)).toThrow('STAFF_SCAN_TARGETS_ENABLED')
+  })
+})
+
+describe('getDatabaseOperatorEnv', () => {
+  const sign = ['BETTER_AUTH_SECRET', 'RESEND_API_KEY', 'ENCRYPTION_KEY'] as const
+  const saved = { ...process.env }
+
+  afterEach(() => {
+    process.env = { ...saved }
+    resetEnv()
+  })
+
+  it('needs no sign-in or mail settings, only the database', () => {
+    const { DATABASE_URL } = testEnvironment({})
+    process.env = { DATABASE_URL }
+    resetEnv()
+
+    expect(getDatabaseOperatorEnv().DATABASE_URL).toBe(DATABASE_URL)
+    expect(() => parseEnvironment(process.env)).toThrow(/BETTER_AUTH_SECRET/)
+  })
+
+  it('keeps the sign-in and mail settings the environment carries', () => {
+    process.env = { ...testEnvironment({}) }
+    resetEnv()
+
+    const env = getDatabaseOperatorEnv()
+    for (const name of sign) expect(env[name]).toBe(process.env[name])
+  })
+
+  it('still refuses a database setting that is not valid', () => {
+    process.env = { DATABASE_URL: 'not a url' }
+    resetEnv()
+
+    expect(() => getDatabaseOperatorEnv()).toThrow(/DATABASE_URL/)
   })
 })

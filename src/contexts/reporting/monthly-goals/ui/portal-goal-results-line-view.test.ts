@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalLineView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalLineView } from '#/contexts/reporting/monthly-goals/contracts'
 import { resultsLineWords } from './portal-goal-results-line-view'
 
 /** Nov 22 at Seaview: Reception's 13 of the month's 23 private ratings. */

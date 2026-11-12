@@ -6,7 +6,7 @@ import type {
   PortalGoalAddHeld,
   PortalGoalAddOffer,
   PortalGoalAddOptions,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { formatNumber } from '#/lib/format'
 import { goalMetricLabel } from '../../../../components/goals/goal-metric-label'
 import {

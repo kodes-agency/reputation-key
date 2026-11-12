@@ -3,7 +3,7 @@
 // including nullable provider-binding fields, deletion state, and branded ID casts.
 
 import { describe, it, expect } from 'vitest'
-import { propertyFromRow, propertyToRow } from './property.mapper'
+import { buildPropertySetClause, propertyFromRow, propertyToRow } from './property.mapper'
 import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../../domain/types'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 
@@ -220,5 +220,38 @@ describe('round-trip: propertyToRow → propertyFromRow', () => {
     expect(restored.updatedAt).toBe(original.updatedAt)
     expect(restored.deletedAt).toBe(original.deletedAt)
     expect(restored.lifecycleState).toBe(original.lifecycleState)
+  })
+})
+
+describe('buildPropertySetClause', () => {
+  const property = propertyFromRow(makePropertyRow())
+
+  it('sets the columns a patch names and leaves undefined ones out', () => {
+    expect(
+      buildPropertySetClause({ name: 'Renamed', slug: undefined, address: null }),
+    ).toEqual({ name: 'Renamed', address: null })
+  })
+
+  it('never sets identity, lifecycle or destination columns', () => {
+    expect(
+      buildPropertySetClause({
+        id: propertyId('other'),
+        organizationId: organizationId('org-2'),
+        lifecycleState: 'archived',
+        googleReviewDestination: property.googleReviewDestination,
+        googlePrimaryCategory: 'Hotel',
+        deletedAt: FIXED_TIME,
+        responsibleManagerRevision: 9,
+      }),
+    ).toEqual({})
+  })
+
+  it('writes every settable field of a full patch to the column the row writer uses', () => {
+    const row = propertyToRow(property)
+    const clause = buildPropertySetClause(property)
+    expect(Object.keys(clause).length).toBeGreaterThan(0)
+    for (const [column, value] of Object.entries(clause)) {
+      expect(value).toEqual((row as Record<string, unknown>)[column])
+    }
   })
 })

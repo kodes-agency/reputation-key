@@ -7,105 +7,27 @@ import type {
   GoalTargetSource,
 } from '../../domain/goal-program'
 import type { GoalMetricSourceHead } from './goal-metric-source-status.port'
+import type {
+  GoalMonthTargetChange,
+  GoalMonthTargetFollowingOutcome,
+  GoalMonthTargetFollowingReason,
+  GoalMonthlyResult,
+  GoalProgram,
+  GoalProgramBundle,
+  GoalProgramVersion,
+  GoalSubjectAssignment,
+} from '../../monthly-goals/contracts'
 
-export type GoalProgram = Readonly<{
-  id: string
-  organizationId: string
-  propertyId: string
-  name: string
-  description: string | null
-  status: GoalProgramStatus
-  statusReason: string | null
-  currentVersion: number
-  createdBy: string
-  createdAt: Date
-  updatedAt: Date
-  /**
-   * When the goal was ended (migration 0062). Absent for a goal that has not
-   * ended, and for one ended before 0062 or by an old web server, which
-   * recorded no time. A read names it only when one was stored.
-   */
-  endedAt?: Date
-  /** Who ended it (migration 0062), named only when stored, with `endedAt`. */
-  endedBy?: string
-  /**
-   * The `YYYY-MM` month whose month-start check-in a manager answered with
-   * Keep (migration 0062); named only when one was stored.
-   */
-  checkInAnsweredMonth?: string
-}>
-
-export type GoalProgramVersion = Readonly<{
-  id: string
-  programId: string
-  organizationId: string
-  propertyId: string
-  version: number
-  metricDefinitionId: string
-  metricDefinitionVersionId: string
-  metric: GoalMetric
-  metricMinimumSample: number
-  targetValue: number
-  propertyTimezone: string
-  effectiveFrom: Date
-  effectiveTo: Date | null
-  changeReason: string
-  createdBy: string
-  createdAt: Date
-  /**
-   * Where the version's number came from (migration 0062). Absent, or null,
-   * when the command that wrote it did not say: every version written before
-   * 0062, by an old web server, or by a command that does not ask. A version
-   * that keeps its head's number, as a subject change does, keeps its source.
-   * A read names it only when one was stored.
-   */
-  targetSource?: GoalTargetSource | null
-}>
-
-export type GoalSubjectAssignment = Readonly<{
-  id: string
-  programId: string
-  programVersionId: string
-  organizationId: string
-  propertyId: string
-  metric: GoalMetric
-  subject: GoalSubject
-  effectiveFrom: Date
-  effectiveTo: Date | null
-  createdBy: string
-  createdAt: Date
-}>
-
-export type GoalMonthlyResult = Readonly<{
-  id: string
-  assignmentId: string
-  programId: string
-  programVersionId: string
-  organizationId: string
-  propertyId: string
-  periodStart: Date
-  periodEnd: Date
-  propertyTimezone: string
-  status: GoalMonthlyResultStatus
-  /**
-   * This month's own target. Null means the month uses its version's target.
-   * Opening a month never sets it, and it is locked once the period ends.
-   */
-  targetValue: number | null
-  evaluation: GoalMetricEvaluation
-  sourceCompleteThrough: Date | null
-  evaluationWatermark: Date | null
-  closedAt: Date | null
-  createdAt: Date
-  updatedAt: Date
-  /** Present only when the immutable closed base is overlaid by a revision. */
-  revision?: Readonly<{
-    id: string
-    number: number
-    changeReason: string
-    createdAt: Date
-  }>
-}>
+export type {
+  GoalMonthTargetChange,
+  GoalMonthTargetFollowingOutcome,
+  GoalMonthTargetFollowingReason,
+  GoalMonthlyResult,
+  GoalProgram,
+  GoalProgramBundle,
+  GoalProgramVersion,
+  GoalSubjectAssignment,
+} from '../../monthly-goals/contracts'
 
 export type GoalResultRevision = Readonly<{
   id: string
@@ -145,77 +67,6 @@ export type FindClosedGoalResultIdsForMetricImpactInput = Readonly<{
   portalId: string | null
   portalGroupId: string | null
   eventAt: Date
-}>
-
-/**
- * What a change to a month's target did for the months after it:
- * - `applied`: they carry the new target, through a version this change wrote
- *   or because the plan for them already had it;
- * - `replaced_scheduled_change`: a change that was waiting for its month had
- *   the same measure and was replaced by one with the new target;
- * - `kept_scheduled_change`: a change that was waiting had another measure and
- *   was left as it was;
- * - `not_applied`: asked for, and not done; `followingReason` says why;
- * - `not_requested`: only the month was to change.
- */
-export type GoalMonthTargetFollowingOutcome =
-  | 'applied'
-  | 'replaced_scheduled_change'
-  | 'kept_scheduled_change'
-  | 'not_applied'
-  | 'not_requested'
-
-/** Why the months after a changed one did not take the new target. */
-export type GoalMonthTargetFollowingReason = 'subject_unavailable' | 'metric_unavailable'
-
-/**
- * One month's target, changed while the month ran: who, when, the old and the
- * new value and an optional note. A command writes one of these per month it
- * changed, all sharing `changeId`.
- */
-export type GoalMonthTargetChange = Readonly<{
-  id: string
-  organizationId: string
-  propertyId: string
-  programId: string
-  monthlyResultId: string
-  changeId: string
-  previousTargetValue: number
-  newTargetValue: number
-  followingOutcome: GoalMonthTargetFollowingOutcome
-  followingReason: GoalMonthTargetFollowingReason | null
-  /**
-   * The version this change wrote for the months after it; null when it wrote
-   * none. A later change can replace that version before its month begins, and
-   * the version then keeps an empty window.
-   */
-  followingVersionId: string | null
-  note: string | null
-  createdBy: string
-  createdAt: Date
-  /**
-   * Where the new number came from (migration 0062), as on a version: named
-   * by a read only when one was stored.
-   */
-  targetSource?: GoalTargetSource | null
-}>
-
-export type GoalProgramBundle = Readonly<{
-  program: GoalProgram
-  /** Current definition head; historical versions stay addressable by result pins. */
-  version: GoalProgramVersion
-  /** Versions needed by this read; `getHistory` retains the complete definition history. */
-  versions: readonly GoalProgramVersion[]
-  /** Current assignments and the latest assignment of each historical subject. */
-  assignments: readonly GoalSubjectAssignment[]
-  /** Recent months in summaries; complete months in an explicit history read. */
-  results: readonly GoalMonthlyResult[]
-  /** Target origin computed across versions without hydrating the ledger. */
-  targetProvenance?: Readonly<
-    Record<string, Readonly<{ setAt: Date; setBy: string; countsFrom: Date }>>
-  >
-  /** Target changes for the months included in this read, oldest first. */
-  targetChanges?: readonly GoalMonthTargetChange[]
 }>
 
 /**
@@ -353,27 +204,6 @@ export type GoalProgramRepository = Partial<GoalProgramCurrentReads> &
         month: string
       }>,
     ): Promise<boolean>
-    /**
-     * Set a Program's name and description in place; no version is written.
-     * `previousName` and `previousDescription` are what the command read. The
-     * update applies only while the Program still says both, so a rename never
-     * undoes another one it did not see, and the audit row names exactly what
-     * was replaced. Null when the Program does not exist for the tenant, has
-     * ended, or no longer has that name and description.
-     */
-    rename(
-      input: Readonly<{
-        organizationId: string
-        propertyId: string
-        programId: string
-        name: string
-        description: string | null
-        previousName: string
-        previousDescription: string | null
-        actorId: string
-        at: Date
-      }>,
-    ): Promise<GoalProgram | null>
     /**
      * Give the months of a Program that are running at `at` their own target, in
      * one transaction with the log of the change and, when `following.revision`

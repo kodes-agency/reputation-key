@@ -9,7 +9,7 @@ import {
   portalLookOverrides,
 } from '#/shared/db/schema'
 import type { Tx } from '#/shared/outbox/commit'
-import type { CreatePortalCopiedContent } from '../application/ports/portal-command-store.port'
+import type { CreatePortalCopiedContent } from '../publication/portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { categoryToRow, newLinkToRow } from './mappers/portal-link.mapper'
 import { upsertLinkTexts } from './portal-link-texts-store'

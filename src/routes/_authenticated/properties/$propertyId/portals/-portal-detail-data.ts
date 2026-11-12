@@ -1,12 +1,7 @@
 import type { TenantScope } from '#/shared/queries/tenant-scope'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { notFound } from '@tanstack/react-router'
-import {
-  queryOptions,
-  useQueries,
-  useSuspenseQuery,
-  type QueryClient,
-} from '@tanstack/react-query'
+import { queryOptions, useQueries, type QueryClient } from '@tanstack/react-query'
 import {
   getPropertyPortalExperience,
   getPortal,
@@ -20,7 +15,7 @@ import { getPortalLanguageCoverage } from '#/contexts/portal/server/portal-langu
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import { portalKeys } from '#/shared/queries/query-keys'
-import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
+import { membersQuery } from '#/routes/-queries/route-queries'
 import type {
   Portal,
   PortalTokenStatus,
@@ -157,11 +152,7 @@ export const portalShareQueries = (scope: TenantScope, portalId: string) =>
 export const portalHistoryQueries = (portalId: string) =>
   [portalPublicationHistoryQuery(portalId)] as const
 
-export const portalPageQueries = (
-  scope: TenantScope,
-  propertyId: string,
-  portalId: string,
-) =>
+const portalPageQueries = (scope: TenantScope, propertyId: string, portalId: string) =>
   [
     portalLinksQuery(portalId),
     portalLanguageCoverageQuery(propertyId, portalId),
@@ -173,13 +164,12 @@ export const portalPageQueries = (
     portalApprovedDestinationsQuery(portalId),
   ] as const
 
-/** The Page tab owns its editor resources; other tabs read only their own data. */
-export function usePortalDetailData(propertyId: string, portalId: string) {
-  const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
-  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const queries = useQueries({
-    queries: portalPageQueries(useTenantScope(), propertyId, portalId),
-  })
+/**
+ * The Page tab's editor reads. Each starts on its own and answers on its own:
+ * the editor opens on the portal and property alone, and a section waits only
+ * for the reads it shows.
+ */
+export function usePortalPageReads(propertyId: string, portalId: string) {
   const [
     links,
     languages,
@@ -190,30 +180,26 @@ export function usePortalDetailData(propertyId: string, portalId: string) {
     history,
     experience,
     destinations,
-  ] = queries
-  const data =
-    links.data &&
-    languages.data &&
-    tree.data &&
-    groups.data &&
-    managers.data &&
-    members.data &&
-    history.data &&
-    experience.data &&
-    destinations.data
-      ? {
-          portalData,
-          propData,
-          linksData: links.data,
-          languageCoverage: languages.data,
-          linktree: tree.data,
-          groupsData: groups.data,
-          responsibleManagers: managers.data,
-          membersData: members.data,
-          publicationHistory: history.data,
-          portalExperience: experience.data,
-          approvedDestinations: destinations.data,
-        }
-      : null
-  return { data, queries }
+  ] = useQueries({ queries: portalPageQueries(useTenantScope(), propertyId, portalId) })
+  return {
+    links: links.data?.links,
+    languageCoverage: languages.data,
+    linktree: tree.data,
+    portalGroups: groups.data?.groups,
+    responsibleManagers: managers.data,
+    responsibleManagerMembers: members.data?.members,
+    publicationHistory: history.data,
+    portalExperience: experience.data,
+    approvedDestinations: destinations.data,
+    reads: {
+      languageCoverage: languages,
+      linktree: tree,
+      portalGroups: groups,
+      responsibleManagers: managers,
+      responsibleManagerMembers: members,
+      publicationHistory: history,
+      portalExperience: experience,
+      approvedDestinations: destinations,
+    },
+  }
 }

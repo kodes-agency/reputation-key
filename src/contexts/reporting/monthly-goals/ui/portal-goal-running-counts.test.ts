@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalRows } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalRows } from '#/contexts/reporting/monthly-goals/contracts'
 import { portalCountsWords } from './portal-goal-running-view'
 
 describe('what each portal brought in, in words', () => {

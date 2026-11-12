@@ -2,7 +2,7 @@
 // Full pattern: authorize → find → atomically archive + record fact → return
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
-import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import type { PortalCommandStore } from '../../publication/portal-command-store-port.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'

@@ -6,7 +6,7 @@ import type {
   PortalGoalCheckIn as Asking,
   PortalGoalOfCard,
   PortalGoalRunningMonth,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { CardContent } from '#/components/ui/card'
 import { usePermissions } from '#/shared/hooks/usePermissions'

@@ -1,18 +1,14 @@
-import { PortalResultsScreen } from '#/contexts/reporting/portal-results/ui/portal-results-screen'
 import { useQueries, useSuspenseQuery } from '@tanstack/react-query'
-import { hasFailed } from '#/components/hooks/is-retrying'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { propertyQuery } from '#/routes/-queries/route-queries'
-import { PortalWorkspaceBodyFrame } from '#/components/features/portal/portal-workspace/portal-workspace-body-frame'
 import { usePortalLinkIssuance } from '#/components/features/portal/portal-workspace/portal-link-issuance'
-import {
-  SharePanel,
-  HistoryPanel,
-} from '#/components/features/portal/portal-detail/portal-detail-tab-panel'
-import { PortalUnsavedChangesPrompt } from '#/components/features/portal/portal-detail/portal-unsaved-changes-prompt'
-import { derivePortalDetailView } from '#/components/features/portal/portal-detail/portal-detail-rules'
-import { PortalReadState } from '#/components/features/portal/portal-detail/portal-read-state'
+import { PortalShareSection } from '#/contexts/portal/workspace/ui/portal-share-section'
+import { PortalHistorySection } from '#/contexts/portal/workspace/ui/portal-history-section'
+import { PortalResultsScreen } from '#/contexts/reporting/portal-results/ui/portal-results-screen'
+import { PortalWorkspaceBodyFrame } from '#/components/features/portal/portal-workspace/portal-workspace-body-frame'
+import { PortalUnsavedChangesPrompt } from '#/contexts/portal/workspace/ui/portal-unsaved-changes-prompt'
+import { derivePortalDetailView } from '#/contexts/portal/workspace/ui/portal-detail-rules'
 import { portalResultsFns } from '../-portal-results-fns'
 // The workspace's editor: one tab's content beneath the layout's header and tab
 // strip. The tab and the Page tab's section come from the layout route's search
@@ -28,10 +24,10 @@ import {
 import { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
 import { getPortalPrintKit } from '#/contexts/portal/server/portal-print-kit'
-import { PortalDetailPage } from '#/components/features/portal/portal-detail/portal-detail-page'
+import { PortalEditor } from '#/contexts/portal/editor/ui/portal-editor'
 import { usePortalDetailActions } from '../-portal-detail-actions'
 import {
-  usePortalDetailData,
+  usePortalPageReads,
   portalQuery,
   portalShareQueries,
   portalHistoryQueries,
@@ -59,11 +55,12 @@ function PortalWorkspaceEditor() {
   const { tab } = Route.useSearch()
   const { has } = useCapabilities()
   const view = derivePortalDetailView(tab, has('dashboard.use'))
-  if (view.tab === 'page') return <PortalPageTab actions={actions} />
   return (
     <>
       <PortalUnsavedChangesPrompt />
-      {view.tab === 'share' ? (
+      {view.tab === 'page' ? (
+        <PortalPageTab actions={actions} />
+      ) : view.tab === 'share' ? (
         <PortalShareTab actions={actions} />
       ) : view.tab === 'history' ? (
         <PortalHistoryTab actions={actions} />
@@ -95,49 +92,44 @@ type PortalTabActions = Readonly<{
 function PortalShareTab({ actions }: PortalTabActions) {
   const { portalId, portal, tokenStatus, property } = useWorkspaceResources()
   const issuance = usePortalLinkIssuance()
-  const queries = useQueries({ queries: portalShareQueries(useTenantScope(), portalId) })
-  const [managers, members] = queries
-  if (
-    queries.some((query) => query.data === undefined && hasFailed(query)) ||
-    !managers.data ||
-    !members.data
-  ) {
-    return <PortalReadState queries={queries} label="sharing details" />
-  }
+  const [managers, members] = useQueries({
+    queries: portalShareQueries(useTenantScope(), portalId),
+  })
   return (
-    <SharePanel
+    <PortalShareSection
       portal={portal}
       tokenStatus={tokenStatus}
-      propertyTimeZone={property.timezone}
-      propertyCountryCode={property.countryCode ?? null}
-      responsibleManagers={managers.data}
-      responsibleManagerMembers={members.data.members}
-      issueTokenMutation={actions.issueToken}
-      rotateTokenMutation={actions.rotateToken}
-      revokeTokenMutation={actions.revokeToken}
-      revealAddressMutation={actions.revealAddress}
-      getPortalPrintKit={getPortalPrintKit}
-      downloadPrintFinalMutation={actions.downloadPrintFinal}
-      savePrintWordingMutation={actions.savePrintWording}
-      {...issuance}
+      property={{
+        timeZone: property.timezone,
+        countryCode: property.countryCode ?? null,
+      }}
+      reads={{ managers, members }}
+      commands={{
+        issueToken: actions.issueToken,
+        rotateToken: actions.rotateToken,
+        revokeToken: actions.revokeToken,
+        revealAddress: actions.revealAddress,
+        printKit: {
+          read: getPortalPrintKit,
+          downloadFinal: actions.downloadPrintFinal,
+          saveWording: actions.savePrintWording,
+        },
+      }}
+      issuance={issuance}
     />
   )
 }
 
 function PortalHistoryTab({ actions }: PortalTabActions) {
   const { portalId, portal, property } = useWorkspaceResources()
-  const queries = useQueries({ queries: portalHistoryQueries(portalId) })
-  const history = queries[0].data
-  if (queries.some((query) => query.data === undefined && hasFailed(query)) || !history) {
-    return <PortalReadState queries={queries} label="publication history" />
-  }
+  const [history] = useQueries({ queries: portalHistoryQueries(portalId) })
   return (
-    <HistoryPanel
+    <PortalHistorySection
       portal={portal}
-      propertyTimeZone={property.timezone}
-      publicationHistory={history}
-      historyReads={HISTORY_READS}
-      makeVersionLiveMutation={actions.makeVersionLive}
+      timeZone={property.timezone}
+      history={history}
+      reads={HISTORY_READS}
+      makeLive={actions.makeVersionLive}
     />
   )
 }
@@ -160,59 +152,30 @@ function PortalResultsTab() {
 }
 
 function PortalPageTab({ actions }: PortalTabActions) {
-  const { propertyId, portalId } = Route.useParams()
+  const { propertyId, portal, property } = useWorkspaceResources()
   const { section } = Route.useSearch()
-  const { data, queries } = usePortalDetailData(propertyId, portalId)
-  const ctx = Route.useRouteContext()
-  if (queries.some((query) => query.data === undefined && hasFailed(query)) || !data)
-    return <PortalReadState queries={queries} label="page settings" />
-  const { portal, tokenStatus } = data.portalData
-  const { links } = data.linksData
-  const { property } = data.propData
-  if (!portal) throw notFound()
-
+  const pageReads = usePortalPageReads(propertyId, portal.id)
   return (
-    <PortalDetailPage
+    <PortalEditor
       key={portal.id}
-      portal={portal}
-      tokenStatus={tokenStatus}
-      propertyId={propertyId}
-      googleReviewDestination={{
-        state: property.googleReviewDestination?.state ?? 'unavailable',
-        retrievedAt: property.googleReviewDestination?.retrievedAt ?? null,
+      requestedSection={section}
+      resources={{
+        ...pageReads,
+        portal,
+        propertyId,
+        googleReviewDestination: {
+          state: property.googleReviewDestination?.state ?? 'unavailable',
+          retrievedAt: property.googleReviewDestination?.retrievedAt ?? null,
+        },
+        autosaveUpdateMutation: actions.autosaveUpdate,
+        changeLanguagesMutation: actions.changeLanguages,
+        completeReviewMutation: actions.completeReview,
+        getPortalLinkTaps: portalResultsFns.getLinkTaps,
+        getPortalPreview,
+        updateResponsibleManagersMutation: actions.updateResponsibleManagers,
+        portalExperienceActions: actions.experience,
+        portalLookActions: actions.look,
       }}
-      publicationHistory={data.publicationHistory}
-      historyReads={HISTORY_READS}
-      makeVersionLiveMutation={actions.makeVersionLive}
-      propertyTimeZone={property.timezone}
-      propertyCountryCode={property.countryCode ?? null}
-      links={links}
-      languageCoverage={data.languageCoverage}
-      linktree={data.linktree}
-      activeTab="page"
-      activeSection={section}
-      autosaveUpdateMutation={actions.autosaveUpdate}
-      changeLanguagesMutation={actions.changeLanguages}
-      portalGroups={data.groupsData.groups}
-      organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}
-      issueTokenMutation={actions.issueToken}
-      rotateTokenMutation={actions.rotateToken}
-      revokeTokenMutation={actions.revokeToken}
-      revealAddressMutation={actions.revealAddress}
-      getPortalPrintKit={getPortalPrintKit}
-      downloadPrintFinalMutation={actions.downloadPrintFinal}
-      savePrintWordingMutation={actions.savePrintWording}
-      getPortalAnalytics={getPortalAnalyticsFn}
-      getPortalLinkTaps={portalResultsFns.getLinkTaps}
-      getPortalPreview={getPortalPreview}
-      completeReviewMutation={actions.completeReview}
-      responsibleManagers={data.responsibleManagers}
-      responsibleManagerMembers={data.membersData.members}
-      updateResponsibleManagersMutation={actions.updateResponsibleManagers}
-      portalExperience={data.portalExperience}
-      approvedDestinations={data.approvedDestinations}
-      portalExperienceActions={actions.experience}
-      portalLookActions={actions.look}
     />
   )
 }

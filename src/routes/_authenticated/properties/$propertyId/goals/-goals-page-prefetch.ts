@@ -18,7 +18,7 @@ export async function prefetchGoalsPage(
       ? Promise.all([
           prefetchPortalGoalSection(queryClient, propertyId),
           // The section's door to "Add a portal goal" is drawn only when it
-          // offers something (PLAN PG-20), so it is read with the card.
+          // offers something, so it is read with the card.
           prefetchPortalGoalAdd(queryClient, propertyId),
         ])
       : Promise.resolve(),

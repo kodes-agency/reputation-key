@@ -447,6 +447,48 @@ describe('generate reply suggestion', () => {
     },
   )
 
+  // Admission re-reads the source and the consent in the transaction that
+  // reserves the budget. Its refusal reaches the caller as the same verdict
+  // the check after a response gives, never as a provider outage.
+  it.each(['source_revision_changed', 'capability_epoch_changed'] as const)(
+    'answers an admission refusal (%s) with the currentness verdict',
+    async (gatewayErrorCode) => {
+      const harness = await createHarness({
+        gatewayErrorCode,
+        brandProfileAfterProvider: {
+          displayName: 'Example Hotel Sofia',
+          version: 8,
+          displayNameDigest: 'b'.repeat(64),
+        },
+      })
+
+      await expect(harness.generate(INPUT)).resolves.toEqual({
+        status: 'unavailable',
+        code: 'brand_profile_changed',
+        retryAfterEpochMillis: null,
+      })
+      expect(harness.mocks.recordFailure).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ failureCode: gatewayErrorCode, expectedAttempt: 1 }),
+      )
+      expect(harness.mocks.settleEphemeralReply).not.toHaveBeenCalled()
+      expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['source_revision_changed', 'capability_epoch_changed'] as const)(
+    'answers an admission refusal (%s) as a changed source when the reads still agree',
+    async (gatewayErrorCode) => {
+      const harness = await createHarness({ gatewayErrorCode })
+
+      await expect(harness.generate(INPUT)).resolves.toEqual({
+        status: 'unavailable',
+        code: 'source_changed',
+        retryAfterEpochMillis: null,
+      })
+      expect(harness.mocks.settleEphemeralReply).not.toHaveBeenCalled()
+    },
+  )
+
   it('waits briefly for an interactive slot that frees within the request', async () => {
     const sleep = vi.fn(async () => {})
     const harness = await createHarness({ admissionBusyOnceUntil: NOW + 1_500, sleep })

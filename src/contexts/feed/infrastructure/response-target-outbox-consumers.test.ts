@@ -12,11 +12,11 @@ import type {
   InboxItemFacts,
   ResponseTargetReminderNotificationFacts,
 } from '../application/ports/notification-inbox-item-lookup.port'
+import { registerResponseTargetNotificationConsumer } from './inbox-notice-routes'
 import {
   handleNotificationResponseTargetReminder,
   ON_INBOX_RESPONSE_TARGET_REMINDER_DUE_CONSUMER,
-  registerResponseTargetNotificationConsumer,
-} from './response-target-outbox-consumers'
+} from '../notify/inbox.server'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()

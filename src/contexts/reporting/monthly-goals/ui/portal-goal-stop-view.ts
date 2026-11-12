@@ -5,7 +5,7 @@
 import type {
   PortalGoalLastMonth,
   PortalGoalOfCard,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import type { GoalRefusalSentences } from '../../../../components/goals/goal-refusal'
 import {
   PORTAL_GOAL_ALREADY_STOPPED,

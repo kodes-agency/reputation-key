@@ -18,7 +18,7 @@ import { createJobQueue } from '../../src/shared/jobs/queue'
 import { jobEnqueueOptions } from '../../src/shared/jobs/job-policy'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { exitIfHelp } from './command-help'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand } from './operator-command'
 
 const TARGETS = {
   reviews: { jobName: 'refresh-expiring-reviews', capability: 'review.use' },
@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   if (!target || !(target in TARGETS)) usage()
   const { jobName, capability } = TARGETS[target as Target]
 
-  const result = await runOperatorCommand(
+  const result = await runDatabaseOperatorCommand(
     {
       name: 'ops:refresh',
       scope: 'global',

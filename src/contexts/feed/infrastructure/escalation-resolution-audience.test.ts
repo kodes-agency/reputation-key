@@ -8,7 +8,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { inboxItemId, propertyId, userId, type UserId } from '#/shared/domain/ids'
 import type { InboxItemFacts } from '../application/ports/notification-inbox-item-lookup.port'
-import { handleNotificationInboxEscalationResolved } from './escalation-resolution-outbox-consumers'
+import { handleNotificationInboxEscalationResolved } from '../notify/inbox.server'
 
 const ORG = 'organization-resolution-audience'
 const ITEM = inboxItemId('93000000-0000-4000-8000-000000000002')

@@ -2,7 +2,7 @@
 // sent, and a number counts as recommended only while unchanged. Preserve per-row
 // failures when a batch partially succeeds.
 
-import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
+import type { PortalGoalAddOptions } from '#/contexts/reporting/monthly-goals/contracts'
 import { formatNumber } from '#/lib/format'
 import { subjectRow } from './portal-goal-add-view'
 import { stepsFrom } from './portal-goal-sheet-view'

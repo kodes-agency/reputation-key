@@ -3,7 +3,7 @@ import { ResponsibleManagersPanel } from '#/components/features/responsible-mana
 import type {
   PortalResponsibleManagerState,
   ResponsibleManagerMember,
-} from '../portal-detail/portal-detail-types'
+} from '#/contexts/portal/workspace/ui/portal-detail-types'
 
 type UpdateInput = Readonly<{
   data: {

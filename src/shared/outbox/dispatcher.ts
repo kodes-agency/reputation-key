@@ -35,7 +35,10 @@ import type { ConsumerRegistration, ConsumerRegistry } from './consumer-registry
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
-import { gateDispatcherConsumer } from '#/shared/jobs/delayed-execution-gate'
+import {
+  gateDispatcherConsumer,
+  withConsumerScope,
+} from '#/shared/jobs/delayed-execution-gate'
 import { durableConsumersFor } from '#/shared/governance/event-job-catalogue'
 import { runWithContext } from '#/shared/observability/request-context'
 
@@ -120,10 +123,16 @@ async function invokeConsumer(
     // Invoke the consumer handler. The handler records its own receipt, with
     // its state change or after an effect that is safe to repeat; nothing
     // below records one for it (ConsumerRegistration.handler states the rule).
-    const result = await runWithContext(eventId, () => consumer.handler(event), {
-      causationId: event.eventId,
-      ...(typeof event.commandId === 'string' ? { commandId: event.commandId } : {}),
-    })
+    const result = await withConsumerScope(
+      consumer.consumerName,
+      consumer.module,
+      event,
+      () =>
+        runWithContext(eventId, () => consumer.handler(event), {
+          causationId: event.eventId,
+          ...(typeof event.commandId === 'string' ? { commandId: event.commandId } : {}),
+        }),
+    )
 
     logger.debug(
       { correlationId, consumerName: consumer.consumerName, status: result.status },

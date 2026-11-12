@@ -9,8 +9,8 @@ const ROOT = process.cwd()
 // The Monthly portal goal's server functions stay out of first paint only while
 // nothing imports their module statically: a server-function module that two
 // entries share is grouped with the stubs first paint loads (vite.config.ts,
-// `app-server-fns`), and a shared module reached statically is in the closure
-// (PLAN §0.2, §3.3). Its one way in is its own `import()` in the Goals route's
+// `app-server-fns`), and a shared module reached statically is in the closure.
+// Its one way in is its own `import()` in the Goals route's
 // queries module.
 describe('the Monthly portal goal server functions', () => {
   /** The module, without its extension, from the repository root. */

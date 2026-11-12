@@ -58,5 +58,3 @@ export const getPortalPrintKit =
       ...(portal.kind === 'personal' ? { personal: true } : {}),
     }
   }
-
-export type GetPortalPrintKit = ReturnType<typeof getPortalPrintKit>

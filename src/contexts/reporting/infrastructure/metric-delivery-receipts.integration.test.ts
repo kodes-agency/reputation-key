@@ -1,6 +1,7 @@
 // A delivered fact that yields no reading still settles its delivery in the
 // same PostgreSQL command. Replay must not duplicate the receipt or reading.
 
+import { metricRegistry } from '../readings/contracts'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -19,7 +20,6 @@ import { recordMetric, recordMetrics } from '../application/use-cases/record-met
 import type { GovernedMetricVersion } from '../readings/contracts'
 import { createAtomicMetricCommandStore } from '../readings/metric-command-store.server'
 import { onScanRecordedDurably } from '../readings/record-portal-metric.server'
-import { createMetricRegistryRepository } from './repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from './repositories/property-local-date'
 
 const db = getDb()
@@ -248,7 +248,7 @@ describe.sequential('Metric delivery receipts (integration)', () => {
     await onScanRecordedDurably({
       recordMetrics: recordMetrics({
         commandStore: createAtomicMetricCommandStore(db, randomUUID),
-        registry: createMetricRegistryRepository(),
+        registry: metricRegistry,
         clock: () => NOW,
         idGen: () => metricReadingId(randomUUID()),
         resolvePropertyLocalDate: createPropertyLocalDateResolver(db),

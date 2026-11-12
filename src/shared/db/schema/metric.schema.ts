@@ -101,21 +101,23 @@ export const metricReadings = pgTable(
       t.occurredAt,
     ),
     index('metric_readings_org_group_idx').on(t.organizationId, t.groupId),
-    // metric_readings_property_idx / _portal_only_idx / _group_only_idx
-    // (database-04) are intentionally absent here: propertyId/portalId/groupId
-    // each carry a single-column FK whose cascade/set-null check is a bare
-    // `WHERE <column> = $1` with no organization_id predicate available, so
-    // none of the organization_id-prefixed indexes above can serve it. This
-    // table is expected to be the largest, fastest-growing in the system, so
-    // these are built by src/shared/db/concurrent-index-sidecar.ts with
-    // CREATE INDEX CONCURRENTLY instead of the transactional migrator, and
-    // registered as DB-only constructs in
-    // src/shared/db/schema/db-only-constructs.ts.
+    // propertyId/portalId/groupId each carry a single-column FK whose
+    // cascade/set-null check is a bare `WHERE <column> = $1` with no
+    // organization_id predicate available, so none of the organization_id-
+    // prefixed indexes above can serve it.
+    index('metric_readings_property_idx').on(t.propertyId),
+    index('metric_readings_portal_only_idx').on(t.portalId),
+    index('metric_readings_group_only_idx').on(t.groupId),
     index('metric_readings_recorded_at_idx').on(t.occurredAt),
     index('metric_readings_version_event_idx').on(t.definitionVersionId, t.eventAt),
-    // metric_readings_org_prop_version_event_idx is also sidecar-owned:
-    // tenant/Property/version event-time scans need a concurrent build on
-    // this continuously written table. See ../concurrent-index-registry.ts.
+    // Governed period reads constrain tenant, Property and metric version
+    // before scanning event time; recorded_at does not bound late arrivals.
+    index('metric_readings_org_prop_version_event_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.definitionVersionId,
+      t.eventAt,
+    ),
     check(
       'metric_readings_attribution_quality_check',
       sql`${t.attributionQuality} IS NULL OR ${t.attributionQuality} IN ('exact', 'current_state_backfill', 'unresolved')`,
