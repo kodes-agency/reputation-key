@@ -275,8 +275,7 @@ function railEntries(
  * `px-3`, so its words start on the content column like every event sentence;
  * the hover fill then reaches back into the 12 px gap, as the canvas draws it.
  * `h-8` sits on the 32 px band an event's first line centres on. Below `md` it
- * takes the Inbox's compact 36 px from the Button (row 20's control height on
- * the phone sheet).
+ * takes the Button's 44 px touch height.
  */
 function EarlierEventsNode({
   count,

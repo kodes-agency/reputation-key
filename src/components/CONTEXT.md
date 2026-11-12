@@ -50,13 +50,14 @@ and actions supply server state.
   on screen, its button busy, while the retry reads: key the panel on
   `hasFailed(query)` and pass `retrying` (`isRetrying(query)`) from
   `hooks/is-retrying`, because a query with no data drops its error and goes
-  `pending` the moment it refetches. A dense workspace (the Inbox) passes
-  `data-density="compact"` on its container (36px on a phone, not the 44px target).
+  `pending` the moment it refetches. The top bar passes
+  `data-density="compact"` on its container (36px on a phone, not the 44px target);
+  the Inbox does not, so its controls are the 44px target on a phone.
   The bell's could-not-load body is plain markup on purpose: it sits in the
   first-paint closure.
   A control's height is not spelled by the caller. `Button`, `Input`,
   `SelectTrigger` and the menu items are 44px below `md` (the `--control-touch`
-  token) and keep their desktop height from `md`; a dense workspace (the Inbox, the
+  token) and keep their desktop height from `md`; a dense bar (the
   top bar) sets `data-density="compact"` on its container and the same controls
   are 36px there. A menu, sheet or dialog that portals out of the container says
   `data-density="compact"` itself. A small button that must stay a tap target on a
@@ -170,7 +171,7 @@ and actions supply server state.
   not exist. An empty result offers the same control (`variant="outline"`), and a list
   with no match for a search or a filter always does. A removed choice is a
   `RemovableChip` (one button named "Remove ...", a 32px pill from `md` and a tap
-  target below it: 44px in a form, 36px in the compact Inbox), never a Badge with a
+  target below it: 44px in a form and in the Inbox), never a Badge with a
   button in it. The field's own X is a tap target on a phone too. `SortDirection` lives in `ui/list-sort.ts` and the direction labels are the
   list's. Review catches a hand-built search input, a second
   Clear wording, a filter or sort glyph of its own and a second `SortDirection`. Where a
@@ -308,7 +309,7 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   focus moves to Upload), so the mutations behind it pass no `errorMessage` and only
   say what succeeded. The Property look logo is the exception: it crops, sets a focal
   point and checks a light version, so it keeps its dialog. Review catches a second image field. One `ConnectGoogleButton`
-  (`features/integration/connect-google-button`) starts every Google authorization:
+  (`contexts/integration/connections/ui/connect-google-button`) starts every Google authorization:
   "Connect Google" (`label="Connect another account"` where an account is already
   connected, `request` and `label` for Reauthorize and Show account email), the one
   glyph for adding an account, a spinner on the Button with its label kept, and a
@@ -489,7 +490,7 @@ An ordinary action in the same file still uses `Button` or `IconButton`.
 <!-- prettier-ignore -->
 | Family | Import | Use it for | Variants | Differs on purpose | Guard |
 | --- | --- | --- | --- | --- | --- |
-| Button | `Button` from `#/components/ui/button`<br>`SubmitButton` from `#/components/forms/submit-button` | Every action. `pending` and `pendingLabel` own the spinner; the density (44px below `md`) is the primitive's | `variant` (including `scope-label` with `size="inline"` for a compact scope picker), `size`, `touch`, `wrap`, `iconBelow`; lazy `RowButton` / `SummaryButton` from `ui/button-layouts` for multiline evidence rows and a stable copy pill; `data-density="compact"` on a container | The Inbox and the top bar are compact (36px on a phone) | Review |
+| Button | `Button` from `#/components/ui/button`<br>`SubmitButton` from `#/components/forms/submit-button` | Every action. `pending` and `pendingLabel` own the spinner; the density (44px below `md`) is the primitive's | `variant` (including `scope-label` with `size="inline"` for a compact scope picker), `size`, `touch`, `wrap`, `iconBelow`; lazy `RowButton` / `SummaryButton` from `ui/button-layouts` for multiline evidence rows and a stable copy pill; `data-density="compact"` on a container (the top bar) | The top bar is compact (36px on a phone); the Inbox is not | Review |
 | Add action | `AddAction`, `AddActionLink` from `#/components/ui/add-action` | The control that adds a thing to a list: the Plus, then a sentence-case label, in the default Button. It sits in the header's `actions`; a card or a tab that owns a list may carry its own | `AddAction` opens a dialog or a menu or runs a command, `AddActionLink` goes to a page; `size` `default`, `sm` (in a card header) | Portals repeats "New portal" in a fixed bar at the foot of a phone (`PortalPhoneNewPortalBar`); Add staff sits above its table | Review |
 | Icon-only control and link in text | `IconButton` from `#/components/ui/icon-button`<br>`InlineLink` from `#/components/ui/inline-link` | A control with no visible label (a required `label`, which is its name and its tooltip); a link set in a sentence | `tooltip`; `TouchInlineLink` from `ui/inline-touch-link` for a standalone touch target; `focus-ring` for a control that is not a Button | A control that opens a menu or popover shows no tooltip | Review |
 | Confirmation | `ConfirmationDialog`, `ConfirmationTrigger` from `#/components/ui/confirmation-dialog` | Every confirmation. It stays open and pending until `onConfirm` settles, then says a refusal once | `tone`: `destructive` (cannot be undone, or loses data), `neutral` (reversible) | Inbox Reject is inline (it needs a reason); a draft language, an unsent reply draft and one notification skip it | Review |
@@ -503,7 +504,7 @@ An ordinary action in the same file still uses `Button` or `IconButton`.
 | Save group | `FormActions` from `#/components/forms/form-actions` | The one row an explicit-save group saves from: Reset (only while dirty), Save last, right-aligned | `form`, or `dirty` and `onReset`; `leading` | A dialog or a bounded task keeps Cancel; a settings group has none | Review |
 | Fields | `FormTextField` from `#/components/forms/form-text-field`<br>`FormTextarea` from `#/components/forms/form-textarea`<br>`FormNumberField` from `#/components/forms/form-number-field`<br>`FormFieldFrame` from `#/components/forms/form-field-frame`<br>`FormSelectField` from `#/components/forms/form-select-field` | A labelled control with `description`, `optional` and its error | | The Property look keeps its label-left rows | (field anatomy, no "(optional)"),  (no native control) |
 | Switches, inherited values, consent | `SettingSwitchRow` from `#/components/forms/setting-switch-row`<br>`InheritedSetting` from `#/components/forms/inherited-setting`<br>`ConsentCheckbox` from `#/components/forms/consent-checkbox`<br>`RatingThresholdField` from `#/components/forms/rating-threshold-field` | A boolean setting; "follow the parent or set my own"; a statement the person agrees to; "how low a rating" | `commit`: `immediate`, `deferred` | A `Checkbox` stays for choosing several things from a list | Review |
-| Image and Google | `ImageSetting` from `#/components/forms/image-setting`<br>`ConnectGoogleButton` from `#/components/features/integration/connect-google-button` | An avatar or a logo; every Google authorization | `label`, `request` | The Property look logo keeps its crop and focal-point dialog | Review |
+| Image and Google | `ImageSetting` from `#/components/forms/image-setting`<br>`ConnectGoogleButton` from `#/contexts/integration/connections/ui/connect-google-button` | An avatar or a logo; every Google authorization | `label`, `request` | The Property look logo keeps its crop and focal-point dialog | Review |
 | Section titles | `CardTitle` from `#/components/ui/card`<br>`SectionTitle` from `#/components/ui/section-title` | The title of a section: `CardTitle as="h2"` in a Card, `SectionTitle` outside one | `level` 2 or 3; `StrongSectionTitle` from `ui/section-title-strong` for evidence sections | | Review |
 
 ### Tokens, links, text and copy

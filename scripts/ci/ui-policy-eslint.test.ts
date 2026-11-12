@@ -31,7 +31,7 @@ describe('retained UI lint policies', () => {
   })
 
   it.each([
-    'src/components/features/beta-feedback/beta-feedback-choice.tsx',
+    'src/contexts/identity/feedback/ui/beta-feedback-choice.tsx',
     'src/contexts/portal/look/ui/focal-point-picker.tsx',
   ])(
     'still rejects an ordinary raw action beside a bespoke picker in %s',

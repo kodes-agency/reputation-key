@@ -9,7 +9,7 @@
 //
 // Most such runs are lost, not broken. A guest who posts while a run is
 // reading (or Google hiding or restoring a review then) moves the listing,
-// and the next run reads one that holds still. The listing moves in four ways:
+// and the next run reads one that holds still. The listing moves in five ways:
 //
 // - the confirmation finds a different set than the main scan did
 //   (`confirmation_set_changed`, the first to be made quiet, 2026-10-19: the
@@ -24,7 +24,11 @@
 //   stored as `duplicate_resource` when loud): Google lists newest-updated
 //   first by default, so a review posted or edited mid-scan shifts every
 //   later page by one. The confirmation scan's twin of it was already
-//   `confirmation_set_changed`.
+//   `confirmation_set_changed`;
+// - a review is edited while the run lists it (`review_edited`, stored as
+//   `review_mutation` when loud): a head check or a push stored the newer
+//   revision after the run began, so the run's own, older sighting of it is
+//   behind the stored one.
 //
 // Such a run now ends as `listing_changed`: the sync job starts a fresh run at
 // once and records no failure. None of them gets as far as its apply step, so
@@ -64,22 +68,30 @@ export const LISTING_CHANGE_QUIET_RUNS = 2
 
 /**
  * What a failing step asks the store to record when the listing moved under
- * it. All but `page_overlap` are failure codes already; `page_overlap` is the
- * main-scan twin of `confirmation_set_changed` (a review seen on two pages of
- * one scan), which the store records as `duplicate_resource` when loud so that
- * the stored codes stay the closed list Sentry tags and alerts know.
+ * it. All but `page_overlap` and `review_edited` are failure codes already;
+ * `page_overlap` is the main-scan twin of `confirmation_set_changed` (a review
+ * seen on two pages of one scan), which the store records as
+ * `duplicate_resource` when loud, and `review_edited` is recorded as
+ * `review_mutation` when loud, so that the stored codes stay the closed list
+ * Sentry tags and alerts know.
  */
 export type ListingMoveRequest =
-  'confirmation_set_changed' | 'total_changed' | 'average_changed' | 'page_overlap'
+  | 'confirmation_set_changed'
+  | 'total_changed'
+  | 'average_changed'
+  | 'page_overlap'
+  | 'review_edited'
 
 /** What a failing step may ask the store to record. */
-export type SnapshotFailureRequest = ReviewProviderSnapshotFailureCode | 'page_overlap'
+export type SnapshotFailureRequest =
+  ReviewProviderSnapshotFailureCode | 'page_overlap' | 'review_edited'
 
 const LISTING_MOVES: ReadonlySet<SnapshotFailureRequest> = new Set<ListingMoveRequest>([
   'confirmation_set_changed',
   'total_changed',
   'average_changed',
   'page_overlap',
+  'review_edited',
 ])
 
 /** Whether the failure is a listing that moved under the run, which is quiet
@@ -94,14 +106,17 @@ export function isListingMove(
 export function storedFailureCode(
   request: SnapshotFailureRequest,
 ): ReviewProviderSnapshotFailureCode {
-  return request === 'page_overlap' ? 'duplicate_resource' : request
+  if (request === 'page_overlap') return 'duplicate_resource'
+  if (request === 'review_edited') return 'review_mutation'
+  return request
 }
 
 /**
- * Run endings that count as a listing that moved. `duplicate_resource` is here
- * because a loud `page_overlap` is stored as it; a run that ended on a review
- * twice in one page is counted along with it, which can only make the next
- * move loud sooner.
+ * Run endings that count as a listing that moved. `duplicate_resource` and
+ * `review_mutation` are here because a loud `page_overlap` and a loud
+ * `review_edited` are stored as them; a run that ended on a review twice in
+ * one page, or on a revision that went backwards, is counted along with them,
+ * which can only make the next move loud sooner.
  */
 const SET_CHANGED: ReadonlySet<ReviewProviderSnapshotFailureCode | null> = new Set([
   'listing_changed',
@@ -109,6 +124,7 @@ const SET_CHANGED: ReadonlySet<ReviewProviderSnapshotFailureCode | null> = new S
   'total_changed',
   'average_changed',
   'duplicate_resource',
+  'review_mutation',
 ])
 
 /**

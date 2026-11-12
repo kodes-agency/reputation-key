@@ -40,7 +40,7 @@ import { gateJob } from '#/shared/jobs/delayed-execution-gate'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
 import { createImmediateEmailEnqueue } from '#/contexts/feed/email/send-emails.server'
-import { createGoogleImportV2Queue } from '#/contexts/integration/infrastructure/google-import-v2-queue'
+import { createGoogleImportQueue } from '#/contexts/integration/infrastructure/google-import-queue'
 import { buildReviewContext } from '#/contexts/review/build'
 
 vi.mock('#/shared/observability/logger', () => ({
@@ -91,6 +91,7 @@ function reviewContext(jobQueue: Queue) {
     idGen: () => 'scoped-job-enqueue-id',
     snapshotRunIdGen: () => 'scoped-job-enqueue-snapshot-run-id',
     googleReviewApi: {} as never,
+    googleConnectionStatus: { findStatus: async () => null },
     jobQueue,
     workerRuntime: {
       pool: {} as never,
@@ -117,7 +118,7 @@ function reviewContext(jobQueue: Queue) {
 
 const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
   'import-gbp-property-item': producer(async (queue) => {
-    await createGoogleImportV2Queue(queue).addImportItemJobs([
+    await createGoogleImportQueue(queue).addImportItemJobs([
       {
         jobId: `google-import-item-${ID(2)}`,
         organizationId: ORGANIZATION,

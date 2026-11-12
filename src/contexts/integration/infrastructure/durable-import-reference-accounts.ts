@@ -2,7 +2,7 @@ import type {
   GoogleImportReferenceStore,
   ImportReferenceResult,
 } from '../application/ports/google-import-reference-store.port'
-import type { ImportAccountPageDto } from '../application/google-import-v2-contract'
+import type { ImportAccountPageDto } from '../application/google-import-contract'
 import {
   durableAccountPayloadSchema,
   durableAccountsCursorPayloadSchema,

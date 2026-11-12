@@ -25,7 +25,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'previews the person’s own locale and zone choice',
   'src/components/features/guest/public-portal/guest-deadline-format.ts':
     'the guest renderer, in the guest’s language',
-  'src/components/features/beta-feedback/beta-feedback-reports.tsx':
+  'src/contexts/identity/feedback/ui/beta-feedback-reports.tsx':
     'reads the runtime’s zone name, not a format',
   'src/components/inbox/reply-check-feedback.ts':
     'a clock time in the viewer’s own locale preference (12 or 24 hour)',

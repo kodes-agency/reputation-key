@@ -3,7 +3,6 @@ import {
   requireSnapshotRun,
   snapshotSubjectScope,
 } from './review-provider-snapshot-scope'
-import { timingSafeEqual } from 'node:crypto'
 import { and, asc, eq, gt, inArray, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
@@ -15,7 +14,6 @@ import {
   reviewProviderHistoryCutoffs,
   reviewProviderSnapshotMembers,
   reviewProviderSnapshotRuns,
-  reviewProviderSubjectHmacKeyVersions,
   reviewProviderSubjects,
   reviews,
 } from '#/shared/db/schema/review.schema'
@@ -43,11 +41,18 @@ import { eraseReviewSourceContent } from '#/contexts/reputation/application/publ
 import { lockReviewSourceMutationScope } from '../review-source-mutation-serialization'
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
 import {
+  foundUnlistedBefore,
   listingAgreement,
   recordMissingFromListing,
   refuseRemovalWithoutExactListing,
 } from './review-provider-snapshot-listing'
 import { recordedFailureCode } from './review-provider-snapshot-listing-change'
+import {
+  activeSubjectKeyHolds,
+  findSubjectMatches,
+  linkedSubjectValues,
+  verifiedCandidateOf,
+} from './review-provider-subject-link'
 import { SnapshotConflict, failCode } from './review-provider-snapshot-conflict'
 import {
   storedFailureCode,
@@ -89,14 +94,6 @@ function fromRunRow(row: RunRow): ReviewProviderSnapshotRun {
     terminalAt: row.terminalAt,
     failureCode: row.failureCode as ReviewProviderSnapshotFailureCode | null,
   }
-}
-
-function hmacEquals(left: Uint8Array, right: Uint8Array): boolean {
-  return (
-    left.byteLength === 32 &&
-    right.byteLength === 32 &&
-    timingSafeEqual(Buffer.from(left), Buffer.from(right))
-  )
 }
 
 const providerAggregateIsValid = (
@@ -168,6 +165,16 @@ async function failLockedRun(
 ): Promise<RunRow> {
   if (row.state === 'completed' || row.state === 'failed') return row
   const code = await recordedFailureCode(tx, row, requested)
+  return endLockedRun(tx, row, code, providerFailure)
+}
+
+/** End the locked, unfinished run with exactly this code. */
+async function endLockedRun(
+  tx: Tx,
+  row: RunRow,
+  code: ReviewProviderSnapshotFailureCode,
+  providerFailure?: GoogleProviderFailure,
+): Promise<RunRow> {
   if (await endsFirstHistoryImport(tx, row, 'failed')) {
     await recordHistoryImportFinished(tx, row, { outcome: 'failed', code })
   }
@@ -650,29 +657,6 @@ function pageCommitUpdate(
   }
 }
 
-async function findSubjectMatches(
-  tx: Tx,
-  run: RunRow,
-  observation: ReviewProviderPersistedObservation,
-): Promise<readonly SubjectRow[]> {
-  const matches: SubjectRow[] = []
-  for (const subject of observation.subjects) {
-    const rows = await tx
-      .select()
-      .from(reviewProviderSubjects)
-      .where(
-        and(
-          snapshotSubjectScope(run.organizationId, run.propertyId, run.sourceEpoch),
-          eq(reviewProviderSubjects.keyVersion, subject.keyVersion),
-          eq(reviewProviderSubjects.locatorHmac, Buffer.from(subject.locatorHmac)),
-        ),
-      )
-      .for('update')
-    matches.push(...rows)
-  }
-  return matches
-}
-
 async function recordObservationMapping(
   tx: Tx,
   run: RunRow,
@@ -680,23 +664,7 @@ async function recordObservationMapping(
 ): Promise<void> {
   const active = observation.subjects[0]
   if (!active) throw new SnapshotConflict('resource_collision')
-  const keyRows = await tx
-    .select()
-    .from(reviewProviderSubjectHmacKeyVersions)
-    .where(
-      inArray(
-        reviewProviderSubjectHmacKeyVersions.keyVersion,
-        observation.subjects.map((subject) => subject.keyVersion),
-      ),
-    )
-    .orderBy(asc(reviewProviderSubjectHmacKeyVersions.generation))
-    .for('update')
-  const activeKey = keyRows.find((row) => row.state === 'active')
-  if (
-    activeKey == null ||
-    activeKey.keyVersion !== active.keyVersion ||
-    keyRows.some((row) => row.state === 'trusted_next')
-  ) {
+  if (!(await activeSubjectKeyHolds(tx, observation))) {
     throw new SnapshotConflict('authorization_changed')
   }
 
@@ -715,36 +683,25 @@ async function recordObservationMapping(
       )
       .for('update')
     if (reviewConflict.length !== 0) throw new SnapshotConflict('duplicate_resource')
-    await tx.insert(reviewProviderSubjects).values({
-      organizationId: run.organizationId,
-      propertyId: run.propertyId,
-      sourceEpoch: run.sourceEpoch,
-      keyVersion: active.keyVersion,
-      locatorHmac: Buffer.from(active.locatorHmac),
-      verifierHmac: Buffer.from(active.verifierHmac),
-      reviewId: observation.reviewId,
-      lastSourceRevision: observation.sourceRevision,
-      state: 'linked',
-      lastObservedAt: sql`transaction_timestamp()`,
-      lastSeenSnapshotRunId: run.id,
-    })
+    await tx
+      .insert(reviewProviderSubjects)
+      .values(linkedSubjectValues(run, observation, run.id))
     return
   }
 
-  const candidate = observation.subjects.find(
-    (subject) =>
-      subject.keyVersion === match.keyVersion &&
-      hmacEquals(subject.locatorHmac, match.locatorHmac),
-  )
   if (
-    candidate == null ||
-    !hmacEquals(candidate.verifierHmac, match.verifierHmac) ||
+    verifiedCandidateOf(observation, match) == null ||
     match.reviewId !== observation.reviewId
   ) {
     throw new SnapshotConflict('resource_collision')
   }
   if (match.lastSourceRevision > observation.sourceRevision) {
-    throw new SnapshotConflict('review_mutation')
+    // A head check or a push that stored a newer revision after this run
+    // began moved the mapping on: the review was edited on Google while the
+    // run listed it, which a fresh run reads as it is now.
+    throw new SnapshotConflict(
+      match.lastObservedAt > run.startedAt ? 'review_edited' : 'review_mutation',
+    )
   }
 
   const activeConflict = await tx
@@ -1153,6 +1110,7 @@ export const createReviewProviderSnapshotRepository = (
     db.transaction(async (tx) => {
       const run = await lockSnapshotRun(tx, { runId, organizationId })
       if (!run || run.state !== 'confirming') return 'run_failed'
+      const unlistedAgain = await foundUnlistedBefore(tx, run, observation.reviewId)
       try {
         await recordObservationMapping(tx, run, observation)
       } catch {
@@ -1170,6 +1128,11 @@ export const createReviewProviderSnapshotRepository = (
         )
         .returning({ reviewId: reviewProviderDeletionCandidates.reviewId })
       if (!candidate[0]) return 'stale'
+      // Found again, unlisted, once its hold ran out: loud, so it is seen.
+      if (unlistedAgain) {
+        await endLockedRun(tx, run, 'confirmation_set_changed')
+        return 'unlisted_again_run_failed'
+      }
       await failLockedRun(tx, run, 'confirmation_set_changed')
       return 'observed_run_failed'
     }),

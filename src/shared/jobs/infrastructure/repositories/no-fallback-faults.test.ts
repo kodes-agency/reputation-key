@@ -619,6 +619,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       replyRepo,
       reviewRepo,
       googleReviewApi,
+      googleConnectionStatus: { findStatus: async () => null },
       googleReplyObservationStore: createGoogleReplyObservationStore(db),
       readBeforePublish: createReplyPreReadForTests({
         db,

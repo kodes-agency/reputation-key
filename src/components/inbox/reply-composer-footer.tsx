@@ -58,14 +58,7 @@ export function ReplyComposerFooter({
           place against the trailing edge rather than sliding left into the
           space it left. */}
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {/* 36 px on mobile (row 20). v1's row 15 raised these three to 44 —
-            they are the reply half of the pinned region, including its ONLY
-            primary — and row 20 lowered every such control to 36 in the PR
-            that touches its file, because WCAG 2.5.8 AA asks for 24 px and 44
-            was what inflated the phone dock. The spelling matches the mode
-            segment (`composer-mode-row.tsx`) and the live-edit pair
-            (`reply-editor-views.tsx`); `h-9` rather than `min-h-9` because
-            none of the three wraps. `max-md:` only: the desktop pane is dense
+        {/* 44 px on mobile, from the Button's density; the desktop pane is dense
             on purpose. */}
         {status === 'error' && (
           <Button

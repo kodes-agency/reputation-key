@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Job } from 'bullmq'
-import type { GoogleImportV2ItemJobData } from '../../application/ports/gbp-queue.port'
-import { createGoogleImportV2ItemJobHandler } from './import-gbp-property-item.job'
+import type { GoogleImportItemJobData } from '../../application/ports/gbp-queue.port'
+import { createGoogleImportItemJobHandler } from './import-gbp-property-item.job'
 
-const DATA: GoogleImportV2ItemJobData = {
+const DATA: GoogleImportItemJobData = {
   jobId:
     'import-item-10000000-0000-4000-8000-000000000001-l2-enew-r0-d0-q20000000-0000-4000-8000-000000000001',
   organizationId: 'org-1',
@@ -17,15 +17,15 @@ function job(
   data = DATA,
   id: string | undefined = data.jobId,
   attemptsMade = 0,
-): Job<GoogleImportV2ItemJobData> {
-  return { id, data, attemptsMade } as Job<GoogleImportV2ItemJobData>
+): Job<GoogleImportItemJobData> {
+  return { id, data, attemptsMade } as Job<GoogleImportItemJobData>
 }
 
 describe('Google import v2 item job boundary', () => {
   it('passes a matching deterministic identity to the fenced processor', async () => {
     const processItem = vi.fn(async () => {})
 
-    await createGoogleImportV2ItemJobHandler(processItem)(job())
+    await createGoogleImportItemJobHandler(processItem)(job())
 
     expect(processItem).toHaveBeenCalledWith({
       organizationId: DATA.organizationId,
@@ -45,7 +45,7 @@ describe('Google import v2 item job boundary', () => {
       data: { ...legacy, jobId: oldId },
       attemptsMade: 0,
     } as Job<typeof legacy>
-    await createGoogleImportV2ItemJobHandler(processItem)(delivery)
+    await createGoogleImportItemJobHandler(processItem)(delivery)
     expect(processItem).toHaveBeenCalledExactlyOnceWith({
       organizationId: DATA.organizationId,
       itemId: DATA.itemId,
@@ -58,7 +58,7 @@ describe('Google import v2 item job boundary', () => {
   it('passes the one-based queue delivery ordinal as a non-authoritative hint', async () => {
     const processItem = vi.fn(async () => {})
 
-    await createGoogleImportV2ItemJobHandler(processItem)(job(DATA, DATA.jobId, 3))
+    await createGoogleImportItemJobHandler(processItem)(job(DATA, DATA.jobId, 3))
 
     expect(processItem).toHaveBeenCalledWith(
       expect.objectContaining({ attemptOrdinal: 4 }),
@@ -69,7 +69,7 @@ describe('Google import v2 item job boundary', () => {
     const processItem = vi.fn(async () => {})
 
     await expect(
-      createGoogleImportV2ItemJobHandler(processItem)(job(DATA, 'tampered')),
+      createGoogleImportItemJobHandler(processItem)(job(DATA, 'tampered')),
     ).rejects.toThrow('job identity mismatch')
     expect(processItem).not.toHaveBeenCalled()
   })

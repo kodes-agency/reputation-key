@@ -8,6 +8,7 @@
 // due) is the case toolbar's — its own states live in
 // inbox-case-toolbar.stories.tsx; here it only has to mount, so every story
 // needs the Actions it reads on first render.
+import { Button } from '#/components/ui/button'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -18,6 +19,7 @@ import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
 import { InboxDetailContent } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
 import { openConfirmation } from '#/components/inbox/reply-editor.stories.play'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { scriptReplyCommand } from '../../../.storybook/stubs/review-reply-server'
 import {
@@ -282,6 +284,7 @@ export default meta
 type Story = StoryObj<typeof InboxDetailContent>
 
 // Review item as PropertyManager — reply.manage granted → ReplyEditor renders.
+// Played in both themes, so axe sees the pane's contrast in each.
 export const ReviewAsPropertyManager: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
@@ -292,6 +295,7 @@ export const ReviewAsPropertyManager: Story = {
       notes,
     }),
   },
+  play: playInThemes(),
 }
 
 // Four regions, and the three a reader moves between are named landmarks. The
@@ -408,20 +412,6 @@ export const ReviewOpenedOnATopic: Story = {
     await expect(matched).toHaveClass('ring-2')
     const other = canvas.getByText('Service · Complaint').closest('[data-slot="badge"]')
     await expect(other).not.toHaveClass('ring-2')
-  },
-}
-
-// BQC-6.8: light-theme variant — axe runs on it too (light contrast proof).
-export const ReviewAsPropertyManagerLight: Story = {
-  decorators: [withRole('PropertyManager')],
-  parameters: { theme: 'light' },
-  args: {
-    currentItem: reviewItem,
-    detailFns,
-    detailState: mkDetailState({
-      detail: reviewDetail,
-      notes,
-    }),
   },
 }
 
@@ -1053,9 +1043,9 @@ function PaneAcrossTwoSelections(args: DetailContentProps) {
   const item = selected === 0 ? reviewItem : nextReviewItem
   return (
     <>
-      <button type="button" onClick={() => setSelected(1)}>
+      <Button type="button" variant="outline" onClick={() => setSelected(1)}>
         Open the next review
-      </button>
+      </Button>
       <InboxDetailContent
         {...args}
         currentItem={item}

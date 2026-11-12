@@ -83,7 +83,7 @@ The launcher's second panel lists that reporter's own reports and how far each
 has travelled: Sending, Not sent, Received, Read, Being investigated, Accepted,
 Not planned, Resolved. Severity, privacy class, security class, owner queue and
 dedupe disposition never cross back —
-`src/components/features/beta-feedback/beta-feedback-status.ts` owns that
+`src/contexts/identity/feedback/ui/beta-feedback-status.ts` owns that
 mapping and a test pins that the internal vocabulary does not leak.
 
 ## The masked layout, and why it is not in monitoring

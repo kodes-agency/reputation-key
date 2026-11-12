@@ -69,10 +69,10 @@ function RowSelectionGutter({
         checked={isChecked}
         disabled={selectionDisabled}
         className={cn(
-          // On a phone the after: box is a 40px tap target around the 16px
+          // On a phone the after: box is a 44px tap target around the 16px
           // checkbox. From md it is not wanted: desktop keeps the 16px target
           // so it cannot overlap the open button beside it.
-          "absolute opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-md:after:absolute max-md:after:-inset-3 max-md:after:content-['']",
+          "absolute opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-md:after:absolute max-md:after:-inset-[15px] max-md:after:content-['']",
           // On a touch screen the invisible checkbox would be a hidden tap
           // target over the row text.
           isSelecting ? 'opacity-100' : 'max-md:hidden',

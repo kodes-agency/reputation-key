@@ -2,7 +2,7 @@ import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyr
 import type {
   RetryPropertyImportItemInput,
   StartPropertyImportV2Input,
-} from './dto/google-import-v2.dto'
+} from './dto/google-import.dto'
 
 const WIRE_AUDIENCE = 'google-import-replay:wire:v1'
 const SEMANTIC_AUDIENCE = 'google-import-replay:semantic:v1'

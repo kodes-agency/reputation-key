@@ -36,6 +36,7 @@ export function wireReview(
       (await identity.authority.decidePublicationActorAuthority(tx, authorityInput))
         .allowed,
     googleReviewApi: integration.reviewSync.googleReviewApi,
+    googleConnectionStatus: integration.reviewSync.googleConnectionStatus,
     targetedReviewReferences: integration.reviewSync.googleReviewPushTargetResolver,
     jobQueue: infra.jobQueue,
     workerRuntime: {

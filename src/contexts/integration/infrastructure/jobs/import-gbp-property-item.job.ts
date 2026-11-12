@@ -1,8 +1,8 @@
 import type { Job } from 'bullmq'
-import type { GoogleImportV2ItemJobData } from '../../application/ports/gbp-queue.port'
-import type { ProcessGoogleImportV2Item } from '../../application/google-import-v2-processor'
+import type { GoogleImportItemJobData } from '../../application/ports/gbp-queue.port'
+import type { ProcessGoogleImportItem } from '../../application/google-import-processor'
 
-type ImportItemDelivery = Omit<GoogleImportV2ItemJobData, 'dispatchEpoch'> & {
+type ImportItemDelivery = Omit<GoogleImportItemJobData, 'dispatchEpoch'> & {
   /** Absent only on queue entries accepted before generation fencing. */
   dispatchEpoch?: number
 }
@@ -12,8 +12,8 @@ type ImportItemDelivery = Omit<GoogleImportV2ItemJobData, 'dispatchEpoch'> & {
  * re-derived before handing current, content-free execution facts to the
  * fenced item processor.
  */
-export const createGoogleImportV2ItemJobHandler = (
-  processItem: (input: ProcessGoogleImportV2Item) => Promise<void>,
+export const createGoogleImportItemJobHandler = (
+  processItem: (input: ProcessGoogleImportItem) => Promise<void>,
 ) => {
   return async (job: Job<ImportItemDelivery>): Promise<void> => {
     const jobId = job.data.jobId

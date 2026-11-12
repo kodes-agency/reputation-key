@@ -12,7 +12,10 @@ import type { Queue } from 'bullmq'
 import type { Pool } from 'pg'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { JobRegistry } from '#/shared/jobs/registry'
-import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
+import type {
+  GoogleConnectionStatusPort,
+  GoogleReviewApiPort,
+} from './application/ports/google-review-api.port'
 import type { PropertySourceEpochPort } from './application/ports/property-source-epoch.port'
 import type {
   PropertyPublicationScopePort,
@@ -74,6 +77,7 @@ import type { ReviewReplyObservationAuthority } from './application/ports/reply-
 import { createReviewSourceTransitionAuthority } from './infrastructure/source-transition-authority'
 import type { ReviewSourceTransitionAuthority } from './application/ports/source-transition-authority.port'
 import { createReviewProviderObservationWriter } from './application/use-cases/sync-reviews'
+import { createReviewProviderSubjectSightings } from './infrastructure/repositories/review-provider-subject-link'
 import { admitReviewSync } from './application/use-cases/admit-review-sync'
 import { createAiReviewSource } from './application/ai-review-source'
 import type { AiReviewSourcePort } from './application/ports/ai-review-source.port'
@@ -144,6 +148,7 @@ export type ReviewContextBuildInput = Readonly<{
   idGen: () => string
   snapshotRunIdGen: () => string
   googleReviewApi: GoogleReviewApiPort
+  googleConnectionStatus: GoogleConnectionStatusPort
   targetedReviewReferences?: TargetedGoogleReviewReferenceResolver
   jobQueue: Queue | undefined
   /** Root-owned worker infrastructure captured by Review's runtime contribution. */
@@ -542,6 +547,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     historyCutoffs: snapshotRepository,
   })
   const syncActivity = createReviewSyncActivityRecorder(input.db)
+  const subjectSightings = createReviewProviderSubjectSightings(input.db, input.logger)
   const targetedReviewReferences: TargetedGoogleReviewReferenceResolver =
     input.targetedReviewReferences ?? {
       resolve: async () => ({ status: 'obsolete' }),
@@ -561,6 +567,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     propertySourceEpoch: propertySourceEpochLookup,
     observationWriter,
     subjectKeyService: providerSubjectKeys,
+    subjectSightings,
   })
   const useCases = {
     ...wireReplyUseCases({
@@ -588,6 +595,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       propertySourceEpoch: propertySourceEpochLookup,
       observationWriter,
       subjectKeyService: providerSubjectKeys,
+      subjectSightings,
       syncActivity,
       firstSightings: createReviewFirstSightingRecorder(input.db),
       clock: input.clock,
@@ -664,6 +672,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       replyRepo,
       replyCommandStore,
       googleReviewApi: input.googleReviewApi,
+      googleConnectionStatus: input.googleConnectionStatus,
       staffPublicApi: input.staffPublicApi,
       propertySourceEpoch: propertySourceEpochLookup,
       runSnapshot: useCases.runReviewProviderSnapshot,
@@ -687,6 +696,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       headCheckQueue,
       observationWriter,
       subjectKeyService: providerSubjectKeys,
+      subjectSightings,
     })
   }
 
