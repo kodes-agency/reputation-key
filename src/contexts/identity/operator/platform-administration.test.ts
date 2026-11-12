@@ -108,7 +108,7 @@ describe('toPlatformOrganizationView', () => {
   }
 
   it('serializes the row and reads each admin invitation as live or expired', () => {
-    expect(toPlatformOrganizationView(row, false, NOW)).toEqual({
+    expect(toPlatformOrganizationView(row, NOW)).toEqual({
       id: 'org-new',
       name: 'Hotel Riviera',
       slug: 'hotel-riviera',
@@ -116,7 +116,6 @@ describe('toPlatformOrganizationView', () => {
       memberCount: 0,
       accountAdminCount: 0,
       pendingInvitationCount: 1,
-      controlledBetaEnabled: false,
       pendingAdminInvitations: [
         {
           id: 'inv-live',
@@ -143,11 +142,9 @@ describe('toPlatformOrganizationView', () => {
   it('shows no invitee addresses once the Organization has an AccountAdmin', () => {
     const view = toPlatformOrganizationView(
       { ...row, memberCount: 1, accountAdminCount: 1 },
-      true,
       NOW,
     )
 
     expect(view.pendingAdminInvitations).toEqual([])
-    expect(view.controlledBetaEnabled).toBe(true)
   })
 })

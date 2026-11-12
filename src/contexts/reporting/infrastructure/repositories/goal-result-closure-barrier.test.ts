@@ -72,7 +72,6 @@ describe.sequential('Goal result closure barriers (integration)', () => {
     const installPolicy = (suspended = false) =>
       initCapabilityPolicyStore(
         createEnvCapabilityPolicyStore({
-          BETA_ALLOWLIST_ORGS: org,
           BETA_SUSPENDED_ORGS: suspended ? org : '',
         }),
       )

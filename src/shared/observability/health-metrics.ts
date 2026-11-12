@@ -67,10 +67,9 @@ export type HealthMetricsDeps = Readonly<{
   /** REVIEW_RECONCILE_WITHIN_HOURS, shared with the discovery sweep. */
   reviewReconcileWithinHours?: number
   /**
-   * `notification.send_email` is open to every Organization — globally
-   * enabled, or `BETA_ALLOWLIST_ORGS=*`. Absent = treated as closed: with
-   * only some Organizations admitted, a pending email backlog is EXPECTED
-   * (rows queue while a scope is dark) and must not page. A readiness fact
+   * Optional email is on (`notification.send_email` is not switched off).
+   * Absent = treated as off: while it is off, a pending email backlog is
+   * EXPECTED (rows queue while the switch is off) and must not page. A readiness fact
    * the database cannot answer, so the composition root supplies it (same
    * shape as gbpPushEnabled).
    */
@@ -248,11 +247,9 @@ export type HealthSnapshot = Readonly<{
    */
   notifications: Readonly<{
     /**
-     * `notification.send_email` is open to every Organization: globally
-     * enabled, or `BETA_ALLOWLIST_ORGS=*` and not killed. When false, only
-     * some Organizations are admitted and rows queued while a scope was dark
-     * are the EXPECTED backlog of a newly admitted one — the stalled alert
-     * stays silent on untouched rows (see attemptedStuckCount for the case
+     * Optional email is on: `notification.send_email` is not switched off.
+     * When false, rows queued meanwhile are the EXPECTED backlog — the
+     * stalled alert stays silent on untouched rows (see attemptedStuckCount for the case
      * that is a fault regardless).
      */
     emailDeliveryEnabled: boolean

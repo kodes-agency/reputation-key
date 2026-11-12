@@ -142,16 +142,14 @@ instead of copying `local.env` into each new worktree. The web server listens on
 the port of `BETTER_AUTH_URL`, so a second stack can run on another origin; add
 its callback to the OAuth client's redirect URIs if it uses real Google.
 
-**Beta features for an Organization you create by hand.** The seeded local
-admin joins the allowlisted e2e Organization, so Google import, Portals, Goals,
-AI and notification email work out of the box. An Organization you create
-yourself is not on `BETA_ALLOWLIST_ORGS` and every one of those refuses with
-"not enabled for your organization yet". Add its ID to the list in `local.env`.
-Avoid `*` on a stack you also run e2e against: it lights up the deliberately
-dark "locked" Organization those tests rely on.
+**Switches.** Every Organization gets Google import, Portals, Goals, AI and
+notification email out of the box. `BETA_CAPABILITIES_OFF` turns groups off
+(`google`, `ai`, `guest_pages`, `optional_email`, or `all`), and
+`BETA_SUSPENDED_ORGS` stops one Organization: the e2e stack suspends its
+"locked" Organization that way.
 
-**Capability kill switches after a database reset.** Below the allowlist sit
-two database-held kill switches: a fresh database seeds every Google content
+**Capability kill switches after a database reset.** Below those sit two
+database-held kill switches: a fresh database seeds every Google content
 capability denied (Connect Google then fails with `capability_killed`) and
 every AI capability killed. The local seed lifts them for you. A deployed
 environment declares them instead, on `web`:

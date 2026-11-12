@@ -28,10 +28,10 @@ export const GOOGLE_PROVIDER_OPERATOR_COMMANDS: Readonly<Record<string, string>>
     'ops:disconnect-connection':
       'To disconnect, an AccountAdmin of the Organization uses Settings, Integrations in the app. ' +
       'The app refuses that while the Organization is in BETA_SUSPENDED_ORGS, and while ' +
-      'BETA_CAPABILITIES_OFF is all or names integration.use: ' +
+      'BETA_CAPABILITIES_OFF is all: ' +
       'have them disconnect before you suspend the Organization, or lift the suspension for the disconnect. ' +
       "To stop the Organization's Google work without them, add its ID to BETA_SUSPENDED_ORGS on web and worker; " +
-      'to stop Google for everyone, set BETA_CAPABILITIES_OFF to the Google capabilities ' +
+      'to stop Google for everyone, add google to BETA_CAPABILITIES_OFF ' +
       '(docs/operations/runbooks.md §2, §10 and §11).',
     'ops:gbp-subscribe':
       'The worker subscribes accounts by itself: an import subscribes its own, and the daily ' +

@@ -30,7 +30,7 @@ function scoped(portal: DataScope, dashboard: DataScope): AuthContext {
 }
 
 beforeEach(() => {
-  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: '*' }))
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
 })
 afterEach(resetCapabilityPolicyStore)
 
@@ -137,16 +137,13 @@ describe('Portal results roster grant snapshot', () => {
     const access = await rosterAccess(actor, async () => [propertyId('assigned')])
     initCapabilityPolicyStore(
       createEnvCapabilityPolicyStore({
-        BETA_ALLOWLIST_ORGS: '*',
         BETA_SUSPENDED_ORGS: actor.organizationId,
       }),
     )
     expect(await decide(access, actor, 'assigned', 'portal.read')).toMatchObject({
       allowed: false,
     })
-    initCapabilityPolicyStore(
-      createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: '*' }),
-    )
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
     expect(
       await decide(
         access,

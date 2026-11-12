@@ -117,9 +117,8 @@ export const Administered: Story = {
     expect(canvas.getByText(/its admins manage invitations/i)).toBeVisible()
     expect(canvas.queryByRole('form')).toBeNull()
     expect(canvas.queryByRole('button')).toBeNull()
-    // Dark for controlled beta: the row names the id the allowlist needs.
-    expect(canvas.getByText('Controlled beta off')).toBeVisible()
-    expect(canvas.getByText('org-alpine')).toBeVisible()
+    // Beta admission is gone, so the row raises no flag.
+    expect(canvas.queryByText('Controlled beta off')).toBeNull()
   },
 }
 

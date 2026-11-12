@@ -381,7 +381,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.emailDeliveryEnabled'],
     emitted: true,
     description:
-      '1 when notification.send_email is open to every Organization: globally enabled, or BETA_ALLOWLIST_ORGS=* and not killed. Then any overdue row in pending_overdue is late mail and notification.email-stalled pages on it. 0 = only some Organizations are admitted (by name, or none): rows queued while a scope was dark are EXPECTED backlog, and email-stalled judges only attempted_stuck. A per-org allowlist grant is not globally enumerable and does not flip this to 1.',
+      '1 when optional email is on: BETA_CAPABILITIES_OFF is neither all nor names optional_email. Then any overdue row in pending_overdue is late mail and notification.email-stalled pages on it. 0 = optional email is switched off: rows queued meanwhile are EXPECTED backlog, and email-stalled judges only attempted_stuck. A suspended Organization is not globally enumerable and does not flip this to 0.',
   }),
   def({
     name: 'notification.email.pending_overdue',

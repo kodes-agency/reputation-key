@@ -2,8 +2,8 @@
 // in BQC-2.6 when the ExecutionPolicy superseded the old seam).
 //
 // Maps role permissions to the capability that must be enabled for the action
-// (ADR 0032/0033/0049). Portal management, guest response/contact, and media
-// are separate promotable controls; all remain off by default.
+// (ADR 0032/0033/0049). The capability decides which switch, if any, stops
+// the action (capability-fate.ts).
 
 import type { Permission } from '#/shared/domain/permissions'
 import type { Capability } from './beta-capabilities'
@@ -49,7 +49,6 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'invitation.cancel': 'identity.invite',
   'invitation.resend': 'identity.invite',
   // BQC-0.2 / STD-P0-01: mutations and media are independent of portal.read.
-  // portal.write and portal.upload are both promotable (controlled_beta).
   // portal.upload was safety-blocked until the owner removed the SAFE-01
   // completion ceremony on 2026-09-30 (ADR 0032, ADR 0063); it is asked for
   // explicitly by the image upload endpoint, never derived from a permission.

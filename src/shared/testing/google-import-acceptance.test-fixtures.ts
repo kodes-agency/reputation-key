@@ -111,7 +111,6 @@ export function createGoogleImportAcceptanceFixture(input: {
       env: {
         ...getEnv(),
         NODE_ENV: 'test',
-        BETA_ALLOWLIST_ORGS: orgId,
         BETA_SUSPENDED_ORGS: suspended ? orgId : '',
         ENCRYPTION_KEY: IMPORT_TEST_ENCRYPTION_KEY,
         GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS: IMPORT_TEST_REFERENCE_KEYS,

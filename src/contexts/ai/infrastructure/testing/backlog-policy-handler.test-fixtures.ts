@@ -564,25 +564,12 @@ function createWorker(helpers: WorkerHelpers) {
 
 const ACTUAL_VERSIONS = process.versions
 
-/** The four ways platform policy stops Review Analysis for one Organization. */
+/** The three ways platform policy stops Review Analysis for one Organization. */
 const PLATFORM_STOPS: ReadonlyArray<readonly [string, Readonly<Record<string, string>>]> =
   [
-    [
-      'ai.analyze is switched off',
-      { BETA_ALLOWLIST_ORGS: '*', BETA_CAPABILITIES_OFF: 'ai.analyze' },
-    ],
-    [
-      'every capability is switched off',
-      { BETA_ALLOWLIST_ORGS: '*', BETA_CAPABILITIES_OFF: 'all' },
-    ],
-    [
-      'the Organization is suspended',
-      { BETA_ALLOWLIST_ORGS: '*', BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION },
-    ],
-    [
-      'the Organization is no longer allowlisted',
-      { BETA_ALLOWLIST_ORGS: OTHER_ORGANIZATION },
-    ],
+    ['AI is switched off', { BETA_CAPABILITIES_OFF: 'ai' }],
+    ['everything is switched off', { BETA_CAPABILITIES_OFF: 'all' }],
+    ['the Organization is suspended', { BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION }],
   ]
 
 beforeEach(() => {

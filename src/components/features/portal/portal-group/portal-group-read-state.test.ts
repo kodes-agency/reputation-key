@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readStateOf } from './portal-group-read-state'
 
-const denial = Object.assign(new Error('off'), { code: 'org_not_allowlisted' })
+const denial = Object.assign(new Error('off'), { code: 'capability_disabled' })
 
 describe('readStateOf', () => {
   it('shows nothing where the reader may not read it', () => {

@@ -208,7 +208,7 @@ describe('a portal’s own look server functions (real PostgreSQL)', () => {
   it('stores no look when the Property policy refuses', async () => {
     const { portal, target } = await scene()
     handlerWorld.requireExecutionAllowed.mockRejectedValue(
-      policyDenial('property_not_allowlisted'),
+      policyDenial('capability_disabled'),
     )
 
     await expect(
@@ -219,7 +219,7 @@ describe('a portal’s own look server functions (real PostgreSQL)', () => {
       ),
     ).rejects.toMatchObject({
       _tag: 'AuthError',
-      code: 'property_not_allowlisted',
+      code: 'capability_disabled',
       status: 403,
     })
 

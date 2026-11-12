@@ -146,13 +146,13 @@ describe('getPortalResultsOverviewFn', () => {
     mocks.requireExecutionAllowed.mockRejectedValue(
       new ServerFunctionError(
         'AuthError',
-        'Authorization denied: org_not_allowlisted',
-        'org_not_allowlisted',
+        'Authorization denied: capability_disabled',
+        'capability_disabled',
         403,
       ),
     )
 
-    await expect(read()).rejects.toMatchObject({ code: 'org_not_allowlisted' })
+    await expect(read()).rejects.toMatchObject({ code: 'capability_disabled' })
     expect(mocks.listPortalOverview).not.toHaveBeenCalled()
     expect(mocks.getPortalResultsOverview).not.toHaveBeenCalled()
   })
@@ -336,14 +336,14 @@ describe('getPortalResultsOverviewFn', () => {
       mocks.requireExecutionAllowed.mockRejectedValue(
         new ServerFunctionError(
           'AuthError',
-          'Authorization denied: org_not_allowlisted',
-          'org_not_allowlisted',
+          'Authorization denied: capability_disabled',
+          'capability_disabled',
           403,
         ),
       )
 
       await expect(readOrganization()).rejects.toMatchObject({
-        code: 'org_not_allowlisted',
+        code: 'capability_disabled',
       })
       expect(mocks.listPortalOverview).not.toHaveBeenCalled()
       expect(mocks.getPortalResultsOverview).not.toHaveBeenCalled()

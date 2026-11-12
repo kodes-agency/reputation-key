@@ -46,11 +46,7 @@ const policy = [{ version: 11, emergency_kill_version: 3 }]
 beforeEach(() => {
   resetEnv()
   resetCapabilityPolicyStore()
-  initCapabilityPolicyStore(
-    createEnvCapabilityPolicyStore({
-      BETA_E2E_GLOBAL_CAPABILITIES: 'property.import_gbp_v2',
-    }),
-  )
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
 })
 
 afterEach(() => {
@@ -100,11 +96,7 @@ describe('Google OAuth content authorization', () => {
   // (reply-command-store.ts settleNeverDispatchedAttempt re-reads under lock).
   it('share-locks the reply publication attempt it admits a permit for', async () => {
     resetCapabilityPolicyStore()
-    initCapabilityPolicyStore(
-      createEnvCapabilityPolicyStore({
-        BETA_E2E_GLOBAL_CAPABILITIES: 'property.publish_reply',
-      }),
-    )
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
     const execute = vi.fn()
     for (const rows of [
       [{ emergency_kill_version: 3 }],
@@ -214,9 +206,7 @@ describe('Google review read for a reply reconciliation, under the operator stop
 
   async function readUnder(stop: Readonly<Record<string, string>>) {
     resetCapabilityPolicyStore()
-    initCapabilityPolicyStore(
-      createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: '*', ...stop }),
-    )
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore(stop))
     const execute = vi.fn()
     for (const rows of [control, connection, property]) {
       execute.mockResolvedValueOnce({ rows })
@@ -231,8 +221,8 @@ describe('Google review read for a reply reconciliation, under the operator stop
   it.each([
     ['no stop', {}],
     [
-      'a stop of reply publishing alone',
-      { BETA_CAPABILITIES_OFF: 'property.publish_reply' },
+      'a stop of AI, guest pages and optional email',
+      { BETA_CAPABILITIES_OFF: 'ai,guest_pages,optional_email' },
     ],
   ])('is authorized under %s', async (_label, stop) => {
     const { decision, queries } = await readUnder(stop)
@@ -246,11 +236,7 @@ describe('Google review read for a reply reconciliation, under the operator stop
 
   it.each([
     ['a suspended Organization', { BETA_SUSPENDED_ORGS: ORGANIZATION }],
-    ['a stop of property.connect_gbp', { BETA_CAPABILITIES_OFF: 'property.connect_gbp' }],
-    [
-      'the targeted Google stop',
-      { BETA_CAPABILITIES_OFF: 'property.connect_gbp,property.publish_reply' },
-    ],
+    ['the Google switch', { BETA_CAPABILITIES_OFF: 'google' }],
     ['the full stop', { BETA_CAPABILITIES_OFF: 'all' }],
   ])('is denied before any query under %s', async (_label, stop) => {
     const { decision, queries } = await readUnder(stop)

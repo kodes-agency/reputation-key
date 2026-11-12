@@ -125,7 +125,12 @@ function organizationLoadFailure(error: unknown, href: string): unknown {
 
 /** An Organization answer that lets the person into the shell: the only kind remembered. */
 function admitsShell(org: Awaited<ReturnType<typeof getActiveOrganization>>): boolean {
-  return org.availability !== 'disabled' && org.organization !== null && Boolean(org.role)
+  return (
+    org.availability !== 'disabled' &&
+    org.availability !== 'suspended' &&
+    org.organization !== null &&
+    Boolean(org.role)
+  )
 }
 
 export const Route = createFileRoute('/_authenticated')({
@@ -183,6 +188,12 @@ export const Route = createFileRoute('/_authenticated')({
       if (!organizationResult.ok) throw organizationResult.error
       const org = organizationResult.value
       if (org.availability === 'staff') throw redirect({ to: '/my' })
+      if (org.availability === 'suspended') {
+        throw redirect({
+          to: '/unavailable',
+          search: { feature: 'Workspace', category: 'temporarily_unavailable' },
+        })
+      }
       if (org.availability === 'disabled') {
         throw redirect({ to: '/unavailable', search: { feature: 'Workspace' } })
       }

@@ -68,11 +68,9 @@ export const OneOrganizationAdministered: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.queryByText('Needs an Account Admin')).toBeNull()
-    // Dark for controlled beta: flagged on the row and counted in the strip.
-    const attention = within(
-      canvas.getByRole('list', { name: 'Attention for Alpine Stays' }),
-    )
-    expect(attention.getByText('Controlled beta off')).toBeVisible()
+    // Beta admission is gone, so an administered Organization raises no flag.
+    expect(canvas.queryByRole('list', { name: 'Attention for Alpine Stays' })).toBeNull()
+    expect(canvas.queryByText('Controlled beta off')).toBeNull()
     expect(canvas.getByLabelText('Organizations at a glance')).toBeVisible()
   },
 }

@@ -45,7 +45,6 @@ export type RouteNotice =
       cause: 'feature'
       title: string
       category: CapabilityRefusalCategory
-      propertyId?: string
     }>
   /** The Property in the address is not there, or is not this Organization's. */
   | Readonly<{ cause: 'property' }>

@@ -22,7 +22,6 @@ const organization = (
   memberCount: 0,
   accountAdminCount: 0,
   pendingInvitationCount: 1,
-  controlledBetaEnabled: true,
   pendingAdminInvitations: [],
   ...overrides,
 })
@@ -122,23 +121,8 @@ describe('organizationFlags', () => {
     ])
   })
 
-  it('names the allowlist entry a dark Organization needs', () => {
-    const flags = organizationFlags(
-      organization({ accountAdminCount: 1, controlledBetaEnabled: false }),
-    )
-
-    expect(flags).toEqual([
-      expect.objectContaining({ id: 'controlled-beta-off', detail: 'org-1' }),
-    ])
-  })
-
-  it('orders the flags by what the operator can act on first', () => {
-    const flags = organizationFlags(organization({ controlledBetaEnabled: false }))
-
-    expect(flags.map((flag) => flag.id)).toEqual([
-      'needs-account-admin',
-      'controlled-beta-off',
-    ])
+  it('flags nothing once the Organization has an Account Admin', () => {
+    expect(organizationFlags(organization({ accountAdminCount: 1 }))).toEqual([])
   })
 })
 
@@ -161,7 +145,7 @@ describe('summarizeOrganizations', () => {
           },
         ],
       }),
-      organization({ id: 'org-2', accountAdminCount: 2, controlledBetaEnabled: false }),
+      organization({ id: 'org-2', accountAdminCount: 2 }),
       organization({ id: 'org-3', accountAdminCount: 1 }),
     ])
 
@@ -169,7 +153,6 @@ describe('summarizeOrganizations', () => {
       organizations: 3,
       needAccountAdmin: 1,
       openAdminInvitations: 2,
-      darkForControlledBeta: 1,
     })
   })
 
@@ -178,7 +161,6 @@ describe('summarizeOrganizations', () => {
       organizations: 0,
       needAccountAdmin: 0,
       openAdminInvitations: 0,
-      darkForControlledBeta: 0,
     })
   })
 })

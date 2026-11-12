@@ -66,6 +66,14 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
             authz: EMPTY_CLIENT_AUTHZ,
           }
         }
+        if (e instanceof Error && 'code' in e && e.code === 'org_suspended') {
+          return {
+            availability: 'suspended' as const,
+            organization: null,
+            role: 'Member' as const,
+            authz: EMPTY_CLIENT_AUTHZ,
+          }
+        }
         if (e instanceof Error && 'code' in e && e.code === 'beta_role_inactive') {
           return {
             availability: 'staff' as const,

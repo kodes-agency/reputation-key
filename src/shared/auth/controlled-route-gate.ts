@@ -28,6 +28,5 @@ export function denyControlledRoute(
     cause: 'feature',
     title: input.featureLabel,
     category: refusalCategory(decision) ?? 'not_in_beta',
-    ...(input.propertyId ? { propertyId: input.propertyId } : {}),
   })
 }

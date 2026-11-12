@@ -1,7 +1,7 @@
 // What notification.email-stalled may call overdue (real PostgreSQL).
 //
-// Two ways the overdue set was wrong once email is live for every
-// Organization (BETA_ALLOWLIST_ORGS=*), where the alert judges it:
+// Two ways the overdue set was wrong while optional email is on, where the
+// alert judges it:
 //
 //   - An unscheduled daily-digest row was due at created_at, so it read as
 //     overdue two hours later — but it goes out in the recipient's next 08:00

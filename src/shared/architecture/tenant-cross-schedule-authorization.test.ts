@@ -35,6 +35,7 @@ import {
   ENTRY_POINT_CATALOGUE,
   type EntryPointRow,
 } from '#/shared/governance/entry-point-catalogue'
+import { CAPABILITY_FATE } from '#/shared/governance/capability-fate'
 import {
   JOB_FAMILY_ROWS,
   type JobFamilyRow,
@@ -98,10 +99,9 @@ type CandidateDecision =
   /**
    * The worker hands the job a scope authorizer for the schedule's own action,
    * and the handler asks it about each Organization (and Property) before it
-   * acts for them. `offAllowlist` is its answer for an Organization that is not
-   * on the allowlist: only a core capability is allowed there.
+   * acts for them.
    */
-  | Readonly<{ kind: 'scope_authorizer'; offAllowlist: 'refused' | 'allowed' }>
+  | Readonly<{ kind: 'scope_authorizer' }>
   /**
    * The schedule does no governed work for a tenant itself. What it raises or
    * recovers runs through `entryPoint`, which the dispatch gate decides with
@@ -115,27 +115,22 @@ type CandidateDecision =
    */
   | Readonly<{ kind: 'undecided'; gap: string }>
 
-const scopeAuthorizer = (offAllowlist: 'refused' | 'allowed'): CandidateDecision => ({
-  kind: 'scope_authorizer',
-  offAllowlist,
-})
+const scopeAuthorizer = (): CandidateDecision => ({ kind: 'scope_authorizer' })
 
 /** Keyed by the BullMQ job the scheduler fires. */
 const CANDIDATE_DECISIONS: Readonly<Record<string, CandidateDecision>> = {
-  'portal-approved-destination-revalidation': scopeAuthorizer('refused'),
-  'ai-review-analysis-backlog-drain': scopeAuthorizer('refused'),
+  'portal-approved-destination-revalidation': scopeAuthorizer(),
+  'ai-review-analysis-backlog-drain': scopeAuthorizer(),
   // The Monday email's sweep lists due Properties by id and decides each one's
   // Organization and Property under its own action before the plan reads anything.
-  'ai-guest-voice-summary-sweep': scopeAuthorizer('refused'),
-  // property.connect_gbp is core: suspension and the kill switch stop it, the
-  // allowlist does not.
-  'reconcile-gbp-notification-subscriptions': scopeAuthorizer('allowed'),
-  'goal-program.maintain': scopeAuthorizer('refused'),
-  'rating-goal.evaluate': scopeAuthorizer('refused'),
-  'digest-notification': scopeAuthorizer('refused'),
-  // identity.invite is core too. Recovery asks before each acceptance, the
-  // only step that gives an Organization a member.
-  'recover-invited-registrations': scopeAuthorizer('allowed'),
+  'ai-guest-voice-summary-sweep': scopeAuthorizer(),
+  'reconcile-gbp-notification-subscriptions': scopeAuthorizer(),
+  'goal-program.maintain': scopeAuthorizer(),
+  'rating-goal.evaluate': scopeAuthorizer(),
+  'digest-notification': scopeAuthorizer(),
+  // Recovery asks before each acceptance, the only step that gives an
+  // Organization a member.
+  'recover-invited-registrations': scopeAuthorizer(),
   'google-import-claim-reaper': {
     kind: 'scoped_entry_point',
     entryPoint: 'import-gbp-property-item',
@@ -159,6 +154,10 @@ const schedulesDecidedBy = (kind: CandidateDecision['kind']) =>
   GATED_TENANT_CROSS_SCHEDULES.filter(
     (schedule) => CANDIDATE_DECISIONS[schedule.jobName]?.kind === kind,
   ).map((schedule) => [schedule.jobName, schedule] as const)
+
+/** What turns `capability` off: its switch, or everything off when it has none. */
+const offFor = (capability: Capability): string =>
+  CAPABILITY_FATE[capability].featureSwitch ?? 'all'
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
 
@@ -215,7 +214,7 @@ describe('capability-gated tenant-cross schedules decide each candidate', () => 
   ])(
     'covers a scheduled family that %s',
     async (_shape, catalogue, rowTheGateResolves) => {
-      installPolicy({ BETA_ALLOWLIST_ORGS: '*', BETA_CAPABILITIES_OFF: 'ai.analyze' })
+      installPolicy({ BETA_CAPABILITIES_OFF: 'ai' })
 
       const firing = await getDelayedExecutionPolicy().decide({
         principal: { kind: 'system', id: `schedule:${NEXT_FAMILY}` },
@@ -293,8 +292,7 @@ describe('capability-gated tenant-cross schedules decide each candidate', () => 
     '%s is admitted while its capability is switched off, so only its handler can stop',
     async (jobName, schedule) => {
       installPolicy({
-        BETA_ALLOWLIST_ORGS: '*',
-        BETA_CAPABILITIES_OFF: schedule.capability,
+        BETA_CAPABILITIES_OFF: offFor(schedule.capability),
       })
 
       const firing = await gateJob(jobName, {}, `schedule:${jobName}`, 'schedule')
@@ -331,20 +329,17 @@ describe('capability-gated tenant-cross schedules decide each candidate', () => 
       const authorize = createScheduledScopeAuthorizer(schedule.row.action)
       const verdicts: Record<string, boolean> = {}
 
-      installPolicy({ BETA_ALLOWLIST_ORGS: '*' })
+      installPolicy({})
       verdicts.open = await authorize(ORGANIZATION, PROPERTY)
       installPolicy({
-        BETA_ALLOWLIST_ORGS: '*',
-        BETA_CAPABILITIES_OFF: schedule.capability,
+        BETA_CAPABILITIES_OFF: offFor(schedule.capability),
       })
       verdicts.capabilityOff = await authorize(ORGANIZATION, PROPERTY)
-      installPolicy({ BETA_ALLOWLIST_ORGS: '*', BETA_CAPABILITIES_OFF: 'all' })
+      installPolicy({ BETA_CAPABILITIES_OFF: 'all' })
       verdicts.everythingOff = await authorize(ORGANIZATION, PROPERTY)
-      installPolicy({ BETA_ALLOWLIST_ORGS: '*', BETA_SUSPENDED_ORGS: ORGANIZATION })
+      installPolicy({ BETA_SUSPENDED_ORGS: ORGANIZATION })
       verdicts.suspended = await authorize(ORGANIZATION, PROPERTY)
       verdicts.otherWhileSuspended = await authorize(OTHER_ORGANIZATION, PROPERTY)
-      installPolicy({ BETA_ALLOWLIST_ORGS: OTHER_ORGANIZATION })
-      verdicts.offAllowlist = await authorize(ORGANIZATION, PROPERTY)
 
       expect(verdicts).toEqual({
         open: true,
@@ -352,7 +347,6 @@ describe('capability-gated tenant-cross schedules decide each candidate', () => 
         everythingOff: false,
         suspended: false,
         otherWhileSuspended: true,
-        offAllowlist: decision.offAllowlist === 'allowed',
       })
     },
   )
