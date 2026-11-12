@@ -16,6 +16,7 @@ x-app-dependencies: &app-dependencies
   provider-sandbox: { condition: service_healthy }
   ai-provider-stub: { condition: service_healthy }
   mail-stub: { condition: service_healthy }
+  object-store-init: { condition: service_completed_successfully }
 x-app: &app
   <<: *runtime
   image: repkey-local-web:${SOURCE_REVISION}
@@ -108,7 +109,6 @@ services:
     # "BullMQ worker started" log line that scripts/e2e/wait-worker.sh waits for.
     healthcheck: { disable: true }
   object-store:
-    profiles: [media]
     image: minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
     command: [server, /data]
     environment: { MINIO_ROOT_USER: "${MINIO_ROOT_USER}", MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}" }
@@ -117,12 +117,11 @@ services:
     volumes: [object-store-data:/data]
     networks: [app]
   object-store-init:
-    profiles: [media]
     image: minio/mc@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc
     depends_on: { object-store: { condition: service_healthy } }
     environment: { MINIO_ROOT_USER: "${MINIO_ROOT_USER}", MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}", S3_BUCKET_NAME: "${S3_BUCKET_NAME}" }
     entrypoint: [/bin/sh, -ec]
-    command: ['mc alias set local http://object-store:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" && mc mb --ignore-existing "local/$$S3_BUCKET_NAME" && mc anonymous set none "local/$$S3_BUCKET_NAME"']
+    command: ['mc alias set local http://object-store:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" && mc mb --ignore-existing "local/$$S3_BUCKET_NAME" && mc anonymous set none "local/$$S3_BUCKET_NAME" && { mc ilm rule list "local/$$S3_BUCKET_NAME" | grep -q erasure-journal-expiry || mc ilm rule add --id erasure-journal-expiry --prefix private/erasure-journal/ --expire-days 45 "local/$$S3_BUCKET_NAME"; }']
     networks: [app]
 networks: { app: {} }
 volumes: { postgres-data: {}, redis-data: {}, object-store-data: {} }
