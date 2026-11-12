@@ -179,6 +179,15 @@ async function seedFact(
   `)
 }
 
+async function seedCover(propertyId: string, coveredMinutesAgo: number | null) {
+  await db.execute(sql`
+    INSERT INTO review_sync_state (property_id, source, head_covered_at, updated_at)
+    VALUES (${propertyId}, 'google',
+            ${coveredMinutesAgo === null ? null : sql`NOW() - (${coveredMinutesAgo} * INTERVAL '1 minute')`},
+            NOW())
+  `)
+}
+
 async function seedSyncState(propertyId: string, errorClass: string | null) {
   await db.execute(sql`
     INSERT INTO review_sync_state (property_id, source, error_class, updated_at)
@@ -563,5 +572,70 @@ describe('reconciliation age read (real reads)', () => {
     expect((await read(false)).reconciliation.overdueCount).toBe(
       baseline.overdueCount + 1,
     )
+  })
+})
+
+describe('a reconciliation window over a day (real reads)', () => {
+  const weekly = () => readSyncPushHealth(db, false, 168)
+
+  it('gives a covered Property the whole window and an uncovered one a day plus slack', async () => {
+    const baseline = (await weekly()).reconciliation
+    const covered = await seedProperty({ suffix: '40' })
+    const uncovered = await seedProperty({ suffix: '41' })
+    const neverCovered = await seedProperty({ suffix: '42' })
+    const coveredTooLong = await seedProperty({ suffix: '43' })
+    await seedFact(covered, 0, 3 * DAY)
+    await seedCover(covered, 2 * HOUR)
+    await seedFact(uncovered, 0, 27 * HOUR)
+    await seedCover(uncovered, 20 * HOUR)
+    await seedFact(neverCovered, 0, 27 * HOUR)
+    await seedFact(coveredTooLong, 0, 171 * HOUR)
+    await seedCover(coveredTooLong, 10 * MINUTE)
+
+    const after = (await weekly()).reconciliation
+
+    expect(after.overdueAfterMs).toBe(170 * HOUR * 60_000)
+    expect(after.overdueCount).toBe(baseline.overdueCount + 3)
+  })
+
+  it('allows the look that notices a lapsed cover before calling a listing overdue', async () => {
+    const baseline = (await weekly()).reconciliation
+    const lapsedLate = await seedProperty({ suffix: '44' })
+    // Listed 40 hours ago, covered until 30 hours after that: the lapse is 3
+    // hours old and the next look lists in full within the six-hour gap.
+    await seedFact(lapsedLate, 0, 40 * HOUR)
+    await seedCover(lapsedLate, 10 * HOUR)
+
+    expect((await weekly()).reconciliation.overdueCount).toBe(baseline.overdueCount)
+  })
+
+  it('reads the same limit for every Property at a daily window, whatever the cover', async () => {
+    const baseline = (await readSyncPushHealth(db, false, 24)).reconciliation
+    const covered = await seedProperty({ suffix: '45' })
+    await seedFact(covered, 0, 27 * HOUR)
+    await seedCover(covered, 5 * MINUTE)
+
+    const after = (await readSyncPushHealth(db, false, 24)).reconciliation
+    expect(after.overdueCount).toBe(baseline.overdueCount + 1)
+  })
+
+  it('counts Properties no head check covered for a day, only above a daily window', async () => {
+    const baseline = (await weekly()).headCoverage
+    const covered = await seedProperty({ suffix: '46' })
+    const stale = await seedProperty({ suffix: '47' })
+    await seedProperty({ suffix: '48' })
+    await seedProperty({ suffix: '49', updatedMinutesAgo: 2 * HOUR })
+    await seedCover(covered, 3 * HOUR)
+    await seedCover(stale, 25 * HOUR)
+
+    const after = (await weekly()).headCoverage
+    expect(after.active).toBe(true)
+    expect(after.uncoveredCount).toBe(baseline.uncoveredCount + 2)
+    expect(after.oldestUncoveredAgeMs).toBeGreaterThanOrEqual(25 * HOUR * 60_000)
+    expect((await readSyncPushHealth(db, false, 24)).headCoverage).toEqual({
+      active: false,
+      uncoveredCount: 0,
+      oldestUncoveredAgeMs: null,
+    })
   })
 })

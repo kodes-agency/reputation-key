@@ -11,6 +11,12 @@
 // own count and average (persist-review-head-page.ts). Persist is built and
 // stays off until a week of dark data supports it.
 //
+// A persisting check that stored all of the page keeps the Property's head cover
+// fresh, which is what lets a reconciliation window wider than a day skip the
+// full listing. A page on which every review changed, with more pages behind
+// it, renews nothing and asks the sweep for a full read instead: the changes may
+// run past the one page this check reads.
+//
 // It never throws. Every provider error, an order violation, a failed read of
 // the stored copies and a failed write end as a closed outcome or a count the
 // job returns normally, so a head check can never fail its job, spend a retry,
@@ -20,7 +26,11 @@
 import { translatedGoogleReviewApi } from '../google-review-api-error'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { compareHead, type HeadComparison } from '../../domain/head-check'
+import {
+  compareHead,
+  headPageOverflowed,
+  type HeadComparison,
+} from '../../domain/head-check'
 import {
   GOOGLE_CONNECTION_UNUSABLE_CODE,
   GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
@@ -139,10 +149,27 @@ const UNAVAILABLE: ReviewHeadPersistence = {
   factWritten: false,
 }
 
+/** What a check did with the Property's head cover. */
+type HeadCover = 'renewed' | 'full_read_requested'
+
+/**
+ * Only a persisting check that stored the page acts on the cover. A whole page
+ * changed with more behind it asks for a full read whatever it stored; otherwise
+ * the cover is renewed only when every review that differed was written.
+ */
+const coverAction = (result: RunReviewHeadCheckResult): HeadCover | null => {
+  if (result.status !== 'compared') return null
+  const persistence = result.persistence ?? null
+  if (persistence === null || persistence.outcome !== 'stored') return null
+  if (headPageOverflowed(result.comparison)) return 'full_read_requested'
+  return persistence.failed === 0 ? 'renewed' : null
+}
+
 const logLine = (
   outcome: ReviewHeadCheckOutcome,
   comparison: HeadComparison | null,
   persistence: ReviewHeadPersistence | null,
+  cover: HeadCover | null,
   durationMs: number,
 ) => ({
   event: 'review_head_check',
@@ -156,12 +183,14 @@ const logLine = (
         storedOther: persistence.storedOther,
         storeFailed: persistence.failed,
         factWritten: persistence.factWritten,
+        cover,
       }),
   listed: comparison?.listed ?? 0,
   new: comparison?.newCount ?? 0,
   changed: comparison?.changedCount ?? 0,
   replyChanged: comparison?.replyChangedCount ?? 0,
   leaseRefresh: comparison?.leaseRefreshCount ?? 0,
+  contentChanged: comparison?.contentChangedCount ?? 0,
   wouldPersist: comparison?.wouldPersist ?? 0,
   totalDifference: comparison?.totalDifference ?? null,
   averageDifference: comparison?.averageDifference ?? null,
@@ -304,9 +333,43 @@ export const createRunReviewHeadCheck = (
     }
   }
 
+  /**
+   * Renew the cover from the instant the check started (the page was read after
+   * it), or ask for a full read. Best-effort: a failed write is logged, and a
+   * cover that lapses only brings the full read forward.
+   */
+  const keepCover = async (
+    input: RunReviewHeadCheckInput,
+    action: HeadCover | null,
+    startedAt: Date,
+  ): Promise<HeadCover | null> => {
+    if (action === null) return null
+    try {
+      if (action === 'renewed') {
+        await deps.repository.recordHeadCoverage({
+          propertyId: input.propertyId,
+          coveredAt: startedAt,
+        })
+      } else {
+        await deps.repository.requestFullRead({
+          propertyId: input.propertyId,
+          requestedAt: deps.clock(),
+        })
+      }
+      return action
+    } catch {
+      deps.logger.warn(
+        { event: 'review_head_check_cover_not_recorded' },
+        'Review head check could not record its head cover',
+      )
+      return null
+    }
+  }
+
   return async (input) => {
     const startedAt = deps.clock()
     const result = await readOutcome(input, startedAt)
+    const cover = await keepCover(input, coverAction(result), startedAt)
     const completedAt = deps.clock()
     await record(input, result, startedAt, completedAt)
     deps.logger.info(
@@ -314,6 +377,7 @@ export const createRunReviewHeadCheck = (
         result.status,
         result.status === 'compared' ? result.comparison : null,
         result.status === 'compared' ? (result.persistence ?? null) : null,
+        cover,
         completedAt.getTime() - startedAt.getTime(),
       ),
       'Review head check finished',

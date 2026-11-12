@@ -13,7 +13,12 @@ import { reviewSourceContents } from './schema/review-source-content.schema'
 //     the pure rules in push-health.ts judge each one. Receipts count the
 //     pushes Pub/Sub accepted.
 //   - Is every Property still being reconciled? The newest completed snapshot
-//     fact of its current source epoch, against that window plus two hours.
+//     fact of its current source epoch, against the Property's own window plus
+//     two hours. Above a day the configured window holds only while a head
+//     check covers the Property's newest page; without that cover it is a day,
+//     as the discovery sweep applies it.
+//   - Is every Property's newest page covered? Only when the window is wider
+//     than a day: Properties no persisting head check covered for a day.
 //
 // It is its own health signal (`syncPush`), so a slow query here degrades only
 // this section and cannot blind the `sync` signals the sweep alerts hold on.
@@ -28,15 +33,23 @@ import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import { reviews } from '#/shared/db/schema/review.schema'
 import { reviewGoogleReputationSnapshotFacts } from '#/shared/db/schema/review-reputation.schema'
-import { reviewFirstSightings } from '#/shared/db/schema/review-sync.schema'
+import {
+  reviewFirstSightings,
+  reviewSyncState,
+} from '#/shared/db/schema/review-sync.schema'
 import { propertyIsSyncable, propertySyncableSince } from '#/shared/db/syncable-property'
 import {
+  DISCOVERY_LOOK_MAX_GAP_MS,
+  HEAD_COVERAGE_ALERT_AFTER_MS,
+  HEAD_COVERAGE_FRESH_MS,
   PUSH_ALERT_WINDOW_MS,
   PUSH_COVERED_VIA,
   PUSH_HEALTH_WINDOW_MS,
   RECONCILIATION_OVERDUE_AFTER_MS,
+  RECONCILIATION_OVERDUE_SLACK_MS,
   reconciliationOverdueAfterMs,
   summarizeLedger,
+  UNCOVERED_RECONCILE_WITHIN_MS,
   type LedgerSighting,
 } from '#/shared/domain/push-health'
 
@@ -65,12 +78,24 @@ export type SyncPushHealth = Readonly<{
     accountsDark: number
   }>
   reconciliation: Readonly<{
-    /** Configured reconciliation window plus slack, used by this read and its alert. */
+    /**
+     * Configured reconciliation window plus slack: the limit of a Property a
+     * head check covers. Above a day an uncovered Property's limit is a day
+     * plus slack.
+     */
     overdueAfterMs: number
-    /** Syncable Properties whose newest completed reconciliation is over the limit. */
+    /** Syncable Properties whose newest completed reconciliation is over their limit. */
     overdueCount: number
     /** Age of the oldest overdue one; null when none is overdue. */
     oldestAgeMs: number | null
+  }>
+  headCoverage: Readonly<{
+    /** The window is wider than a day, so skipping depends on head cover. */
+    active: boolean
+    /** Syncable Properties no persisting head check covered in the last day. */
+    uncoveredCount: number
+    /** How long the longest-uncovered one has gone; null when none is. */
+    oldestUncoveredAgeMs: number | null
   }>
 }>
 
@@ -93,6 +118,12 @@ const EMPTY_PUSH: SyncPushHealth['push'] = {
   accountsDark: 0,
 }
 
+const INACTIVE_HEAD_COVERAGE: SyncPushHealth['headCoverage'] = {
+  active: false,
+  uncoveredCount: 0,
+  oldestUncoveredAgeMs: null,
+}
+
 export const ZERO_SYNC_PUSH_HEALTH: SyncPushHealth = {
   push: EMPTY_PUSH,
   reconciliation: {
@@ -100,7 +131,14 @@ export const ZERO_SYNC_PUSH_HEALTH: SyncPushHealth = {
     overdueCount: 0,
     oldestAgeMs: null,
   },
+  headCoverage: INACTIVE_HEAD_COVERAGE,
 }
+
+/** Each Property's discovery state row: it carries the head cover. */
+const syncStateOfProperty = and(
+  eq(reviewSyncState.propertyId, sql`${properties.id}::text`),
+  eq(reviewSyncState.source, 'google'),
+)
 
 const secondsAgo = (ms: number) => sql`NOW() - (${ms / 1000} * INTERVAL '1 second')`
 
@@ -259,10 +297,17 @@ async function readPushHealth(db: Database): Promise<SyncPushHealth['push']> {
  * was restored, not from the fact it kept). Failed Properties still count;
  * propertyIsSyncable excludes connections awaiting reauthorization, including
  * provider revocation, which has its own signal.
+ *
+ * Each Property is judged against its own window, as the discovery sweep
+ * applies it. Up to a day that is the configured window. Above a day it is the
+ * configured window only while a head check covers the Property; otherwise a
+ * day after the listing, or, when the cover lapsed later than that, the lapse
+ * plus the longest gap between two looks (the look that notices the lapse is
+ * the one that lists in full).
  */
 async function readReconciliationAge(
   db: Database,
-  overdueAfterMs: number,
+  reconcileWithinHours: number,
 ): Promise<SyncPushHealth['reconciliation']> {
   const facts = reviewGoogleReputationSnapshotFacts
   const newestFact = sql`(
@@ -274,8 +319,22 @@ async function readReconciliationAge(
     ORDER BY ${facts.evaluatedAt} DESC
     LIMIT 1
   )`
-  const ageMs = sql`EXTRACT(EPOCH FROM (NOW() - GREATEST(${newestFact}, ${propertySyncableSince}))) * 1000`
-  const overdue = sql`${ageMs} > ${overdueAfterMs}`
+  const reconciledAt = sql`GREATEST(${newestFact}, ${propertySyncableSince})`
+  const ageMs = sql`EXTRACT(EPOCH FROM (NOW() - ${reconciledAt})) * 1000`
+  const coveredLimitMs = reconciliationOverdueAfterMs(reconcileWithinHours)
+  const uncoveredLimitMs = UNCOVERED_RECONCILE_WITHIN_MS + RECONCILIATION_OVERDUE_SLACK_MS
+  const coverLapseNoticedMs =
+    HEAD_COVERAGE_FRESH_MS + DISCOVERY_LOOK_MAX_GAP_MS + RECONCILIATION_OVERDUE_SLACK_MS
+  // Up to a day every Property has the configured limit, exactly as before.
+  const limitMs =
+    coveredLimitMs <= uncoveredLimitMs
+      ? sql`${coveredLimitMs}`
+      : sql`LEAST(${coveredLimitMs}::float8, GREATEST(
+          ${uncoveredLimitMs}::float8,
+          EXTRACT(EPOCH FROM (${reviewSyncState.headCoveredAt} - ${reconciledAt})) * 1000
+            + ${coverLapseNoticedMs}::float8
+        ))`
+  const overdue = sql`${ageMs} > ${limitMs}`
   const [row] = await db
     .select({
       overdue: sql<number>`count(*) FILTER (WHERE ${overdue})::int`,
@@ -283,19 +342,53 @@ async function readReconciliationAge(
     })
     .from(properties)
     .innerJoin(googleConnections, eq(googleConnections.id, properties.googleConnectionId))
+    .leftJoin(reviewSyncState, syncStateOfProperty)
     .where(propertyIsSyncable)
   return {
-    overdueAfterMs,
+    overdueAfterMs: coveredLimitMs,
     overdueCount: row?.overdue ?? 0,
     oldestAgeMs: row?.oldestAgeMs == null ? null : Math.round(Number(row.oldestAgeMs)),
   }
 }
 
 /**
+ * Syncable Properties that no persisting head check covered for a day, counted
+ * from the later of the last cover and the day the Property qualified. Read only
+ * when the window is wider than a day: at a day or less cover changes nothing.
+ * Such a Property is still listed in full every day; the count says the weekly
+ * rhythm is not holding for it.
+ */
+async function readHeadCoverage(
+  db: Database,
+  reconcileWithinHours: number,
+): Promise<SyncPushHealth['headCoverage']> {
+  if (reconcileWithinHours * 60 * 60 * 1000 <= UNCOVERED_RECONCILE_WITHIN_MS) {
+    return INACTIVE_HEAD_COVERAGE
+  }
+  const ageMs = sql`EXTRACT(EPOCH FROM (NOW() - GREATEST(${reviewSyncState.headCoveredAt}, ${propertySyncableSince}))) * 1000`
+  const uncovered = sql`${ageMs} > ${HEAD_COVERAGE_ALERT_AFTER_MS}::float8`
+  const [row] = await db
+    .select({
+      uncovered: sql<number>`count(*) FILTER (WHERE ${uncovered})::int`,
+      oldestAgeMs: sql<number | null>`max(${ageMs}) FILTER (WHERE ${uncovered})`,
+    })
+    .from(properties)
+    .innerJoin(googleConnections, eq(googleConnections.id, properties.googleConnectionId))
+    .leftJoin(reviewSyncState, syncStateOfProperty)
+    .where(propertyIsSyncable)
+  return {
+    active: true,
+    uncoveredCount: row?.uncovered ?? 0,
+    oldestUncoveredAgeMs:
+      row?.oldestAgeMs == null ? null : Math.round(Number(row.oldestAgeMs)),
+  }
+}
+
+/**
  * The `syncPush` health signal. `gbpPushEnabled` is the readiness fact the
  * composition root supplies (GBP_PUBSUB_TOPIC): with no topic there is no push
- * to measure, so the push counts stay zero and only the reconciliation age,
- * which does not depend on push, is read.
+ * to measure, so the push counts stay zero and only the reconciliation age and
+ * the head cover, which do not depend on push, are read.
  */
 export async function readSyncPushHealth(
   db: Database,
@@ -305,9 +398,7 @@ export async function readSyncPushHealth(
   const push = gbpPushEnabled ? await readPushHealth(db) : EMPTY_PUSH
   return {
     push,
-    reconciliation: await readReconciliationAge(
-      db,
-      reconciliationOverdueAfterMs(reconcileWithinHours),
-    ),
+    reconciliation: await readReconciliationAge(db, reconcileWithinHours),
+    headCoverage: await readHeadCoverage(db, reconcileWithinHours),
   }
 }

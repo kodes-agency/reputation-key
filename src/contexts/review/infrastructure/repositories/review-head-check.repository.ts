@@ -7,8 +7,9 @@ import { reviewSourceContents } from '#/shared/db/schema/review-source-content.s
 // check's own row in the bounded sync-run history (`review_sync_runs`, 30 days,
 // erased with the organization) and, in persist mode only, a head fact
 // (`recordHeadFact`: Google's count and average, `listing_complete = false`,
-// with the verified-snapshot event). It writes nothing about a review; reviews
-// are stored through the observation writer.
+// with the verified-snapshot event), and the Property's head cover or a full-read
+// request on its discovery row. It writes nothing about a review; reviews are
+// stored through the observation writer.
 
 import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -309,6 +310,40 @@ export const createReviewHeadCheckRepository = (
           })
           await insertOutboxRow(tx, verified, { recordedAt: evaluatedAt })
         })
+      }),
+
+    recordHeadCoverage: async ({ propertyId, coveredAt }) =>
+      trace('review.headCheck.recordHeadCoverage', async () => {
+        // Update only: a head check follows a look the sweep already dated, and
+        // a row inserted here would read as a Property that was never polled.
+        await db
+          .update(reviewSyncState)
+          .set({
+            headCoveredAt: sql`GREATEST(${reviewSyncState.headCoveredAt}, ${coveredAt})`,
+            updatedAt: sql`transaction_timestamp()`,
+          })
+          .where(
+            and(
+              eq(reviewSyncState.propertyId, propertyId),
+              eq(reviewSyncState.source, SYNC_SOURCE),
+            ),
+          )
+      }),
+
+    requestFullRead: async ({ propertyId, requestedAt }) =>
+      trace('review.headCheck.requestFullRead', async () => {
+        await db
+          .update(reviewSyncState)
+          .set({
+            fullReadRequestedAt: sql`GREATEST(${reviewSyncState.fullReadRequestedAt}, ${requestedAt})`,
+            updatedAt: sql`transaction_timestamp()`,
+          })
+          .where(
+            and(
+              eq(reviewSyncState.propertyId, propertyId),
+              eq(reviewSyncState.source, SYNC_SOURCE),
+            ),
+          )
       }),
 
     recordRun: async (run: ReviewHeadRunRecord) =>

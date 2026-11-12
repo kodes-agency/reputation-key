@@ -54,6 +54,13 @@ export const reviewSyncState = pgTable(
     errorClass: text('error_class'),
     errorRetryAt: timestamp('error_retry_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    // Migration 0151: when a persisting head check last stored all of Google's
+    // newest page. Above a one-day reconciliation window, the discovery sweep
+    // skips the full listing only while this is recent.
+    headCoveredAt: timestamp('head_covered_at', { withTimezone: true }),
+    // Migration 0151: a full listing was asked for ahead of the window. The
+    // sweep honours it once, when the last listing is six hours old.
+    fullReadRequestedAt: timestamp('full_read_requested_at', { withTimezone: true }),
   },
   (t) => [
     primaryKey({ columns: [t.propertyId, t.source] }),

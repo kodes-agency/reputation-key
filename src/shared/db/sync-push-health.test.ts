@@ -17,7 +17,8 @@ async function reconciliationQuery(reconcileWithinHours = 6) {
   }
   const db = {
     select: (fields: typeof selected) => {
-      selected = fields
+      // The reconciliation age is read first; a head-cover read may follow.
+      selected ??= fields
       return query
     },
   } as unknown as Database
@@ -45,6 +46,25 @@ describe('reconciliation age selection', () => {
     expect(query.overdue.sql).toContain('listing_complete')
     expect(query.overdue.sql).toContain('source_epoch')
     expect(query.overdue.sql).toContain('GREATEST')
+  })
+
+  it('reads no head cover up to a day: every Property has the configured limit', async () => {
+    for (const window of [6, 24]) {
+      const query = await reconciliationQuery(window)
+
+      expect(query.overdue.sql).not.toContain('head_covered_at')
+    }
+  })
+
+  it('above a day, limits a Property without head cover to a day plus slack', async () => {
+    const query = await reconciliationQuery(168)
+
+    expect(query.health.reconciliation.overdueAfterMs).toBe(170 * 3_600_000)
+    expect(query.overdue.sql).toContain('"review_sync_state"."head_covered_at"')
+    expect(query.overdue.sql).toContain('LEAST')
+    expect(query.overdue.params).toEqual(
+      expect.arrayContaining([170 * 3_600_000, 26 * 3_600_000, 15 * 3_600_000]),
+    )
   })
 
   it('does not exclude failed properties from the overdue count', async () => {
