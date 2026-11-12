@@ -66,7 +66,7 @@ export function PrintDownloadButton({
       disabled={printState.print === null || unavailableReason !== null}
       pending={printState.isWorking}
       pendingLabel="Making the PDF…"
-      aria-describedby="print-summary"
+      aria-describedby="print-final-summary"
       onClick={() => void printState.download()}
     >
       {block === null || block.label === 'Download PDF' ? (
@@ -103,7 +103,7 @@ function DownloadRow({
             className="text-[13px] text-muted-foreground"
           />
         )}
-        <span id="print-summary" className="sr-only">
+        <span id="print-final-summary" className="sr-only">
           {printState.fileName}
         </span>
       </div>
@@ -140,9 +140,9 @@ export function PortalPrintSection({
   const phone = useIsBelowLarge()
   const { print, tile } = printState
   return (
-    <section className="flex flex-col gap-5" aria-labelledby="print-heading">
+    <section className="flex flex-col gap-5" aria-labelledby="print-final-heading">
       <div className="flex flex-col gap-0.5">
-        <h2 id="print-heading" className="text-lg font-semibold">
+        <h2 id="print-final-heading" className="text-lg font-semibold">
           Print cards
         </h2>
         <p className="text-sm text-muted-foreground">

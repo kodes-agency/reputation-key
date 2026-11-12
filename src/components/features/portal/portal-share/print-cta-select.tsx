@@ -42,7 +42,7 @@ import type { PrintWordsState } from './use-print-words'
 const OWN = 'own'
 
 /** The select's trigger (the phone's button): where focus goes when "Save wording" goes. One is on the page. */
-export const PRINT_CTA_TRIGGER_ID = 'print-cta'
+export const PRINT_CTA_TRIGGER_ID = 'print-final-cta'
 
 type Props = Readonly<{ words: PrintWordsState; print: PrintSharePrint }>
 

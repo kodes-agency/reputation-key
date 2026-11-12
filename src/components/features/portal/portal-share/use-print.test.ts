@@ -9,6 +9,7 @@ import { PrintDownloadButton } from './portal-print-section'
 
 const view: PortalPrintKitView = {
   portalId: 'portal-1',
+  kit: 'final',
   portalName: 'Reception',
   primaryLocale: 'en',
   locales: ['en'],

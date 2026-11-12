@@ -54,17 +54,17 @@ function Spares({
   return (
     <div className="flex items-start gap-2">
       <Checkbox
-        id="print-spares"
+        id="print-final-spares"
         checked={print.fillSpares}
         onCheckedChange={(checked) => printState.change({ fillSpares: checked === true })}
-        aria-describedby="print-spares-note"
+        aria-describedby="print-final-spares-note"
         className="mt-0.5"
       />
       <div className="flex flex-col gap-0.5">
-        <Label htmlFor="print-spares" className="font-normal">
+        <Label htmlFor="print-final-spares" className="font-normal">
           Fill the last sheet with spares
         </Label>
-        <p id="print-spares-note" className="text-xs text-muted-foreground">
+        <p id="print-final-spares-note" className="text-xs text-muted-foreground">
           {note}
         </p>
       </div>
@@ -80,20 +80,20 @@ export function PrintHowManyStep(props: StepProps) {
   return (
     <Step title="How many?">
       <div className="flex flex-wrap items-center gap-3">
-        <Label htmlFor="print-quantity" className="text-sm font-normal">
+        <Label htmlFor="print-final-quantity" className="text-sm font-normal">
           {capitalised(noun)} you need
         </Label>
         <Input
-          id="print-quantity"
+          id="print-final-quantity"
           inputMode="numeric"
           autoComplete="off"
           value={printState.choice.quantityText}
           onChange={(event) => printState.change({ quantityText: event.target.value })}
           aria-invalid={quantity === null}
-          aria-describedby="print-sheets"
+          aria-describedby="print-final-sheets"
           className="w-20"
         />
-        <span id="print-sheets" className="text-[13px] text-muted-foreground">
+        <span id="print-final-sheets" className="text-[13px] text-muted-foreground">
           {quantity === null ? (
             'Enter how many you need, from 1 to 1000.'
           ) : (
@@ -122,7 +122,7 @@ function PerSheetSelect({ printState, print }: StepProps) {
   )
   return (
     <FormSelectField
-      id="print-per-sheet"
+      id="print-final-per-sheet"
       label={`${capitalised(noun)} per sheet`}
       value={String(print.perSheet)}
       onValueChange={(value) => printState.change({ perSheet: Number(value) })}
@@ -137,17 +137,17 @@ function BackPageOption({ printState, print }: StepProps) {
   return (
     <div className="flex items-start gap-2">
       <Checkbox
-        id="print-back"
+        id="print-final-back"
         checked={print.backPage}
         onCheckedChange={(checked) => printState.change({ backPage: checked === true })}
-        aria-describedby="print-back-help"
+        aria-describedby="print-final-back-help"
         className="mt-0.5"
       />
       <div className="flex flex-col gap-0.5">
-        <Label htmlFor="print-back" className="font-normal">
+        <Label htmlFor="print-final-back" className="font-normal">
           {PRINT_BACK_LABEL}
         </Label>
-        <p id="print-back-help" className="text-xs text-muted-foreground">
+        <p id="print-final-back-help" className="text-xs text-muted-foreground">
           {PRINT_BACK_HELP}
         </p>
       </div>
@@ -160,17 +160,17 @@ function CropMarksOption({ printState, print }: StepProps) {
   return (
     <div className="flex items-start gap-2">
       <Checkbox
-        id="print-crop-marks"
+        id="print-final-crop-marks"
         checked={print.cropMarks}
         onCheckedChange={(checked) => printState.change({ cropMarks: checked === true })}
-        aria-describedby="print-crop-marks-help"
+        aria-describedby="print-final-crop-marks-help"
         className="mt-0.5"
       />
       <div className="flex flex-col gap-0.5">
-        <Label htmlFor="print-crop-marks" className="font-normal">
+        <Label htmlFor="print-final-crop-marks" className="font-normal">
           {PRINT_SHOP_CROP_MARKS_LABEL}
         </Label>
-        <p id="print-crop-marks-help" className="text-xs text-muted-foreground">
+        <p id="print-final-crop-marks-help" className="text-xs text-muted-foreground">
           {PRINT_SHOP_CROP_MARKS_HELP}
         </p>
       </div>
@@ -211,7 +211,7 @@ export function PrintWordsStep(props: StepProps) {
   return (
     <Step title="Words">
       <FormSelectField
-        id="print-languages"
+        id="print-final-languages"
         label="Languages"
         value={printLanguageValue(print.languages)}
         onValueChange={(value) =>

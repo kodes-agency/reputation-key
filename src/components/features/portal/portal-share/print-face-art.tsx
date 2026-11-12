@@ -56,7 +56,7 @@ export function PrintDrawnFaceArt({
   const paper = drawn.look === 'paper'
   return (
     <div
-      data-printState-look={drawn.look}
+      data-final-look={drawn.look}
       style={{
         position: 'relative',
         width: '100%',

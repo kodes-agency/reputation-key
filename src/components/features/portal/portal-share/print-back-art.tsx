@@ -43,7 +43,7 @@ export function PrintDrawnBackArt({ drawn, look, bleed, pt }: Props) {
   const { layout, colours, art, ground } = drawn
   return (
     <div
-      data-printState-back={art === null ? 'paper' : 'immersive'}
+      data-final-back={art === null ? 'paper' : 'immersive'}
       style={{
         position: 'relative',
         width: '100%',

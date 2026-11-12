@@ -39,12 +39,12 @@ export function PrintSaveWording({ wording }: Readonly<{ wording: PrintWordingSt
         disabled={wording.reason !== null}
         pending={wording.isSaving}
         pendingLabel="Saving…"
-        aria-describedby="print-save-wording-note"
+        aria-describedby="print-final-save-wording-note"
         onClick={() => void wording.save()}
       >
         Save wording
       </Button>
-      <span id="print-save-wording-note" className="text-xs text-muted-foreground">
+      <span id="print-final-save-wording-note" className="text-xs text-muted-foreground">
         {wording.reason ?? 'Share opens with these words next time.'}
       </span>
     </div>

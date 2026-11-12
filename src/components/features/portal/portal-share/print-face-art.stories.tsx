@@ -76,10 +76,7 @@ function DrawnFace({
   const drawn = usePrintDrawnFace({ face, blocks, look, tile })
   const area = printLiveArea(face)
   return (
-    <figure
-      data-printState-face={`${face.piece}-${face.orientation}`}
-      style={{ margin: 0 }}
-    >
+    <figure data-final-face={`${face.piece}-${face.orientation}`} style={{ margin: 0 }}>
       <div
         style={{
           width: pointsToPixels(area.widthPt),

@@ -76,6 +76,13 @@ describe('buildPortalPrintKit', () => {
     const { portal, useCases } = await wire()
     const view = await useCases.getPortalPrintKit({ portalId: portal.id }, world.ctx())
     expect(view.locales).toEqual(['en', 'bg'])
+    expect(view.kit).toBe('final')
+  })
+
+  it('always reads the current print kit without a rollout setting', async () => {
+    const { portal, useCases } = await wire()
+    const view = await useCases.getPortalPrintKit({ portalId: portal.id }, world.ctx())
+    expect(view.kit).toBe('final')
   })
 
   it('remembers a print as the last, and tells the Share tab of it', async () => {

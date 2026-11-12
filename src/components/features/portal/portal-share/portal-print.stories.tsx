@@ -49,6 +49,7 @@ const view = (
   lastPrint: PortalPrintKitLastPrint | null = null,
 ): PortalPrintKitView => ({
   portalId: 'portal-1',
+  kit: 'final',
   lastPrint,
   savedWording: null,
   portalName: 'Reception',

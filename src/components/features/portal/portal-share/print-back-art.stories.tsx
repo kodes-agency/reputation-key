@@ -61,7 +61,7 @@ function Back({
   const area = printLiveArea(face)
   if (drawn === null) return null
   return (
-    <figure data-printState-card={`${face.piece}-${face.look}`} style={{ margin: 0 }}>
+    <figure data-final-card={`${face.piece}-${face.look}`} style={{ margin: 0 }}>
       <div
         style={{
           width: pointsToPixels(area.widthPt),
@@ -141,10 +141,10 @@ type Story = StoryObj<typeof Backs>
 /** The board back-side: no code anywhere, two Paper backs on plain paper and two Immersive on the ground. */
 export const BackSide: Story = {
   play: async ({ canvasElement }) => {
-    await expect(canvasElement.querySelectorAll('[data-print-back]')).toHaveLength(4)
+    await expect(canvasElement.querySelectorAll('[data-final-back]')).toHaveLength(4)
     await expect(canvasElement.querySelectorAll('[data-print-code]')).toHaveLength(0)
     await expect(
-      canvasElement.querySelectorAll('[data-print-back="immersive"]'),
+      canvasElement.querySelectorAll('[data-final-back="immersive"]'),
     ).toHaveLength(2)
   },
 }

@@ -72,7 +72,7 @@ function PieceCard({
   printState,
   view,
 }: StepProps & Readonly<{ piece: PrintPiece }>) {
-  const id = `print-piece-${piece}`
+  const id = `print-final-piece-${piece}`
   const orientation = printState.choice.orientations[piece]
   const held = piece === 'tent' && print.printer === 'print_shop'
   return (
@@ -129,7 +129,7 @@ export function PrintWhatStep(props: StepProps) {
           onChange={(orientation) =>
             printState.chooseOrientation(print.piece, orientation)
           }
-          idPrefix="print"
+          idPrefix="print-final"
         />
       </div>
     </Step>
@@ -148,7 +148,7 @@ export function PrintLookStep({ printState, print, view }: StepProps) {
         {PRINT_LOOKS.map((look) => (
           <PrintKitChoiceCard
             key={look}
-            id={`print-look-${look}`}
+            id={`print-final-look-${look}`}
             value={look}
             title={LOOK_TITLES[look]}
             detail={printLookFacts(look, print)}
@@ -190,14 +190,17 @@ export function PrintWhoStep({
       <div className="flex flex-wrap items-center gap-3">
         <SegmentedControl
           aria-label="Who prints it?"
-          aria-describedby="print-stock"
+          aria-describedby="print-final-stock"
           value={print.printer}
           onValueChange={(printer) => printState.choosePrinter(printer as PrintPrinter)}
           options={PRINTER_OPTIONS}
           touch
         />
         <div className="flex items-center gap-2">
-          <Label htmlFor="print-paper" className="font-normal text-muted-foreground">
+          <Label
+            htmlFor="print-final-paper"
+            className="font-normal text-muted-foreground"
+          >
             Paper
           </Label>
           <Select
@@ -206,7 +209,7 @@ export function PrintWhoStep({
               printState.change({ paper: paper as PrintKitPaper })
             }
           >
-            <SelectTrigger id="print-paper" className="w-28">
+            <SelectTrigger id="print-final-paper" className="w-28">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -219,7 +222,7 @@ export function PrintWhoStep({
           </Select>
         </div>
       </div>
-      <p id="print-stock" className="text-xs text-pretty text-muted-foreground">
+      <p id="print-final-stock" className="text-xs text-pretty text-muted-foreground">
         {printWhoLine({ ...print, countryCode })}
       </p>
       {shopPrint !== null && printState.tile !== null && (

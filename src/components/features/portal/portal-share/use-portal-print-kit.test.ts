@@ -22,6 +22,7 @@ const MANAGER_VIEW = { showActions: true, showCode: true, canDownloadAgain: true
 /** What the read answers for a portal that prints in one language. */
 const ANSWER: PortalPrintKitView = {
   portalId: 'portal-1',
+  kit: 'final',
   lastPrint: null,
   savedWording: null,
   portalName: 'Reception',

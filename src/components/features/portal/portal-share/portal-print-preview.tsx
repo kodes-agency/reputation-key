@@ -236,13 +236,13 @@ export function PortalPrintPreview(props: Props) {
   const tile = printState.tile
   return (
     <section
-      aria-labelledby={placement === 'column' ? 'print-preview-heading' : undefined}
+      aria-labelledby={placement === 'column' ? 'print-final-preview-heading' : undefined}
       className="flex flex-col gap-3"
     >
       <link rel="stylesheet" href={GUEST_FONT_STYLESHEET} precedence="default" />
       {placement === 'column' && (
         <div className="flex items-baseline justify-between gap-3">
-          <h2 id="print-preview-heading" className="text-sm font-semibold">
+          <h2 id="print-final-preview-heading" className="text-sm font-semibold">
             Preview
           </h2>
           <span className="text-xs text-muted-foreground">

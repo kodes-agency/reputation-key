@@ -33,13 +33,13 @@ export function PrintShopNote({ print, tilePt }: Props) {
           type="button"
           variant="outline"
           size="sm"
-          aria-describedby="print-shop-note-hint"
+          aria-describedby="print-final-shop-note-hint"
           onClick={() => void copyLink()}
         >
           {copied ? <Check /> : <Copy />}
           {copied ? PRINT_SHOP_NOTE_COPIED : PRINT_SHOP_NOTE_BUTTON}
         </Button>
-        <span id="print-shop-note-hint" className="text-xs text-muted-foreground">
+        <span id="print-final-shop-note-hint" className="text-xs text-muted-foreground">
           {PRINT_SHOP_NOTE_HINT}
         </span>
       </div>

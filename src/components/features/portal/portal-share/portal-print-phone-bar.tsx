@@ -98,7 +98,7 @@ export function PortalPrintPhoneBar({
                   onChange={(orientation) =>
                     printState.chooseOrientation(print.piece, orientation)
                   }
-                  idPrefix="print-sheet"
+                  idPrefix="print-final-sheet"
                   showNote={false}
                 />
               )

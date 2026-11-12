@@ -143,7 +143,7 @@ function LanguageFields({
   const own = words.own
   const guide = PRINT_WORDS_GUIDE[print.piece][print.orientation]
   const two = print.languages.length > 1
-  const id = `print-own-${locale}`
+  const id = `print-final-own-${locale}`
   const first = index === 0
   const headlineStatus =
     own === null

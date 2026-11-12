@@ -54,7 +54,7 @@ type DeployMigrationState = Readonly<{
 }>
 
 /**
- * The error the deploy runner throws after both schema tracks ran, or `null`
+ * The error the deploy runner throws after the journal ran, or `null`
  * once the deploy migration state is reached. An older image is named first:
  * whatever else is missing, no rerun of it converges.
  */
@@ -68,48 +68,28 @@ export function deployMigrationStateRefusal(state: DeployMigrationState): Error 
     position === 'matched' && state.hasAuthTables && state.hasProviderSubjectKey
   if (reached) return null
   return new Error(
-    'Migration state incomplete after the schema tracks — see the state line above. ' +
+    'Migration state incomplete after the journal — see the state line above. ' +
       'Fix forward and redeploy; the rerun converges.',
   )
 }
 
-/**
- * The schema track the runner had reached when it failed. The Better Auth
- * track runs first and commits statement by statement; the journal commits
- * file by file, and every later step runs with it applied.
- */
-export type DeploySchemaTrack = 'better_auth' | 'journal'
-
 const LOCK_WAIT_SECONDS = MIGRATION_LOCK_TIMEOUT_MS / 1_000
 
-/** What a lock wait left behind differs by track, so each gets its own line. */
-const LOCK_WAIT_RECOVERY: Readonly<Record<DeploySchemaTrack, string>> = {
-  better_auth:
-    `Lock wait: a Better Auth schema statement waited ${LOCK_WAIT_SECONDS} s for a lock ` +
-    'another session holds and gave up, so that the application does not queue behind it. ' +
-    'That track commits statement by statement, so what it added before the wait stays, ' +
-    'and the journal was not started. It adds only what is missing: redeploy; if it ' +
-    'happens again, find the session holding the lock (pg_stat_activity, pg_blocking_pids) ' +
-    'first (runbooks.md §8).',
-  journal:
-    `Lock wait: a migration statement waited ${LOCK_WAIT_SECONDS} s for a lock ` +
-    'another session holds and gave up, so that the application does not queue behind it. ' +
-    'The failed journal file was rolled back; earlier files remain applied. Redeploy; if it ' +
-    'happens again, find the session holding the lock (pg_stat_activity, pg_blocking_pids) ' +
-    'first (runbooks.md §8).',
-}
+const LOCK_WAIT_RECOVERY =
+  `Lock wait: a migration statement waited ${LOCK_WAIT_SECONDS} s for a lock ` +
+  'another session holds and gave up, so that the application does not queue behind it. ' +
+  'The failed journal file was rolled back; earlier files remain applied. Redeploy; if it ' +
+  'happens again, find the session holding the lock (pg_stat_activity, pg_blocking_pids) ' +
+  'first (runbooks.md §8).'
 
 /**
  * The recovery line the runner prints after a failure. An image older than the
  * database is repaired only by a newer release. A lock wait has nothing to
- * repair: the track gave up waiting for another session, and a rerun converges
+ * repair: the migration gave up waiting for another session, and a rerun converges
  * from whatever it left. Every other failure is repaired by fixing what failed
  * and rerunning.
  */
-export function deployFailureRecovery(
-  failure: unknown,
-  track: DeploySchemaTrack,
-): string {
+export function deployFailureRecovery(failure: unknown): string {
   if (failure instanceof ConcurrentIndexMigrationError) {
     return 'The concurrent-index file did not finish. Earlier files remain applied. Redeploy to inspect and repair an invalid index, or reuse a completed build, before recording its journal row.'
   }
@@ -121,7 +101,7 @@ export function deployFailureRecovery(
       'a migration file or its journal entry (runbooks.md §28).'
     )
   }
-  if (isMigrationLockTimeout(failure)) return LOCK_WAIT_RECOVERY[track]
+  if (isMigrationLockTimeout(failure)) return LOCK_WAIT_RECOVERY
   return (
     'Forward recovery: fix the failing migration SQL ' +
     'and redeploy — every step is idempotent, the rerun converges. ' +

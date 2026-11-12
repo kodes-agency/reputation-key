@@ -166,7 +166,9 @@ export type PortalPrintKitLastPrint = Readonly<{
 export type PortalPrintKitView = Readonly<{
   personal?: boolean
   portalId: string
-  /** The kit's memory of the last print; null for a Portal never printed. */
+  /** Retained for existing clients. */
+  kit: 'final'
+  /** The final kit's memory of the last print; null for a Portal never printed. */
   lastPrint: PortalPrintKitLastPrint | null
   /** The wording the manager saved for Share to open on; null when none was saved. */
   savedWording: PrintSavedWording | null
@@ -197,6 +199,7 @@ export function presentPortalPrintKit(
   const { look } = context
   return {
     portalId,
+    kit: 'final',
     lastPrint,
     savedWording,
     portalName: context.portalName,

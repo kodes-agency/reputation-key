@@ -15,8 +15,8 @@ export function PrintEveryCard({ words, print }: Props) {
   const rows = words.own?.everyCard
   if (!words.isOwn || rows === undefined) return null
   return (
-    <section aria-labelledby="print-every-card" className="flex flex-col gap-2">
-      <h3 id="print-every-card" className="text-[13px] font-semibold">
+    <section aria-labelledby="print-final-every-card" className="flex flex-col gap-2">
+      <h3 id="print-final-every-card" className="text-[13px] font-semibold">
         These words on every card
       </h3>
       <ul className="flex flex-col gap-1">

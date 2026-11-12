@@ -10,6 +10,7 @@
 // menu in it is `inbox-mobile-390.stories.tsx` (`OpenOnGoogleFromThePhoneSheet`).
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
 import { GOOGLE_REVIEW_LINK_COPY } from './google-review-link'
 import { InboxDetailCopyMenu } from './inbox-detail-copy-menu'
@@ -87,7 +88,7 @@ function expectNewTabLink(item: HTMLElement, href: string) {
 /**
  * Google gave the review's own page: `Open on Google` comes first, with the line
  * that says Google may want the account that manages the profile, then the copy
- * items under a separator.
+ * items under a separator. Checked in both themes, since axe runs on each.
  */
 export const WithReviewPage: Story = {
   args: {
@@ -96,7 +97,7 @@ export const WithReviewPage: Story = {
       googlePropertyReviewsUrl: PROPERTY_PAGE,
     }),
   },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const menu = await openMenu(canvasElement)
     const items = menu.getAllByRole('menuitem')
     expect(items.map((item) => item.textContent?.split('(')[0]?.trim())).toEqual([
@@ -109,13 +110,7 @@ export const WithReviewPage: Story = {
     expect(menu.getByRole('separator')).toBeInTheDocument()
     expect(menu.queryByRole('menuitem', { name: /See reviews on Google/ })).toBeNull()
     await closeMenu(canvasElement)
-  },
-}
-
-/** The same menu on the light surface (axe runs on both). */
-export const WithReviewPageLight: Story = {
-  ...WithReviewPage,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /**
