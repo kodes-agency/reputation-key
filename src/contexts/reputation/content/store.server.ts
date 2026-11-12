@@ -257,6 +257,37 @@ export const reviewIdentityValues = (
   sourceContentErasedAt: null,
 })
 
+/** Whether the stored Review row already holds every value an observation
+ * would set. Compares the same columns the update below writes. */
+function reviewIdentityIsCurrent(
+  existing: typeof reviews.$inferSelect,
+  row: typeof reviews.$inferInsert,
+  material: Readonly<{
+    materialRevision: number
+    normalizationVersion: string
+    sourceDigest: string
+    normalizedDigest: string
+  }>,
+  observationSequence: number,
+): boolean {
+  return (
+    existing.propertyId === row.propertyId &&
+    existing.googleConnectionId === (row.googleConnectionId ?? null) &&
+    existing.sentimentLabel === (row.sentimentLabel ?? null) &&
+    existing.sentimentScore === (row.sentimentScore ?? null) &&
+    existing.sourceSeenGeneration === (row.sourceSeenGeneration ?? null) &&
+    existing.sourceEpoch === row.sourceEpoch &&
+    existing.sourceRevision === material.materialRevision &&
+    existing.sourceObservationSequence === observationSequence &&
+    existing.materialNormalizationVersion === material.normalizationVersion &&
+    existing.materialSourceDigest === material.sourceDigest &&
+    existing.materialNormalizedDigest === material.normalizedDigest &&
+    existing.analysisSequence === row.analysisSequence &&
+    existing.sourceContentState === 'active' &&
+    existing.sourceContentErasedAt === null
+  )
+}
+
 /** Insert the first Review row, or advance the existing one to this
  * observation's source content and counters. A guest edit or an epoch carry
  * withdraws the AI-assisted replies written for the revision it replaces. Any
@@ -278,48 +309,54 @@ export async function writeObservedReviewIdentity(
   replyEffects: ReplyScopeEffects | undefined,
 ): Promise<typeof reviews.$inferSelect> {
   const row = reviewIdentityValues(observedReview)
+  // Each snapshot pass reads every Review twice. A read that leaves every
+  // column below as stored writes nothing: the caller holds the row's lock, so
+  // the stored values cannot move between the comparison and the return.
   const persistedRows: (typeof reviews.$inferSelect)[] =
-    existing == null
-      ? await tx
-          .insert(reviews)
-          .values({
-            ...row,
-            sourceObservationSequence: observationSequence,
-            materialNormalizationVersion: material.normalizationVersion,
-            materialSourceDigest: material.sourceDigest,
-            materialNormalizedDigest: material.normalizedDigest,
-            createdAt: observedAt,
-            updatedAt: observedAt,
-          })
-          .returning()
-      : await tx
-          .update(reviews)
-          .set({
-            propertyId: row.propertyId,
-            googleConnectionId: row.googleConnectionId,
-            sentimentLabel: row.sentimentLabel,
-            sentimentScore: row.sentimentScore,
-            sourceSeenGeneration: row.sourceSeenGeneration,
-            sourceEpoch: row.sourceEpoch,
-            sourceRevision: material.materialRevision,
-            sourceObservationSequence: observationSequence,
-            materialNormalizationVersion: material.normalizationVersion,
-            materialSourceDigest: material.sourceDigest,
-            materialNormalizedDigest: material.normalizedDigest,
-            analysisSequence: row.analysisSequence,
-            sourceContentState: 'active',
-            sourceContentErasedAt: null,
-            updatedAt: observedAt,
-          })
-          .where(
-            and(
-              eq(reviews.id, existing.id),
-              eq(reviews.organizationId, existing.organizationId),
-              eq(reviews.propertyId, existing.propertyId),
-              eq(reviews.sourceEpoch, existing.sourceEpoch),
-            ),
-          )
-          .returning()
+    existing != null &&
+    reviewIdentityIsCurrent(existing, row, material, observationSequence)
+      ? [existing]
+      : existing == null
+        ? await tx
+            .insert(reviews)
+            .values({
+              ...row,
+              sourceObservationSequence: observationSequence,
+              materialNormalizationVersion: material.normalizationVersion,
+              materialSourceDigest: material.sourceDigest,
+              materialNormalizedDigest: material.normalizedDigest,
+              createdAt: observedAt,
+              updatedAt: observedAt,
+            })
+            .returning()
+        : await tx
+            .update(reviews)
+            .set({
+              propertyId: row.propertyId,
+              googleConnectionId: row.googleConnectionId,
+              sentimentLabel: row.sentimentLabel,
+              sentimentScore: row.sentimentScore,
+              sourceSeenGeneration: row.sourceSeenGeneration,
+              sourceEpoch: row.sourceEpoch,
+              sourceRevision: material.materialRevision,
+              sourceObservationSequence: observationSequence,
+              materialNormalizationVersion: material.normalizationVersion,
+              materialSourceDigest: material.sourceDigest,
+              materialNormalizedDigest: material.normalizedDigest,
+              analysisSequence: row.analysisSequence,
+              sourceContentState: 'active',
+              sourceContentErasedAt: null,
+              updatedAt: observedAt,
+            })
+            .where(
+              and(
+                eq(reviews.id, existing.id),
+                eq(reviews.organizationId, existing.organizationId),
+                eq(reviews.propertyId, existing.propertyId),
+                eq(reviews.sourceEpoch, existing.sourceEpoch),
+              ),
+            )
+            .returning()
   const persistedRow = persistedRows[0]
   if (!persistedRow) {
     throw reviewError('repo_upsert_failed', 'Review observation returned no row')

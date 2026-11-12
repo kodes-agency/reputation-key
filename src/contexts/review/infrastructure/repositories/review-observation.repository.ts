@@ -192,7 +192,34 @@ async function insertOrRestoreMaterialRevision(
     input.comparison === 'baseline_unavailable'
   // Non-creating comparisons are same-epoch only. Historical exact bindings
   // may already be referenced and must remain immutable.
-  const rows = await tx
+  const target = and(
+    eq(materialReviewRevisions.organizationId, input.review.organizationId),
+    eq(materialReviewRevisions.reviewId, input.review.id),
+    eq(materialReviewRevisions.revision, input.materialRevision),
+    eq(materialReviewRevisions.sourceEpoch, input.review.sourceEpoch),
+  )
+  const [stored] = await tx
+    .select()
+    .from(materialReviewRevisions)
+    .where(target)
+    .for('update')
+  if (!stored) {
+    throw reviewError('repo_upsert_failed', 'Current Material Review Revision is missing')
+  }
+  // A re-read that changes none of the columns below writes nothing.
+  if (
+    (!adoptComparisonBaseline ||
+      (stored.normalizationVersion === values.normalizationVersion &&
+        stored.sourceDigest === values.sourceDigest &&
+        stored.normalizedDigest === values.normalizedDigest)) &&
+    stored.rating === values.rating &&
+    stored.normalizedText === values.normalizedText &&
+    stored.contentState === 'active' &&
+    stored.contentErasedAt === null
+  ) {
+    return
+  }
+  await tx
     .update(materialReviewRevisions)
     .set({
       ...(adoptComparisonBaseline
@@ -208,18 +235,7 @@ async function insertOrRestoreMaterialRevision(
       contentErasedAt: null,
       updatedAt: input.observedAt,
     })
-    .where(
-      and(
-        eq(materialReviewRevisions.organizationId, input.review.organizationId),
-        eq(materialReviewRevisions.reviewId, input.review.id),
-        eq(materialReviewRevisions.revision, input.materialRevision),
-        eq(materialReviewRevisions.sourceEpoch, input.review.sourceEpoch),
-      ),
-    )
-    .returning({ revision: materialReviewRevisions.revision })
-  if (!rows[0]) {
-    throw reviewError('repo_upsert_failed', 'Current Material Review Revision is missing')
-  }
+    .where(target)
 }
 
 type ObservationInput = Readonly<{
@@ -592,7 +608,8 @@ export async function persistReviewObservation(
   })
   const observationKey = resolveObservationKey(input, observationDigest)
 
-  const existing = await readObservationHead(tx, await lockStableIdentity(tx, input))
+  const lockedRow = await lockStableIdentity(tx, input)
+  const existing = await readObservationHead(tx, lockedRow)
   await assertProviderIdentityScope(tx, input)
 
   const replayed = await findReplayedObservation(
@@ -654,9 +671,11 @@ export async function persistReviewObservation(
   const appliedSequence = rereadsHead
     ? existing.sourceObservationSequence
     : observationSequence
+  // The locked row, not the head: the head carries the content row's connection
+  // and first-fetch values, which the Review row may not hold.
   const persistedRow = await writeObservedReviewIdentity(
     tx,
-    existing,
+    lockedRow,
     observedReview,
     material,
     appliedSequence,
