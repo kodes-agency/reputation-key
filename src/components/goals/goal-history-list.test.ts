@@ -100,7 +100,7 @@ describe('GoalHistoryList', () => {
     expect(list({ revealedFrom: null })).not.toContain('tabindex')
   })
 
-  it('sends the focus to the row the control revealed, with no ring of its own', () => {
+  it('makes only the revealed row focusable, with no outline class of its own', () => {
     const html = list({ revealedFrom: 1 })
 
     expect(rowTag(html, 'Second fact')).toContain('tabindex="-1"')
