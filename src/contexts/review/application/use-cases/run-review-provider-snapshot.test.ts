@@ -1531,4 +1531,73 @@ describe('runReviewProviderSnapshot', () => {
       })
     })
   })
+
+  describe('when the Google port throws the provider failure itself', () => {
+    const providerFailure = (
+      fields: Readonly<{ code: string; providerStatus?: number; retryAfterMs?: number }>,
+    ) =>
+      Object.assign(new Error('provider call failed'), {
+        _tag: 'GbpApiError',
+        dispatch: 'answered',
+        providerStatus: 429,
+        ...fields,
+      })
+
+    it('checkpoints a rate-limited page scan with the provider backoff hint', async () => {
+      const deps = makeDeps()
+      vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
+        providerFailure({ code: 'rate_limited', retryAfterMs: 5_000 }),
+      )
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({
+        status: 'checkpointed',
+        runId,
+        state: 'scanning',
+        retryAfterMs: 5_000,
+      })
+      expect(deps.googleReviewApi.discardReviewCursors).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      [{ code: 'auth_failed', providerStatus: 401 }, 'authorization_changed'],
+      [{ code: 'upstream_error', providerStatus: 404 }, 'provider_rejected'],
+    ] as const)('ends the run when the page scan fails with %j', async (fields, code) => {
+      const deps = makeDeps()
+      vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
+        providerFailure(fields),
+      )
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({ status: 'failed', runId, code })
+    })
+
+    it('ends the confirmation as provider_rejected when the review read is refused', async () => {
+      const deps = makeDeps({
+        currentRun: run({
+          state: 'confirming',
+          phase: 'confirmation',
+          confirmationDeadline: new Date('2026-08-16T12:00:00.000Z'),
+        }),
+      })
+      vi.mocked(deps.repository.readNextLinkedCandidate).mockResolvedValue({
+        runId,
+        reviewId,
+        expectedState: 'linked',
+        expectedSourceRevision: 1,
+        status: 'pending',
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+      })
+      vi.mocked(deps.googleReviewApi.getReview).mockRejectedValue(
+        providerFailure({ code: 'upstream_error', providerStatus: 400 }),
+      )
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({ status: 'failed', runId, code: 'provider_rejected' })
+      expect(deps.repository.confirmLinkedCandidateMissing).not.toHaveBeenCalled()
+    })
+  })
 })

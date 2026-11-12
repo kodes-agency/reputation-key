@@ -9,7 +9,7 @@
 // shows (the view's rule), and a call that does not go through leaves the page
 // where it was and names the card the failure belongs to.
 
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import type { GuestResponseFormProps } from '#/components/features/guest/public-portal/guest-response-form-types'
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'

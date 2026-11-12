@@ -8,7 +8,7 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { PortalGoalSection } from './portal-goal-section'
 import { PortalGoalSheet, type PortalGoalSheetCommands } from './portal-goal-sheet'

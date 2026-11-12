@@ -1,20 +1,17 @@
-// Portal context — what the final print kit remembers of a Portal's last print
-// (final design spec §11, slice 12). One row per Portal, replaced by each print:
+// Portal context — what the print kit remembers of a Portal's last print
+// (design spec §11, slice 12). One row per Portal, replaced by each print:
 // the choices the download took and the photo it used. Every method names the
 // Organization and the Portal; nothing here holds an address, a code or a file.
 
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
-import type {
-  PrintFinalLastPhoto,
-  PrintFinalLastSettings,
-} from '#/shared/domain/portal-print-final-last'
+import type { PrintLastPhoto, PrintLastSettings } from '#/shared/domain/portal-print-last'
 
 /** A Portal's last print as it was stored. */
 export type PortalLastPrint = Readonly<{
   printedAt: Date
-  settings: PrintFinalLastSettings
+  settings: PrintLastSettings
   /** The photo an Immersive print used; null for a Paper print, or an Immersive one with no photo. */
-  photo: PrintFinalLastPhoto | null
+  photo: PrintLastPhoto | null
 }>
 
 export type RecordPortalLastPrintInput = PortalLastPrint &

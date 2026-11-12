@@ -86,6 +86,9 @@ describe("Add a portal goal's number steps, worded", () => {
         targetSource: 'own',
       },
     })
+    for (const text of ['1', '1.0', '5']) {
+      expect(averageModel(ADD_SEAVIEW, text).number.invalid).toBe(false)
+    }
     for (const text of ['0.9', '5.1', '4.55', 'four']) {
       expect(averageModel(ADD_SEAVIEW, text).number.invalid).toBe(true)
     }

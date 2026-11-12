@@ -758,27 +758,8 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
   }),
 
   // ── the user was never told ──
-  // A review landed, the inbox has it, and past the grace edge it has no
-  // notification while its delivery is still undecided — an item whose
-  // recipients all muted it is decided and never counts. Presence means
-  // delivery is late, or the repair of deliveries that never settled is not
-  // keeping up. A single evaluation pages.
-  define({
-    name: 'notification.missing-for-inbox-item',
-    severity: 'P1',
-    runbook: 'runbooks.md §15',
-    windowMs: EVAL_CADENCE_MS,
-    threshold: 0,
-    blindedBy: ['health.notificationGap'],
-    read: (snapshot) => {
-      const count = snapshot.notifications.missingForInboxItemCount
-      if (count <= 0) return null
-      return {
-        value: count,
-        detail: `${count} inbox item(s) still have no notification and no decided delivery past the grace edge — delivery or its repair is not keeping up`,
-      }
-    },
-  }),
+  // A notice that was never delivered is an arrival fact with no consumer
+  // receipt: the delivery-lag read counts it, and the alert below pages on it.
   define({
     name: 'notification.in-app-delivery-lag',
     severity: 'P1',

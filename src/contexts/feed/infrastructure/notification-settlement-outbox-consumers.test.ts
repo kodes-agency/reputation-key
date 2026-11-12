@@ -10,7 +10,7 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import { SETTLED_EMAIL_REASON } from '../domain/notification-settlement'
+import { SETTLED_EMAIL_REASON } from '../domain/notification-actionable'
 import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
 import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
 import type { InboxItemId, NotificationId } from '#/shared/domain/ids'

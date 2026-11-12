@@ -1,4 +1,4 @@
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import { guestLocaleFormatTag } from '#/shared/domain/guest-locale'
 import { formatGuestDeadline } from '../guest-deadline-format'
 import type { GuestPortalCopy } from '../language-packs/guest-copy'

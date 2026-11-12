@@ -48,9 +48,9 @@ function setup(
     }
   }
   const store: StaffAccountStore = {
-    withAddressLocks: async (_org, _emails, run) => run(store),
+    withAddressLocks: async (_emails, run) => run(store),
     markDeliveryProblem: vi.fn(async () => {}),
-    withAddressLock: async (_org, _email, run) => run(store),
+    withAddressLock: async (_email, run) => run(store),
     currentActor: async (ctx) => ctx,
     propertyIds: async () => null,
     addressFacts: async () => ({
@@ -238,7 +238,6 @@ describe('staff removal convergence', () => {
         ...h.deps.store,
         markDeliveryProblem: vi.fn(async () => {}),
         withAddressLock: async <T>(
-          _org: string,
           _email: string,
           run: (store: StaffAccountStore) => Promise<T>,
         ) => {
@@ -543,7 +542,6 @@ it.each(['AccountAdmin', 'PropertyManager'] as const)(
           ...store,
           markDeliveryProblem: vi.fn(async () => {}),
           withAddressLock: async <T>(
-            _org: string,
             _email: string,
             run: (value: StaffAccountStore) => Promise<T>,
           ) => run(store),
@@ -583,7 +581,6 @@ describe('correcting a staff invitation email', () => {
     const store: StaffAccountStore = {
       ...h.deps.store,
       withAddressLocks: async <T>(
-        _org: string,
         emails: readonly string[],
         run: (store: StaffAccountStore) => Promise<T>,
       ) => {
@@ -623,8 +620,8 @@ describe('correcting a staff invitation email', () => {
     const h = await pendingSetup()
     const store: StaffAccountStore = {
       ...h.deps.store,
-      withAddressLocks: async (_org, _emails, run) => run(store),
-      withAddressLock: async (_org, _email, run) => run(store),
+      withAddressLocks: async (_emails, run) => run(store),
+      withAddressLock: async (_email, run) => run(store),
       addressFacts: async () => ({
         userId: 'elsewhere',
         organizationIds: ['other'],
@@ -646,7 +643,7 @@ describe('correcting a staff invitation email', () => {
     const h = await pendingSetup()
     const store: StaffAccountStore = {
       ...h.deps.store,
-      withAddressLocks: async (_org, _emails, run) => run(store),
+      withAddressLocks: async (_emails, run) => run(store),
       currentActor: async () => null,
     }
     await expect(
@@ -661,7 +658,7 @@ describe('correcting a staff invitation email', () => {
     const h = await pendingSetup()
     const store: StaffAccountStore = {
       ...h.deps.store,
-      withAddressLocks: async (_org, _emails, run) => run(store),
+      withAddressLocks: async (_emails, run) => run(store),
       addressFacts: async () => ({
         userId: 'existing',
         organizationIds: [ctx.organizationId],

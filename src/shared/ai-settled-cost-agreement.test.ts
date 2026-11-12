@@ -12,7 +12,7 @@ import {
  */
 const COST_CRITICAL_SOURCES = [
   'src/shared/ai-provider-control/service.ts',
-  'src/shared/db/ai/postgres-admission-authority.ts',
+  'src/contexts/ai/infrastructure/adapters/ai-execution-admission.adapter.ts',
   // The fakes belong here too: both stood in for the real admission authority
   // while pricing differently from it, which is precisely how the repricing
   // shipped with green tests.

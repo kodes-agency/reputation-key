@@ -439,8 +439,8 @@ attestation digest). OpenAI is the first adapter (`openai-provider-adapter.ts`);
 is the request building the route preparer used to do inline and its `invoke` is the
 connector, both unchanged. `openai-v2-parity.test.ts` pins, as literals taken before the seam
 existed, every v2 profile digest, the deployment profile and, for each route, the descriptor,
-the request binding and the SHA-256 of the exact body sent to OpenAI; it passes unchanged at
-the commit before the seam and after it.
+the digest of the descriptor admission reads and the SHA-256 of the exact body sent to
+OpenAI.
 
 Switching providers is an operator's act and nothing else (decision 7,
 `provider-selection.ts`). The operator names a provider per capability
@@ -510,7 +510,7 @@ the e2e provider stub (`e2e/fixtures/ai-provider-stub.ts`) are Messages-shaped f
   normalizer) stays the single acceptance point (contract 1.3).
 - The transport is the OpenAI connector's boundary made provider-neutral
   (`connector-boundary.ts`, used by both connectors; the OpenAI path is behaviour-identical and
-  `openai-v2-parity.test.ts` still passes unchanged): the grant and nonce gate, an exact header
+  `openai-v2-parity.test.ts` pins its bytes): the single-use admission gate, an exact header
   allowlist for the SDK's own request, byte equality with the attested RFC 8785 bytes, pinned
   name resolution to `api.anthropic.com`, HTTP/1.1 with one request per dispatcher, no redirects,
   bounded reads, no SDK retries. The SDK sends `Authorization: Bearer`; the boundary sends five
@@ -726,7 +726,15 @@ authority.
 Provider calls are admitted once per lane before an execution attempt is
 claimed (ADR 0058): interactive work (reply drafts, on-demand analysis) and
 background work (history) have independent global, organization and property
-buckets. Historical and backfill analysis events queue their provider work in
+buckets. The last authority before a provider call is
+`infrastructure/adapters/ai-execution-admission.adapter.ts`: one transaction
+locks the executing operation, re-reads the consent, epochs, processing profile
+and control generations it was claimed under (`ai-authorized-effect.ts`) and
+its review source (`ai-review-source-fence.ts`), in the output write's lock
+order, and only then reserves the budget. Whether an admission is open,
+charged or released is read from that reservation; an operation admits again
+only after a release at zero cost, and the reservation reaper charges every
+stale reservation in full. Historical and backfill analysis events queue their provider work in
 `ai_review_analysis_backlog`, which a 5-second drain empties newest review
 first, sixteen analyses at a time, and records an enrollment caught up as soon as
 its last review settles; a review opened in the Inbox is analysed ahead of the
@@ -1039,7 +1047,7 @@ Re-verified map items 1–6 on the supplied stacked base `af57b9c36` (current im
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1 — profile/prompt/schema/provenance       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/reply-drafting-v2-schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                             |
 | 2 — numbered input/options/binding         | `src/shared/reply-drafting-v2-request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                        |
-| 3 — effort/output/reservation bounds       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/db/ai/ai-budget.ts:96`                                                                                                                               |
+| 3 — effort/output/reservation bounds       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/db/ai/ai-budget.ts:97`                                                                                                                               |
 | 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/infrastructure/adapters/reply-rewrite-parent.ts:16`                                             |
 | 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                 |
 | 6 — frame choice/usage/adoption            | `src/contexts/review/application/ai-reply-v2-frame.ts:21`, `src/contexts/review/infrastructure/repositories/ai-frame-reservation.ts:156`, `src/contexts/review/infrastructure/ai-suggested-draft-store.ts:481` |

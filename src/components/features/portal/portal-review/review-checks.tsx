@@ -13,7 +13,7 @@ import type {
   PortalReview,
   ReviewLanguageRow,
 } from '#/contexts/portal/application/portal-management-contracts'
-import { PhraseView } from '../portal-history/portal-phrase-view'
+import { PhraseView } from '#/contexts/portal/workspace/ui/portal-phrase-view'
 import {
   describeFixLink,
   describeFixerLine,

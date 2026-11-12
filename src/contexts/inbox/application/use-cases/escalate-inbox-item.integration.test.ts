@@ -4,18 +4,14 @@ import { escalateInboxItem } from './escalate-inbox-item'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
-  dropInboxUseCaseTenant,
-  runScopedId,
-} from '../../infrastructure/inbox-database-fixtures-use-case-ids'
-import {
-  clearInboxUseCaseRows,
+  clearInboxOrganization,
   createUseCaseCommandStore,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
+  dropInboxUseCaseTenant,
   openFixturePool,
-  readCommittedFacts,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
-import {
+  readOutboxFacts,
+  runScopedId,
   seedInboxItem,
   seedInboxOrganization,
 } from '../../infrastructure/inbox-database-fixtures'
@@ -131,7 +127,7 @@ describe.sequential('escalateInboxItem', () => {
     await seedInboxOrganization(pool, ORG_ID, [PROP_1, PROP_OTHER])
   })
 
-  beforeEach(() => clearInboxUseCaseRows(pool, ORG_ID))
+  beforeEach(() => clearInboxOrganization(pool, ORG_ID))
 
   afterAll(async () => {
     clearEventSchemas()
@@ -157,7 +153,7 @@ describe.sequential('escalateInboxItem', () => {
 
     await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
-    const facts = await readCommittedFacts(pool, ORG_ID)
+    const facts = await readOutboxFacts(pool, ORG_ID)
     expect(facts).toHaveLength(1)
     expect(facts[0]!.eventType).toBe('inbox.inbox_item.escalated')
     expect(facts[0]!.payload).not.toHaveProperty('oldStatus')
@@ -170,7 +166,7 @@ describe.sequential('escalateInboxItem', () => {
     const updated = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(updated.isEscalated).toBe(true)
-    expect(await readCommittedFacts(pool, ORG_ID)).toHaveLength(0)
+    expect(await readOutboxFacts(pool, ORG_ID)).toHaveLength(0)
   })
 
   it('re-escalates a resolved escalation', async () => {

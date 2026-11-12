@@ -10200,49 +10200,49 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--history-tab",
+    "storyId": "portal-workspacetabs--history-tab",
     "state": "History Tab",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--history-tab",
+    "storyId": "portal-workspacetabs--history-tab",
     "state": "History Tab",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--linktree-section",
+    "storyId": "portal-workspacetabs--linktree-section",
     "state": "Linktree Section",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--linktree-section",
+    "storyId": "portal-workspacetabs--linktree-section",
     "state": "Linktree Section",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--page-tab",
+    "storyId": "portal-workspacetabs--page-tab",
     "state": "Page Tab",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--page-tab",
+    "storyId": "portal-workspacetabs--page-tab",
     "state": "Page Tab",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--rating-section",
+    "storyId": "portal-workspacetabs--rating-section",
     "state": "Rating Section",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--rating-section",
+    "storyId": "portal-workspacetabs--rating-section",
     "state": "Rating Section",
     "width": 390,
     "checks": ["targets"]
@@ -12744,637 +12744,637 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-backs--back-side",
+    "storyId": "portal-portalshare-print-kit-backs--back-side",
     "state": "Back Side",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-backs--back-side",
+    "storyId": "portal-portalshare-print-kit-backs--back-side",
     "state": "Back Side",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-backs--no-logo",
+    "storyId": "portal-portalshare-print-kit-backs--no-logo",
     "state": "No Logo",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-backs--no-logo",
+    "storyId": "portal-portalshare-print-kit-backs--no-logo",
     "state": "No Logo",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--europe",
+    "storyId": "portal-portalshare-print-kit-faces--europe",
     "state": "Europe",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--europe",
+    "storyId": "portal-portalshare-print-kit-faces--europe",
     "state": "Europe",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--german",
+    "storyId": "portal-portalshare-print-kit-faces--german",
     "state": "German",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--german",
+    "storyId": "portal-portalshare-print-kit-faces--german",
     "state": "German",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--harborline",
+    "storyId": "portal-portalshare-print-kit-faces--harborline",
     "state": "Harborline",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--harborline",
+    "storyId": "portal-portalshare-print-kit-faces--harborline",
     "state": "Harborline",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-badge",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-badge",
     "state": "Immersive Badge",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-badge",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-badge",
     "state": "Immersive Badge",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-dark-logo",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-dark-logo",
     "state": "Immersive Dark Logo",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-dark-logo",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-dark-logo",
     "state": "Immersive Dark Logo",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-elegance",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-elegance",
     "state": "Immersive Elegance",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-elegance",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-elegance",
     "state": "Immersive Elegance",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-german",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-german",
     "state": "Immersive German",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-german",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-german",
     "state": "Immersive German",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-no-photo",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-no-photo",
     "state": "Immersive No Photo",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-no-photo",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-no-photo",
     "state": "Immersive No Photo",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-two-languages",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-two-languages",
     "state": "Immersive Two Languages",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--immersive-two-languages",
+    "storyId": "portal-portalshare-print-kit-faces--immersive-two-languages",
     "state": "Immersive Two Languages",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--no-logo",
+    "storyId": "portal-portalshare-print-kit-faces--no-logo",
     "state": "No Logo",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--no-logo",
+    "storyId": "portal-portalshare-print-kit-faces--no-logo",
     "state": "No Logo",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--two-languages",
+    "storyId": "portal-portalshare-print-kit-faces--two-languages",
     "state": "Two Languages",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-faces--two-languages",
+    "storyId": "portal-portalshare-print-kit-faces--two-languages",
     "state": "Two Languages",
     "width": 390,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--a-read-after-a-download-never-replaces-the-words",
+    "storyId": "portal-portalshare-print-kit-saved-wording--a-read-after-a-download-never-replaces-the-words",
     "state": "A Read After A Download Never Replaces The Words",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--a-read-after-a-download-never-replaces-the-words",
+    "storyId": "portal-portalshare-print-kit-saved-wording--a-read-after-a-download-never-replaces-the-words",
     "state": "A Read After A Download Never Replaces The Words",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--focus-returns-to-the-call-to-action-after-a-save",
+    "storyId": "portal-portalshare-print-kit-saved-wording--focus-returns-to-the-call-to-action-after-a-save",
     "state": "Focus Returns To The Call To Action After A Save",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--focus-returns-to-the-call-to-action-after-a-save",
+    "storyId": "portal-portalshare-print-kit-saved-wording--focus-returns-to-the-call-to-action-after-a-save",
     "state": "Focus Returns To The Call To Action After A Save",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--focus-stays-on-save-when-the-save-is-refused",
+    "storyId": "portal-portalshare-print-kit-saved-wording--focus-stays-on-save-when-the-save-is-refused",
     "state": "Focus Stays On Save When The Save Is Refused",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--focus-stays-on-save-when-the-save-is-refused",
+    "storyId": "portal-portalshare-print-kit-saved-wording--focus-stays-on-save-when-the-save-is-refused",
     "state": "Focus Stays On Save When The Save Is Refused",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--how-was-your-stay-in-the-menu",
+    "storyId": "portal-portalshare-print-kit-saved-wording--how-was-your-stay-in-the-menu",
     "state": "How Was Your Stay In The Menu",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--how-was-your-stay-in-the-menu",
+    "storyId": "portal-portalshare-print-kit-saved-wording--how-was-your-stay-in-the-menu",
     "state": "How Was Your Stay In The Menu",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--opens-on-the-last-prints-wording-when-nothing-is-saved",
+    "storyId": "portal-portalshare-print-kit-saved-wording--opens-on-the-last-prints-wording-when-nothing-is-saved",
     "state": "Opens On The Last Prints Wording When Nothing Is Saved",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--opens-on-the-last-prints-wording-when-nothing-is-saved",
+    "storyId": "portal-portalshare-print-kit-saved-wording--opens-on-the-last-prints-wording-when-nothing-is-saved",
     "state": "Opens On The Last Prints Wording When Nothing Is Saved",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--opens-on-the-saved-own-words",
+    "storyId": "portal-portalshare-print-kit-saved-wording--opens-on-the-saved-own-words",
     "state": "Opens On The Saved Own Words",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--opens-on-the-saved-own-words",
+    "storyId": "portal-portalshare-print-kit-saved-wording--opens-on-the-saved-own-words",
     "state": "Opens On The Saved Own Words",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--opens-on-the-saved-wording",
+    "storyId": "portal-portalshare-print-kit-saved-wording--opens-on-the-saved-wording",
     "state": "Opens On The Saved Wording",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--opens-on-the-saved-wording",
+    "storyId": "portal-portalshare-print-kit-saved-wording--opens-on-the-saved-wording",
     "state": "Opens On The Saved Wording",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-a-picked-wording",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-a-picked-wording",
     "state": "Save A Picked Wording",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-a-picked-wording",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-a-picked-wording",
     "state": "Save A Picked Wording",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-asks-the-read-again",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-asks-the-read-again",
     "state": "Save Asks The Read Again",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-asks-the-read-again",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-asks-the-read-again",
     "state": "Save Asks The Read Again",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-is-off-for-an-offer",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-is-off-for-an-offer",
     "state": "Save Is Off For An Offer",
     "width": 320,
     "checks": ["overflow", "targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-is-off-for-an-offer",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-is-off-for-an-offer",
     "state": "Save Is Off For An Offer",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-is-off-without-a-headline",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-is-off-without-a-headline",
     "state": "Save Is Off Without A Headline",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-is-off-without-a-headline",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-is-off-without-a-headline",
     "state": "Save Is Off Without A Headline",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-own-words",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-own-words",
     "state": "Save Own Words",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-own-words",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-own-words",
     "state": "Save Own Words",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-refused-keeps-the-words",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-refused-keeps-the-words",
     "state": "Save Refused Keeps The Words",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-refused-keeps-the-words",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-refused-keeps-the-words",
     "state": "Save Refused Keeps The Words",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-words-that-do-not-fit-the-print",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-words-that-do-not-fit-the-print",
     "state": "Save Words That Do Not Fit The Print",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--save-words-that-do-not-fit-the-print",
+    "storyId": "portal-portalshare-print-kit-saved-wording--save-words-that-do-not-fit-the-print",
     "state": "Save Words That Do Not Fit The Print",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--words-survive-a-download",
+    "storyId": "portal-portalshare-print-kit-saved-wording--words-survive-a-download",
     "state": "Words Survive A Download",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-saved-wording--words-survive-a-download",
+    "storyId": "portal-portalshare-print-kit-saved-wording--words-survive-a-download",
     "state": "Words Survive A Download",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--counter-card-back-page",
+    "storyId": "portal-portalshare-print-kit-share--counter-card-back-page",
     "state": "Counter Card Back Page",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--counter-card-back-page",
+    "storyId": "portal-portalshare-print-kit-share--counter-card-back-page",
     "state": "Counter Card Back Page",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--overflowing-back-refuses-download",
+    "storyId": "portal-portalshare-print-kit-share--overflowing-back-refuses-download",
     "state": "Overflowing Back Refuses Download",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--overflowing-back-refuses-download",
+    "storyId": "portal-portalshare-print-kit-share--overflowing-back-refuses-download",
     "state": "Overflowing Back Refuses Download",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--download-sends-the-choice",
+    "storyId": "portal-portalshare-print-kit-share--download-sends-the-choice",
     "state": "Download Sends The Choice",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--download-sends-the-choice",
+    "storyId": "portal-portalshare-print-kit-share--download-sends-the-choice",
     "state": "Download Sends The Choice",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--immersive-counters-may-look-soft",
+    "storyId": "portal-portalshare-print-kit-share--immersive-counters-may-look-soft",
     "state": "Immersive Counters May Look Soft",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--immersive-counters-may-look-soft",
+    "storyId": "portal-portalshare-print-kit-share--immersive-counters-may-look-soft",
     "state": "Immersive Counters May Look Soft",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--last-printed-appears-after-a-download",
+    "storyId": "portal-portalshare-print-kit-share--last-printed-appears-after-a-download",
     "state": "Last Printed Appears After A Download",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--last-printed-appears-after-a-download",
+    "storyId": "portal-portalshare-print-kit-share--last-printed-appears-after-a-download",
     "state": "Last Printed Appears After A Download",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--last-printed-immersive-cards-photo-changed",
+    "storyId": "portal-portalshare-print-kit-share--last-printed-immersive-cards-photo-changed",
     "state": "Last Printed Immersive Cards Photo Changed",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--last-printed-immersive-cards-photo-changed",
+    "storyId": "portal-portalshare-print-kit-share--last-printed-immersive-cards-photo-changed",
     "state": "Last Printed Immersive Cards Photo Changed",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--last-printed-paper-small-cards-set-again",
+    "storyId": "portal-portalshare-print-kit-share--last-printed-paper-small-cards-set-again",
     "state": "Last Printed Paper Small Cards Set Again",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--last-printed-paper-small-cards-set-again",
+    "storyId": "portal-portalshare-print-kit-share--last-printed-paper-small-cards-set-again",
     "state": "Last Printed Paper Small Cards Set Again",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--last-printed-photo-changed-with-no-day",
+    "storyId": "portal-portalshare-print-kit-share--last-printed-photo-changed-with-no-day",
     "state": "Last Printed Photo Changed With No Day",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--last-printed-photo-changed-with-no-day",
+    "storyId": "portal-portalshare-print-kit-share--last-printed-photo-changed-with-no-day",
     "state": "Last Printed Photo Changed With No Day",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--last-printed-what-the-section-opens-on",
+    "storyId": "portal-portalshare-print-kit-share--last-printed-what-the-section-opens-on",
     "state": "Last Printed What The Section Opens On",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--last-printed-what-the-section-opens-on",
+    "storyId": "portal-portalshare-print-kit-share--last-printed-what-the-section-opens-on",
     "state": "Last Printed What The Section Opens On",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--never-printed",
+    "storyId": "portal-portalshare-print-kit-share--never-printed",
     "state": "Never Printed",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--never-printed",
+    "storyId": "portal-portalshare-print-kit-share--never-printed",
     "state": "Never Printed",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--own-words-in-two-languages",
+    "storyId": "portal-portalshare-print-kit-share--own-words-in-two-languages",
     "state": "Own Words In Two Languages",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--own-words-in-two-languages",
+    "storyId": "portal-portalshare-print-kit-share--own-words-in-two-languages",
     "state": "Own Words In Two Languages",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--own-words-too-long-for-upright-tents",
+    "storyId": "portal-portalshare-print-kit-share--own-words-too-long-for-upright-tents",
     "state": "Own Words Too Long For Upright Tents",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--own-words-too-long-for-upright-tents",
+    "storyId": "portal-portalshare-print-kit-share--own-words-too-long-for-upright-tents",
     "state": "Own Words Too Long For Upright Tents",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--own-words-with-an-offer-cannot-print",
+    "storyId": "portal-portalshare-print-kit-share--own-words-with-an-offer-cannot-print",
     "state": "Own Words With An Offer Cannot Print",
     "width": 320,
     "checks": ["overflow", "targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--own-words-with-an-offer-cannot-print",
+    "storyId": "portal-portalshare-print-kit-share--own-words-with-an-offer-cannot-print",
     "state": "Own Words With An Offer Cannot Print",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--paper-tents-on-letter",
+    "storyId": "portal-portalshare-print-kit-share--paper-tents-on-letter",
     "state": "Paper Tents On Letter",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--paper-tents-on-letter",
+    "storyId": "portal-portalshare-print-kit-share--paper-tents-on-letter",
     "state": "Paper Tents On Letter",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--phone-upright-tents",
+    "storyId": "portal-portalshare-print-kit-share--phone-upright-tents",
     "state": "Phone Upright Tents",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--phone-upright-tents",
+    "storyId": "portal-portalshare-print-kit-share--phone-upright-tents",
     "state": "Phone Upright Tents",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-card-back-page",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-card-back-page",
     "state": "Print Shop Card Back Page",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-card-back-page",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-card-back-page",
     "state": "Print Shop Card Back Page",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-crop-marks",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-crop-marks",
     "state": "Print Shop Crop Marks",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-crop-marks",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-crop-marks",
     "state": "Print Shop Crop Marks",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-note-copy-blocked",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-note-copy-blocked",
     "state": "Print Shop Note Copy Blocked",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-note-copy-blocked",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-note-copy-blocked",
     "state": "Print Shop Note Copy Blocked",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-note-is-copied",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-note-is-copied",
     "state": "Print Shop Note Is Copied",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-note-is-copied",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-note-is-copied",
     "state": "Print Shop Note Is Copied",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-offers-counter-cards",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-offers-counter-cards",
     "state": "Print Shop Offers Counter Cards",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-offers-counter-cards",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-offers-counter-cards",
     "state": "Print Shop Offers Counter Cards",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-order-and-page",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-order-and-page",
     "state": "Print Shop Order And Page",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--print-shop-order-and-page",
+    "storyId": "portal-portalshare-print-kit-share--print-shop-order-and-page",
     "state": "Print Shop Order And Page",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--tents-have-no-back-page",
+    "storyId": "portal-portalshare-print-kit-share--tents-have-no-back-page",
     "state": "Tents Have No Back Page",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--tents-have-no-back-page",
+    "storyId": "portal-portalshare-print-kit-share--tents-have-no-back-page",
     "state": "Tents Have No Back Page",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--two-cues-share-the-bar",
+    "storyId": "portal-portalshare-print-kit-share--two-cues-share-the-bar",
     "state": "Two Cues Share The Bar",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--two-cues-share-the-bar",
+    "storyId": "portal-portalshare-print-kit-share--two-cues-share-the-bar",
     "state": "Two Cues Share The Bar",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--wide-counter-will-look-soft",
+    "storyId": "portal-portalshare-print-kit-share--wide-counter-will-look-soft",
     "state": "Wide Counter Will Look Soft",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--wide-counter-will-look-soft",
+    "storyId": "portal-portalshare-print-kit-share--wide-counter-will-look-soft",
     "state": "Wide Counter Will Look Soft",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--write-your-own-words",
+    "storyId": "portal-portalshare-print-kit-share--write-your-own-words",
     "state": "Write Your Own Words",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-final-share--write-your-own-words",
+    "storyId": "portal-portalshare-print-kit-share--write-your-own-words",
     "state": "Write Your Own Words",
     "width": 390,
     "checks": ["targets"]

@@ -31,6 +31,30 @@ hours. Do not rely on the server default: `pool-session-time-zone.integration.te
 connects with a daylight-saving default and writes across a change. A session
 opened outside the pool (a script's own `pg.Client`) keeps the server default.
 
+## Database scope (row-security observe mode)
+
+Every unit of work carries a database scope: a tenant (`tenant-scope.server.ts`)
+or named system work (`system-scope.server.ts`). Auth enters the session's
+Organization in `resolveTenantContext`; an allowed `decidePublicExecution`
+enters a public request's Organization; the delayed execution gate runs
+Organization- and Property-scoped jobs and outbox consumers under their
+Organization and tenant-cross or unscoped work as system work. Transactions
+opened through `createDatabase` set `app.scope` and `app.organization_id` with
+`set_config(..., true)`, so the values end with the transaction and a pooled
+client never carries them to its next user. A process that serves requests
+declares itself in `getContainer`, after which system scope throws; the lint
+rule `source-policy/system-scope` keeps the module out of request code.
+
+Nothing is refused yet and the application still connects with its existing
+credential. `scope-observation.server.ts` watches every pooled client: a
+statement on a table with an `organization_id` column and no scope, or with an
+`organization_id = $n` parameter for another Organization, is counted and
+logged each minute as `database scope observe: row security would refuse` by
+reason, entry point and table, never by identifier. Each server function's
+`request complete` line also carries its statement, autocommit, transaction and
+scope-setting time (`db*` fields), which prices running every read in a short
+scoped transaction before policies are enabled.
+
 ## Independent erasure evidence
 
 `lifecycle/erasure-journal.server.ts` and its bucket adapter provide inactive
@@ -45,10 +69,12 @@ journal-dependent erasure is activated.
 ## Schema history
 
 `drizzle/meta/_journal.json` and its SQL files are the application schema history.
-Applied entries retain their position, timestamps and SQL. Better Auth still
-provisions its tables through the pinned runtime before the journal runs;
-`schema/auth.ts` mirrors those tables. Registered concurrent indexes still run
-through `concurrent-index-sidecar.ts` after the journal.
+Applied entries retain their position, timestamps and SQL. `0133` creates Better
+Auth's tables as the pinned runtime does, only on a database without them; its
+entry is a `prerequisite`, so an empty database runs it before `0000`, whose
+foreign keys reference them; once any file is applied it runs in journal order. `schema/auth.ts` mirrors those tables. Concurrent
+indexes are one nontransactional journal file each (`0134` to `0149` adopted the
+indexes an earlier deploy step built) and are declared in their table's model.
 
 `migrate-journal.server.ts` serializes the journal with a session advisory lock.
 Ordinary files and their journal rows commit together, one file at a time, with
@@ -109,10 +135,10 @@ migration creates: `0001` copies `db-constructs.sql` byte for byte and runs
 before that table exists, so the trigger is stated only in its migration and
 covered by the canonical dump, as `0069` does for the Response Target exclusions.
 
-An index on a continuously written table uses `CREATE INDEX CONCURRENTLY`.
-The existing registry remains authoritative until its journal-adoption release.
-The journal runner also supports files headed `-- migrate:nontransactional`
-containing one concurrent build: it repairs interrupted invalid indexes and
+An index on a continuously written table uses `CREATE INDEX CONCURRENTLY` in a
+file headed `-- migrate:nontransactional` containing that one build, and is
+declared in the table's model (`journal-concurrent-index-models.test.ts`). The
+runner reuses a valid matching index, repairs an interrupted invalid one and
 records a row only after a valid build. If recording fails, a rerun reuses the
 completed index.
 
@@ -128,10 +154,12 @@ on a rule with no index its batch can use.
 
 ## Deploy and recovery
 
-`pnpm db:migrate-deploy` runs Better Auth, the committed journal and registered
-concurrent indexes under the deploy identity guard and advisory lock, initializes
-provider-subject keys, then applies the declared capability posture.
-`pnpm db:migrate` applies the journal; `pnpm auth:migrate` runs pinned Better Auth.
+`pnpm db:migrate-deploy` runs the committed journal under the deploy identity
+guard and advisory lock, refuses if the pinned Better Auth expects a table or
+column the journal lacks, initializes provider-subject keys, then applies the
+declared capability posture. `pnpm db:migrate` applies the journal;
+`pnpm auth:migrate` runs pinned Better Auth directly (CI runs it first to prove
+the journal adopts its tables).
 
 New existing-table CHECK additions require `NOT VALID`; put `VALIDATE CONSTRAINT`
 in a separate file so the validation scan cannot extend the DDL transaction.
@@ -150,7 +178,10 @@ append migrations and replace their existing provisioning paths.
 
 Only explicitly supported expand forms bypass contraction preflight: new tables,
 nullable column additions or additions with constant defaults, nonunique concurrent
-indexes, named `NOT VALID` constraints and separate constraint validation. Every
+indexes (whole-table, or partial on `column = constant` or `column IS [NOT] NULL`),
+named `NOT VALID` constraints, separate constraint validation, and a `DO` block,
+alone between breakpoints, that only creates new tables and their indexes when a
+`to_regclass` test finds them missing. Every
 other form requires reader-removal evidence, including unrecognised statements
 and `ALTER COLUMN ... DROP DEFAULT`, which can break inserts from older images.
 
@@ -274,10 +305,10 @@ capability killed. The deploy runner lifts only the ones the environment declare
 (`GOOGLE_CONTENT_CAPABILITIES_ALLOWED`, `AI_CAPABILITIES_ENABLED`) and only while
 they are still that seed default — ADR 0032, amended 2026-09-29.
 
-`schema/auth.ts` must match the committed auth SQL and pinned Better Auth configuration,
-including names, types, nullability, and defaults. The pinned Better Auth runtime
-provisions these tables. DB-only DDL on those tables lives in `db-constructs.sql`
-and is parity-tested.
+`schema/auth.ts` must match the committed auth SQL (`0133` and later auth
+migrations) and pinned Better Auth configuration, including names, types,
+nullability, and defaults. DB-only DDL on those tables lives in
+`db-constructs.sql` and is parity-tested.
 
 ## Boundaries
 

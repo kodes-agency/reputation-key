@@ -6,14 +6,14 @@
 import { createConnection } from 'node:net'
 import { spawnSync } from 'node:child_process'
 
-/** Host ports published by compose.local.yml (4900 belongs to the media profile). */
+/** Host ports published by compose.local.yml (4900 is the object store). */
 const REQUIRED_PORTS = [
   { port: 3000, who: 'web' },
   { port: 3001, who: 'web-locked' },
   { port: 4100, who: 'provider-sandbox' },
   { port: 4101, who: 'mail-stub' },
   { port: 4102, who: 'ai-provider-stub' },
-  { port: 4900, who: 'object-store (media profile)' },
+  { port: 4900, who: 'object-store' },
   { port: 55432, who: 'postgres' },
   { port: 56379, who: 'redis' },
 ]

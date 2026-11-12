@@ -70,7 +70,6 @@ function prepareOpenAiInvocation(
     providerPayload: input.providerPayload,
     sdkRequest,
     createDescriptor: input.createDescriptor,
-    requestBindingKeys: input.requestBindingKeys,
   })
 }
 

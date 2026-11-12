@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalOffer } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalOffer } from '#/contexts/reporting/monthly-goals/contracts'
 import { WORKED_OUT_TITLE, offerWords, workedOutWords } from './portal-goal-offer-words'
 import {
   OFFER_NOVEMBER,

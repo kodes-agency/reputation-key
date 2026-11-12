@@ -16,6 +16,7 @@ x-app-dependencies: &app-dependencies
   provider-sandbox: { condition: service_healthy }
   ai-provider-stub: { condition: service_healthy }
   mail-stub: { condition: service_healthy }
+  object-store-init: { condition: service_completed_successfully }
 x-app: &app
   <<: *runtime
   image: repkey-local-web:${SOURCE_REVISION}
@@ -108,21 +109,27 @@ services:
     # "BullMQ worker started" log line that scripts/e2e/wait-worker.sh waits for.
     healthcheck: { disable: true }
   object-store:
-    profiles: [media]
-    image: minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
+    image: cgr.dev/chainguard/minio@sha256:db3f583fa49121942168bd6383a773b2cde3384c9a99bf7193560b9a0f3a28fd
     command: [server, /data]
     environment: { MINIO_ROOT_USER: "${MINIO_ROOT_USER}", MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}" }
     ports: ["127.0.0.1:4900:9000"]
-    healthcheck: { <<: *health, test: [CMD, curl, -fsS, http://127.0.0.1:9000/minio/health/live] }
+    healthcheck: { <<: *health, test: [CMD, bash, -c, "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /minio/health/live HTTP/1.1\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n' >&3 && read -r status <&3 && [[ $$status == *' 200 '* ]]"] }
     volumes: [object-store-data:/data]
     networks: [app]
   object-store-init:
-    profiles: [media]
-    image: minio/mc@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc
+    image: cgr.dev/chainguard/minio-client@sha256:d28f884b111d8555fe890c2e47a11f12d3193d554a849ca7b7048a2826e960be
     depends_on: { object-store: { condition: service_healthy } }
     environment: { MINIO_ROOT_USER: "${MINIO_ROOT_USER}", MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}", S3_BUCKET_NAME: "${S3_BUCKET_NAME}" }
-    entrypoint: [/bin/sh, -ec]
-    command: ['mc alias set local http://object-store:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" && mc mb --ignore-existing "local/$$S3_BUCKET_NAME" && mc anonymous set none "local/$$S3_BUCKET_NAME"']
+    entrypoint: [/usr/bin/sh, -ec]
+    # The -dev client image carries the shell and grep this script needs; the rule matches ErasureJournalBucket.
+    command:
+      - |
+        mc alias set local http://object-store:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing "local/$$S3_BUCKET_NAME"
+        mc anonymous set none "local/$$S3_BUCKET_NAME"
+        mc ilm rule list "local/$$S3_BUCKET_NAME" | grep -q erasure-journal-expiry ||
+          echo '{"Rules":[{"ID":"erasure-journal-expiry","Status":"Enabled","Filter":{"Prefix":"private/erasure-journal/"},"Expiration":{"Days":45},"NoncurrentVersionExpiration":{"NoncurrentDays":45}}]}' |
+          mc ilm rule import "local/$$S3_BUCKET_NAME"
     networks: [app]
 networks: { app: {} }
 volumes: { postgres-data: {}, redis-data: {}, object-store-data: {} }

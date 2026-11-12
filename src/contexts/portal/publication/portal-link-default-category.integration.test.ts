@@ -18,7 +18,7 @@ import { portalCreated } from '../domain/events'
 import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { createPortalApprovedDestinationRepository } from '../infrastructure/repositories/portal-approved-destination.repository'
 import { createPortalLinkRepository } from '../infrastructure/repositories/portal-link.repository'
-import type { PortalCommandStore } from '../application/ports/portal-command-store.port'
+import type { PortalCommandStore } from './portal-command-store-port.server'
 import { createPortalRepository } from '../infrastructure/repositories/portal.repository'
 
 const ORG_A = organizationId('org-defcat-0000-0000-000000000001')

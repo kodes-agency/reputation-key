@@ -20,7 +20,7 @@ import {
 } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createNotification } from '../../domain/notification-constructors'
-import { SETTLED_EMAIL_REASON } from '../../domain/notification-settlement'
+import { SETTLED_EMAIL_REASON } from '../../domain/notification-actionable'
 import type { NotificationType } from '../../domain/notification-types'
 import { createNotificationRepository } from './notification.repository'
 import { createNotificationEmailRepository } from './notification-email.repository'

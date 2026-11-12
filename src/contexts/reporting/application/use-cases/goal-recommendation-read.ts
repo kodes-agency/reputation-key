@@ -21,7 +21,7 @@ import {
 } from '../../domain/goal-recommendation'
 import type { RecommendationPortal } from '../../domain/goal-recommendation-types'
 import { findMetricVersionById, METRIC_VERSION_IDS } from '../../readings/contracts'
-import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
+import type { PortalGoalRecommendation } from '../../monthly-goals/contracts'
 import type {
   GoalRecommendationCounts,
   GoalRecommendationFactsPort,

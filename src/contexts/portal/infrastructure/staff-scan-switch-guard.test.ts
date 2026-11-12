@@ -1,6 +1,6 @@
 import { it, expect, vi } from 'vitest'
 import type { Tx } from '#/shared/outbox/commit'
-import type { UpdatePortalCommand } from '../application/ports/portal-command-store.port'
+import type { UpdatePortalCommand } from '../publication/portal-command-store-port.server'
 import { assertStaffScanSwitch } from './staff-scan-switch-guard'
 const command = (skipPrivateRating: boolean) =>
   ({

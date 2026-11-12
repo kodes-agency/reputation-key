@@ -16,12 +16,12 @@ import type { ReviewSourceLookupPort } from '../ports/review-source-lookup.port'
 import type { ReviewResponseTargetAuthorityPort } from '../ports/review-response-target-authority.port'
 import {
   buildFixtureItem,
-  clearInboxScope,
   createInboxDatabaseStores,
+  dropInboxOrganization,
   fixtureUuid,
   readOutboxFacts,
   seedInboxScope,
-} from '../../infrastructure/inbox-database-fixtures-status'
+} from '../../infrastructure/inbox-database-fixtures'
 
 const SCOPE = 'update-inbox-status'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -135,10 +135,10 @@ describe.sequential('updateInboxStatus', () => {
     registerAllEventSchemas()
   })
 
-  beforeEach(() => clearInboxScope(pool, ORG_ID))
+  beforeEach(() => dropInboxOrganization(pool, ORG_ID))
 
   afterAll(async () => {
-    await clearInboxScope(pool, ORG_ID)
+    await dropInboxOrganization(pool, ORG_ID)
     await pool.end()
   })
 

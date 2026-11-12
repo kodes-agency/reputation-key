@@ -74,7 +74,7 @@ const ATTEMPT_2_RERUN_JOBS = [
 
 type FakeJob = Readonly<{ name: string; conclusion: string; started_at: string | null }>
 type FakeCiRun = Readonly<{
-  conclusion: string
+  conclusion: string | null
   attempt: number
   digestMap: Record<string, unknown>
   attemptStarts?: Readonly<Record<number, string>>
@@ -112,7 +112,7 @@ function fakeGitHub(run: FakeCiRun): { runner: CommandRunner; calls: string[][] 
     calls.push([command, ...args])
     const [verb, target] = args
     if (command === 'gh' && verb === 'run' && target === 'list') {
-      // `--status success` is GitHub's filter; the deploy must not rely on it.
+      // The list call carries no status filter: the deploy checks the conclusion itself.
       return ok([
         {
           databaseId: RUN_ID,
@@ -390,6 +390,50 @@ describe('closed-beta CI run that proves the images', () => {
     expect(() => downloadCiImageDigestMap(REVISION, runner)).toThrow(
       `no successful main push CI run exists for source revision ${REVISION}`,
     )
+  })
+
+  it('lists the main push runs for the revision without a status filter', () => {
+    const { runner, calls } = fakeGitHub({
+      conclusion: 'success',
+      attempt: 1,
+      digestMap: digestMapFrom({}),
+    })
+
+    downloadCiImageDigestMap(REVISION, runner)
+
+    const list = calls.find((call) => call[1] === 'run' && call[2] === 'list')!
+    expect(list.slice(1)).toEqual([
+      'run',
+      'list',
+      '--repo',
+      TRUSTED_REPOSITORY,
+      '--workflow',
+      'ci.yml',
+      '--branch',
+      'main',
+      '--commit',
+      REVISION,
+      '--event',
+      'push',
+      '--limit',
+      '100',
+      '--json',
+      'databaseId,headSha,headBranch,event,conclusion,attempt',
+    ])
+    expect(list).not.toContain('--status')
+  })
+
+  it('refuses a run that is still in progress', () => {
+    const { runner, calls } = fakeGitHub({
+      conclusion: null,
+      attempt: 1,
+      digestMap: digestMapFrom({}),
+    })
+
+    expect(() => downloadCiImageDigestMap(REVISION, runner)).toThrow(
+      `no successful main push CI run exists for source revision ${REVISION}`,
+    )
+    expect(calls.some((call) => call[2] === 'download')).toBe(false)
   })
 
   it('uploads the deploy map under the artifact name its reader expects', () => {

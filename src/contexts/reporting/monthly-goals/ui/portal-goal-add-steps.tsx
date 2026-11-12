@@ -3,7 +3,7 @@ import { InlineLink } from '#/components/ui/inline-link'
 import { Label } from '#/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
 import { PORTAL_SPOT_NOT_PERSON_LINE } from './portal-goal-copy'
-import type { PortalGoalAddHeld } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
+import type { PortalGoalAddHeld } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   chooseModel,
   PortalGoalAddKind,

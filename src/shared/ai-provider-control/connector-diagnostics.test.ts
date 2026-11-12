@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { AiExecutionGrantV1 } from '#/shared/ai-internal-transport-contract'
+import type { AiExecutionAdmission } from './execution-admission'
 import type { PreparedInvocationBase } from './provider-contracts'
 import {
   logProviderAttestationThrow,
@@ -19,9 +19,9 @@ const invocation = {
 describe('provider connector diagnostics', () => {
   it('writes only bounded content-free gate facts', () => {
     const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
-    const grant = { expiresAtEpochMillis: 7_000 } as unknown as AiExecutionGrantV1
+    const admission = { expiresAtEpochMillis: 7_000 } as unknown as AiExecutionAdmission
 
-    logProviderGateRefusal(invocation, grant, 1_000, ['grant_expired'])
+    logProviderGateRefusal(invocation, admission, 1_000, ['admission_expired'])
 
     expect(write).toHaveBeenCalledWith(
       `${JSON.stringify({
@@ -30,8 +30,8 @@ describe('provider connector diagnostics', () => {
         operationId: '10000000-0000-4000-8000-000000000001',
         permitId: '10000000-0000-4000-8000-000000000002',
         attempt: 2,
-        grantTtlMillis: 6_000,
-        reasons: ['grant_expired'],
+        admissionTtlMillis: 6_000,
+        reasons: ['admission_expired'],
       })}\n`,
     )
     write.mockRestore()

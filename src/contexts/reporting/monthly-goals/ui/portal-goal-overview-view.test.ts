@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import {
   CARD_DRAFTS_ONE,
   CARD_GETTING_READY,

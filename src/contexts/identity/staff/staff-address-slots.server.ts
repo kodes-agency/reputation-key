@@ -1,43 +1,54 @@
 import { staffAccountError } from '../domain/staff-account'
 
-type Slot = Readonly<{ active: number; waiters: readonly (() => void)[] }>
-const slots = new Map<string, Slot>()
+const ACTIVE_LIMIT = 4
+const WAITER_LIMIT = 40
+const WAIT_MS = 30_000
+
+let active = 0
+let waiters: readonly (() => void)[] = []
 const busy = () =>
   staffAccountError('rate_limited', 'Staff changes are busy. Please try again shortly')
 
-/** Leave pool capacity for Portal commits without letting one Organization queue everyone. */
-export async function takeStaffAddressSlot(organizationId: string): Promise<() => void> {
-  const current = slots.get(organizationId) ?? { active: 0, waiters: [] }
-  if (current.active < 2) {
-    slots.set(organizationId, { ...current, active: current.active + 1 })
-    return () => release(organizationId)
+/**
+ * One limit for the whole process: staff commands hold no connection between
+ * their steps, so this bounds the work they put on the shared pool at once.
+ */
+export async function takeStaffOnboardingSlot(): Promise<() => void> {
+  if (active < ACTIVE_LIMIT) {
+    active += 1
+    return once(release)
   }
-  if (current.waiters.length >= 20) throw busy()
+  if (waiters.length >= WAITER_LIMIT) throw busy()
   await new Promise<void>((resolve, reject) => {
     const ready = () => {
       clearTimeout(timer)
       resolve()
     }
     const timer = setTimeout(() => {
-      const latest = slots.get(organizationId)!
-      slots.set(organizationId, {
-        ...latest,
-        waiters: latest.waiters.filter((waiter) => waiter !== ready),
-      })
+      waiters = waiters.filter((waiter) => waiter !== ready)
       reject(busy())
-    }, 30_000)
-    slots.set(organizationId, { ...current, waiters: [...current.waiters, ready] })
+    }, WAIT_MS)
+    waiters = [...waiters, ready]
   })
-  return () => release(organizationId)
+  return once(release)
 }
 
-function release(organizationId: string): void {
-  const current = slots.get(organizationId)!
-  const [next, ...waiters] = current.waiters
-  if (next) {
-    slots.set(organizationId, { ...current, waiters })
-    next()
-  } else if (current.active > 1)
-    slots.set(organizationId, { active: current.active - 1, waiters: [] })
-  else slots.delete(organizationId)
+function release(): void {
+  const [next, ...rest] = waiters
+  if (!next) {
+    active -= 1
+    return
+  }
+  // The slot passes straight to the next waiter, so `active` is unchanged.
+  waiters = rest
+  next()
+}
+
+function once(run: () => void): () => void {
+  let done = false
+  return () => {
+    if (done) return
+    done = true
+    run()
+  }
 }

@@ -7,7 +7,7 @@
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId as toPortalId, type PortalLinkId } from '#/shared/domain/ids'
-import { PRINT_FINAL_DEFAULT_WORDING } from '#/shared/domain/portal-print-final-wording'
+import { PRINT_DEFAULT_WORDING } from '#/shared/domain/portal-print-wording'
 import { isPortalError, portalError } from '../../domain/errors'
 import type { PortalLink } from '../../domain/types'
 import { portalUpdated } from '../../domain/events'
@@ -20,7 +20,7 @@ import {
   assertPropertyAllowsPublication,
   loadVerifiedGoogleReviewDestination,
 } from '../portal-publication-readiness'
-import type { CreatePortalCopiedContent } from '../ports/portal-command-store.port'
+import type { CreatePortalCopiedContent } from '../../publication/portal-command-store-port.server'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import {
   copiedPrintWording,
@@ -132,7 +132,7 @@ export const updatePersonalGuestPage =
       linktreeEnabled: plan.settings.linktreeEnabled,
       content: keepingLinkIds(plan.content, currentLinks),
       // Written, not cleared: a cleared row would fall back to this page's own last print.
-      printWording: printWording ?? PRINT_FINAL_DEFAULT_WORDING,
+      printWording: printWording ?? PRINT_DEFAULT_WORDING,
       sourceFence: source.sourceFence,
       event: portalUpdated({
         portalId: pid,

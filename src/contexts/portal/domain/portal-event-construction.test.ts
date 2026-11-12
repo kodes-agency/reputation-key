@@ -170,25 +170,6 @@ const examples = [
     events.portalContentReviewCompleted,
     workflow,
   ),
-  example(
-    'portal.configuration_completeness.recorded',
-    events.portalConfigurationCompletenessRecorded,
-    {
-      ...workflow,
-      completedFields: 4,
-      requiredFields: 5,
-      fieldSet: 'immersive_hub',
-    },
-  ),
-  example(
-    'portal.approved_destination_ratio.recorded',
-    events.portalApprovedDestinationRatioRecorded,
-    {
-      ...workflow,
-      approvedDestinations: 1,
-      configuredDestinations: 2,
-    },
-  ),
   example('portal_link_category.created', events.portalLinkCategoryCreated, category),
   example('portal_link_category.reordered', events.portalLinkCategoryReordered, portal),
   example('portal_link_category.updated', events.portalLinkCategoryUpdated, category),

@@ -20,7 +20,6 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import { createNotificationRepository } from './notification.repository'
-import { createNotificationGapRepository } from './notification-gap.repository'
 
 const ORG = 'org-notification-feed-order'
 const PROPERTY = '86100000-0000-4000-8000-000000000001'
@@ -258,34 +257,6 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
     )
     expect(feedScan?.['Index Cond']).toContain('ROW(')
     expect(plan.map((node) => node['Node Type'])).not.toContain('Sort')
-  })
-
-  it('answers the missing-notification anti-join from an index', async () => {
-    const plan = await planOfCapturedQuery(
-      (db) =>
-        createNotificationGapRepository(db).countItemsMissingNotifications({
-          createdAtOrAfter: new Date('2026-08-24T00:00:00Z'),
-          createdBefore: new Date('2026-08-25T00:00:00Z'),
-          scanLimit: 50,
-          statementTimeoutMs: 2_000,
-        }),
-      (sql) => /not exists/i.test(sql),
-    )
-
-    const notificationAccess = plan.filter(
-      (node) =>
-        node['Relation Name'] === 'notifications' ||
-        node['Index Name']?.startsWith('notifications_'),
-    )
-    // The gauge's count may reach it through a bitmap heap scan, whose own node
-    // names no index; what matters is that only this index is used and the
-    // table is never scanned whole.
-    expect(
-      notificationAccess.flatMap((node) =>
-        node['Index Name'] ? [node['Index Name']] : [],
-      ),
-    ).toEqual(['notifications_inbox_item_resource_idx'])
-    expect(notificationAccess.map((node) => node['Node Type'])).not.toContain('Seq Scan')
   })
 
   it('selects retention candidates oldest-first from an index', async () => {

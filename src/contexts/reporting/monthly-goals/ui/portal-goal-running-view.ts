@@ -1,13 +1,13 @@
 import { staffPortalCounts } from './portal-goal-staff-counts'
 // The read owns pace, quiet days, reconciliation and each month's own measure, not the
 // goal's latest measure. Keep pace wording in the shared pill.
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalLastMonth,
   PortalGoalOfCard,
   PortalGoalRows,
   PortalGoalRunningMonth,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { formatNumber } from '#/lib/format'
 import { daysLeftWords } from '../../../../components/goals/goal-live-view'
 import {

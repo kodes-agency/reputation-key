@@ -183,6 +183,37 @@ describe('journal recovery through PostgreSQL', () => {
     ).toBe('first_file')
   })
 
+  it('runs a prerequisite in journal order once history is applied, so a refused file commits nothing', async () => {
+    const files = [
+      'CREATE TABLE first_file (id int)',
+      `-- migrate:contract ${'a'.repeat(40)}\nCREATE TABLE refused_file (id int); SELECT * FROM dependency`,
+      'CREATE TABLE auth_table (id int PRIMARY KEY)',
+    ]
+    const identities = [
+      { when: 1000 },
+      { when: 1001 },
+      { when: 1002, prerequisite: true },
+    ]
+    await migrateJournal(migrator, journal(files.slice(0, 1), identities.slice(0, 1)))
+    const before = await applied()
+
+    await expect(
+      migrateJournal(migrator, journal(files, identities)),
+    ).rejects.toMatchObject({
+      code: '42P01',
+    })
+
+    expect(await applied()).toEqual(before)
+    expect(
+      (await observer.query("SELECT to_regclass('auth_table') AS relation")).rows[0]
+        .relation,
+    ).toBeNull()
+    await observer.query('CREATE TABLE dependency (id int)')
+    await migrateJournal(migrator, journal(files, identities))
+    await expectJournal(files)
+    await expectLocksReleased()
+  })
+
   it('refuses an older journal even when every local file is already applied', async () => {
     const files = [
       'CREATE TABLE first_file (id int)',

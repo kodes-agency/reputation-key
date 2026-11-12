@@ -21,6 +21,17 @@ import type { ReviewProviderObservationWriter } from '../ports/review-provider-o
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 import { checkReviewOnGoogle } from './check-review-on-google'
 
+/** What the integration adapter throws for a call Google answered or refused. */
+const providerFailure = (
+  fields: Readonly<{ code: string; providerStatus?: number; retryAfterMs?: number }>,
+) =>
+  Object.assign(new Error('provider call failed'), {
+    _tag: 'GbpApiError',
+    dispatch: 'answered',
+    providerStatus: 429,
+    ...fields,
+  })
+
 const ORG = organizationId('org-check-review')
 const PROPERTY = propertyId('00000000-0000-4000-8000-0000000000a1')
 const CONNECTION = googleConnectionId('00000000-0000-4000-8000-0000000000a2')
@@ -485,6 +496,31 @@ describe('checkReviewOnGoogle', () => {
       await expect(check(request)).resolves.toEqual({
         status: 'unavailable',
         retry: 'later',
+      })
+    })
+  })
+
+  describe('provider failures from the governed read', () => {
+    it('treats a rate limit as worth another try', async () => {
+      const { check } = setup({
+        getError: providerFailure({ code: 'rate_limited', retryAfterMs: 7_000 }),
+      })
+
+      await expect(check(request)).resolves.toEqual({
+        status: 'unavailable',
+        retry: 'later',
+      })
+    })
+
+    it.each([
+      { code: 'auth_failed', providerStatus: 401 },
+      { code: 'upstream_error', providerStatus: 404 },
+    ])('treats %j as permanent', async (fields) => {
+      const { check } = setup({ getError: providerFailure(fields) })
+
+      await expect(check(request)).resolves.toEqual({
+        status: 'unavailable',
+        retry: 'never',
       })
     })
   })

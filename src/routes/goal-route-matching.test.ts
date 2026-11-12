@@ -1,6 +1,6 @@
 // The Monthly portal goal's page, the Portal goal results page and the Google
 // rating goal's page are static children of the Goals route, beside the dynamic
-// `$goalId` (PLAN PG-13, the Google proof; PG-18): `/goals/portals`,
+// `$goalId`: `/goals/portals`,
 // `/goals/portal-results` and `/goals/google-rating` are never read as a goal's
 // id, and a goal's id still reaches `$goalId`, which sends a Property
 // count goal on to `/goals/portals`. Where each route sits is read from the tree

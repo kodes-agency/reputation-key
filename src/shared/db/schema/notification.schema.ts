@@ -134,9 +134,10 @@ export const notifications = pgTable(
       .where(sql`status = 'unread' AND resolved_at IS NULL`),
     // Query: the 90-day retention sweep selects expired rows oldest first.
     index('notifications_created_at_idx').on(t.createdAt),
-    // notifications_coalesced_latest_at_idx (the retention sweep's order) is absent here on
-    // purpose: the concurrent-index sidecar builds it
-    // (src/shared/db/concurrent-index-registry.ts).
+    // The retention sweep's order; most notifications are never raised again.
+    index('notifications_coalesced_latest_at_idx')
+      .on(t.coalescedLatestAt)
+      .where(sql`${t.coalescedLatestAt} IS NOT NULL`),
     // Query: a Property hard delete's cascade check for this FK — every other
     // index here leads with user_id, organization_id alone, resource_id or
     // created_at, none of which can serve a property-scoped delete without
@@ -251,9 +252,8 @@ export const notificationEmailQueue = pgTable(
     index('notification_email_queue_immediate_acceptance_health_idx')
       .on(t.createdAt.desc(), t.id)
       .where(sql`${t.cadence} = 'immediate' AND ${t.notBefore} IS NULL`),
-    // notification_email_queue_created_at_idx (the retention sweep's order) is
-    // absent here on purpose: the concurrent-index sidecar builds it
-    // (src/shared/db/concurrent-index-registry.ts).
+    // The retention sweep's order; the index above covers immediate rows only.
+    index('notification_email_queue_created_at_idx').on(t.createdAt),
     uniqueIndex('email_queue_property_idempotency_unique')
       .on(t.organizationId, t.propertyId, t.idempotencyKey)
       .where(sql`${t.propertyId} IS NOT NULL`),
@@ -402,12 +402,15 @@ export const RESEND_WEBHOOK_DELIVERY_RETENTION_DAYS = 7
  * outlast the provider's retry window; the retention sweep deletes it
  * `RESEND_WEBHOOK_DELIVERY_RETENTION_DAYS` after `applied_at`.
  */
-export const resendWebhookDeliveries = pgTable('resend_webhook_deliveries', {
-  eventId: varchar('event_id', { length: 255 }).primaryKey(),
-  appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
-  // resend_webhook_deliveries_retention_idx (the retention sweep's order) is
-  // built by the concurrent-index sidecar; see concurrent-index-registry.ts.
-})
+export const resendWebhookDeliveries = pgTable(
+  'resend_webhook_deliveries',
+  {
+    eventId: varchar('event_id', { length: 255 }).primaryKey(),
+    appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  // The retention sweep's order.
+  (t) => [index('resend_webhook_deliveries_retention_idx').on(t.appliedAt)],
+)
 
 // ── Immutable daily-digest attempts ────────────────────────────────
 

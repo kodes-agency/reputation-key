@@ -9,16 +9,17 @@ import {
   aiOrganizationCostWindows,
 } from '#/shared/db/schema'
 import {
+  AI_OPERATION_FIXTURE_CONSENT,
   installAiOperationFixture,
   type AiOperationFixture,
 } from '#/shared/db/testing/ai-operation-fixture'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { replyV2Request } from '#/shared/ai-provider-control/reply-drafting-v2.test-fixtures'
-import { createPostgresAiAdmissionAuthority } from '#/shared/db/ai/postgres-admission-authority'
 import type {
   AiAdmissionDescriptorV1,
   AiSettlementRequestV1,
 } from '#/shared/ai-internal-transport-contract'
+import { createAiExecutionAdmissionAdapter } from './ai-execution-admission.adapter'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { aiRequestFingerprint } from '../../application/ai-workflow-support'
 import type { AiOperationStorePort } from '../../application/ports/ai-operation-store.port'
@@ -31,17 +32,13 @@ const REVIEW = reviewId('7b500000-0000-4000-8000-000000000002')
 const NOW = new Date(Date.now() - 1_000)
 const db = getDb()
 const operations = createAiOperationStoreAdapter(db, randomUUID)
-const authority = createPostgresAiAdmissionAuthority({
+const authority = createAiExecutionAdmissionAdapter({
   pool: getPool(),
-  signingKid: 'grant-v1',
   now: () => NOW,
 })
-async function settle(request: AiSettlementRequestV1, grantKid: string) {
-  const { operationId, permitId, attemptNumber, nonce, ...outcome } = request
-  return authority.settle(
-    { operationId, permitId, attemptNumber, nonce, grantKid },
-    outcome,
-  )
+async function settle(request: AiSettlementRequestV1) {
+  const { operationId, permitId, attemptNumber, ...outcome } = request
+  return authority.settle({ operationId, permitId, attemptNumber }, outcome)
 }
 
 let fixture: AiOperationFixture
@@ -58,12 +55,24 @@ beforeAll(async () => {
   const heads = await db.select().from(aiExecutionControlHeads)
   const head = (key: string) => heads.find((h) => h.scopeKey === key)!
   const base = replyV2Request().binding
+  await fixture.seedReview({ id: REVIEW })
+  const consent = AI_OPERATION_FIXTURE_CONSENT
   const binding = {
     ...base,
-    sourceEpoch: 1,
+    authorizationLineageId: fixture.authorizationLineageId,
+    noticeVersion: consent.noticeVersion,
+    noticeDigest: consent.noticeDigest,
+    sourcePolicyId: consent.sourcePolicyId,
+    redactionProfileVersion: consent.redactionProfileVersion,
+    capabilityFence: {
+      capability: 'reply_drafting',
+      replyDraftingEpoch: consent.replyDraftingEpoch,
+      baseReplyStateRevision: 0,
+    },
+    sourceEpoch: consent.sourceEpoch,
     sourceRevision: 1,
     reviewedAtEpochMillis: NOW.getTime(),
-    propertyProfileVersion: 1,
+    propertyProfileVersion: consent.propertyProfileVersion,
     stopFence: {
       globalControlId: head('global').controlId,
       globalGeneration: head('global').generation,
@@ -154,9 +163,8 @@ async function charge(operationId: string, binding: AiExecutionBinding) {
     nowEpochMillis: NOW.getTime(),
   })
   expect(execution).not.toBeNull()
-  const admitted = await authority.authorizeProperty(
+  const admitted = await authority.authorize(
     descriptor(operationId, execution!.executionPermitId!, binding),
-    { keyId: 'binding-v1', hmac: 'A'.repeat(43) },
   )
   if (admitted.status !== 'admitted')
     throw new Error(`Admission refused: ${admitted.code}`)
@@ -164,7 +172,6 @@ async function charge(operationId: string, binding: AiExecutionBinding) {
     operationId,
     permitId: execution!.executionPermitId!,
     attemptNumber: 1,
-    nonce: admitted.nonce,
     disposition: 'output_invalid',
     reportedDisposition: 'success',
     usageKnown: true,
@@ -175,9 +182,12 @@ async function charge(operationId: string, binding: AiExecutionBinding) {
     reasoningTokens: 0,
     retryAfterSeconds: null,
   }
-  const first = await settle(settlement, 'grant-v1')
-  const replay = await settle(settlement, 'grant-v1')
-  expect(replay).toEqual(first)
+  const first = await settle(settlement)
+  // The admission's reservation closed with the first settlement.
+  await expect(settle(settlement)).resolves.toEqual({
+    status: 'denied',
+    code: 'settlement_conflict',
+  })
   await operations.recordFailure({
     operationId: operationId as never,
     organizationId: ORG,

@@ -32,7 +32,7 @@ import {
   buildFixtureItem,
   fixtureUuid,
   seedInboxScope,
-} from '../../infrastructure/inbox-database-fixtures-status'
+} from '../../infrastructure/inbox-database-fixtures'
 
 const SCOPE = 'get-inbox-items'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')

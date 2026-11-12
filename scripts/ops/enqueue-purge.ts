@@ -36,7 +36,7 @@ import { wireReviewSourceContentLifecycle } from '../../src/contexts/review/buil
 import { collectReviewSourceContentLifecycleReport } from '../../src/contexts/review/application/use-cases/collect-source-content-lifecycle-report'
 import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from '../../src/contexts/review/application/use-cases/run-source-content-lifecycle'
 import { exitIfHelp } from './command-help'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand } from './operator-command'
 
 const TARGETS = {
   reviews: {
@@ -73,7 +73,7 @@ export async function main(): Promise<void> {
   if (!target || !(target in TARGETS)) usage()
   const { jobName, capability, lifecycleMode } = TARGETS[target as Target]
 
-  const result = await runOperatorCommand(
+  const result = await runDatabaseOperatorCommand(
     {
       name: 'ops:purge',
       scope: 'global',

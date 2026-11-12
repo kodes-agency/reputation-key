@@ -27,11 +27,10 @@
 // revision, so the text it submits or authorizes is the text of the reply it
 // was given, and not what the AI draft purge has left of it since.
 
-import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
+import type { PropertyId } from '#/shared/domain/ids'
 import type { Reply } from '../../domain/types'
 import type { PublicationFailureClass } from '../../domain/reply-publication-workflow'
 import type {
-  ReviewExpired,
   ReviewReplyApproved,
   ReviewReplyPublicationCancelled,
   ReviewReplyPublicationRequested,
@@ -48,21 +47,6 @@ export type EditPublishedReplyCommand = Readonly<{
   text: string
   lifecycleEvent: ReviewReplyUpdated
   publicationIntent: ReviewReplyPublicationRequested
-  now?: Date
-}>
-
-/** Mirror command for the GBP sync path: upsert or delete the google_sync reply. */
-export type MirrorSyncedReplyCommand = Readonly<{
-  /** google_sync reply to upsert; null → delete the mirror for this review. */
-  reply: Omit<Reply, 'createdAt' | 'updatedAt'> | null
-  reviewId: ReviewId
-  organizationId: OrganizationId
-  /**
-   * review.reply.published{source:'import'} fact for newly-discovered Google
-   * replies. Null → no fact (existing-mirror refresh and the delete path
-   * never record one).
-   */
-  event: ReviewReplyPublished | null
   now?: Date
 }>
 
@@ -306,16 +290,4 @@ export type ReplyCommandStore = Readonly<{
     event: ReviewReplyPublished,
     now?: Date,
   ): Promise<Reply | null>
-  /**
-   * GBP mirror write: upsert the google_sync reply (with the published fact
-   * when one is supplied) or delete the mirror — in one transaction.
-   * Returns the upserted reply, or null for the delete path.
-   */
-  mirrorSyncedReply(command: MirrorSyncedReplyCommand): Promise<Reply | null>
-  /**
-   * Legacy retention command retained only for caller compatibility during
-   * SAFE-03 containment. It always rejects before SQL/outbox until REV-01
-   * separates expiring provider content from stable Review/Reply history.
-   */
-  purgeExpiredReview(reviewId: ReviewId, event: ReviewExpired): Promise<void>
 }>

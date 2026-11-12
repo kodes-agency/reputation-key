@@ -9,7 +9,6 @@ import {
   createAiGatewayRoutePreparer,
   type AiReplyOutputRefusal,
 } from '#/shared/ai-provider-control/route-preparer'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { generateKeyPairSync } from 'node:crypto'
 import { expect, vi } from 'vitest'
 const REJECTED_V2_OUTPUT = {
@@ -45,7 +44,6 @@ async function createV2Harness(
   const charges = new Map<string, number>()
   const refusals: AiReplyOutputRefusal[] = []
   const gatewayPreparer = createAiGatewayRoutePreparer({
-    requestBindingKeys: createVersionedHmacKeyring(`request-v1:${'07'.repeat(32)}`),
     safetyIdentifierKey: Buffer.alloc(32, 8),
     provenanceKid: 'reply-v1',
     provenancePrivateKey: V2_PROVENANCE_KEYS.privateKey,

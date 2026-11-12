@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   PortalGoalCardView,
   PortalReadinessRow,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { PORTAL_NO_SCAN_HINT } from './portal-goal-copy'
 import {
   CARD_SCANS_ONLY,

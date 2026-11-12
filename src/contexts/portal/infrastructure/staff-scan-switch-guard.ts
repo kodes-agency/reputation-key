@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import type { Tx } from '#/shared/outbox/commit'
 import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
-import type { UpdatePortalCommand } from '../application/ports/portal-command-store.port'
+import type { UpdatePortalCommand } from '../publication/portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 /** Shares the Goal/membership fence, so a concurrent target cannot slip past the switch. */
 export async function assertStaffScanSwitch(

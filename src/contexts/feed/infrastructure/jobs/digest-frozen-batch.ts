@@ -23,7 +23,7 @@ import type {
   NotificationEmailRepositoryPort,
 } from '../../application/ports/notification-email-repository.port'
 import type { NotificationEmail } from '../../domain/notification-types'
-import { SETTLED_EMAIL_REASON } from '../../domain/notification-settlement'
+import { SETTLED_EMAIL_REASON } from '../../domain/notification-actionable'
 import { isPastRetryHorizon } from '../../domain/email-freshness'
 import {
   authorizedEntries,

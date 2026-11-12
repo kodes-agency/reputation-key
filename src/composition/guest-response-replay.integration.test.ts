@@ -1,6 +1,7 @@
 // Guest-response erasure through the rights command with journaling, then a
 // restore replay through the production replayer set, for two tenants.
 
+import { metricRegistry } from '../contexts/reporting/readings/contracts'
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
@@ -30,7 +31,6 @@ import {
   onRatingRetractedDurably,
   onRatingSubmittedDurably,
 } from '#/contexts/reporting/readings/record-portal-metric.server'
-import { createMetricRegistryRepository } from '#/contexts/reporting/infrastructure/repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from '#/contexts/reporting/infrastructure/repositories/property-local-date'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -123,7 +123,7 @@ async function seedTenant(): Promise<Tenant> {
 
 const metricDeps = () => ({
   commandStore: createAtomicMetricCommandStore(db, randomUUID),
-  registry: createMetricRegistryRepository(),
+  registry: metricRegistry,
   clock: () => AT,
   idGen: () => metricReadingId(randomUUID()),
   resolvePropertyLocalDate: createPropertyLocalDateResolver(db),

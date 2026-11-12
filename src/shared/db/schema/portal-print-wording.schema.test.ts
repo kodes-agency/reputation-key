@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getTableConfig } from 'drizzle-orm/pg-core'
-import { PRINT_FINAL_CALLS_TO_ACTION } from '#/shared/domain/portal-print-final-copy'
+import { PRINT_CALLS_TO_ACTION } from '#/shared/domain/portal-print-copy'
 import { PORTAL_LAST_PRINT_CTA_SQL_LIST } from './portal-last-print.schema'
 import { portalPrintWordings } from './portal-print-wording.schema'
 
@@ -9,7 +9,7 @@ describe('portal_print_wordings schema', () => {
     const ids = PORTAL_LAST_PRINT_CTA_SQL_LIST.split(', ').map((quoted) =>
       quoted.replaceAll("'", ''),
     )
-    expect(ids).toEqual([...PRINT_FINAL_CALLS_TO_ACTION])
+    expect(ids).toEqual([...PRINT_CALLS_TO_ACTION])
     const checks = getTableConfig(portalPrintWordings).checks.map((check) => check.name)
     expect(checks).toEqual([
       'portal_print_wordings_call_to_action_valid',

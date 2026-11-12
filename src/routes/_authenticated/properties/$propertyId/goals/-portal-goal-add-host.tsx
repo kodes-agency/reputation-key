@@ -5,7 +5,7 @@
 
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
+import type { PortalGoalAddOptions } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalAddCommands,
   PortalGoalAddOpening,

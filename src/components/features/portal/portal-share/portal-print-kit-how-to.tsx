@@ -7,7 +7,7 @@ import { ChevronRight } from 'lucide-react'
 import type { PrintKitHowToStep } from '#/shared/domain/portal-print-kit-pieces'
 
 type Props = Readonly<{
-  /** What the steps are for: "Paper counter card"; the final kit's section names none. */
+  /** What the steps are for: "Paper counter card"; the kit's section names none. */
   title?: string
   steps: readonly PrintKitHowToStep[]
 }>

@@ -1,5 +1,5 @@
 import { type RefObject, useState } from 'react'
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import { ImmersiveGoogleCard } from './immersive-google-card'
 import { ImmersiveNoteCard } from './immersive-note-card'
 import { ImmersiveReceiptStrip } from './immersive-receipt-strip'

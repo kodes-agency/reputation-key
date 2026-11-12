@@ -31,7 +31,7 @@ import type { PortalGroup } from '../domain/types'
 import type {
   CreatePortalGroupCommand,
   MovePortalToGroupCommand,
-} from '../application/ports/portal-command-store.port'
+} from './portal-command-store-port.server'
 import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 
 const ORG_A = organizationId('org-groupmove-0000-000000000000001')
