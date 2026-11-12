@@ -8,7 +8,7 @@ import { portalError } from '../../domain/errors'
 import { portalDeleted, portalTokenRevoked } from '../../domain/events'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
-import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import type { PortalCommandStore } from '../../publication/portal-command-store-port.server'
 import { nextPortalCommandAt } from '../portal-command-version'
 
 export type SoftDeletePortalInput = Readonly<{

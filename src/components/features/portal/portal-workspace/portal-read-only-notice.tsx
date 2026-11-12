@@ -12,7 +12,7 @@ import type { ReactNode } from 'react'
 import { Archive, Eye, Lock } from 'lucide-react'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { cn } from '#/lib/utils'
-import type { PortalReadOnlyReason } from '../portal-detail/portal-edit-access'
+import type { PortalReadOnlyReason } from '#/components/features/portal/shared/portal-edit-access'
 
 const NOTICE: Readonly<
   Record<

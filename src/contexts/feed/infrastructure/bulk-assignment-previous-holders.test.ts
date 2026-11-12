@@ -12,7 +12,7 @@ import {
   createNotificationConsumerDeps,
   noticeWriterOver,
 } from './notification-consumer-test-fixtures'
-import { handleNotificationBulkAssignmentCompleted } from './bulk-assignment-outbox-consumers'
+import { handleNotificationBulkAssignmentCompleted } from '../notify/inbox.server'
 import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { notificationLink, renderNotification } from '../domain/notification-templates'

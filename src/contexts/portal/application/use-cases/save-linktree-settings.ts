@@ -5,7 +5,7 @@
 // language packs). Both parts are optional, but one must be given.
 
 import type { PortalRepository } from '../ports/portal.repository'
-import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import type { PortalCommandStore } from '../../publication/portal-command-store-port.server'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GuestLocale } from '#/shared/domain/guest-locale'

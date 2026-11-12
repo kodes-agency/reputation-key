@@ -3,7 +3,7 @@
 // Every fact of a notification route's event type is consumed, but some are
 // consumed to decide that nobody is told. An import writes three of them for
 // a past review Google already shows a reply for: the item's arrival, which
-// history never announces (ADR 0046, historical-onboarding-item.ts); its first
+// history never announces (ADR 0046, reputation/inbox/historical-onboarding-item.server.ts); its first
 // Handling Cycle opened with the item, which "New review" already covers; and
 // that cycle closed by the provider, which retires notices and history has
 // none to retire. A bulk reopen writes one per item, announced once by its
@@ -21,7 +21,7 @@
 
 import { sql } from 'drizzle-orm'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
-import { historicalOnboardingItem } from './historical-onboarding-item'
+import { historicalOnboardingItem } from '#/contexts/reputation/application/public-api'
 
 const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 

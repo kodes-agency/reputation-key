@@ -722,7 +722,7 @@ database isolation still requires the integration project.
 payload/copy parity, note audience precedence, bulk/per-item arrival order and
 receipt-last retries for assignment, note and escalation fanout. Those single-item
 routes share `inboxWorkflowNotices` in
-`infrastructure/inbox-notification-fanout.ts`; grouped routes keep their
+`notify/inbox.server.ts`; grouped routes keep their
 per-Property identities. The Inbox and reply consumers return their notices to
 `deliverNotices`, so on the worker each notice commits with its receipt;
 `notify/consumers.server.integration.test.ts` runs every producer route, the

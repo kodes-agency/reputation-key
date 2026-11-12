@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
-import { isGbpApiError } from '../../domain/gbp-api-error'
+import { isGoogleCallError } from '../../domain/google-call-error'
 import { createGooglePerformanceAdapter } from './google-performance.adapter'
 import { createSingle401RefreshExecutor } from '../../provider/google-client.server'
 
@@ -176,7 +176,7 @@ describe('Google Performance adapter', () => {
       adapter.fetchReport(input, 'access-token', authorization),
     ).rejects.toSatisfy(
       (error: unknown) =>
-        isGbpApiError(error) &&
+        isGoogleCallError(error) &&
         error.kind === 'rate_limited' &&
         error.retryAfterMs === 11_000 &&
         error.providerBodyBytes === 21,

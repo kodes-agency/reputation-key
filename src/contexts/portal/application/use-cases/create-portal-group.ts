@@ -25,7 +25,7 @@ import type {
   PortalCommandStore,
   PortalGroupDeparture,
   PortalGroupSourceFence,
-} from '../ports/portal-command-store.port'
+} from '../../publication/portal-command-store-port.server'
 import { nextPortalCommandAt } from '../portal-command-version'
 
 export type CreatePortalGroupDeps = Readonly<{

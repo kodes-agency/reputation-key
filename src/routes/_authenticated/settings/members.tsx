@@ -162,7 +162,7 @@ function MembersSettingsRoute() {
   // invitation confirmations, stay open and show their own banner, so those
   // mutations do not: that would report it twice.
   // A role change or a removal can be the reader's own (an admin among admins), and
-  // the shell remembers the reader's role for 30 seconds (ADR 0072): forget it, so
+  // the shell remembers the reader's role for 30 seconds: forget it, so
   // the next page is opened with the role the server now holds.
   const updateRoleMutation = useActionMutation(updateMemberRole, {
     successMessage: 'Role updated',

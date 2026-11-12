@@ -23,7 +23,7 @@ describe('prefilledGoalSubjects', () => {
   })
 
   // The Property's own goal is the Monthly portal goal, set from its card on
-  // the Goals page (ADR 0068): this form makes a goal for a Portal or a group.
+  // the Goals page: this form makes a goal for a Portal or a group.
   it('no longer prefills the whole property', () => {
     expect(prefilledGoalSubjects('property:property-1', known)).toEqual([])
   })

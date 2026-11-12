@@ -41,7 +41,7 @@ type Props = Readonly<{
   view: PortalLookPhotoView
   /** The property's photograph, which the portal follows until it has its own. */
   propertyHero: PropertyLookHero | null
-  actions: Pick<PortalLookActions, 'savePhoto' | 'uploadImage'>
+  actions: Pick<PortalLookActions, 'savePhoto' | 'uploadImage' | 'takeDownImage'>
 }>
 
 const focalOf = (view: PortalLookPhotoView): FocalPoint =>
@@ -84,6 +84,7 @@ export function PortalLookPhotoBlock({
     })
   const hero = view.mode === 'own' ? view.hero : null
   const descriptions = view.mode === 'own' ? descriptionsOf(view.altTexts) : {}
+  const { takeDownImage } = actions
   const upload: { upload?: PortalImageUploader } = actions.uploadImage
     ? { upload: actions.uploadImage }
     : {}
@@ -154,6 +155,15 @@ export function PortalLookPhotoBlock({
           )
         }}
         {...upload}
+        {...(takeDownImage
+          ? {
+              onTakeDown: async (assetId: string) => {
+                await takeDownImage(assetId)
+                await write(() => send({ mode: 'none' }), { replaces: [FOCAL_KEY] })
+                showInPreview(null)
+              },
+            }
+          : {})}
       />
     </PortalLookBlock>
   )

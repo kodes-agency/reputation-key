@@ -8,6 +8,7 @@ import {
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
 } from '../../../../../test-fixtures/generated/google-provider-identifiers-v1'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
+import { translatedGoogleReviewApi } from '#/contexts/review/application/public-api'
 import { createGoogleReviewApiAdapter } from './google-review-api.adapter'
 
 const ORG_ID = organizationId('0UM0PoDLJNJ3yGCeBMERaQkQyxer9BuC')
@@ -135,15 +136,17 @@ function createAdapter(
     })
   const warn = vi.fn()
   return {
-    api: createGoogleReviewApiAdapter({
-      connectionRepo: { findById } as never,
-      logger: { info: vi.fn(), warn } as never,
-      cursorStore: input.cursors ?? cursorStore(),
-      executor: { execute: input.execute },
-      authorizeReviewSyncProviderCall: authorizeProviderCall,
-      authorizeReplyPublicationProviderCall,
-      nowMs: () => Date.parse('2026-08-12T12:00:00.000Z'),
-    }),
+    api: translatedGoogleReviewApi(
+      createGoogleReviewApiAdapter({
+        connectionRepo: { findById } as never,
+        logger: { info: vi.fn(), warn } as never,
+        cursorStore: input.cursors ?? cursorStore(),
+        executor: { execute: input.execute },
+        authorizeReviewSyncProviderCall: authorizeProviderCall,
+        authorizeReplyPublicationProviderCall,
+        nowMs: () => Date.parse('2026-08-12T12:00:00.000Z'),
+      }),
+    ),
     authorizeProviderCall,
     authorizeReplyPublicationProviderCall,
     findById,
@@ -1079,12 +1082,14 @@ describe('GoogleReviewApiAdapter', () => {
 
   it('fails closed before credential/provider access when publication authority is absent', async () => {
     const execute = vi.fn()
-    const api = createGoogleReviewApiAdapter({
-      connectionRepo: { findById: vi.fn() } as never,
-      logger: { warn: vi.fn() } as never,
-      cursorStore: cursorStore(),
-      executor: { execute },
-    })
+    const api = translatedGoogleReviewApi(
+      createGoogleReviewApiAdapter({
+        connectionRepo: { findById: vi.fn() } as never,
+        logger: { warn: vi.fn() } as never,
+        cursorStore: cursorStore(),
+        executor: { execute },
+      }),
+    )
     await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
       code: 'provider_unavailable',
       recoverable: false,
@@ -2019,13 +2024,15 @@ describe('GoogleReviewApiAdapter backoff on the read routes', () => {
     })
 
     it('waits when the review sync authorizer is not wired', async () => {
-      const api = createGoogleReviewApiAdapter({
-        connectionRepo: { findById: vi.fn() } as never,
-        logger: { warn: vi.fn() } as never,
-        cursorStore: cursorStore(),
-        executor: { execute: vi.fn() },
-        nowMs: () => Date.parse('2026-08-12T12:00:00.000Z'),
-      })
+      const api = translatedGoogleReviewApi(
+        createGoogleReviewApiAdapter({
+          connectionRepo: { findById: vi.fn() } as never,
+          logger: { warn: vi.fn() } as never,
+          cursorStore: cursorStore(),
+          executor: { execute: vi.fn() },
+          nowMs: () => Date.parse('2026-08-12T12:00:00.000Z'),
+        }),
+      )
 
       const error = await failure(api.listReviewsPage(listInput()))
 
