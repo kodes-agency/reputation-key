@@ -99,6 +99,7 @@ describe('production error-monitoring wiring', () => {
     expect(instrumentation).toContain('beforeSend: hooks.beforeSend')
     expect(instrumentation).toContain('beforeBreadcrumb: hooks.beforeBreadcrumb')
     expect(viteConfig).toContain("'**/shared/observability/browser-exception-capture.ts'")
+    expect(viteConfig).toContain("'**/shared/observability/report-recoverable-error.ts'")
     expect(telemetry).toContain("from './sentry-event-scrub'")
     expect(telemetry).not.toContain('function scrubSentryEvent')
     expect(clientEntry.startsWith("import './instrument.client'\n")).toBe(true)
