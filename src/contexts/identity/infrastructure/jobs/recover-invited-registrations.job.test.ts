@@ -34,7 +34,7 @@ describe('recover invited registrations job', () => {
       ),
     ).toMatchObject({
       queue: 'background',
-      schedule: 'every:60000',
+      schedule: 'every:300000',
       registration: 'enabled',
       // Recovery accepts invitations, so it runs under their capability.
       capability: 'identity.invite',

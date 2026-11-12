@@ -278,7 +278,10 @@ export function createErrorMonitor(deps: {
                       integration.name !== 'OnUnhandledRejection')) &&
                   !integration.name?.startsWith('Replay') &&
                   integration.name !== 'LocalVariablesAsync' &&
-                  integration.name !== 'ContextLines',
+                  integration.name !== 'ContextLines' &&
+                  // BullMQ's idle polling would make every Redis command a
+                  // root transaction of its own.
+                  integration.name !== 'Redis',
               ),
             // A visitor who closes the connection mid-answer is no failure of
             // ours; every other reset (our own Postgres, Redis, Google
