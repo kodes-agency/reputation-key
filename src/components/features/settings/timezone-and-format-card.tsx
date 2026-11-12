@@ -39,6 +39,8 @@ type Props = Readonly<{
    */
   retrying: boolean
   onRetry: () => void
+  /** The membership's Organization: the form is that row's, so it is keyed by it. */
+  organizationId: string
   organizationName: string
   updateUserSettings: Action<NotificationSettingsUpdate, EffectiveNotificationSettings>
 }>
@@ -48,6 +50,7 @@ export function TimezoneAndFormatCard({
   failed,
   retrying,
   onRetry,
+  organizationId,
   organizationName,
   updateUserSettings,
 }: Props) {
@@ -68,12 +71,10 @@ export function TimezoneAndFormatCard({
       <CardContent>
         {settings ? (
           <NotificationFormattingForm
-            // Remounting on the server values is the re-sync. The inputs need
-            // local edit state, but seeding it once meant a refetch — or
-            // another session — never reached the fields. Keying on the
-            // effective values reseeds them exactly when the server truth
-            // changes and never while the user is mid-edit.
-            key={`${settings.locale}:${settings.timezone}:${settings.timezoneSource}`}
+            // One form per Organization membership, the row it edits. A newer
+            // read reaches the fields while they hold no edit (the form adopts
+            // it), and never discards an edit in progress.
+            key={organizationId}
             settings={settings}
             updateUserSettings={updateUserSettings}
           />

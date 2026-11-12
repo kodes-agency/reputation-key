@@ -32,7 +32,7 @@ import {
   notificationHeadQueryOptions,
   NOTIFICATION_POLL_INTERVAL,
   NOTIFICATION_POLL_OPTIONS,
-} from './notification-feed-pagination'
+} from './notification-feed-head'
 
 const { notificationKeys } = createKeys({ userId: 'user-1', organizationId: 'org-1' })
 
