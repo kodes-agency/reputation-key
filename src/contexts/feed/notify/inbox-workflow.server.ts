@@ -51,8 +51,10 @@ import {
 } from '../application/responsible-recipients'
 import { resolveReplyApprovalRecipients } from '../application/reply-approval-recipients'
 import { resolveEscalationRecipients } from '../application/escalation-recipients'
-import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
-import type { ActivePropertyLookup } from '../application/ports/active-property.port'
+import type {
+  ReplyApprovalAuthorityPort,
+  ActivePropertyLookup,
+} from '../application/ports/cross-context-lookups.port'
 import type { NotificationAudience } from '../application/notification-audience'
 import {
   publicationCancelledNotices,

@@ -20,7 +20,7 @@ import type {
   InboxItemLookupPort,
   ResponseTargetReminderNotificationFacts,
 } from '../../application/ports/notification-inbox-item-lookup.port'
-import type { FeedbackPortalLookupPort } from '../../application/ports/feedback-portal-lookup.port'
+import type { FeedbackPortalLookupPort } from '../../application/ports/cross-context-lookups.port'
 import { activePropertyCondition } from '../repositories/active-property'
 
 export const createInboxItemLookupAdapter = (

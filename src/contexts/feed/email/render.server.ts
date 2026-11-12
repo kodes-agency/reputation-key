@@ -13,7 +13,7 @@
 // in-app row cannot disagree. This module owns three things the domain has no
 // business knowing: the subject line, the HTML layout, and the plain-text twin.
 
-import type { RenderedNotification } from '../../domain/notification-templates'
+import type { RenderedNotification } from '../domain/notification-templates'
 import {
   absoluteUrl,
   composeText,
@@ -21,9 +21,12 @@ import {
   originOf,
   type RenderedEmail,
 } from '#/shared/email'
-import { renderDigestEmailHtml, type DigestEmailGroup } from './digest-email'
-import { toPlainFacts } from './notification-facts'
-import { renderUrgentEmailHtml } from './urgent-email'
+import {
+  renderDigestEmailHtml,
+  type DigestEmailGroup,
+} from '../infrastructure/email/digest-email'
+import { toPlainFacts } from '../infrastructure/email/notification-facts'
+import { renderUrgentEmailHtml } from '../infrastructure/email/urgent-email'
 
 export type { RenderedEmail }
 

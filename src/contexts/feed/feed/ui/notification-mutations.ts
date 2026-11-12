@@ -21,7 +21,7 @@ import {
   actionFailureMessage as failed,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import { categoryInSentence } from '#/components/features/settings/notifications-type-rows'
+import { categoryInSentence } from '#/contexts/feed/preferences/ui/notifications-type-rows'
 import { createKeys } from '#/shared/queries/query-keys'
 import type { TenantScope } from '#/shared/queries/tenant-scope'
 import type {

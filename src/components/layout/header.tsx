@@ -9,8 +9,8 @@ import {
   DropdownMenuSeparator,
 } from '#/components/ui/dropdown-menu'
 import { ThemeToggle } from '#/components/layout/theme-toggle'
-import { NotificationPanel } from '#/components/features/notification/notification-panel'
-import type { NotificationServerFns } from '#/components/features/notification/types'
+import { NotificationPanel } from '#/contexts/feed/feed/ui/notification-panel'
+import type { NotificationServerFns } from '#/contexts/feed/feed/ui/types'
 
 function LogoLink() {
   return (

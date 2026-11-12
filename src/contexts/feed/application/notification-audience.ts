@@ -11,7 +11,7 @@ import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { UserLookupPort } from './ports/notification-user-lookup.port'
 import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-lookup.port'
 import type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup.port'
-import type { ReplyApprovalAuthorityPort } from './ports/reply-approval-authority.port'
+import type { ReplyApprovalAuthorityPort } from './ports/cross-context-lookups.port'
 import type { EscalationResolutionLookupPort } from './ports/escalation-resolution-lookup.port'
 import type { NotificationRepositoryPort } from './ports/notification-repository.port'
 import {

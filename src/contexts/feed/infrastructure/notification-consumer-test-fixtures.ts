@@ -7,8 +7,10 @@ import type { UserLookupPort } from '../application/ports/notification-user-look
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
-import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
-import type { DisplayNameLookupPort } from '../application/ports/notification-display-name-lookup.port'
+import type {
+  ReplyApprovalAuthorityPort,
+  DisplayNameLookupPort,
+} from '../application/ports/cross-context-lookups.port'
 import {
   organizationId,
   propertyId,

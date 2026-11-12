@@ -12,7 +12,7 @@
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { UserLookupPort } from './ports/notification-user-lookup.port'
 import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-lookup.port'
-import type { ReplyApprovalAuthorityPort } from './ports/reply-approval-authority.port'
+import type { ReplyApprovalAuthorityPort } from './ports/cross-context-lookups.port'
 
 export type ReplyApprovalRecipientDeps = Readonly<{
   responsibleManagers: Pick<ResponsibleManagerLookupPort, 'findForProperty'>

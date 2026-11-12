@@ -19,7 +19,15 @@ own source review, inbox, property, portal, identity, or goal state.
   server function.
 - `buildFeedContext` is the sole composition module. Its `activity` and
   `notification` dependency records preserve the former independent build
-  boundaries, while its `publicApi` merges both surfaces.
+  boundaries, while its `publicApi` merges both surfaces. The activity half is
+  built in `build-activity.ts`, and `notify/register-routes.server.ts`
+  registers every notification route.
+- The email renderer and templates (`render.server.ts`, `digest-email.server.tsx`,
+  `urgent-email.server.tsx`, `notification-facts.server.tsx`) live in `email/`
+  beside `send-emails.server.ts`.
+- The small single-answer lookups other owners provide (active Property,
+  display names, feedback Portal, reply approval, reply state, review rating)
+  share `application/ports/cross-context-lookups.port.ts`.
 - Activity and notification lifecycle/export contributor identifiers remain
   distinct because the persisted lifecycle and archive contracts distinguish
   those data families.
@@ -260,8 +268,9 @@ read too: the newer answer wins, so a default not yet copied, or saved by a
 release that wrote only that table, is found (`pnpm ops copy-notification-defaults`).
 
 Settings controls and their serialized save hook live in
-`src/components/features/settings/notification-*.{ts,tsx}` and
-`use-notification-preference-saves.ts`. Saves, two-channel defaults and
+`preferences/ui/` (the `notification-*` files and
+`use-notification-preference-saves.ts`); the notification feed screens live in
+`feed/ui/`. Saves, two-channel defaults and
 multi-Property resets share one browser write queue per
 category in `notification-preference-writes.ts`: a reset waits for earlier saves,
 and later edits use the inherited values or new default it established. Other

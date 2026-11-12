@@ -3,7 +3,7 @@
 import { useState, type MouseEvent } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { PageGutterDecorator } from '../../../../.storybook/PageGutterDecorator'
+import { PageGutterDecorator } from '../../../../../.storybook/PageGutterDecorator'
 import {
   makeNotification,
   makeNotificationFns,

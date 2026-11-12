@@ -6,7 +6,7 @@ import { and, eq } from 'drizzle-orm'
 import { organization } from '#/shared/db/schema/auth'
 import { properties } from '#/shared/db/schema/property.schema'
 import { unbrand, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
-import type { DisplayNameLookupPort } from '../../application/ports/notification-display-name-lookup.port'
+import type { DisplayNameLookupPort } from '../../application/ports/cross-context-lookups.port'
 
 export const createDisplayNameLookupAdapter = (db: Database): DisplayNameLookupPort => ({
   async findPropertyName(

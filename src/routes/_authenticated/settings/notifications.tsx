@@ -13,7 +13,7 @@ import {
   resetNotificationPropertyCategoryFn,
 } from '#/contexts/feed/server/notifications'
 import { NotificationsSettingsPage } from '#/components/features/settings'
-import { notificationPropertyScopeKey } from '#/components/features/settings/notification-property-selection'
+import { notificationPropertyScopeKey } from '#/contexts/feed/preferences/ui/notification-property-selection'
 import { createKeys } from '#/shared/queries/query-keys'
 import {
   notificationUserSettingsQuery,
