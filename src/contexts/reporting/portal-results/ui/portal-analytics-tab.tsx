@@ -22,6 +22,7 @@ import {
 } from './portal-results-window'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { useHydrated } from '#/components/hooks/use-hydrated'
 
 type Props = Readonly<{
   portalId: string
@@ -109,12 +110,16 @@ function ResultsBody({
     // new figures load, instead of blanking it.
     placeholderData: keepPreviousData,
   })
-  const { data, isLoading: loading, error: queryError, isPlaceholderData: stale } = query
+  // The server drew the loading state; so does the first browser render.
+  const hydrated = useHydrated()
+  const data = hydrated ? query.data : undefined
+  const loading = !hydrated || query.isLoading
+  const { error: queryError, isPlaceholderData: stale } = query
 
   // A failed read comes before loading: a retry resets a query with no data to
   // pending, and the panel must stay, its button busy, rather than give way to the
   // skeleton and drop focus.
-  const failed = hasFailed(query)
+  const failed = hydrated && hasFailed(query)
   if ((loading || holding) && !failed) return <PortalResultsLoading />
 
   // getPortalAnalyticsFn authorizes on `dashboard.read`, a different capability
