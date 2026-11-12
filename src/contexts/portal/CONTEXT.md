@@ -521,7 +521,7 @@ ceremony on 2026-09-30; the technical safeguards above stay in the build (ADR
 ## Print kit
 
 The Share tab reads `getPortalPrintKit` and downloads through
-`createPortalPrintFinal`. The read always carries the current kit, last-print
+`createPortalPrint`. The read always carries the current kit, last-print
 settings and saved wording, with no address. The browser preview stays instant;
 the PDF and preview use the same measures and planners, checked with real fonts.
 
@@ -568,7 +568,7 @@ the PDF and preview use the same measures and planners, checked with real fonts.
   cannot sign in there either. Every other host is untouched, and so is every
   host where the variable is unset or names the app's own host. It must stay
   attached to the web service and keep its name for the life of the prints.
-- `choosePrintFinalTile` enforces the existing module floor and refuses a dense
+- `choosePrintTile` enforces the existing module floor and refuses a dense
   address with the same Share-tab wording. The renderer checks real-font fit;
   unsupported wording and offers for a review retain their existing refusals.
 - Successful downloads remember settings and safe wording; neither memory stores
@@ -996,7 +996,7 @@ fallback. Their safe opening print wording (saved, else last print) is written i
 portal_print_wordings in the create transaction; a name-guard refusal skips only
 that wording. Other copy behavior is unchanged.
 
-Personal final-print downloads use a sanitized person-first filename and identify
+Personal print downloads use a sanitized person-first filename and identify
 the person only in available sheet/crop-mark margins. The guest face and public PDF
 title keep the public name. A single piece without a margin identifies the person
 only in its filename. Share says the saved opening line is also the phone's line.

@@ -24,7 +24,7 @@ export type GetPortalPrintKitDeps = Readonly<{
     PortalPublicationRepository,
     'loadWorkingCopy' | 'findActiveForPortal'
   >
-  /** The Portal's last final print, and the photo it names, for the final kit's Last printed. */
+  /** The Portal's last print, and the photo it names, for the kit's Last printed. */
   lastPrintRepo: Pick<PortalLastPrintRepository, 'find'>
   /** The wording the Portal saved, which Share opens on. */
   wordingRepo: Pick<PortalPrintWordingRepository, 'find'>
