@@ -108,6 +108,7 @@ function setup(
     },
     observationWriter,
     subjectKeyService,
+    subjectSightings: { record: vi.fn(async () => 'linked' as const) },
   })
   return { useCase, getReview, persist, observationWriter, subjectKeyService }
 }

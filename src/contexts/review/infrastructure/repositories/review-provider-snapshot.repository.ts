@@ -15,7 +15,6 @@ import {
   reviewProviderHistoryCutoffs,
   reviewProviderSnapshotMembers,
   reviewProviderSnapshotRuns,
-  reviewProviderSubjectHmacKeyVersions,
   reviewProviderSubjects,
   reviews,
 } from '#/shared/db/schema/review.schema'
@@ -48,6 +47,11 @@ import {
   refuseRemovalWithoutExactListing,
 } from './review-provider-snapshot-listing'
 import { recordedFailureCode } from './review-provider-snapshot-listing-change'
+import {
+  activeSubjectKeyHolds,
+  findSubjectMatches,
+  linkedSubjectValues,
+} from './review-provider-subject-link'
 import { SnapshotConflict, failCode } from './review-provider-snapshot-conflict'
 import {
   storedFailureCode,
@@ -650,29 +654,6 @@ function pageCommitUpdate(
   }
 }
 
-async function findSubjectMatches(
-  tx: Tx,
-  run: RunRow,
-  observation: ReviewProviderPersistedObservation,
-): Promise<readonly SubjectRow[]> {
-  const matches: SubjectRow[] = []
-  for (const subject of observation.subjects) {
-    const rows = await tx
-      .select()
-      .from(reviewProviderSubjects)
-      .where(
-        and(
-          snapshotSubjectScope(run.organizationId, run.propertyId, run.sourceEpoch),
-          eq(reviewProviderSubjects.keyVersion, subject.keyVersion),
-          eq(reviewProviderSubjects.locatorHmac, Buffer.from(subject.locatorHmac)),
-        ),
-      )
-      .for('update')
-    matches.push(...rows)
-  }
-  return matches
-}
-
 async function recordObservationMapping(
   tx: Tx,
   run: RunRow,
@@ -680,23 +661,7 @@ async function recordObservationMapping(
 ): Promise<void> {
   const active = observation.subjects[0]
   if (!active) throw new SnapshotConflict('resource_collision')
-  const keyRows = await tx
-    .select()
-    .from(reviewProviderSubjectHmacKeyVersions)
-    .where(
-      inArray(
-        reviewProviderSubjectHmacKeyVersions.keyVersion,
-        observation.subjects.map((subject) => subject.keyVersion),
-      ),
-    )
-    .orderBy(asc(reviewProviderSubjectHmacKeyVersions.generation))
-    .for('update')
-  const activeKey = keyRows.find((row) => row.state === 'active')
-  if (
-    activeKey == null ||
-    activeKey.keyVersion !== active.keyVersion ||
-    keyRows.some((row) => row.state === 'trusted_next')
-  ) {
+  if (!(await activeSubjectKeyHolds(tx, observation))) {
     throw new SnapshotConflict('authorization_changed')
   }
 
@@ -715,19 +680,9 @@ async function recordObservationMapping(
       )
       .for('update')
     if (reviewConflict.length !== 0) throw new SnapshotConflict('duplicate_resource')
-    await tx.insert(reviewProviderSubjects).values({
-      organizationId: run.organizationId,
-      propertyId: run.propertyId,
-      sourceEpoch: run.sourceEpoch,
-      keyVersion: active.keyVersion,
-      locatorHmac: Buffer.from(active.locatorHmac),
-      verifierHmac: Buffer.from(active.verifierHmac),
-      reviewId: observation.reviewId,
-      lastSourceRevision: observation.sourceRevision,
-      state: 'linked',
-      lastObservedAt: sql`transaction_timestamp()`,
-      lastSeenSnapshotRunId: run.id,
-    })
+    await tx
+      .insert(reviewProviderSubjects)
+      .values(linkedSubjectValues(run, observation, run.id))
     return
   }
 

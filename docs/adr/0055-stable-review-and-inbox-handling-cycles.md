@@ -557,7 +557,8 @@ the look interval. The full two-pass snapshot is then needed only for the
   provider-subject mapping at the next completed snapshot, which is the only
   path that writes one. The limit: a review created by a head check and deleted
   on Google before the next full run is only marked observed, never missing.
-  The six-hour reconciliation still owns deletions.
+  The six-hour reconciliation still owns deletions. (Superseded by the note of
+  2026-11-12: head checks and pushes now map what they store.)
 - **A head page can overwrite a fresher edit of the same review.** A head page is
   read once and then written review by review. A push fetch or a snapshot page
   that reads and writes a fresher edit of one of those reviews in between is
@@ -1157,6 +1158,10 @@ A reply observation's `content_expires_at` was written only when the row was ins
 ## Note 2026-11-04 (b) — the reconciliation-age alert counts a Property with a recorded failure
 
 `sync.reconciliation-age` left out any Property with an `error_class`, because `sync.failed-nonzero` already names a coded failure. That alert raises only when a retry date passes before the next look re-dates the row, so a Property that failed every full read for days raised no standing signal at all. The read now judges every syncable Property alike. A Property whose connection needs reauthorization (`reauth_required`, which is also how `provider_revoked` is recorded) is not syncable, so it is still left to the reconnect notice.
+
+## Note 2026-11-12 — head checks and pushes map the reviews they store
+
+A review only a head check or a push had stored had no provider-subject mapping, so a full listing could never find it missing: deleted on Google, it stayed until its content expired 30 days later. Both now record a sighting after each review they store (`ReviewProviderSubjectSightings`, `recordSubjectSighting` in `review-provider-subject-link.ts`), and so does the read before a reply is published, which shares the push's write path. A sighting is insert-only: it links a mapping with no snapshot run, seen at its own transaction instant, under the active key; it leaves any mapping of the locator or of the review as it is, writes nothing while the key it was derived under is no longer the active one, and never fails the write it follows (a failure is logged and the next listing maps the review). It takes the key-version lock and then the subject rows, in the order a snapshot page does, and a snapshot page that later lists the review takes the row over as an existing mapping. Removal is unchanged: two listings that agree with Google's total, at least 15 minutes apart, and a direct read that returns not found. A run never judges a mapping written after it started (`last_observed_at <= started_at`). Google calls do not grow per hour; each extra deletion candidate costs the one `reviews.get` every candidate costs.
 
 ## Merged from ADR 0003
 

@@ -12,6 +12,7 @@ import type {
   ReviewHeadPersistState,
 } from '../ports/review-head-check.repository'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
+import type { ReviewProviderSubjectSightings } from '../ports/review-provider-subject-sightings.port'
 import type { HeadStoredCopy } from '../../domain/head-check'
 import { HEAD_FACT_HEARTBEAT_MS } from '../../domain/head-persist'
 import { createRunReviewHeadCheck } from './run-review-head-check'
@@ -163,6 +164,10 @@ function setup(options: Options = {}) {
   const deriveCandidates = vi.fn(() => [
     { keyVersion: 'v1', locatorHmac: 'h'.repeat(64) },
   ])
+  const recordSighting = vi.fn<ReviewProviderSubjectSightings['record']>(async () => {
+    order.push('sighting')
+    return 'linked'
+  })
   const logger = { info: vi.fn(), warn: vi.fn() }
   let tick = 0
   const clock = vi.fn(() => new Date(T0.getTime() + 100 * tick++))
@@ -179,6 +184,7 @@ function setup(options: Options = {}) {
             subjectKeyService: {
               acquireDeriver: async () => ({ deriveCandidates }),
             } as never,
+            subjectSightings: { record: recordSighting },
             propertySourceEpoch: {
               getSourceEpoch: async () =>
                 options.currentEpoch === null
@@ -197,6 +203,7 @@ function setup(options: Options = {}) {
     persist,
     allocateReplyReadGeneration,
     recordNewReviewObserved,
+    recordSighting,
     logger,
     readReviewsHead,
   }
@@ -320,6 +327,51 @@ describe('runReviewHeadCheck: persist mode stores only what differs', () => {
     await run()
 
     expect(order.slice(0, 2)).toEqual(['read', 'allocate'])
+  })
+
+  it('maps each stored review to the provider subject it was written with, after its write', async () => {
+    const { run, persist, recordSighting, order } = setup({
+      copies: [storedCopy('r-2')],
+      newReviewIds: new Set(['r-1']),
+      head: okHead(
+        [
+          googleReview('r-1'),
+          googleReview('r-2', {
+            sourceUpdatedAt: new Date(T0.getTime() - 1_000),
+            text: 'Changed canary text',
+          }),
+        ],
+        { totalReviewCount: 2, averageRating: 5 },
+      ),
+    })
+
+    await run()
+
+    expect(recordSighting.mock.calls.map(([sighting]) => sighting)).toEqual(
+      persist.mock.calls.map(([call]) => ({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        sourceEpoch: EPOCH,
+        reviewId: `id-${call.review.externalId}`,
+        sourceRevision: 1,
+        subjects: call.subjects,
+      })),
+    )
+    expect(
+      order.filter((step) => step.startsWith('persist:') || step === 'sighting'),
+    ).toEqual(['persist:r-1', 'sighting', 'persist:r-2', 'sighting'])
+  })
+
+  it('maps nothing for a review whose write failed, nor for one it did not store', async () => {
+    const { run, recordSighting } = setup({
+      copies: [storedCopy('r-2')],
+      failPersistFor: new Set(['r-1']),
+    })
+
+    await expect(run()).resolves.toMatchObject({
+      persistence: { outcome: 'stored', storedNew: 0, storedOther: 0, failed: 1 },
+    })
+    expect(recordSighting).not.toHaveBeenCalled()
   })
 
   it('stamps the discovery ladder when the page held a review nobody had', async () => {

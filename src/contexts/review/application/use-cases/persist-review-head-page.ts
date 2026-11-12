@@ -8,7 +8,9 @@
 //    with the writer's own epoch-cutoff reclassification; a new review is
 //    recorded in the push health ledger as first seen via `head`). A review that
 //    matches its stored copy is NOT written again: the writer would add a source
-//    observation carrying its full text every time.
+//    observation carrying its full text every time. Each stored review no
+//    listing has mapped yet gets its provider subject mapping, so it is removed
+//    like a listed one once Google's deletion is confirmed.
 //  - Google's own count and average as a head fact (`listing_complete = false`),
 //    when they moved or the newest fact is six hours old (`decideHeadFact`).
 //
@@ -33,12 +35,15 @@ import type {
   ReviewHeadPersistence,
 } from '../ports/review-head-check.repository'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
+import type { ReviewProviderSubjectSightings } from '../ports/review-provider-subject-sightings.port'
 import type { ReviewSyncActivityRecorder } from '../ports/review-sync-activity.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 
 export type PersistReviewHeadPageDeps = Readonly<{
   observationWriter: ReviewProviderObservationWriter
   subjectKeyService: ReviewProviderSubjectKeyService
+  /** Maps each stored review that no listing has mapped yet. */
+  subjectSightings: ReviewProviderSubjectSightings
   propertySourceEpoch: PropertySourceEpochPort
   /** Stamps the discovery ladder when a head check finds a review nobody held. */
   syncActivity: Pick<ReviewSyncActivityRecorder, 'recordNewReviewObserved'>
@@ -115,6 +120,12 @@ const storeReviews = async (
         counts.failed++
         continue
       }
+      const subjects = deriver.deriveCandidates({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        sourceEpoch: input.sourceEpoch,
+        resourceName: review.reviewName,
+      })
       const persisted = await deps.observationWriter.persist({
         organizationId: input.organizationId,
         propertyId: input.propertyId,
@@ -125,12 +136,15 @@ const storeReviews = async (
         observationKey: headObservationKey(input.replyReadGeneration, review.reviewName),
         replyReadGeneration: input.replyReadGeneration,
         review,
-        subjects: deriver.deriveCandidates({
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          sourceEpoch: input.sourceEpoch,
-          resourceName: review.reviewName,
-        }),
+        subjects,
+      })
+      await deps.subjectSightings.record({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        sourceEpoch: input.sourceEpoch,
+        reviewId: persisted.reviewId,
+        sourceRevision: persisted.sourceRevision,
+        subjects,
       })
       if (persisted.isNew) counts.storedNew++
       else counts.storedOther++

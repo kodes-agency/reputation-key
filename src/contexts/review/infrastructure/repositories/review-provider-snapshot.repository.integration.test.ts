@@ -20,10 +20,12 @@ import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
 import { properties, reviewProviderSnapshotRuns } from '#/shared/db/schema'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { deriveReviewProviderSubject } from '#/shared/review-provider-subject-contract'
 import { createReviewProviderSnapshotRepository } from './review-provider-snapshot.repository'
+import { createReviewProviderSubjectSightings } from './review-provider-subject-link'
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
 
 const ORGANIZATION_ID = 'review-snapshot-repo-test-org'
@@ -1608,6 +1610,215 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       expect(stored.rows).toEqual([{ source_content_state: 'active' }])
       expect(await runState()).toMatchObject({ state: 'deleting' })
       await resetGapScope()
+    })
+  })
+
+  describe('a review a head check or a push stored, mapped outside any run', () => {
+    const SIGHTING_RUN_ID = '72000000-0000-4000-8000-000000000021'
+    const SIGHTING_ACCOUNT = 'sighting-account'
+    const SIGHTED_REVIEW_ID = '72000000-0000-4000-8000-000000000022'
+    const OTHER_REVIEW_ID = '72000000-0000-4000-8000-000000000023'
+    const FALLBACK_ACTIVE_KEY = 'sighting-test-active'
+    const RETIRED_KEY = 'sighting-test-retired'
+    const KEY = new Uint8Array(32).fill(5)
+    const sightings = createReviewProviderSubjectSightings(db, {
+      warn: () => undefined,
+    })
+    let activeKey = FALLBACK_ACTIVE_KEY
+    let insertedActiveKey = false
+
+    const resetSightingScope = async () => {
+      await db
+        .delete(reviewProviderSnapshotRuns)
+        .where(eq(reviewProviderSnapshotRuns.propertyId, PROPERTY_ID))
+      await db.execute(sql`
+        DELETE FROM review_provider_subjects
+        WHERE review_id IN (${SIGHTED_REVIEW_ID}, ${OTHER_REVIEW_ID})
+      `)
+    }
+
+    beforeAll(async () => {
+      const active = await db.execute(sql`
+        SELECT key_version FROM review_provider_subject_hmac_key_versions
+        WHERE state = 'active'
+      `)
+      const existing = active.rows[0]?.key_version
+      if (existing == null) {
+        await db.execute(sql`
+          INSERT INTO review_provider_subject_hmac_key_versions
+            (key_version, key_digest, state, generation, created_at, activated_at)
+          VALUES (${FALLBACK_ACTIVE_KEY}, ${'5'.repeat(64)}, 'active', 999990,
+            transaction_timestamp(), transaction_timestamp())
+        `)
+        insertedActiveKey = true
+      } else {
+        activeKey = String(existing)
+      }
+      // A key an activation retired after a deriver was acquired under it.
+      await db.execute(sql`
+        INSERT INTO review_provider_subject_hmac_key_versions
+          (key_version, key_digest, state, generation, created_at, retiring_at)
+        VALUES (${RETIRED_KEY}, ${'6'.repeat(64)}, 'retiring', 1,
+          transaction_timestamp(), transaction_timestamp())
+      `)
+    })
+
+    afterAll(async () => {
+      await resetSightingScope()
+      await db.execute(sql`
+        DELETE FROM review_provider_subject_hmac_key_versions
+        WHERE key_version = ${RETIRED_KEY}
+          OR (${insertedActiveKey} AND key_version = ${FALLBACK_ACTIVE_KEY})
+      `)
+    })
+
+    const sight = (
+      over: Readonly<{
+        reviewId?: string
+        sourceRevision?: number
+        keyVersion?: string
+      }> = {},
+    ) =>
+      sightings.record({
+        organizationId: organizationId(ORGANIZATION_ID),
+        propertyId: propertyId(PROPERTY_ID),
+        sourceEpoch: 0,
+        reviewId: reviewId(over.reviewId ?? SIGHTED_REVIEW_ID),
+        sourceRevision: over.sourceRevision ?? 1,
+        subjects: [
+          deriveReviewProviderSubject({
+            organizationId: ORGANIZATION_ID,
+            propertyId: PROPERTY_ID,
+            sourceEpoch: 0,
+            resourceName: `accounts/${SIGHTING_ACCOUNT}/locations/sighting-location/reviews/sighted`,
+            keyVersion: over.keyVersion ?? activeKey,
+            key: KEY,
+          }),
+        ],
+      })
+
+    const sightedSubject = async () =>
+      (
+        await db.execute(sql`
+          SELECT state, last_source_revision, last_seen_snapshot_run_id,
+                 first_missing_snapshot_run_id, last_observed_at
+          FROM review_provider_subjects WHERE review_id = ${SIGHTED_REVIEW_ID}
+        `)
+      ).rows[0]
+
+    /** A run whose main listing is spent and does not list the sighted review. */
+    const seedSpentListing = async (
+      startedAt: Date,
+      listing: Readonly<{ expected: number; unique: number; pages: number }>,
+    ) => {
+      await db.insert(reviewProviderSnapshotRuns).values({
+        id: SIGHTING_RUN_ID,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: 0,
+        state: 'scanning',
+        phase: 'main',
+        expectedTotal: listing.expected,
+        expectedAverageRating: 4.5,
+        mainPageCount: listing.pages,
+        mainUniqueCount: listing.unique,
+        mainCursorRef: null,
+        startedAt,
+        expiresAt: new Date(startedAt.getTime() + 12 * 60 * 60 * 1000),
+      })
+      await db.execute(sql`
+        INSERT INTO review_provider_snapshot_members (run_id, review_id, main_seen)
+        SELECT ${SIGHTING_RUN_ID}, md5('sighting-listed-' || i)::uuid, true
+        FROM generate_series(1, ${listing.unique}::int) AS i
+      `)
+    }
+
+    /** Just after the sighting, so the run judges the mapping it wrote. */
+    const afterSighting = async (): Promise<Date> => {
+      const row = await sightedSubject()
+      const observedAt = new Date(String(row?.last_observed_at))
+      return new Date(observedAt.getTime() + 1)
+    }
+
+    const missOf = async () =>
+      (await sightedSubject())?.first_missing_snapshot_run_id ?? null
+
+    it('maps it as linked and seen by no run, and leaves an existing mapping alone', async () => {
+      await resetSightingScope()
+
+      await expect(sight()).resolves.toBe('linked')
+      expect(await sightedSubject()).toMatchObject({
+        state: 'linked',
+        last_source_revision: '1',
+        last_seen_snapshot_run_id: null,
+        first_missing_snapshot_run_id: null,
+      })
+
+      // A later sighting of the same review, at a newer revision: insert-only.
+      await expect(sight({ sourceRevision: 2 })).resolves.toBe('already_mapped')
+      // Another review under the same locator: the mapping it found wins.
+      await expect(sight({ reviewId: OTHER_REVIEW_ID })).resolves.toBe('already_mapped')
+      expect(await sightedSubject()).toMatchObject({ last_source_revision: '1' })
+      const rows = await db.execute(sql`
+        SELECT review_id FROM review_provider_subjects
+        WHERE review_id IN (${SIGHTED_REVIEW_ID}, ${OTHER_REVIEW_ID})
+      `)
+      expect(rows.rows).toEqual([{ review_id: SIGHTED_REVIEW_ID }])
+      await resetSightingScope()
+    })
+
+    it('is not judged missing by a run that started before it was mapped', async () => {
+      await resetSightingScope()
+      await seedSpentListing(new Date(Date.now() - 60_000), {
+        expected: 81,
+        unique: 81,
+        pages: 2,
+      })
+      await expect(sight()).resolves.toBe('linked')
+
+      await expect(
+        repository.finishMainScan({ runId: SIGHTING_RUN_ID }),
+      ).resolves.toMatchObject({ status: 'confirming' })
+
+      expect(await missOf()).toBeNull()
+      await resetSightingScope()
+    })
+
+    it("records no miss from a listing whose count disagrees with Google's total, and one from a listing that agrees", async () => {
+      await resetSightingScope()
+      await expect(sight()).resolves.toBe('linked')
+
+      await seedSpentListing(await afterSighting(), {
+        expected: 82,
+        unique: 81,
+        pages: 2,
+      })
+      await expect(
+        repository.finishMainScan({ runId: SIGHTING_RUN_ID }),
+      ).resolves.toMatchObject({ status: 'confirming' })
+      expect(await missOf()).toBeNull()
+
+      await db
+        .delete(reviewProviderSnapshotRuns)
+        .where(eq(reviewProviderSnapshotRuns.id, SIGHTING_RUN_ID))
+      await seedSpentListing(await afterSighting(), {
+        expected: 81,
+        unique: 81,
+        pages: 2,
+      })
+      await expect(
+        repository.finishMainScan({ runId: SIGHTING_RUN_ID }),
+      ).resolves.toMatchObject({ status: 'confirming' })
+      expect(await missOf()).toBe(SIGHTING_RUN_ID)
+      await resetSightingScope()
+    })
+
+    it('maps nothing while the key it was derived under is no longer the active one', async () => {
+      await resetSightingScope()
+
+      await expect(sight({ keyVersion: RETIRED_KEY })).resolves.toBe('key_rotating')
+
+      expect(await sightedSubject()).toBeUndefined()
     })
   })
 })
