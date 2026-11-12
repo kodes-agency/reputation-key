@@ -30,6 +30,16 @@ export default meta
 
 type Story = StoryObj<typeof ImmersiveShell>
 
+/** The colour a custom property resolves to on the page, read through a throwaway element. */
+const colourOf = (host: HTMLElement, property: string) => {
+  const probe = document.createElement('span')
+  probe.style.color = `var(${property})`
+  host.appendChild(probe)
+  const { color } = getComputedStyle(probe)
+  probe.remove()
+  return color
+}
+
 const chipOf = (canvasElement: HTMLElement) => {
   const chip = canvasElement.querySelector<HTMLButtonElement>('button[aria-haspopup]')
   if (!chip) throw new Error('the language chip is missing')
@@ -66,6 +76,11 @@ export const G01HeaderAndTitle: Story = {
     expect(
       name.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_PRECEDING,
     ).toBeTruthy()
+
+    // On a photo the kicker takes its photo-safe colour, not the accent.
+    const root = canvasElement.querySelector<HTMLElement>('.ih-root') as HTMLElement
+    expect(root.dataset.ihSurface).toBe('photo')
+    expect(getComputedStyle(h1).color).toBe(colourOf(root, '--ih-kicker-photo'))
   },
 }
 
@@ -293,6 +308,10 @@ export const LongWordmarkOnTheNarrowestPhone: Story = {
     const chip = chipOf(canvasElement)
     const markStyle = getComputedStyle(mark)
     expect(markStyle.textOverflow).not.toBe('ellipsis')
+    expect(markStyle.overflow).not.toBe('hidden')
+    // The last resort is a second line, broken without hyphens.
+    expect(markStyle.whiteSpace).not.toBe('nowrap')
+    expect(markStyle.hyphens).toBe('manual')
     // Whole: nothing is clipped, and it ends before the chip begins.
     expect(mark.scrollWidth).toBeLessThanOrEqual(mark.clientWidth)
     expect(mark.getBoundingClientRect().right).toBeLessThanOrEqual(
@@ -305,6 +324,43 @@ export const LongWordmarkOnTheNarrowestPhone: Story = {
     expect(mark.getBoundingClientRect().height).toBeLessThanOrEqual(64)
     const frame = canvasElement.querySelector<HTMLElement>('[data-testid="phone-frame"]')
     expect((frame as HTMLElement).scrollWidth).toBeLessThanOrEqual(320)
+  },
+}
+
+/**
+ * The wordmark's room is the header's width less what the chip takes: 114 px
+ * with a chip, 10 px without one, in a header that sizes it from its own width.
+ */
+export const WordmarkReserveFollowsTheChip: Story = {
+  parameters: { frameWidth: 320 },
+  args: { children: <AvelaChrome wordmark="Atelier Marina Bay Hotel" /> },
+  play: async ({ canvasElement }) => {
+    const header = canvasElement.querySelector('header') as HTMLElement
+    const mark = within(header).getByText('Atelier Marina Bay Hotel')
+    expect(getComputedStyle(header).containerType).toBe('inline-size')
+    expect(getComputedStyle(mark).getPropertyValue('--ih-wm-reserve').trim()).toBe(
+      '114px',
+    )
+    // The room sets the size: it is not the board's 16 px.
+    expect(parseFloat(getComputedStyle(mark).fontSize)).toBeLessThan(16)
+  },
+}
+
+export const WordmarkWithoutChipHasMoreRoom: Story = {
+  parameters: { frameWidth: 320 },
+  args: {
+    children: <AvelaChrome locales={['en']} wordmark="Atelier Marina Bay Hotel" />,
+  },
+  play: async ({ canvasElement }) => {
+    const header = canvasElement.querySelector('header') as HTMLElement
+    const mark = within(header).getByText('Atelier Marina Bay Hotel')
+    expect(header.querySelector('button[aria-haspopup]')).toBeNull()
+    expect(getComputedStyle(mark).getPropertyValue('--ih-wm-reserve').trim()).toBe('10px')
+    // Whole, within the header's width.
+    expect(mark.getBoundingClientRect().right).toBeLessThanOrEqual(
+      header.getBoundingClientRect().right,
+    )
+    expect(mark.scrollWidth).toBeLessThanOrEqual(mark.clientWidth)
   },
 }
 

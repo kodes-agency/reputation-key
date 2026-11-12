@@ -84,3 +84,20 @@ it('reports journal failure to monitoring without any subject identifiers', () =
     },
   )
 })
+
+it('logs only the error name and S3 code of a failed bucket write', async () => {
+  const failure = Object.assign(new Error('key private/erasure-journal/abc'), {
+    name: 'NoSuchBucket',
+    Code: 'NoSuchBucket',
+  })
+  vi.spyOn(ErasureJournalBucket.prototype, 'put').mockRejectedValue(failure)
+  const dependency = deps()
+  const errorLog = vi.spyOn(dependency.logger, 'error')
+  const journal = createGuestWithdrawalJournal(dependency, true)!
+  await expect(journal.put('private/erasure-journal/abc', 'bytes')).rejects.toBe(failure)
+  journal.alert({ journalId: 'id', context: 'guest' })
+  expect(errorLog).toHaveBeenCalledWith(
+    { errorName: 'NoSuchBucket', s3Code: 'NoSuchBucket' },
+    'guest.erasure_journal_write_failed',
+  )
+})

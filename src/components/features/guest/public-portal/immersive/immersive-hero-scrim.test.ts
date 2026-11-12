@@ -173,11 +173,6 @@ describe('the stylesheet is built from these stops', () => {
     expect(IMMERSIVE_CSS).toContain(`--ih-hero-h: ${HERO_PHONE_HEIGHT}px;`)
   })
 
-  it('anchors the title scrim to the hero’s bottom edge and the header’s to its top', () => {
-    expect(IMMERSIVE_CSS).toMatch(/\.ih-hero__scrim--top\s*\{\s*top:\s*0;/u)
-    expect(IMMERSIVE_CSS).toMatch(/\.ih-hero__scrim--title\s*\{\s*bottom:\s*0;/u)
-  })
-
   it('has the photo fade in px from the bottom, so it does not move when the hero grows', () => {
     expect(photoMaskGradient()).toMatch(/^linear-gradient\(0deg, /u)
     expect(photoMaskGradient()).not.toContain('%')

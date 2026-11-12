@@ -215,13 +215,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/notification-gap.repository.ts',
-    symbol: 'countItemsMissingNotifications',
-    reason:
-      'The bounded health gauge intentionally counts notification gaps across all tenants and returns no tenant-owned content or identifiers.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/feed/infrastructure/repositories/one-click-unsubscribe.repository.ts',
     symbol: 'targetScopes',
     reason:

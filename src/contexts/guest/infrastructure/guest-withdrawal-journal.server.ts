@@ -27,6 +27,15 @@ export type GuestWithdrawalJournalConfig = Readonly<
   >
 >
 
+// Class only: never the key, the bytes or the message, which can carry either.
+function describeFailure(error: unknown): { errorName: string; s3Code?: string } {
+  if (!(error instanceof Error)) return { errorName: 'NonError' }
+  const code = (error as { Code?: unknown }).Code
+  return typeof code === 'string'
+    ? { errorName: error.name, s3Code: code }
+    : { errorName: error.name }
+}
+
 export function createGuestWithdrawalJournal(
   deps: Readonly<{
     logger: LoggerPort
@@ -37,10 +46,15 @@ export function createGuestWithdrawalJournal(
 ): GuestWithdrawalJournal | undefined {
   if (!active) return undefined
   let bucket: ErasureJournalBucket | undefined
+  let failureClass: Readonly<{ errorName: string; s3Code?: string }> | undefined
   return {
     idGen: deps.idGen,
     alert: () => {
-      deps.logger.error('guest.erasure_journal_write_failed')
+      if (failureClass) {
+        deps.logger.error(failureClass, 'guest.erasure_journal_write_failed')
+      } else {
+        deps.logger.error('guest.erasure_journal_write_failed')
+      }
       const error = new Error('Guest withdrawal journal write failed')
       error.name = 'GuestErasureJournalWriteFailed'
       captureObservabilityException(error, {
@@ -73,7 +87,12 @@ export function createGuestWithdrawalJournal(
           env.AWS_S3_BUCKET_NAME,
         )
       }
-      await bucket.put(key, bytes)
+      try {
+        await bucket.put(key, bytes)
+      } catch (error) {
+        failureClass = describeFailure(error)
+        throw error
+      }
     },
   }
 }

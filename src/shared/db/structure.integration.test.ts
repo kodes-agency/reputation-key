@@ -9,7 +9,9 @@ import {
   validateTestDatabaseUrl,
 } from '#/shared/testing/test-environment-lease'
 import { checkStructure, readStructure } from './structure.server'
-import { buildRegisteredConcurrentIndexes } from './concurrent-index-sidecar'
+import { fileURLToPath } from 'node:url'
+import { Client } from 'pg'
+import { migrateJournal } from './migrate-journal.server'
 
 describe('committed PostgreSQL structure authority', () => {
   let lease: TestLease
@@ -44,7 +46,7 @@ describe('committed PostgreSQL structure authority', () => {
     expect(await checkStructure(databaseUrl)).toEqual([])
   })
 
-  it('builds the same structure from an explicitly empty disposable database', async () => {
+  async function withEmptyDatabase(build: (url: string) => Promise<void>) {
     const database = `test_structure_${randomUUID().replaceAll('-', '')}`
     const target = new URL(databaseUrl)
     target.pathname = `/${database}`
@@ -52,25 +54,40 @@ describe('committed PostgreSQL structure authority', () => {
     validateTestDatabaseUrl(url)
     await lease.pool.query(`CREATE DATABASE "${database}" TEMPLATE template0`)
     try {
-      expect((await ensureTestDatabase(url)).migrated).toBe(true)
-      const freshLease = await acquireTestLease(url)
-      try {
-        const client = await freshLease.pool.connect()
-        try {
-          // Registered indexes are still a separate part of the deploy path.
-          const indexes = await buildRegisteredConcurrentIndexes(client)
-          expect(indexes.every(({ ok }) => ok)).toBe(true)
-        } finally {
-          client.release()
-        }
-      } finally {
-        await freshLease.release()
-      }
+      await build(url)
       expect(await readStructure(url)).toBe(snapshot())
       expect(await checkStructure(url)).toEqual([])
     } finally {
       await lease.pool.query(`DROP DATABASE "${database}" WITH (FORCE)`)
     }
+  }
+
+  it('builds the same structure from an explicitly empty disposable database', async () => {
+    await withEmptyDatabase(async (url) => {
+      expect((await ensureTestDatabase(url)).migrated).toBe(true)
+    })
+  }, 180_000)
+
+  // The deploy runs the journal alone: Better Auth's tables, the historical
+  // files and the concurrent indexes all come from drizzle/.
+  it('builds the same structure from the journal alone', async () => {
+    await withEmptyDatabase(async (url) => {
+      const client = new Client({ connectionString: url })
+      await client.connect()
+      try {
+        await migrateJournal(
+          client,
+          fileURLToPath(new URL('../../../drizzle', import.meta.url)),
+        )
+        // A second run finds every file applied and changes nothing.
+        await migrateJournal(
+          client,
+          fileURLToPath(new URL('../../../drizzle', import.meta.url)),
+        )
+      } finally {
+        await client.end()
+      }
+    })
   }, 180_000)
 
   it('rejects an unexpected table', async () => {
