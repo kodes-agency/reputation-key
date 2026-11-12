@@ -11,6 +11,7 @@ import zodV4 from './eslint-rules/zod-v4.mjs'
 import queryState from './eslint-rules/query-state.mjs'
 import sourcePolicy from './eslint-rules/source-policy.mjs'
 import fileLength from './eslint-rules/file-length.mjs'
+import schemaWriters from './eslint-rules/schema-writers.mjs'
 import testQuality from './eslint-rules/test-quality.mjs'
 
 // BQC-5.1: local rules enforcing what eslint-plugin-boundaries cannot express.
@@ -1212,9 +1213,22 @@ export default tseslint.config(
     },
   },
   {
-    files: [...UI_SOURCES, 'src/contexts/*/ui/**/*.{ts,tsx}'],
+    files: [
+      ...UI_SOURCES,
+      'src/contexts/*/ui/**/*.{ts,tsx}',
+      'src/client.tsx',
+      'src/instrument.client.ts',
+    ],
     ignores: [...NOT_A_UI_SOURCE, 'src/routes/api/**'],
     rules: { 'source-policy/browser-server': 'error' },
+  },
+  // A table with one owner is written only from the owner's files. Seeds and
+  // test support build their own rows.
+  {
+    files: ['src/**/*.{ts,tsx}', 'server/**/*.{ts,mjs}'],
+    ignores: [...NOT_A_UI_SOURCE, '**/testing/**', '**/*.test-fixtures.ts'],
+    plugins: { 'schema-writers': schemaWriters },
+    rules: { 'schema-writers/owner': 'error' },
   },
   {
     files: [

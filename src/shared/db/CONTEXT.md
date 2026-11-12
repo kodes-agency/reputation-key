@@ -301,6 +301,7 @@ directly. Tests use `db/testing/` leases and cleanup helpers; production modules
 must not import them.
 
 Database and test-support import boundaries are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
+A table with one owner is written only from the owner's files: `eslint-rules/schema-writers.mjs` lists the owners (Reply tables, audit events, notifications) and fails a second writer outside tests and `testing/` helpers.
 
 ## Verification
 

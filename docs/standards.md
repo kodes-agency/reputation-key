@@ -351,7 +351,7 @@ instead. A unit test for a `repositories/` source sits one level up
 
 ## 9. Code Quality Tooling (Invariant gates plus Maintainability migration)
 
-Fallow (dead-code, complexity, boundaries) is a devDependency. Config: `.fallowrc.json` (audit.gate: new-only). No count of the issues main already carries is kept: its `regression.baseline` block is all zeroes.
+Fallow (dead-code, complexity, duplication) is a devDependency. Config: `.fallowrc.json` (audit.gate: new-only). No count of the issues main already carries is kept: its `regression.baseline` block is all zeroes.
 
 Self-check a changeset before committing:
 
