@@ -5,7 +5,7 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { sql } from 'drizzle-orm'
 import { borrowReviewTransaction } from './open-transaction'
-import { createReviewSourceTransitionAuthority } from './source-transition-authority'
+import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
 
 const ORG = organizationId('review-open-transaction-org')
 const OTHER_ORG = organizationId('review-open-transaction-other')

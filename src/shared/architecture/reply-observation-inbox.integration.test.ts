@@ -22,17 +22,15 @@ import {
 } from '#/contexts/inbox/infrastructure/inbox-command-store'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
-import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
+import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
+import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
-import { createReplyObservationAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-observation-authority.adapter'
-import { createSourceTransitionAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/source-transition-authority.adapter'
 import type { CurrentReplyObservationPermit } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
 import {
   handleInboxReplyObserved,
   type InboxConsumerDeps,
-} from '#/contexts/inbox/infrastructure/outbox-consumers'
+} from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import type { ConsumerEvent } from '#/shared/outbox'
 import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
@@ -464,17 +462,13 @@ function consumerDeps(): InboxConsumerDeps {
   return {
     commandStore,
     handlingCycleStore: createReviewHandlingCycleStore(getDb()),
-    replyObservationAuthority: createReplyObservationAuthorityAdapter(
-      createReviewReplyObservationAuthority(getDb()),
-    ),
+    replyObservationAuthority: createReviewReplyObservationAuthority(getDb()),
     responseTargetAuthority: {
       withExactCurrent: async () => ({ status: 'obsolete' as const }),
       withExactCurrentBatch: async () => ({ status: 'obsolete' as const }),
       withInboxProjection: async () => ({ status: 'obsolete' as const }),
     },
-    sourceTransitionAuthority: createSourceTransitionAuthorityAdapter(
-      createReviewSourceTransitionAuthority(getDb()),
-    ),
+    sourceTransitionAuthority: createReviewSourceTransitionAuthority(getDb()),
     reviewLookup,
     reviewSourceLookup: {
       getReviewSourceMetaById: async () => null,
@@ -523,9 +517,7 @@ async function applyObservation(
   observation: Observation,
 ): Promise<'applied' | 'obsolete'> {
   const store = createAtomicInboxCommandStore(getDb())
-  const authority = createReplyObservationAuthorityAdapter(
-    createReviewReplyObservationAuthority(getDb()),
-  )
+  const authority = createReviewReplyObservationAuthority(getDb())
   const result = await authority.withExactCurrent(expectation(observation), (permit) =>
     store.applyReplyObservedOnce(command(item, eventId, permit)),
   )
@@ -617,9 +609,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     await insertObservation(live)
     await seedDeliveryEvent(EVENT_LIVE)
     const store = createAtomicInboxCommandStore(getDb())
-    const authority = createReplyObservationAuthorityAdapter(
-      createReviewReplyObservationAuthority(getDb()),
-    )
+    const authority = createReviewReplyObservationAuthority(getDb())
     let callbackEntered!: () => void
     const entered = new Promise<void>((resolve) => {
       callbackEntered = resolve

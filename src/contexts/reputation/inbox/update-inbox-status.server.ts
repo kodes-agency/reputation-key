@@ -4,37 +4,31 @@
 // closes private feedback.
 // Escalation is a separate, orthogonal action.
 
-import { lentTransactionArgs } from '../ports/review-open-transaction'
-import type { InboxRepository } from '../ports/inbox.repository'
+import { lentTransactionArgs } from '#/contexts/inbox/application/ports/review-open-transaction'
+import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
 import type {
   InboxCommandStore,
   ReopenReviewHandlingCycleCommand,
-} from '../ports/inbox-command-store.port'
-import { reviewId, type InboxItemId } from '#/shared/domain/ids'
+} from '#/contexts/inbox/application/ports/inbox-command-store.port'
+import { reviewId } from '#/shared/domain/ids'
 import type {
   HandlingCycleHead,
-  InboxStatus,
   InboxItem,
   ReviewHandlingCycleHead,
-} from '../../domain/types'
-import type { ManualReopenReason } from '../../domain/types'
-import type { ReviewHandlingCycleStore } from '../ports/review-handling-cycle.store'
-import type { ReviewSourceLookupPort } from '../ports/review-source-lookup.port'
-import type { ReviewResponseTargetAuthorityPort } from '../ports/review-response-target-authority.port'
+} from '#/contexts/inbox/domain/types'
+import type { ReviewHandlingCycleStore } from '#/contexts/inbox/application/ports/review-handling-cycle.store'
+import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
+import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { validateTransition } from '../../domain/rules'
-import { inboxItemStatusChanged } from '../../domain/events'
-import { inboxError } from '../../domain/errors'
-import { loadItemForCommand } from '../inbox-access'
-
-export type UpdateInboxStatusInput = Readonly<{
-  inboxItemId: InboxItemId
-  newStatus: InboxStatus
-  expectedCommandRevision: number
-  reopenReason?: ManualReopenReason
-  reopenExplanation?: string | null
-}>
+import { validateTransition } from '#/contexts/inbox/domain/rules'
+import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
+import { inboxError } from '#/contexts/inbox/domain/errors'
+import type {
+  UpdateInboxStatus,
+  UpdateInboxStatusInput,
+} from '#/contexts/inbox/application/inbox-status-commands'
+import { loadItemForCommand } from '#/contexts/inbox/application/inbox-access'
 
 export type UpdateInboxStatusDeps = Readonly<{
   repo: InboxRepository
@@ -45,11 +39,6 @@ export type UpdateInboxStatusDeps = Readonly<{
   reviewSourceLookup: ReviewSourceLookupPort
   responseTargetAuthority: ReviewResponseTargetAuthorityPort
 }>
-
-export type UpdateInboxStatus = (
-  input: UpdateInboxStatusInput,
-  ctx: AuthContext,
-) => Promise<InboxItem>
 
 type CycleHead = HandlingCycleHead | ReviewHandlingCycleHead
 

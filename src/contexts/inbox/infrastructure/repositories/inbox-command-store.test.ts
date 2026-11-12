@@ -63,12 +63,11 @@ import {
   type InboxCommandAuthority,
 } from '../inbox-command-store'
 import { readInboxEscalationHistory } from '../inbox-escalation-history'
-import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
+import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { createReviewSourceLookupAdapter } from '../adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '../adapters/reply-lookup.adapter'
-import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
-import { createReplyObservationAuthorityAdapter } from '../adapters/reply-observation-authority.adapter'
-import { rebuildInboxProjection } from '../../application/use-cases/rebuild-inbox-projection'
+import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
+import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import type {
   ReviewLookupPort,
   ReviewSnippetResult,
@@ -2243,9 +2242,7 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
         findReviewIdsByReplyStage: (orgId, propertyIds) =>
           replyRepo.findReviewIdsByReplyStage(orgId, propertyIds),
       }),
-      replyObservationAuthority: createReplyObservationAuthorityAdapter(
-        createReviewReplyObservationAuthority(db),
-      ),
+      replyObservationAuthority: createReviewReplyObservationAuthority(db),
       idGen: () => inboxItemId(crypto.randomUUID()),
       clock: () => NOW,
       logger: noopLogger,

@@ -13,19 +13,17 @@ import {
   type AnsweredEditRevision,
 } from '#/shared/testing/answered-review-edit-fixtures'
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
-import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
-import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
+import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
+import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { createAtomicInboxCommandStore } from '#/contexts/inbox/infrastructure/inbox-command-store'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import { createReplyObservationAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-observation-authority.adapter'
-import { createReviewResponseTargetAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/review-response-target-authority.adapter'
 import {
   handleInboxReplyObserved,
   handleInboxReviewCreated,
   handleInboxReviewUpdated,
   type InboxConsumerDeps,
-} from '#/contexts/inbox/infrastructure/outbox-consumers'
+} from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { createInboxItemLookupAdapter } from '#/contexts/feed/infrastructure/adapters/inbox-item-lookup.adapter'
 import {
   handleNotificationHandlingCycle,
@@ -82,12 +80,8 @@ function inboxDeps(): InboxConsumerDeps {
       clock,
     ),
     handlingCycleStore: createReviewHandlingCycleStore(db),
-    replyObservationAuthority: createReplyObservationAuthorityAdapter(
-      createReviewReplyObservationAuthority(db),
-    ),
-    responseTargetAuthority: createReviewResponseTargetAuthorityAdapter(
-      createReviewResponseTargetAuthority(db),
-    ),
+    replyObservationAuthority: createReviewReplyObservationAuthority(db),
+    responseTargetAuthority: createReviewResponseTargetAuthority(db),
     sourceTransitionAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
     reviewLookup: lookups.reviewLookup,
     reviewSourceLookup: {

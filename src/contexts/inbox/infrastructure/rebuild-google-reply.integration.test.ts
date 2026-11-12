@@ -40,14 +40,13 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Review } from '#/contexts/review/domain/types'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
-import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
+import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import type { InboxItem } from '../domain/types'
-import { rebuildInboxProjection } from '../application/use-cases/rebuild-inbox-projection'
+import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import { createInboxRepository } from './repositories/inbox.repository'
 import { createAtomicInboxCommandStore } from './inbox-command-store'
 import { createReviewSourceLookupAdapter } from './adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from './adapters/reply-lookup.adapter'
-import { createReplyObservationAuthorityAdapter } from './adapters/reply-observation-authority.adapter'
 
 const ORG = organizationId('org-inbox-rebuild-google-reply-0001')
 const PROP = propertyId('5e100000-0000-4000-8000-000000000001')
@@ -129,9 +128,7 @@ function makeRebuild(database: Database = db) {
       findReviewIdsByReplyStage: (orgId, propertyIds) =>
         replyRepo.findReviewIdsByReplyStage(orgId, propertyIds),
     }),
-    replyObservationAuthority: createReplyObservationAuthorityAdapter(
-      createReviewReplyObservationAuthority(database),
-    ),
+    replyObservationAuthority: createReviewReplyObservationAuthority(database),
     idGen: () => inboxItemId(crypto.randomUUID()),
     clock: () => NOW,
     logger: noopLogger,

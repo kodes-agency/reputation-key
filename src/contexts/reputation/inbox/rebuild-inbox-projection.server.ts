@@ -34,22 +34,22 @@
 // deletes items. Feedback-sourced items are OUT of scope: the guest context
 // is dark for beta (BQC-2.6), so its canonical data is not a rebuild source.
 
-import { lentTransactionArgs } from '../ports/review-open-transaction'
-import type { InboxRepository } from '../ports/inbox.repository'
-import type { InboxCommandStore } from '../ports/inbox-command-store.port'
+import { lentTransactionArgs } from '#/contexts/inbox/application/ports/review-open-transaction'
+import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
+import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
 import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
-} from '../ports/review-source-lookup.port'
+} from '#/contexts/inbox/application/ports/review-source-lookup.port'
 import type {
   GoogleReplyHead,
   ReplyLookupPort,
   ReplyMilestones,
-} from '../ports/reply-lookup.port'
+} from '#/contexts/inbox/application/ports/reply-lookup.port'
 import type {
   ReplyObservationAuthorityPort,
   ReplyObservationExpectation,
-} from '../ports/reply-observation-authority.port'
+} from '#/contexts/inbox/application/ports/reply-observation-authority.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   InboxItemId,
@@ -57,9 +57,9 @@ import type {
   PropertyId,
   ReviewId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../../domain/types'
-import { createInboxItem as buildInboxItem } from '../../domain/constructors'
-import { isAnsweringGoogleReply } from '../../domain/rules'
+import type { InboxItem } from '#/contexts/inbox/domain/types'
+import { createInboxItem as buildInboxItem } from '#/contexts/inbox/domain/constructors'
+import { isAnsweringGoogleReply } from '#/contexts/inbox/domain/rules'
 
 export type RebuildInboxProjectionInput = Readonly<{
   organizationId: OrganizationId
