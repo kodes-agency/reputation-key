@@ -84,6 +84,17 @@ export const G01HeaderAndTitle: Story = {
   },
 }
 
+/** A portal titled with the property's own name is one large heading, with no kicker line above it. */
+export const TitleSameAsTheNameIsOneLargeHeading: Story = {
+  args: { children: <AvelaChrome title="Avela Resort" /> },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const heading = canvas.getByRole('heading', { level: 1, name: 'Avela Resort' })
+    expect(parseFloat(getComputedStyle(heading).fontSize)).toBe(44)
+    expect(canvas.getAllByText('Avela Resort', { selector: 'h1, p' })).toHaveLength(1)
+  },
+}
+
 /** Board G02: the sheet open over the dimmed page, the current language first. */
 export const G02LanguageSheet: Story = {
   play: async ({ canvasElement }) => {
@@ -293,6 +304,11 @@ export const LogoReplacesWordmark: Story = {
   },
 }
 
+const longWordmarkOf = (canvasElement: HTMLElement) => {
+  const header = canvasElement.querySelector('header') as HTMLElement
+  return { header, mark: within(header).getByText('Atelier Marina Bay Hotel') }
+}
+
 /**
  * The wordmark is never cut off, whatever its length or the phone's width. At
  * 320 px with the language chip the room is about 180 px, and a 24-letter
@@ -303,8 +319,7 @@ export const LongWordmarkOnTheNarrowestPhone: Story = {
   parameters: { frameWidth: 320 },
   args: { children: <AvelaChrome wordmark="Atelier Marina Bay Hotel" /> },
   play: async ({ canvasElement }) => {
-    const header = canvasElement.querySelector('header') as HTMLElement
-    const mark = within(header).getByText('Atelier Marina Bay Hotel')
+    const { header, mark } = longWordmarkOf(canvasElement)
     const chip = chipOf(canvasElement)
     const markStyle = getComputedStyle(mark)
     expect(markStyle.textOverflow).not.toBe('ellipsis')
@@ -318,8 +333,11 @@ export const LongWordmarkOnTheNarrowestPhone: Story = {
       chip.getBoundingClientRect().left,
     )
     // It stepped down from the board's 16 px, but not below 11 px.
-    expect(parseFloat(markStyle.fontSize)).toBeLessThan(16)
-    expect(parseFloat(markStyle.fontSize)).toBeGreaterThanOrEqual(11)
+    const fontSize = parseFloat(markStyle.fontSize)
+    expect(fontSize).toBeLessThan(16)
+    expect(fontSize).toBeGreaterThanOrEqual(11)
+    // The spacing closes up with the size, down from the board's 0.38 em.
+    expect(parseFloat(markStyle.letterSpacing)).toBeLessThan(fontSize * 0.38)
     expect(header.getBoundingClientRect().height).toBe(64)
     expect(mark.getBoundingClientRect().height).toBeLessThanOrEqual(64)
     const frame = canvasElement.querySelector<HTMLElement>('[data-testid="phone-frame"]')
@@ -335,8 +353,7 @@ export const WordmarkReserveFollowsTheChip: Story = {
   parameters: { frameWidth: 320 },
   args: { children: <AvelaChrome wordmark="Atelier Marina Bay Hotel" /> },
   play: async ({ canvasElement }) => {
-    const header = canvasElement.querySelector('header') as HTMLElement
-    const mark = within(header).getByText('Atelier Marina Bay Hotel')
+    const { header, mark } = longWordmarkOf(canvasElement)
     expect(getComputedStyle(header).containerType).toBe('inline-size')
     expect(getComputedStyle(mark).getPropertyValue('--ih-wm-reserve').trim()).toBe(
       '114px',
@@ -352,8 +369,7 @@ export const WordmarkWithoutChipHasMoreRoom: Story = {
     children: <AvelaChrome locales={['en']} wordmark="Atelier Marina Bay Hotel" />,
   },
   play: async ({ canvasElement }) => {
-    const header = canvasElement.querySelector('header') as HTMLElement
-    const mark = within(header).getByText('Atelier Marina Bay Hotel')
+    const { header, mark } = longWordmarkOf(canvasElement)
     expect(header.querySelector('button[aria-haspopup]')).toBeNull()
     expect(getComputedStyle(mark).getPropertyValue('--ih-wm-reserve').trim()).toBe('10px')
     // Whole, within the header's width.

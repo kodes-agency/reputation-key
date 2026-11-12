@@ -15,6 +15,7 @@ import {
 } from './__fixtures__/linktree-links'
 import { ImmersiveLinktree, type ImmersiveLinktreeLink } from './immersive-linktree'
 import { ImmersiveShell } from './immersive-shell'
+import { selectorsReachingOutside } from './__fixtures__/outside-the-page'
 
 const PHONE_HEIGHT = 844
 const CHAMPAGNE = { accentColour: '#EAD6A8', fieldColour: '#15110D' } as const
@@ -99,6 +100,18 @@ export const BeforeARating: Story = {
     const textBox = text?.getBoundingClientRect()
     expect(textBox?.top).toBeGreaterThanOrEqual(tileBox?.top ?? Infinity)
     expect(textBox?.bottom).toBeLessThanOrEqual(tileBox?.bottom ?? 0)
+    // Only transform moves: the compositor handles it and nothing relayouts.
+    const moving = [
+      ...canvasElement.querySelectorAll<HTMLElement>(
+        '.ih-tile, .ih-tile__arrow, .ih-tile__image',
+      ),
+    ].map((element) => getComputedStyle(element).transitionProperty)
+    for (const property of moving) expect(property).toMatch(/^(transform|none)$/u)
+    // The gate opens this story under reduced motion too, where nothing is meant to transition.
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches)
+      expect(moving).toContain('transform')
+    // The page's rules reach nothing outside it: drawn without the page root, nothing is styled by them.
+    expect(selectorsReachingOutside(canvasElement)).toEqual([])
   },
 }
 

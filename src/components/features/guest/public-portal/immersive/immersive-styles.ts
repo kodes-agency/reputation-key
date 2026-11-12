@@ -3,12 +3,12 @@ import { IMMERSIVE_CHROME_CSS } from './immersive-chrome-styles'
 import {
   HERO_PHONE_HEIGHT,
   HERO_TITLE_SCRIM,
-  HERO_TITLE_SCRIM_HALF_WIDTH,
   HERO_TOP_SCRIM,
   HERO_WIDE,
   photoMaskGradient,
   scrimGradient,
   scrimReach,
+  titleScrimMaskGradient,
 } from './immersive-hero-scrim'
 import { PHOTO_BACKDROP } from './immersive-look'
 
@@ -48,8 +48,7 @@ export const IMMERSIVE_STYLE_HREF = 'guest-immersive'
 
 const percent = (share: number) => `${Math.round(share * 100)}%`
 
-const { solid, gone } = HERO_TITLE_SCRIM_HALF_WIDTH
-const titleScrimFade = `linear-gradient(90deg, transparent calc(50% - ${gone}px), #000 calc(50% - ${solid}px), #000 calc(50% + ${solid}px), transparent calc(50% + ${gone}px))`
+const titleScrimFade = titleScrimMaskGradient()
 
 // Geometry measured from boards G01 and G09 (390 x 844): the hero is 236 px
 // tall on a phone, the glass card radius 28, the tiles 22, the chip a pill. The

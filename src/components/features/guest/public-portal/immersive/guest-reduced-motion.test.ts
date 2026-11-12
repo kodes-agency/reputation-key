@@ -6,6 +6,7 @@
 // itself, so the page stays still if that global rule is ever narrowed.
 
 import { describe, expect, it } from 'vitest'
+import { PORTAL_UNAVAILABLE_CSS } from '../../portal-unavailable-styles'
 import { IMMERSIVE_CHROME_CSS } from './immersive-chrome-styles'
 import { IMMERSIVE_FOOTER_CSS } from './immersive-footer-styles'
 import { IMMERSIVE_RESPONSE_CSS } from './immersive-response-styles'
@@ -20,6 +21,7 @@ const STYLESHEETS = {
   'immersive-response-styles': IMMERSIVE_RESPONSE_CSS,
   'immersive-section-styles': IMMERSIVE_SECTION_CSS,
   'linktree-styles': LINKTREE_CSS,
+  'portal-unavailable-styles': PORTAL_UNAVAILABLE_CSS,
 } as const
 
 type MediaBlock = Readonly<{ condition: string; body: string }>
