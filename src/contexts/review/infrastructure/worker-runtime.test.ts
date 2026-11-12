@@ -34,6 +34,7 @@ describe('registerReviewWorkerJobs', () => {
       replyRepo: {} as never,
       replyCommandStore: {} as never,
       googleReviewApi: {} as never,
+      googleConnectionStatus: { findStatus: async () => null },
       staffPublicApi: {
         getAccessiblePropertyIds: vi.fn(),
         getAssignedPortals: vi.fn(),

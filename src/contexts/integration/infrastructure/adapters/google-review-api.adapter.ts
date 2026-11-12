@@ -1,5 +1,4 @@
 import {
-  executorErrorToReviewApiError,
   isGoogleReviewApiError,
   reviewApiError,
   type GoogleReviewApiError,
@@ -22,6 +21,11 @@ import type {
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
+import {
+  createGoogleCallError,
+  googleCallError,
+  isGoogleCallError,
+} from '../../domain/google-call-error'
 import {
   isNewestUpdatedFirst,
   parseReview,
@@ -142,6 +146,49 @@ const REPLY_PUBLICATION_KEYS = [
   'text',
 ] as const
 
+const REPLY_OPERATION = 'reviews.reply'
+
+function replyCallError(
+  kind: Parameters<typeof createGoogleCallError>[1],
+  details: Exclude<Parameters<typeof createGoogleCallError>[2], string>,
+) {
+  return createGoogleCallError(REPLY_OPERATION, kind, details)
+}
+
+/** A reply request refused before any provider call, as the compile refusal is. */
+function replyRequestRefused() {
+  return replyCallError('parse_error', {
+    dispatch: 'not_sent',
+    executionCode: 'malformed_request',
+  })
+}
+
+/**
+ * The reply authorizer refused, or could not decide, before any credential or
+ * provider access, so nothing was sent. Its closed code rides along as
+ * not-sent evidence: `stale_source` (the Property is no longer active at the
+ * cycle's source epoch) is RepKey's own policy, which the publish job cancels
+ * instead of reporting it as Google's answer.
+ */
+function replyAuthorizerRefusal(refusal: unknown) {
+  const code = replyAuthorizationRefusal(refusal).failure?.executionCode ?? null
+  return replyCallError('permission_denied', {
+    dispatch: 'not_sent',
+    ...(code === null ? {} : { executionCode: code }),
+  })
+}
+
+/** A provider failure travels as it is; any other fault is an upstream one with what it proves. */
+function toReplyCallError(error: unknown) {
+  if (isGoogleCallError(error)) return error
+  const facts = googleCallError(error)
+  return replyCallError('upstream_error', {
+    dispatch: facts.dispatch,
+    ...(facts.executionCode === null ? {} : { executionCode: facts.executionCode }),
+    ...(facts.providerStatus === null ? {} : { providerStatus: facts.providerStatus }),
+  })
+}
+
 /**
  * Request-shape validation for a reply publication. Every rule is independent
  * of the others and every failure is the same refusal, so the list stays flat.
@@ -164,12 +211,12 @@ function assertValidReplyPublicationInput(input: GoogleReplyPublicationInput): v
     typeof input.text !== 'string' ||
     replyCommentProblem(input.text) !== null
   ) {
-    throw invalidRequest()
+    throw replyRequestRefused()
   }
   try {
     parseReviewProviderResource(input.reviewName)
   } catch {
-    throw invalidRequest()
+    throw replyRequestRefused()
   }
 }
 
@@ -197,7 +244,7 @@ function assertReplyAuthorizationBinds(
     googleReplyTextDigest(input.text) !==
       authorization.authorizationVector.expectedReplyDigest
   ) {
-    throw reviewApiError('authorization_changed', false)
+    throw replyCallError('permission_denied', { dispatch: 'not_sent' })
   }
 }
 
@@ -603,7 +650,7 @@ export const createGoogleReviewApiAdapter = (
   }
 
   /**
-   * A reply refused while its connection waits for an AccountAdmin to
+   * A read refused while its connection waits for an AccountAdmin to
    * reconnect Google is the reconnect case, not a changed approval, so the
    * publish job can tell its author so. An unreadable connection keeps the
    * refusal as it was; both codes are terminal.
@@ -657,7 +704,7 @@ export const createGoogleReviewApiAdapter = (
     input: GoogleReplyPublicationInput,
   ): Promise<GoogleReplyPublicationOutcome> => {
     if (!deps.authorizeReplyPublicationProviderCall) {
-      throw reviewApiError('provider_unavailable', false)
+      throw replyCallError('upstream_error', {})
     }
     let authorized: Awaited<
       ReturnType<NonNullable<typeof deps.authorizeReplyPublicationProviderCall>>
@@ -675,7 +722,7 @@ export const createGoogleReviewApiAdapter = (
         attemptNumber: input.attemptNumber,
       })
     } catch (refusal) {
-      throw await withReauthorizationCause(input, replyAuthorizationRefusal(refusal))
+      throw replyAuthorizerRefusal(refusal)
     }
     assertReplyAuthorizationBinds(authorized.authorization, input)
     try {
@@ -698,7 +745,7 @@ export const createGoogleReviewApiAdapter = (
       // The raw helper has already zeroed the body and dropped the headers,
       // so the correlation id is honestly unknown here.
       if (isAcceptedNonJsonWrite(error)) return { providerCorrelationId: null }
-      throw await withReauthorizationCause(input, executorErrorToReviewApiError(error))
+      throw toReplyCallError(error)
     }
   }
 

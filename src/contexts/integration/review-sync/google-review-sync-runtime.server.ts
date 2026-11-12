@@ -4,6 +4,7 @@ import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyr
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import {
   googleReviewApiNotConfigured,
+  type GoogleConnectionStatusPort,
   type GoogleReviewApiPort,
   type TargetedGoogleReviewReferenceResolver,
 } from '#/contexts/review/application/public-api'
@@ -56,6 +57,7 @@ export type GoogleReviewSyncRuntimeDeps = Readonly<{
 
 export type GoogleReviewSyncRuntime = Readonly<{
   googleReviewApi: GoogleReviewApiPort
+  googleConnectionStatus: GoogleConnectionStatusPort
   googleReviewPushTargetResolver: TargetedGoogleReviewReferenceResolver
   /** Present only when review-sync content authority and the binding reader exist. */
   notification:
@@ -249,8 +251,14 @@ export const createGoogleReviewSyncRuntime = (
         resolve: async () => ({ status: 'obsolete' as const }),
       })
 
+  const googleConnectionStatus: GoogleConnectionStatusPort = {
+    findStatus: async (organizationId, connectionId) =>
+      (await deps.connectionRepo.findById(organizationId, connectionId))?.status ?? null,
+  }
+
   return Object.freeze({
     googleReviewApi,
+    googleConnectionStatus,
     googleReviewPushTargetResolver,
     notification:
       binding && reviewSyncAuthorizer

@@ -224,6 +224,7 @@ function makeDeps() {
         },
       }),
     },
+    googleConnectionStatus: { findStatus: vi.fn().mockResolvedValue('active') },
     googleReplyObservationStore: {
       allocateReadGeneration: vi.fn(async () => 1),
       record: vi.fn().mockResolvedValue({
@@ -478,12 +479,12 @@ describe('publish-reply job handler', () => {
   })
 
   it.each([
-    ['direct transport rejection', () => new TypeError('fetch failed')],
-    ['governed executor lost response', governedExecutorLostResponse],
-    ['5xx response without no-write evidence', () => gbpApiError(500)],
+    ['direct transport rejection', () => new TypeError('fetch failed'), false],
+    ['governed executor lost response', governedExecutorLostResponse, true],
+    ['5xx response without no-write evidence', () => gbpApiError(500), false],
   ])(
     '%s reads back but never treats a filtered absence as permission to resend',
-    async (_label, makeFailure) => {
+    async (_label, makeFailure, isProviderFailure) => {
       let current = { ...approvedReply }
       const deps = makeDeps()
       deps.replyRepo.findById.mockImplementation(async () => current)
@@ -513,8 +514,15 @@ describe('publish-reply job handler', () => {
       deps.googleReviewApi.replyToReview.mockRejectedValueOnce(failure)
       const handler = createPublishReplyHandler(deps as never)
 
-      // The job fails with the provider failure itself, so BullMQ retries it.
-      await expect(handler(makeJob(0))).rejects.toBe(failure)
+      // The job fails so BullMQ retries it: with the failure itself, or, for a
+      // provider failure, with its Review error.
+      await (isProviderFailure
+        ? expect(handler(makeJob(0))).rejects.toMatchObject({
+            _tag: 'GoogleReviewApiError',
+            code: 'provider_unavailable',
+            failure: { dispatch: 'unknown' },
+          })
+        : expect(handler(makeJob(0))).rejects.toBe(failure))
       await expect(handler(makeJob(1))).resolves.toBeUndefined()
 
       expect(deps.googleReviewApi.getReview).toHaveBeenCalledOnce()
@@ -1526,10 +1534,7 @@ describe('publish-reply job when Google revoked the grant (real provider adapter
       reauthorize: async ({ authorization }) => authorization,
     })
     const googleReviewApi = createGoogleReviewApiAdapter({
-      // The refresh use case has moved the connection to reauth_required.
-      connectionRepo: {
-        findById: vi.fn(async () => ({ status: 'reauth_required' })),
-      } as never,
+      connectionRepo: { findById: vi.fn() } as never,
       logger: { warn: vi.fn() } as never,
       cursorStore: {} as never,
       executor,
@@ -1568,7 +1573,12 @@ describe('publish-reply job when Google revoked the grant (real provider adapter
       }),
       nowMs: () => NOW.getTime(),
     })
-    const handler = createPublishReplyHandler({ ...deps, googleReviewApi } as never)
+    const handler = createPublishReplyHandler({
+      ...deps,
+      googleReviewApi,
+      // The refresh use case has moved the connection to reauth_required.
+      googleConnectionStatus: { findStatus: async () => 'reauth_required' },
+    } as never)
     const job = makeJob(0, {
       ...JOB_DATA,
       replyId: IDS.reply,
