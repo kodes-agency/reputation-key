@@ -4,7 +4,8 @@ import { resolveReplyDraftingV2Options } from '#/shared/reply-drafting-v2-reques
 import { verifyAiReplyProvenance } from '#/shared/ai-reply-provenance'
 import { replyAiFrameReservations } from '#/shared/db/schema'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding'
-import { generateKeyPairSync } from 'node:crypto'
+import { generateKeyPairSync, sign } from 'node:crypto'
+import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/ai-reply-template-catalogue'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
@@ -64,7 +65,6 @@ const SOURCE_EPOCH = 2
 // inject an arbitrary provider counter through the upsert input.
 const SOURCE_REVISION = 1
 const SUGGESTION = 'Thank you for sharing your experience.'
-const REQUEST_BINDING_HMAC = 'A'.repeat(43)
 const BRAND_DISPLAY_NAME_DIGEST = digestAiReplyBrandDisplayName('Example Hotel')
 const LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST =
   '86bb98cb3b0b1c8561141e2ec30e019725d5f0ba5dd57be4745c7db5bc851769'
@@ -82,14 +82,25 @@ const CONSENT_CONTRACT_FACTS = {
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519')
 
-type RequestBoundPayloadV1 = Extract<
-  AiReplyProvenancePayloadV1,
-  { requestBindingHmac: string }
->
+// The execution each seeded operation was delivered by; tokens name it.
+const seededExecutions = new Map<
+  string,
+  Readonly<{ executionPermitId: string; executionAttempt: number }>
+>()
+const UNSEEDED_PERMIT = '74000000-0000-4000-8000-0000000001ff'
+
+function executionOf(operationId: string) {
+  return (
+    seededExecutions.get(operationId) ?? {
+      executionPermitId: UNSEEDED_PERMIT,
+      executionAttempt: 1,
+    }
+  )
+}
 
 function provenancePayload(
-  overrides: Partial<RequestBoundPayloadV1> = {},
-): RequestBoundPayloadV1 {
+  overrides: Partial<AiReplyProvenancePayloadV1> = {},
+): AiReplyProvenancePayloadV1 {
   return {
     version: 'ai-reply-provenance-v1',
     kid: 'provenance-v1',
@@ -98,7 +109,7 @@ function provenancePayload(
     organizationId: ORGANIZATION_ID,
     propertyId: PROPERTY_ID,
     reviewId: REVIEW_ID,
-    requestBindingHmac: 'A'.repeat(43),
+    ...executionOf(overrides.operationId ?? '74000000-0000-4000-8000-000000000004'),
     sourceEpoch: SOURCE_EPOCH,
     sourceRevision: SOURCE_REVISION,
     baseReplyStateRevision: 0,
@@ -122,16 +133,8 @@ function provenancePayload(
   }
 }
 
-function provenanceToken(overrides: Partial<RequestBoundPayloadV1> = {}): string {
+function provenanceToken(overrides: Partial<AiReplyProvenancePayloadV1> = {}): string {
   return signAiReplyProvenance(provenancePayload(overrides), privateKey)
-}
-
-function permitBoundProvenanceToken(
-  binding: Readonly<{ executionPermitId: string; executionAttempt: number }>,
-  overrides: Partial<RequestBoundPayloadV1> = {},
-): string {
-  const { requestBindingHmac: _requestBinding, ...payload } = provenancePayload(overrides)
-  return signAiReplyProvenance({ ...payload, ...binding }, privateKey)
 }
 
 function personalizedProvenanceToken(
@@ -146,7 +149,7 @@ function personalizedProvenanceToken(
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
       reviewId: REVIEW_ID,
-      requestBindingHmac: 'A'.repeat(43),
+      ...executionOf(overrides.operationId ?? '74000000-0000-4000-8000-000000000005'),
       sourceEpoch: SOURCE_EPOCH,
       sourceRevision: SOURCE_REVISION,
       baseReplyStateRevision: 1,
@@ -183,7 +186,7 @@ function groundedProvenanceToken(
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
       reviewId: REVIEW_ID,
-      requestBindingHmac: REQUEST_BINDING_HMAC,
+      ...executionOf(overrides.operationId ?? '74000000-0000-4000-8000-000000000007'),
       sourceEpoch: SOURCE_EPOCH,
       sourceRevision: SOURCE_REVISION,
       baseReplyStateRevision: 2,
@@ -209,6 +212,20 @@ function groundedProvenanceToken(
     },
     privateKey,
   )
+}
+
+/** Signs a payload the signer's schema would refuse, as a token minted elsewhere. */
+function signWithoutValidation(
+  rawPayload: Readonly<Record<string, unknown>>,
+  version: 'ai-reply-provenance-v1',
+): string {
+  const canonical = canonicalizeRfc8785(rawPayload)
+  const signature = sign(
+    null,
+    Buffer.from(`repkey-${version}\0${canonical}`, 'utf8'),
+    privateKey,
+  )
+  return `rk_ai_reply_v1.${Buffer.from(canonical, 'utf8').toString('base64url')}.${signature.toString('base64url')}`
 }
 
 /** A live Review in this suite's Property at the revision its operations bind. */
@@ -340,7 +357,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     reviewId?: string
     replyBrandProfileVersion?: number
     replyBrandDisplayNameDigest?: string
-    requestBindingHmac?: string | null
     executionAttempt?: number
   }) => {
     const [globalControl] = await db
@@ -361,6 +377,10 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     if (!globalControl || !providerControl || !capabilityControl) {
       throw new Error('AI execution controls are not seeded')
     }
+    seededExecutions.set(input.operationId, {
+      executionPermitId: input.permitId,
+      executionAttempt: input.executionAttempt ?? 1,
+    })
     const createdAt = new Date(NOW.getTime() - 60_000)
     const expiresAt = new Date(NOW.getTime() + 60 * 60_000)
     await db
@@ -425,19 +445,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       capabilityControlGeneration: capabilityControl.generation,
       routeKey: 'reply-suggestion',
       executionPermitId: input.permitId,
-      ...(input.requestBindingHmac === null
-        ? {
-            admissionNonce: null,
-            requestBindingKeyId: null,
-            requestBindingHmac: null,
-            grantKid: null,
-          }
-        : {
-            admissionNonce: `nonce-${input.operationId}`,
-            requestBindingKeyId: 'binding-v1',
-            requestBindingHmac: input.requestBindingHmac ?? REQUEST_BINDING_HMAC,
-            grantKid: 'grant-v1',
-          }),
       costWindowId: input.permitId,
       reservedMicros: 50_000,
       actualMicros: 42,
@@ -703,6 +710,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
           ...previous,
           version: 'ai-reply-provenance-v4',
           operationId,
+          ...executionOf(operationId),
           reviewId: newReview,
           baseReplyStateRevision: 0,
           providerDeploymentProfileVersion,
@@ -1419,15 +1427,13 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       )
       await repository.upsert(reviewFixture(PERMIT_REVIEW, 'ai-suggested-draft-permit'))
       await repository.upsert(reviewFixture(LEGACY_REVIEW, 'ai-suggested-draft-legacy'))
-      // The permit-bound execution was retried once and keeps no request
-      // binding HMAC, as an execution admitted without one would.
+      // The delivering execution was retried once.
       await seedSucceededReplyOperation({
         operationId: PERMIT_OPERATION,
         permitId: PERMIT,
         sourceRevision: SOURCE_REVISION,
         baseReplyStateRevision: 0,
         reviewId: PERMIT_REVIEW,
-        requestBindingHmac: null,
         executionAttempt: 2,
       })
       await seedSucceededReplyOperation({
@@ -1449,12 +1455,13 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     it('adopts a permit-bound draft only for the permit and attempt that delivered it', async () => {
       const bound = (
         binding: Readonly<{ executionPermitId: string; executionAttempt: number }>,
-        overrides: Partial<RequestBoundPayloadV1> = {},
+        overrides: Partial<AiReplyProvenancePayloadV1> = {},
       ) =>
-        permitBoundProvenanceToken(binding, {
+        provenanceToken({
           operationId: PERMIT_OPERATION,
           reviewId: PERMIT_REVIEW,
           baseReplyStateRevision: 0,
+          ...binding,
           ...overrides,
         })
       const delivered = { executionPermitId: PERMIT, executionAttempt: 2 }
@@ -1501,17 +1508,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
           propertyId: otherProperty,
         }),
       ).resolves.toMatchObject({ status: 'rejected' })
-      // A legacy token cannot adopt an execution that holds no request binding.
-      await expect(
-        acceptFor(
-          PERMIT_REVIEW,
-          provenanceToken({
-            operationId: PERMIT_OPERATION,
-            reviewId: PERMIT_REVIEW,
-            baseReplyStateRevision: 0,
-          }),
-        ),
-      ).resolves.toEqual({ status: 'rejected', reason: 'invalid' })
       await expect(adoptionOf(PERMIT_REVIEW, PERMIT_OPERATION)).resolves.toEqual({
         replies: [],
         operation: [{ disposition: 'none' }],
@@ -1526,32 +1522,29 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       })
     })
 
-    it('adopts a legacy draft only with the request binding its execution holds', async () => {
-      const legacy = (requestBindingHmac: string) =>
-        provenanceToken({
-          operationId: LEGACY_OPERATION,
-          reviewId: LEGACY_REVIEW,
-          baseReplyStateRevision: 0,
-          requestBindingHmac,
-        })
+    it('refuses a token bound by a request binding and writes nothing', async () => {
+      const permitBound = provenancePayload({
+        operationId: LEGACY_OPERATION,
+        reviewId: LEGACY_REVIEW,
+        baseReplyStateRevision: 0,
+      })
+      const {
+        executionPermitId: _permit,
+        executionAttempt: _attempt,
+        ...unbound
+      } = permitBound
+      const token = signWithoutValidation(
+        { ...unbound, ['requestBinding' + 'Hmac']: 'A'.repeat(43) },
+        permitBound.version,
+      )
 
-      await expect(acceptFor(LEGACY_REVIEW, legacy('B'.repeat(43)))).resolves.toEqual({
+      await expect(acceptFor(LEGACY_REVIEW, token)).resolves.toEqual({
         status: 'rejected',
         reason: 'invalid',
       })
       await expect(adoptionOf(LEGACY_REVIEW, LEGACY_OPERATION)).resolves.toEqual({
         replies: [],
         operation: [{ disposition: 'none' }],
-      })
-
-      await expect(
-        acceptFor(LEGACY_REVIEW, legacy(REQUEST_BINDING_HMAC)),
-      ).resolves.toMatchObject({
-        status: 'accepted',
-        reply: { text: SUGGESTION, aiGenerated: true, stateRevision: 1 },
-      })
-      await expect(adoptionOf(LEGACY_REVIEW, LEGACY_OPERATION)).resolves.toMatchObject({
-        operation: [{ disposition: 'adopted' }],
       })
     })
   })

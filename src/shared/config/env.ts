@@ -254,10 +254,7 @@ const baseEnvSchema = z.object({
   // Binds a credential to the authorized request without storing its value.
   GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
 
-  // Settlement-receipt and provenance verification keyrings. The transport that
-  // used to sit beside them here — gateway origin, server name and three mTLS
-  // blobs — went with the sidecars in WP2.3.
-  AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: z.string().max(65_536).optional(),
+  // Provenance verification keyring and the key inventory profile that pins it.
   AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON: z.string().max(65_536).optional(),
   AI_KEY_INVENTORY_PROFILE: z.enum(['production-v1', 'local-stack-v1']).optional(),
   // Worker-only keyed pseudonym authority for durable AI operation subjects.
@@ -268,10 +265,7 @@ const baseEnvSchema = z.object({
   // process, so they become part of the parsed contract rather than raw
   // `process.env` reads inside a bootstrap.
   OPENAI_API_KEY: z.string().min(1).max(512).optional(),
-  AI_REQUEST_BINDING_HMAC_KEYS: z.string().max(4_096).optional(),
   AI_SAFETY_IDENTIFIER_HMAC_KEYS: z.string().max(4_096).optional(),
-  AI_ADMISSION_ED25519_PRIVATE_KEY_B64: z.string().max(4_096).optional(),
-  AI_ADMISSION_ED25519_KID: z.string().max(64).optional(),
   AI_PROVENANCE_ED25519_PRIVATE_KEY_B64: z.string().max(4_096).optional(),
   AI_PROVENANCE_ED25519_KID: z.string().max(64).optional(),
   // Local rehearsal only: sends provider calls to the Compose `ai-provider-stub`

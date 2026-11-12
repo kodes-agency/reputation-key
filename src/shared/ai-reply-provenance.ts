@@ -81,22 +81,15 @@ const commonPayloadShape = {
   draftExpiresAtEpochMillis: positive,
 } as const
 
-// A token names exactly one execution binding: the request binding HMAC its
-// grant carried, or the execution permit and attempt that delivered it.
-// Strict objects make a token with both or neither match no shape.
-const requestBindingShape = {
-  requestBindingHmac: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
-} as const
+// A token names the execution permit and attempt that delivered it; the
+// strict object rejects any other binding field.
 const executionPermitBindingShape = {
   executionPermitId: canonicalUuid,
   executionAttempt: positive,
 } as const
 
 function withExecutionBinding<Shape extends z.ZodRawShape>(shape: Shape) {
-  return z.union([
-    z.object({ ...shape, ...requestBindingShape }).strict(),
-    z.object({ ...shape, ...executionPermitBindingShape }).strict(),
-  ])
+  return z.object({ ...shape, ...executionPermitBindingShape }).strict()
 }
 
 const expiryRefinement = (
