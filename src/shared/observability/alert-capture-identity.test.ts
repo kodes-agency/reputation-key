@@ -105,21 +105,21 @@ function sentEvents(alerts: readonly AlertEvent[]) {
 describe('alert captures in the error monitor', () => {
   it('group each alert as its own issue with its name and severity as tags', () => {
     const [missing, feedback] = sentEvents([
-      alert('notification.missing-for-inbox-item', 'P1'),
+      alert('notification.in-app-delivery-lag', 'P1'),
       alert('notification.email-provider-feedback-missing', 'P2'),
     ])
 
     expect(missing).toMatchObject({
-      fingerprint: ['alert', 'notification.missing-for-inbox-item'],
+      fingerprint: ['alert', 'notification.in-app-delivery-lag'],
       tags: {
         runtime_source: 'alert-dispatcher',
-        alert: 'notification.missing-for-inbox-item',
+        alert: 'notification.in-app-delivery-lag',
         alert_severity: 'p1',
       },
       exception: {
         values: [
           {
-            type: '[alert] notification.missing-for-inbox-item',
+            type: '[alert] notification.in-app-delivery-lag',
             value: '[REDACTED]',
           },
         ],

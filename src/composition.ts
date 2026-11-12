@@ -189,7 +189,6 @@ function buildContainer(
       policyStoreVersion: identity.policy.currentVersion,
     },
     notification: {
-      readMissingNotificationCount: notification.publicApi.readMissingNotificationCount,
       readNotificationDeliveryLag: notification.publicApi.readNotificationDeliveryLag,
     },
     guestObservationLoss: guest.observationLoss,
