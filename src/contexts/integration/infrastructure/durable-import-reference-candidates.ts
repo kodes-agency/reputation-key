@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import type { GoogleImportReferenceStore } from '../application/ports/google-import-reference-store.port'
-import type { ImportCandidatePageDto } from '../application/google-import-v2-contract'
+import type { ImportCandidatePageDto } from '../application/google-import-contract'
 import {
   affectedPropertyIdFor,
   durableAccountPayloadSchema,

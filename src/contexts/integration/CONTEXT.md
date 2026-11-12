@@ -51,8 +51,9 @@ readback-only recovery.
 ## Model
 
 A GoogleConnection owns encrypted credentials and the verified Google OIDC
-subject. Discovery normalizes bounded provider pages behind opaque HMAC handles
-for at most 24 hours. A confirmed import creates one durable import and
+subject. Discovery normalizes bounded provider pages into durable
+`google_import_discovery_records` rows, found only through opaque references, for
+at most 24 hours. A confirmed import creates one durable import and
 per-location checkpoints in one transaction. The import is the browser-visible
 job; the checkpoints are what workers claim.
 
@@ -153,9 +154,19 @@ that section's rules:
 
 ## Runtime
 
-`build.ts` is wiring only: repositories, adapters, the queue and the public groups.
-Three feature runtimes hold the rest of the construction:
+`build.ts` is wiring only: it calls the feature runtimes below, passes their late-bound
+neighbours to each other and assembles the public groups.
 
+- `connections/connections-runtime.server.ts` builds connection storage, the OAuth
+  adapter, token encryption, token refresh, the OAuth state and callback gates, and
+  the connect, resume, disconnect, list and departure commands. Disconnect and
+  departure take the notification unsubscribe and the import cancellation as hooks,
+  because those runtimes are built later.
+- `connections/notifications-runtime.server.ts` builds the governed notification
+  executor and adapter and the subscription management, backfill and daily
+  reconciliation. Its authorization authority comes from review sync, late-bound.
+- `connections/ui/` holds the connect button, the account selector and the settings
+  connection row with their stories and tests.
 - `imports/import-runtime.server.ts` builds the import lifecycle, item processor,
   discovery and transaction around one import command authorizer.
 - `performance/google-performance-runtime.server.ts` builds live Performance:
@@ -246,7 +257,7 @@ without resending the token.
 
 ## Invariants
 
-1. Import discovery data is bounded per provider page and by a 24-hour absolute deadline. It is stored behind opaque HMAC handles; normalized rows grow linearly without a fleet-total cap and expired rows are swept.
+1. Import discovery data is bounded per provider page and by a 24-hour absolute deadline. It is stored as durable records keyed by a keyed digest of the opaque reference the browser holds; normalized rows grow linearly without a fleet-total cap and expired rows are swept.
 2. A confirmed selection has no product-level 100-item cap. One transaction persists the replay-safe import, every item checkpoint, and one identifier-only dispatch fact.
 3. The `integration.google_account.disconnected` fact names the admin who
    disconnected (`userId`, identifier only). It is null when the recovery

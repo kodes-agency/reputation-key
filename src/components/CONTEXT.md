@@ -308,7 +308,7 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   focus moves to Upload), so the mutations behind it pass no `errorMessage` and only
   say what succeeded. The Property look logo is the exception: it crops, sets a focal
   point and checks a light version, so it keeps its dialog. Review catches a second image field. One `ConnectGoogleButton`
-  (`features/integration/connect-google-button`) starts every Google authorization:
+  (`contexts/integration/connections/ui/connect-google-button`) starts every Google authorization:
   "Connect Google" (`label="Connect another account"` where an account is already
   connected, `request` and `label` for Reauthorize and Show account email), the one
   glyph for adding an account, a spinner on the Button with its label kept, and a
@@ -503,7 +503,7 @@ An ordinary action in the same file still uses `Button` or `IconButton`.
 | Save group | `FormActions` from `#/components/forms/form-actions` | The one row an explicit-save group saves from: Reset (only while dirty), Save last, right-aligned | `form`, or `dirty` and `onReset`; `leading` | A dialog or a bounded task keeps Cancel; a settings group has none | Review |
 | Fields | `FormTextField` from `#/components/forms/form-text-field`<br>`FormTextarea` from `#/components/forms/form-textarea`<br>`FormNumberField` from `#/components/forms/form-number-field`<br>`FormFieldFrame` from `#/components/forms/form-field-frame`<br>`FormSelectField` from `#/components/forms/form-select-field` | A labelled control with `description`, `optional` and its error | | The Property look keeps its label-left rows | (field anatomy, no "(optional)"),  (no native control) |
 | Switches, inherited values, consent | `SettingSwitchRow` from `#/components/forms/setting-switch-row`<br>`InheritedSetting` from `#/components/forms/inherited-setting`<br>`ConsentCheckbox` from `#/components/forms/consent-checkbox`<br>`RatingThresholdField` from `#/components/forms/rating-threshold-field` | A boolean setting; "follow the parent or set my own"; a statement the person agrees to; "how low a rating" | `commit`: `immediate`, `deferred` | A `Checkbox` stays for choosing several things from a list | Review |
-| Image and Google | `ImageSetting` from `#/components/forms/image-setting`<br>`ConnectGoogleButton` from `#/components/features/integration/connect-google-button` | An avatar or a logo; every Google authorization | `label`, `request` | The Property look logo keeps its crop and focal-point dialog | Review |
+| Image and Google | `ImageSetting` from `#/components/forms/image-setting`<br>`ConnectGoogleButton` from `#/contexts/integration/connections/ui/connect-google-button` | An avatar or a logo; every Google authorization | `label`, `request` | The Property look logo keeps its crop and focal-point dialog | Review |
 | Section titles | `CardTitle` from `#/components/ui/card`<br>`SectionTitle` from `#/components/ui/section-title` | The title of a section: `CardTitle as="h2"` in a Card, `SectionTitle` outside one | `level` 2 or 3; `StrongSectionTitle` from `ui/section-title-strong` for evidence sections | | Review |
 
 ### Tokens, links, text and copy

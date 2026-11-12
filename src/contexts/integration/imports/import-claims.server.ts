@@ -2,9 +2,9 @@ import { and, eq, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import type {
-  GoogleImportV2ClaimedItem,
-  GoogleImportV2Store,
-} from '../application/ports/google-import-v2-store.port'
+  GoogleImportClaimedItem,
+  GoogleImportStore,
+} from '../application/ports/google-import-store.port'
 import { importItemAdmitsAttempt } from '../application/google-import-item-attempt'
 import {
   authorizationFromRow,
@@ -30,7 +30,7 @@ export const AUTHORIZATION_SNAPSHOT_COLUMNS = {
 
 export function createImportClaims(
   db: Database,
-): Pick<GoogleImportV2Store, 'claimItem' | 'runClaimedEffect' | 'releaseClaimForRetry'> {
+): Pick<GoogleImportStore, 'claimItem' | 'runClaimedEffect' | 'releaseClaimForRetry'> {
   return {
     claimItem: async (input) =>
       db.transaction(async (tx) => {
@@ -166,7 +166,7 @@ export function createImportClaims(
             attemptOrdinal,
             dispatchEpoch,
             claimFence: input.claimFence,
-          } satisfies GoogleImportV2ClaimedItem,
+          } satisfies GoogleImportClaimedItem,
         } as const
       }),
 

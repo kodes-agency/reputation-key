@@ -1,16 +1,16 @@
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import { organizationId } from '#/shared/domain/ids'
 import type { GoogleImportReferenceStore } from './ports/google-import-reference-store.port'
-import { EXPIRED_ITEM_WRITE } from './google-import-v2-contract'
+import { EXPIRED_ITEM_WRITE } from './google-import-contract'
 import type {
-  GoogleImportV2LifecycleScope,
-  GoogleImportV2Store,
-} from './ports/google-import-v2-store.port'
+  GoogleImportLifecycleScope,
+  GoogleImportStore,
+} from './ports/google-import-store.port'
 
 const SWEEP_LIMIT = 100
 
 type LifecycleStore = Pick<
-  GoogleImportV2Store,
+  GoogleImportStore,
   | 'listExpiredItems'
   | 'reconcileFromReceipt'
   | 'terminalizeItem'
@@ -29,7 +29,7 @@ type LifecyclePropertyApi = Pick<
   'sweepReleasedExpired' | 'countUnreleasedExpired' | 'cleanupOrganization'
 >
 
-export type GoogleImportV2LifecycleSweepResult = Readonly<{
+export type GoogleImportLifecycleSweepResult = Readonly<{
   expiredItemsVisited: number
   receiptsReconciled: number
   itemsTerminalized: number
@@ -38,7 +38,7 @@ export type GoogleImportV2LifecycleSweepResult = Readonly<{
   unreleasedExpiredReceipts: number
 }>
 
-export type GoogleImportV2LifecycleCancellationResult = Readonly<{
+export type GoogleImportLifecycleCancellationResult = Readonly<{
   parentsFenced: number
   itemsVisited: number
   receiptsReconciled: number
@@ -46,13 +46,13 @@ export type GoogleImportV2LifecycleCancellationResult = Readonly<{
   itemIds: readonly string[]
 }>
 
-export type GoogleImportV2LifecycleBacklog = Readonly<{
+export type GoogleImportLifecycleBacklog = Readonly<{
   expiredItems: number
   purgeCandidates: number
   unreleasedExpiredReceipts: number
 }>
 
-export type GoogleImportV2LifecycleScopeInspection = Readonly<{
+export type GoogleImportLifecycleScopeInspection = Readonly<{
   outstandingItems: number
 }>
 
@@ -64,7 +64,7 @@ type LifecycleReferences = Pick<
   | 'invalidateProperty'
 >
 
-export function createGoogleImportV2Lifecycle(
+export function createGoogleImportLifecycle(
   deps: Readonly<{
     store: LifecycleStore
     propertyBindingApi: LifecyclePropertyApi
@@ -84,7 +84,7 @@ export function createGoogleImportV2Lifecycle(
       now,
     })) === 'completed'
 
-  const fenceScopeParents = async (scope: GoogleImportV2LifecycleScope, now: Date) => {
+  const fenceScopeParents = async (scope: GoogleImportLifecycleScope, now: Date) => {
     let parentsFenced = 0
     for (;;) {
       const parents = await deps.store.listLifecycleScopeParents(scope, SWEEP_LIMIT)
@@ -131,10 +131,10 @@ export function createGoogleImportV2Lifecycle(
   }
 
   const cancelScope = async (
-    scope: GoogleImportV2LifecycleScope,
+    scope: GoogleImportLifecycleScope,
     outcomeCode: 'authorization_changed' | 'property_deleted' | 'user_cancelled',
     invalidate?: () => Promise<boolean>,
-  ): Promise<GoogleImportV2LifecycleCancellationResult> => {
+  ): Promise<GoogleImportLifecycleCancellationResult> => {
     if (invalidate && !(await invalidate())) {
       throw new Error('google import reference invalidation failed')
     }
@@ -186,7 +186,7 @@ export function createGoogleImportV2Lifecycle(
     }
   }
 
-  const sweep = async (): Promise<GoogleImportV2LifecycleSweepResult> => {
+  const sweep = async (): Promise<GoogleImportLifecycleSweepResult> => {
     const now = deps.clock()
     const expiredItems = await deps.store.listExpiredItems(now, SWEEP_LIMIT)
     let receiptsReconciled = 0
@@ -246,7 +246,7 @@ export function createGoogleImportV2Lifecycle(
     }
   }
 
-  const inspectBacklog = async (): Promise<GoogleImportV2LifecycleBacklog> => {
+  const inspectBacklog = async (): Promise<GoogleImportLifecycleBacklog> => {
     const now = deps.clock()
     const [expiredItems, purgeCandidates, unreleasedExpiredReceipts] = await Promise.all([
       deps.store.listExpiredItems(now, SWEEP_LIMIT),
@@ -264,8 +264,8 @@ export function createGoogleImportV2Lifecycle(
   }
 
   const inspectScope = async (
-    scope: GoogleImportV2LifecycleScope,
-  ): Promise<GoogleImportV2LifecycleScopeInspection> => ({
+    scope: GoogleImportLifecycleScope,
+  ): Promise<GoogleImportLifecycleScopeInspection> => ({
     outstandingItems: await deps.store.countLifecycleScopeItems(scope, SWEEP_LIMIT),
   })
 

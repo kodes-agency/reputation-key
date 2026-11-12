@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { PropertyOperationReceipt } from '#/contexts/property/application/ports/property-google-binding.port'
-import type { GoogleImportV2Store } from './ports/google-import-v2-store.port'
-import { createGoogleImportV2Lifecycle } from './google-import-v2-lifecycle'
+import type { GoogleImportStore } from './ports/google-import-store.port'
+import { createGoogleImportLifecycle } from './google-import-lifecycle'
 
 const NOW = new Date('2026-08-12T10:00:00.000Z')
 const ORG_ID = 'org-1'
@@ -27,36 +27,34 @@ function receipt(): PropertyOperationReceipt {
 
 function setup(overrides?: { unreleasedExpired?: number }) {
   const store = {
-    listExpiredItems: vi.fn<GoogleImportV2Store['listExpiredItems']>(async () => [
+    listExpiredItems: vi.fn<GoogleImportStore['listExpiredItems']>(async () => [
       { organizationId: ORG_ID, itemId: RECEIPT_ITEM_ID, retryRevision: 2 },
       { organizationId: ORG_ID, itemId: EXPIRED_ITEM_ID, retryRevision: 3 },
     ]),
-    reconcileFromReceipt: vi.fn<GoogleImportV2Store['reconcileFromReceipt']>(
+    reconcileFromReceipt: vi.fn<GoogleImportStore['reconcileFromReceipt']>(
       async (input) => (input.itemId === RECEIPT_ITEM_ID ? 'completed' : 'lost'),
     ),
-    terminalizeItem: vi.fn<GoogleImportV2Store['terminalizeItem']>(
-      async () => 'completed',
-    ),
-    listPurgeCandidates: vi.fn<GoogleImportV2Store['listPurgeCandidates']>(async () => [
+    terminalizeItem: vi.fn<GoogleImportStore['terminalizeItem']>(async () => 'completed'),
+    listPurgeCandidates: vi.fn<GoogleImportStore['listPurgeCandidates']>(async () => [
       { organizationId: ORG_ID, importJobId: IMPORT_JOB_ID, deletionFence: 7 },
     ]),
-    purgeParent: vi.fn<GoogleImportV2Store['purgeParent']>(async () => 'purged'),
-    listLifecycleScopeParents: vi.fn<GoogleImportV2Store['listLifecycleScopeParents']>(
+    purgeParent: vi.fn<GoogleImportStore['purgeParent']>(async () => 'purged'),
+    listLifecycleScopeParents: vi.fn<GoogleImportStore['listLifecycleScopeParents']>(
       async () => [],
     ),
-    fenceLifecycleParent: vi.fn<GoogleImportV2Store['fenceLifecycleParent']>(
+    fenceLifecycleParent: vi.fn<GoogleImportStore['fenceLifecycleParent']>(
       async () => 'fenced',
     ),
-    listLifecycleScopeItems: vi.fn<GoogleImportV2Store['listLifecycleScopeItems']>(
+    listLifecycleScopeItems: vi.fn<GoogleImportStore['listLifecycleScopeItems']>(
       async () => [],
     ),
-    scrubLifecycleItems: vi.fn<GoogleImportV2Store['scrubLifecycleItems']>(
+    scrubLifecycleItems: vi.fn<GoogleImportStore['scrubLifecycleItems']>(
       async (input) => input.itemIds.length,
     ),
-    countLifecycleScopeItems: vi.fn<GoogleImportV2Store['countLifecycleScopeItems']>(
+    countLifecycleScopeItems: vi.fn<GoogleImportStore['countLifecycleScopeItems']>(
       async () => 0,
     ),
-    getOperatorProgress: vi.fn<GoogleImportV2Store['getOperatorProgress']>(
+    getOperatorProgress: vi.fn<GoogleImportStore['getOperatorProgress']>(
       async () => null,
     ),
   }
@@ -74,7 +72,7 @@ function setup(overrides?: { unreleasedExpired?: number }) {
     invalidateConnection: vi.fn(async () => true),
     invalidateProperty: vi.fn(async () => true),
   }
-  const lifecycle = createGoogleImportV2Lifecycle({
+  const lifecycle = createGoogleImportLifecycle({
     store,
     propertyBindingApi,
     clock: () => NOW,

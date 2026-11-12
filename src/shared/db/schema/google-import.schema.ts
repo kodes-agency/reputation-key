@@ -18,7 +18,7 @@ import { googleConnections } from './google-connection.schema'
 import { properties } from './property.schema'
 
 // The enum names are persisted contracts shared with the running import store.
-export const googleImportV2ItemStatusEnum = pgEnum('google_import_v2_item_status', [
+export const googleImportItemStatusEnum = pgEnum('google_import_v2_item_status', [
   'pending',
   'processing',
   'imported',
@@ -28,12 +28,12 @@ export const googleImportV2ItemStatusEnum = pgEnum('google_import_v2_item_status
   'cancelled',
 ])
 
-export const googleImportV2ActionEnum = pgEnum('google_import_v2_action', [
+export const googleImportActionEnum = pgEnum('google_import_v2_action', [
   'create',
   'relink',
 ])
 
-export const googleImportV2OutcomeEnum = pgEnum('google_import_v2_outcome', [
+export const googleImportOutcomeEnum = pgEnum('google_import_v2_outcome', [
   'imported',
   'relinked',
   'already_exists',
@@ -128,14 +128,14 @@ export const googleImportItems = pgTable(
     expectedPermissionVersion: integer('expected_permission_version'),
     expectedSourceEpoch: integer('expected_source_epoch'),
     expectedProfileVersion: integer('expected_profile_version'),
-    action: googleImportV2ActionEnum('action').notNull(),
+    action: googleImportActionEnum('action').notNull(),
     updateExistingProfile: boolean('update_existing_profile').notNull(),
     propertyName: varchar('property_name', { length: 100 }).notNull(),
     propertyAddress: text('property_address'),
     countryCode: varchar('country_code', { length: 2 }),
     timezone: varchar('timezone', { length: 64 }).notNull(),
-    status: googleImportV2ItemStatusEnum('status').notNull().default('pending'),
-    outcomeCode: googleImportV2OutcomeEnum('outcome_code'),
+    status: googleImportItemStatusEnum('status').notNull().default('pending'),
+    outcomeCode: googleImportOutcomeEnum('outcome_code'),
     invalidProfileField: varchar('invalid_profile_field', { length: 16 }),
     effectDeadlineAt: timestamptz('effect_deadline_at').notNull(),
     retryRevision: integer('retry_revision').notNull().default(0),

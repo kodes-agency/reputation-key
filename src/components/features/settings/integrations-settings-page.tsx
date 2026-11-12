@@ -14,12 +14,12 @@ import {
 } from '#/components/ui/card'
 import { EmptyState } from '#/components/ui/empty-state'
 import type { Action } from '#/components/hooks/use-action'
-import { ConnectGoogleButton } from '#/components/features/integration/connect-google-button'
+import { ConnectGoogleButton } from '#/contexts/integration/connections/ui/connect-google-button'
 import type {
   GoogleAuthUrlInput,
   GoogleConnectionDto,
 } from '#/contexts/integration/application/public-api'
-import { GoogleConnectionSettingsRow } from './google-connection-settings-row'
+import { GoogleConnectionSettingsRow } from '#/contexts/integration/connections/ui/google-connection-settings-row'
 
 type ConnectInput = Readonly<{ data: GoogleAuthUrlInput }>
 type DisconnectInput = Readonly<{ data: Readonly<{ connectionId: string }> }>

@@ -10,17 +10,17 @@ import {
 import type {
   RetryPropertyImportItemInput,
   StartPropertyImportV2Input,
-} from './dto/google-import-v2.dto'
+} from './dto/google-import.dto'
 import type {
   ClaimedImportCandidate,
   GoogleImportReferenceStore,
 } from './ports/google-import-reference-store.port'
 import type {
-  GoogleImportV2ItemIntent,
-  GoogleImportV2RetryCandidate,
-  GoogleImportV2Intent,
-  GoogleImportV2Store,
-} from './ports/google-import-v2-store.port'
+  GoogleImportItemIntent,
+  GoogleImportRetryCandidate,
+  GoogleImportIntent,
+  GoogleImportStore,
+} from './ports/google-import-store.port'
 import {
   createGoogleImportReplayDigests,
   type GoogleImportReplayScope,
@@ -157,7 +157,7 @@ function importItemIntent(
   scope: GoogleImportReplayScope,
   now: Date,
   idGen: () => string,
-): GoogleImportV2ItemIntent {
+): GoogleImportItemIntent {
   if (!source) return fail('invalid_reference')
   const currentAuthorization = source.claim.authorization
   const vector = currentAuthorization.authorizationVector
@@ -203,7 +203,7 @@ function importItemIntent(
 
 export function createGoogleImportTransaction(
   deps: Readonly<{
-    store: GoogleImportV2Store
+    store: GoogleImportStore
     references: GoogleImportReferenceStore
     authorizeGoogleImportCommand: GoogleImportCommandAuthorizer
     replayKeys: VersionedHmacKeyring
@@ -263,7 +263,7 @@ export function createGoogleImportTransaction(
   }
 
   const authorizeRetryCandidate = async (
-    candidate: GoogleImportV2RetryCandidate,
+    candidate: GoogleImportRetryCandidate,
     actor: AuthContext,
   ): Promise<'authorized' | 'denied' | 'unavailable'> => {
     const properties =
@@ -313,7 +313,7 @@ export function createGoogleImportTransaction(
   }
 
   const publishImport = async (
-    intent: GoogleImportV2Intent,
+    intent: GoogleImportIntent,
     semanticRequest: GoogleImportSemanticRequest,
   ): Promise<Readonly<{ importJobId: string; replayed: boolean }> | null> => {
     let missingReplayCode: GoogleImportTransactionErrorCode = 'request_conflict'
@@ -433,7 +433,7 @@ export function createGoogleImportTransaction(
 
       // Close authorization/profile races before publishing a durable dispatch intent.
       await authorizeEntries(ordered, actor)
-      const intent: GoogleImportV2Intent = {
+      const intent: GoogleImportIntent = {
         id: importJobId,
         organizationId: scope.organizationId,
         requestId: input.requestId,
