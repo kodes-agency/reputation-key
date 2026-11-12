@@ -45,7 +45,7 @@ export function PortalLookOwnPhoto({
         maxWidthRem={10}
         className="shrink-0"
       />
-      <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+      <div className="flex min-w-0 flex-1 basis-44 flex-col items-start gap-2">
         <PropertyLookMediaActions
           replaceLabel="Replace photo"
           removeLabel="Remove photo"

@@ -15,10 +15,11 @@
 // The sweep enqueues NO sync of its own (ADR 0055, note of 2026-10-21 (e)).
 // Every completed snapshot already refreshes the 30-day content clock of every
 // review it lists, so a Property whose reviews are about to expire needs a
-// snapshot, not a special one. The sweep moves the Property's next discovery
-// look up to now when its last completed reconciliation is over a day old; the
-// discovery sweep then runs it with its start spread, its skip rule and its
-// failure backoff. A Property reconciled inside the day is left alone: that
+// snapshot, not a special one. The sweep requests a full read and moves the
+// Property's next discovery look up to now when its last completed
+// reconciliation is over a day old; the discovery sweep then runs it with its
+// start spread, its skip rule and its failure backoff, and the request makes
+// that look full even when the reconciliation window is wider than a day. A Property reconciled inside the day is left alone: that
 // listing already refreshed every review Google lists, so a review that still
 // expires was not listed, and letting it expire is correct. The run row keeps
 // its column names: `enqueued_count` counts Properties pulled forward and
@@ -69,7 +70,7 @@ type SweepState = {
   batches: number
   seen: number
   dueCount: number
-  /** Properties whose next discovery look moved up to now. */
+  /** Properties given a full-read request, their next look moved up to now. */
   pulledForward: number
   /** Properties left alone: a completed reconciliation inside the day covers them. */
   skippedRecent: number

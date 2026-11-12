@@ -65,7 +65,8 @@ async function seedFact(
 const syncState = async (propertyId: string) =>
   (
     await pool.query(
-      `SELECT next_incremental_at, last_success_at, error_class, error_retry_at, updated_at
+      `SELECT next_incremental_at, last_success_at, error_class, error_retry_at, updated_at,
+              full_read_requested_at
          FROM review_sync_state WHERE property_id = $1 AND source = 'google'`,
       [propertyId],
     )
@@ -233,6 +234,8 @@ describe('reviewDiscoveryRepository failure backoff and pull-forward (integratio
       )
     const nextLook = async (propertyId: string) =>
       (await syncState(propertyId))?.next_incremental_at
+    const requestedAt = async (propertyId: string) =>
+      (await syncState(propertyId))?.full_read_requested_at
 
     it('moves the next look up to now when the last reconciliation is older than a day', async () => {
       const repo = createReviewDiscoveryRepository(db)
@@ -244,9 +247,14 @@ describe('reviewDiscoveryRepository failure backoff and pull-forward (integratio
 
       expect(result).toEqual({ pulledForward: 1, skippedRecent: 0, skippedBackoff: 0 })
       expect(await nextLook(PROP_CONNECTED)).toEqual(NOW)
-      expect(mine(await repo.findDuePropertiesBatch(NOW, null, PAGE))).toContain(
-        PROP_CONNECTED,
-      )
+      expect(await requestedAt(PROP_CONNECTED)).toEqual(NOW)
+      const due = await repo.findDuePropertiesBatch(NOW, null, PAGE)
+      expect(mine(due)).toContain(PROP_CONNECTED)
+      // The sweep sees the request, so its look is full at any window.
+      expect(due.find((c) => c.propertyId === PROP_CONNECTED)).toMatchObject({
+        fullReadRequestedAt: NOW,
+        headCoveredAt: null,
+      })
     })
 
     it('moves the look of a Property that has never completed a reconciliation', async () => {
@@ -269,6 +277,7 @@ describe('reviewDiscoveryRepository failure backoff and pull-forward (integratio
 
       expect(result).toEqual({ pulledForward: 0, skippedRecent: 1, skippedBackoff: 0 })
       expect(await nextLook(PROP_CONNECTED)).toEqual(later)
+      expect(await requestedAt(PROP_CONNECTED)).toBeNull()
     })
 
     it('does not count a recent head fact as a reconciliation: it proves no listing', async () => {
@@ -321,6 +330,7 @@ describe('reviewDiscoveryRepository failure backoff and pull-forward (integratio
         next_incremental_at: retryAt,
         error_class: 'provider_failure',
         error_retry_at: retryAt,
+        full_read_requested_at: null,
       })
     })
 
@@ -344,20 +354,26 @@ describe('reviewDiscoveryRepository failure backoff and pull-forward (integratio
       })
     })
 
-    it('writes nothing for a Property with no sync state row or a look already due', async () => {
+    it('writes nothing for a Property with no sync state row', async () => {
       const repo = createReviewDiscoveryRepository(db)
-      const due = new Date(NOW.getTime() - HOUR_MS)
-      await scheduleAt(PROP_CONNECTED_2, due)
 
-      const result = await repo.pullLooksForward(
-        [PROP_CONNECTED, PROP_CONNECTED_2],
-        NOW,
-        reconciledSince,
-      )
+      const result = await repo.pullLooksForward([PROP_CONNECTED], NOW, reconciledSince)
 
       expect(result).toEqual({ pulledForward: 0, skippedRecent: 0, skippedBackoff: 0 })
       expect(await syncState(PROP_CONNECTED)).toBeUndefined()
+    })
+
+    it('requests a full read for a look already due, and keeps its earlier due time', async () => {
+      const repo = createReviewDiscoveryRepository(db)
+      const due = new Date(NOW.getTime() - HOUR_MS)
+      await scheduleAt(PROP_CONNECTED_2, due)
+      await seedFact(PROP_CONNECTED_2, 0, new Date(NOW.getTime() - 30 * HOUR_MS))
+
+      const result = await repo.pullLooksForward([PROP_CONNECTED_2], NOW, reconciledSince)
+
+      expect(result).toEqual({ pulledForward: 1, skippedRecent: 0, skippedBackoff: 0 })
       expect(await nextLook(PROP_CONNECTED_2)).toEqual(due)
+      expect(await requestedAt(PROP_CONNECTED_2)).toEqual(NOW)
     })
 
     it('leaves the success stamp alone: nothing was synced', async () => {

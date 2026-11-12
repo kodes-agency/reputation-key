@@ -1,4 +1,5 @@
 import { useQueries, useSuspenseQuery } from '@tanstack/react-query'
+import { useHydrated } from '#/components/hooks/use-hydrated'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { propertyQuery } from '#/routes/-queries/route-queries'
@@ -98,6 +99,10 @@ function PortalShareTab({ actions }: PortalTabActions) {
   const [managers, members] = useQueries({
     queries: portalShareQueries(useTenantScope(), portalId),
   })
+  // The server drew these reads unanswered; the first browser render must too.
+  const hydrated = useHydrated()
+  const firstRender = (read: typeof managers | typeof members) =>
+    hydrated ? read : { ...read, data: undefined, error: null, isError: false }
   return (
     <PortalShareSection
       portal={portal}
@@ -106,7 +111,10 @@ function PortalShareTab({ actions }: PortalTabActions) {
         timeZone: property.timezone,
         countryCode: property.countryCode ?? null,
       }}
-      reads={{ managers, members }}
+      reads={{
+        managers: firstRender(managers) as typeof managers,
+        members: firstRender(members) as typeof members,
+      }}
       commands={{
         issueToken: actions.issueToken,
         rotateToken: actions.rotateToken,

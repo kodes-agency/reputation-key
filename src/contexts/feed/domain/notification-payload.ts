@@ -36,9 +36,8 @@
 //             it (ADR 0046, amended 2026-10-26), and, for a Guest voice
 //             summary, the page's three lines as fixed facts: one of the twelve
 //             topics, counts of reviews, the window, and the stars a problem
-//             may be worth on the Property's own average (`guestVoice*`, in
-//             ./notification-payload-guest-voice.ts; ADR 0046, amended
-//             2026-10-30). Never the issue's name, a cause, a quote or a review.
+//             may be worth on the Property's own average (`guestVoice*`, below;
+//             ADR 0046, amended 2026-10-30). Never the issue's name, a cause, a quote or a review.
 //   FORBIDDEN a Google/provider review's rating and any review content, reply
 //             text, guest/reviewer name, media URLs, sentiment or any other
 //             derived score (including an average RepKey works out from
@@ -51,9 +50,6 @@
 // `notifications.payload` COLUMN as a whole (protected-field-registry.ts), so
 // it has no per-key entry to add.
 
-import type { GuestVoiceSummaryPayloadFields } from './notification-payload-guest-voice'
-import { parseGuestVoiceSummaryFields } from './notification-payload-guest-voice'
-
 /** Star rating collected locally through a RepKey guest Portal. */
 export type NotificationGuestRating = 1 | 2 | 3 | 4 | 5
 
@@ -61,12 +57,15 @@ export type NotificationGuestRating = 1 | 2 | 3 | 4 | 5
  * Actor role — we surface WHO acted by role, never by name, because ADR 0046
  * r.8 excludes other employees' data.
  */
-export type NotificationActorRole = 'account_admin' | 'property_manager' | 'staff'
+const ACTOR_ROLES = ['account_admin', 'property_manager', 'staff'] as const
+export type NotificationActorRole = (typeof ACTOR_ROLES)[number]
 
 /** A role a member can hold and a notice names; `staff` is an actor role only. */
-export type NotificationMemberRole = 'account_admin' | 'property_manager'
+const MEMBER_ROLES = ['account_admin', 'property_manager'] as const
+export type NotificationMemberRole = (typeof MEMBER_ROLES)[number]
 
-export type NotificationPlatform = 'google' | 'portal'
+const PLATFORMS = ['google', 'portal'] as const
+export type NotificationPlatform = (typeof PLATFORMS)[number]
 
 export type NotificationPayload = Readonly<{
   /**
@@ -249,181 +248,112 @@ export type NotificationPayload = Readonly<{
 }> &
   GuestVoiceSummaryPayloadFields
 
-export type NotificationRatingGoalMode = 'climb' | 'keep'
+const RATING_GOAL_MODES = ['climb', 'keep'] as const
+export type NotificationRatingGoalMode = (typeof RATING_GOAL_MODES)[number]
 
 /** Over which days a below-pace notice counted the reviews. */
-export type NotificationRatingPaceWindow =
-  'last_4_weeks' | 'since_set' | 'since_pace_change'
+const RATING_PACE_WINDOWS = ['last_4_weeks', 'since_set', 'since_pace_change'] as const
+export type NotificationRatingPaceWindow = (typeof RATING_PACE_WINDOWS)[number]
 
-export type NotificationImportOutcome = 'completed' | 'failed'
+const IMPORT_OUTCOMES = ['completed', 'failed'] as const
+export type NotificationImportOutcome = (typeof IMPORT_OUTCOMES)[number]
 
-export type NotificationImportFailureReason =
-  'google_authorization' | 'property_source_changed' | 'location_too_large' | 'temporary'
+const IMPORT_FAILURE_REASONS = [
+  'google_authorization',
+  'property_source_changed',
+  'location_too_large',
+  'temporary',
+] as const
+export type NotificationImportFailureReason = (typeof IMPORT_FAILURE_REASONS)[number]
 
+const PUBLICATION_CANCELLATION_CAUSES = [
+  'disconnect',
+  'policy',
+  'source_changed',
+  'provider_truth',
+  'ai_draft_withdrawn',
+] as const
 export type NotificationPublicationCancellationCause =
-  'disconnect' | 'policy' | 'source_changed' | 'provider_truth' | 'ai_draft_withdrawn'
+  (typeof PUBLICATION_CANCELLATION_CAUSES)[number]
 
-export type NotificationGoalSubjectKind = 'property' | 'portal_group' | 'portal'
+const GOAL_SUBJECT_KINDS = ['property', 'portal_group', 'portal'] as const
+export type NotificationGoalSubjectKind = (typeof GOAL_SUBJECT_KINDS)[number]
 
 /**
  * The direction of a monthly result: it meets its target, it does not, or the
  * month has no usable result at all (insufficient data, unavailable,
  * quarantined). Never the numbers.
  */
-export type NotificationGoalOutcome = 'met' | 'not_met' | 'unavailable'
+const GOAL_OUTCOMES = ['met', 'not_met', 'unavailable'] as const
+export type NotificationGoalOutcome = (typeof GOAL_OUTCOMES)[number]
 
 /**
  * How a month's target came about when it did not stand for the whole month:
  * the goal was set after the month began, or its target was changed while the
  * month ran. One marker per notice; never when, by whom or to what.
  */
-export type NotificationGoalMarker = 'set_in_month' | 'target_changed'
+const GOAL_MARKERS = ['set_in_month', 'target_changed'] as const
+export type NotificationGoalMarker = (typeof GOAL_MARKERS)[number]
 
 /** The three measures a portal goal is set on. */
-export type NotificationGoalMeasure =
-  'qualified_scans' | 'portal_rating_count' | 'portal_rating_average'
+const GOAL_MEASURES = [
+  'qualified_scans',
+  'portal_rating_count',
+  'portal_rating_average',
+] as const
+export type NotificationGoalMeasure = (typeof GOAL_MEASURES)[number]
 
 /** A Portal health state that asks for attention; `healthy` never notifies. */
-export type NotificationPortalHealthStatus = 'degraded' | 'unavailable'
+const PORTAL_HEALTH_STATUSES = ['degraded', 'unavailable'] as const
+export type NotificationPortalHealthStatus = (typeof PORTAL_HEALTH_STATUSES)[number]
 
 /**
  * The Portal health causes that raise a notice: the automatic states with a
  * concrete recovery action. Intentional publication states and recovery are
  * receipt-only and never reach a payload.
  */
-export type NotificationPortalHealthReason =
-  | 'publication_snapshot_unavailable'
-  | 'public_address_unavailable'
-  | 'google_destination_unavailable'
+const PORTAL_HEALTH_REASONS = [
+  'publication_snapshot_unavailable',
+  'public_address_unavailable',
+  'google_destination_unavailable',
+] as const
+export type NotificationPortalHealthReason = (typeof PORTAL_HEALTH_REASONS)[number]
 
 /**
  * The governed causes `inbox.handling_cycle.reopened` carries: five a manager
  * chooses, two an exact provider observation raises, and the guest editing a
  * Review that had been answered.
  */
-export type NotificationReopenReason =
-  | 'guest_follow_up_still_needed'
-  | 'internal_follow_up_still_needed'
-  | 'new_information'
-  | 'correcting_handling_status'
-  | 'other'
-  | 'provider_reply_deleted'
-  | 'provider_reply_diverged'
-  | 'material_revision_changed'
+const REOPEN_REASONS = [
+  'guest_follow_up_still_needed',
+  'internal_follow_up_still_needed',
+  'new_information',
+  'correcting_handling_status',
+  'other',
+  'provider_reply_deleted',
+  'provider_reply_diverged',
+  'material_revision_changed',
+] as const
+export type NotificationReopenReason = (typeof REOPEN_REASONS)[number]
 
-export type NotificationReportOutcome = 'accepted' | 'declined' | 'resolved'
+const REPORT_OUTCOMES = ['accepted', 'declined', 'resolved'] as const
+export type NotificationReportOutcome = (typeof REPORT_OUTCOMES)[number]
 
-export type NotificationReauthorizationCause =
-  'provider_revoked' | 'member_removed' | 'account_admin_role_lost'
+const REAUTHORIZATION_CAUSES = [
+  'provider_revoked',
+  'member_removed',
+  'account_admin_role_lost',
+] as const
+export type NotificationReauthorizationCause = (typeof REAUTHORIZATION_CAUSES)[number]
 
-export type NotificationPublishFailureCause = 'google_reauthorization_required'
+const PUBLISH_FAILURE_CAUSES = ['google_reauthorization_required'] as const
+export type NotificationPublishFailureCause = (typeof PUBLISH_FAILURE_CAUSES)[number]
 
-export type NotificationPublishOutcome = 'not_sent' | 'refused' | 'unconfirmed'
-
-const ACTOR_ROLES: Record<string, true> = {
-  account_admin: true,
-  property_manager: true,
-  staff: true,
-}
-
-const MEMBER_ROLES: Record<string, true> = { account_admin: true, property_manager: true }
-
-const PLATFORMS: Record<string, true> = { google: true, portal: true }
-
-const REPORT_OUTCOMES: Record<string, true> = {
-  accepted: true,
-  declined: true,
-  resolved: true,
-}
-
-const REAUTHORIZATION_CAUSES: Record<string, true> = {
-  provider_revoked: true,
-  member_removed: true,
-  account_admin_role_lost: true,
-}
-
-const PUBLISH_FAILURE_CAUSES: Record<string, true> = {
-  google_reauthorization_required: true,
-}
-
-const PUBLICATION_CANCELLATION_CAUSES: Record<string, true> = {
-  disconnect: true,
-  policy: true,
-  source_changed: true,
-  provider_truth: true,
-  ai_draft_withdrawn: true,
-}
-
-const PORTAL_HEALTH_STATUSES: Record<string, true> = {
-  degraded: true,
-  unavailable: true,
-}
-
-const PORTAL_HEALTH_REASONS: Record<string, true> = {
-  publication_snapshot_unavailable: true,
-  public_address_unavailable: true,
-  google_destination_unavailable: true,
-}
-
-const GOAL_SUBJECT_KINDS: Record<string, true> = {
-  property: true,
-  portal_group: true,
-  portal: true,
-}
-
-const GOAL_OUTCOMES: Record<string, true> = {
-  met: true,
-  not_met: true,
-  unavailable: true,
-}
-
-const GOAL_MARKERS: Record<string, true> = {
-  set_in_month: true,
-  target_changed: true,
-}
-
-const GOAL_MEASURES: Record<string, true> = {
-  qualified_scans: true,
-  portal_rating_count: true,
-  portal_rating_average: true,
-}
+const PUBLISH_OUTCOMES = ['not_sent', 'refused', 'unconfirmed'] as const
+export type NotificationPublishOutcome = (typeof PUBLISH_OUTCOMES)[number]
 
 /** A goal's count or target: a whole number up to a billion. */
 const MAX_GOAL_COUNT = 1_000_000_000
-
-const REOPEN_REASONS: Record<string, true> = {
-  guest_follow_up_still_needed: true,
-  internal_follow_up_still_needed: true,
-  new_information: true,
-  correcting_handling_status: true,
-  other: true,
-  provider_reply_deleted: true,
-  provider_reply_diverged: true,
-  material_revision_changed: true,
-}
-
-const IMPORT_OUTCOMES: Record<string, true> = { completed: true, failed: true }
-
-const IMPORT_FAILURE_REASONS: Record<string, true> = {
-  google_authorization: true,
-  property_source_changed: true,
-  location_too_large: true,
-  temporary: true,
-}
-
-const PUBLISH_OUTCOMES: Record<string, true> = {
-  not_sent: true,
-  refused: true,
-  unconfirmed: true,
-}
-
-const RATING_GOAL_MODES: Record<string, true> = { climb: true, keep: true }
-
-const RATING_PACE_WINDOWS: Record<string, true> = {
-  last_4_weeks: true,
-  since_set: true,
-  since_pace_change: true,
-}
 
 /** Longest free-ish text we accept. Names, not prose. */
 const MAX_NAME_LENGTH = 120
@@ -449,11 +379,14 @@ const takeCount = (value: unknown): number | undefined => {
   return value
 }
 
-const takeMember = <T extends string>(
+/** One of the listed values, else undefined. */
+const takeMember = <const T extends readonly string[]>(
   value: unknown,
-  allowed: Record<string, true>,
-): T | undefined =>
-  typeof value === 'string' && allowed[value] === true ? (value as T) : undefined
+  allowed: T,
+): T[number] | undefined =>
+  typeof value === 'string' && (allowed as readonly string[]).includes(value)
+    ? (value as T[number])
+    : undefined
 
 /** A valid instant, normalised to ISO-8601 UTC. Never throws. */
 const takeInstant = (value: unknown): string | undefined => {
@@ -495,7 +428,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
 
   set('propertyName', takeText(raw.propertyName, MAX_NAME_LENGTH))
   set('organizationName', takeText(raw.organizationName, MAX_NAME_LENGTH))
-  const platform = takeMember<NotificationPlatform>(raw.platform, PLATFORMS)
+  const platform = takeMember(raw.platform, PLATFORMS)
   set('platform', platform)
   if (platform === 'portal') {
     set('guestRating', takeGuestRating(raw.guestRating))
@@ -506,71 +439,32 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
   set('hasModerationReason', takeFlag(raw.hasModerationReason))
   set('leftOrganization', takeFlag(raw.leftOrganization))
-  set('memberRole', takeMember<NotificationMemberRole>(raw.memberRole, MEMBER_ROLES))
+  set('memberRole', takeMember(raw.memberRole, MEMBER_ROLES))
   set('lowRating', raw.lowRating === true ? true : undefined)
-  set(
-    'publishOutcome',
-    takeMember<NotificationPublishOutcome>(raw.publishOutcome, PUBLISH_OUTCOMES),
-  )
+  set('publishOutcome', takeMember(raw.publishOutcome, PUBLISH_OUTCOMES))
   set('goalName', takeText(raw.goalName, MAX_NAME_LENGTH))
   set('occurrences', takeCount(raw.occurrences))
   set('itemCount', takeCount(raw.itemCount))
-  set(
-    'reportOutcome',
-    takeMember<NotificationReportOutcome>(raw.reportOutcome, REPORT_OUTCOMES),
-  )
+  set('reportOutcome', takeMember(raw.reportOutcome, REPORT_OUTCOMES))
   set(
     'reauthorizationCause',
-    takeMember<NotificationReauthorizationCause>(
-      raw.reauthorizationCause,
-      REAUTHORIZATION_CAUSES,
-    ),
+    takeMember(raw.reauthorizationCause, REAUTHORIZATION_CAUSES),
   )
-  set(
-    'publishFailureCause',
-    takeMember<NotificationPublishFailureCause>(
-      raw.publishFailureCause,
-      PUBLISH_FAILURE_CAUSES,
-    ),
-  )
+  set('publishFailureCause', takeMember(raw.publishFailureCause, PUBLISH_FAILURE_CAUSES))
   set(
     'publicationCancellationCause',
-    takeMember<NotificationPublicationCancellationCause>(
-      raw.publicationCancellationCause,
-      PUBLICATION_CANCELLATION_CAUSES,
-    ),
+    takeMember(raw.publicationCancellationCause, PUBLICATION_CANCELLATION_CAUSES),
   )
-  set(
-    'reopenReason',
-    takeMember<NotificationReopenReason>(raw.reopenReason, REOPEN_REASONS),
-  )
-  set(
-    'portalHealthStatus',
-    takeMember<NotificationPortalHealthStatus>(
-      raw.portalHealthStatus,
-      PORTAL_HEALTH_STATUSES,
-    ),
-  )
-  set(
-    'portalHealthReason',
-    takeMember<NotificationPortalHealthReason>(
-      raw.portalHealthReason,
-      PORTAL_HEALTH_REASONS,
-    ),
-  )
+  set('reopenReason', takeMember(raw.reopenReason, REOPEN_REASONS))
+  set('portalHealthStatus', takeMember(raw.portalHealthStatus, PORTAL_HEALTH_STATUSES))
+  set('portalHealthReason', takeMember(raw.portalHealthReason, PORTAL_HEALTH_REASONS))
   set('targetDueAt', takeInstant(raw.targetDueAt))
   set('goalMonth', takeMonthKey(raw.goalMonth))
-  set(
-    'goalSubjectKind',
-    takeMember<NotificationGoalSubjectKind>(raw.goalSubjectKind, GOAL_SUBJECT_KINDS),
-  )
-  set('goalOutcome', takeMember<NotificationGoalOutcome>(raw.goalOutcome, GOAL_OUTCOMES))
-  set('goalMarker', takeMember<NotificationGoalMarker>(raw.goalMarker, GOAL_MARKERS))
+  set('goalSubjectKind', takeMember(raw.goalSubjectKind, GOAL_SUBJECT_KINDS))
+  set('goalOutcome', takeMember(raw.goalOutcome, GOAL_OUTCOMES))
+  set('goalMarker', takeMember(raw.goalMarker, GOAL_MARKERS))
   setPortalGoalFigures(raw, set)
-  const importOutcome = takeMember<NotificationImportOutcome>(
-    raw.importOutcome,
-    IMPORT_OUTCOMES,
-  )
+  const importOutcome = takeMember(raw.importOutcome, IMPORT_OUTCOMES)
   set('importOutcome', importOutcome)
   set('importedCount', takeCount(raw.importedCount))
   set('unansweredCount', takeCount(raw.unansweredCount))
@@ -579,10 +473,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   if (importOutcome === 'failed') {
     set(
       'importFailureReason',
-      takeMember<NotificationImportFailureReason>(
-        raw.importFailureReason,
-        IMPORT_FAILURE_REASONS,
-      ),
+      takeMember(raw.importFailureReason, IMPORT_FAILURE_REASONS),
     )
   }
 
@@ -604,7 +495,7 @@ function setPortalGoalFigures(
   raw: RawPayload,
   set: (key: keyof NotificationPayload, value: unknown) => void,
 ): void {
-  const measure = takeMember<NotificationGoalMeasure>(raw.goalMeasure, GOAL_MEASURES)
+  const measure = takeMember(raw.goalMeasure, GOAL_MEASURES)
   set('goalMeasure', measure)
   if (measure === 'qualified_scans' || measure === 'portal_rating_count') {
     set('goalCount', takeIntegerIn(raw.goalCount, 0, MAX_GOAL_COUNT))
@@ -641,19 +532,136 @@ function setRatingGoalFigures(
   set('ratingShownTenths', takeIntegerIn(raw.ratingShownTenths, 0, 50))
   set('ratingPreviousTenths', takeIntegerIn(raw.ratingPreviousTenths, 0, 50))
   set('ratingTargetTenths', takeIntegerIn(raw.ratingTargetTenths, 10, 50))
-  set(
-    'ratingGoalMode',
-    takeMember<NotificationRatingGoalMode>(raw.ratingGoalMode, RATING_GOAL_MODES),
-  )
+  set('ratingGoalMode', takeMember(raw.ratingGoalMode, RATING_GOAL_MODES))
   set('ratingPacePerWeek', takeIntegerIn(raw.ratingPacePerWeek, 1, 350))
   set('ratingPaceTenthsPerWeek', takeIntegerIn(raw.ratingPaceTenthsPerWeek, 10, 3500))
   set('ratingRecentPaceTenths', takeIntegerIn(raw.ratingRecentPaceTenths, 0, 100_000))
-  set(
-    'ratingPaceWindow',
-    takeMember<NotificationRatingPaceWindow>(raw.ratingPaceWindow, RATING_PACE_WINDOWS),
-  )
+  set('ratingPaceWindow', takeMember(raw.ratingPaceWindow, RATING_PACE_WINDOWS))
 }
 
 /** True when the payload carries nothing worth persisting. */
 export const isEmptyNotificationPayload = (payload: NotificationPayload): boolean =>
   Object.keys(payload).length === 0
+
+// ── Guest voice summary ─────────────────────────────────────────────
+// The Monday email and the monthly roundup state the page's three lines as fixed topics,
+// counts and a window: nothing the guests wrote and nothing boiled down from it (not the
+// issue's name, which is their words in short). The parser drops what it does not
+// recognise, line by line: a malformed line shortens the email, it never loses it.
+
+const GUEST_VOICE_WINDOWS = ['30d', '90d', '180d', '365d'] as const
+export type NotificationGuestVoiceWindow = (typeof GUEST_VOICE_WINDOWS)[number]
+
+/**
+ * The twelve topics of review analysis v3, as the notice states them. Restated here, as
+ * Feed's domain reads no module outside `shared/domain` (the same reason the rating goal
+ * notices restate one of Reporting's thresholds); a test pins this list and the labels in
+ * ./notification-templates-guest-voice.ts to `review-topic-taxonomy.ts`.
+ */
+export const NOTIFICATION_GUEST_VOICE_TOPICS = [
+  'staff_service',
+  'speed_waiting',
+  'booking_arrival',
+  'main_service',
+  'food_drink',
+  'cleanliness',
+  'facilities_equipment',
+  'price_billing',
+  'atmosphere_noise',
+  'location_access',
+  'safety',
+  'communication',
+] as const
+
+export type NotificationGuestVoiceTopic = (typeof NOTIFICATION_GUEST_VOICE_TOPICS)[number]
+
+const GUEST_VOICE_LINE_KINDS = ['fix_first', 'protect', 'change'] as const
+const GUEST_VOICE_KINDS = ['weekly', 'monthly'] as const
+const GUEST_VOICE_CHANGES = ['rising', 'falling'] as const
+const GUEST_VOICE_POLARITIES = ['complaint', 'praise'] as const
+
+/** One of the page's three "In short" lines, as the fact the email states. */
+export type NotificationGuestVoiceLine = Readonly<{
+  kind: (typeof GUEST_VOICE_LINE_KINDS)[number]
+  topic: NotificationGuestVoiceTopic
+  /** Reviews that name it, and reviews with text in the window ("19 of 128"). */
+  reviewCount: number
+  textReviewCount: number
+  /** Stars it may be worth on the window's average, in hundredths (20 is 0.2). */
+  upToHundredths?: number
+  /** Which way it moved, on a `change` line. */
+  change?: (typeof GUEST_VOICE_CHANGES)[number]
+  /** Whether the reviews that moved praise it or complain of it, on a `change` line. */
+  polarity?: (typeof GUEST_VOICE_POLARITIES)[number]
+}>
+
+const MAX_GUEST_VOICE_LINES = 3
+const MAX_GUEST_VOICE_COUNT = 1_000_000
+/** 5 stars, in hundredths: the most a problem could be worth on a 5-star scale. */
+const MAX_UP_TO_HUNDREDTHS = 500
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const takeGuestVoiceCount = (value: unknown): number | undefined =>
+  takeIntegerIn(value, 0, MAX_GUEST_VOICE_COUNT)
+
+function parseGuestVoiceLine(value: unknown): NotificationGuestVoiceLine | undefined {
+  if (!isRecord(value)) return undefined
+  const kind = takeMember(value.kind, GUEST_VOICE_LINE_KINDS)
+  const topic = takeMember(value.topic, NOTIFICATION_GUEST_VOICE_TOPICS)
+  const reviewCount = takeGuestVoiceCount(value.reviewCount)
+  const textReviewCount = takeGuestVoiceCount(value.textReviewCount)
+  if (
+    kind === undefined ||
+    topic === undefined ||
+    reviewCount === undefined ||
+    textReviewCount === undefined
+  ) {
+    return undefined
+  }
+  const upTo = takeGuestVoiceCount(value.upToHundredths)
+  const change = takeMember(value.change, GUEST_VOICE_CHANGES)
+  const polarity = takeMember(value.polarity, GUEST_VOICE_POLARITIES)
+  return {
+    kind,
+    topic,
+    reviewCount,
+    textReviewCount,
+    // A figure belongs to the line it is for, so a stray one is dropped.
+    ...(kind === 'fix_first' && upTo !== undefined && upTo <= MAX_UP_TO_HUNDREDTHS
+      ? { upToHundredths: upTo }
+      : {}),
+    ...(kind === 'change' && change !== undefined ? { change } : {}),
+    ...(kind === 'change' && polarity !== undefined ? { polarity } : {}),
+  }
+}
+
+/** The Guest voice summary fields of an untrusted payload; unknown input is dropped. */
+function parseGuestVoiceSummaryFields(
+  raw: Readonly<Record<string, unknown>>,
+): GuestVoiceSummaryPayloadFields {
+  const kind = takeMember(raw.guestVoiceKind, GUEST_VOICE_KINDS)
+  const window = takeMember(raw.guestVoiceWindow, GUEST_VOICE_WINDOWS)
+  const lines = Array.isArray(raw.guestVoiceLines)
+    ? raw.guestVoiceLines
+        .slice(0, MAX_GUEST_VOICE_LINES)
+        .map(parseGuestVoiceLine)
+        .filter((line): line is NotificationGuestVoiceLine => line !== undefined)
+    : undefined
+  return {
+    ...(kind === undefined ? {} : { guestVoiceKind: kind }),
+    ...(window === undefined ? {} : { guestVoiceWindow: window }),
+    ...(lines === undefined ? {} : { guestVoiceLines: lines }),
+  }
+}
+
+/** The fields a Guest voice summary notice adds to a payload. */
+type GuestVoiceSummaryPayloadFields = Readonly<{
+  /** The Monday email, or the roundup of the first Monday of the month. */
+  guestVoiceKind?: (typeof GUEST_VOICE_KINDS)[number]
+  /** The window the figures were worked out over. */
+  guestVoiceWindow?: NotificationGuestVoiceWindow
+  /** At most three lines, in the page's order: fix first, protect, change. */
+  guestVoiceLines?: readonly NotificationGuestVoiceLine[]
+}>

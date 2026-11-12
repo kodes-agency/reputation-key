@@ -1,13 +1,16 @@
-// The readings behind the push health and reconciliation-age alerts
+// The readings behind the push health, reconciliation-age and head-coverage alerts
 // (alert-definitions.ts declares the alerts; this holds what they measure).
 //
-// All three are P2: each is a degraded fast path or a slipping safety net, not
+// All four are P2: each is a degraded fast path or a slipping safety net, not
 // lost data. Polling provides the full-read safety net within the configured
 // window. Their facts are counts only (alert-facts.ts).
 
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
 import type { AlertReading } from './alert-reading'
-import { PUSH_MISSED_AFTER_MS } from '#/shared/domain/push-health'
+import {
+  HEAD_COVERAGE_ALERT_AFTER_MS,
+  PUSH_MISSED_AFTER_MS,
+} from '#/shared/domain/push-health'
 
 const MINUTES = PUSH_MISSED_AFTER_MS / 60_000
 
@@ -44,9 +47,11 @@ export function readPushSilent(snapshot: OperationsSnapshot): AlertReading | nul
 }
 
 /**
- * A syncable Property has gone past the limit without a completed
+ * A syncable Property has gone past its limit without a completed
  * reconciliation. It does not depend on push: the full reconciliation is
- * the safety net push relies on, and with push dark it is the only path.
+ * the safety net push relies on, and with push dark it is the only path. The
+ * limit is the configured window plus two hours, or, above a day, a day plus
+ * two hours for a Property no head check covers.
  */
 export function readReconciliationAge(snapshot: OperationsSnapshot): AlertReading | null {
   const { overdueCount, oldestAgeMs, overdueAfterMs } = snapshot.syncPush.reconciliation
@@ -55,7 +60,24 @@ export function readReconciliationAge(snapshot: OperationsSnapshot): AlertReadin
     value: oldestAgeMs ?? 0,
     threshold: overdueAfterMs,
     windowMs: overdueAfterMs,
-    detail: `${overdueCount} syncable property(ies) have no completed reconciliation inside ${overdueAfterMs}ms; the oldest is ${oldestAgeMs ?? 0}ms behind`,
+    detail: `${overdueCount} syncable property(ies) have no completed reconciliation inside their window (${overdueAfterMs}ms with head cover); the oldest is ${oldestAgeMs ?? 0}ms behind`,
     facts: { count: overdueCount },
+  }
+}
+
+/**
+ * With a reconciliation window wider than a day, a Property skips its full
+ * listing only while a persisting head check keeps its newest page stored.
+ * One that went a day without that cover is still listed daily, so nothing is
+ * lost; the wider window is just not holding for it (head checks dark or off,
+ * failing, or the Property failing). Silent at a day or less.
+ */
+export function readHeadCoverage(snapshot: OperationsSnapshot): AlertReading | null {
+  const { active, uncoveredCount, oldestUncoveredAgeMs } = snapshot.syncPush.headCoverage
+  if (!active || uncoveredCount <= 0) return null
+  return {
+    value: oldestUncoveredAgeMs ?? 0,
+    detail: `${uncoveredCount} syncable property(ies) had no head check store their newest page in the last ${HEAD_COVERAGE_ALERT_AFTER_MS}ms while the reconciliation window is over a day; they are listed in full daily instead`,
+    facts: { count: uncoveredCount },
   }
 }

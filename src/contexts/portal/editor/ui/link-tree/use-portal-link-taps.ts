@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useHydrated } from '#/components/hooks/use-hydrated'
 import type { PortalLinkTapsRead } from '../../contracts'
 import { portalKeys } from '#/shared/queries/query-keys'
 
@@ -15,11 +16,13 @@ export function usePortalLinkTaps(
   }>,
 ): Readonly<Record<string, number>> | undefined {
   const { getLinkTaps, pageIsLive, propertyId, portalId } = input
+  const hydrated = useHydrated()
   const query = useQuery({
     queryKey: portalKeys.linkTaps(propertyId, portalId),
     queryFn: () => getLinkTaps!({ data: { propertyId, portalId } }),
     enabled: pageIsLive && getLinkTaps !== undefined,
     retry: false,
   })
-  return pageIsLive && !query.isError ? query.data?.taps : undefined
+  // The server drew no figures; the first browser render draws none either.
+  return hydrated && pageIsLive && !query.isError ? query.data?.taps : undefined
 }

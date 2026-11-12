@@ -44,13 +44,9 @@ export function upgradeImageEnvironment(
   connection.port = '5432'
   const defaults = parse(readFileSync('e2e/stack.env'))
   // Compose/shell quoted JSON escapes its quotes; dotenv preserves those
-  // backslashes, so decode the two public keyrings before runtime validation.
-  for (const name of [
-    'AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON',
-    'AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON',
-  ]) {
-    defaults[name] = defaults[name]!.replaceAll('\\"', '"')
-  }
+  // backslashes, so decode the public keyring before runtime validation.
+  defaults.AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON =
+    defaults.AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON!.replaceAll('\\"', '"')
   return {
     ...defaults,
     DATABASE_URL: connection.toString(),

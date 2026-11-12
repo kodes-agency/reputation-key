@@ -52,7 +52,6 @@
     "scripts/ops/quarantine-redrive.ts",
     "scripts/ops/queue-quarantine.ts",
     "scripts/ops/rebuild-projection.ts",
-    "scripts/ops/reparse-review-translations.ts",
     "scripts/ops/restore-preflight.ts",
     "scripts/ops/restore-verify.ts",
     "scripts/ops/review-observations.ts",

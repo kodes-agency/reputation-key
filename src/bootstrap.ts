@@ -96,7 +96,7 @@ export type BootstrapRuntimeConfig = Readonly<{
   reviewHeadChecks: Env['REVIEW_HEAD_CHECKS']
   /**
    * How recent a completed reconciliation must be for a look to be skipped, in
-   * milliseconds (`REVIEW_RECONCILE_WITHIN_HOURS`, 6 to 24).
+   * milliseconds (`REVIEW_RECONCILE_WITHIN_HOURS`, 6 to 336).
    */
   reviewReconcileWithinMs: number
   quarantineTtlMs: number

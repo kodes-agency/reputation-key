@@ -39,11 +39,24 @@ export type ReviewDiscoveryCandidate = Readonly<{
    * it is the failure's retry.
    */
   hasOutstandingFailure: boolean
+  /**
+   * When a persisting head check last stored all of Google's newest page for
+   * this property (`review_sync_state.head_covered_at`); null when none has.
+   */
+  headCoveredAt: Date | null
+  /**
+   * When a full read was last requested ahead of the window
+   * (`review_sync_state.full_read_requested_at`); null when never.
+   */
+  fullReadRequestedAt: Date | null
 }>
 
 /** What one `pullLooksForward` call did, by Property: content-free counts. */
 export type PullLooksForwardResult = Readonly<{
-  /** Next look moved up to `now`: it will run at the next discovery sweep. */
+  /**
+   * A full read was requested and the next look is due: moved up to `now`, or
+   * left where it was when it was already due.
+   */
   pulledForward: number
   /** A completed reconciliation inside the window already covers the Property. */
   skippedRecent: number
@@ -110,14 +123,18 @@ export type ReviewDiscoveryRepository = Readonly<{
    * The content refresh sweep found reviews of these Properties about to
    * expire. For each one whose newest completed reconciliation (current source
    * epoch; a fact that proves a completed listing, `listing_complete`, so a head
-   * fact does not count) is not newer than `reconciledSince`, move its next look
-   * up to `now` so the normal discovery sweep runs it, with its spread, skip
-   * rule and failure backoff. Enqueues nothing itself.
+   * fact does not count) is not newer than `reconciledSince`, request a full
+   * read and move its next look up to `now` so the normal discovery sweep runs
+   * it, with its spread, skip rule and failure backoff. The request is what
+   * makes that look full when the window is wider than the listing's age; a
+   * look already due keeps its due time and gets the request too. Enqueues
+   * nothing itself.
    *
    * A Property with a recent reconciliation is left alone: that listing
    * already refreshed every review Google lists, so one that still expires
    * was not listed. A Property whose failure retry date is still ahead is left
-   * alone too. A Property with no state row, or one already due, needs no move.
+   * alone too. A Property with no state row has never been polled; its first
+   * look is full anyway.
    */
   pullLooksForward(
     propertyIds: readonly string[],

@@ -64,7 +64,6 @@ const SOURCE_POLICY = 'google-business-profile-source-policy-v1'
 const REDACTION_PROFILE = 'gbp-review-global-v1'
 const LEAKAGE_PROFILE = { version: 'ai-output-leakage-v1', digest: 'a'.repeat(64) }
 const TEMPLATE_CATALOGUE_VERSION = 'gbp-reply-template-catalogue-v1'
-const REQUEST_BINDING_HMAC = 'A'.repeat(43)
 const REPLY_CONTROL_SCOPE = 'capability:reply_drafting'
 const CONTROL_SCOPES = ['global', `provider:${DEPLOYMENT_PROFILE}`, REPLY_CONTROL_SCOPE]
 const MINUTE_MS = 60_000
@@ -77,8 +76,6 @@ type ControlState = Readonly<{
 }>
 
 export type ReplyWorkflowAiFixture = ReturnType<typeof createReplyWorkflowAiFixture>
-/** What a suggestion's token names as the execution that produced it. */
-export type AiSuggestionBinding = 'request_binding' | 'execution_permit'
 
 export function createReplyWorkflowAiFixture(
   input: Readonly<{
@@ -293,13 +290,9 @@ export function createReplyWorkflowAiFixture(
   /**
    * One finished AI reply operation for `text`, and the signed token the
    * browser would hold for it. Saving a draft with that token is the adoption.
-   * A permit-bound token names the execution permit and attempt, and its
-   * operation keeps no request binding HMAC.
+   * The token names the execution permit and attempt that delivered it.
    */
-  async function issueSuggestion(
-    text: string,
-    binding: AiSuggestionBinding = 'request_binding',
-  ): Promise<string> {
+  async function issueSuggestion(text: string): Promise<string> {
     const [review] = await db
       .select({
         sourceEpoch: reviews.sourceEpoch,
@@ -316,7 +309,6 @@ export function createReplyWorkflowAiFixture(
     operationSequence += 1
     const operationId = operationUuid(2, operationSequence)
     const executionPermitId = operationUuid(3, operationSequence)
-    const permitBound = binding === 'execution_permit'
     const now = await databaseNow()
     const fences = {
       sourceEpoch: review.sourceEpoch,
@@ -371,10 +363,6 @@ export function createReplyWorkflowAiFixture(
       capabilityControlGeneration: capabilityControl!.generation,
       routeKey: 'reply-suggestion',
       executionPermitId,
-      admissionNonce: permitBound ? null : `nonce-${operationId}`,
-      requestBindingKeyId: permitBound ? null : 'binding-v1',
-      requestBindingHmac: permitBound ? null : REQUEST_BINDING_HMAC,
-      grantKid: permitBound ? null : 'grant-v1',
       costWindowId: COST_WINDOW_ID,
       reservedMicros: 50_000,
       actualMicros: 42,
@@ -411,9 +399,8 @@ export function createReplyWorkflowAiFixture(
         organizationId,
         propertyId,
         reviewId,
-        ...(permitBound
-          ? { executionPermitId, executionAttempt: 1 }
-          : { requestBindingHmac: REQUEST_BINDING_HMAC }),
+        executionPermitId,
+        executionAttempt: 1,
         replyDraftingEpoch: 1,
         modelSnapshot: 'gpt-5.4-mini-2026-03-17',
         promptVersion: 'reply-suggestion-prompt-v1',

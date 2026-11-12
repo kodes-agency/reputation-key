@@ -38,7 +38,7 @@ export function PropertyLookStatusBar({ status, onRetry, action = null }: Props)
           />
         )}
         <span>{status.text}</span>
-        {status.canRetry ? <RetryButton size="xs" onRetry={onRetry} /> : null}
+        {status.canRetry ? <RetryButton size="xs" touch onRetry={onRetry} /> : null}
       </p>
       {action}
     </div>

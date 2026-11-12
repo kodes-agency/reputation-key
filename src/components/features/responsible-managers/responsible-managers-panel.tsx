@@ -127,6 +127,7 @@ export function ResponsibleManagersPanel({
             >
               <Checkbox
                 id={`${idPrefix}-${member.userId}`}
+                touch
                 checked={checked}
                 disabled={disabled || isPending || (!eligible && !checked)}
                 onCheckedChange={(next) => toggle(member.userId, next === true)}

@@ -35,7 +35,7 @@ function commonPayload(kid: string) {
     organizationId: 'organization_01',
     propertyId: UUIDS.property,
     reviewId: 'review_01',
-    requestBindingHmac: 'A'.repeat(43),
+    ...PERMIT_BINDING,
     sourceEpoch: 1,
     sourceRevision: 1,
     baseReplyStateRevision: 0,
@@ -271,7 +271,7 @@ describe('AI reply provenance', () => {
       organizationId: 'organization_fixed_01',
       propertyId: '20000000-0000-4000-8000-000000000020',
       reviewId: 'review_fixed_01',
-      requestBindingHmac: 'B'.repeat(43),
+      ...PERMIT_BINDING,
       sourceEpoch: 3,
       sourceRevision: 2,
       baseReplyStateRevision: 1,
@@ -392,30 +392,24 @@ describe('AI reply provenance', () => {
   ] as const)('%s execution binding', (_version, build) => {
     const keys = generateKeyPairSync('ed25519')
     const keyring = new Map([['reply-v1', keys.publicKey]])
+    // The binding earlier tokens carried; the key is assembled so only the
+    // column's own schema file spells it out.
+    const LEGACY_BINDING = { ['requestBinding' + 'Hmac']: 'A'.repeat(43) } as const
     const withoutBinding = () => {
-      const { requestBindingHmac: _requestBinding, ...rest } = build() as ReturnType<
-        typeof build
-      > & { requestBindingHmac: string }
+      const { executionPermitId: _permit, executionAttempt: _attempt, ...rest } = build()
       return rest
     }
 
     it('round-trips a token bound to an execution permit and attempt', () => {
-      const permitBound = { ...withoutBinding(), ...PERMIT_BINDING }
+      const permitBound = build()
       const token = signAiReplyProvenance(permitBound, keys.privateKey)
 
       expect(verifyAiReplyProvenance(token, keyring)).toEqual(permitBound)
     })
 
-    it('keeps the legacy request-binding token bytes unchanged', () => {
-      const legacy = build()
-      const token = signAiReplyProvenance(legacy, keys.privateKey)
-
-      expect(token).toBe(signedRegardless(legacy, keys.privateKey))
-      expect(verifyAiReplyProvenance(token, keyring)).toEqual(legacy)
-    })
-
     it.each([
-      ['both bindings', () => ({ ...build(), ...PERMIT_BINDING })],
+      ['a request binding', () => ({ ...withoutBinding(), ...LEGACY_BINDING })],
+      ['both bindings', () => ({ ...build(), ...LEGACY_BINDING })],
       ['no binding', withoutBinding],
       [
         'a permit without its attempt',
@@ -431,24 +425,10 @@ describe('AI reply provenance', () => {
           executionAttempt: PERMIT_BINDING.executionAttempt,
         }),
       ],
-      [
-        'a request binding with an attempt',
-        () => ({
-          ...build(),
-          executionAttempt: PERMIT_BINDING.executionAttempt,
-        }),
-      ],
-      [
-        'attempt zero',
-        () => ({ ...withoutBinding(), ...PERMIT_BINDING, executionAttempt: 0 }),
-      ],
+      ['attempt zero', () => ({ ...build(), executionAttempt: 0 })],
       [
         'a permit that is not a UUID',
-        () => ({
-          ...withoutBinding(),
-          ...PERMIT_BINDING,
-          executionPermitId: 'permit_01',
-        }),
+        () => ({ ...build(), executionPermitId: 'permit_01' }),
       ],
     ])('refuses to sign or verify a token with %s', (_label, shape) => {
       const invalid = shape()

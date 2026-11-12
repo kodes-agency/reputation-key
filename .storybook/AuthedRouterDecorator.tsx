@@ -41,7 +41,7 @@ type AuthedRouterOptions = Readonly<{
   at?: string
 }>
 
-function makeAuthedRouter(
+export function makeAuthedRouter(
   Story: () => ReactNode,
   role: Role,
   at = '/',

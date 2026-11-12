@@ -105,9 +105,7 @@ describe('findPlaceholderSecrets (BQC-7.6)', () => {
       ['GOOGLE_REPLAY_HMAC_KEYS', `v1:${'0'.repeat(64)}`],
       ['GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS', `v1:${'22'.repeat(32)}`],
       ['AI_SUBJECT_HMAC_KEYS', `subject-v1:${'33'.repeat(32)}`],
-      ['AI_REQUEST_BINDING_HMAC_KEYS', `request-v1:${'44'.repeat(32)}`],
       ['AI_SAFETY_IDENTIFIER_HMAC_KEYS', `safety-v1:${'55'.repeat(32)}`],
-      ['AI_ADMISSION_ED25519_PRIVATE_KEY_B64', 'A'.repeat(64)],
       ['AI_PROVENANCE_ED25519_PRIVATE_KEY_B64', 'A'.repeat(64)],
       ['RESEND_WEBHOOK_SECRET', 'whsec_placeholder'],
       ['AWS_S3_SECRET_ACCESS_KEY', 'x'.repeat(40)],
@@ -126,8 +124,6 @@ describe('findPlaceholderSecrets (BQC-7.6)', () => {
           'v2:03a192130b9752f95194131885523890b44b26387046660cb1161f96a56410c9',
         AI_SUBJECT_HMAC_KEYS:
           'subject-v1:bae857a2ccaa77786a33cca7939076b40db34123ba18d2568ae1e114b068d407',
-        AI_ADMISSION_ED25519_PRIVATE_KEY_B64:
-          'MC4CAQAwBQYDK2VwBCIEIJ1hsZ3v/VpguoRK9JLsLMREScVpezJpGXA7rAMcrn9g',
         RESEND_WEBHOOK_SECRET: 'whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw',
         AWS_S3_SECRET_ACCESS_KEY: '6831f3f16002293886e31c0974fe7c8f',
       }),

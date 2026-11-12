@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
@@ -168,26 +168,54 @@ describe('the dispatch gate', () => {
 })
 
 describe('who may mint an admission', () => {
-  const SOURCE_ROOT = join(process.cwd(), 'src')
   const MINTERS = new Set([
     'src/shared/ai-provider-control/execution-admission.ts',
     'src/contexts/ai/infrastructure/adapters/ai-execution-admission.adapter.ts',
   ])
+  const PRODUCTION_ROOTS = ['src', 'server', 'scripts'].map((root) =>
+    join(process.cwd(), root),
+  )
 
   function productionSources(directory: string): string[] {
+    if (!existsSync(directory)) return []
     return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
       const path = join(directory, entry.name)
+      if (entry.name === 'node_modules') return []
       if (entry.isDirectory()) return productionSources(path)
-      return /\.tsx?$/.test(entry.name) && !/\.test(-fixtures)?\.tsx?$/.test(entry.name)
+      return /\.[cm]?[jt]sx?$/.test(entry.name) &&
+        !/\.test(-fixtures)?\.[cm]?[jt]sx?$/.test(entry.name)
         ? [path]
         : []
     })
   }
 
   it('is the AI admission adapter alone, outside tests', () => {
-    const minters = productionSources(SOURCE_ROOT)
+    const minters = productionSources(join(process.cwd(), 'src'))
       .filter((path) => readFileSync(path, 'utf8').includes('mintAiExecutionAdmission'))
       .map((path) => relative(process.cwd(), path))
     expect(new Set(minters)).toEqual(MINTERS)
+  })
+
+  it('is never reachable from production code through a test-fixtures module', () => {
+    // A specifier in any quote style, with or without an extension, reached by
+    // import, re-export, dynamic import or require.
+    const fixtureSpecifier = /(['"`])[^'"`\n]*\.test-fixtures(?:\.[cm]?[jt]sx?)?\1/
+    const importers = PRODUCTION_ROOTS.flatMap(productionSources)
+      .filter((path) => fixtureSpecifier.test(readFileSync(path, 'utf8')))
+      .map((path) => relative(process.cwd(), path))
+    expect(importers).toEqual([])
+  })
+
+  it('knows the specifier shapes it polices', () => {
+    const fixtureSpecifier = /(['"`])[^'"`\n]*\.test-fixtures(?:\.[cm]?[jt]sx?)?\1/
+    for (const line of [
+      "import { x } from './a.test-fixtures'",
+      'import { x } from "./a.test-fixtures.ts"',
+      "export * from '../a.test-fixtures.js'",
+      "const m = await import('./a.test-fixtures')",
+      "const m = require('./a.test-fixtures.cjs')",
+    ])
+      expect(fixtureSpecifier.test(line)).toBe(true)
+    expect(fixtureSpecifier.test("import { x } from './a.test-helpers'")).toBe(false)
   })
 })

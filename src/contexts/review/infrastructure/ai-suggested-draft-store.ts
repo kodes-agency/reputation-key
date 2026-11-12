@@ -2,7 +2,6 @@ import { reviewSourceContents } from '#/shared/db/schema/review-source-content.s
 import { adoptDraftMeasurement } from '#/shared/db/ai/draft-measurement-lineage'
 import { replyAiFrameReservations } from '#/shared/db/schema'
 import { isExecutionCompatibleWithConsent } from '#/shared/ai-runtime-capability-contract'
-import { timingSafeEqual } from 'node:crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -34,33 +33,15 @@ import {
 
 const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
 
-function constantEqual(left: string | null, right: string): boolean {
-  if (left === null) return false
-  const leftBytes = Buffer.from(left, 'utf8')
-  const rightBytes = Buffer.from(right, 'utf8')
-  try {
-    return (
-      leftBytes.byteLength === rightBytes.byteLength &&
-      timingSafeEqual(leftBytes, rightBytes)
-    )
-  } finally {
-    leftBytes.fill(0)
-    rightBytes.fill(0)
-  }
-}
-
-// The locked row must be the execution the token names: its request binding
-// HMAC, or its execution permit and attempt.
+// The locked row must be the execution the token names: its execution permit
+// and attempt.
 function executionBindingMatches(
   operation: Readonly<{
-    requestBindingHmac: string | null
     executionPermitId: string | null
     executionAttempt: number
   }>,
   provenance: AiReplyProvenancePayload,
 ): boolean {
-  if ('requestBindingHmac' in provenance)
-    return constantEqual(operation.requestBindingHmac, provenance.requestBindingHmac)
   return (
     operation.executionPermitId === provenance.executionPermitId &&
     operation.executionAttempt === provenance.executionAttempt

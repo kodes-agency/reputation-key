@@ -3,6 +3,7 @@ import { z } from 'zod/v4'
 import { printOriginProblem } from '#/shared/config/print-origin'
 import { capabilitiesOffProblem } from '#/shared/auth/beta-capabilities'
 import { isRailwayPitrDatabaseUrl } from '#/shared/config/restore-mode'
+import { RECONCILE_WITHIN_HOURS_MAX } from '#/shared/domain/push-health'
 
 const PORTAL_ADDRESS_KEY_ENTRY = /^([1-9]\d{0,3}):[a-f0-9]{64}$/
 const PORTAL_ADDRESS_MAX_KEYS = 4
@@ -253,10 +254,7 @@ const baseEnvSchema = z.object({
   // Binds a credential to the authorized request without storing its value.
   GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
 
-  // Settlement-receipt and provenance verification keyrings. The transport that
-  // used to sit beside them here — gateway origin, server name and three mTLS
-  // blobs — went with the sidecars in WP2.3.
-  AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: z.string().max(65_536).optional(),
+  // Provenance verification keyring and the key inventory profile that pins it.
   AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON: z.string().max(65_536).optional(),
   AI_KEY_INVENTORY_PROFILE: z.enum(['production-v1', 'local-stack-v1']).optional(),
   // Worker-only keyed pseudonym authority for durable AI operation subjects.
@@ -267,10 +265,7 @@ const baseEnvSchema = z.object({
   // process, so they become part of the parsed contract rather than raw
   // `process.env` reads inside a bootstrap.
   OPENAI_API_KEY: z.string().min(1).max(512).optional(),
-  AI_REQUEST_BINDING_HMAC_KEYS: z.string().max(4_096).optional(),
   AI_SAFETY_IDENTIFIER_HMAC_KEYS: z.string().max(4_096).optional(),
-  AI_ADMISSION_ED25519_PRIVATE_KEY_B64: z.string().max(4_096).optional(),
-  AI_ADMISSION_ED25519_KID: z.string().max(64).optional(),
   AI_PROVENANCE_ED25519_PRIVATE_KEY_B64: z.string().max(4_096).optional(),
   AI_PROVENANCE_ED25519_KID: z.string().max(64).optional(),
   // Local rehearsal only: sends provider calls to the Compose `ai-provider-stub`
@@ -338,12 +333,21 @@ const baseEnvSchema = z.object({
   REVIEW_HEAD_CHECKS: z.enum(['off', 'dark', 'persist']).default('dark'),
   // How recent a COMPLETED reconciliation must be for the discovery sweep to
   // skip a Property's look (ADR 0055 decision 5; the skip rule above). Whole
-  // hours, 6 to 24, default 6. The reconciliation-age alert follows this
-  // window plus two hours; above 24 a Property goes a day without a listing.
-  // The owner's plan is to raise it once REVIEW_HEAD_CHECKS=persist is on and
-  // proven: a head check then covers the look between two completed listings.
-  // Set on web and worker so their health reads agree; a restart applies it.
-  REVIEW_RECONCILE_WITHIN_HOURS: z.coerce.number().int().min(6).max(24).default(6),
+  // hours, 6 to 336 (fourteen days), default 6. The reconciliation-age alert
+  // follows each Property's window plus two hours. Above 24 the window holds
+  // only for a Property whose newest page a persisting head check stored in
+  // the last seven hours (REVIEW_HEAD_CHECKS=persist); any other Property is
+  // listed in full once its listing is a day old, and the sync.head-coverage
+  // alert counts it. A release that refuses values above 24 will not boot with
+  // one: raise it only once web and worker both run this rule, and set it back
+  // to 24 or less before rolling either back. Set on web and worker so their
+  // health reads agree; a restart applies it.
+  REVIEW_RECONCILE_WITHIN_HOURS: z.coerce
+    .number()
+    .int()
+    .min(6)
+    .max(RECONCILE_WITHIN_HOURS_MAX)
+    .default(6),
   // B0.6: Require email verification. In production, defaults to true.
   // In development/test, defaults to false for convenience.
   EMAIL_VERIFICATION_REQUIRED:

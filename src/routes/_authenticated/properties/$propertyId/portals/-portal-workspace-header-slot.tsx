@@ -1,3 +1,4 @@
+import { useHydrated } from '#/components/hooks/use-hydrated'
 import { hasFailed } from '#/components/hooks/is-retrying'
 import { PortalReadState } from '#/contexts/portal/workspace/ui/portal-read-state'
 // Publication status and group labels load locally, so a failed status read
@@ -76,6 +77,10 @@ export function PortalWorkspaceHeaderSlot({
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const historyQuery = useQuery(portalPublicationHistoryQuery(portalId))
   const groupsQuery = useQuery(portalGroupsQuery(propertyId))
+  // The server drew these reads unanswered; the first browser render must too.
+  const hydrated = useHydrated()
+  const historyData = hydrated ? historyQuery.data : undefined
+  const groupsDataRead = hydrated ? groupsQuery.data : undefined
   const revealForOpenPage = usePortalOpenPageReveal()
   const { portal, tokenStatus } = portalData
   if (!portal) throw notFound()
@@ -83,13 +88,13 @@ export function PortalWorkspaceHeaderSlot({
   const queries = [historyQuery, groupsQuery]
   if (
     queries.some((query) => query.data === undefined && hasFailed(query)) ||
-    !historyQuery.data ||
-    !groupsQuery.data
+    !historyData ||
+    !groupsDataRead
   ) {
     return <PortalReadState queries={queries} label="portal status" />
   }
-  const history = historyQuery.data
-  const groupsData = groupsQuery.data
+  const history = historyData
+  const groupsData = groupsDataRead
   const access = {
     canUpdate: can('portal.update'),
     portalWriteEnabled: has('portal.write'),

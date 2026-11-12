@@ -54,7 +54,7 @@ export function PortalDraftSaveStatus() {
             {view.tone === 'ok' ? <span>· not live until you publish</span> : null}
             {problem === null ? null : <span>· {problem}</span>}
             {view.canRetry ? (
-              <RetryButton size="xs" onRetry={() => void autosave.retry()} />
+              <RetryButton size="xs" touch onRetry={() => void autosave.retry()} />
             ) : null}
           </span>
         )}

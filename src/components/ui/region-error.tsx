@@ -17,6 +17,8 @@ type RetryButtonProps = Readonly<{
   /** The retry is reading. The button stays (so focus does not fall to <body>) but is inert. */
   retrying?: boolean
   size?: 'sm' | 'xs'
+  /** An `xs` retry that is a tap target below `md`, for one a person reaches by thumb. */
+  touch?: boolean
 }>
 
 /**
@@ -29,12 +31,14 @@ export function RetryButton({
   onRetry,
   retrying = false,
   size = 'sm',
+  touch = false,
 }: RetryButtonProps) {
   return (
     <Button
       type="button"
       variant="outline"
       size={size}
+      touch={touch}
       // aria-disabled, not disabled: a focused button that becomes disabled drops
       // focus to <body> in Chromium.
       aria-disabled={retrying || undefined}

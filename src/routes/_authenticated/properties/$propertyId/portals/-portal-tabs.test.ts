@@ -19,6 +19,9 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
   useRouter: () => ({ state: { resolvedLocation: undefined } }),
 }))
+// These cases model a page that has finished hydrating; the first render is
+// covered by the Portal editor hydration story.
+vi.mock('#/components/hooks/use-hydrated', () => ({ useHydrated: () => true }))
 vi.mock('#/shared/hooks/usePermissions', () => ({
   usePermissions: () => ({ can: () => true }),
 }))

@@ -71,7 +71,6 @@ import { createReplyPublicationDispatchEvidence } from '../reply-publication-dis
 import { createPublishReplyHandler } from '../jobs/publish-reply.job'
 import { createReconcileAmbiguousPublicationsHandler } from '../jobs/reconcile-ambiguous-publications.job'
 import { createReplyWorkflowAiFixture } from './reply-workflow-ai-fixture'
-import type { AiSuggestionBinding } from './reply-workflow-ai-fixture'
 import { createReplyPreReadForTests } from './reply-pre-read-fixture'
 import { createReviewChangeObserver } from './reply-workflow-review-change'
 
@@ -957,8 +956,8 @@ export async function createReplyWorkflowHarness(
       draft: (text: string, measurementGenerationId?: string | null) =>
         useCases.draft({ ...reviewInput, text, measurementGenerationId }, MANAGER_CTX),
       /** A manager adopts an AI suggestion, unedited, as the review's draft. */
-      adoptAiSuggestion: async (text: string, binding?: AiSuggestionBinding) => {
-        const provenanceToken = await ai.issueSuggestion(text, binding)
+      adoptAiSuggestion: async (text: string) => {
+        const provenanceToken = await ai.issueSuggestion(text)
         return useCases.draft({ ...reviewInput, text, provenanceToken }, MANAGER_CTX)
       },
       submit: (

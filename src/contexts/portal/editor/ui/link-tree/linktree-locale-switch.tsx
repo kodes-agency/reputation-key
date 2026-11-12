@@ -33,6 +33,7 @@ export function LinktreeLocaleSwitch({
   return (
     <SegmentedControl
       aria-label={naming['aria-label']}
+      touch
       value={active}
       disabled={disabled}
       // Six languages with "missing" on five is wider than a phone: wrap.

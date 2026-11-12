@@ -174,8 +174,6 @@ describe('AI gateway caller-wire contract', () => {
     'descriptor',
     'sourceDigest',
     'preparedDigest',
-    'requestBindingHmac',
-    'requestBindingKeyId',
     'preparedPayload',
     'redactedPayload',
   ])('rejects caller-supplied gateway-private field %s', (field) => {

@@ -13,6 +13,7 @@ import { useOverviewRange } from '#/components/features/portal/portal-overview/u
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { portalResultsQuery } from './-portal-overview-data'
 import { isRetrying } from '#/components/hooks/is-retrying'
+import { useHydrated } from '#/components/hooks/use-hydrated'
 
 /**
  * Undefined where the results are not shown to this reader
@@ -31,10 +32,16 @@ export function usePortalResultsControls(
     placeholderData: keepPreviousData,
     retry: false,
   })
-  const data = query.data
+  // The server drew the strip unanswered; so does the first browser render.
+  const hydrated = useHydrated()
+  const data = hydrated ? query.data : undefined
   const index = useMemo(() => (data ? indexOverviewResults(data) : null), [data])
   const state = resultsStateOf(
-    { allowed: canDo('dashboard.read'), error: query.error, retrying: isRetrying(query) },
+    {
+      allowed: canDo('dashboard.read'),
+      error: hydrated ? query.error : null,
+      retrying: hydrated && isRetrying(query),
+    },
     index,
   )
   if (state.status === 'off') return undefined

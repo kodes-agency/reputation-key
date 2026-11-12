@@ -81,7 +81,7 @@ export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props
             className="shrink-0"
           />
           {canEdit ? (
-            <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+            <div className="flex min-w-0 flex-1 basis-44 flex-col items-start gap-2">
               <PropertyLookMediaActions
                 replaceLabel="Replace photo"
                 removeLabel="Remove photo"
@@ -108,6 +108,7 @@ export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props
             type="button"
             variant="link"
             size="inline"
+            touch
             className="text-sm"
             onClick={onPreviewWithoutPhoto}
           >
