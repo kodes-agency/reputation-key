@@ -60,6 +60,9 @@ export type { JobHandler }
 export const JOB_LOCK_DURATION_MS = 90_000
 export const JOB_STALLED_INTERVAL_MS = 90_000
 
+/** A completed run slower than this is logged at warn; faster ones at debug. */
+export const SLOW_JOB_THRESHOLD_MS = 30_000
+
 /**
  * Pool clients a Google-import item job holds at once: `runClaimedEffect`
  * holds a `FOR UPDATE` transaction on the item row while the nested Property
@@ -253,7 +256,15 @@ export function createJobWorker<T>(
       }
       return
     }
-    logger.info({ queue: name, jobName: job.name }, 'job completed')
+    const durationMs =
+      job.processedOn !== undefined && job.finishedOn !== undefined
+        ? job.finishedOn - job.processedOn
+        : undefined
+    if (durationMs !== undefined && durationMs > SLOW_JOB_THRESHOLD_MS) {
+      logger.warn({ queue: name, jobName: job.name, durationMs }, 'job completed slowly')
+    } else {
+      logger.debug({ queue: name, jobName: job.name }, 'job completed')
+    }
     if (runtimeObservations) {
       recordRuntime(
         job.name,
