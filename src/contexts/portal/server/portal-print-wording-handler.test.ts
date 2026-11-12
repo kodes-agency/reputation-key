@@ -1,4 +1,4 @@
-// Portal context — the final print kit's "Save wording" server function
+// Portal context — the print kit's "Save wording" server function
 // (2026-10-27). Invokes the real handler: it is guarded exactly as the download
 // beside it (the Portal's scope and the right to update it, then the wording write rate
 // limit), and nothing reaches the use case on any refusal. It makes no file, so it
@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   requireExecutionAllowed: vi.fn(),
   resolvePortalManagementScope: vi.fn(),
   savePortalPrintWording: vi.fn(),
-  createPortalPrintFinal: vi.fn(),
+  createPortalPrint: vi.fn(),
   check: vi.fn(),
   setResponseHeader: vi.fn(),
 }))
@@ -44,7 +44,7 @@ vi.mock('#/composition', () => ({
       management: {
         resolvePortalManagementScope: mocks.resolvePortalManagementScope,
         savePortalPrintWording: mocks.savePortalPrintWording,
-        createPortalPrintFinal: mocks.createPortalPrintFinal,
+        createPortalPrint: mocks.createPortalPrint,
       },
     },
   })),
@@ -135,7 +135,7 @@ describe('savePortalPrintWording handler (executable)', () => {
         return { ...ALLOWED, allowed: count <= budget.maxRequests }
       },
     )
-    mocks.createPortalPrintFinal.mockResolvedValue({
+    mocks.createPortalPrint.mockResolvedValue({
       fileName: 'card.pdf',
       contentType: 'application/pdf',
       pdf: new Uint8Array([37, 80, 68, 70]),
@@ -162,7 +162,7 @@ describe('savePortalPrintWording handler (executable)', () => {
       }),
     )
     expect(mocks.savePortalPrintWording).toHaveBeenCalledTimes(30)
-    expect(mocks.createPortalPrintFinal).toHaveBeenCalledTimes(1)
+    expect(mocks.createPortalPrint).toHaveBeenCalledTimes(1)
     expect(mocks.setResponseHeader).toHaveBeenCalledWith(
       'Cache-Control',
       'private, no-store, max-age=0',

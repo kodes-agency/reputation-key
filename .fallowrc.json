@@ -95,10 +95,6 @@
       "exports": ["DEFAULT_BATCH_SIZE", "DEFAULT_MAX_BATCHES"]
     },
     {
-      "file": "src/shared/ai-property-trend-contract.ts",
-      "exports": ["encodeCanonicalAiPropertyTrendSource"]
-    },
-    {
       "file": "src/shared/testing/inbox-replay-fixtures.ts",
       "exports": [
         "INBOX_REPLAY_GUEST_DELIVERIES",

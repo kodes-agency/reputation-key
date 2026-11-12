@@ -5,28 +5,8 @@ import {
   AI_REDACTION_PROFILE_DIGEST,
   AI_REDACTION_PROFILE_VERSION,
 } from '#/shared/ai-deterministic-redactor'
-import {
-  AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST,
-  AI_LANGUAGE_SCRIPT_CONSISTENCY_VERSION,
-} from '#/shared/ai-language-script-consistency'
-import {
-  AI_PROPERTY_TREND_CONTRACT_DIGEST,
-  AI_PROPERTY_TREND_CONTRACT_VERSION,
-  AI_TREND_RENDER_PROFILE_DIGEST,
-  AI_TREND_RENDER_PROFILE_VERSION,
-} from '#/shared/ai-property-trend-contract'
-import {
-  AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
-  AI_REPLY_LANGUAGE_VERIFIER_VERSION,
-} from '#/shared/ai-reply-language-verifier'
-import {
-  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
-  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
-} from '#/shared/ai-reply-output-leakage'
-import {
-  AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-  AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
-} from '#/shared/ai-reply-template-catalogue'
+import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '#/shared/ai-language-script-consistency'
+import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from '#/shared/ai-reply-language-verifier'
 import {
   AI_REVIEW_LANGUAGE_CATALOGUE_VERSION,
   LANGUAGE_CATALOGUE_DIGEST,
@@ -35,14 +15,6 @@ import {
   AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
   AI_STRUCTURED_MARKER_DETECTORS_VERSION,
 } from '#/shared/ai-structured-marker-detectors'
-import {
-  AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST,
-  AI_ZH_ORTHOGRAPHY_VERSION,
-} from '#/shared/ai-zh-orthography-verifier'
-import {
-  AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
-  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-} from '#/shared/ai-personalized-reply-contract'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import {
   buildClosedOpenAiRequest,
@@ -55,11 +27,7 @@ import {
   AI_PROVIDER_DEPLOYMENT_PROFILE,
   AI_ROUTING_POLICY,
 } from '../../../../shared/ai-operation-profiles'
-import {
-  ASPECT_TAXONOMY_VERSION,
-  ASPECT_TAXONOMY_V1,
-  ASPECT_TAXONOMY_V1_DIGEST,
-} from '#/shared/aspect-taxonomy'
+import { ASPECT_TAXONOMY_V1, ASPECT_TAXONOMY_V1_DIGEST } from '#/shared/aspect-taxonomy'
 
 const sha256 = (domain: string, value: unknown): string =>
   createHash('sha256')
@@ -125,7 +93,7 @@ describe('PR5 immutable AI execution catalogues', () => {
     )
   })
 
-  it('pins the one global routing row, the retired analysis profile, the three served ones and the isolated canary', () => {
+  it('pins the one global routing row, the two served profiles and the isolated canary', () => {
     expect(AI_ROUTING_POLICY).toEqual({
       version: 1,
       region: 'global',
@@ -133,43 +101,29 @@ describe('PR5 immutable AI execution catalogues', () => {
       policyDigest: AI_ROUTING_POLICY.policyDigest,
     })
     expect(AI_OPERATION_PROFILES.map((profile) => profile.profileVersion)).toEqual([
-      'review-analysis-v2',
-      'reply-suggestion-v1',
-      'property-trend-v1',
-      'synthetic-canary-v1',
-      'reply-suggestion-v2',
       'review-analysis-v3',
+      'reply-suggestion-v2',
+      'synthetic-canary-v1',
     ])
     expect(AI_OPERATION_PROFILES.map((profile) => profile.capability)).toEqual([
       'review_analysis',
       'reply_drafting',
-      'property_trends',
       null,
-      'reply_drafting',
-      'review_analysis',
     ])
     expect(AI_OPERATION_PROFILES.map((profile) => profile.gatewayPath)).toEqual([
       '/v1/review-analysis',
       '/v1/reply-suggestion',
-      '/v1/property-trend',
       'internal:synthetic-canary',
-      '/v1/reply-suggestion',
-      '/v1/review-analysis',
     ])
-    // Every profile a runtime row serves is under the deployment profile now served;
-    // the retired analysis profile is the one left under the profile it was claimed under.
     expect(
       AI_OPERATION_PROFILES.map((profile) => [
         profile.profileVersion,
         profile.providerDeploymentProfileVersion,
       ]),
     ).toEqual([
-      ['review-analysis-v2', 'private-beta-global-v1'],
-      ['reply-suggestion-v1', 'private-beta-global-v2'],
-      ['property-trend-v1', 'private-beta-global-v2'],
-      ['synthetic-canary-v1', 'private-beta-global-v2'],
-      ['reply-suggestion-v2', 'private-beta-global-v3'],
       ['review-analysis-v3', 'private-beta-global-v2'],
+      ['reply-suggestion-v2', 'private-beta-global-v3'],
+      ['synthetic-canary-v1', 'private-beta-global-v2'],
     ])
   })
 
@@ -202,51 +156,14 @@ describe('PR5 immutable AI execution catalogues', () => {
       ),
     ).toEqual([
       {
-        profileVersion: 'review-analysis-v2',
+        // 48 mentions of about 60 tokens each at 'low' effort; the quality check
+        // (424 invented reviews, gpt-6-luna) used a mean of 284 output tokens.
+        profileVersion: 'review-analysis-v3',
         sourceByteLimit: 16_384,
-        providerPayloadByteLimit: 16_384,
-        preparedRequestByteLimit: 65_536,
-        responseByteLimit: 131_072,
-        maxOutputTokens: 1_024,
-        reasoningEffort: 'low',
-        providerDeadlineMs: 60_000,
-        requestDeadlineMs: 70_000,
-        executionLeaseMs: 120_000,
-      },
-      {
-        profileVersion: 'reply-suggestion-v1',
-        sourceByteLimit: 16_384,
-        providerPayloadByteLimit: 16_384,
-        preparedRequestByteLimit: 65_536,
-        responseByteLimit: 131_072,
-        maxOutputTokens: 1_024,
-        reasoningEffort: 'low',
-        providerDeadlineMs: 60_000,
-        requestDeadlineMs: 70_000,
-        executionLeaseMs: 120_000,
-      },
-      {
-        profileVersion: 'property-trend-v1',
-        sourceByteLimit: 65_536,
-        providerPayloadByteLimit: 65_536,
+        providerPayloadByteLimit: 57_344,
         preparedRequestByteLimit: 131_072,
         responseByteLimit: 131_072,
-        maxOutputTokens: 2_048,
-        reasoningEffort: 'low',
-        providerDeadlineMs: 90_000,
-        requestDeadlineMs: 100_000,
-        executionLeaseMs: 150_000,
-      },
-      {
-        profileVersion: 'synthetic-canary-v1',
-        sourceByteLimit: 16_384,
-        providerPayloadByteLimit: 16_384,
-        preparedRequestByteLimit: 65_536,
-        responseByteLimit: 131_072,
-        // Ceilings are sized to measured usage at 'low' (39 output tokens for the
-        // canary marker), not to absorb runaway reasoning. A tight ceiling turns a
-        // provider runaway into a fast failure instead of a ~55s one.
-        maxOutputTokens: 512,
+        maxOutputTokens: 4_096,
         reasoningEffort: 'low',
         providerDeadlineMs: 60_000,
         requestDeadlineMs: 70_000,
@@ -265,14 +182,15 @@ describe('PR5 immutable AI execution catalogues', () => {
         executionLeaseMs: 120_000,
       },
       {
-        // 48 mentions of about 60 tokens each at 'low' effort; the quality check
-        // (424 invented reviews, gpt-6-luna) used a mean of 284 output tokens.
-        profileVersion: 'review-analysis-v3',
+        profileVersion: 'synthetic-canary-v1',
         sourceByteLimit: 16_384,
-        providerPayloadByteLimit: 57_344,
-        preparedRequestByteLimit: 131_072,
+        providerPayloadByteLimit: 16_384,
+        preparedRequestByteLimit: 65_536,
         responseByteLimit: 131_072,
-        maxOutputTokens: 4_096,
+        // Ceilings are sized to measured usage at 'low' (39 output tokens for the
+        // canary marker), not to absorb runaway reasoning. A tight ceiling turns a
+        // provider runaway into a fast failure instead of a ~55s one.
+        maxOutputTokens: 512,
         reasoningEffort: 'low',
         providerDeadlineMs: 60_000,
         requestDeadlineMs: 70_000,
@@ -282,22 +200,14 @@ describe('PR5 immutable AI execution catalogues', () => {
   })
 
   it('uses schema-closed derivative, grounded draft, selected-signal, and canary outputs', () => {
-    const [analysis, reply, trend, canary] = AI_OPERATION_PROFILES
+    const [analysis, reply, canary] = AI_OPERATION_PROFILES
     expect(analysis?.outputSchema).toEqual(
-      AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v2'],
+      AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v3'],
     )
-    expect(analysis?.outputSchema).toMatchObject({
-      additionalProperties: false,
-      required: [
-        'sentiment',
-        'sentimentValence',
-        'urgencySignals',
-        'aspects',
-        'issueLabel',
-      ],
-    })
-    expect(reply?.outputSchema).toEqual(AI_ROUTE_OUTPUT_JSON_SCHEMAS['reply-suggestion'])
-    expect(trend?.outputSchema).toEqual(AI_ROUTE_OUTPUT_JSON_SCHEMAS['property-trend'])
+    expect(analysis?.outputSchema).toMatchObject({ additionalProperties: false })
+    expect(reply?.outputSchema).toEqual(
+      AI_ROUTE_OUTPUT_JSON_SCHEMAS['reply-suggestion-v2'],
+    )
     expect(canary?.capabilityRuntimeProfileVersion).toBeNull()
 
     for (const entry of AI_OPERATION_PROFILES) {
@@ -324,7 +234,7 @@ describe('PR5 immutable AI execution catalogues', () => {
   })
 
   it('binds every deterministic source, language, render, and SDK artifact into the immutable profiles', () => {
-    const [analysis, reply, trend, canary] = AI_OPERATION_PROFILES
+    const [analysis, reply, canary] = AI_OPERATION_PROFILES
     expect(analysis?.artifactAttestations).toMatchObject({
       source: {
         redactionProfileVersion: AI_REDACTION_PROFILE_VERSION,
@@ -335,11 +245,6 @@ describe('PR5 immutable AI execution catalogues', () => {
         languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
       },
     })
-    expect(analysis?.artifactAttestations).toMatchObject({
-      aspectTaxonomyVersion: ASPECT_TAXONOMY_VERSION,
-      aspectTaxonomyDigest: ASPECT_TAXONOMY_V1_DIGEST,
-      attentionFormulaVersion: 'review-attention-v1',
-    })
     expect(ASPECT_TAXONOMY_V1_DIGEST).toBe(
       createHash('sha256')
         .update('repkey-aspect-taxonomy-v1\0', 'utf8')
@@ -348,27 +253,12 @@ describe('PR5 immutable AI execution catalogues', () => {
     )
     expect(reply?.artifactAttestations).toMatchObject({
       source: {
-        replyLanguageVerifierVersion: AI_REPLY_LANGUAGE_VERIFIER_VERSION,
-        replyLanguageVerifierDigest: AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
-        languageScriptConsistencyVersion: AI_LANGUAGE_SCRIPT_CONSISTENCY_VERSION,
-        languageScriptConsistencyDigest: AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST,
-        zhOrthographyVerifierVersion: AI_ZH_ORTHOGRAPHY_VERSION,
-        zhOrthographyVerifierDigest: AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST,
-        replyTemplateCatalogueVersion: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
-        replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-        outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
-        outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
-        personalizedReplyProfileVersion: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-        personalizedReplyProfileDigest: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+        redactionProfileVersion: AI_REDACTION_PROFILE_VERSION,
+        redactionProfileDigest: AI_REDACTION_PROFILE_DIGEST,
+        languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
       },
-    })
-    expect(trend?.artifactAttestations).toMatchObject({
-      trend: {
-        trendContractVersion: AI_PROPERTY_TREND_CONTRACT_VERSION,
-        trendContractDigest: AI_PROPERTY_TREND_CONTRACT_DIGEST,
-        trendRenderVersion: AI_TREND_RENDER_PROFILE_VERSION,
-        trendRenderDigest: AI_TREND_RENDER_PROFILE_DIGEST,
-      },
+      languageVerifier: AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
+      scriptVerifier: AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST,
     })
     expect(canary?.artifactAttestations).toMatchObject({
       promptCacheShard: 0,
@@ -426,7 +316,7 @@ describe('PR5 immutable AI execution catalogues', () => {
   })
 
   it('binds only the observed PostgreSQL 16 image and the real calendar authorities', () => {
-    for (const profile of AI_OPERATION_PROFILES.slice(0, 3)) {
+    for (const profile of AI_OPERATION_PROFILES.slice(0, 2)) {
       expect(profile.artifactAttestations).toMatchObject({
         calendar: {
           profileVersion: 'property-calendar-v1',

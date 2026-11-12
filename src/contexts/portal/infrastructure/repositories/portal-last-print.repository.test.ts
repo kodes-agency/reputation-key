@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
-import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-last'
+import type { PrintLastSettings } from '#/shared/domain/portal-print-last'
 import type { RecordPortalLastPrintInput } from '../../application/ports/portal-last-print.repository'
 import { createPortalLastPrintRepository } from './portal-last-print.repository'
 
@@ -26,9 +26,7 @@ const { getPool } = setupIntegrationDb({
   tables: ['portal_last_prints', 'portals', 'properties'],
 })
 
-const settings = (
-  patch: Partial<PrintFinalLastSettings> = {},
-): PrintFinalLastSettings => ({
+const settings = (patch: Partial<PrintLastSettings> = {}): PrintLastSettings => ({
   piece: 'tent',
   orientation: 'wide',
   look: 'paper',

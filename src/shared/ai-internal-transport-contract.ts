@@ -1,8 +1,6 @@
-import { AI_JSON_MAX_BYTES } from './ai-json'
 import { z } from 'zod/v4'
 
 export const AI_REVIEW_ROUTE_MAX_BYTES = 65_536 as const
-export const AI_TREND_ROUTE_MAX_BYTES = AI_JSON_MAX_BYTES
 export const AI_INTERNAL_RESPONSE_MAX_BYTES = 65_536 as const
 
 const SAFE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/
@@ -56,13 +54,6 @@ const capabilityFenceSchema = z.discriminatedUnion('capability', [
       baseReplyStateRevision: nonnegative,
     })
     .strict(),
-  z
-    .object({
-      capability: z.literal('property_trends'),
-      reviewAnalysisEpoch: positive,
-      propertyTrendsEpoch: positive,
-    })
-    .strict(),
 ])
 
 const concreteLanguageSchema = z.object({ tag: safeId, templateGroup: safeId }).strict()
@@ -107,7 +98,7 @@ export const aiExecutionBindingSchema = z
 
 const canaryStopFenceEntrySchema = z
   .object({
-    capability: z.enum(['review_analysis', 'reply_drafting', 'property_trends']),
+    capability: z.enum(['review_analysis', 'reply_drafting']),
     capabilityControlId: canonicalUuid,
     capabilityGeneration: positive,
   })
@@ -134,9 +125,6 @@ const canaryBindingSchema = z
             }),
             canaryStopFenceEntrySchema.extend({
               capability: z.literal('reply_drafting'),
-            }),
-            canaryStopFenceEntrySchema.extend({
-              capability: z.literal('property_trends'),
             }),
           ])
           .readonly(),
@@ -194,15 +182,6 @@ const replySuggestionDescriptorSchema = z
     redactionCountry: z.string().regex(/^[A-Z]{2}$/),
   })
   .strict()
-const propertyTrendDescriptorSchema = z
-  .object({
-    ...propertyDescriptorShape,
-    route: z.literal('property-trend'),
-    actorId: z.null(),
-    observedContentExpiresAtEpochMillis: z.null(),
-    redactionCountry: z.null(),
-  })
-  .strict()
 const canaryDescriptorSchema = z
   .object({
     ...descriptorBaseShape,
@@ -229,7 +208,6 @@ const canaryDescriptorSchema = z
 const admissionDescriptorSchema = z.discriminatedUnion('route', [
   reviewAnalysisDescriptorSchema,
   replySuggestionDescriptorSchema,
-  propertyTrendDescriptorSchema,
   canaryDescriptorSchema,
 ])
 
@@ -293,7 +271,6 @@ function validatePropertyDescriptor(
   const capabilities = {
     'review-analysis': 'review_analysis',
     'reply-suggestion': 'reply_drafting',
-    'property-trend': 'property_trends',
   } as const
   if (capabilities[value.route] !== value.binding.capabilityFence.capability) {
     context.addIssue({

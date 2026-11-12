@@ -1,7 +1,7 @@
 // The live print kit a Portal has, over real PostgreSQL: the scenario's working
 // copy published with Bulgarian first, a code sealed by the real cipher with its
-// two markers, and real pictures in the object store. Shared by today's print
-// kit's integration test and the final kit's, which each call
+// two markers, and real pictures in the object store. Shared by the print
+// kit's integration tests, which each call
 // `setupIntegrationDb` with `PRINT_KIT_INTEGRATION_TABLES` and pass its pool.
 
 import { createHash } from 'node:crypto'

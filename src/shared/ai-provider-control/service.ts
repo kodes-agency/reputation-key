@@ -42,11 +42,10 @@ const ZERO_USAGE = Object.freeze({
 })
 
 export function isGatewayOuterDeadlineValid(
-  route: AiGatewayRouteRequestV1['route'],
   deadlineEpochMillis: number,
   nowEpochMillis: number,
 ): boolean {
-  const horizonMillis = route === 'property-trend' ? 100_000 : 70_000
+  const horizonMillis = 70_000
   return (
     Number.isSafeInteger(deadlineEpochMillis) &&
     Number.isSafeInteger(nowEpochMillis) &&
@@ -86,13 +85,6 @@ function requestMatchesDescriptor(
     )
   )
     return false
-  if (request.route === 'property-trend') {
-    return (
-      descriptor.actorId === null &&
-      descriptor.observedContentExpiresAtEpochMillis === null &&
-      descriptor.redactionCountry === null
-    )
-  }
   return (
     descriptor.observedContentExpiresAtEpochMillis ===
       request.observedContentExpiresAtEpochMillis &&
@@ -344,9 +336,7 @@ export function createAiEgressGatewayService(
       } catch (error) {
         lease.dispose()
         const failedRoute: AiGatewayRouteRequestV1['route'] =
-          attemptedRoute === 'reply-suggestion' || attemptedRoute === 'property-trend'
-            ? attemptedRoute
-            : 'review-analysis'
+          attemptedRoute === 'reply-suggestion' ? attemptedRoute : 'review-analysis'
         return errorResponse(
           failedRoute,
           error instanceof GatewayPreparationError ? error.code : 'invalid_request',
@@ -370,7 +360,7 @@ export function createAiEgressGatewayService(
         return errorResponse(route, 'policy_unavailable')
       }
       const gatewayNow = now()
-      if (!isGatewayOuterDeadlineValid(route, outerDeadlineEpochMillis, gatewayNow)) {
+      if (!isGatewayOuterDeadlineValid(outerDeadlineEpochMillis, gatewayNow)) {
         prepared.invocation.canonicalProviderBytes.fill(0)
         return errorResponse(route, 'invalid_request')
       }
@@ -414,7 +404,7 @@ export function createAiEgressGatewayService(
           prepared.invocation.canonicalProviderBytes.fill(0)
           return errorResponse(route, 'operation_ambiguous')
         }
-        const providerDeadlineMillis = route === 'property-trend' ? 90_000 : 60_000
+        const providerDeadlineMillis = 60_000
         const providerAndSettlementMillis = providerDeadlineMillis + 5_000
         let outcome: OpenAiConnectorOutcome<unknown>
         // This branch skips the connector entirely, so the connector's own

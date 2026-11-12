@@ -18,6 +18,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '#/components/ui/popover'
+import { useServedNow } from '#/components/hooks/served-clock'
 import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type {
@@ -114,8 +115,9 @@ const CLOCK_TICK_MS = 60_000
  * them ever change — and for a caller that supplied its own clock, so neither
  * starts an interval.
  */
-function useMinuteClock(isLive: boolean): Date {
-  const [now, setNow] = useState(() => new Date())
+export function useMinuteClock(isLive: boolean): Date {
+  const first = useServedNow()
+  const [now, setNow] = useState(first)
 
   useEffect(() => {
     if (!isLive) return undefined

@@ -9,6 +9,7 @@ import {
   resultsCount,
   resultsEvidence,
 } from './portal-results-stories-data'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const place = {
   propertyId: '22222222-2222-4222-8222-222222222222',
@@ -28,7 +29,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const BusyPortal: Story = {
-  play: async ({ canvas }) => {
+  play: playInThemes(async ({ canvas }) => {
     await expect(canvas.getByText('Yes, 412 guests scanned the code')).toBeVisible()
     await expect(canvas.getByText('Mostly. 4.4★ from 118 ratings')).toBeVisible()
     await expect(canvas.getByText('31 more than the 30 days before')).toBeVisible()
@@ -59,21 +60,39 @@ export const BusyPortal: Story = {
       ),
     ).toBeVisible()
     await expect(canvas.getByText('v5 published 22 Sep')).toBeVisible()
-  },
+  }),
 }
-export const BusyPortalDark: Story = { ...BusyPortal, parameters: { theme: 'dark' } }
-export const ThirtyDaysOneVersion: Story = {}
-export const UpdatingRange: Story = { args: { busy: true } }
+export const UpdatingRange: Story = {
+  args: { busy: true },
+  play: playInThemes(async ({ canvas, canvasElement }) => {
+    // The figures stay while the next range is read, and say so.
+    await expect(canvas.getByText('Yes, 412 guests scanned the code')).toBeVisible()
+    await expect(canvasElement.querySelector('[aria-busy="true"]')).not.toBeNull()
+  }),
+}
 export const OlderCode: Story = {
   args: { place: { ...place, scansCounted: false } },
-  play: async ({ canvas }) => {
+  play: playInThemes(async ({ canvas }) => {
     await expect(canvas.getByText('We can’t count scans on this code')).toBeVisible()
     await expect(canvas.getByRole('link', { name: 'See the code' })).toBeVisible()
     await expect(canvas.queryByRole('group', { name: /Scans;/ })).toBeNull()
-  },
+  }),
 }
-export const NoLinks: Story = { args: { data: { ...healthy, linkTaps: null } } }
+export const NoLinks: Story = {
+  play: playInThemes(async ({ canvas }) => {
+    await expect(canvas.getByText('Yes, 412 guests scanned the code')).toBeVisible()
+    await expect(canvas.queryByText(/Links? (you )?(removed|in these)/)).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /^Show \d+ more$/ })).toBeNull()
+  }),
+  args: { data: { ...healthy, linkTaps: null } },
+}
 export const AllTime: Story = {
+  play: playInThemes(async ({ canvas }) => {
+    await expect(canvas.getByText('Yes, 412 guests scanned the code')).toBeVisible()
+    // All time has totals and no days or weeks to draw.
+    await expect(canvas.queryByRole('group', { name: /Scans;/ })).toBeNull()
+    await expect(canvas.getByRole('radio', { name: 'All time' })).toBeVisible()
+  }),
   args: {
     timeRange: 'all',
     data: {
@@ -152,9 +171,21 @@ const emptyData = {
   },
 }
 export const Draft: Story = {
+  play: playInThemes(async ({ canvas }) => {
+    await expect(canvas.getByText('No results yet')).toBeVisible()
+    await expect(canvas.getByRole('link', { name: 'Review & publish' })).toBeVisible()
+    await expect(canvas.queryByRole('group', { name: /Scans;/ })).toBeNull()
+  }),
   args: { data: emptyData, place: { ...place, isLive: false } },
 }
-export const NothingYet: Story = { args: { data: emptyData } }
+export const NothingYet: Story = {
+  args: { data: emptyData },
+  play: playInThemes(async ({ canvas }) => {
+    await expect(canvas.getByText(/^Nothing recorded in these \d+ days$/)).toBeVisible()
+    await expect(canvas.getByRole('link', { name: 'See the code' })).toBeVisible()
+    await expect(canvas.queryByText('No results yet')).toBeNull()
+  }),
+}
 export const QuietWindow: Story = {
   args: {
     data: {
@@ -163,13 +194,19 @@ export const QuietWindow: Story = {
       scanPatterns: null,
     },
   },
-  play: async ({ canvas }) => {
+  play: playInThemes(async ({ canvas }) => {
     await expect(canvas.getByText('No guests scanned in these days')).toBeVisible()
     await expect(canvas.getByText(/No scans in these 30 days/)).toBeVisible()
     await expect(canvas.queryByRole('alert')).toBeNull()
-  },
+  }),
 }
 export const FiguresUpdating: Story = {
+  play: playInThemes(async ({ canvas }) => {
+    await expect(canvas.getByText('Scans are updating')).toBeVisible()
+    // An updating figure is unknown, not a zero.
+    await expect(canvas.queryByText('No guests scanned in these days')).toBeNull()
+    await expect(canvas.queryByText('No results yet')).toBeNull()
+  }),
   args: {
     data: {
       ...emptyData,
@@ -238,10 +275,10 @@ export const NewPortal: Story = {
       scanPatterns: { channels: { qr: 3, nfc: 0 }, busiest: null },
     },
   },
-  play: async ({ canvas }) => {
+  play: playInThemes(async ({ canvas }) => {
     await expect(canvas.getByText('1 guest rated their visit')).toBeVisible()
     await expect(canvas.getByText(/An average shows from 5 ratings/)).toBeVisible()
-  },
+  }),
 }
 
 /** The owner’s live failure case: seven days, two scans, two page updates. */
@@ -294,7 +331,7 @@ const ownerData = {
 }
 export const OwnersSevenDays: Story = {
   args: { timeRange: '7d', data: ownerData },
-  play: async ({ canvas }) => {
+  play: playInThemes(async ({ canvas }) => {
     const chart = canvas.getByRole('group', { name: /Scans;/ })
     await expect(chart.querySelectorAll('[data-bucket]')).toHaveLength(7)
     await expect(canvas.getByText('Page updated 26 Oct, 27 Oct')).toBeVisible()
@@ -305,13 +342,17 @@ export const OwnersSevenDays: Story = {
     ).toBeVisible()
     await userEvent.keyboard('{End}')
     await expect(canvas.getAllByText('Sun 1 Nov · 0 scans')[0]).toBeVisible()
-  },
-}
-export const OwnersSevenDaysDark: Story = {
-  ...OwnersSevenDays,
-  parameters: { theme: 'dark' },
+  }),
 }
 export const OnlyOneNonzeroBar: Story = {
+  play: playInThemes(async ({ canvas }) => {
+    const chart = canvas.getByRole('group', { name: /Scans;/ })
+    const bars = [...chart.querySelectorAll<HTMLElement>('[data-bucket]')]
+    const heights = bars.map((bar) => bar.getBoundingClientRect().height)
+    // The one week with scans is the only one that rises above the baseline.
+    await expect(heights.filter((height) => height > 0)).toHaveLength(1)
+    await expect(heights[2]).toBeGreaterThan(0)
+  }),
   args: {
     data: {
       ...healthy,
@@ -327,6 +368,10 @@ export const OnlyOneNonzeroBar: Story = {
   },
 }
 export const FourDigitWeek: Story = {
+  play: playInThemes(async ({ canvas }) => {
+    const chart = canvas.getByRole('group', { name: /Scans;/ })
+    await expect(within(chart.closest('figure')!).getAllByText('3,900')[0]).toBeVisible()
+  }),
   args: {
     data: {
       ...healthy,
@@ -381,50 +426,9 @@ export const NinetyDaysPhone: Story = {
       },
     },
   },
-  play: async ({ canvas }) => {
+  play: playInThemes(async ({ canvas }) => {
     await expect(
       within(canvas.getByRole('group', { name: /Scans;/ })).getAllByText(/^134$/),
     ).toHaveLength(1)
-  },
-}
-export const NinetyDaysPhoneDark: Story = {
-  ...NinetyDaysPhone,
-  parameters: { ...NinetyDaysPhone.parameters, theme: 'dark' },
-}
-
-export const NewPortalDark: Story = {
-  ...NewPortal,
-  parameters: { ...NewPortal.parameters, theme: 'dark' },
-}
-export const DraftDark: Story = {
-  ...Draft,
-  parameters: { ...Draft.parameters, theme: 'dark' },
-}
-export const QuietWindowDark: Story = {
-  ...QuietWindow,
-  parameters: { ...QuietWindow.parameters, theme: 'dark' },
-}
-export const OlderCodeDark: Story = {
-  ...OlderCode,
-  parameters: { ...OlderCode.parameters, theme: 'dark' },
-}
-export const FiguresUpdatingDark: Story = {
-  ...FiguresUpdating,
-  parameters: { ...FiguresUpdating.parameters, theme: 'dark' },
-}
-export const AllTimeDark: Story = {
-  ...AllTime,
-  parameters: { ...AllTime.parameters, theme: 'dark' },
-}
-export const NoLinksDark: Story = {
-  ...NoLinks,
-  parameters: { ...NoLinks.parameters, theme: 'dark' },
-}
-export const FourDigitWeekDark: Story = {
-  ...FourDigitWeek,
-  parameters: { ...FourDigitWeek.parameters, theme: 'dark' },
-}
-export const OnlyOneNonzeroBarDark: Story = {
-  ...OnlyOneNonzeroBar,
-  parameters: { ...OnlyOneNonzeroBar.parameters, theme: 'dark' },
+  }),
 }

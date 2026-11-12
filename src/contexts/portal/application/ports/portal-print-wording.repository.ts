@@ -1,17 +1,17 @@
-// Portal context — the wording a Portal saved for its final print kit (2026-10-27).
+// Portal context — the wording a Portal saved for its print kit (2026-10-27).
 // One row per Portal, replaced by every save and every download: the wording id and
 // the manager's own words, so Share opens on them next time. Every method names
 // the Organization and the Portal; nothing here holds an address, a code, a file
 // or who saved it.
 
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
-import type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
+import type { PrintSavedWording } from '#/shared/domain/portal-print-wording'
 
 export type RecordPortalPrintWordingInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId
-  wording: PrintFinalSavedWording
+  wording: PrintSavedWording
   savedAt: Date
 }>
 
@@ -30,5 +30,5 @@ export type PortalPrintWordingRepository = Readonly<{
   find: (
     organizationId: OrganizationId,
     portalId: PortalId,
-  ) => Promise<PrintFinalSavedWording | null>
+  ) => Promise<PrintSavedWording | null>
 }>

@@ -33,7 +33,6 @@ describe('logical draft measurement boundary', () => {
     const record = vi.fn(async () => input.idempotencyKey)
     const generate = measureReplyDrafting(
       { measurements: { record }, nowEpochMillis: () => 10 },
-      'v1',
       async () => ready,
     )
     expect(await generate(input)).toMatchObject({
@@ -48,7 +47,7 @@ describe('logical draft measurement boundary', () => {
       requestKey: input.idempotencyKey,
       intent: 'explicit',
       trigger: 'draft',
-      contract: 'v1',
+      contract: 'v2',
       outcome: 'ready',
       refusalCode: null,
       case: null,
@@ -72,7 +71,6 @@ describe('logical draft measurement boundary', () => {
         },
         nowEpochMillis: () => 10,
       },
-      'v1',
       async () => ready,
     )
     expect(await generate(input)).toBe(ready)
@@ -94,7 +92,6 @@ describe('logical draft measurement boundary', () => {
     }
     const generate = measureReplyDrafting(
       { measurements: { record }, nowEpochMillis: () => 10 },
-      'v2',
       async () => fallback,
     )
     expect(await generate(input)).toBe(fallback)
@@ -110,7 +107,6 @@ it('warns when storage skips a measurement without changing draft delivery', asy
       logger: { warn },
       nowEpochMillis: () => 10,
     },
-    'v1',
     async () => ready,
   )
   expect(await generate(input)).toBe(ready)

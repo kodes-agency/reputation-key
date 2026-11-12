@@ -136,19 +136,6 @@ export const AllEvidenceStatesNarrowPhone: Story = {
   },
 }
 
-export const AllEvidenceStatesPhone: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-  play: async (context) => {
-    await AllEvidenceStates.play?.(context)
-    await fitsTheWidth(context)
-  },
-}
-
-export const AllEvidenceStatesTablet: Story = {
-  ...AllEvidenceStates,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-}
-
 export const AllEvidenceStatesDesktop: Story = {
   ...AllEvidenceStates,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
@@ -252,4 +239,9 @@ export const OneMonthHasNoBars: Story = {
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).queryByRole('figure')).toBeNull()
   },
+}
+
+export const AllEvidenceStatesTablet: Story = {
+  ...AllEvidenceStates,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }

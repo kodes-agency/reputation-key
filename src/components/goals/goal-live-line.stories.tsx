@@ -13,6 +13,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
 import { GoalLiveLine, GoalLiveLinePending } from './goal-live-line'
+import { playInThemes } from '../../../.storybook/play-in-themes'
 
 const goal = (patch: Partial<GoalListProgress> = {}): GoalListProgress => ({
   programId: 'program-1',
@@ -77,7 +78,7 @@ function expectOnlyTheLineIsABar(canvasElement: HTMLElement) {
  * neutral bar, and no pill.
  */
 export const OneCountSubject: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('64 of 120 so far · 15 days left')).toBeVisible()
     expect(canvasElement.querySelector('[data-slot="goal-live-pace"]')).toBeNull()
@@ -89,7 +90,7 @@ export const OneCountSubject: Story = {
     expect(bar).toHaveAttribute('aria-valuemax', '120')
     expect(bar).toHaveAttribute('aria-valuetext', '64 of 120 so far')
     expect(bar).toHaveAttribute('data-tone', 'neutral')
-  },
+  }),
 }
 
 /**
@@ -100,7 +101,7 @@ export const OneCountSubject: Story = {
  */
 export const OneCountSubjectBelowPace: Story = {
   args: { goal: goal({ belowPace: 1 }) },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expectTheCountSentence(canvasElement)
     expectThePill(canvas, 'Below pace', 'warn')
@@ -109,18 +110,18 @@ export const OneCountSubjectBelowPace: Story = {
     })
     expect(bar).toHaveAttribute('aria-valuetext', '64 of 120 so far')
     expect(bar).toHaveAttribute('data-tone', 'neutral')
-  },
+  }),
 }
 
 /** A count that keeps up wears the shared "On pace" pill, in the same place. */
 export const OneCountSubjectOnPace: Story = {
   args: { goal: goal({ belowPace: 0 }) },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expectTheCountSentence(canvasElement)
     expectThePill(canvas, 'On pace', 'positive')
     expect(canvas.getByRole('progressbar')).toHaveAttribute('data-tone', 'neutral')
-  },
+  }),
 }
 
 /**
@@ -229,11 +230,11 @@ export const FigureCannotBeRead: Story = {
 /** Several subjects on a count: how many are below pace, and no bar. */
 export const SeveralSubjectsBelowPace: Story = {
   args: { goal: goal({ subjectCount: 3, month: null, belowPace: 2 }) },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('3 subjects · 2 below pace')).toBeVisible()
     expect(canvas.queryByRole('progressbar')).toBeNull()
-  },
+  }),
 }
 
 /** When every subject keeps up the line says so in words. */
@@ -334,21 +335,4 @@ export const PendingKeepsTheRoomOfALine: Story = {
     expect(within(canvasElement).queryByRole('progressbar')).toBeNull()
     expect(within(canvasElement).getByText('3 subjects · 2 below pace')).toBeVisible()
   },
-}
-
-export const OneCountSubjectLight: Story = {
-  ...OneCountSubject,
-  parameters: { theme: 'light' },
-}
-export const OneCountSubjectBelowPaceLight: Story = {
-  ...OneCountSubjectBelowPace,
-  parameters: { theme: 'light' },
-}
-export const OneCountSubjectOnPaceLight: Story = {
-  ...OneCountSubjectOnPace,
-  parameters: { theme: 'light' },
-}
-export const SeveralSubjectsBelowPaceLight: Story = {
-  ...SeveralSubjectsBelowPace,
-  parameters: { theme: 'light' },
 }
