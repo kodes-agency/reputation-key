@@ -139,8 +139,8 @@ function CopyItems({
  * menu for the link alone.
  *
  * The trigger is a CONTROL, the shared `RowActionsMenu` one (outline, among the
- * header's other outline squares): 36 px below `md` from the Inbox's compact
- * density (row 20), the same square as the header's dismissal beside it
+ * header's other outline squares): 44 px below `md` from the Button's
+ * touch height, the same square as the header's dismissal beside it
  * (`Back to list` on the sheet, `Close detail` on the panel), so the row keeps
  * one target height on a phone; 32 px from `md` up.
  *

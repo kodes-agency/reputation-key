@@ -552,7 +552,10 @@ function ComposerInPane({
   const collapse = storyCollapse(collapsible, view, noteText, setMode)
 
   return (
-    <div style={width === undefined ? undefined : { width }} className="flex flex-col">
+    <div
+      style={width === undefined ? undefined : { width, maxWidth: '100%' }}
+      className="flex flex-col"
+    >
       <ReplyComposer
         mode={mode}
         onModeChange={setMode}

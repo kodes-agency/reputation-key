@@ -117,7 +117,6 @@ function Harness({
   return (
     <ReplyDraftSessionProvider item={fixtureItem} detail={detail} stream={stream}>
       <div
-        data-density="compact"
         data-reduced-motion={reducedMotion}
         className="mx-auto flex max-w-2xl flex-col gap-4 p-4"
       >

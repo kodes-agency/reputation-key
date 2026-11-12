@@ -85,7 +85,7 @@ function TallReplySurface(): ReactNode {
         data-testid="surface-scroller"
         className="-mx-1 -my-1 flex min-h-0 grow basis-auto flex-col overflow-y-auto overscroll-contain p-1"
       >
-        <textarea aria-label={REPLY_FIELD} rows={3} />
+        <textarea aria-label={REPLY_FIELD} rows={3} className="shrink-0" />
         <div className="shrink-0" style={{ height: 1200 }} />
       </div>
       <div className="flex justify-end p-1.5">
@@ -158,7 +158,7 @@ function DockHarness({
     return (
       <div
         data-testid="pane-column"
-        style={{ width, height: 600 }}
+        style={{ width, height: 600, maxWidth: '100%' }}
         className="flex min-w-0 flex-col overflow-hidden border-l"
       >
         <div className="min-h-0 flex-1 overflow-y-auto p-5">Thread</div>
@@ -167,7 +167,7 @@ function DockHarness({
     )
   }
   return (
-    <div style={{ width }} className="flex flex-col gap-2">
+    <div style={{ width, maxWidth: '100%' }} className="flex flex-col gap-2">
       <Button variant="outline" onClick={() => setHasReplySurface(false)}>
         Submit the reply
       </Button>
@@ -535,7 +535,7 @@ const footerArgs = {
  */
 export const SubmitCarriesTheGuaranteeAt720: Story = {
   render: () => (
-    <div style={{ width: PANE_WIDTH_PX }}>
+    <div style={{ width: PANE_WIDTH_PX, maxWidth: '100%' }}>
       <ReplyComposerFooter {...footerArgs} />
     </div>
   ),
@@ -561,7 +561,7 @@ export const SubmitCarriesTheGuaranteeAt720: Story = {
  */
 export const BlockedSubmitKeepsItsReasonAt720: Story = {
   render: () => (
-    <div style={{ width: PANE_WIDTH_PX }}>
+    <div style={{ width: PANE_WIDTH_PX, maxWidth: '100%' }}>
       <ReplyComposerFooter
         {...footerArgs}
         canSubmit={false}

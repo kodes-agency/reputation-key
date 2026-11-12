@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, mocked, userEvent, within } from 'storybook/test'
 import type { InboxSort } from '#/contexts/inbox/application/public-api'
+import { Button } from '#/components/ui/button'
 import { InboxActiveFilters } from './inbox-active-filters'
 import { CLEARED_INBOX_LIST_FILTERS, type InboxListFilterValues } from './inbox-filters'
 
@@ -32,9 +33,14 @@ function Harness({
   const [sort, setSort] = useState(initialSort)
   return (
     <div className="w-full">
-      <button type="button" data-inbox-filter-trigger aria-label="Filters">
+      <Button
+        type="button"
+        variant="outline"
+        data-inbox-filter-trigger
+        aria-label="Filters"
+      >
         Filters
-      </button>
+      </Button>
       <InboxActiveFilters
         filters={filters}
         sort={sort}

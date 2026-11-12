@@ -408,3 +408,17 @@ pre code {
     scroll-behavior: auto !important;
   }
 }
+
+/* Sonner's phone rule gives the toaster list width 100% from a 16px left offset,
+   so the list hangs 16px past the window's right edge. The list spans the window
+   and each toast keeps the same place, 16px in, at the same width. */
+@media (width <= 600px) {
+  [data-sonner-toaster][data-x-position] {
+    left: 0;
+    right: 0;
+  }
+
+  [data-sonner-toaster][data-x-position] [data-sonner-toast] {
+    left: var(--mobile-offset-left);
+  }
+}
