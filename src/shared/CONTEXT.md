@@ -219,9 +219,19 @@ message or domain context. The logger redacts flattened error text recursively;
 Error objects retain their content-free summaries and database facts. Client
 error wording and the original monitoring cause are independent of those logs.
 
-Outbox delivery admits new and previously published unresolved facts into
-`work_items` in the same transaction as the publication marker. The relay sends
-only the work ID; the independent minute reconciler restores lost or failed
+Outbox delivery admits facts into `work_items` in the same transaction as the
+publication marker, through two in-process loops in the worker. The relay poll
+runs every second and reads unpublished facts only (`published_at IS NULL`,
+served by `outbox_events_published_at_idx`), ranked by tenant. The receipt
+sweep runs at worker start and every ten minutes: each pass pages through every
+published fact from the oldest, keyed on publication time truncated to the
+millisecond and then ID, and admits a fact that still misses an expected
+catalogued receipt and has no delivery work. It is the only path that
+re-admits a published fact. A pass keeps no cursor after it ends, because the
+worker restarts often. A fact that already has delivery work is never
+back-filled to a consumer added to the catalogue later; the ledger owns its
+retries. Both loops skip recovery-fenced facts and active legacy leases. The
+relay sends only the work ID; the independent minute reconciler restores lost or failed
 transport in bounded batches, up to 20,000 deliveries per pass, without an age
 window or an attempt charge. The dispatcher resolves the tenant and fact from
 the ledger, claims an execution, applies current policy

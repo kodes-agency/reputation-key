@@ -13,6 +13,7 @@ import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { getDb, type Database } from '#/shared/db'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { createOutboxRelay } from '#/shared/outbox/relay'
 import {
   applyRecoveryFence,
   inspectRecoveryFence,
@@ -291,6 +292,18 @@ describe('restore recovery fence (REG-04, integration)', () => {
           FROM outbox_events WHERE id = ${eventId}::uuid
         `)
         expect(publication.rows[0]).toMatchObject({ publishedAt: null })
+        // A fenced fact stays out of the receipt sweep too, even once it reads
+        // as published and owed a receipt.
+        await transaction.execute(sql`
+          UPDATE outbox_events SET published_at = clock_timestamp()
+          WHERE id = ${eventId}::uuid
+        `)
+        const swept = await createOutboxRelay(relay, undefined, {
+          consumerExpectations: [
+            { eventType: 'test.recovery-fence', consumerName: 'test.recovery-consumer' },
+          ],
+        }).sweep()
+        expect(swept.map(({ subjectId }) => subjectId)).not.toContain(eventId)
 
         // Successful items retain the Property link, independently of execution authority.
         const authorityRows = await transaction.execute(sql`

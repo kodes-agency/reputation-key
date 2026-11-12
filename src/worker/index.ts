@@ -411,14 +411,17 @@ async function main() {
       ),
   })
 
-  // The relay admits new and previously stranded facts into durable work.
-  // Both immediate delivery and the independent reconciler send work IDs to
-  // the same dispatcher; receipts remain the completion authority.
+  // The relay admits new facts into durable work every second; its receipt
+  // sweep re-admits published facts still owed a receipt at start and every
+  // ten minutes. Both run in process, so they survive the loss of Redis
+  // schedulers. Immediate delivery and the independent reconciler send work
+  // IDs to the same dispatcher; receipts remain the completion authority.
   if (!container.outboxRepo || !jobRedisUrl || !domainEventsQueue) {
     throw new Error('[WORKER] outbox relay requires outboxRepo and a job Redis URL')
   }
   const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue)
   const stopRelay = relay.start(1_000)
+  const stopReceiptSweep = relay.startSweep(10 * 60_000)
   const domainEventsWorker = createJobWorker(
     'domain-events',
     createDispatcherHandler(container.outboxRepo, {
@@ -443,6 +446,7 @@ async function main() {
 
     // Stop the outbox relay first (stop claiming new events)
     const relayStopped = stopRelay()
+    const receiptSweepStopped = stopReceiptSweep()
     logger.info('Outbox relay stopped')
     const schedulerStopped = stopSchedulerWatchdog()
     const workReconcilerStopped = stopWorkReconciler()
@@ -452,7 +456,12 @@ async function main() {
         {
           label: 'background-pollers',
           close: async () => {
-            await Promise.all([relayStopped, schedulerStopped, workReconcilerStopped])
+            await Promise.all([
+              relayStopped,
+              receiptSweepStopped,
+              schedulerStopped,
+              workReconcilerStopped,
+            ])
           },
         },
         namedCloseable('default', worker),
