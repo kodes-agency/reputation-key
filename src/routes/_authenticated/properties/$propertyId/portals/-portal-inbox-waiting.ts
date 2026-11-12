@@ -5,6 +5,7 @@
 // It reads the Inbox's own per-property count under the Inbox's own cache key, so
 // the two surfaces share one entry and every Inbox write that refreshes the rail
 // refreshes this too.
+import { useHydrated } from '#/components/hooks/use-hydrated'
 import { useQuery } from '@tanstack/react-query'
 import {
   inboxWaitingFor,
@@ -18,10 +19,11 @@ export function usePortalInboxWaiting(propertyId: string): number | null {
   const { can: canDo } = usePermissions()
   // The link opens the manager Inbox, whose route refuses anyone without this.
   const mayOpenInbox = canDo('inbox.manage')
+  const hydrated = useHydrated()
   const { data } = useQuery(
     inboxWaitingQuery(mayOpenInbox, (queue) =>
       getInboxPropertyCountsFn({ data: { queue } }),
     ),
   )
-  return inboxWaitingFor(mayOpenInbox, data, propertyId)
+  return inboxWaitingFor(mayOpenInbox, hydrated ? data : undefined, propertyId)
 }

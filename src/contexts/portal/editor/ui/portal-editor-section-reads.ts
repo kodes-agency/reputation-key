@@ -1,6 +1,7 @@
 // Which reads each section waits on. A section whose reads are still loading or
 // failed says so itself, so one failed read leaves every other section usable.
 
+import { useHydrated } from '#/components/hooks/use-hydrated'
 import type { PortalEditorSection } from './portal-editor-sections'
 import type {
   PortalEditorRead,
@@ -39,4 +40,33 @@ export function isResourceExpected(
   key: PortalEditorReadKey,
 ): boolean {
   return resources[key] !== undefined || resources.reads?.[key] !== undefined
+}
+
+/**
+ * The resources as the server rendered them: every read unanswered, whatever the
+ * client cache already holds. The first browser render uses this, so streamed
+ * query data cannot change the text it draws before hydration is done.
+ */
+export function withoutReadAnswers(
+  resources: PortalEditorResources,
+): PortalEditorResources {
+  return {
+    ...resources,
+    links: undefined,
+    languageCoverage: undefined,
+    linktree: undefined,
+    portalGroups: undefined,
+    responsibleManagers: undefined,
+    responsibleManagerMembers: undefined,
+    publicationHistory: undefined,
+    portalExperience: undefined,
+    approvedDestinations: undefined,
+  }
+}
+
+/** What the editor draws from: unanswered until the browser has hydrated, then as loaded. */
+export function useFirstRenderResources(
+  loaded: PortalEditorResources,
+): PortalEditorResources {
+  return useHydrated() ? loaded : withoutReadAnswers(loaded)
 }

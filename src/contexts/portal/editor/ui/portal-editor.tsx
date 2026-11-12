@@ -20,7 +20,10 @@ import {
 import { PortalPreviewPane } from '#/components/features/portal/portal-preview/portal-preview-pane'
 import type { PreviewPartSection } from '#/components/features/portal/portal-preview/preview-parts'
 import { PortalEditorNav } from './portal-editor-nav'
-import { isResourceExpected } from './portal-editor-section-reads'
+import {
+  isResourceExpected,
+  useFirstRenderResources,
+} from './portal-editor-section-reads'
 import { PortalEditorSectionPanel } from './portal-editor-section-panel'
 import {
   availablePortalEditorSections,
@@ -41,7 +44,10 @@ type Props = Readonly<{
   requestedSection: PortalEditorSection | undefined
 }>
 
-export function PortalEditor({ resources, requestedSection }: Props) {
+export function PortalEditor({ resources: loaded, requestedSection }: Props) {
+  // Reads that resolved before hydration must not show in the first browser
+  // render: the server drew them unanswered, and the text has to match.
+  const resources = useFirstRenderResources(loaded)
   const navigate = useNavigate()
   const panel = useRef<HTMLDivElement>(null)
   const { portal, propertyId, portalGroups } = resources
