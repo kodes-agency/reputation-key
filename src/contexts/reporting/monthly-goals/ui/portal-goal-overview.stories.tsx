@@ -220,16 +220,6 @@ export const ReadyPhone320: Story = {
   },
 }
 
-export const RunningOnAPhone: Story = {
-  ...Running,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-}
-
-export const RunningOnATablet: Story = {
-  ...Running,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-}
-
 export const RunningOnADesktop: Story = {
   ...Running,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
@@ -238,4 +228,9 @@ export const RunningOnADesktop: Story = {
 export const RunningLight: Story = {
   ...Running,
   parameters: { theme: 'light' },
+}
+
+export const RunningOnATablet: Story = {
+  ...Running,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }

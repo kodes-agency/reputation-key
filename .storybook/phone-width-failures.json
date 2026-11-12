@@ -744,18 +744,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalcarduse--ready-on-a-phone",
-    "state": "Ready On A Phone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalcarduse--ready-on-a-phone",
-    "state": "Ready On A Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalcarduse--ready-on-a-tablet",
     "state": "Ready On A Tablet",
     "width": 320,
@@ -1236,18 +1224,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalpage--phone-390",
-    "state": "Phone 390",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalpage--phone-390",
-    "state": "Phone 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalpage--running",
     "state": "Running",
     "width": 320,
@@ -1500,18 +1476,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalresults--phone-390",
-    "state": "Phone 390",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalresults--phone-390",
-    "state": "Phone 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalresultslinks--in-the-portal-goals-section",
     "state": "In The Portal Goals Section",
     "width": 320,
@@ -1608,18 +1572,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalresultslinks--phone-390",
-    "state": "Phone 390",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalresultslinks--phone-390",
-    "state": "Phone 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalsection--arriving-on-a-phone",
     "state": "Arriving On A Phone",
     "width": 320,
@@ -1712,18 +1664,6 @@
   {
     "storyId": "goals-portalgoalsheet--change-on-a-desktop",
     "state": "Change On A Desktop",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-on-a-phone",
-    "state": "Change On A Phone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-on-a-phone",
-    "state": "Change On A Phone",
     "width": 390,
     "checks": ["targets"]
   },
@@ -2000,18 +1940,6 @@
   {
     "storyId": "goals-portalgoalsheet--set-recommended-on-a-narrow-phone",
     "state": "Set Recommended On A Narrow Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--set-recommended-on-a-phone",
-    "state": "Set Recommended On A Phone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--set-recommended-on-a-phone",
-    "state": "Set Recommended On A Phone",
     "width": 390,
     "checks": ["targets"]
   },
@@ -14430,18 +14358,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "property-guestvoice2-check-in--dark-phone",
-    "state": "Dark Phone",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--dark-phone",
-    "state": "Dark Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "property-guestvoice2-check-in--hampton-like",
     "state": "Hampton Like",
     "width": 320,
@@ -14450,18 +14366,6 @@
   {
     "storyId": "property-guestvoice2-check-in--hampton-like",
     "state": "Hampton Like",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--hampton-like-phone",
-    "state": "Hampton Like Phone",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--hampton-like-phone",
-    "state": "Hampton Like Phone",
     "width": 390,
     "checks": ["targets"]
   },
@@ -14574,12 +14478,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "property-guestvoice2-check-in--sheet-phone",
-    "state": "Sheet Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "property-guestvoice2-check-in--slipping",
     "state": "Slipping",
     "width": 320,
@@ -14604,18 +14502,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "property-guestvoice2-check-in--small-phone",
-    "state": "Small Phone",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--small-phone",
-    "state": "Small Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "property-guestvoice2-check-in--small-with-concern",
     "state": "Small With Concern",
     "width": 320,
@@ -14624,18 +14510,6 @@
   {
     "storyId": "property-guestvoice2-check-in--small-with-concern",
     "state": "Small With Concern",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--small-with-concern-phone",
-    "state": "Small With Concern Phone",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--small-with-concern-phone",
-    "state": "Small With Concern Phone",
     "width": 390,
     "checks": ["targets"]
   },
