@@ -30,7 +30,7 @@ const RETAINED: Readonly<Record<string, string>> = {
   operational_action_history_legal_holds: 'legal-hold evidence, never touched',
   operational_action_history_records: 'legal-hold evidence, never touched',
   outbox_events:
-    'settled events age out with the 30-day outbox retention; closure deletes the recovery-fenced ones, which never settle',
+    'settled events age out with the 30-day outbox retention; recovery-fenced events never settle, so they stay until Organization closure deletes them',
   reply_publication_authorizations: 'content-free proof of a manager authorization',
 }
 
@@ -93,6 +93,15 @@ describe('rights coverage', () => {
     )
 
     expect(unknown).toEqual([])
+  })
+
+  it("sees Better Auth's tables, whose Organization column is camel case", () => {
+    const organizationTables = personalTablesOf('organization').map(({ name }) => name)
+
+    expect(organizationTables).toEqual(expect.arrayContaining(['invitation', 'member']))
+    expect([...declared('organization')]).toEqual(
+      expect.arrayContaining(['invitation', 'member']),
+    )
   })
 
   it('declares tables for every scope an executor erases', () => {

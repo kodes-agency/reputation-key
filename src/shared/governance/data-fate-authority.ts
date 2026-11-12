@@ -491,7 +491,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'active_authority',
     authority: 'ARC-01',
     exitCriteria:
-      'Settled outbox events age out with the 30-day outbox retention; erasure does not delete them early. Organization closure deletes the events a restore fenced, which are never delivered and never age out.',
+      'Settled outbox events age out with the 30-day outbox retention; erasure does not delete them early. Events a restore fenced are never delivered and never age out: Organization closure deletes them, and a Property erasure leaves them until then.',
   }),
   ...rows({
     schemaFile: 'staff-accounts.schema.ts',

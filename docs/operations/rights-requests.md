@@ -140,10 +140,11 @@ private bucket by hand and delete the local copy.
   then run the same command again.
 
 Other outbox events are not erased early: settled events age out with the
-30-day outbox retention. The other tables an erasure keeps on purpose (lifecycle and
-erasure evidence, AI consent evidence, operational history under legal hold,
-reply authorization proof) are listed with their reason in
-`src/composition/rights-coverage.test.ts`.
+30-day outbox retention. A Property erasure leaves the Property's fenced events
+until the Organization's closure deletes them. The other tables an erasure
+keeps on purpose (lifecycle and erasure evidence, AI consent evidence,
+operational history under legal hold, reply authorization proof) are listed
+with their reason in `src/composition/rights-coverage.test.ts`.
 
 ### Notifications
 
