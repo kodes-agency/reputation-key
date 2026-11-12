@@ -133,10 +133,14 @@ export async function migrateJournal(
           throw new Error('Applied migration changed; restore its committed SQL')
       }
       // The auth adoption file is appended without moving immutable history.
-      // Empty installs need it before the historical constructs referencing auth.
+      // Empty installs need it before the historical constructs referencing auth;
+      // a database with applied history runs it in journal order, so a refused
+      // earlier file leaves the journal unchanged.
       const pending = files
         .filter((migration) => !applied.has(migration.folderMillis))
-        .sort((a, b) => Number(b.prerequisite) - Number(a.prerequisite))
+        .sort((a, b) =>
+          applied.size === 0 ? Number(b.prerequisite) - Number(a.prerequisite) : 0,
+        )
       for (const migration of pending) {
         if (migration.concurrentIndex) {
           const result = await buildConcurrentIndex(

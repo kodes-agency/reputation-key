@@ -34,7 +34,7 @@ import {
 } from '#/shared/testing/notification-route-producer-fixtures'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
-import { handleWorkflowNotificationEvent } from './workflow-outbox-consumers'
+import { handleWorkflowNotificationEvent } from '../notify/inbox-workflow.server'
 import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 
 beforeAll(registerAllEventSchemas)

@@ -30,17 +30,15 @@ import { isRecordPayload, requiredString } from './outbox-payload-fields'
 import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
 import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
-import type { NotificationWorkState } from '../application/notification-work-state'
-import { isActionablePortalHealthReason } from '../application/portal-health-notification'
 import {
   settleGroupedReopens,
   type GroupedReopenSettlementDeps,
-} from './grouped-reopen-settlement'
-import {
-  SETTLED_EMAIL_REASON,
   settledNotificationTypes,
   type SettlingFact,
-} from '../domain/notification-settlement'
+} from '../notify/settle.server'
+import { SETTLED_EMAIL_REASON } from '../domain/notification-actionable'
+import { type NotificationWorkState } from '../application/ports/notification-work-state.port'
+import { isActionablePortalHealthReason } from '../application/portal-health-notification'
 
 /**
  * What the settled notices point at. Reply and Inbox notices are filed against

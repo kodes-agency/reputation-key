@@ -1,11 +1,9 @@
 import type {
   AiExecutionBindingV1,
   AnalysisResult,
-  PropertyTrendGatewayRequestV1,
   ReplySuggestionGatewayRequestV1,
   ReplySuggestionResult,
   ReviewAnalysisGatewayRequestV1,
-  TrendResult,
 } from '#/shared/ai-gateway-transport-contract'
 
 export type CommonAiSourceRequest = Readonly<{
@@ -21,7 +19,6 @@ export type CommonAiSourceRequest = Readonly<{
 
 export type ReviewAnalysisSourceInput = ReviewAnalysisGatewayRequestV1
 export type ReplySuggestionSourceInput = ReplySuggestionGatewayRequestV1
-export type PropertyTrendSourceInput = PropertyTrendGatewayRequestV1
 
 export type AiInferencePort = Readonly<{
   analyzeReview(
@@ -33,8 +30,4 @@ export type AiInferencePort = Readonly<{
     signal: AbortSignal,
     progress?: import('#/shared/reply-drafting-progress').ReplyDraftingProgressSink,
   ): Promise<ReplySuggestionResult>
-  generateTrend(
-    input: PropertyTrendSourceInput,
-    signal: AbortSignal,
-  ): Promise<TrendResult>
 }>

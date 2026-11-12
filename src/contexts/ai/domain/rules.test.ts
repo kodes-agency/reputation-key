@@ -80,31 +80,6 @@ const makeReplyBinding = (): Record<string, unknown> => ({
   aiSubjectHmacKeyVersion: null,
 })
 
-const makeTrendBinding = (): Record<string, unknown> => ({
-  ...commonBinding,
-  capabilityFence: {
-    capability: 'property_trends',
-    reviewAnalysisEpoch: 4,
-    propertyTrendsEpoch: 2,
-  },
-  evaluatedLanguage: null,
-  stopFence: structuredClone(stopFence),
-  concreteReplyLanguage: null,
-  languageCatalogueDigest: null,
-  replyLanguageVerifierDigest: null,
-  languageScriptConsistencyDigest: null,
-  zhOrthographyVerifierDigest: null,
-  sourceRevision: null,
-  reviewedAtEpochMillis: null,
-  outputLeakageProfileVersion: null,
-  outputLeakageProfileDigest: null,
-  replyTemplateCatalogueVersion: null,
-  replyTemplateCatalogueDigest: null,
-  operationProfileVersion: 'property-trend-v1',
-  capabilityRuntimeProfileVersion: 'property-trends-runtime-v1',
-  aiSubjectHmacKeyVersion: null,
-})
-
 const recordAt = (value: Record<string, unknown>, key: string): Record<string, unknown> =>
   value[key] as Record<string, unknown>
 
@@ -226,7 +201,7 @@ describe('AI execution binding and operation identity', () => {
       ...analysis.value,
       command: 'trend',
     } as never)
-    expect(crossWired.isErr() && crossWired.error.message).toMatch(/trend identity/i)
+    expect(crossWired.isErr() && crossWired.error.message).toMatch(/not supported/i)
   })
 })
 
@@ -234,7 +209,6 @@ describe('AI execution binding fail-closed validation', () => {
   it.each([
     ['analysis', makeAnalysisBinding],
     ['reply', makeReplyBinding],
-    ['trend', makeTrendBinding],
   ])('accepts an exact %s binding', (_label, createBinding) => {
     expect(parseAiExecutionBinding(createBinding()).isOk()).toBe(true)
   })
@@ -451,11 +425,11 @@ describe('AI execution binding fail-closed validation', () => {
       replyLanguageVerifierDigest: null,
     })
     expect(reply.isErr() && reply.error.message).toMatch(/reply binding/i)
-    const trend = parseAiExecutionBinding({
-      ...makeTrendBinding(),
-      evaluatedLanguage: 'en',
+    const retired = parseAiExecutionBinding({
+      ...makeAnalysisBinding(),
+      capabilityFence: { capability: 'property_trends', reviewAnalysisEpoch: 4 },
     })
-    expect(trend.isErr() && trend.error.message).toMatch(/trend binding/i)
+    expect(retired.isErr() && retired.error.message).toMatch(/unknown capability fence/i)
   })
 
   it.each([
@@ -620,48 +594,6 @@ describe('AI execution binding fail-closed validation', () => {
         value.replyLanguageVerifierDigest = 'bad'
       },
     ],
-    [
-      'trend fence shape',
-      makeTrendBinding,
-      (value: Record<string, unknown>) => {
-        delete recordAt(value, 'capabilityFence').reviewAnalysisEpoch
-      },
-    ],
-    [
-      'trend analysis epoch',
-      makeTrendBinding,
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'capabilityFence').reviewAnalysisEpoch = 0
-      },
-    ],
-    [
-      'trend epoch',
-      makeTrendBinding,
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'capabilityFence').propertyTrendsEpoch = 0
-      },
-    ],
-    [
-      'trend profile',
-      makeTrendBinding,
-      (value: Record<string, unknown>) => {
-        value.operationProfileVersion = 'wrong'
-      },
-    ],
-    [
-      'trend runtime',
-      makeTrendBinding,
-      (value: Record<string, unknown>) => {
-        value.capabilityRuntimeProfileVersion = 'wrong'
-      },
-    ],
-    [
-      'trend cross-wiring',
-      makeTrendBinding,
-      (value: Record<string, unknown>) => {
-        value.sourceRevision = 1
-      },
-    ],
   ])('rejects an invalid %s binding', (_label, createBinding, mutate) => {
     const value = createBinding()
     mutate(value)
@@ -700,22 +632,9 @@ describe('AI operation identity fail-closed validation', () => {
     baseReplyStateRevision: 0,
   })
 
-  const makeTrendIdentity = (): Record<string, unknown> => ({
-    command: 'trend',
-    organizationId: 'org-1',
-    propertyId: UUID_A,
-    actorId: null,
-    systemPrincipal: 'property_trend_coordinator',
-    sourceEpoch: 1,
-    dueLocalDate: '2026-08-16',
-    terminalAnalysisSequence: 0,
-    aggregateRevision: 0,
-  })
-
   it.each([
     ['analysis', makeAnalysisIdentity, 'review_analysis'],
     ['reply', makeReplyIdentity, 'reply_drafting'],
-    ['trend', makeTrendIdentity, 'property_trends'],
   ])('creates the exact %s operation identity', (_label, createIdentity, capability) => {
     const result = createAiOperationIdentity(createIdentity())
     expect(result.isOk()).toBe(true)
@@ -731,7 +650,6 @@ describe('AI operation identity fail-closed validation', () => {
   it.each([
     ['analysis', makeAnalysisIdentity],
     ['reply', makeReplyIdentity],
-    ['trend', makeTrendIdentity],
   ])('accepts the domain default source epoch of 0 for %s', (_label, createIdentity) => {
     const value = createIdentity()
     value.sourceEpoch = 0
@@ -742,7 +660,6 @@ describe('AI operation identity fail-closed validation', () => {
   it.each([
     ['analysis', makeAnalysisIdentity],
     ['reply', makeReplyIdentity],
-    ['trend', makeTrendIdentity],
   ])('still rejects a negative source epoch for %s', (_label, createIdentity) => {
     const value = createIdentity()
     value.sourceEpoch = -1
@@ -931,69 +848,6 @@ describe('AI operation identity fail-closed validation', () => {
       makeReplyIdentity,
       (value: Record<string, unknown>) => {
         value.baseReplyStateRevision = -1
-      },
-    ],
-    [
-      'trend organization',
-      makeTrendIdentity,
-      (value: Record<string, unknown>) => {
-        value.organizationId = ''
-      },
-    ],
-    [
-      'trend property',
-      makeTrendIdentity,
-      (value: Record<string, unknown>) => {
-        value.propertyId = 'bad'
-      },
-    ],
-    [
-      'trend actor',
-      makeTrendIdentity,
-      (value: Record<string, unknown>) => {
-        value.actorId = 'user-1'
-      },
-    ],
-    [
-      'trend principal',
-      makeTrendIdentity,
-      (value: Record<string, unknown>) => {
-        value.systemPrincipal = null
-      },
-    ],
-    [
-      'trend source epoch',
-      makeTrendIdentity,
-      (value: Record<string, unknown>) => {
-        value.sourceEpoch = -1
-      },
-    ],
-    [
-      'trend date type',
-      makeTrendIdentity,
-      (value: Record<string, unknown>) => {
-        value.dueLocalDate = 1
-      },
-    ],
-    [
-      'trend date format',
-      makeTrendIdentity,
-      (value: Record<string, unknown>) => {
-        value.dueLocalDate = '2026-13-01'
-      },
-    ],
-    [
-      'trend terminal sequence',
-      makeTrendIdentity,
-      (value: Record<string, unknown>) => {
-        value.terminalAnalysisSequence = -1
-      },
-    ],
-    [
-      'trend aggregate revision',
-      makeTrendIdentity,
-      (value: Record<string, unknown>) => {
-        value.aggregateRevision = -1
       },
     ],
   ])('rejects an invalid %s identity', (_label, createIdentity, mutate) => {

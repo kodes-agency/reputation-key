@@ -45,13 +45,14 @@ import { createNotificationAudienceAuthorizer } from './application/notification
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
 import { createGroupedReopenStore } from './infrastructure/repositories/notification-grouped-reopen.repository'
 import { createActivePropertyLookup } from './infrastructure/repositories/active-property'
-import { createNotificationWorkState } from './application/notification-work-state'
+import {
+  createNotificationWorkState,
+  createRetireMovedAssignment,
+} from './notify/settle.server'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
 import { registerNotificationConsumers } from './infrastructure/notification-outbox-consumers'
-import { registerWorkflowNotificationConsumers } from './infrastructure/workflow-outbox-consumers'
-import { createRetireMovedAssignment } from './application/retire-moved-assignment'
 import { registerPortalNotificationConsumers } from './infrastructure/portal-outbox-consumers'
 import { registerPortalDestinationNotificationConsumer } from './infrastructure/portal-destination-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './infrastructure/property-outbox-consumers'
@@ -68,12 +69,13 @@ import {
   registerBulkAssignmentNotificationConsumer,
   registerEscalationResolutionNotificationConsumer,
   registerResponseTargetNotificationConsumer,
+  registerWorkflowNotificationConsumers,
+  registerHandlingCycleNotificationConsumers,
 } from './infrastructure/inbox-notice-routes'
 import { registerGoalNotificationConsumer } from './infrastructure/goal-notice-routes'
 import { registerAiGuestVoiceSummaryNoticeConsumer } from './infrastructure/goal-notice-routes'
 import { registerAiUrgentReviewNoticeConsumer } from './infrastructure/goal-notice-routes'
 import { registerRatingGoalNoticeConsumer } from './infrastructure/goal-notice-routes'
-import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './infrastructure/notification-settlement-outbox-consumers'
 import { createAccountAccessRemovalReader } from './infrastructure/repositories/account-access-removal.repository'
 import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'

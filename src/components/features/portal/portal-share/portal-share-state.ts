@@ -223,8 +223,10 @@ export function derivePortalShareViewFromProps(
   props: PortalShareProps,
   canManage: boolean,
   publicUrl: string | null,
+  now?: Date,
 ): PortalShareView {
   return derivePortalShareView({
+    now,
     canManage,
     revoked: props.revoked,
     publicUrl,

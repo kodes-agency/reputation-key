@@ -49,11 +49,11 @@ export function InboxListSearch({
         total={queueTotal}
         active={!!value && !isLoading}
       />
-      {/* 36px on phones, pulled out 10px so the 16px X glyph sits on the right gutter. */}
+      {/* 44px on phones, pulled out 14px so the 16px X glyph sits on the right gutter. */}
       <IconButton
         variant="ghost"
         size="icon-sm"
-        className="max-md:-mr-2.5"
+        className="max-md:-mr-3.5"
         onClick={close}
         label="Close search"
       >

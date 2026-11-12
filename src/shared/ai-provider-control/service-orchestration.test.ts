@@ -1,19 +1,19 @@
-import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
-import {
-  signAiExecutionGrant,
-  parseAiSettlementReceipt,
-  type AiAdmissionDescriptorV1,
-  type AiExecutionGrantV1,
-  type AiSettlementRequestV1,
-  type AiSettlementReceiptV1,
+import type {
+  AiAdmissionDescriptorV1,
+  AiSettlementPermit,
+  AiSettlementOutcome,
+  AiSettlementReceiptV1,
 } from '#/shared/ai-internal-transport-contract'
 import {
   parseAiGatewayRouteRequest,
   type AiGatewayRouteRequestV1,
 } from '#/shared/ai-gateway-transport-contract'
-import { analysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import {
+  analysisRequest,
+  analysisV3Result,
+} from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import type {
   AiAdmissionClient,
   AiGatewayRoutePreparer,
@@ -21,15 +21,14 @@ import type {
   OpenAiConnectorOutcome,
   PreparedGatewayRouteExecution,
 } from './contracts'
+import { settlementPermitOf, type AiExecutionAdmission } from './execution-admission'
+import { admitForTest } from './execution-admission.test-fixtures'
 import { createAiEgressGatewayService } from './service'
 import { createSensitiveSourceLease } from './source-lease'
 import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
 
 const NOW = 1_780_000_000_000
 const SHA = 'a'.repeat(64)
-const REQUEST_BINDING_HMAC = Buffer.alloc(32, 0x31).toString('base64url')
-const signingKeys = generateKeyPairSync('ed25519')
-const forgedKeys = generateKeyPairSync('ed25519')
 
 // The live review-analysis request (v3 form): the gateway's orchestration does not
 // care which form it carries, but only a binding the catalogue serves parses.
@@ -86,8 +85,6 @@ function preparedExecution(
   return {
     invocation: {
       descriptor,
-      requestBindingKeyId: 'request-v1',
-      requestBindingHmac: REQUEST_BINDING_HMAC,
       sdkRequest: {} as never,
       canonicalProviderBytes: Buffer.from('prepared-provider-body'),
     } as never,
@@ -102,13 +99,7 @@ function preparedExecution(
         buildResponse: (receipt) => ({
           route: 'review-analysis',
           status: 'success',
-          result: {
-            sentiment: 'positive',
-            sentimentValence: 80,
-            urgencySignals: [],
-            aspects: [{ aspect: 'service', polarity: 'positive', intensity: 80 }],
-            issueLabel: null,
-          },
+          result: analysisV3Result,
           settlementReceipt: receipt,
         }),
       }
@@ -116,33 +107,11 @@ function preparedExecution(
   }
 }
 
-function signedGrant(
+function admitted(
   descriptor: AiAdmissionDescriptorV1,
-  privateKey = signingKeys.privateKey,
-  mutation: Partial<AiExecutionGrantV1> = {},
-): AiExecutionGrantV1 {
-  return signAiExecutionGrant(
-    {
-      version: 'ai-execution-grant-v1',
-      subjectKind: descriptor.subjectKind,
-      grantKid: 'grant-v1',
-      requestBindingKeyId: 'request-v1',
-      requestBindingHmac: REQUEST_BINDING_HMAC,
-      route: descriptor.route,
-      operationId: descriptor.operationId,
-      permitId: descriptor.permitId,
-      attemptNumber: descriptor.attemptNumber,
-      nonce: Buffer.alloc(32, 0x41).toString('base64url'),
-      limits: descriptor.limits,
-      callerDeadlineEpochMillis: descriptor.callerDeadlineEpochMillis,
-      issuedAtEpochMillis: NOW,
-      expiresAtEpochMillis: descriptor.callerDeadlineEpochMillis,
-      replyTokenExpiresAtEpochMillis: null,
-      replyDraftExpiresAtEpochMillis: null,
-      ...mutation,
-    },
-    privateKey,
-  )
+  issued: Parameters<typeof admitForTest>[1] = {},
+): AiExecutionAdmission {
+  return admitForTest(descriptor, { issuedAtEpochMillis: NOW, ...issued })
 }
 
 const successOutcome: OpenAiConnectorOutcome<unknown> = {
@@ -162,15 +131,15 @@ const successOutcome: OpenAiConnectorOutcome<unknown> = {
   outboundFetchUsed: true,
 }
 
-function settledReceipt(request: AiSettlementRequestV1, grant: AiExecutionGrantV1) {
-  return parseAiSettlementReceipt({
+function settledReceipt(
+  request: AiSettlementPermit & AiSettlementOutcome,
+  admission: AiExecutionAdmission,
+): AiSettlementReceiptV1 {
+  return {
     version: 'ai-settlement-receipt-v1',
-    grantKid: grant.grantKid,
     operationId: request.operationId,
     permitId: request.permitId,
     attemptNumber: request.attemptNumber,
-    nonce: request.nonce,
-    requestBindingHmac: grant.requestBindingHmac,
     disposition: request.disposition,
     reportedDisposition: request.reportedDisposition,
     providerRetryable: request.providerRetryable,
@@ -187,7 +156,7 @@ function settledReceipt(request: AiSettlementRequestV1, grant: AiExecutionGrantV
         ? 0
         : request.usageKnown
           ? Number(settledCostMicros(request))
-          : grant.limits.costMicros,
+          : admission.limits.costMicros,
     settledAtEpochMillis: NOW + 2_000,
     settlementState:
       request.disposition === 'no_dispatch'
@@ -195,34 +164,38 @@ function settledReceipt(request: AiSettlementRequestV1, grant: AiExecutionGrantV
         : request.disposition === 'transport_ambiguous'
           ? 'ambiguous'
           : 'settled',
-  })
+  }
 }
 
 function sourceLease(request: AiGatewayRouteRequestV1) {
   const lease = createSensitiveSourceLease<AiGatewayRouteRequestV1>()
-  if (request.route === 'property-trend')
-    throw new Error('Expected source-bearing request')
   lease.attachSource(request, (root) => root.source)
   return lease
 }
 
 function harness(
   input: Readonly<{
-    grant?: AiExecutionGrantV1
+    admission?: AiExecutionAdmission
     settle?: AiAdmissionClient['settle']
   }> = {},
 ) {
   const request = routeRequest()
   const prepared = preparedExecution(request)
-  const grant = input.grant ?? signedGrant(prepared.invocation.descriptor)
+  const minted = input.admission ?? admitted(prepared.invocation.descriptor)
   const prepare = vi.fn(() => prepared)
   const invoke = vi.fn(async () => successOutcome)
-  const authorize = vi.fn(async () => ({ status: 'authorized' as const, grant }))
-  const settle = vi.fn(
+  const authorize = vi.fn(async () => ({
+    status: 'authorized' as const,
+    admission: minted,
+  }))
+  const settle = vi.fn<AiAdmissionClient['settle']>(
     input.settle ??
-      (async (permit, outcome) => ({
+      (async (admission, outcome) => ({
         status: 'settled' as const,
-        receipt: settledReceipt({ ...permit, ...outcome }, grant),
+        receipt: settledReceipt(
+          { ...settlementPermitOf(admission), ...outcome },
+          admission,
+        ),
       })),
   )
   const connector = {
@@ -238,13 +211,12 @@ function harness(
     admission,
     connector,
     preparer: { prepare } as AiGatewayRoutePreparer,
-    admissionPublicKeys: new Map([['grant-v1', signingKeys.publicKey]]),
     now: () => NOW + 1_000,
   })
   return {
     request,
     prepared,
-    grant,
+    minted,
     prepare,
     invoke,
     authorize,
@@ -260,7 +232,7 @@ describe('AI gateway execution orchestration', () => {
     const value = harness()
     await value.service.execute(sourceLease(value.request), new AbortController().signal)
     expect(value.settle).toHaveBeenCalledWith(
-      value.grant,
+      value.minted,
       expect.objectContaining({
         disposition: 'success',
         inputTokens: 1,
@@ -281,7 +253,7 @@ describe('AI gateway execution orchestration', () => {
         reviewedAtEpochMillis: null,
         sentences: null,
       })
-      return { status: 'authorized', grant: value.grant }
+      return { status: 'authorized', admission: value.minted }
     })
 
     const response = await value.service.execute(
@@ -292,7 +264,7 @@ describe('AI gateway execution orchestration', () => {
     expect(response).toMatchObject({
       route: 'review-analysis',
       status: 'success',
-      result: { sentiment: 'positive' },
+      result: { contract: 'review-analysis-v3', answer: { sentiment: 'negative' } },
     })
     expect(value.authorize).toHaveBeenCalledTimes(1)
     expect(value.invoke).toHaveBeenCalledTimes(1)
@@ -307,21 +279,31 @@ describe('AI gateway execution orchestration', () => {
 
   it.each([
     [
-      'signed tuple swap',
+      'another operation',
       (descriptor: AiAdmissionDescriptorV1) =>
-        signedGrant(descriptor, signingKeys.privateKey, {
-          operationId: '10000000-0000-4000-8000-000000000009',
-        }),
+        admitted({ ...descriptor, operationId: '10000000-0000-4000-8000-000000000009' }),
     ],
     [
-      'forged signature',
+      'another descriptor',
       (descriptor: AiAdmissionDescriptorV1) =>
-        signedGrant(descriptor, forgedKeys.privateKey),
+        admitted({ ...descriptor, sourceDigest: 'b'.repeat(64) }),
     ],
-  ])('withholds dispatch for a %s grant', async (_name, makeGrant) => {
+    [
+      'copied (never minted)',
+      (descriptor: AiAdmissionDescriptorV1) => ({ ...admitted(descriptor) }),
+    ],
+    [
+      'another deadline',
+      (descriptor: AiAdmissionDescriptorV1) =>
+        admitted(
+          { ...descriptor, callerDeadlineEpochMillis: NOW + 500 },
+          { issuedAtEpochMillis: NOW },
+        ),
+    ],
+  ])('withholds dispatch for an admission for %s', async (_name, makeAdmission) => {
     const request = routeRequest()
     const descriptor = descriptorFor(request)
-    const value = harness({ grant: makeGrant(descriptor) })
+    const value = harness({ admission: makeAdmission(descriptor) })
     const response = await value.service.execute(
       sourceLease(value.request),
       new AbortController().signal,
@@ -360,8 +342,6 @@ describe('AI gateway execution orchestration', () => {
     ['another operation', { operationId: '10000000-0000-4000-8000-000000000009' }],
     ['another permit', { permitId: '10000000-0000-4000-8000-000000000009' }],
     ['another attempt', { attemptNumber: 2 }],
-    ['another nonce', { nonce: 'AQIDBA' }],
-    ['another binding', { requestBindingHmac: 'A'.repeat(43) }],
     ['different usage', { inputTokens: 2 }],
     ['invalid cost', { costMicros: -1 }],
     ['invalid state', { settlementState: 'released' }],
@@ -369,10 +349,10 @@ describe('AI gateway execution orchestration', () => {
     'withholds output when settlement returns %s',
     async (_name, mutation) => {
       const value = harness()
-      value.settle.mockImplementation(async (permit, outcome) => ({
+      value.settle.mockImplementation(async (admission, outcome) => ({
         status: 'settled',
         receipt: {
-          ...settledReceipt({ ...permit, ...outcome }, value.grant),
+          ...settledReceipt({ ...settlementPermitOf(admission), ...outcome }, admission),
           ...mutation,
         },
       }))
@@ -389,11 +369,11 @@ describe('AI gateway execution orchestration', () => {
 
   it('withholds delivery when the authority settles after the permit deadline', async () => {
     const value = harness()
-    value.settle.mockImplementation(async (permit, outcome) => ({
+    value.settle.mockImplementation(async (admission, outcome) => ({
       status: 'settled',
       receipt: {
-        ...settledReceipt({ ...permit, ...outcome }, value.grant),
-        settledAtEpochMillis: value.grant.expiresAtEpochMillis,
+        ...settledReceipt({ ...settlementPermitOf(admission), ...outcome }, admission),
+        settledAtEpochMillis: admission.expiresAtEpochMillis,
       },
     }))
     const response = await value.service.execute(
@@ -442,7 +422,7 @@ describe('AI gateway execution orchestration', () => {
 
       expect(response).toMatchObject({ status: 'error', code })
       expect(value.settle).toHaveBeenCalledWith(
-        value.grant,
+        value.minted,
         expect.objectContaining({ disposition, usageKnown: true }),
         expect.anything(),
       )
@@ -487,7 +467,7 @@ describe('AI gateway execution orchestration', () => {
       expect(response).toMatchObject({ status: 'error', code: 'operation_ambiguous' })
       expect(value.settle).toHaveBeenCalledTimes(1)
       expect(value.settle).toHaveBeenCalledWith(
-        value.grant,
+        value.minted,
         expect.objectContaining({ disposition, usageKnown: false }),
         expect.anything(),
       )

@@ -15,6 +15,7 @@ const fakes = vi.hoisted(() => ({
   env: {} as Record<string, string | undefined>,
   databaseEnv: {} as Record<string, string | undefined>,
   getDb: vi.fn(),
+  bootOrder: [] as string[],
   createContainer: vi.fn(() => ({
     shutdown: { run: fakes.shutdown },
     opsQueues: { background: { close: fakes.closeQueue } },
@@ -29,7 +30,10 @@ const fakes = vi.hoisted(() => ({
 
 vi.mock('../../src/shared/config/env', () => ({
   getEnv: () => fakes.env,
-  getDatabaseOperatorEnv: () => fakes.databaseEnv,
+  getDatabaseOperatorEnv: () => {
+    fakes.bootOrder.push('settings')
+    return fakes.databaseEnv
+  },
 }))
 vi.mock('../../src/shared/db', () => ({ getDb: fakes.getDb }))
 vi.mock('../../src/shared/db/pool', () => ({ closePool: fakes.closePool }))
@@ -288,6 +292,16 @@ describe('a command that needs only the database and queue settings', () => {
     expect(fakes.createContainer).not.toHaveBeenCalled()
     expect(fakes.closeJobQueueConnections).toHaveBeenCalledOnce()
     expect(fakes.closePool).toHaveBeenCalledOnce()
+  })
+
+  it('reads the database settings before the pool reads its own', async () => {
+    fakes.bootOrder.length = 0
+    fakes.getDb.mockImplementationOnce(() => {
+      fakes.bootOrder.push('pool')
+    })
+
+    await runDatabaseOperatorCommand(spec, vi.fn(), [])
+    expect(fakes.bootOrder).toEqual(['settings', 'pool'])
   })
 
   it('closes the pool when the command throws', async () => {

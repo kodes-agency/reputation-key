@@ -28,7 +28,6 @@ import type { NotificationRepositoryPort } from '#/contexts/feed/application/por
 import { registerAiGuestVoiceSummaryNoticeConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
 import { registerAiUrgentReviewNoticeConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
 import { registerGoalNotificationConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
-import { registerHandlingCycleNotificationConsumers } from '#/contexts/feed/infrastructure/handling-cycle-outbox-consumers'
 import { registerIdentityAccountNotificationConsumers } from '#/contexts/feed/infrastructure/identity-account-outbox-consumers'
 import type { GoogleConnectionPropertyLookup } from '#/contexts/feed/infrastructure/integration-outbox-consumers'
 import { registerIntegrationNotificationConsumers } from '#/contexts/feed/infrastructure/integration-outbox-consumers'
@@ -52,7 +51,10 @@ import {
   registerReviewImportNotificationConsumers,
   type PropertyImportInitiatorLookup,
 } from '#/contexts/feed/infrastructure/review-import-outbox-consumers'
-import { registerWorkflowNotificationConsumers } from '#/contexts/feed/infrastructure/workflow-outbox-consumers'
+import {
+  registerHandlingCycleNotificationConsumers,
+  registerWorkflowNotificationConsumers,
+} from '#/contexts/feed/infrastructure/inbox-notice-routes'
 
 import {
   ACTOR,

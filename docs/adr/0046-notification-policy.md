@@ -467,7 +467,7 @@ produced a 07:00 "Approve a reply" email: delivery re-checked the recipient's
 standing, never the state of the work. Three rules close that:
 
 1. **Actionable types settle.** The types that ask their reader for work are
-   named in `domain/notification-settlement.ts`. A settling fact — a reply
+   named in `domain/notification-actionable.ts`. A settling fact — a reply
    approved, rejected or published, an escalation resolved, a Handling Cycle
    closed, a responsible manager chosen again — retires every recipient's
    still-waiting row for its (type, resource) and cancels the mail queued
@@ -1013,7 +1013,7 @@ The same fact now also settles `reply.pending_approval`: the reply the request
 asked about is gone. The other four causes cancel a reply somebody already
 approved, so they meet no open request; if one is handled late, after the reply
 was submitted again, the work-state check keeps the new request because the
-reply is awaiting approval again (`application/notification-work-state.ts`).
+reply is awaiting approval again (`notify/settle.server.ts`).
 
 A plain AI draft nobody was asked about is removed without a fact or a notice.
 A dispatched AI-assisted reply that a guest edit returns to draft is emptied

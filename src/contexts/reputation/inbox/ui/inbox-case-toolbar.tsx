@@ -18,6 +18,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '#/components/ui/popover'
+import { useServedNow } from '#/components/hooks/served-clock'
 import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type {
@@ -114,8 +115,9 @@ const CLOCK_TICK_MS = 60_000
  * them ever change — and for a caller that supplied its own clock, so neither
  * starts an interval.
  */
-function useMinuteClock(isLive: boolean): Date {
-  const [now, setNow] = useState(() => new Date())
+export function useMinuteClock(isLive: boolean): Date {
+  const first = useServedNow()
+  const [now, setNow] = useState(first)
 
   useEffect(() => {
     if (!isLive) return undefined
@@ -297,7 +299,7 @@ function ReplyDueDetail({
       {/* `ml-auto` pushes the fact to the trailing edge; the underline sits on
           the words, not on the flex box, so the glyph is never underlined and
           no engine has to propagate a decoration into a flex item.
-          `min-h-8` / `max-md:min-h-9` match the group's height so the whole
+          `min-h-8` / `max-md:min-h-11` match the group's height so the whole
           row's height is one target tall — it costs no width, which is the
           budget that is actually short at 390 px.
 
@@ -320,7 +322,7 @@ function ReplyDueDetail({
       <PopoverTrigger
         aria-label={`${chip.label}. Show timing details`}
         className={cn(
-          'group/due ml-auto inline-flex min-h-8 shrink-0 cursor-help items-center gap-1.5 rounded-sm text-[13px] focus-ring max-md:min-h-9',
+          'group/due ml-auto inline-flex min-h-8 shrink-0 cursor-help items-center gap-1.5 rounded-sm text-[13px] focus-ring max-md:min-h-11',
           TONE_CLASS[chip.tone],
         )}
       >

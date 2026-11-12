@@ -27,7 +27,6 @@ export function ReplyMessagePublishAction({
 
   return (
     <ConfirmationDialog
-      density="compact"
       trigger={
         <Button
           size="sm"

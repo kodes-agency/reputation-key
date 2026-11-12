@@ -1,5 +1,4 @@
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PropertyGoogleReviewDestinationPublicApi } from '#/contexts/property/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type {
   OrganizationId,
@@ -9,20 +8,13 @@ import type {
 } from '#/shared/domain/ids'
 import { portalId as toPortalId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
-import type {
-  PortalApprovedDestinationRatioRecorded,
-  PortalConfigurationCompletenessRecorded,
-  PortalContentReviewCompleted,
-} from '../../domain/events'
+import type { PortalContentReviewCompleted } from '../../domain/events'
 import { portalError } from '../../domain/errors'
 import type { PortalRepository } from '../ports/portal.repository'
 import { assertPropertyAccess } from '../assert-property-access'
-import { findVerifiedGoogleReviewDestination } from '../portal-publication-readiness'
 
 export type PortalWorkflowSupersedes = Readonly<{
   contentReviewSourceEventId: string
-  configurationSourceEventId: string
-  destinationRatioSourceEventId: string
 }>
 
 export type PortalWorkflowFactCommand = Readonly<{
@@ -34,17 +26,9 @@ export type PortalWorkflowFactCommand = Readonly<{
   revision: number
   supersedes: PortalWorkflowSupersedes | null
   occurredAt: Date
-  /**
-   * The Property's Google review destination is verified, as this review found
-   * it: the one completeness field the Portal's own rows cannot answer.
-   */
-  googleReviewDestinationVerified: boolean
 }>
 
-export type PortalWorkflowFactEvent =
-  | PortalContentReviewCompleted
-  | PortalConfigurationCompletenessRecorded
-  | PortalApprovedDestinationRatioRecorded
+export type PortalWorkflowFactEvent = PortalContentReviewCompleted
 
 export type PortalWorkflowFactResult = Readonly<{
   status: 'recorded' | 'duplicate'
@@ -76,7 +60,6 @@ export type CompleteContentReviewDeps = Readonly<{
   portalRepo: PortalRepository
   staffPublicApi: StaffPublicApi
   portalGroupLookup: PortalGroupLookup
-  propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
   factStore: PortalWorkflowFactStore
   clock: () => Date
 }>
@@ -96,7 +79,7 @@ export const completeContentReview = (deps: CompleteContentReviewDeps) => {
       throw portalError('invalid_name', 'revision must be a positive integer')
     }
     if (input.revision > 1 && !input.supersedes) {
-      throw portalError('invalid_name', 'a correction must identify all superseded facts')
+      throw portalError('invalid_name', 'a correction must identify the superseded fact')
     }
     if (input.revision === 1 && input.supersedes) {
       throw portalError('invalid_name', 'an initial review cannot supersede another fact')
@@ -123,14 +106,11 @@ export const completeContentReview = (deps: CompleteContentReviewDeps) => {
     }
 
     const occurredAt = deps.clock()
-    const [group, googleReviewDestination] = await Promise.all([
-      deps.portalGroupLookup.findGroupForPortal(
-        ctx.organizationId,
-        portal.id,
-        occurredAt,
-      ),
-      findVerifiedGoogleReviewDestination(deps, ctx.organizationId, portal),
-    ])
+    const group = await deps.portalGroupLookup.findGroupForPortal(
+      ctx.organizationId,
+      portal.id,
+      occurredAt,
+    )
     if (group && group.propertyId !== portal.propertyId) {
       throw portalError('forbidden', 'Portal group attribution crosses property scope')
     }
@@ -144,7 +124,6 @@ export const completeContentReview = (deps: CompleteContentReviewDeps) => {
       revision: input.revision,
       supersedes: input.supersedes ?? null,
       occurredAt,
-      googleReviewDestinationVerified: googleReviewDestination !== null,
     })
   }
 }

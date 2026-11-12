@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { HandlingCycleNotificationFacts } from '../../application/ports/notification-inbox-item-lookup.port'
-import { createNotificationWorkState } from '../../application/notification-work-state'
+import { createNotificationWorkState } from '../../notify/settle.server'
 import {
   createSendEmailsHandler,
   type SendEmailJobData,

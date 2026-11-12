@@ -106,6 +106,7 @@ export function PortalGoalAddButton({ onOpen }: Readonly<{ onOpen: () => void }>
       type="button"
       variant="link"
       size="inline"
+      touch
       className="self-start text-sm"
       onClick={onOpen}
     >

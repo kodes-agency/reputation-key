@@ -65,8 +65,7 @@ import type {
   PrepareProviderInvocationInput,
 } from './provider-contracts'
 import type { ReplyBodyIssueCode } from '#/shared/domain/reply-body-lint-policy'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import type { AiOperationProfile } from '#/shared/ai-operation-profile-core'
+import type { AiOperationProfile } from '#/shared/ai-operation-profile'
 
 type Dependencies = Readonly<{
   profile: Pick<
@@ -77,7 +76,6 @@ type Dependencies = Readonly<{
   text: string
   evaluated: EvaluatedReviewLanguage
   sourceBytes: Uint8Array
-  requestBindingKeys: VersionedHmacKeyring
   safetyIdentifierKey: Uint8Array
   replyLanguageDetector: ReplyLanguageDetector
   provenanceKid: string
@@ -103,8 +101,7 @@ function assertPolicy(
     concrete.templateGroup !== target?.templateGroup ||
     request.replyProfileVersion !== REPLY_DRAFTING_V2_VERSIONS.profile ||
     !binding.replyDraftingV2 ||
-    !request.replyV2Frame ||
-    request.replyLocalFrame != null
+    !request.replyV2Frame
   )
     throw new GatewayPreparationError('invalid_request')
   if (
@@ -188,11 +185,11 @@ function acceptedBody(
   if (fence.capability !== 'reply_drafting')
     return refuseOutput(deps, 'profile_version_mismatch')
   return {
-    buildResponse: (receipt, grant) => {
+    buildResponse: (receipt, admission) => {
       if (
-        grant.replyTokenExpiresAtEpochMillis === null ||
-        grant.replyDraftExpiresAtEpochMillis === null ||
-        grant.replyTokenExpiresAtEpochMillis <= deps.now()
+        admission.replyTokenExpiresAtEpochMillis === null ||
+        admission.replyDraftExpiresAtEpochMillis === null ||
+        admission.replyTokenExpiresAtEpochMillis <= deps.now()
       ) {
         refuseOutput(deps, 'adoption_window_elapsed')
         throw new GatewayPreparationError('output_invalid')
@@ -206,7 +203,8 @@ function acceptedBody(
           organizationId: request.organizationId,
           propertyId: request.propertyId,
           reviewId: request.internalSubjectId,
-          requestBindingHmac: grant.requestBindingHmac,
+          executionPermitId: admission.permitId,
+          executionAttempt: admission.attemptNumber,
           sourceEpoch: binding.sourceEpoch,
           sourceRevision: binding.sourceRevision!,
           baseReplyStateRevision: fence.baseReplyStateRevision,
@@ -229,8 +227,8 @@ function acceptedBody(
           concreteLanguageTag: concrete.tag,
           templateGroup: concrete.templateGroup,
           renderedSuggestionDigest: digestRenderedReply(rendered.replyText),
-          tokenExpiresAtEpochMillis: grant.replyTokenExpiresAtEpochMillis,
-          draftExpiresAtEpochMillis: grant.replyDraftExpiresAtEpochMillis,
+          tokenExpiresAtEpochMillis: admission.replyTokenExpiresAtEpochMillis,
+          draftExpiresAtEpochMillis: admission.replyDraftExpiresAtEpochMillis,
         },
         deps.provenancePrivateKey,
       )
@@ -248,7 +246,7 @@ function acceptedBody(
             (tag) => tag === concrete.templateGroup,
           )!,
           provenanceToken,
-          expiresAtEpochMillis: grant.replyTokenExpiresAtEpochMillis,
+          expiresAtEpochMillis: admission.replyTokenExpiresAtEpochMillis,
           baseReplyStateRevision: fence.baseReplyStateRevision,
         },
       }
@@ -297,7 +295,6 @@ export function prepareReplyDraftingV2(
     sourceBytes: deps.sourceBytes,
     providerPayload,
     createDescriptor: deps.createDescriptor,
-    requestBindingKeys: deps.requestBindingKeys,
   })
   let issues: readonly ReplyBodyIssueCode[] = []
   let progressSink: ReplyDraftingProgressSink | undefined

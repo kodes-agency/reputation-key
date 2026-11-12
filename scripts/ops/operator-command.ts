@@ -55,6 +55,9 @@ type OperatorBoot = PolicyBoot & Readonly<{ container: Container }>
 // Loaded here, not at the top: `--help` and a refused argument list never
 // reach this, so they open no settings, database or queue.
 async function bootPolicyRuntime(env: () => Env): Promise<PolicyBoot> {
+  // Read first: the settings are cached on first read, and the pool built next
+  // reads them through `getEnv`, which would otherwise demand every setting.
+  const settings = env()
   const [
     { getDb },
     { buildCapabilityPolicyHandle },
@@ -66,7 +69,7 @@ async function bootPolicyRuntime(env: () => Env): Promise<PolicyBoot> {
   ])
   const handle = buildCapabilityPolicyHandle({
     db: getDb(),
-    env: env(),
+    env: settings,
     clock: () => new Date(),
   })
   // This is the ops process's one static policy installation. Tenant grants

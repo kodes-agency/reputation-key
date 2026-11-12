@@ -1,6 +1,7 @@
-// Applies committed schema history under one deployment advisory lock, then
-// initializes provider keys and the declared capability posture. A failed file
-// leaves earlier files durable; a rerun resumes from the journal.
+// Applies committed schema history, Better Auth's tables and concurrent indexes
+// included, under one deployment advisory lock, then initializes provider keys
+// and the declared capability posture. A failed file leaves earlier files
+// durable; a rerun resumes from the journal.
 
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -10,13 +11,11 @@ import { config as loadEnv } from 'dotenv'
 import { Client, type Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrateJournal } from '../src/shared/db/migrate-journal.server'
-import { buildRegisteredConcurrentIndexes } from '../src/shared/db/concurrent-index-sidecar'
 import { authorizeDeployMigrationRuntime } from '../src/shared/db/deploy-migration-runtime'
 import {
   deployFailureRecovery,
   deployMigrationStateRefusal,
   ImageOlderThanDatabaseError,
-  type DeploySchemaTrack,
 } from '../src/shared/db/migration-journal-state'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
 import type { Database } from '../src/shared/db'
@@ -79,6 +78,32 @@ function readDeclaredCapabilityPosture(): DeclaredCapabilityPosture | null {
 }
 
 /**
+ * The journal owns Better Auth's tables. A pinned runtime that expects a table
+ * or column the journal does not create would fail requests, so the deploy
+ * stops until a migration adds it. Imported only now: the schema runner reads
+ * whether the auth tables exist yet when it is constructed.
+ */
+async function assertBetterAuthSchemaCurrent(): Promise<void> {
+  const { auth } = await import('../src/shared/auth/auth-cli')
+  const { getMigrations } = await import('better-auth/db/migration')
+  try {
+    const pending = await getMigrations(auth.options)
+    const tables = pending.toBeCreated.map((table) => table.table)
+    const columns = pending.toBeAdded.flatMap((table) =>
+      Object.keys(table.fields).map((field) => `${table.table}.${field}`),
+    )
+    log('better auth schema', { missingTables: tables, missingColumns: columns })
+    if (tables.length > 0 || columns.length > 0) {
+      throw new Error(
+        'The pinned Better Auth expects tables or columns the journal does not create; add a migration for them',
+      )
+    }
+  } finally {
+    await (auth.options.database as Pool | undefined)?.end()
+  }
+}
+
+/**
  * A failure here happens with the schema already current, so it gets
  * its own recovery line rather than the migration one; the step still fails,
  * so the deploy is not promoted dark.
@@ -120,41 +145,18 @@ async function main(): Promise<void> {
   const posture = readDeclaredCapabilityPosture()
   if (!posture) return
 
-  const { auth } = await import('../src/shared/auth/auth-cli')
-  const { getMigrations } = await import('better-auth/db/migration')
   const lockKey = advisoryLockKey()
   const client = new Client({ connectionString: url })
   const migrationDb = drizzle(client)
-  // The schema track reached so far: a lock wait leaves a different state
-  // behind in each, and the recovery line says which.
-  let track: DeploySchemaTrack = 'better_auth'
   await client.connect()
   try {
     await client.query('SELECT pg_advisory_lock($1::bigint)', [lockKey.toString()])
     log('advisory lock acquired', { key: lockKey.toString() })
     try {
-      const authMigrations = await getMigrations(auth.options)
-      log('auth track pending', {
-        toBeCreated: authMigrations.toBeCreated.length,
-        toBeAdded: authMigrations.toBeAdded.length,
-      })
-      await authMigrations.runMigrations()
-      log('auth track applied')
-
-      track = 'journal'
       await migrateJournal(client, MIGRATIONS_FOLDER)
       log('journal applied')
 
-      const concurrentIndexes = await buildRegisteredConcurrentIndexes(client)
-      log('concurrent index sidecar', { results: concurrentIndexes })
-      const failedIndexes = concurrentIndexes.filter((result) => !result.ok)
-      if (failedIndexes.length > 0) {
-        throw new Error(
-          `Concurrent index sidecar denied: ${failedIndexes
-            .map((result) => `${result.name} (${result.code})`)
-            .join(', ')}`,
-        )
-      }
+      await assertBetterAuthSchemaCurrent()
 
       await initializeReviewProviderSubjectKeyInventoryFromEnvironment({
         db: migrationDb,
@@ -221,11 +223,10 @@ async function main(): Promise<void> {
     }
     console.error('[migrate-deploy] FAILED', err)
     console.error('[migrate-deploy] journal state at failure:', JSON.stringify(journal))
-    console.error(`[migrate-deploy] ${deployFailureRecovery(err, track)}`)
+    console.error(`[migrate-deploy] ${deployFailureRecovery(err)}`)
     process.exitCode = 1
   } finally {
     await client.end()
-    await (auth.options.database as Pool | undefined)?.end()
   }
 }
 

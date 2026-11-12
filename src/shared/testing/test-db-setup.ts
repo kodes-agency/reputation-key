@@ -9,8 +9,9 @@
 //
 // Apply sequence mirrors the ci.yml "Run migrations" step (deploy order, see
 // src/shared/db/CONTEXT.md):
-//   1. pnpm auth:migrate  — Better Auth tables via the pinned runtime
-//   2. pnpm db:migrate    — baseline, DB-only constructs, and seed
+//   1. pnpm auth:migrate  — Better Auth tables via the pinned runtime, which
+//                           the journal's auth file then adopts
+//   2. pnpm db:migrate    — the journal: baseline, constructs, seed, indexes
 //
 // Safety: the target passes validateTestDatabaseTarget (denylist + localhost
 // required unless ALLOW_REMOTE_TEST_DB=1) BEFORE any connection is opened —

@@ -1,20 +1,14 @@
 // Notification READS — TanStack Query. Mutations live in notification-mutations.ts.
 //
-// The badge count and list head are one snapshot and one polling query.
-// Previously the infinite list itself carried the interval, so TanStack Query
-// correctly re-requested every
-// loaded page to keep an infinite query consistent. That made a long-lived
-// notification page progressively more expensive. Page zero now has its own
-// ordinary query; loaded history is a disabled infinite query advanced only by
-// the user's "Load more" action. The two caches are merged by stable row id.
-// History pages are keyset pages that start where the head ends. A head poll
-// that no longer reaches them reads the rows between as one more page, so
-// loaded history survives arrivals; one that proves them stale, or a gap one
-// page cannot bridge, resets them rather than leave a gap between or rows the
-// server has since changed.
+// One polled head and one cursor list below it. The head (the first page, the
+// badge count and the filter's share, from one database snapshot) is the only
+// read on a timer. Older rows are read only on "Load more", strictly after the
+// head's last row, and are re-read to the depth loaded only when a head read
+// shows they no longer continue it (notification-feed-older.ts). Writes in
+// flight are applied over both at render (notification-feed-writes.ts).
 //
 // Polling is VISIBILITY-AWARE, using the query library's own primitives rather
-// than a hand-rolled `visibilitychange` listener (@tanstack/react-query 5.101):
+// than a hand-rolled `visibilitychange` listener (@tanstack/react-query 5.103):
 //
 //   - `refetchIntervalInBackground: false` — the interval tick only calls
 //     through to a fetch when `focusManager.isFocused()`
@@ -31,7 +25,13 @@
 // Deliberately NOT a push transport: SSE/websockets would need Redis fan-out
 // across replicas to be correct, and 30s polling is not the bottleneck today.
 
-import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import {
+  skipToken,
+  useMutationState,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { createKeys } from '#/shared/queries/query-keys'
 import type { TenantScope } from '#/shared/queries/tenant-scope'
 import {
@@ -39,20 +39,26 @@ import {
   type NotificationFormat,
 } from './notification-utils'
 import {
-  fetchHeadKeepingHistoryContiguous,
-  mergeNotificationHeadWithHistory,
   notificationHeadQueryOptions,
-  notificationHistoryQueryOptions,
-} from './notification-feed-pagination'
+  readHeadKeepingOlderTrue,
+} from './notification-feed-head'
+import {
+  loadOlderNotifications,
+  mergeNotificationRows,
+  type FetchNotificationPage,
+  type OlderNotifications,
+} from './notification-feed-older'
+import {
+  feedWritesKey,
+  pendingFeedWrite,
+  withPendingWrites,
+} from './notification-feed-writes'
 import type {
   getNotificationFeedHeadFn,
   getNotificationsFn,
   getNotificationUserSettingsFn,
 } from '#/contexts/feed/server/notifications'
-import type {
-  NotificationFeedCursor,
-  NotificationListFilter,
-} from '#/contexts/feed/application/public-api'
+import type { NotificationListFilter } from '#/contexts/feed/application/public-api'
 
 export function useNotifications(
   tenantScope: TenantScope,
@@ -67,51 +73,85 @@ export function useNotifications(
 ) {
   const { notificationKeys } = createKeys(tenantScope)
   const qc = useQueryClient()
-  const historyKey = notificationKeys.list(organizationId, limit, filter, propertyId)
+  const olderKey = notificationKeys.list(organizationId, limit, filter, propertyId)
   const headKey = notificationKeys.head(organizationId, limit, filter, propertyId)
   const scope = propertyId ? { propertyId } : {}
-  const fetchPage = (before: NotificationFeedCursor | null) =>
-    getList({ data: { limit, filter, ...scope, ...(before ? { before } : {}) } })
-  const fetchHead = fetchHeadKeepingHistoryContiguous(
+  const fetchPage: FetchNotificationPage = (before, pageLimit) =>
+    getList({ data: { limit: pageLimit, filter, ...scope, before } })
+  const fetchHead = readHeadKeepingOlderTrue(
     qc,
-    headKey,
-    historyKey,
+    olderKey,
     () => getFeedHead({ data: { limit, filter, ...scope } }),
     fetchPage,
+    limit,
   )
   const head = useQuery(notificationHeadQueryOptions(headKey, fetchHead, poll))
-  const history = useInfiniteQuery(
-    notificationHistoryQueryOptions(
-      historyKey,
-      fetchPage,
-      head.data?.page.nextCursor ?? null,
-    ),
+  // Written only by Load more and by head reads; never fetched on its own.
+  const older =
+    useQuery<OlderNotifications | null>({
+      queryKey: olderKey,
+      queryFn: skipToken,
+      staleTime: Infinity,
+    }).data ?? null
+  const writes = useMutationState({
+    filters: {
+      mutationKey: feedWritesKey(tenantScope, organizationId),
+      status: 'pending',
+    },
+    select: pendingFeedWrite,
+  })
+
+  const { userId, organizationId: scopeOrganizationId } = tenantScope
+  const view = useMemo(
+    () =>
+      withPendingWrites(
+        qc,
+        { userId, organizationId: scopeOrganizationId },
+        organizationId,
+        { filter, propertyId },
+        {
+          rows: mergeNotificationRows(head.data?.page, older?.rows),
+          unreadCount: head.data?.unreadCount ?? 0,
+          filterUnreadCount: head.data?.filterUnreadCount ?? 0,
+          hasMore: older ? older.nextCursor !== null : (head.data?.page.hasMore ?? false),
+        },
+        writes,
+      ),
+    [
+      qc,
+      userId,
+      scopeOrganizationId,
+      organizationId,
+      filter,
+      propertyId,
+      head.data,
+      older,
+      writes,
+    ],
   )
-  const historyPages = history.data?.pages ?? []
-  const hasLoadedHistory = historyPages.length > 0
-  const hasMore = hasLoadedHistory
-    ? history.hasNextPage
-    : (head.data?.page.hasMore ?? false)
+  const isLoadingMore = older?.isLoadingMore ?? false
+  const loadMore = () =>
+    void loadOlderNotifications(qc, olderKey, headKey, fetchPage, limit)
 
   return {
-    notifications: mergeNotificationHeadWithHistory(head.data?.page, historyPages),
-    unreadCount: head.data?.unreadCount ?? 0,
+    notifications: view.rows,
+    unreadCount: view.unreadCount,
     /** The unread rows this filter holds: what its "Mark all read" would change. */
-    filterUnreadCount: head.data?.filterUnreadCount ?? 0,
+    filterUnreadCount: view.filterUnreadCount,
     watermark: head.data?.watermark ?? null,
     // Placeholder data carries only the count; the rows are still loading.
     isLoading: head.isPending || head.isPlaceholderData,
-    isLoadingMore: history.isFetchingNextPage,
+    isLoadingMore,
     // Kept apart: a failed "Load more" must not hide the rows the head holds.
     error: head.error,
-    loadMoreError: history.error,
-    hasMore,
+    loadMoreError: older?.loadMoreError ?? null,
+    hasMore: view.hasMore,
     refetch: () => {
       void head.refetch()
-      if (history.isFetchNextPageError) void history.fetchNextPage()
+      if (older?.loadMoreError) loadMore()
     },
     loadMore: () => {
-      if (hasMore && !history.isFetchingNextPage) void history.fetchNextPage()
+      if (view.hasMore && !isLoadingMore) loadMore()
     },
   }
 }

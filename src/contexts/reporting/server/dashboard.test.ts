@@ -122,6 +122,16 @@ describe.each(reads)('$name', ({ useCase, call, asks }) => {
     })
   })
 
+  it('answers a Property too large for one read with a 422, not a retryable failure', async () => {
+    useCase.mockRejectedValue(dashboardError('too_many_portals', 'Too many portals'))
+
+    await expect(call()).rejects.toMatchObject({
+      _tag: 'DashboardError',
+      code: 'too_many_portals',
+      status: 422,
+    })
+  })
+
   it('reads nothing when the execution policy refuses first', async () => {
     mocks.requireExecutionAllowed.mockRejectedValue(
       new ServerFunctionError('AuthError', 'Not allowed', 'capability_disabled', 403),

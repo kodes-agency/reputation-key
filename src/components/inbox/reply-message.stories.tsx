@@ -37,6 +37,7 @@
 // The Vitest Storybook project compiles no Tailwind, so every utility class is
 // inert here. Nothing below asserts geometry — only content, roles, accessible
 // names and behaviour, which are real in this runner.
+import { Button } from '#/components/ui/button'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useEffect, useState } from 'react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
@@ -209,12 +210,13 @@ function ReplyMessageHost(
           )
         }}
       />
-      <button
+      <Button
         type="button"
+        variant="outline"
         onClick={() => setReply(makeReply({ id: replyId(IDS.nextReply) }))}
       >
         Open the next reply
-      </button>
+      </Button>
     </>
   )
 }
@@ -903,13 +905,17 @@ function ReplyCheckHost({
         isSaving={check.isPending}
         onCheck={() => check({ data: { reviewId: IDS.review } })}
       />
-      <button type="button" onClick={() => setReply(OTHER_NEEDS_CHECK_REPLY)}>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setReply(OTHER_NEEDS_CHECK_REPLY)}
+      >
         Open the next reply
-      </button>
+      </Button>
       {polled && (
-        <button type="button" onClick={() => setReply(polled)}>
+        <Button type="button" variant="outline" onClick={() => setReply(polled)}>
           Read the reply again
-        </button>
+        </Button>
       )}
       <Toaster />
     </>

@@ -1,8 +1,8 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { printFinalOpeningWording } from '#/shared/domain/portal-print-final-wording'
-import { PRINT_FINAL_COPY } from '#/shared/domain/portal-print-final-copy'
-import { PRINT_FINAL_SCAN_CUE } from '#/shared/domain/portal-print-final-cue'
+import { printOpeningWording } from '#/shared/domain/portal-print-wording'
+import { PRINT_COPY } from '#/shared/domain/portal-print-copy'
+import { PRINT_SCAN_CUE } from '#/shared/domain/portal-print-cue'
 import type { Portal } from '../domain/types'
 import type { PortalExperienceRepository } from './ports/portal-experience.repository'
 import type { PortalMediaAssetRepository } from './ports/portal-media-asset.repository'
@@ -93,12 +93,12 @@ export async function personalPortalWords(
     deps.wordingRepo.find(portal.organizationId, portal.id),
     deps.lastPrintRepo.find(portal.organizationId, portal.id),
   ])
-  const wording = printFinalOpeningWording(saved, last?.settings ?? null)
-  const copy = PRINT_FINAL_COPY[locale][wording.callToAction]
+  const wording = printOpeningWording(saved, last?.settings ?? null)
+  const copy = PRINT_COPY[locale][wording.callToAction]
   const own = wording.customWords?.[locale]
   return {
     headline: own?.headline ?? copy.headline,
     subline: own ? (own.subline ?? '') : copy.subline,
-    cue: PRINT_FINAL_SCAN_CUE[locale],
+    cue: PRINT_SCAN_CUE[locale],
   }
 }

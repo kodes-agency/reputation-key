@@ -508,6 +508,38 @@ describe('the month so far of the goals on the Goals list', () => {
     )
   })
 
+  it('gives each goal the figure of its own Portal when the reads finish out of order', async () => {
+    const goals = [1, 2, 3].map((index) =>
+      bundle({ id: `program-${index}`, subjects: [portal(`portal-${index}`)] }),
+    )
+    const finishing = new Map<string, () => void>()
+    const gate = (portalId: string) =>
+      new Promise<void>((resolve) => finishing.set(portalId, resolve))
+    const deps: GoalProgressDeps = {
+      reads: { list: async () => goals, get: vi.fn() },
+      metrics: {
+        queryGoalMetric: async (query) => {
+          const portalId = query.subject.kind === 'portal' ? query.subject.portalId : ''
+          await gate(portalId)
+          return counted(Number(portalId.replace('portal-', '')) * 10)
+        },
+      },
+      now: () => NOW,
+    }
+
+    const pending = createGoalListProgressReader(deps)(input, actor)
+    await vi.waitFor(() => expect(finishing.size).toBe(3))
+    for (const portalId of ['portal-3', 'portal-1', 'portal-2'])
+      finishing.get(portalId)?.()
+    const read = await pending
+
+    expect(read.map((goal) => [goal.programId, goal.month?.reading])).toEqual([
+      ['program-1', { kind: 'live', value: 10, sampleCount: 10 }],
+      ['program-2', { kind: 'live', value: 20, sampleCount: 20 }],
+      ['program-3', { kind: 'live', value: 30, sampleCount: 30 }],
+    ])
+  })
+
   it('keeps the order of the goals the Property lists', async () => {
     const { listProgress } = reader([
       bundle({ id: 'program-b' }),

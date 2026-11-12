@@ -52,7 +52,7 @@ import {
   inboxHandlingCycleReopened,
   inboxItemAssigned,
 } from '#/contexts/inbox/domain/events'
-import { createRetireMovedAssignment } from '../../application/retire-moved-assignment'
+import { createRetireMovedAssignment } from '../../notify/settle.server'
 import { parseNotificationPayload } from '../../domain/notification-payload'
 import { createNoticeWriter } from '../../notify/consumers.server'
 import { waitingWorkState } from '../jobs/test-fixtures'

@@ -1,8 +1,6 @@
 import { createHash } from 'node:crypto'
 import { measureReplyDraftingAttempt } from './measurement.server'
-import { AI_PERSONALIZED_REPLY_LANGUAGES } from '#/shared/ai-personalized-reply-contract'
 import type { AiOperationState } from '../application/ports/ai-operation-store.port'
-import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply-drafting-v2-schema'
 import { aiRequestFingerprint } from '../application/ai-workflow-support'
 import type {
   GenerateReplySuggestionDependencies,
@@ -33,11 +31,10 @@ export async function admitReplyDraft(
 
 export function reportReplyReading(
   input: GenerateReplySuggestionInput,
-  attempt?: ReplyDraftingV2Attempt,
+  attempt: ReplyDraftingV2Attempt,
   frame?: Readonly<{ prefix: string; suffix: string }>,
   reviewText?: string,
 ): void {
-  if (!attempt) return
   reportReplyProgress(
     input.onProgress,
     attempt.rewriteOrdinal === 1
@@ -70,21 +67,12 @@ type DraftingRequestDependencies = Pick<
 
 export function manageReplyDraftingRequests(
   deps: DraftingRequestDependencies,
-  attempt: ReplyDraftingV2Attempt | undefined,
+  attempt: ReplyDraftingV2Attempt,
   execute: (
     input: GenerateReplySuggestionInput,
   ) => Promise<GenerateReplySuggestionResult>,
 ): typeof execute {
   const measuredExecute = measureReplyDraftingAttempt(deps, attempt, execute)
-  if (!attempt)
-    return (input) =>
-      input.intent === 'background'
-        ? Promise.resolve({
-            status: 'unavailable',
-            code: 'policy_unavailable',
-            retryAfterEpochMillis: null,
-          })
-        : measuredExecute(input)
   if (attempt.rewriteOrdinal !== 0) return measuredExecute
   const active = new Map<string, ActiveDraft>()
   const generate = async (
@@ -180,10 +168,9 @@ async function runEligibleDraft(
 }
 
 export function replyProgressArguments(
-  attempt: ReplyDraftingV2Attempt | undefined,
   input: GenerateReplySuggestionInput,
-): [] | [ReplyDraftingProgressSink | undefined] {
-  return attempt ? [input.onProgress] : []
+): [ReplyDraftingProgressSink | undefined] {
+  return [input.onProgress]
 }
 
 export type DraftingRequestIdentity = Readonly<{
@@ -232,7 +219,6 @@ type DraftIdentityResolvers = Readonly<{
       >,
       { status: 'available' }
     >['observation'],
-    supported: ReadonlySet<string>,
   ): Promise<
     { kind: 'settled' } | { kind: 'draftable'; concreteReplyLanguage: { tag: string } }
   >
@@ -262,12 +248,7 @@ export async function isReplyDraftingIdentityCurrent(
     },
   })
   if (source.status !== 'available') return false
-  const language = await resolvers.language(
-    deps,
-    input,
-    source.observation,
-    new Set(REPLY_DRAFTING_V2_SERVED_LANGUAGES),
-  )
+  const language = await resolvers.language(deps, input, source.observation)
   const grant = await resolvers.grant(deps, input)
   return (
     language.kind === 'draftable' &&
@@ -276,10 +257,6 @@ export async function isReplyDraftingIdentityCurrent(
     grant.profile.profileVersion === profileVersion
   )
 }
-
-export const PERSONALIZED_LANGUAGE_SET: ReadonlySet<string> = new Set(
-  AI_PERSONALIZED_REPLY_LANGUAGES,
-)
 
 type ActiveDraft = {
   fingerprint: string

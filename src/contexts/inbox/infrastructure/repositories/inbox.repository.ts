@@ -409,38 +409,6 @@ export const createInboxRepository = (
       })
     },
 
-    countByStatus: async (
-      orgId: OrganizationId,
-      status: InboxStatus,
-      propertyIds?: ReadonlyArray<PropertyId>,
-      sourceScopes?: ReadonlyArray<InboxSourceScope>,
-    ) => {
-      return trace('inbox.countByStatus', async () => {
-        return countWhere(
-          db,
-          orgId,
-          propertyIds,
-          sourceScopes,
-          sql`${effectiveInboxStatus} = ${status}`,
-        )
-      })
-    },
-    countEscalatedActive: async (
-      orgId: OrganizationId,
-      propertyIds?: ReadonlyArray<PropertyId>,
-      sourceScopes?: ReadonlyArray<InboxSourceScope>,
-    ) => {
-      return trace('inbox.countEscalatedActive', async () => {
-        return countWhere(
-          db,
-          orgId,
-          propertyIds,
-          sourceScopes,
-          eq(inboxItems.isEscalated, true),
-          isNull(inboxItems.escalationResolvedAt),
-        )
-      })
-    },
     countOpenSince: async (
       orgId: OrganizationId,
       since: Date | null,

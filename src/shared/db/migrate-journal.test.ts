@@ -370,7 +370,7 @@ describe('migrateJournal', () => {
     await expect(migration).rejects.toThrow(/(?:applied|database|migration|journal)/i)
     await expect(migration).rejects.toMatchObject({ name: 'ImageOlderThanDatabaseError' })
     const recovery = await migration.catch((error: unknown) =>
-      deployFailureRecovery(error, 'journal'),
+      deployFailureRecovery(error),
     )
     expect(recovery).toContain('Forward-only recovery:')
     expect(recovery).not.toContain('the rerun converges')
@@ -406,7 +406,7 @@ describe('migrateJournal', () => {
     await expect(migration).rejects.toThrow(/(?:applied|database|migration|journal)/i)
     await expect(migration).rejects.toMatchObject({ name: 'ImageOlderThanDatabaseError' })
     const recovery = await migration.catch((error: unknown) =>
-      deployFailureRecovery(error, 'journal'),
+      deployFailureRecovery(error),
     )
     expect(recovery).toContain('Forward-only recovery:')
     expect(recovery).not.toContain('the rerun converges')

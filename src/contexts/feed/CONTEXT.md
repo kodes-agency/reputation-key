@@ -26,7 +26,7 @@ own source review, inbox, property, portal, identity, or goal state.
 - The notification audience may read Goal monthly-result facts only through
   Goal's application public API.
 - Whether a notice's work still waits is asked of the context that owns it,
-  through `application/notification-work-state.ts` (built into the delivery
+  through `notify/settle.server.ts` (built into the delivery
   processors in `infrastructure/jobs/notification-delivery-processors.ts`, which
   pass it to the insert, immediate-email and digest jobs): Inbox's lookups, Review's reply state through
   `ReplyWorkStateLookupPort` (`review.lookups.reply.findStatesByReviewIds`,
@@ -292,16 +292,18 @@ times.").
 Pages below the polled head continue by keyset, never by offset: each page
 carries a server-minted `nextCursor` (the last row's latest-activity instant to
 the microsecond, and its id), and the next page reads strictly after it. Rows
-arriving or leaving above a page cannot shift it. The head is bounded, so when
-a refreshed head no longer reaches the loaded history the client reads the rows
-between them as one more page and keeps every page the user loaded; only when
-one page cannot bridge that gap (or its read fails) does it reset that history,
-and "Load more" continues from the head's own cursor. Loaded history is never
-re-read, so the client also resets it when a refreshed head proves it stale:
-the head is the whole feed, or the rows on screen hold more still-waiting rows
-than the unread count. An optimistic write patches every cached feed of the
-Organization (the bell's and the page's, every filter), not only the surface
-that acted, and a "Load more" it interrupts is asked for again.
+arriving or leaving above a page cannot shift it. The browser keeps one polled
+head and, below it, one older list read only on "Load more". The older list is
+never polled: a head read whose last row is no longer where the list starts,
+or that proves it stale (the head is the whole feed, or the rows on screen hold
+more still-waiting rows than the unread count), re-reads it from the head down
+to the depth already loaded; if that read fails the list goes and "Load more"
+continues from the head's own cursor. Changes to one list run one at a time.
+A write in flight is applied over every surface (the bell's and the page's,
+every filter) from the mutation cache, never written into the cached reads,
+and stops applying once the feed has been read again after it settles; a
+confirmed write is then applied to the older lists, and an Undo or a failed
+write marks them for the next head read to re-read.
 
 In the browser "unread" means still waiting (`isStillWaiting`, exported from
 the public API and matching the repository's rule): the badge, the Unread tab,
@@ -497,7 +499,7 @@ and to the AccountAdmins who were told it was raised — proved by Feed's own
 item's current `escalated_at` — and to nobody who was not.
 
 A notice that asks its reader for work stops asking once the work is done.
-The actionable types are named in `domain/notification-settlement.ts` — the
+The actionable types are named in `domain/notification-actionable.ts` — the
 arrivals (`review.created`, `review.updated`, `feedback.created`) included;
 the settlement consumers retire every recipient's still-waiting row for a
 (type, resource) when the finishing fact arrives and cancel the still-sendable
@@ -508,7 +510,7 @@ still its item's open head. Settling stamps
 `resolvedAt` and leaves `status` alone, because read is not resolved: a
 settled row leaves the unread count and the Unread tab and stays in the feed
 under a "Done" marker; a repeat on the resource is a new row. The work itself
-is asked (`application/notification-work-state.ts`) before a notice is
+is asked (`notify/settle.server.ts`) before a notice is
 written (finished work settles the delivery as obsolete, with no row), before
 its email or digest line leaves, and before a settling fact retires a type,
 so a request made again since keeps its notice. Immediately before the

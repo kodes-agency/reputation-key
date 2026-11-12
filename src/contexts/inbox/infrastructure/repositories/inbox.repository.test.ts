@@ -386,7 +386,7 @@ describe('inbox repository — active Handling Cycle authority', () => {
       await expect(repo.findById(orphan.id, ORG_A)).resolves.toBeNull()
       await expect(repo.findByIds([orphan.id], ORG_A)).resolves.toEqual([])
       await expect(repo.findDetailById(orphan.id, ORG_A)).resolves.toBeNull()
-      await expect(repo.countByStatus(ORG_A, 'open')).resolves.toBe(0)
+      await expect(repo.countFiltered({ status: 'open' }, ORG_A)).resolves.toBe(0)
       await expect(repo.findFilteredPaginated({}, ORG_A)).resolves.toMatchObject({
         items: [],
         totalCount: 0,
@@ -422,8 +422,8 @@ describe('inbox repository — active Handling Cycle authority', () => {
       await expect(repo.findDetailById(item.id, ORG_A)).resolves.toMatchObject({
         item: expect.objectContaining({ status: 'open' }),
       })
-      await expect(repo.countByStatus(ORG_A, 'open')).resolves.toBe(1)
-      await expect(repo.countByStatus(ORG_A, 'closed')).resolves.toBe(0)
+      await expect(repo.countFiltered({ status: 'open' }, ORG_A)).resolves.toBe(1)
+      await expect(repo.countFiltered({ status: 'closed' }, ORG_A)).resolves.toBe(0)
       await expect(
         repo.findFilteredPaginated({ status: 'open' }, ORG_A),
       ).resolves.toMatchObject({
@@ -665,10 +665,10 @@ describe('inbox repository — count by status', () => {
       makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'closed' }),
     )
 
-    const newCount = await repo.countByStatus(ORG_A, 'open')
+    const newCount = await repo.countFiltered({ status: 'open' }, ORG_A)
     expect(newCount).toBe(2)
 
-    const addressedCount = await repo.countByStatus(ORG_A, 'closed')
+    const addressedCount = await repo.countFiltered({ status: 'closed' }, ORG_A)
     expect(addressedCount).toBe(1)
   })
 
@@ -692,13 +692,25 @@ describe('inbox repository — count by status', () => {
 
     await expect(
       Promise.all([
-        repo.countByStatus(ORG_A, 'open', undefined, [{ sourceType: 'review' }]),
-        repo.countEscalatedActive(ORG_A, undefined, [{ sourceType: 'review' }]),
+        repo.countFiltered(
+          { status: 'open', sourceScopes: [{ sourceType: 'review' }] },
+          ORG_A,
+        ),
+        repo.countFiltered(
+          { isEscalated: true, sourceScopes: [{ sourceType: 'review' }] },
+          ORG_A,
+        ),
         repo.countOpenSince(ORG_A, null, undefined, [{ sourceType: 'review' }]),
-        repo.countByStatus(ORG_A, 'open', undefined, [{ sourceType: 'feedback' }]),
-        repo.countEscalatedActive(ORG_A, undefined, [{ sourceType: 'feedback' }]),
+        repo.countFiltered(
+          { status: 'open', sourceScopes: [{ sourceType: 'feedback' }] },
+          ORG_A,
+        ),
+        repo.countFiltered(
+          { isEscalated: true, sourceScopes: [{ sourceType: 'feedback' }] },
+          ORG_A,
+        ),
         repo.countOpenSince(ORG_A, null, undefined, [{ sourceType: 'feedback' }]),
-        repo.countByStatus(ORG_A, 'open', undefined, []),
+        repo.countFiltered({ status: 'open', sourceScopes: [] }, ORG_A),
       ]),
     ).resolves.toEqual([1, 0, 1, 1, 1, 1, 0])
   })
@@ -731,7 +743,7 @@ describe('inbox repository — count by status', () => {
     ]
 
     const [count, page] = await Promise.all([
-      repo.countByStatus(ORG_A, 'open', undefined, sourceScopes),
+      repo.countFiltered({ status: 'open', sourceScopes }, ORG_A),
       repo.findFilteredPaginated({ sourceScopes }, ORG_A, undefined, 50),
     ])
 
@@ -1790,12 +1802,12 @@ describe('inbox repository — tenant isolation', () => {
     expect(result.totalCount).toBe(0)
   })
 
-  it('countByStatus returns 0 for different org', async () => {
+  it('countFiltered returns 0 for a status in a different org', async () => {
     await repo.seedItem(
       makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'open' }),
     )
 
-    const count = await repo.countByStatus(ORG_B, 'open')
+    const count = await repo.countFiltered({ status: 'open' }, ORG_B)
     expect(count).toBe(0)
   })
 
@@ -1810,8 +1822,8 @@ describe('inbox repository — tenant isolation', () => {
 
     await expect(
       Promise.all([
-        repo.countByStatus(ORG_A, 'open', []),
-        repo.countEscalatedActive(ORG_A, []),
+        repo.countFiltered({ status: 'open', propertyIds: [] }, ORG_A),
+        repo.countFiltered({ isEscalated: true, propertyIds: [] }, ORG_A),
         repo.countOpenSince(ORG_A, null, []),
       ]),
     ).resolves.toEqual([0, 0, 0])

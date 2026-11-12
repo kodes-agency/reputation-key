@@ -19,6 +19,7 @@ import {
 } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { replyDynamicDeveloperBytes } from '#/shared/reply-drafting-v2-request'
 import { maximumCostMicros, settledCostMicros } from '#/shared/ai-openai-provider-profile'
 import type {
   AiAdmissionDescriptorV1,
@@ -26,11 +27,13 @@ import type {
 } from '#/shared/ai-internal-transport-contract'
 import {
   AI_REPLY_OPERATION_PROFILE,
+  AI_REPLY_V2_DEFAULT_BINDING,
   installAiOperationFixture,
   type AiOperationFixture,
 } from '#/shared/db/testing/ai-operation-fixture'
 import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/ai-reply-provenance'
 import { createAiBudgetControl, reapStaleAiReservations } from '#/shared/db/ai/ai-budget'
+import { isMintedAiExecutionAdmission } from '#/shared/ai-provider-control/execution-admission'
 import { createAiExecutionAdmissionAdapter } from './ai-execution-admission.adapter'
 
 type PropertyDescriptor = Extract<AiAdmissionDescriptorV1, { subjectKind: 'property' }>
@@ -40,18 +43,35 @@ const NOW = new Date(Date.now() - 60_000)
 const ORGANIZATION_ID = organizationId('ai-admission-test-org')
 const PROPERTY_ID = propertyId('76000000-0000-4000-8000-000000000001')
 const SCOPE: Scope = { organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID }
-const SIGNING_KID = 'grant-v1'
+/** What the previous release wrote beside its reservation. */
+const PREVIOUS_RELEASE_GRANT_KID = 'grant-v1'
 
 const SOURCE_DIGEST = 'd'.repeat(64)
 const SOURCE_BYTES = 40
 const PAYLOAD_BYTES = 512
-const BINDING = { keyId: 'binding-v1', hmac: 'A'.repeat(43) } as const
+const PREVIOUS_RELEASE_BINDING = { keyId: 'binding-v1', hmac: 'A'.repeat(43) } as const
+const NO_HANDSHAKE_COLUMNS = {
+  admissionNonce: null,
+  requestBindingKeyId: null,
+  requestBindingHmac: null,
+  grantKid: null,
+} as const
 
 const replyProfile = AI_OPERATION_PROFILES.find(
   (candidate) => candidate.profileVersion === AI_REPLY_OPERATION_PROFILE.profileVersion,
 )
 if (!replyProfile) throw new Error('reply-suggestion profile is not registered')
-const RESERVED = maximumCostMicros(replyProfile, PAYLOAD_BYTES)
+// A reply v2 request carries a per-request part of its prompt that the profile's
+// static figure does not include; admission prices it in.
+const RESERVED = maximumCostMicros(
+  {
+    ...replyProfile,
+    staticTokenBearingBytes:
+      replyProfile.staticTokenBearingBytes +
+      replyDynamicDeveloperBytes(replyProfile.profileVersion),
+  },
+  PAYLOAD_BYTES,
+)
 
 function descriptor(
   input: { operationId: string; permitId: string; attemptNumber?: number },
@@ -110,6 +130,7 @@ function descriptor(
       },
       providerDeploymentProfileVersion:
         AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion,
+      replyDraftingV2: AI_REPLY_V2_DEFAULT_BINDING,
       operationProfileVersion: AI_REPLY_OPERATION_PROFILE.profileVersion,
       capabilityRuntimeProfileVersion:
         AI_REPLY_OPERATION_PROFILE.capabilityRuntimeProfileVersion,
@@ -143,14 +164,13 @@ function descriptor(
 }
 
 function settlement(
-  input: { operationId: string; permitId: string; nonce: string; attemptNumber?: number },
+  input: { operationId: string; permitId: string; attemptNumber?: number },
   usage: { inputTokens: number; cachedInputTokens: number; outputTokens: number },
 ): AiSettlementRequestV1 {
   return {
     operationId: input.operationId,
     permitId: input.permitId,
     attemptNumber: input.attemptNumber ?? 1,
-    nonce: input.nonce,
     disposition: 'success',
     reportedDisposition: 'success',
     providerRetryable: false,
@@ -161,17 +181,15 @@ function settlement(
   }
 }
 
-/** What the gateway settles when it withheld dispatch (e.g. the grant TTL was too short). */
+/** What the gateway settles when it withheld dispatch (e.g. too little time was left). */
 function noDispatch(input: {
   operationId: string
   permitId: string
-  nonce: string
 }): AiSettlementRequestV1 {
   return {
     operationId: input.operationId,
     permitId: input.permitId,
     attemptNumber: 1,
-    nonce: input.nonce,
     disposition: 'no_dispatch',
     reportedDisposition: 'no_dispatch',
     providerRetryable: false,
@@ -187,16 +205,16 @@ function noDispatch(input: {
 const db = getDb()
 const authority = createAiExecutionAdmissionAdapter({
   pool: getPool(),
-  signingKid: SIGNING_KID,
   now: () => NOW,
 })
 
-async function settle(request: AiSettlementRequestV1, grantKid: string) {
-  const { operationId, permitId, attemptNumber, nonce, ...outcome } = request
-  return authority.settle(
-    { operationId, permitId, attemptNumber, nonce, grantKid },
-    outcome,
-  )
+/** The settlement, with its receipt's fields beside the status. */
+async function settle(request: AiSettlementRequestV1) {
+  const { operationId, permitId, attemptNumber, ...outcome } = request
+  const result = await authority.settle({ operationId, permitId, attemptNumber }, outcome)
+  return result.status === 'settled'
+    ? { status: result.status, ...result.receipt }
+    : result
 }
 
 async function costWindow(organization: string = ORGANIZATION_ID) {
@@ -215,6 +233,7 @@ async function operationRow(operationId: string) {
     .select({
       reviewId: aiOperations.reviewId,
       admissionNonce: aiOperations.admissionNonce,
+      requestBindingKeyId: aiOperations.requestBindingKeyId,
       requestBindingHmac: aiOperations.requestBindingHmac,
       grantKid: aiOperations.grantKid,
       costWindowId: aiOperations.costWindowId,
@@ -287,43 +306,35 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
     return { operationId, permitId }
   }
 
-  it('admits the executing attempt once; a repeat with the same binding is refused, not replayed', async () => {
+  it('admits the executing attempt once, writing none of the handshake columns; a repeat is refused, not replayed', async () => {
     const subject = await executingOperation()
 
-    const granted = await authority.authorizeProperty(descriptor(subject), BINDING)
+    const granted = await authority.authorize(descriptor(subject))
     expect(granted).toMatchObject({
       status: 'admitted',
-      issuedAtEpochMillis: NOW.getTime(),
-      expiresAtEpochMillis: NOW.getTime() + 70_000,
+      admission: {
+        operationId: subject.operationId,
+        permitId: subject.permitId,
+        attemptNumber: 1,
+        issuedAtEpochMillis: NOW.getTime(),
+        expiresAtEpochMillis: NOW.getTime() + 70_000,
+      },
     })
     if (granted.status !== 'admitted') throw new Error('unreachable')
-    expect(granted.nonce).not.toBe('')
+    expect(isMintedAiExecutionAdmission(granted.admission)).toBe(true)
     const admittedWindow = await costWindow()
 
-    // Another process holds its own grant registry: replaying the nonce to it
-    // would dispatch a second time against one reservation.
-    await expect(
-      authority.authorizeProperty(descriptor(subject), BINDING),
-    ).resolves.toEqual({
+    // Another process holds its own admissions: admitting again would dispatch
+    // a second time against one reservation.
+    await expect(authority.authorize(descriptor(subject))).resolves.toEqual({
       status: 'denied',
       code: 'already_consumed',
     })
     await expect(
-      authority.authorizeProperty(descriptor(subject), {
-        ...BINDING,
-        hmac: 'B'.repeat(43),
-      }),
-    ).resolves.toEqual({ status: 'denied', code: 'already_consumed' })
-    await expect(
-      authority.authorizeProperty(
-        { ...descriptor(subject), permitId: randomUUID() },
-        BINDING,
-      ),
+      authority.authorize({ ...descriptor(subject), permitId: randomUUID() }),
     ).resolves.toEqual({ status: 'denied', code: 'subject_mismatch' })
     await expect(operationRow(subject.operationId)).resolves.toMatchObject({
-      admissionNonce: granted.nonce,
-      grantKid: SIGNING_KID,
-      requestBindingHmac: BINDING.hmac,
+      ...NO_HANDSHAKE_COLUMNS,
       reservedMicros: RESERVED,
     })
     await expect(costWindow()).resolves.toEqual(admittedWindow)
@@ -334,8 +345,8 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
     const before = await costWindow()
 
     const results = await Promise.all([
-      authority.authorizeProperty(descriptor(subject), BINDING),
-      authority.authorizeProperty(descriptor(subject), BINDING),
+      authority.authorize(descriptor(subject)),
+      authority.authorize(descriptor(subject)),
     ])
 
     expect(results.filter((result) => result.status === 'admitted')).toHaveLength(1)
@@ -355,15 +366,15 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
   it('issues a reply adoption window that outlives the provider request deadline', async () => {
     const subject = await executingOperation()
 
-    const granted = await authority.authorizeProperty(descriptor(subject), BINDING)
+    const granted = await authority.authorize(descriptor(subject))
     if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
 
-    expect(granted.expiresAtEpochMillis).toBe(NOW.getTime() + 70_000)
-    expect(granted.replyTokenExpiresAtEpochMillis).toBe(
+    expect(granted.admission.expiresAtEpochMillis).toBe(NOW.getTime() + 70_000)
+    expect(granted.admission.replyTokenExpiresAtEpochMillis).toBe(
       NOW.getTime() + AI_REPLY_ADOPTION_WINDOW_MILLIS,
     )
-    expect(granted.replyDraftExpiresAtEpochMillis).toBe(
-      granted.replyTokenExpiresAtEpochMillis,
+    expect(granted.admission.replyDraftExpiresAtEpochMillis).toBe(
+      granted.admission.replyTokenExpiresAtEpochMillis,
     )
   })
 
@@ -381,13 +392,10 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
       expiresAt: new Date(NOW.getTime() + 90_000),
     })
 
-    const granted = await authority.authorizeProperty(
-      descriptor({ operationId, permitId }),
-      BINDING,
-    )
+    const granted = await authority.authorize(descriptor({ operationId, permitId }))
     if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
 
-    expect(granted.replyTokenExpiresAtEpochMillis).toBe(NOW.getTime() + 90_000)
+    expect(granted.admission.replyTokenExpiresAtEpochMillis).toBe(NOW.getTime() + 90_000)
   })
 
   it('refuses an operation that is not executing', async () => {
@@ -400,7 +408,7 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
       sourceByteCount: SOURCE_BYTES,
     })
     await expect(
-      authority.authorizeProperty(descriptor({ operationId, permitId }), BINDING),
+      authority.authorize(descriptor({ operationId, permitId })),
     ).resolves.toEqual({ status: 'denied', code: 'subject_mismatch' })
   })
 
@@ -413,9 +421,10 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
         .set({ profileVersion: 2 })
         .where(eq(aiPropertyProcessingProfiles.propertyId, PROPERTY_ID))
       try {
-        await expect(
-          authority.authorizeProperty(descriptor(subject), BINDING),
-        ).resolves.toEqual({ status: 'denied', code: 'authorization_changed' })
+        await expect(authority.authorize(descriptor(subject))).resolves.toEqual({
+          status: 'denied',
+          code: 'authorization_changed',
+        })
         await expectNothingReserved(subject.operationId, before)
       } finally {
         await db
@@ -432,24 +441,26 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
         executionState: 'killed',
         admissionState: 'draining',
       })
-      await expect(
-        authority.authorizeProperty(descriptor(claimedBefore), BINDING),
-      ).resolves.toEqual({ status: 'denied', code: 'control_disabled' })
+      await expect(authority.authorize(descriptor(claimedBefore))).resolves.toEqual({
+        status: 'denied',
+        code: 'control_disabled',
+      })
 
       // Re-opened: accepting again, but under a generation the claim never saw.
       await fixture.setCapabilityControl({
         executionState: 'enabled',
         admissionState: 'accepting',
       })
-      await expect(
-        authority.authorizeProperty(descriptor(claimedBefore), BINDING),
-      ).resolves.toEqual({ status: 'denied', code: 'authorization_changed' })
+      await expect(authority.authorize(descriptor(claimedBefore))).resolves.toEqual({
+        status: 'denied',
+        code: 'authorization_changed',
+      })
       await expectNothingReserved(claimedBefore.operationId, before)
 
       const claimedAfter = await executingOperation()
-      await expect(
-        authority.authorizeProperty(descriptor(claimedAfter), BINDING),
-      ).resolves.toMatchObject({ status: 'admitted' })
+      await expect(authority.authorize(descriptor(claimedAfter))).resolves.toMatchObject({
+        status: 'admitted',
+      })
     })
 
     it.each([
@@ -489,9 +500,10 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
       const before = await costWindow()
       await move(reviewId)
 
-      await expect(
-        authority.authorizeProperty(descriptor(subject), BINDING),
-      ).resolves.toEqual({ status: 'denied', code: 'source_mismatch' })
+      await expect(authority.authorize(descriptor(subject))).resolves.toEqual({
+        status: 'denied',
+        code: 'source_mismatch',
+      })
       await expectNothingReserved(subject.operationId, before)
       await db.execute(sql`DELETE FROM replies WHERE review_id = ${reviewId}::uuid`)
     })
@@ -509,7 +521,7 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
         await hold.released
       })
       await changed.released
-      const admission = authority.authorizeProperty(descriptor(subject), BINDING)
+      const admission = authority.authorize(descriptor(subject))
       await untilALockWaits()
       hold.release()
       await change
@@ -537,7 +549,7 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
         await holdReview.released
       })
       await reviewHeld.released
-      const admission = authority.authorizeProperty(descriptor(subject), BINDING)
+      const admission = authority.authorize(descriptor(subject))
       await untilALockWaits()
       const revoke = fixture.changeConsent('revoke')
       await expect(
@@ -552,9 +564,7 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
       await expect(admission).resolves.toMatchObject({ status: 'admitted' })
       await expect(revoke).resolves.toBeUndefined()
       const after = await executingOperation()
-      await expect(
-        authority.authorizeProperty(descriptor(after), BINDING),
-      ).resolves.toEqual({
+      await expect(authority.authorize(descriptor(after))).resolves.toEqual({
         status: 'denied',
         code: 'authorization_changed',
       })
@@ -595,7 +605,7 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
     return { operationId, permitId }
   }
   const admit = async (subject: { operationId: string; permitId: string }) => {
-    const granted = await authority.authorizeProperty(descriptor(subject, scope), BINDING)
+    const granted = await authority.authorize(descriptor(subject, scope))
     if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
     return granted
   }
@@ -615,86 +625,89 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
     operationId: string
     permitId: string
     attemptNumber: number
-  }) =>
-    authority.authorizeProperty(descriptor(next, scope), {
-      ...BINDING,
-      hmac: 'C'.repeat(43),
-    })
+  }) => authority.authorize(descriptor(next, scope))
 
-  it('settles a granted operation from usage once and refuses a different cost afterwards', async () => {
+  it('settles an admitted operation from usage once and refuses any later settlement', async () => {
     const subject = await executingOperation()
-    const granted = await admit(subject)
+    await admit(subject)
     const usage = { inputTokens: 1_000, cachedInputTokens: 200, outputTokens: 300 }
     const cost = Number(settledCostMicros(usage))
 
-    await expect(
-      settle(settlement({ ...subject, nonce: granted.nonce }, usage), SIGNING_KID),
-    ).resolves.toMatchObject({
+    await expect(settle(settlement(subject, usage))).resolves.toMatchObject({
       status: 'settled',
       costMicros: cost,
       settlementState: 'settled',
-      grantKid: SIGNING_KID,
-      requestBindingHmac: BINDING.hmac,
+    })
+    const settled = await window()
+    // The receipt names the attempt; the handshake columns stay empty.
+    await expect(operationRow(subject.operationId)).resolves.toMatchObject({
+      ...NO_HANDSHAKE_COLUMNS,
+      actualMicros: cost,
+    })
+    // The reservation is closed: neither the same nor another cost settles again.
+    await expect(settle(settlement(subject, usage))).resolves.toEqual({
+      status: 'denied',
+      code: 'settlement_conflict',
     })
     await expect(
-      settle(settlement({ ...subject, nonce: granted.nonce }, usage), SIGNING_KID),
-    ).resolves.toMatchObject({ status: 'settled', costMicros: cost })
-    await expect(
-      settle(
-        settlement({ ...subject, nonce: granted.nonce }, { ...usage, outputTokens: 301 }),
-        SIGNING_KID,
-      ),
+      settle(settlement(subject, { ...usage, outputTokens: 301 })),
     ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
     await expect(
-      settle(
-        settlement({ ...subject, nonce: 'someone-elses-nonce' }, usage),
-        SIGNING_KID,
-      ),
+      settle(settlement({ ...subject, permitId: randomUUID() }, usage)),
     ).resolves.toEqual({ status: 'denied', code: 'permit_mismatch' })
+    await expect(window()).resolves.toEqual(settled)
+  })
+
+  it('refuses to settle an executing attempt that was never admitted', async () => {
+    const subject = await executingOperation()
+    const before = await window()
     await expect(
-      settle(settlement({ ...subject, nonce: granted.nonce }, usage), 'grant-v2'),
-    ).resolves.toEqual({ status: 'denied', code: 'permit_mismatch' })
+      settle(
+        settlement(subject, { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 }),
+      ),
+    ).resolves.toEqual({ status: 'denied', code: 'permit_not_consumed' })
+    await expect(window()).resolves.toEqual(before)
   })
 
   it('refuses a malformed operation ID without changing the budget', async () => {
     const subject = await executingOperation()
-    const granted = await admit(subject)
+    await admit(subject)
     const before = await window()
     await expect(
       settle(
         settlement(
-          { ...subject, operationId: 'not-a-uuid', nonce: granted.nonce },
+          { ...subject, operationId: 'not-a-uuid' },
           { inputTokens: 1_000, cachedInputTokens: 200, outputTokens: 300 },
         ),
-        SIGNING_KID,
       ),
     ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
     await expect(window()).resolves.toEqual(before)
   })
 
-  it.each(['someone-elses-nonce', 'YW5vdGhlci1ub25jZQ'])(
-    'refuses a different nonce before and after settlement without changing the budget: %s',
-    async (nonce) => {
+  it.each([
+    ['another permit', { permitId: '76000000-0000-4000-8000-0000000000ff' }],
+    ['another attempt', { attemptNumber: 2 }],
+  ] as const)(
+    'refuses %s before and after settlement without changing the budget',
+    async (_name, mismatch) => {
       const subject = await executingOperation()
-      const granted = await admit(subject)
+      await admit(subject)
       const usage = { inputTokens: 1_000, cachedInputTokens: 200, outputTokens: 300 }
-      const mismatched = settlement({ ...subject, nonce }, usage)
+      const mismatched = settlement({ ...subject, ...mismatch }, usage)
 
       const reserved = await window()
-      await expect(settle(mismatched, SIGNING_KID)).resolves.toEqual({
+      await expect(settle(mismatched)).resolves.toEqual({
         status: 'denied',
         code: 'permit_mismatch',
       })
       await expect(window()).resolves.toEqual(reserved)
 
-      await expect(
-        settle(settlement({ ...subject, nonce: granted.nonce }, usage), SIGNING_KID),
-      ).resolves.toMatchObject({
+      await expect(settle(settlement(subject, usage))).resolves.toMatchObject({
         status: 'settled',
         costMicros: Number(settledCostMicros(usage)),
       })
       const settled = await window()
-      await expect(settle(mismatched, SIGNING_KID)).resolves.toEqual({
+      await expect(settle(mismatched)).resolves.toEqual({
         status: 'denied',
         code: 'permit_mismatch',
       })
@@ -708,11 +721,12 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
     { inputTokens: 1.5, cachedInputTokens: 0, outputTokens: 1 },
   ])('refuses invalid usage without settling the budget: %j', async (usage) => {
     const subject = await executingOperation()
-    const granted = await admit(subject)
+    await admit(subject)
     const before = await window()
-    await expect(
-      settle(settlement({ ...subject, nonce: granted.nonce }, usage), SIGNING_KID),
-    ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
+    await expect(settle(settlement(subject, usage))).resolves.toEqual({
+      status: 'denied',
+      code: 'settlement_conflict',
+    })
     await expect(window()).resolves.toEqual(before)
     await expect(operationRow(subject.operationId)).resolves.toMatchObject({
       budgetSettledAt: null,
@@ -729,35 +743,31 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
     ['provider_unavailable', 'provider_unavailable', 'settled'],
     ['output_invalid', 'success', 'settled'],
   ] as const)(
-    'charges unknown usage (%s) at the reservation and rejects a later lower-cost settlement',
+    'charges unknown usage (%s) at the reservation and rejects any later settlement',
     async (disposition, reportedDisposition, settlementState) => {
       const subject = await executingOperation()
-      const granted = await admit(subject)
+      await admit(subject)
       const { reservedMicros } = await operationRow(subject.operationId)
       expect(reservedMicros).toBeGreaterThan(0)
       const unknown = {
-        ...noDispatch({ ...subject, nonce: granted.nonce }),
+        ...noDispatch(subject),
         disposition,
         reportedDisposition,
       }
 
-      await expect(settle(unknown, SIGNING_KID)).resolves.toMatchObject({
+      await expect(settle(unknown)).resolves.toMatchObject({
         status: 'settled',
         usageKnown: false,
         costMicros: reservedMicros,
         settlementState,
       })
-      await expect(settle(unknown, SIGNING_KID)).resolves.toMatchObject({
-        status: 'settled',
-        costMicros: reservedMicros,
+      await expect(settle(unknown)).resolves.toEqual({
+        status: 'denied',
+        code: 'settlement_conflict',
       })
       await expect(
         settle(
-          settlement(
-            { ...subject, nonce: granted.nonce },
-            { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 },
-          ),
-          SIGNING_KID,
+          settlement(subject, { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 }),
         ),
       ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
       await expect(
@@ -768,17 +778,13 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
 
   it('lets only one competing settlement change the monthly counter', async () => {
     const subject = await executingOperation()
-    const granted = await admit(subject)
+    await admit(subject)
     const { reservedMicros } = await operationRow(subject.operationId)
     const before = await window()
     const results = await Promise.all(
       [100, 300].map((outputTokens) =>
         settle(
-          settlement(
-            { ...subject, nonce: granted.nonce },
-            { inputTokens: 1_000, cachedInputTokens: 0, outputTokens },
-          ),
-          SIGNING_KID,
+          settlement(subject, { inputTokens: 1_000, cachedInputTokens: 0, outputTokens }),
         ),
       ),
     )
@@ -804,9 +810,7 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
   it('admits the next attempt once the previous admission was released without dispatch', async () => {
     const first = await executingOperation()
     const granted = await admit(first)
-    await expect(
-      settle(noDispatch({ ...first, nonce: granted.nonce }), SIGNING_KID),
-    ).resolves.toMatchObject({
+    await expect(settle(noDispatch(first))).resolves.toMatchObject({
       status: 'settled',
       costMicros: 0,
       settlementState: 'released',
@@ -817,9 +821,10 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
 
     expect(regranted).toMatchObject({ status: 'admitted' })
     if (regranted.status !== 'admitted') throw new Error('unreachable')
-    expect(regranted.nonce).not.toBe(granted.nonce)
+    expect(regranted.admission).not.toBe(granted.admission)
+    expect(regranted.admission.attemptNumber).toBe(2)
     await expect(operationRow(first.operationId)).resolves.toMatchObject({
-      requestBindingHmac: 'C'.repeat(43),
+      ...NO_HANDSHAKE_COLUMNS,
       reservedMicros: RESERVED,
       budgetSettledAt: null,
       actualMicros: null,
@@ -827,17 +832,16 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
 
     // The fresh admission is settled from its own usage, once.
     const usage = { inputTokens: 1_000, cachedInputTokens: 0, outputTokens: 100 }
-    await expect(
-      settle(settlement({ ...second, nonce: regranted.nonce }, usage), SIGNING_KID),
-    ).resolves.toMatchObject({
+    await expect(settle(settlement(second, usage))).resolves.toMatchObject({
       status: 'settled',
       costMicros: Number(settledCostMicros(usage)),
       settlementState: 'settled',
     })
     // The released first attempt can no longer settle against the operation.
-    await expect(
-      settle(noDispatch({ ...first, nonce: granted.nonce }), SIGNING_KID),
-    ).resolves.toEqual({ status: 'denied', code: 'permit_mismatch' })
+    await expect(settle(noDispatch(first))).resolves.toEqual({
+      status: 'denied',
+      code: 'permit_mismatch',
+    })
   })
 
   // Closed beta, 2026-10-24: OpenAI answered 429 to every call. The connector
@@ -852,21 +856,15 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
     'charges a %s refusal nothing and admits the next attempt',
     async (disposition, providerRetryable, retryAfterSeconds) => {
       const first = await executingOperation()
-      const granted = await admit(first)
+      await admit(first)
       await expect(
-        settle(
-          {
-            ...settlement(
-              { ...first, nonce: granted.nonce },
-              { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
-            ),
-            disposition,
-            reportedDisposition: disposition,
-            providerRetryable,
-            retryAfterSeconds,
-          },
-          SIGNING_KID,
-        ),
+        settle({
+          ...settlement(first, { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 }),
+          disposition,
+          reportedDisposition: disposition,
+          providerRetryable,
+          retryAfterSeconds,
+        }),
       ).resolves.toMatchObject({
         status: 'settled',
         disposition,
@@ -883,9 +881,9 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
 
   it('still refuses a later attempt once a charged attempt consumed the admission', async () => {
     const first = await executingOperation()
-    const granted = await admit(first)
+    await admit(first)
     const usage = { inputTokens: 1_000, cachedInputTokens: 0, outputTokens: 100 }
-    await settle(settlement({ ...first, nonce: granted.nonce }, usage), SIGNING_KID)
+    await settle(settlement(first, usage))
 
     await expect(
       authorizeNext(await claimNextAttempt(first.operationId, 2)),
@@ -903,7 +901,7 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
 
   it('charges an expired admission once and refuses a late settlement with a different cost', async () => {
     const subject = await executingOperation()
-    const granted = await admit(subject)
+    await admit(subject)
     const { reservedMicros } = await operationRow(subject.operationId)
     await db
       .update(aiOperations)
@@ -914,9 +912,10 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
     await expect(operationRow(subject.operationId)).resolves.toMatchObject({
       actualMicros: reservedMicros,
     })
-    await expect(
-      settle(noDispatch({ ...subject, nonce: granted.nonce }), SIGNING_KID),
-    ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
+    await expect(settle(noDispatch(subject))).resolves.toEqual({
+      status: 'denied',
+      code: 'settlement_conflict',
+    })
   })
 
   // While the previous release still runs beside this one, it admits rows the
@@ -941,9 +940,9 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
           .update(aiOperations)
           .set({
             admissionNonce: nonce,
-            requestBindingKeyId: BINDING.keyId,
-            requestBindingHmac: BINDING.hmac,
-            grantKid: SIGNING_KID,
+            requestBindingKeyId: PREVIOUS_RELEASE_BINDING.keyId,
+            requestBindingHmac: PREVIOUS_RELEASE_BINDING.hmac,
+            grantKid: PREVIOUS_RELEASE_GRANT_KID,
           })
           .where(eq(aiOperations.id, subject.operationId))
       })
@@ -952,28 +951,71 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
 
     it('is refused while open, even for the binding that admitted it', async () => {
       const subject = await admittedByPreviousRelease()
-      await expect(
-        authority.authorizeProperty(descriptor(subject, scope), BINDING),
-      ).resolves.toEqual({ status: 'denied', code: 'already_consumed' })
+      await expect(authority.authorize(descriptor(subject, scope))).resolves.toEqual({
+        status: 'denied',
+        code: 'already_consumed',
+      })
     })
 
     it('admits the next attempt once released, and refuses it once charged', async () => {
       const released = await admittedByPreviousRelease()
-      await expect(settle(noDispatch(released), SIGNING_KID)).resolves.toMatchObject({
+      await expect(settle(noDispatch(released))).resolves.toMatchObject({
         status: 'settled',
         settlementState: 'released',
       })
       await expect(
         authorizeNext(await claimNextAttempt(released.operationId, 2)),
       ).resolves.toMatchObject({ status: 'admitted' })
+      // This release writes none of the four columns: the earlier attempt's
+      // values stay as history, and nothing reads them to admit or settle.
+      await expect(operationRow(released.operationId)).resolves.toMatchObject({
+        admissionNonce: released.nonce,
+        requestBindingHmac: PREVIOUS_RELEASE_BINDING.hmac,
+        reservedMicros: RESERVED,
+        budgetSettledAt: null,
+      })
 
       const charged = await admittedByPreviousRelease()
       await settle(
         settlement(charged, { inputTokens: 10, cachedInputTokens: 0, outputTokens: 10 }),
-        SIGNING_KID,
       )
       await expect(
         authorizeNext(await claimNextAttempt(charged.operationId, 2)),
+      ).resolves.toEqual({ status: 'denied', code: 'already_consumed' })
+    })
+
+    it('settles from usage while open, then refuses a second settlement', async () => {
+      const open = await admittedByPreviousRelease()
+      const usage = { inputTokens: 1_000, cachedInputTokens: 0, outputTokens: 100 }
+      await expect(settle(settlement(open, usage))).resolves.toMatchObject({
+        status: 'settled',
+        costMicros: Number(settledCostMicros(usage)),
+        settlementState: 'settled',
+      })
+      await expect(settle(settlement(open, usage))).resolves.toEqual({
+        status: 'denied',
+        code: 'settlement_conflict',
+      })
+    })
+
+    it('is charged in full by the reaper when left open, and admits nothing after', async () => {
+      const stale = await admittedByPreviousRelease()
+      const { reservedMicros } = await operationRow(stale.operationId)
+      await db
+        .update(aiOperations)
+        .set({ budgetReservedAt: sql`clock_timestamp() - interval '16 minutes'` })
+        .where(eq(aiOperations.id, stale.operationId))
+      await db.transaction(reapStaleAiReservations)
+
+      await expect(operationRow(stale.operationId)).resolves.toMatchObject({
+        actualMicros: reservedMicros,
+      })
+      await expect(settle(noDispatch(stale))).resolves.toEqual({
+        status: 'denied',
+        code: 'settlement_conflict',
+      })
+      await expect(
+        authorizeNext(await claimNextAttempt(stale.operationId, 2)),
       ).resolves.toEqual({ status: 'denied', code: 'already_consumed' })
     })
   })
@@ -1041,9 +1083,9 @@ describe.sequential('AI execution admission across tenants (real PostgreSQL)', (
     ])
 
     const [resultA1, resultA2, resultB] = await Promise.all([
-      authority.authorizeProperty(descriptor(firstA, tenantA), BINDING),
-      authority.authorizeProperty(descriptor(secondA, tenantA), BINDING),
-      authority.authorizeProperty(descriptor(onlyB, tenantB), BINDING),
+      authority.authorize(descriptor(firstA, tenantA)),
+      authority.authorize(descriptor(secondA, tenantA)),
+      authority.authorize(descriptor(onlyB, tenantB)),
     ])
 
     expect([resultA1.status, resultA2.status].sort()).toEqual(['admitted', 'denied'])
@@ -1059,16 +1101,10 @@ describe.sequential('AI execution admission across tenants (real PostgreSQL)', (
 
     // A at its cap stays refused while B goes on being admitted.
     await expect(
-      authority.authorizeProperty(
-        descriptor(await executing(fixtureA), tenantA),
-        BINDING,
-      ),
+      authority.authorize(descriptor(await executing(fixtureA), tenantA)),
     ).resolves.toEqual({ status: 'denied', code: 'quota_exhausted' })
     await expect(
-      authority.authorizeProperty(
-        descriptor(await executing(fixtureB), tenantB),
-        BINDING,
-      ),
+      authority.authorize(descriptor(await executing(fixtureB), tenantB)),
     ).resolves.toMatchObject({ status: 'admitted' })
   })
 })

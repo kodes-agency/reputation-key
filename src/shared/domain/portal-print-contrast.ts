@@ -1,0 +1,171 @@
+// What an Immersive face's words read against (design spec §6.3
+// and §4): the colour the face prints under each word, from the ground, the
+// washes, the photo's own pixels as the face crops and fades them, and the
+// scrims, with the words left out. The scrims darken the photo's own pixels and
+// the scrimmed photo then melts into the ground by its fade (and any clearing). Every word must reach 4.5:1 against the
+// 95th-percentile brightness under it; a light logo straight on the photo must
+// reach 4.5:1 against a 1.5 mm ring round it.
+//
+// The photo is read from its detail sample (960 px wide, or the photo's own
+// width when smaller) at a point every quarter millimetre across the word's ink
+// box, so a pattern's highlights count. Pure and shared, so the file and the
+// preview deepen their scrims alike.
+
+import { luminanceOfChannels, parseHexColour } from './portal-field-colour'
+import type { PrintArt } from './portal-print-art'
+import {
+  printPhotoCrop,
+  type PrintFocal,
+  type PrintFraming,
+} from './portal-print-framing'
+import { washAlpha } from './portal-print-layers'
+import { mmPt, type PrintBox } from './portal-print-measures'
+import type { PrintPhotoPixels } from './portal-print-photo'
+import { printPhotoAlpha, printScrimAlpha } from './portal-print-photo-clear'
+import {
+  PRINT_SCRIM_INK,
+  samplePixel,
+  type PrintPhotoSample,
+  type PrintRgb,
+} from './portal-print-photo-sample'
+
+/** The photo as a face shows it: its sample, its own size, where it is centred and how the manager framed it. */
+export type PrintScenePhoto = Readonly<{
+  /** Decoded 240 px wide: what the ground and the kicker are read from (§6.1). */
+  sample: PrintPhotoSample
+  /** Decoded wider, so a pattern's highlights under a word are not averaged away: what each word is read against. */
+  detail: PrintPhotoSample
+  pixels: PrintPhotoPixels
+  focal: PrintFocal
+  framing: PrintFraming
+}>
+
+/** A point every this far across a word's box is read. */
+const READ_STEP_PT = mmPt(0.25)
+const PERCENTILE = Object.freeze({ high: 0.95, low: 0.05 })
+/** The ring round a logo that sits straight on the photo (§4). */
+const LOGO_RING_PT = mmPt(1.5)
+
+const rgbOf = (hex: string): PrintRgb => parseHexColour(hex) ?? [0, 0, 0]
+
+const over = (under: PrintRgb, top: PrintRgb, alpha: number): PrintRgb => [
+  under[0] + (top[0] - under[0]) * alpha,
+  under[1] + (top[1] - under[1]) * alpha,
+  under[2] + (top[2] - under[2]) * alpha,
+]
+
+const inside = (box: PrintBox, x: number, y: number) =>
+  x >= box.leftPt && x <= box.rightPt && y >= box.topPt && y <= box.bottomPt
+
+/** The face's art, ready to be read at any point. */
+export type PrintScene = Readonly<{
+  colourAt: (x: number, y: number) => PrintRgb
+}>
+
+function photoReader(art: PrintArt, photo: PrintScenePhoto | null) {
+  const shown = art.photo
+  if (shown === null || photo === null) return null
+  const { cover } = shown
+  const coverWidth = cover.rightPt - cover.leftPt
+  const coverHeight = cover.bottomPt - cover.topPt
+  const crop = printPhotoCrop(
+    photo.pixels,
+    { widthPt: coverWidth, heightPt: coverHeight },
+    photo.focal,
+    photo.framing,
+  )
+  const { detail } = photo
+  const across = detail.widthPx / photo.pixels.widthPx
+  const down = detail.heightPx / photo.pixels.heightPx
+  return (x: number, y: number): Readonly<{ rgb: PrintRgb; alpha: number }> | null => {
+    if (!inside(shown.box, x, y)) return null
+    const sourceX = crop.leftPx + ((x - cover.leftPt) / coverWidth) * crop.widthPx
+    const sourceY = crop.topPx + ((y - cover.topPt) / coverHeight) * crop.heightPx
+    return {
+      rgb: over(
+        samplePixel(detail, sourceX * across, sourceY * down),
+        PRINT_SCRIM_INK,
+        printScrimAlpha(art.scrims, x, y),
+      ),
+      alpha: printPhotoAlpha(shown, x, y),
+    }
+  }
+}
+
+/** The colour the face's art prints at a point (the grain left out). */
+export function printScene(art: PrintArt, photo: PrintScenePhoto | null): PrintScene {
+  const ground = rgbOf(art.ground)
+  const washes = art.washes.map((wash) => ({ wash, rgb: rgbOf(wash.colour) }))
+  const readPhoto = photoReader(art, photo)
+  return {
+    colourAt: (x, y) => {
+      const colour = washes.reduce(
+        (under, { wash, rgb }) => over(under, rgb, washAlpha(wash, x, y)),
+        ground,
+      )
+      const pixel = readPhoto?.(x, y) ?? null
+      return pixel === null ? colour : over(colour, pixel.rgb, pixel.alpha)
+    },
+  }
+}
+
+/** Points every quarter millimetre over a box, its edges included. */
+function pointsOver(box: PrintBox): readonly (readonly [number, number])[] {
+  const across = Math.max(1, Math.ceil((box.rightPt - box.leftPt) / READ_STEP_PT))
+  const down = Math.max(1, Math.ceil((box.bottomPt - box.topPt) / READ_STEP_PT))
+  const points: (readonly [number, number])[] = []
+  for (let i = 0; i <= across; i++) {
+    for (let j = 0; j <= down; j++) {
+      points.push([
+        box.leftPt + ((box.rightPt - box.leftPt) * i) / across,
+        box.topPt + ((box.bottomPt - box.topPt) * j) / down,
+      ])
+    }
+  }
+  return points
+}
+
+/** The contrast of a colour of luminance `lit` against what lies under it: the 95th percentile when it is lighter than most, else the 5th. */
+function contrastAgainst(luminances: number[], lit: number): number {
+  luminances.sort((a, b) => a - b)
+  const at = (share: number) => luminances[Math.floor(luminances.length * share)] ?? 0
+  const median = at(0.5)
+  return lit > median
+    ? (lit + 0.05) / (at(PERCENTILE.high) + 0.05)
+    : (at(PERCENTILE.low) + 0.05) / (lit + 0.05)
+}
+
+const luminanceAt = (scene: PrintScene, x: number, y: number) =>
+  luminanceOfChannels(scene.colourAt(x, y))
+
+/** A word's contrast against the face under its ink box (§6.3). */
+export function printTextContrast(
+  scene: PrintScene,
+  box: PrintBox,
+  colour: string,
+): number {
+  const lit = luminanceOfChannels(rgbOf(colour))
+  return contrastAgainst(
+    pointsOver(box).map(([x, y]) => luminanceAt(scene, x, y)),
+    lit,
+  )
+}
+
+/** A bare logo's contrast against a 1.5 mm ring round its box, inside the trim (§4). */
+export function printRingContrast(
+  scene: PrintScene,
+  logo: PrintBox,
+  trim: Readonly<{ widthPt: number; heightPt: number }>,
+  medianInkLuminance: number,
+): number {
+  const ring: PrintBox = {
+    leftPt: Math.max(0, logo.leftPt - LOGO_RING_PT),
+    topPt: Math.max(0, logo.topPt - LOGO_RING_PT),
+    rightPt: Math.min(trim.widthPt, logo.rightPt + LOGO_RING_PT),
+    bottomPt: Math.min(trim.heightPt, logo.bottomPt + LOGO_RING_PT),
+  }
+  const luminances = pointsOver(ring)
+    .filter(([x, y]) => !inside(logo, x, y))
+    .map(([x, y]) => luminanceAt(scene, x, y))
+  return contrastAgainst(luminances, medianInkLuminance)
+}

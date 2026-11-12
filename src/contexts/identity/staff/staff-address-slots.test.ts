@@ -1,35 +1,44 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { takeStaffAddressSlot } from './staff-address-slots.server'
+import { takeStaffOnboardingSlot } from './staff-address-slots.server'
 
 afterEach(() => vi.useRealTimers())
-describe('staff address concurrency admission', () => {
-  it('isolates Organizations, caps waiters at twenty and releases them', async () => {
-    const first = await takeStaffAddressSlot('busy')
-    const second = await takeStaffAddressSlot('busy')
-    const queued = Array.from({ length: 20 }, () => takeStaffAddressSlot('busy'))
-    await expect(takeStaffAddressSlot('busy')).rejects.toMatchObject({
+const takeActive = () => Promise.all(Array.from({ length: 4 }, takeStaffOnboardingSlot))
+
+describe('staff onboarding concurrency admission', () => {
+  it('shares four slots across the process, caps waiters at forty and hands slots on', async () => {
+    const held = await takeActive()
+    let admitted = 0
+    const queued = Array.from({ length: 40 }, () =>
+      takeStaffOnboardingSlot().then((release) => {
+        admitted += 1
+        return release
+      }),
+    )
+    await expect(takeStaffOnboardingSlot()).rejects.toMatchObject({
       code: 'rate_limited',
     })
-    const separate = await takeStaffAddressSlot('another')
-    separate()
+    await Promise.resolve()
+    expect(admitted).toBe(0)
+    held[0]!()
+    held[0]!()
+    const first = await queued[0]!
+    expect(admitted).toBe(1)
+    for (const release of held.slice(1)) release()
     first()
-    for (const pending of queued) (await pending)()
-    second()
-    const fresh = await takeStaffAddressSlot('busy')
-    fresh()
+    for (const pending of queued.slice(1)) (await pending)()
+    const fresh = await takeActive()
+    for (const release of fresh) release()
   })
   it('times out a waiter after thirty seconds without leaking its slot', async () => {
     vi.useFakeTimers()
-    const first = await takeStaffAddressSlot('timeout')
-    const second = await takeStaffAddressSlot('timeout')
-    const waiting = expect(takeStaffAddressSlot('timeout')).rejects.toMatchObject({
+    const held = await takeActive()
+    const waiting = expect(takeStaffOnboardingSlot()).rejects.toMatchObject({
       code: 'rate_limited',
     })
     await vi.advanceTimersByTimeAsync(30_000)
     await waiting
-    first()
-    second()
-    const fresh = await takeStaffAddressSlot('timeout')
-    fresh()
+    for (const release of held) release()
+    const fresh = await takeActive()
+    for (const release of fresh) release()
   })
 })

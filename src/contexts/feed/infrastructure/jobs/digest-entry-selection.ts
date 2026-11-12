@@ -28,18 +28,16 @@ import {
 } from '../../application/notification-recipient-standing'
 import {
   withStandingItemCount,
-  type NotificationWorkState,
-} from '../../application/notification-work-state'
+  isStillActionable,
+  NOT_ACTIONABLE_EMAIL_REASON,
+} from '../../domain/notification-actionable'
+import { type NotificationWorkState } from '../../application/ports/notification-work-state.port'
 import type {
   NotificationEmail,
   PersonalDeliveryWindow,
 } from '../../domain/notification-types'
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
 import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
-import {
-  isStillActionable,
-  NOT_ACTIONABLE_EMAIL_REASON,
-} from '../../domain/notification-settlement'
 import { emailCorrelationId } from '../delivery-correlation'
 import type { DigestItem } from './digest-assembly'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
@@ -59,7 +57,7 @@ export type DigestEntryDeps = Readonly<{
   /** The recipient's current membership, access and responsibility. */
   isRecipientEligible: NotificationRecipientStanding
   /** Whether the work each line asks for is still waiting. */
-  workState: Pick<NotificationWorkState, 'isWaiting'>
+  workState: Pick<NotificationWorkState, 'isWaitingMany'>
 }>
 
 export type RecipientContext = Readonly<{
@@ -360,32 +358,6 @@ export async function loadItems(
 }
 
 /**
- * Whether a line still asks for waiting work, and the notice as it should be
- * rendered: the row must be unsettled, and the work itself still waiting,
- * because a row written after the fact that settles it was never settled. A
- * grouped line says how many of its items still wait.
- */
-async function stillWaiting(
-  deps: DigestEntryDeps,
-  ctx: RecipientContext,
-  item: DigestItem,
-): Promise<DigestItem | null> {
-  if (!isStillActionable(item.notification)) return null
-  const work = await deps.workState.isWaiting({
-    organizationId: ctx.orgId,
-    type: item.notification.type,
-    resourceId: item.notification.resourceId,
-    audience: item.entry.recipientAudience,
-    recipient: {
-      userId: item.notification.userId,
-      propertyId: item.notification.propertyId,
-    },
-  })
-  if (work === false) return null
-  return { ...item, notification: withStandingItemCount(item.notification, work) }
-}
-
-/**
  * A digest gathers up to a day of rows, so the work a line asks for may have
  * been done in between: the reopen handled, the escalation resolved, the
  * approval decided. Those lines are retired with a visible reason rather than
@@ -396,9 +368,35 @@ async function settledWork(
   ctx: RecipientContext,
   items: readonly DigestItem[],
 ): Promise<readonly DigestItem[]> {
+  // A line asks for waiting work while its row is unsettled and the work
+  // itself still waits: a row written after the fact that settles it was never
+  // settled. A grouped line says how many of its items still wait. The owners
+  // are asked once for the whole digest.
+  const unsettled = items.filter((item) => isStillActionable(item.notification))
+  const decisions = await deps.workState.isWaitingMany(
+    unsettled.map((item) => ({
+      organizationId: ctx.orgId,
+      type: item.notification.type,
+      resourceId: item.notification.resourceId,
+      audience: item.entry.recipientAudience,
+      recipient: {
+        userId: item.notification.userId,
+        propertyId: item.notification.propertyId,
+      },
+    })),
+  )
+  const currentByEntry = new Map<DigestItem, DigestItem>()
+  unsettled.forEach((item, index) => {
+    const work = decisions[index] ?? true
+    if (work === false) return
+    currentByEntry.set(item, {
+      ...item,
+      notification: withStandingItemCount(item.notification, work),
+    })
+  })
   const waiting: DigestItem[] = []
   for (const item of items) {
-    const current = await stillWaiting(deps, ctx, item)
+    const current = currentByEntry.get(item)
     if (current) {
       waiting.push(current)
       continue

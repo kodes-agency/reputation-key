@@ -6,10 +6,10 @@ import {
   googlePropertyImportItemJobId,
 } from './google-import-dispatch'
 import type {
-  GoogleImportV2DispatchItem,
-  GoogleImportV2Store,
-} from './ports/google-import-v2-store.port'
-import type { GoogleImportV2QueuePort } from './ports/gbp-queue.port'
+  GoogleImportDispatchItem,
+  GoogleImportStore,
+} from './ports/google-import-store.port'
+import type { GoogleImportQueuePort } from './ports/gbp-queue.port'
 
 registerAllEventSchemas()
 
@@ -28,7 +28,7 @@ const EVENT: ConsumerEvent = {
   recordedAt: '2026-08-12T12:00:00.000Z',
 }
 
-const ITEM: GoogleImportV2DispatchItem = {
+const ITEM: GoogleImportDispatchItem = {
   itemId: '10000000-0000-4000-8000-000000000003',
   expectedConnectionLifecycleVersion: 7,
   expectedSourceEpoch: null,
@@ -36,13 +36,13 @@ const ITEM: GoogleImportV2DispatchItem = {
   dispatchEpoch: 0,
 }
 
-function setup(items: readonly GoogleImportV2DispatchItem[] | null = [ITEM]) {
+function setup(items: readonly GoogleImportDispatchItem[] | null = [ITEM]) {
   const listPendingDispatchItems = vi.fn(async () => items)
   const addImportItemJobs = vi.fn(async () => {})
   const insertReceipt = vi.fn(async () => {})
   const handler = createGoogleImportDispatchHandler({
-    store: { listPendingDispatchItems } as unknown as GoogleImportV2Store,
-    queue: { addImportItemJobs } satisfies GoogleImportV2QueuePort,
+    store: { listPendingDispatchItems } as unknown as GoogleImportStore,
+    queue: { addImportItemJobs } satisfies GoogleImportQueuePort,
     receipts: { insertReceipt },
   })
   return { handler, listPendingDispatchItems, addImportItemJobs, insertReceipt }

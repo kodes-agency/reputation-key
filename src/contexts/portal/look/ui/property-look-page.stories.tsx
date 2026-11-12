@@ -28,6 +28,7 @@ import {
   AVELA_MIXED_PORTALS,
   TWO_PORTALS_ONE_OWN_PHOTO,
 } from './property-look-mixed-fixtures'
+import { phoneTargetFindings } from '#/shared/testing/phone-width'
 import { PropertyLookPage } from './property-look-page'
 
 const WAIT = { timeout: 5000 }
@@ -129,8 +130,16 @@ export const EveryLivePortalShowsTheLook: Story = {
     await expect(canvas.getByText('All 5 live portals show this look')).toBeVisible()
     const button = canvas.getByRole('button', { name: 'Review & publish 5 portals' })
     await expect(button).toBeEnabled()
-    // The outline look, not the filled one a waiting change gets.
-    await expect(button).toHaveClass('border')
+    // The outline look, not the filled one a waiting change gets: it draws a
+    // border and is not painted in the primary fill.
+    const probe = document.createElement('div')
+    probe.style.backgroundColor = 'var(--primary)'
+    document.body.append(probe)
+    const primaryFill = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    const style = getComputedStyle(button)
+    expect(parseFloat(style.borderTopWidth)).toBeGreaterThan(0)
+    expect(style.backgroundColor).not.toBe(primaryFill)
   },
 }
 
@@ -321,6 +330,11 @@ export const DefaultLanguages: Story = {
     const canvas = within(canvasElement)
     const list = within(canvas.getByRole('list', { name: 'Default languages' }))
     await expect(list.getByText('Fallback')).toBeVisible()
+    // On a phone both controls are tap targets, not small marks side by side.
+    const undersized = (await phoneTargetFindings(canvasElement.ownerDocument)).filter(
+      (finding) => /Make Bulgarian the fallback|Remove Bulgarian/.test(finding),
+    )
+    expect(undersized).toEqual([])
     await userEvent.click(
       list.getByRole('button', { name: 'Make Bulgarian the fallback' }),
     )
@@ -340,22 +354,6 @@ export const DefaultLanguages: Story = {
       WAIT,
     )
     await expect(args.saveLook).not.toHaveBeenCalled()
-  },
-}
-
-/**
- * On a phone "Make fallback" and "Remove" are tap targets, not 24px marks side by
- * side: both carry the Button's touch minimum (44px below md) and a gap apart.
- */
-export const LanguageControlsAreTouchTargets: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const list = within(canvas.getByRole('list', { name: 'Default languages' }))
-    for (const name of ['Make Bulgarian the fallback', 'Remove Bulgarian']) {
-      await expect(list.getByRole('button', { name })).toHaveClass(
-        'max-md:min-h-(--control-touch)',
-      )
-    }
   },
 }
 

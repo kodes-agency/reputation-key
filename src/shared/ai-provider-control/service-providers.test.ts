@@ -1,25 +1,29 @@
 // The gateway service meets the provider seam: a call goes to the adapter of the
 // provider that prepared it, is priced by that provider's list, and when that
 // provider fails the answer is the failure, never a call to the other one. The
-// orchestration around the call (grant, settlement, deadlines) is
+// orchestration around the call (admission, settlement, deadlines) is
 // `service-orchestration.test.ts`, which still passes unchanged on the legacy
 // single-connector wiring; this file shows the registry wiring agrees with it.
 
-import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
-import {
-  signAiExecutionGrant,
-  parseAiSettlementReceipt,
-  type AiAdmissionDescriptorV1,
-  type AiExecutionGrantV1,
-  type AiSettlementRequestV1,
+import type {
+  AiAdmissionDescriptorV1,
+  AiSettlementOutcome,
+  AiSettlementPermit,
+  AiSettlementReceiptV1,
+  AiSettlementRequestV1,
 } from '#/shared/ai-internal-transport-contract'
+import { settlementPermitOf, type AiExecutionAdmission } from './execution-admission'
+import { admitForTest } from './execution-admission.test-fixtures'
 import {
   parseAiGatewayRouteRequest,
   type AiGatewayRouteRequestV1,
 } from '#/shared/ai-gateway-transport-contract'
-import { analysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import {
+  analysisRequest,
+  analysisV3Result,
+} from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
 import {
   settledCostMicrosWith,
@@ -39,8 +43,6 @@ import { createSensitiveSourceLease } from './source-lease'
 
 const NOW = 1_780_000_000_000
 const SHA = 'a'.repeat(64)
-const REQUEST_BINDING_HMAC = Buffer.alloc(32, 0x31).toString('base64url')
-const signingKeys = generateKeyPairSync('ed25519')
 
 const SECOND_PRICES: AiProviderPriceCatalogue = Object.freeze({
   ...OPENAI_PRICE_CATALOGUE_V2,
@@ -105,8 +107,6 @@ function preparedExecution(
     ...(providerId === undefined ? {} : { providerId }),
     invocation: {
       descriptor: descriptorFor(request),
-      requestBindingKeyId: 'request-v1',
-      requestBindingHmac: REQUEST_BINDING_HMAC,
       sdkRequest: {} as never,
       canonicalProviderBytes: Buffer.from('prepared-provider-body'),
     } as never,
@@ -120,13 +120,7 @@ function preparedExecution(
             buildResponse: (receipt) => ({
               route: 'review-analysis',
               status: 'success',
-              result: {
-                sentiment: 'positive',
-                sentimentValence: 80,
-                urgencySignals: [],
-                aspects: [{ aspect: 'service', polarity: 'positive', intensity: 80 }],
-                issueLabel: null,
-              },
+              result: analysisV3Result,
               settlementReceipt: receipt,
             }),
           }
@@ -134,28 +128,8 @@ function preparedExecution(
   }
 }
 
-function signedGrant(descriptor: AiAdmissionDescriptorV1): AiExecutionGrantV1 {
-  return signAiExecutionGrant(
-    {
-      version: 'ai-execution-grant-v1',
-      subjectKind: descriptor.subjectKind,
-      grantKid: 'grant-v1',
-      requestBindingKeyId: 'request-v1',
-      requestBindingHmac: REQUEST_BINDING_HMAC,
-      route: descriptor.route,
-      operationId: descriptor.operationId,
-      permitId: descriptor.permitId,
-      attemptNumber: descriptor.attemptNumber,
-      nonce: Buffer.alloc(32, 0x41).toString('base64url'),
-      limits: descriptor.limits,
-      callerDeadlineEpochMillis: descriptor.callerDeadlineEpochMillis,
-      issuedAtEpochMillis: NOW,
-      expiresAtEpochMillis: descriptor.callerDeadlineEpochMillis,
-      replyTokenExpiresAtEpochMillis: null,
-      replyDraftExpiresAtEpochMillis: null,
-    },
-    signingKeys.privateKey,
-  )
+function admitted(descriptor: AiAdmissionDescriptorV1): AiExecutionAdmission {
+  return admitForTest(descriptor, { issuedAtEpochMillis: NOW })
 }
 
 const usage = {
@@ -195,24 +169,21 @@ function outcomeOf(
 
 /** The receipt an authority pricing the call with `pricing` returns. */
 function receiptFor(
-  request: AiSettlementRequestV1,
-  grant: AiExecutionGrantV1,
+  request: AiSettlementPermit & AiSettlementOutcome,
+  admission: AiExecutionAdmission,
   pricing: AiProviderPriceCatalogue,
-) {
+): AiSettlementReceiptV1 {
   const cost =
     request.disposition === 'no_dispatch'
       ? 0
       : !request.usageKnown
-        ? grant.limits.costMicros
+        ? admission.limits.costMicros
         : Number(settledCostMicrosWith(pricing, request))
-  return parseAiSettlementReceipt({
+  return {
     version: 'ai-settlement-receipt-v1',
-    grantKid: grant.grantKid,
     operationId: request.operationId,
     permitId: request.permitId,
     attemptNumber: request.attemptNumber,
-    nonce: request.nonce,
-    requestBindingHmac: grant.requestBindingHmac,
     disposition: request.disposition,
     reportedDisposition: request.reportedDisposition,
     providerRetryable: request.providerRetryable,
@@ -229,13 +200,11 @@ function receiptFor(
         : request.disposition === 'transport_ambiguous'
           ? 'ambiguous'
           : 'settled',
-  })
+  }
 }
 
 function lease(request: AiGatewayRouteRequestV1) {
   const value = createSensitiveSourceLease<AiGatewayRouteRequestV1>()
-  if (request.route === 'property-trend')
-    throw new Error('Expected source-bearing request')
   value.attachSource(request, (root) => root.source)
   return value
 }
@@ -278,11 +247,18 @@ function run(
 ) {
   const request = routeRequest()
   const prepared = preparedExecution(request, input.preparedProvider)
-  const grant = signedGrant(prepared.invocation.descriptor)
-  const authorize = vi.fn(async () => ({ status: 'authorized' as const, grant }))
-  const settle = vi.fn<AiAdmissionClient['settle']>(async (permit, outcome) => ({
+  const minted = admitted(prepared.invocation.descriptor)
+  const authorize = vi.fn(async () => ({
+    status: 'authorized' as const,
+    admission: minted,
+  }))
+  const settle = vi.fn<AiAdmissionClient['settle']>(async (admission, outcome) => ({
     status: 'settled' as const,
-    receipt: receiptFor({ ...permit, ...outcome }, grant, input.pricing),
+    receipt: receiptFor(
+      { ...settlementPermitOf(admission), ...outcome },
+      admission,
+      input.pricing,
+    ),
   }))
   const service = createAiEgressGatewayService({
     admission: {
@@ -291,11 +267,10 @@ function run(
       readiness: vi.fn(async () => true),
     } as AiAdmissionClient,
     preparer: { prepare: () => prepared } as AiGatewayRoutePreparer,
-    admissionPublicKeys: new Map([['grant-v1', signingKeys.publicKey]]),
     now: () => NOW + 1_000,
     ...input.wiring(input.adapters),
   } as never)
-  return { request, prepared, grant, authorize, settle, service }
+  return { request, prepared, minted, authorize, settle, service }
 }
 
 const registryWiring = (adapters: readonly FakeAdapter[]) => ({
@@ -337,7 +312,7 @@ describe('the registry wiring agrees with the single connector it replaces', () 
     expect(legacyConnector.invoke).toHaveBeenCalledTimes(1)
     expect(openAi.invoke.mock.calls[0]?.slice(0, 3)).toEqual([
       registry.prepared.invocation,
-      registry.grant,
+      registry.minted,
       registry.prepared.outputSchema,
     ])
     expect(registry.settle).toHaveBeenCalledTimes(1)
@@ -347,7 +322,6 @@ describe('the registry wiring agrees with the single connector it replaces', () 
     const base = {
       admission: {} as AiAdmissionClient,
       preparer: {} as AiGatewayRoutePreparer,
-      admissionPublicKeys: new Map(),
     }
 
     expect(() => createAiEgressGatewayService(base as never)).toThrow(
@@ -547,7 +521,6 @@ describe('readiness', () => {
       createAiEgressGatewayService({
         admission,
         preparer: {} as AiGatewayRoutePreparer,
-        admissionPublicKeys: new Map(),
         providers: createAiProviderRegistry(adapters),
       })
     const signal = new AbortController().signal

@@ -13,7 +13,6 @@ import {
   unavailableCopyOf,
   type PortalUnavailableCopy,
 } from './portal-unavailable-copy'
-import { PORTAL_UNAVAILABLE_CSS } from './portal-unavailable-styles'
 import { loadGuestPortalCopy } from './public-portal/language-packs/load-guest-copy'
 
 const PACKS = await Promise.all(
@@ -40,15 +39,12 @@ describe('PortalUnavailable in English', () => {
   it('is English alone: no second language, no rule', () => {
     expect(body).not.toContain('lang="bg"')
     expect(body).not.toMatch(/Тази страница|Моля, опитайте/u)
-    expect(body).not.toContain('portal-unavailable__rule')
     expect(body.match(/lang="en"/gu)?.length).toBeGreaterThan(0)
     expect(body).not.toMatch(/lang="(?!en")/u)
   })
 
   it('offers "Try again" as a plain button', () => {
-    expect(body).toMatch(
-      /<button[^>]*type="button"[^>]*class="portal-unavailable__retry"[^>]*>Try again<\/button>/u,
-    )
+    expect(body).toMatch(/<button[^>]*type="button"[^>]*>Try again<\/button>/u)
     expect(body.match(/<button\b/gu)).toHaveLength(1)
   })
 })
@@ -68,7 +64,7 @@ describe('PortalUnavailable in another language', () => {
   })
 
   it('adds the English words under a rule, and only then', () => {
-    expect(german.indexOf('portal-unavailable__rule')).toBeGreaterThan(
+    expect(german.indexOf('This page isn’t available right now.')).toBeGreaterThan(
       german.indexOf('Erneut versuchen'),
     )
     expect(german).toMatch(
@@ -134,21 +130,12 @@ describe('PortalUnavailable says nothing about why', () => {
     expect(render(GERMAN)).toBe(render(GERMAN))
   })
 
-  it('hides the decorative icon and divider from assistive technology', () => {
+  it('hides the decorative icon from assistive technology', () => {
     expect(body).toMatch(/<span[^>]*aria-hidden="true"[^>]*><svg/u)
-    expect(strip(render(GERMAN))).toMatch(
-      /<div[^>]*aria-hidden="true"[^>]*class="[^"]*portal-unavailable__rule/u,
-    )
   })
 
   it('links no font stylesheet: the root chooses the guest set for this route', () => {
     expect(html).not.toContain(GUEST_FONT_STYLESHEET)
     expect(html).not.toMatch(/<link\b|googleapis|gstatic|fontshare/u)
-  })
-})
-
-describe('the unavailable page stylesheet', () => {
-  it('turns the retry button motion off when the visitor asks for less motion', () => {
-    expect(PORTAL_UNAVAILABLE_CSS).toMatch(/prefers-reduced-motion:\s*reduce/u)
   })
 })

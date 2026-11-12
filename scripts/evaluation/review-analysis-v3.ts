@@ -18,7 +18,7 @@ import {
 } from '#/shared/review-analysis-v3-normalizer'
 import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/review-analysis-v3-prompt'
 import { REVIEW_ATTENTION_V2_DIGEST } from '#/shared/review-analysis-v3'
-import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/review-analysis-v3-profile'
+import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/analysis/profile'
 import {
   PROPERTY_ISSUE_NORMALIZATION_DIGEST,
   PROPERTY_ISSUE_NORMALIZATION_VERSION,

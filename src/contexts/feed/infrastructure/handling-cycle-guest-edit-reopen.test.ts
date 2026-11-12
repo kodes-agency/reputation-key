@@ -6,11 +6,11 @@ import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain
 import {
   handleNotificationHandlingCycle,
   ON_INBOX_HANDLING_CYCLE_REOPENED_CONSUMER,
-} from './handling-cycle-outbox-consumers'
+} from '../notify/inbox-handling-cycle.server'
 import { classifyNotification } from '../domain/notification-delivery-policy'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
-import { settledNotificationTypes } from '../domain/notification-settlement'
+import { settledNotificationTypes } from '../notify/settle.server'
 import type { HandlingCycleNotificationFacts } from '../application/ports/notification-inbox-item-lookup.port'
 import { noticeWriterOver } from './notification-consumer-test-fixtures'
 

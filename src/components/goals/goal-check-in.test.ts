@@ -70,9 +70,9 @@ describe('GoalCheckIn', () => {
   it('draws no headline line for a goal with nothing to say of the last stretch', () => {
     const html = strip({ headline: null })
 
-    expect(html).not.toContain('text-base font-semibold')
+    expect(html).not.toContain('How it went')
     expect(html).toContain('What is offered')
-    expect(strip()).toContain('text-base font-semibold')
+    expect(strip()).toContain('How it went')
   })
 
   it('takes a line that holds more than text, such as a way to see how it was worked out', () => {
@@ -83,17 +83,11 @@ describe('GoalCheckIn', () => {
     expect(html).toContain('<p><span>Offered, <a>see how</a></span></p>')
   })
 
-  it('fills the one to take and outlines the others, each a tap target', () => {
+  it('fills the one to take and outlines the others', () => {
     const html = strip()
 
     expect(buttonOf(html, 'Take it')).toContain('data-variant="default"')
     expect(buttonOf(html, 'Leave it')).toContain('data-variant="outline"')
-    expect(buttonOf(html, 'Take it')).toContain('max-md:min-h-(--control-touch)')
-    expect(buttonOf(html, 'Leave it')).toContain('max-md:min-h-(--control-touch)')
-  })
-
-  it('lays the choices in a wrapping row', () => {
-    expect(strip()).toContain('<div class="flex flex-wrap gap-2"><button')
   })
 
   it('disables every choice while one is on its way, and none otherwise', () => {

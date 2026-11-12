@@ -11,7 +11,18 @@ import { LINKTREE_LINKS_NO_PHOTO } from './__fixtures__/linktree-links'
 import { PhoneFrame } from './__fixtures__/phone-frame'
 import { STORY_HERO_PHOTO } from './__fixtures__/story-hero-photo'
 import { immersiveFooterCopy } from './immersive-footer-copy'
-import { HERO_TITLE_SCRIM, HERO_TOP_SCRIM, scrimReach } from './immersive-hero-scrim'
+import {
+  HERO_PHONE_HEIGHT,
+  HERO_TEXT_BANDS,
+  HERO_TITLE_SCRIM,
+  HERO_TITLE_SCRIM_HALF_WIDTH,
+  HERO_TOP_SCRIM,
+  photoMaskGradient,
+  scrimGradient,
+  scrimReach,
+  titleScrimMaskGradient,
+} from './immersive-hero-scrim'
+import { IMMERSIVE_TEXT_COLOUR, PHOTO_BACKDROP } from './immersive-look'
 import { ImmersiveShell } from './immersive-shell'
 
 const CHAMPAGNE = { accentColour: '#EAD6A8', fieldColour: '#15110D' } as const
@@ -39,39 +50,119 @@ const rootOf = (canvasElement: HTMLElement) => {
   return root
 }
 
+/**
+ * What the browser computes for a mask gradient. The photo's fade is in px from
+ * the hero's bottom edge: one in percentages computes differently, and moves
+ * with the hero.
+ */
+const computedMask = (root: HTMLElement, gradient: string) => {
+  const probe = document.createElement('span')
+  probe.style.maskImage = gradient
+  root.appendChild(probe)
+  const computed = getComputedStyle(probe).maskImage
+  probe.remove()
+  return computed
+}
+
+/** What the browser computes for a background gradient, as `computedMask` does for a mask. */
+const computedBackground = (root: HTMLElement, gradient: string) => {
+  const probe = document.createElement('span')
+  probe.style.backgroundImage = gradient
+  root.appendChild(probe)
+  const computed = getComputedStyle(probe).backgroundImage
+  probe.remove()
+  return computed
+}
+
+const queryIn = <T extends HTMLElement>(canvasElement: HTMLElement, selector: string) =>
+  canvasElement.querySelector<T>(selector)
+
+const expectPhotoLoadedOnce = (canvasElement: HTMLElement, root: HTMLElement) => {
+  expect(root.dataset.ihSurface).toBe('photo')
+  const hero = queryIn<HTMLImageElement>(canvasElement, '.ih-hero__image')
+  expect(hero?.getAttribute('fetchpriority')).toBe('high')
+  expect(hero?.getAttribute('loading')).toBe('eager')
+  expect(hero?.getAttribute('width')).toBe('1600')
+  expect(hero?.getAttribute('height')).toBe('1000')
+  expect(hero?.alt).toBe('The colonnade pool at dusk, under an old olive tree')
+  // The hero box is sized by the stylesheet, not by the file: 236 px tall.
+  expect(getComputedStyle(root).getPropertyValue('--ih-hero-h').trim()).toBe(
+    `${HERO_PHONE_HEIGHT}px`,
+  )
+  expect(hero?.getBoundingClientRect().height).toBe(236)
+  // Only the hero is prioritised; the blurred copy is decorative.
+  expect(canvasElement.querySelectorAll('img[fetchpriority="high"]')).toHaveLength(1)
+  expect(queryIn(canvasElement, '.ih-backdrop')?.getAttribute('aria-hidden')).toBe('true')
+}
+
+const expectScrimsFromStops = (canvasElement: HTMLElement, root: HTMLElement) => {
+  // The header's scrim hangs from the hero's top edge, the title's from its bottom edge.
+  const heroBox = queryIn(canvasElement, '.ih-hero')?.getBoundingClientRect()
+  const topFade = queryIn(canvasElement, '.ih-hero__scrim--top')
+  const titleShade = queryIn(canvasElement, '.ih-hero__scrim--title')
+  const topScrim = topFade?.getBoundingClientRect()
+  const titleScrim = titleShade?.getBoundingClientRect()
+  expect(topScrim?.top).toBe(heroBox?.top)
+  expect(topScrim?.height).toBe(scrimReach(HERO_TOP_SCRIM))
+  expect(titleScrim?.bottom).toBe(heroBox?.bottom)
+  expect(titleScrim?.height).toBe(scrimReach(HERO_TITLE_SCRIM))
+  // Both scrims are drawn from the stops the contrast checks assume.
+  expect(topFade && getComputedStyle(topFade).backgroundImage).toBe(
+    computedBackground(root, scrimGradient(HERO_TOP_SCRIM, true)),
+  )
+  expect(titleShade && getComputedStyle(titleShade).backgroundImage).toBe(
+    computedBackground(root, scrimGradient(HERO_TITLE_SCRIM, false)),
+  )
+  // The title block sits where the bands say: the kicker's distance above the hero's bottom edge.
+  expect(Math.round(heroMetrics(canvasElement).kickerFromBottom)).toBe(
+    HERO_TEXT_BANDS.kicker.to,
+  )
+}
+
+const expectBackdropShare = (canvasElement: HTMLElement, root: HTMLElement) => {
+  // The blurred copy behind the page is darkened by the brightness the contrast checks assume.
+  const copy = queryIn(canvasElement, '.ih-backdrop__photo')
+  expect(copy && getComputedStyle(copy).filter).toContain(
+    `brightness(${PHOTO_BACKDROP.brightness})`,
+  )
+  // The field layer over it is the share the contrast checks assume.
+  const wash = queryIn(canvasElement, '.ih-backdrop__wash--photo')
+  const layer = document.createElement('span')
+  layer.style.backgroundColor = `color-mix(in srgb, var(--ih-field) ${PHOTO_BACKDROP.fieldMix * 100}%, transparent)`
+  root.appendChild(layer)
+  expect(wash && getComputedStyle(wash).backgroundColor).toBe(
+    getComputedStyle(layer).backgroundColor,
+  )
+  layer.remove()
+}
+
+const expectFadesCoverTitle = (canvasElement: HTMLElement, root: HTMLElement) => {
+  // The photo fades into the field, and the title's scrim is solid across the whole of the title column.
+  const hero = queryIn(canvasElement, '.ih-hero__image')
+  const fade = hero && getComputedStyle(hero).maskImage
+  expect(fade).toBe(computedMask(root, photoMaskGradient()))
+  expect(fade).not.toContain('%')
+  const column = queryIn(canvasElement, '.ih-title')?.getBoundingClientRect()
+  expect((column?.width ?? Infinity) / 2).toBeLessThanOrEqual(
+    HERO_TITLE_SCRIM_HALF_WIDTH.solid,
+  )
+  const titleFade = queryIn(canvasElement, '.ih-hero__scrim--title')
+  expect(titleFade && getComputedStyle(titleFade).maskImage).toBe(
+    computedMask(root, titleScrimMaskGradient()),
+  )
+  const titleScrim = titleFade?.getBoundingClientRect()
+  expect(titleScrim?.left).toBeLessThanOrEqual(column?.left ?? 0)
+  expect(titleScrim?.right).toBeGreaterThanOrEqual(column?.right ?? Infinity)
+}
+
 /** Board G01. The photo is the one eager, high-priority image and keeps its size. */
 export const G01Arrival: Story = {
   play: async ({ canvasElement }) => {
     const root = rootOf(canvasElement)
-    expect(root.dataset.ihSurface).toBe('photo')
-    const hero = canvasElement.querySelector<HTMLImageElement>('.ih-hero__image')
-    expect(hero?.getAttribute('fetchpriority')).toBe('high')
-    expect(hero?.getAttribute('loading')).toBe('eager')
-    expect(hero?.getAttribute('width')).toBe('1600')
-    expect(hero?.getAttribute('height')).toBe('1000')
-    expect(hero?.alt).toBe('The colonnade pool at dusk, under an old olive tree')
-    // The hero box is sized by the stylesheet, not by the file: 236 px tall.
-    expect(hero?.getBoundingClientRect().height).toBe(236)
-    // Only the hero is prioritised; the blurred copy is decorative.
-    const prioritised = canvasElement.querySelectorAll('img[fetchpriority="high"]')
-    expect(prioritised).toHaveLength(1)
-    expect(canvasElement.querySelector('.ih-backdrop')?.getAttribute('aria-hidden')).toBe(
-      'true',
-    )
-    // The header's scrim hangs from the hero's top edge, the title's from its bottom edge.
-    const heroBox = canvasElement.querySelector('.ih-hero')?.getBoundingClientRect()
-    const topScrim = canvasElement
-      .querySelector('.ih-hero__scrim--top')
-      ?.getBoundingClientRect()
-    const titleScrim = canvasElement
-      .querySelector('.ih-hero__scrim--title')
-      ?.getBoundingClientRect()
-    expect(topScrim?.top).toBe(heroBox?.top)
-    expect(topScrim?.height).toBe(scrimReach(HERO_TOP_SCRIM))
-    expect(titleScrim?.bottom).toBe(heroBox?.bottom)
-    expect(titleScrim?.height).toBe(scrimReach(HERO_TITLE_SCRIM))
-    // The kicker keeps its distance above the hero's bottom edge.
-    expect(Math.round(heroMetrics(canvasElement).kickerFromBottom)).toBe(94)
+    expectPhotoLoadedOnce(canvasElement, root)
+    expectScrimsFromStops(canvasElement, root)
+    expectBackdropShare(canvasElement, root)
+    expectFadesCoverTitle(canvasElement, root)
   },
 }
 
@@ -149,6 +240,19 @@ export const IgnoresTheAppTheme: Story = {
     expect(getComputedStyle(document.body).backgroundColor).toBe('rgb(13, 18, 16)')
     expect(rootStyle.overflowWrap).toBe('break-word')
     expect(rootStyle.hyphens).toBe('auto')
+    // The text colour is the look's own, and selected text takes the page accent, not the app's purple.
+    const probe = document.createElement('span')
+    probe.style.color = IMMERSIVE_TEXT_COLOUR
+    root.appendChild(probe)
+    expect(rootStyle.color).toBe(getComputedStyle(probe).color)
+    const accent = document.createElement('span')
+    accent.style.backgroundColor = 'color-mix(in srgb, var(--ih-accent) 45%, transparent)'
+    root.appendChild(accent)
+    expect(getComputedStyle(probe, '::selection').backgroundColor).toBe(
+      getComputedStyle(accent).backgroundColor,
+    )
+    probe.remove()
+    accent.remove()
     // A tile link takes the page's text colour, not the app's accent colour.
     const tile = canvasElement.querySelector<HTMLElement>('nav a')
     expect(tile && getComputedStyle(tile).color).toBe(rootStyle.color)
@@ -204,6 +308,11 @@ export const WideViewport: Story = {
     expect(rootOf(canvasElement).getBoundingClientRect().width).toBe(1024)
     const hero = canvasElement.querySelector<HTMLElement>('.ih-hero')
     expect(hero?.getBoundingClientRect().height).toBe(236)
+    // On the widest column the title's scrim is still solid behind every word of it.
+    const title = canvasElement.querySelector('.ih-title')?.getBoundingClientRect()
+    expect((title?.width ?? Infinity) / 2).toBeLessThanOrEqual(
+      HERO_TITLE_SCRIM_HALF_WIDTH.solid,
+    )
   },
 }
 
@@ -217,6 +326,13 @@ function heroMetrics(canvasElement: HTMLElement) {
     height: heroBox.height,
     kickerFromBottom: heroBox.bottom - kicker.getBoundingClientRect().top,
   }
+}
+
+/** The hero's measures, with its height checked against what the stylesheet gives at this width. */
+function heroAtItsWidth(canvasElement: HTMLElement) {
+  const metrics = heroMetrics(canvasElement)
+  expect(Math.abs(metrics.height - heroHeightAt(window.innerWidth))).toBeLessThan(1)
+  return metrics
 }
 
 /**
@@ -239,9 +355,13 @@ export const HeroGrowsOnATablet: Story = {
   args: { height: 'page' },
   parameters: { frameWidth: 820, viewport: { defaultViewport: 'tablet' } },
   play: async ({ canvasElement }) => {
-    const { height, kickerFromBottom } = heroMetrics(canvasElement)
-    expect(Math.abs(height - heroHeightAt(window.innerWidth))).toBeLessThan(1)
+    const { kickerFromBottom } = heroAtItsWidth(canvasElement)
     expect(Math.round(kickerFromBottom)).toBe(94)
+    // The photo's fade is the same distance from the bottom on the taller hero.
+    const hero = canvasElement.querySelector<HTMLElement>('.ih-hero__image')
+    expect(hero && getComputedStyle(hero).maskImage).toBe(
+      computedMask(rootOf(canvasElement), photoMaskGradient()),
+    )
   },
 }
 
@@ -250,8 +370,7 @@ export const HeroIsBoundedOnADesktop: Story = {
   args: { height: 'page' },
   parameters: { frameWidth: 1440, viewport: { defaultViewport: 'desktopManager' } },
   play: async ({ canvasElement }) => {
-    const { height, kickerFromBottom } = heroMetrics(canvasElement)
-    expect(Math.abs(height - heroHeightAt(window.innerWidth))).toBeLessThan(1)
+    const { height, kickerFromBottom } = heroAtItsWidth(canvasElement)
     expect(height).toBeLessThanOrEqual(440)
     expect(Math.round(kickerFromBottom)).toBe(94)
   },

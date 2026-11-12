@@ -29,6 +29,8 @@ Scopes: `access`, `guest-response`, `participant`, `property`, `organization`.
   the command writes one IDs-only journal object per context to the private
   bucket first, and when that write fails nothing is deleted and an alert
   fires. Only the final warning, which deletes nothing, needs no journal.
+  Guest self-service withdrawals use the same journal, so a response a guest
+  withdrew after the restore point is replayed too.
   Work runs in bounded batches and a stopped run resumes by running the same
   command again. Each run, whatever its outcome, records one audit event
   naming the operator, the scope, the Organization and Property and the

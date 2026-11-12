@@ -3,18 +3,15 @@ import {
   reportReplyProgress,
   type ReplyDraftingProgressSink,
 } from '#/shared/reply-drafting-progress'
-import { timingSafeEqual, type KeyObject } from 'node:crypto'
-import {
-  aiSettlementReceiptSchema,
-  verifyAiExecutionGrant,
-  type AiExecutionGrantV1,
-  type AiSettlementReceiptV1,
-  type AiSettlementOutcome,
+import { timingSafeEqual } from 'node:crypto'
+import type {
+  AiSettlementReceiptV1,
+  AiSettlementOutcome,
 } from '#/shared/ai-internal-transport-contract'
-import {
-  parseAiGatewayRouteResponse,
-  type AiGatewayRouteRequestV1,
-  type AiGatewayRouteResponseV1,
+import type {
+  AiGatewayErrorCode,
+  AiGatewayRouteRequestV1,
+  AiGatewayRouteResponseV1,
 } from '#/shared/ai-gateway-transport-contract'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type { SensitiveSourceLease } from './source-lease'
@@ -27,11 +24,14 @@ import type {
 } from './contracts'
 import { createAiSettlementSignal } from './settlement-signal'
 import { enforceOutboundFetchDisposition } from './dispositions'
+import {
+  aiAdmissionDescriptorDigest,
+  isMintedAiExecutionAdmission,
+  type AiExecutionAdmission,
+} from './execution-admission'
 import { createOpenAiProviderAdapter } from './openai-provider-adapter'
 import type { AiProviderAdapter } from './provider-contracts'
 import { createAiProviderRegistry, type AiProviderRegistry } from './provider-selection'
-
-type AiGatewayErrorCode = Extract<AiGatewayRouteResponseV1, { status: 'error' }>['code']
 
 const ZERO_USAGE = Object.freeze({
   inputTokens: 0,
@@ -42,11 +42,10 @@ const ZERO_USAGE = Object.freeze({
 })
 
 export function isGatewayOuterDeadlineValid(
-  route: AiGatewayRouteRequestV1['route'],
   deadlineEpochMillis: number,
   nowEpochMillis: number,
 ): boolean {
-  const horizonMillis = route === 'property-trend' ? 100_000 : 70_000
+  const horizonMillis = 70_000
   return (
     Number.isSafeInteger(deadlineEpochMillis) &&
     Number.isSafeInteger(nowEpochMillis) &&
@@ -86,13 +85,6 @@ function requestMatchesDescriptor(
     )
   )
     return false
-  if (request.route === 'property-trend') {
-    return (
-      descriptor.actorId === null &&
-      descriptor.observedContentExpiresAtEpochMillis === null &&
-      descriptor.redactionCountry === null
-    )
-  }
   return (
     descriptor.observedContentExpiresAtEpochMillis ===
       request.observedContentExpiresAtEpochMillis &&
@@ -101,40 +93,39 @@ function requestMatchesDescriptor(
   )
 }
 
-function grantMatchesInvocation(
-  grant: AiExecutionGrantV1,
+function admissionMatchesInvocation(
+  admission: AiExecutionAdmission,
   invocation: ReturnType<AiGatewayRoutePreparer['prepare']>['invocation'],
-  publicKeys: ReadonlyMap<string, KeyObject>,
   nowEpochMillis: number,
 ): boolean {
   const descriptor = invocation.descriptor
   const replyRoute = descriptor.route === 'reply-suggestion'
   return (
-    verifyAiExecutionGrant(grant, publicKeys) &&
-    grant.subjectKind === descriptor.subjectKind &&
-    grant.requestBindingKeyId === invocation.requestBindingKeyId &&
-    constantEqual(grant.requestBindingHmac, invocation.requestBindingHmac) &&
-    grant.route === descriptor.route &&
-    grant.operationId === descriptor.operationId &&
-    grant.permitId === descriptor.permitId &&
-    grant.attemptNumber === descriptor.attemptNumber &&
+    isMintedAiExecutionAdmission(admission) &&
+    admission.subjectKind === descriptor.subjectKind &&
+    admission.route === descriptor.route &&
+    admission.operationId === descriptor.operationId &&
+    admission.permitId === descriptor.permitId &&
+    admission.attemptNumber === descriptor.attemptNumber &&
     constantEqual(
-      canonicalizeRfc8785(grant.limits),
+      canonicalizeRfc8785(admission.limits),
       canonicalizeRfc8785(descriptor.limits),
     ) &&
-    grant.callerDeadlineEpochMillis === descriptor.callerDeadlineEpochMillis &&
-    grant.expiresAtEpochMillis === descriptor.callerDeadlineEpochMillis &&
-    grant.issuedAtEpochMillis <= nowEpochMillis &&
-    grant.issuedAtEpochMillis < grant.expiresAtEpochMillis &&
-    grant.expiresAtEpochMillis > nowEpochMillis &&
+    admission.callerDeadlineEpochMillis === descriptor.callerDeadlineEpochMillis &&
+    constantEqual(admission.descriptorDigest, aiAdmissionDescriptorDigest(descriptor)) &&
+    admission.expiresAtEpochMillis === descriptor.callerDeadlineEpochMillis &&
+    admission.issuedAtEpochMillis <= nowEpochMillis &&
+    admission.issuedAtEpochMillis < admission.expiresAtEpochMillis &&
+    admission.expiresAtEpochMillis > nowEpochMillis &&
     (replyRoute
-      ? grant.replyTokenExpiresAtEpochMillis !== null &&
-        grant.replyDraftExpiresAtEpochMillis !== null &&
-        grant.replyTokenExpiresAtEpochMillis > nowEpochMillis &&
-        grant.replyDraftExpiresAtEpochMillis > nowEpochMillis &&
-        grant.replyTokenExpiresAtEpochMillis <= grant.replyDraftExpiresAtEpochMillis
-      : grant.replyTokenExpiresAtEpochMillis === null &&
-        grant.replyDraftExpiresAtEpochMillis === null)
+      ? admission.replyTokenExpiresAtEpochMillis !== null &&
+        admission.replyDraftExpiresAtEpochMillis !== null &&
+        admission.replyTokenExpiresAtEpochMillis > nowEpochMillis &&
+        admission.replyDraftExpiresAtEpochMillis > nowEpochMillis &&
+        admission.replyTokenExpiresAtEpochMillis <=
+          admission.replyDraftExpiresAtEpochMillis
+      : admission.replyTokenExpiresAtEpochMillis === null &&
+        admission.replyDraftExpiresAtEpochMillis === null)
   )
 }
 
@@ -198,12 +189,7 @@ function errorResponse(
   code: AiGatewayErrorCode,
   retryAfterEpochMillis: number | null = null,
 ): AiGatewayRouteResponseV1 {
-  return parseAiGatewayRouteResponse({
-    route,
-    status: 'error',
-    code,
-    retryAfterEpochMillis,
-  })
+  return { route, status: 'error', code, retryAfterEpochMillis }
 }
 
 function settlementOutcome(
@@ -224,7 +210,7 @@ function settlementOutcome(
 
 function receiptMatches(
   receipt: AiSettlementReceiptV1,
-  grant: AiExecutionGrantV1,
+  admission: AiExecutionAdmission,
   request: AiSettlementOutcome,
 ): boolean {
   const finalDispositionAccepted =
@@ -238,13 +224,10 @@ function receiptMatches(
         ? 'ambiguous'
         : 'settled'
   return (
-    aiSettlementReceiptSchema.safeParse(receipt).success &&
-    receipt.grantKid === grant.grantKid &&
-    receipt.operationId === grant.operationId &&
-    receipt.permitId === grant.permitId &&
-    receipt.attemptNumber === grant.attemptNumber &&
-    receipt.nonce === grant.nonce &&
-    constantEqual(receipt.requestBindingHmac, grant.requestBindingHmac) &&
+    receipt.version === 'ai-settlement-receipt-v1' &&
+    receipt.operationId === admission.operationId &&
+    receipt.permitId === admission.permitId &&
+    receipt.attemptNumber === admission.attemptNumber &&
     finalDispositionAccepted &&
     receipt.reportedDisposition === request.reportedDisposition &&
     receipt.providerRetryable ===
@@ -254,6 +237,9 @@ function receiptMatches(
     receipt.cachedInputTokens === request.cachedInputTokens &&
     receipt.outputTokens === request.outputTokens &&
     receipt.reasoningTokens === request.reasoningTokens &&
+    Number.isSafeInteger(receipt.costMicros) &&
+    receipt.costMicros >= 0 &&
+    (receipt.disposition !== 'no_dispatch' || receipt.costMicros === 0) &&
     receipt.settlementState === expectedState
   )
 }
@@ -320,7 +306,6 @@ export function createAiEgressGatewayService(
   dependencies: Readonly<{
     admission: AiAdmissionClient
     preparer: AiGatewayRoutePreparer
-    admissionPublicKeys: ReadonlyMap<string, KeyObject>
     now?: () => number
   }> &
     AiEgressProviders,
@@ -351,9 +336,7 @@ export function createAiEgressGatewayService(
       } catch (error) {
         lease.dispose()
         const failedRoute: AiGatewayRouteRequestV1['route'] =
-          attemptedRoute === 'reply-suggestion' || attemptedRoute === 'property-trend'
-            ? attemptedRoute
-            : 'review-analysis'
+          attemptedRoute === 'reply-suggestion' ? attemptedRoute : 'review-analysis'
         return errorResponse(
           failedRoute,
           error instanceof GatewayPreparationError ? error.code : 'invalid_request',
@@ -377,7 +360,7 @@ export function createAiEgressGatewayService(
         return errorResponse(route, 'policy_unavailable')
       }
       const gatewayNow = now()
-      if (!isGatewayOuterDeadlineValid(route, outerDeadlineEpochMillis, gatewayNow)) {
+      if (!isGatewayOuterDeadlineValid(outerDeadlineEpochMillis, gatewayNow)) {
         prepared.invocation.canonicalProviderBytes.fill(0)
         return errorResponse(route, 'invalid_request')
       }
@@ -389,16 +372,12 @@ export function createAiEgressGatewayService(
         let authorization: Awaited<ReturnType<AiAdmissionClient['authorize']>>
         try {
           authorization = await dependencies.admission.authorize(
-            {
-              descriptor: prepared.invocation.descriptor,
-              requestBindingKeyId: prepared.invocation.requestBindingKeyId,
-              requestBindingHmac: prepared.invocation.requestBindingHmac,
-            },
+            prepared.invocation.descriptor,
             deadline.signal,
           )
         } catch (error) {
           // The authority could not answer (its database timed out under a
-          // burst). No grant reached this process and the connector was never
+          // burst). No admission reached this process and the connector was never
           // invoked, so nothing can have been charged: this is a transient
           // outage to retry, not an ambiguous provider outcome. Reporting it as
           // ambiguous spent the caller's provider attempts on retries that
@@ -420,28 +399,21 @@ export function createAiEgressGatewayService(
           prepared.invocation.canonicalProviderBytes.fill(0)
           return errorResponse(route, denialCode(authorization.code))
         }
-        const grant = authorization.grant
-        if (
-          !grantMatchesInvocation(
-            grant,
-            prepared.invocation,
-            dependencies.admissionPublicKeys,
-            now(),
-          )
-        ) {
+        const admission = authorization.admission
+        if (!admissionMatchesInvocation(admission, prepared.invocation, now())) {
           prepared.invocation.canonicalProviderBytes.fill(0)
           return errorResponse(route, 'operation_ambiguous')
         }
-        const providerDeadlineMillis = route === 'property-trend' ? 90_000 : 60_000
+        const providerDeadlineMillis = 60_000
         const providerAndSettlementMillis = providerDeadlineMillis + 5_000
         let outcome: OpenAiConnectorOutcome<unknown>
         // This branch skips the connector entirely, so the connector's own
         // `gateway_no_dispatch` diagnostic never fires for it. Both conditions were
         // silent, which made a real closed-beta failure undiagnosable: the caller
         // sees only `operation_ambiguous`. Report the numbers behind the decision.
-        const grantTtlMillis = grant.expiresAtEpochMillis - now()
+        const admissionTtlMillis = admission.expiresAtEpochMillis - now()
         const deadlineAborted = deadline.signal.aborted
-        if (grantTtlMillis < providerAndSettlementMillis || deadlineAborted) {
+        if (admissionTtlMillis < providerAndSettlementMillis || deadlineAborted) {
           process.stderr.write(
             `${JSON.stringify({
               event: 'gateway_no_dispatch',
@@ -450,10 +422,12 @@ export function createAiEgressGatewayService(
               operationId: prepared.invocation.descriptor.operationId,
               permitId: prepared.invocation.descriptor.permitId,
               attempt: prepared.invocation.descriptor.attemptNumber,
-              grantTtlMillis,
+              admissionTtlMillis,
               requiredTtlMillis: providerAndSettlementMillis,
               deadlineAborted,
-              reason: deadlineAborted ? 'caller_deadline_aborted' : 'grant_ttl_too_short',
+              reason: deadlineAborted
+                ? 'caller_deadline_aborted'
+                : 'admission_ttl_too_short',
             })}\n`,
           )
           prepared.invocation.canonicalProviderBytes.fill(0)
@@ -478,7 +452,7 @@ export function createAiEgressGatewayService(
             outcome = await invokeProviderWithProgress(
               adapter,
               prepared.invocation,
-              grant,
+              admission,
               prepared.outputSchema,
               providerDeadline.signal,
               replyProviderObserver(prepared, progress),
@@ -518,7 +492,7 @@ export function createAiEgressGatewayService(
         let settlement: Awaited<ReturnType<AiAdmissionClient['settle']>>
         try {
           settlement = await dependencies.admission.settle(
-            grant,
+            admission,
             settleRequest,
             settlementDeadline.signal,
           )
@@ -527,11 +501,11 @@ export function createAiEgressGatewayService(
         }
         const receiptBound =
           settlement.status === 'settled' &&
-          receiptMatches(settlement.receipt, grant, settleRequest)
+          receiptMatches(settlement.receipt, admission, settleRequest)
         if (settlement.status !== 'settled' || !receiptBound) {
           // Two independent causes behind one exit: admission did not return a
           // settled receipt, or it returned one that does not bind to this
-          // grant and request. The provider may already have run and been
+          // admission and request. The provider may already have run and been
           // charged, so `operation_ambiguous` is the honest code — but which
           // half failed decides whether to look at admission or at binding,
           // and this exit reported neither.
@@ -565,15 +539,15 @@ export function createAiEgressGatewayService(
         if (
           signal.aborted ||
           releaseNow >= outerDeadlineEpochMillis ||
-          settlement.receipt.settledAtEpochMillis >= grant.expiresAtEpochMillis ||
+          settlement.receipt.settledAtEpochMillis >= admission.expiresAtEpochMillis ||
           (route === 'reply-suggestion' &&
-            (grant.replyTokenExpiresAtEpochMillis === null ||
-              grant.replyTokenExpiresAtEpochMillis <= releaseNow))
+            (admission.replyTokenExpiresAtEpochMillis === null ||
+              admission.replyTokenExpiresAtEpochMillis <= releaseNow))
         ) {
           // Four independent expiry conditions collapsed into one exit. The
           // provider has already answered and been charged at this point, so
           // knowing WHICH clock ran out is the difference between a caller
-          // deadline, a grant TTL and a reply-token TTL.
+          // deadline, an admission TTL and a reply-token TTL.
           process.stderr.write(
             `${JSON.stringify({
               event: 'gateway_post_settlement_expiry',
@@ -581,16 +555,16 @@ export function createAiEgressGatewayService(
               successSettled,
               aborted: signal.aborted,
               pastOuterDeadline: releaseNow >= outerDeadlineEpochMillis,
-              settledAfterGrantExpiry:
-                settlement.receipt.settledAtEpochMillis >= grant.expiresAtEpochMillis,
+              settledAfterAdmissionExpiry:
+                settlement.receipt.settledAtEpochMillis >= admission.expiresAtEpochMillis,
               replyTokenExpired:
                 route === 'reply-suggestion' &&
-                (grant.replyTokenExpiresAtEpochMillis === null ||
-                  grant.replyTokenExpiresAtEpochMillis <= releaseNow),
+                (admission.replyTokenExpiresAtEpochMillis === null ||
+                  admission.replyTokenExpiresAtEpochMillis <= releaseNow),
               replyTokenTtlMillis:
-                grant.replyTokenExpiresAtEpochMillis === null
+                admission.replyTokenExpiresAtEpochMillis === null
                   ? null
-                  : grant.replyTokenExpiresAtEpochMillis - releaseNow,
+                  : admission.replyTokenExpiresAtEpochMillis - releaseNow,
             })}\n`,
           )
           return errorResponse(
@@ -616,12 +590,12 @@ export function createAiEgressGatewayService(
           )
           return withReplyRewriteIssues(failure, settlement.receipt, prepared)
         }
-        const response = parseAiGatewayRouteResponse(
-          accepted.buildResponse(settlement.receipt, grant),
-        )
+        const response = accepted.buildResponse(settlement.receipt, admission)
         if (
           response.route !== route ||
           response.status !== 'success' ||
+          response.settlementReceipt.disposition !== 'success' ||
+          response.settlementReceipt.settlementState !== 'settled' ||
           !constantEqual(
             canonicalizeRfc8785(response.settlementReceipt),
             canonicalizeRfc8785(settlement.receipt),
@@ -698,10 +672,10 @@ function invokeProviderWithProgress(
   adapter: AiProviderAdapter,
   ...args: Parameters<AiProviderAdapter['invoke']>
 ) {
-  const [invocation, grant, schema, signal, observer] = args
+  const [invocation, admission, schema, signal, observer] = args
   return observer
-    ? adapter.invoke(invocation, grant, schema, signal, observer)
-    : adapter.invoke(invocation, grant, schema, signal)
+    ? adapter.invoke(invocation, admission, schema, signal, observer)
+    : adapter.invoke(invocation, admission, schema, signal)
 }
 
 function reportReplyChecking(

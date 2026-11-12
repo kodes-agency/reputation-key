@@ -260,17 +260,10 @@ function UnavailableReview({ status }: Readonly<{ status: string | null }>): Rea
  * Arabic or Hebrew review (`REPLY_TEMPLATE_LANGUAGE_GROUPS` has both).
  *
  * The `<summary>` is a CONTROL — it toggles, it takes focus, it is the one
- * target on its line — so it takes row 20's 36 px: `min-h-9`. v1 gave it 44
- * (`min-h-11`) as its touch target; row 20 lowered the pane's controls to 36
- * because WCAG 2.5.8 AA asks for 24 px and 44 was what inflated the phone pane,
- * and PR 5's sweep is where this one moved. It is unprefixed, at every width,
- * as v1's was: the summary draws no box, so the desktop pane gains no visible
- * density from a smaller value, while a mouse still gets a generous row.
- * `min-h-`, as v1 had it, so the row still grows with its text rather than
- * clipping it.
- * Measured in Chromium against Storybook dev
- * (`inbox-thread--original-first-when-review-language-unknown`):
- * `Google translation` 44 px tall before, 36 after, at 390 and at 1440 alike.
+ * target on its line — so it is `min-h-11` below `md`, the tap target, and
+ * `min-h-9` from there: the summary draws no box, so the desktop pane gains no
+ * visible density from the smaller value. `min-h-`, so the row still grows with
+ * its text rather than clipping it.
  */
 function ReviewDisclosure({
   disclosure,
@@ -281,7 +274,7 @@ function ReviewDisclosure({
 }>): ReactNode {
   return (
     <details className="w-fit max-w-full text-muted-foreground">
-      <summary className="flex min-h-9 cursor-pointer items-center text-sm font-medium focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring">
+      <summary className="flex min-h-9 cursor-pointer max-md:min-h-11 items-center text-sm font-medium focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring">
         {disclosure.label}
       </summary>
       <p

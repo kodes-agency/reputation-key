@@ -243,13 +243,9 @@ async function createHarness(
           result: options.analysisResult ?? VALID_V3_ANSWER,
           settlementReceipt: {
             version: 'ai-settlement-receipt-v1' as const,
-
-            grantKid: 'grant_v1',
             operationId: request.operationId,
             permitId: request.permitId,
             attemptNumber: request.attemptNumber,
-            nonce: 'AQIDBA',
-            requestBindingHmac: 'A'.repeat(43),
             disposition: 'success' as const,
             reportedDisposition: 'success' as const,
             providerRetryable: false,
@@ -319,7 +315,6 @@ async function createHarness(
     inference: {
       analyzeReview,
       generateReply: vi.fn(),
-      generateTrend: vi.fn(),
     },
     operations: persistence.operations,
     outputs: {
@@ -404,7 +399,6 @@ export {
   PROPERTY_ID,
   REVIEW_ID,
   SHA,
-  VALID_V3_ANSWER,
   withDriftedLanguageRuntime,
   withPinnedLanguageRuntime,
 }

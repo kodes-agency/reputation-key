@@ -3,7 +3,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { unbrand } from '#/shared/domain/ids'
-import { handleWorkflowNotificationEvent } from './workflow-outbox-consumers'
+import { handleWorkflowNotificationEvent } from '../notify/inbox-workflow.server'
 import {
   createNotificationConsumerDeps,
   NOTIF_TEST_IDS,

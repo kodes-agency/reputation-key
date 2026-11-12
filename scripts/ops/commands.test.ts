@@ -55,6 +55,31 @@ describe('pnpm ops command table', () => {
     expect(missing).toEqual([])
   })
 
+  it('states in the census the boot each command script uses', () => {
+    const census = readFileSync(
+      resolve(ROOT, 'docs/operations/operator-commands.md'),
+      'utf8',
+    )
+    const rows = census.slice(census.indexOf('## Command census')).split('\n')
+    const bootOf = (name: string): string | undefined =>
+      rows
+        .find((row) => row.startsWith('|') && row.split('|')[1]?.includes(`\`${name}\``))
+        ?.split('|')[2]
+        ?.trim()
+    const mismatched = Object.entries(COMMANDS).flatMap(([name, [file]]) => {
+      const source = readFileSync(resolve(ROOT, file), 'utf8')
+      const expected = source.includes('runDatabaseOperatorCommand')
+        ? 'database'
+        : source.includes('runOperatorCommand')
+          ? 'application'
+          : undefined
+      return expected === undefined || bootOf(name) === expected
+        ? []
+        : [`${name}: ${bootOf(name) ?? 'missing'}, script boots ${expected}`]
+    })
+    expect(mismatched).toEqual([])
+  })
+
   it('points every command at a script that exists', () => {
     const missing = Object.entries(COMMANDS)
       .filter(([, [file]]) => !existsSync(resolve(ROOT, file)))

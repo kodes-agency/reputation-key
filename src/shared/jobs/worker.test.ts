@@ -7,7 +7,7 @@
 // now covers every queue: src/worker/pool-budget.test.ts.
 
 import { describe, expect, it } from 'vitest'
-import { GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS } from '#/contexts/integration/application/ports/google-import-v2-store.port'
+import { GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS } from '#/contexts/integration/application/ports/google-import-store.port'
 import { OUTBOX_DELIVERY_LEASE_MS } from '#/shared/outbox/dispatch-job-options'
 import {
   JOB_LOCK_DURATION_MS,

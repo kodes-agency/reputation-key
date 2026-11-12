@@ -46,7 +46,7 @@ import {
   createNotificationConsumerDeps,
   noticeWriterOver,
 } from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
-import { createGoogleImportV2Queue } from '#/contexts/integration/infrastructure/google-import-v2-queue'
+import { createGoogleImportQueue } from '#/contexts/integration/infrastructure/google-import-queue'
 import { buildReviewContext } from '#/contexts/review/build'
 
 vi.mock('#/shared/observability/logger', () => ({
@@ -125,7 +125,7 @@ const receipts = { insertReceipt: async () => undefined } as unknown as OutboxRe
 
 const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
   'import-gbp-property-item': producer(async (queue) => {
-    await createGoogleImportV2Queue(queue).addImportItemJobs([
+    await createGoogleImportQueue(queue).addImportItemJobs([
       {
         jobId: `google-import-item-${ID(2)}`,
         organizationId: ORGANIZATION,

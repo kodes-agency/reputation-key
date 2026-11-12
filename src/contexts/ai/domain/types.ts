@@ -47,11 +47,6 @@ export type AiCapabilityFence =
       replyDraftingEpoch: number
       baseReplyStateRevision: number
     }>
-  | Readonly<{
-      capability: 'property_trends'
-      reviewAnalysisEpoch: number
-      propertyTrendsEpoch: number
-    }>
 
 export type AiExecutionStopFence = Readonly<{
   globalControlId: string
@@ -138,19 +133,6 @@ export type AiOperationIdentity =
       reviewedAtEpochMillis: number
       tone: 'professional' | 'friendly' | 'casual'
       baseReplyStateRevision: number
-    }>
-  | Readonly<{
-      subjectKind: 'property'
-      command: 'trend'
-      capability: 'property_trends'
-      organizationId: string
-      propertyId: string
-      actorId: null
-      systemPrincipal: 'property_trend_coordinator'
-      sourceEpoch: number
-      dueLocalDate: string
-      terminalAnalysisSequence: number
-      aggregateRevision: number
     }>
 
 export type ReviewAnalysisAspectV2 =

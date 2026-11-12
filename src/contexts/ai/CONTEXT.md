@@ -439,8 +439,8 @@ attestation digest). OpenAI is the first adapter (`openai-provider-adapter.ts`);
 is the request building the route preparer used to do inline and its `invoke` is the
 connector, both unchanged. `openai-v2-parity.test.ts` pins, as literals taken before the seam
 existed, every v2 profile digest, the deployment profile and, for each route, the descriptor,
-the request binding and the SHA-256 of the exact body sent to OpenAI; it passes unchanged at
-the commit before the seam and after it.
+the digest of the descriptor admission reads and the SHA-256 of the exact body sent to
+OpenAI.
 
 Switching providers is an operator's act and nothing else (decision 7,
 `provider-selection.ts`). The operator names a provider per capability
@@ -463,19 +463,28 @@ history to the other provider is a new review-analysis epoch, so one evidence wi
 mixes two models' judgements.
 
 An operation profile used to hash its prompt and schema beside OpenAI's request shape and
-the token count of OpenAI's wrapper. It is now two things. The logical profile
-(`ai-logical-operation-profile.ts`) is the operation in no provider's terms: prompt, answer
+the token count of OpenAI's wrapper. It is now two things, defined once in
+`ai-operation-profile.ts`. Every profile and attested-artifact digest (profiles, deployment,
+routing policy, runtime capabilities, normalizer, reply lint, examples, leakage, markers,
+redactor, template catalogue, request shape) follows one rule, `digestOf` in
+`src/shared/ai-digest.ts`: SHA-256 over a domain and the RFC 8785 form of a value. Stored
+operations and provenance carry these digests, so `ai-digest.test.ts` pins their values. The logical profile is the operation in no provider's terms: prompt, answer
 schema, the artifacts it reads (taxonomy, sentence rules, normalizer, attention formula, source
 rules) and limits, with a `logicalDigest` that moves for those and for nothing a provider does.
 A provider's attestation (`ai-provider-attestations.ts`; OpenAI's, `ai-openai-provider-attestation.ts`,
 restates the deployment contract it already had) covers model, SDK, request shape, endpoint,
 name resolution, headers, usage and status mapping, price list, rate limit and posture, with its
 own digest. A pairing (`AiOperationProviderPairing`) is one provider's carrying of one logical
-profile: the wire schema it derives and the static tokens a reservation prices. The profiles in
-force are untouched; `ai-operation-profile-views.ts` reads each as logical profile plus OpenAI
-pairing and builds it back with every digest intact (`ai-operation-profile-views.test.ts`),
-and is how the v3 profile (`review-analysis-v3-profile.ts`, with its prompt from the
-annotation guide) became a catalogue entry at the switch-on. `defineProviderDeploymentEnvelope`
+profile: the wire schema it derives and the static tokens a reservation prices. The catalogue
+entry a provider serves a profile as is built from the logical profile and that pairing
+(`operationProfileForCatalogue`), every digest intact (`ai-operation-profile.test.ts`). The two
+bundles are `src/shared/analysis/profile.ts` (review analysis v3, with its Anthropic pairing)
+and `src/shared/reply/profile.ts` (reply drafting v2); the release canary's profile sits in
+`ai-operation-profiles.ts` beside the catalogue. The catalogue holds those three. Operations
+recorded under the retired `review-analysis-v2` and `reply-suggestion-v1` profiles are read by
+their recorded version strings (the binding parser in `domain/rules.ts`, the provenance
+parser in `ai-reply-provenance.ts`, the consent-compatibility catalogue); no profile object
+describes them and nothing claims or prices work under them. `defineProviderDeploymentEnvelope`
 names every provider of a deployment by attestation digest (`private-beta-global-v2` is built
 from both since the switch-on); choosing one of them is not an
 input to it.
@@ -510,7 +519,7 @@ the e2e provider stub (`e2e/fixtures/ai-provider-stub.ts`) are Messages-shaped f
   normalizer) stays the single acceptance point (contract 1.3).
 - The transport is the OpenAI connector's boundary made provider-neutral
   (`connector-boundary.ts`, used by both connectors; the OpenAI path is behaviour-identical and
-  `openai-v2-parity.test.ts` still passes unchanged): the grant and nonce gate, an exact header
+  `openai-v2-parity.test.ts` pins its bytes): the single-use admission gate, an exact header
   allowlist for the SDK's own request, byte equality with the attested RFC 8785 bytes, pinned
   name resolution to `api.anthropic.com`, HTTP/1.1 with one request per dispatcher, no redirects,
   bounded reads, no SDK retries. The SDK sends `Authorization: Bearer`; the boundary sends five
@@ -999,8 +1008,10 @@ for an event that is gone.
 
 The served drafting selection is `reply-drafting-runtime-v2` / `reply-suggestion-v2`; the
 `reply-drafting-runtime-v1` / `reply-suggestion-v1` row is `served: false` and stays in the
-catalogue for historical operations. The notice, UI, historical profile readers and v1 wire
-pins are unchanged. B2 registered the streaming execution as compatible with the notice
+catalogue so consent compatibility still reads historical operations; neither the use case in
+`reply/generate-suggestion.server.ts` nor the gateway route preparer and request schema has a
+v1 execution path, and no operation profile object describes v1. The notice, UI and the
+stored-operation readers are unchanged. B2 registered the streaming execution as compatible with the notice
 already in force (ADR 0074). No new notice or consent write accompanied B2.
 
 The new identities are operation `reply-suggestion-v2`, profile `reply-draft-v4`, runtime
@@ -1045,9 +1056,9 @@ Re-verified map items 1–6 on the supplied stacked base `af57b9c36` (current im
 
 | Map item                                   | Authority                                                                                                                                                                                                      |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 — profile/prompt/schema/provenance       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/reply-drafting-v2-schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                             |
+| 1 — profile/prompt/schema/provenance       | `src/shared/reply/profile.ts:25`, `src/shared/reply-drafting-v2-schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                                         |
 | 2 — numbered input/options/binding         | `src/shared/reply-drafting-v2-request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                        |
-| 3 — effort/output/reservation bounds       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/db/ai/ai-budget.ts:97`                                                                                                                               |
+| 3 — effort/output/reservation bounds       | `src/shared/reply/profile.ts:25`, `src/shared/db/ai/ai-budget.ts:97`                                                                                                                                           |
 | 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/infrastructure/adapters/reply-rewrite-parent.ts:16`                                             |
 | 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                 |
 | 6 — frame choice/usage/adoption            | `src/contexts/review/application/ai-reply-v2-frame.ts:21`, `src/contexts/review/infrastructure/repositories/ai-frame-reservation.ts:156`, `src/contexts/review/infrastructure/ai-suggested-draft-store.ts:481` |
@@ -1120,7 +1131,7 @@ Re-verified map items 7–8 against origin/main `cf1e33c66` (B1 merged):
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 7 — authenticated POST / cancellation                   | `src/contexts/ai/server/reply-suggestion-stream.ts:32`, `src/contexts/ai/server/reply-progress-stream.server.ts:16`                                                                    |
 | 7 — safe incremental metadata / bounded provider stream | `src/shared/ai-provider-control/reply-progress-parser.ts:15`, `src/shared/ai-provider-control/bounded-event-stream.ts:2`, `src/shared/ai-provider-control/openai-stream-response.ts:7` |
-| 7 — v2-only request attestation / deployment            | `src/shared/ai-openai-stream-profile.ts:32`, `src/shared/reply-drafting-v2-profile.ts:25`, `drizzle/0086_reply_drafting_progress.sql:1`                                                |
+| 7 — v2-only request attestation / deployment            | `src/shared/ai-openai-stream-profile.ts:32`, `src/shared/reply/profile.ts:25`, `drizzle/0086_reply_drafting_progress.sql:1`                                                            |
 | 8 — lane / active actor ownership / identity            | `src/contexts/ai/reply/requests.server.ts:20`, `src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts:851`                                                             |
 | 8 — authoritative local/Google reply eligibility        | `src/contexts/review/infrastructure/repositories/unanswered-review.ts:11`                                                                                                              |
 

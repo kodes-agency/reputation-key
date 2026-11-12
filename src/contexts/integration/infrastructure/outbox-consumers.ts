@@ -1,6 +1,6 @@
 import { createGoogleImportDispatchHandler } from '../application/google-import-dispatch'
-import type { GoogleImportV2QueuePort } from '../application/ports/gbp-queue.port'
-import type { GoogleImportV2Store } from '../application/ports/google-import-v2-store.port'
+import type { GoogleImportQueuePort } from '../application/ports/gbp-queue.port'
+import type { GoogleImportStore } from '../application/ports/google-import-store.port'
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type { ProviderAuthorizationInvalidationFanout } from '#/shared/provider-ephemeral/authorization-invalidation'
@@ -11,8 +11,8 @@ export const PROVIDER_AUTHORIZATION_INVALIDATION_CONSUMER =
 export function registerGoogleImportDispatchConsumer(
   registry: ConsumerRegistry,
   deps: Readonly<{
-    store: GoogleImportV2Store
-    queue: GoogleImportV2QueuePort
+    store: GoogleImportStore
+    queue: GoogleImportQueuePort
     receipts: Pick<OutboxRepository, 'insertReceipt'>
   }>,
 ): void {

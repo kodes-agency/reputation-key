@@ -1,7 +1,8 @@
 // Prime goal reads concurrently and isolate failures in this section. Arrival setup
 // waits for setup and History, opening only where the page would offer it.
 
-import { useEffect, useRef, useState } from 'react'
+import { useServedNow } from '#/components/hooks/served-clock'
+import { useEffect, useRef } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type {
   RatingGoalCardView,
@@ -81,7 +82,7 @@ export function RatingGoalPanel({
   startOnArrival = false,
   onArrivalHandled,
 }: Props) {
-  const [now] = useState(() => new Date())
+  const now = useServedNow()
   const { can } = usePermissions()
   const { card, noActiveGoal } = useRatingGoalCard(propertyId)
   const setup = useQuery({
