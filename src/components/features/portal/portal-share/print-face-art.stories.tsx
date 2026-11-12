@@ -152,15 +152,68 @@ async function expectTilesAt(canvasElement: HTMLElement, outlineIn = 0.7 / 25.4)
   }
 }
 
+/** What each drawn face holds: its look, the logo pictures (none without a logo) and the photo (Immersive only). */
+function drawnFaces(canvasElement: HTMLElement) {
+  const faces = Array.from(
+    canvasElement.querySelectorAll<HTMLElement>('[data-final-face]'),
+  )
+  const imagesOf = (face: HTMLElement) =>
+    Array.from(face.querySelectorAll('img')).filter(
+      (image) => image.closest('[data-print-code]') === null,
+    )
+  return {
+    faces,
+    looks: faces.map((face) =>
+      face.querySelector('[data-final-look]')?.getAttribute('data-final-look'),
+    ),
+    logos: faces.map((face) => imagesOf(face).filter((image) => image.src !== PHOTO)),
+    photos: faces.map((face) => imagesOf(face).filter((image) => image.src === PHOTO)),
+  }
+}
+
+/** All six faces are drawn in one look, and the code sits in its tile on each. */
+async function expectFamily(
+  canvasElement: HTMLElement,
+  look: LookKind,
+  { logo, photo }: Readonly<{ logo: boolean; photo: boolean }>,
+) {
+  const drawn = drawnFaces(canvasElement)
+  await expect(drawn.faces).toHaveLength(6)
+  await expect(drawn.looks).toEqual(Array(6).fill(look))
+  for (const images of drawn.logos) await expect(images.length > 0).toBe(logo)
+  for (const images of drawn.photos) await expect(images.length > 0).toBe(photo)
+  await expectTilesAt(canvasElement, look === 'paper' ? undefined : 0)
+}
+
+/** A language's wording is set, in capitals as the faces draw it (wrapped over lines when long), on at least the four faces that carry the call to action. */
+async function expectWording(canvasElement: HTMLElement, lang: string, text: string) {
+  const squash = (value: string) => value.replace(/\s+/g, '').toLowerCase()
+  const carrying = drawnFaces(canvasElement).faces.filter((face) =>
+    squash(
+      Array.from(face.querySelectorAll(`span[lang="${lang}"]`))
+        .map((span) => span.textContent ?? '')
+        .join(''),
+    ).includes(squash(text)),
+  )
+  await expect(carrying.length).toBeGreaterThanOrEqual(4)
+}
+
 /** The boards' Harborline: a badge logo, in English. */
 export const Harborline: Story = {
   play: async ({ canvasElement }) => {
-    await expectTilesAt(canvasElement)
+    await expectFamily(canvasElement, 'paper', { logo: true, photo: false })
   },
 }
 
 /** No logo: the wordmark in tracked capitals takes its place. */
-export const NoLogo: Story = { args: { logo: 'none', accent: '#D58400' } }
+export const NoLogo: Story = {
+  args: { logo: 'none', accent: '#D58400' },
+  play: async ({ canvasElement }) => {
+    await expectFamily(canvasElement, 'paper', { logo: false, photo: false })
+    for (const face of drawnFaces(canvasElement).faces)
+      await expect(face.textContent?.toUpperCase()).toContain('ELEGANCE')
+  },
+}
 
 /** Two languages: in full on the Counter card and the wide pieces, one small italic line on the upright tent and Small card. */
 export const TwoLanguages: Story = {
@@ -170,42 +223,86 @@ export const TwoLanguages: Story = {
       (span) => span instanceof HTMLElement && span.style.fontStyle === 'italic',
     )
     await expect(italic).toHaveLength(2)
+    await expectWording(canvasElement, 'es', 'Valore su visita')
   },
 }
 
 /** Long copy: German. */
-export const German: Story = { args: { languages: ['de'] } }
+export const German: Story = {
+  args: { languages: ['de'] },
+  play: async ({ canvasElement }) => {
+    await expectFamily(canvasElement, 'paper', { logo: true, photo: false })
+    await expectWording(canvasElement, 'de', 'Bewerten Sie uns auf Google')
+  },
+}
 
 /** Europe: A6, A7 and 85 × 54 mm. */
-export const Europe: Story = { args: { region: 'eu' } }
+export const Europe: Story = {
+  args: { region: 'eu' },
+  play: async ({ canvasElement }) => {
+    await expectFamily(canvasElement, 'paper', { logo: true, photo: false })
+    const drawn = drawnFaces(canvasElement)
+    const faceWidths = drawn.faces.map(
+      (face) => face.querySelector('[data-final-look]')?.getBoundingClientRect().width,
+    )
+    const expected = PRINT_PIECES.flatMap((piece) =>
+      PRINT_ORIENTATIONS.map((orientation) =>
+        pointsToPixels(
+          printLiveArea({ piece, orientation, look: 'paper', region: 'eu' }).widthPt,
+        ),
+      ),
+    )
+    for (const [index, width] of faceWidths.entries())
+      await expect(width).toBeCloseTo(parseFloat(expected[index] ?? '0'), 0)
+  },
+}
 
 /** Immersive, the board's Hotel Elegance: no logo, a light interior photo; the scrims deepen until every line reads. */
 export const ImmersiveElegance: Story = {
   args: { look: 'immersive', logo: 'none', field: '#2A1712', accent: '#E3B873' },
   play: async ({ canvasElement }) => {
-    await expectTilesAt(canvasElement, 0)
+    await expectFamily(canvasElement, 'immersive', { logo: false, photo: true })
   },
 }
 
 /** Immersive with a dark logo: it sits on the cream plate. */
 export const ImmersiveDarkLogo: Story = {
   args: { look: 'immersive', logo: 'dark', accent: '#D4E3FE' },
+  play: async ({ canvasElement }) => {
+    await expectFamily(canvasElement, 'immersive', { logo: true, photo: true })
+  },
 }
 
 /** Immersive with a blue badge: a mid-tone logo, so it gets the plate too. */
-export const ImmersiveBadge: Story = { args: { look: 'immersive', logo: 'badge' } }
+export const ImmersiveBadge: Story = {
+  args: { look: 'immersive', logo: 'badge' },
+  play: async ({ canvasElement }) => {
+    await expectFamily(canvasElement, 'immersive', { logo: true, photo: true })
+  },
+}
 
 /** Immersive with no photo: the guest page's washes, grain, and the arch on upright pieces. */
 export const ImmersiveNoPhoto: Story = {
   args: { look: 'immersive', logo: 'dark', photo: false, accent: '#D4E3FE' },
+  play: async ({ canvasElement }) => {
+    await expectFamily(canvasElement, 'immersive', { logo: true, photo: false })
+  },
 }
 
 /** Immersive in English and Spanish. */
 export const ImmersiveTwoLanguages: Story = {
   args: { look: 'immersive', logo: 'dark', accent: '#D4E3FE', languages: ['en', 'es'] },
+  play: async ({ canvasElement }) => {
+    await expectFamily(canvasElement, 'immersive', { logo: true, photo: true })
+    await expectWording(canvasElement, 'es', 'Valore su visita')
+  },
 }
 
 /** Immersive long copy: German. */
 export const ImmersiveGerman: Story = {
   args: { look: 'immersive', logo: 'dark', accent: '#D4E3FE', languages: ['de'] },
+  play: async ({ canvasElement }) => {
+    await expectFamily(canvasElement, 'immersive', { logo: true, photo: true })
+    await expectWording(canvasElement, 'de', 'Bewerten Sie uns auf Google')
+  },
 }
