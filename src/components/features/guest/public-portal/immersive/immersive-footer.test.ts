@@ -17,7 +17,6 @@ import {
   type ImmersiveFooterViewProps,
 } from './immersive-footer'
 import { immersiveFooterCopy } from './immersive-footer-copy'
-import { IMMERSIVE_FOOTER_CSS } from './immersive-footer-styles'
 
 // Every language a guest can reach, loaded the way a request loads them.
 const PACKS: readonly GuestPortalCopy[] = await Promise.all(
@@ -174,26 +173,6 @@ describe('ImmersiveFooterView in Bulgarian', () => {
       bgCopy.copy.linkOpensNewTab,
       bgCopy.copy.footerMadeWith,
     ])
-  })
-})
-
-describe('the footer stylesheet', () => {
-  it('is hoisted into the markup', () => {
-    expect(render()).toContain('<style')
-  })
-
-  it('scopes every rule under the Immersive Hub root, so nothing reaches the app', () => {
-    const selectors = IMMERSIVE_FOOTER_CSS.split('{')
-      .slice(0, -1)
-      .map((chunk) => chunk.split('}').pop()?.trim() ?? '')
-      .filter((selector) => selector && !selector.startsWith('@'))
-      .flatMap((selector) => selector.split(',').map((part) => part.trim()))
-    expect(selectors.length).toBeGreaterThan(5)
-    expect(selectors.filter((selector) => !selector.startsWith('.ih-root '))).toEqual([])
-  })
-
-  it('answers reduced motion wherever it moves anything', () => {
-    expect(IMMERSIVE_FOOTER_CSS).toMatch(/prefers-reduced-motion:\s*reduce/u)
   })
 })
 

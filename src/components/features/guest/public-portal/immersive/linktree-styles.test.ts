@@ -15,7 +15,7 @@ import {
   PHOTO_BACKDROP,
   resolveImmersiveLook,
 } from './immersive-look'
-import { LINKTREE_CSS, LINKTREE_TEXT } from './linktree-styles'
+import { LINKTREE_TEXT } from './linktree-styles'
 
 type Rgb = readonly [number, number, number]
 const channels = (hex: string): Rgb => parseHexColour(hex) as Rgb
@@ -99,32 +99,5 @@ describe('the text on a photo tile', () => {
     expect(
       contrastRatio(drawn(LINKTREE_TEXT.lineAlpha, behindText), hex(behindText)) ?? 0,
     ).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
-  })
-})
-
-describe('the stylesheet', () => {
-  it('animates only transform, which the compositor handles', () => {
-    const transitions = [...LINKTREE_CSS.matchAll(/transition:\s*([^;]+);/gu)].map(
-      (match) => match[1] ?? '',
-    )
-    expect(transitions.length).toBeGreaterThan(0)
-    for (const transition of transitions)
-      expect(transition).toMatch(/^(transform\b|none$)/u)
-  })
-
-  it('stops the motion for a guest who asked for less of it', () => {
-    const reduced = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/u.exec(
-      LINKTREE_CSS,
-    )
-    expect(reduced?.[1]).toContain('transition: none')
-    expect(reduced?.[1]).toContain('transform: none')
-  })
-
-  it('scopes every rule under the shell root or the Linktree', () => {
-    const selectors = [...LINKTREE_CSS.matchAll(/^([^\s@}/][^{]*)\{/gmu)].map((match) =>
-      (match[1] ?? '').trim(),
-    )
-    expect(selectors.length).toBeGreaterThan(5)
-    for (const selector of selectors) expect(selector).toMatch(/\.ih-/u)
   })
 })

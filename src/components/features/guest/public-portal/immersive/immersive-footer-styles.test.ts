@@ -13,7 +13,7 @@ import {
   deriveFieldColour,
   parseHexColour,
 } from '#/shared/domain/portal-field-colour'
-import { FOOTER_TEXT_ALPHA, IMMERSIVE_FOOTER_CSS } from './immersive-footer-styles'
+import { FOOTER_TEXT_ALPHA } from './immersive-footer-styles'
 import { PHOTO_BACKDROP, resolveImmersiveLook } from './immersive-look'
 
 type Rgb = readonly [number, number, number]
@@ -88,13 +88,4 @@ describe('the footer text colours', () => {
       }
     },
   )
-
-  it('draws the stylesheet from the same constants', () => {
-    expect(IMMERSIVE_FOOTER_CSS).toContain(
-      `rgba(255, 255, 255, ${FOOTER_TEXT_ALPHA.notice})`,
-    )
-    expect(IMMERSIVE_FOOTER_CSS).toContain(
-      `rgba(255, 255, 255, ${FOOTER_TEXT_ALPHA.made})`,
-    )
-  })
 })

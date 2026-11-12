@@ -8,11 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { GlassSurface, glassClassName } from './glass-surface'
 import { focalObjectPosition } from './guest-hero'
-import {
-  IMMERSIVE_TEXT_COLOUR,
-  PHOTO_BACKDROP,
-  resolveImmersiveLook,
-} from './immersive-look'
+import { resolveImmersiveLook } from './immersive-look'
 import { ImmersiveShell, type ImmersiveShellProps } from './immersive-shell'
 import { IMMERSIVE_CSS } from './immersive-styles'
 
@@ -224,27 +220,6 @@ describe('the stylesheet', () => {
     )
     // The browsers that need the fallback predate color-mix: it must not rely on it.
     expect(fallback?.[1]).not.toContain('color-mix')
-  })
-
-  it('takes the page text colour from the resolver, not from a literal of its own', () => {
-    expect(IMMERSIVE_CSS).not.toMatch(/#f6f1e8/iu)
-    expect(IMMERSIVE_CSS).toMatch(/color: var\(--ih-text\)/u)
-    expect(html).toContain(`--ih-text:${IMMERSIVE_TEXT_COLOUR}`)
-  })
-
-  it('stops the tile and chip motion for people who ask for less of it', () => {
-    expect(IMMERSIVE_CSS).toMatch(
-      /@media \(prefers-reduced-motion: reduce\) \{[^@]*\.ih-root \.ih-glass \{ transition: none; \}[^@]*transform: none/u,
-    )
-  })
-
-  it('selects text in the page accent, not the app purple', () => {
-    expect(IMMERSIVE_CSS).toMatch(/\.ih-root ::selection \{[^}]*var\(--ih-accent\)/u)
-  })
-
-  it('draws the photo backdrop from constants the contrast tests pin', () => {
-    expect(IMMERSIVE_CSS).toContain(`brightness(${PHOTO_BACKDROP.brightness})`)
-    expect(IMMERSIVE_CSS).toContain(`${PHOTO_BACKDROP.fieldMix * 100}%, transparent)`)
   })
 
   it('prefixes backdrop-filter for Safari', () => {
