@@ -10,7 +10,6 @@ const ORG_B = organizationId('b7200000-0000-4000-8000-000000000002')
 const PROPERTY_A = 'b7200000-0000-4000-8000-000000000010'
 const PORTAL_A = portalId('b7200000-0000-4000-8000-000000000020')
 const RESPONSE = feedbackId('b7200000-0000-4000-8000-000000000030')
-const LEGACY_FEEDBACK = feedbackId('b7200000-0000-4000-8000-000000000031')
 const OBSERVED_AT = new Date('2026-08-25T12:00:00.000Z')
 
 const { getPool } = setupIntegrationDb({
@@ -114,19 +113,6 @@ describe('Guest feedback Portal attribution', () => {
     )
 
     await expect(lookup()(ORG_A, RESPONSE)).resolves.toBeNull()
-  })
-
-  it('preserves Portal attribution for a reconciled legacy feedback source', async () => {
-    await seedPropertyAndPortal()
-    await getPool().query(
-      `INSERT INTO feedback
-         (id, organization_id, property_id, portal_id, comment, source, created_at)
-       VALUES ($1, $2, $3, $4, 'legacy text is not returned', 'qr', NOW())`,
-      [LEGACY_FEEDBACK, ORG_A, PROPERTY_A, PORTAL_A],
-    )
-
-    await expect(lookup()(ORG_A, LEGACY_FEEDBACK)).resolves.toBe(PORTAL_A)
-    await expect(lookup()(ORG_B, LEGACY_FEEDBACK)).resolves.toBeNull()
   })
 
   it('returns no attribution for a missing feedback source', async () => {

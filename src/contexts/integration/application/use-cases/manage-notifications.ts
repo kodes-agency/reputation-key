@@ -12,8 +12,7 @@ import type {
   GbpNotificationType,
   MyBusinessNotificationsPort,
 } from '../ports/mybusiness-notifications.port'
-import { isGbpApiError } from '../../domain/gbp-api-error'
-import { googleCallError } from '../../domain/google-call-error'
+import { isGoogleCallError, googleCallError } from '../../domain/google-call-error'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { OrganizationId } from '#/shared/domain/ids'
 import type { OtherNotificationAccountBinding } from '../google-notification-account-usage'
@@ -191,7 +190,7 @@ export const sumGbpAccountTallies = (
  * before Google's answer, then the executor's code, then the error kind.
  */
 const gbpNotificationFailureCode = (error: unknown): string => {
-  if (!isGbpApiError(error)) return 'unexpected_error'
+  if (!isGoogleCallError(error)) return 'unexpected_error'
   const call = googleCallError(error)
   if (error.executionAdmissionCode && call.executionCode) return call.executionCode
   if (call.providerStatus !== null) return `provider_${call.providerStatus}`

@@ -330,7 +330,12 @@ function isConcurrentIndexExpand(tokens: readonly string[]): boolean {
     predicate.shift()
   }
   end = nameEnd(predicate, 0)
-  if (end < 0 || predicate[end++] !== '=') return false
+  if (end < 0) return false
+  if (predicate[end] === 'IS') {
+    const test = predicate.slice(end + 1).join(' ')
+    return test === 'NULL' || test === 'NOT NULL'
+  }
+  if (predicate[end++] !== '=') return false
   return constantEnd(predicate, end) === predicate.length
 }
 
@@ -345,13 +350,130 @@ function isExpandStatement(tokens: readonly string[]): boolean {
   return start >= 0 && tokens[start] === '(' && groupEnd(tokens, start) === tokens.length
 }
 
+function relationName(tokens: readonly string[]): string {
+  return tokens
+    .filter((token) => token !== '.')
+    .map((token) => (token.startsWith('"') ? token.slice(1, -1) : token.toLowerCase()))
+    .join('.')
+}
+
+/** A plain index on a table the same block created holds no rows to lock. */
+function isNewTableIndex(
+  tokens: readonly string[],
+  created: ReadonlySet<string>,
+): boolean {
+  let end = 1 // CREATE
+  if (tokens[end] === 'UNIQUE') end++
+  if (tokens[end++] !== 'INDEX') return false
+  end = nameEnd(tokens, end)
+  if (end < 0 || tokens[end++] !== 'ON') return false
+  const table = end
+  end = nameEnd(tokens, end)
+  if (end < 0 || !created.has(relationName(tokens.slice(table, end)))) return false
+  return columnListEnd(tokens, end) === tokens.length
+}
+
+/** Reads of the catalogue only: whether named relations exist. */
+const CATALOGUE_TEST = new Set([
+  'TO_REGCLASS',
+  '(',
+  ')',
+  '<literal>',
+  'IS',
+  'NOT',
+  'NULL',
+  'AND',
+  'OR',
+])
+
+function catalogueTestEnd(tokens: readonly string[], start: number): number {
+  let end = start
+  while (end < tokens.length && tokens[end] !== 'THEN') {
+    if (!CATALOGUE_TEST.has(tokens[end]!)) return -1
+    end++
+  }
+  return end > start && end < tokens.length ? end + 1 : -1
+}
+
+/** The tokens inside a `DO $tag$ … $tag$` chunk, or null for any other chunk. */
+function doBlockTokens(chunk: string): string[] | null {
+  const lines = chunk.split('\n')
+  const firstStatement = lines.findIndex((line) => !/^\s*(--|$)/.test(line))
+  const text = lines.slice(Math.max(firstStatement, 0)).join('\n').trim()
+  const delimiter = /^DO\s+(\$[a-z_0-9]*\$)/i.exec(text)
+  if (!delimiter) return null
+  const tag = delimiter[1]!
+  const body = text.slice(delimiter[0].length).replace(/;$/, '').trimEnd()
+  if (!body.endsWith(tag)) return null
+  return migrationTokens(body.slice(0, -tag.length))
+}
+
+function createdTableName(statement: readonly string[]): string | null {
+  if (statement[0] !== 'CREATE' || statement[1] !== 'TABLE') return null
+  if (!isExpandStatement(statement)) return null
+  const start = statement[2] === 'IF' ? 5 : 2
+  return relationName(statement.slice(start, nameEnd(statement, start)))
+}
+
+/**
+ * Where a run of new tables and indexes on them ends (at `ELSIF` or `END`),
+ * or -1 when the run holds anything else or creates no table.
+ */
+function creationRunEnd(tokens: readonly string[], start: number): number {
+  const created = new Set<string>()
+  let statement: string[] = []
+  let end = start
+  for (; end < tokens.length && tokens[end] !== 'ELSIF' && tokens[end] !== 'END'; end++) {
+    if (tokens[end] !== ';') {
+      statement = [...statement, tokens[end]!]
+      continue
+    }
+    const table = createdTableName(statement)
+    if (table) created.add(table)
+    else if (!isNewTableIndex(statement, created)) return -1
+    statement = []
+  }
+  return statement.length || !created.size ? -1 : end
+}
+
+/** Where an `ELSIF <catalogue test> THEN RAISE EXCEPTION '<text>';` ends, or -1. */
+function refusalEnd(tokens: readonly string[], start: number): number {
+  const end = catalogueTestEnd(tokens, start + 1)
+  if (end < 0) return -1
+  return tokens.slice(end, end + 4).join(' ') === 'RAISE EXCEPTION <literal> ;'
+    ? end + 4
+    : -1
+}
+
+/**
+ * `DO $tag$ BEGIN IF <catalogue test> THEN <new tables and their indexes>
+ * [ELSIF <catalogue test> THEN RAISE EXCEPTION '<text>';] END IF; END $tag$`,
+ * alone between statement breakpoints. It creates objects only where they are
+ * missing, which no older image can read.
+ */
+function isGuardedCreation(chunk: string): boolean {
+  const tokens = doBlockTokens(chunk)
+  if (!tokens || tokens[0] !== 'BEGIN' || tokens[1] !== 'IF') return false
+  const test = catalogueTestEnd(tokens, 2)
+  let end = test < 0 ? -1 : creationRunEnd(tokens, test)
+  if (end >= 0 && tokens[end] === 'ELSIF') end = refusalEnd(tokens, end)
+  if (end < 0) return false
+  const rest = tokens.slice(end).join(' ')
+  return rest === 'END IF ; END' || rest === 'END IF ; END ;'
+}
+
 export function contractionRequirement(
   sql: string,
   entry?: MigrationIdentity,
 ): string | null {
   if (isLegacyMigration(sql, entry)) return null
   const marker = /^-- migrate:contract ([a-f0-9]{40})\s*$/m.exec(sql)?.[1]
-  const tokens = migrationTokens(sql)
+  const tokens = migrationTokens(
+    sql
+      .split('--> statement-breakpoint')
+      .filter((chunk) => !isGuardedCreation(chunk))
+      .join('--> statement-breakpoint'),
+  )
   const statements: string[][] = [[]]
   for (const part of tokens) {
     if (part === ';') statements.push([])

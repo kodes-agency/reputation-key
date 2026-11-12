@@ -63,50 +63,6 @@ describe('ai output list-filter adapter', () => {
   })
 })
 
-describe('retired aspect output', () => {
-  it('refuses a ready v2 write before any database effect', async () => {
-    const transaction = vi.fn()
-    const adapter = createAiOutputStoreAdapter({ transaction } as unknown as Database)
-    await expect(
-      adapter.storeAnalysis({
-        operationId: '74000000-0000-4000-8000-000000000005' as Parameters<
-          typeof adapter.storeAnalysis
-        >[0]['operationId'],
-        organizationId: organizationId('retired-analysis'),
-        propertyId: propertyId('74000000-0000-4000-8000-000000000001'),
-        reviewId: reviewId('74000000-0000-4000-8000-000000000002'),
-        sourceEpoch: 0,
-        sourceRevision: 1,
-        analysisSequence: 1,
-        authorizationLineageId: '74000000-0000-4000-8000-000000000003',
-        reviewAnalysisEpoch: 1,
-        propertyProfileVersion: 1,
-        analysisProfileVersion: 'review-analysis-v2',
-        providerCompletion: {
-          expectedAttempt: 1,
-          modelSnapshot: 'test',
-          inputTokens: 1,
-          outputTokens: 1,
-          completedAtEpochMillis: 1,
-        },
-        generatedAtEpochMillis: 1,
-        expiresAtEpochMillis: 2,
-        result: {
-          status: 'ready',
-          derivative: {
-            sentiment: 'positive',
-            primaryCategory: 'service',
-            attention: 'low',
-            issueLabel: null,
-            aspects: [{ aspect: 'service', polarity: 'positive', intensity: 75 }],
-          },
-        },
-      }),
-    ).resolves.toBe(false)
-    expect(transaction).not.toHaveBeenCalled()
-  })
-})
-
 describe('stored analysis delivery after a notice lapses', () => {
   it('still delivers the existing output under its unchanged grant while refusing new execution', async () => {
     const notice = {

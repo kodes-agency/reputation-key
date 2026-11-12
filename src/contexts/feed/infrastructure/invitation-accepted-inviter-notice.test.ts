@@ -7,7 +7,10 @@ import {
   handleInvitationAcceptedInviterNotice,
   INVITATION_ACCEPTED_INVITER_CONSUMER,
 } from './invitation-accepted-inviter-notice'
-import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from './notification-consumer-test-fixtures'
 
 const ORG = 'org-inviter-notice'
 const EVENT_ID = '92000000-0000-4000-8000-000000000001'
@@ -38,9 +41,11 @@ const accepted = (
 
 const makeDeps = () => {
   const fakes = createNotificationConsumerDeps()
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
     queue: fakes.queue,
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
+    receipts,
     displayNames: fakes.displayNames,
     logger: fakes.logger,
     fakes,
@@ -80,7 +85,7 @@ describe('the accepted-invitation notice to the inviter', () => {
         audience: { kind: 'account_admin' },
       },
       // Distinct from the new member's own job for this same fact.
-      { jobId: `${EVENT_ID}-inviter-${INVITER}` },
+      { jobId: `${EVENT_ID}-${INVITER}` },
     )
     expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
       EVENT_ID,

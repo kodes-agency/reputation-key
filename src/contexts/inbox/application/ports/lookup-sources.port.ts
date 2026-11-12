@@ -21,17 +21,8 @@ import type { FeedbackContentFilter } from './feedback-lookup.port'
 import type { InboxItemReplyState } from '../../domain/types'
 
 /**
- * Guest-owned feedback/rating reads.
- *
- * Two storage generations, in precedence order:
- *  - `findResponseSnippetsByIds` reads the CURRENT `guest_responses` aggregate,
- *    which holds the rating and the text on one row. This is what the live
- *    guest form writes, so every new feedback inbox item resolves here.
- *  - `findLegacyFeedbackSnippetsByIds` reads the LEGACY `feedback`/`ratings`
- *    pair, kept so inbox items created before the aggregate still render.
- *
- * The adapter tries the aggregate first and falls back; an id can only exist in
- * one generation, so there is no ambiguity.
+ * Guest-owned feedback/rating reads. `findResponseSnippetsByIds` reads the
+ * `guest_responses` aggregate, which holds the rating and the text on one row.
  */
 export type FeedbackLookupSource = Readonly<{
   findResponseSnippetsByIds: (
@@ -48,22 +39,6 @@ export type FeedbackLookupSource = Readonly<{
     >
   >
   findEligibleResponseIds: (
-    orgId: OrganizationId,
-    filter: FeedbackContentFilter,
-  ) => Promise<ReadonlyArray<FeedbackId>>
-  findLegacyFeedbackSnippetsByIds: (
-    ids: ReadonlyArray<FeedbackId>,
-    orgId: OrganizationId,
-  ) => Promise<
-    ReadonlyArray<
-      Readonly<{
-        id: FeedbackId
-        comment: string | null
-        ratingValue: number | null
-      }>
-    >
-  >
-  findEligibleLegacyFeedbackIds: (
     orgId: OrganizationId,
     filter: FeedbackContentFilter,
   ) => Promise<ReadonlyArray<FeedbackId>>

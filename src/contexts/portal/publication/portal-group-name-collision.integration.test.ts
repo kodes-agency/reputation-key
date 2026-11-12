@@ -13,7 +13,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import type { CreatePortalGroupCommand } from '../application/ports/portal-command-store.port'
+import type { CreatePortalGroupCommand } from './portal-command-store-port.server'
 import {
   portalAddedToGroup,
   portalGroupCreated,

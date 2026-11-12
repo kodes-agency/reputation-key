@@ -1,7 +1,9 @@
 import type { ReplyDraftingV2Binding } from '#/shared/domain/reply-drafting-v2'
-// A real-PostgreSQL fixture for tests that drive the AI reservation ledger:
-// one organization, one property, the reply-drafting capability control
-// opened for the run, and pending `ai_operations` rows on demand.
+// A real-PostgreSQL fixture for tests that drive the AI reservation ledger and
+// its admission: one organization, one property with an active processing
+// profile and Merchant AI consent to reply drafting, the reply-drafting
+// capability control opened for the run, and `ai_operations` rows on demand,
+// each claimed under that consent for a review of its own.
 
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
@@ -11,8 +13,18 @@ import {
   aiExecutionControlTransitions,
   aiOperations,
   aiOrganizationCostWindows,
+  aiPropertyProcessingProfiles,
+  merchantAiConsentEvidence,
+  merchantAiEnablement,
   properties,
+  reviewAiAnalysisHeads,
+  reviews,
+  reviewSourceContents,
 } from '#/shared/db/schema'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '#/shared/merchant-ai-notice-contract'
 import { deleteTestOrganizationsWithExecutor } from './test-organization-cleanup'
 
 /** The reply-suggestion profile as the seed and the operation rows spell it. */
@@ -23,6 +35,24 @@ export const AI_REPLY_OPERATION_PROFILE = Object.freeze({
   providerDeploymentProfileVersion: 'private-beta-global-v2',
   capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
   routeKey: 'reply-suggestion',
+})
+
+/** What a reply-drafting v2 operation is served under. */
+const AI_REPLY_V2_PROFILE = Object.freeze({
+  profileVersion: 'reply-suggestion-v2',
+  providerDeploymentProfileVersion: 'private-beta-global-v3',
+  capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v2',
+})
+
+/** The consent every seeded operation is claimed under. */
+export const AI_OPERATION_FIXTURE_CONSENT = Object.freeze({
+  sourceEpoch: 1,
+  replyDraftingEpoch: 1,
+  propertyProfileVersion: 1,
+  noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+  noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+  sourcePolicyId: 'google-business-profile-source-policy-v1',
+  redactionProfileVersion: 'gbp-review-global-v1',
 })
 
 export type AiOperationFixtureInput = Readonly<{
@@ -44,16 +74,40 @@ export type AiOperationSeed = Readonly<{
   sourceByteCount?: number
   /** Row lifetime; the adoption window a grant may issue is clamped by it. */
   expiresAt?: Date
+  /** The review the operation reads; one is seeded for it when absent. */
+  reviewId?: string
 }>
 
-type ControlPosture = Readonly<{
+export type AiConsentChange = 'revoke' | 'move_reply_drafting_epoch'
+export type AiFixtureExecutor = Pick<Database, 'execute' | 'insert' | 'select' | 'update'>
+
+export type AiReviewSeed = Readonly<{
+  id?: string
+  sourceDigest?: string
+  sourceByteCount?: number
+  contentExpiresAt?: Date
+}>
+
+export type AiControlPosture = Readonly<{
   executionState: 'enabled' | 'killed'
   admissionState: 'accepting' | 'draining'
 }>
 
 export type AiOperationFixture = Readonly<{
+  /** The lineage of the Property's Merchant AI consent. */
+  authorizationLineageId: string
+  /** Insert a review and its source content; returns the review id. */
+  seedReview(seed?: AiReviewSeed): Promise<string>
   /** Insert a reply operation row; returns its id. */
   seedOperation(seed?: AiOperationSeed): Promise<string>
+  /**
+   * The next Merchant AI transition, as the transition function writes it:
+   * revoke consent, or move the reply-drafting epoch. Pass a transaction to
+   * hold the head locked until it ends.
+   */
+  changeConsent(change: AiConsentChange, executor?: AiFixtureExecutor): Promise<void>
+  /** Move the reply-drafting control to a posture; each move is a new generation. */
+  setCapabilityControl(posture: AiControlPosture): Promise<void>
   /** Delete the fixture rows and put the capability control back. */
   remove(): Promise<void>
 }>
@@ -63,7 +117,7 @@ const CAPABILITY_SCOPE_KEY = `capability:${AI_REPLY_OPERATION_PROFILE.capability
 async function transitionCapabilityControl(
   db: Database,
   actorUserId: string,
-  posture: ControlPosture,
+  posture: AiControlPosture,
 ): Promise<void> {
   const [head] = await db
     .select()
@@ -113,6 +167,138 @@ async function transitionCapabilityControl(
 }
 
 /**
+ * The Property's processing profile and its consent to reply drafting, written
+ * as `apply_merchant_ai_transition_v1` writes an enable: the evidence row, then
+ * the head that points at it.
+ */
+async function seedReplyDraftingConsent(
+  db: Database,
+  input: Readonly<{
+    organizationId: string
+    propertyId: string
+    actorUserId: string
+    authorizationLineageId: string
+    now: Date
+  }>,
+): Promise<void> {
+  const consent = AI_OPERATION_FIXTURE_CONSENT
+  await db.insert(aiPropertyProcessingProfiles).values({
+    propertyId: input.propertyId,
+    organizationId: input.organizationId,
+    countryCode: 'US',
+    timezone: 'America/New_York',
+    processingRegion: 'global',
+    routingPolicyVersion: 1,
+    providerDeploymentProfileVersion:
+      AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion,
+    sourceEpoch: consent.sourceEpoch,
+    profileVersion: consent.propertyProfileVersion,
+    lifecycleState: 'active',
+    updatedAt: input.now,
+  })
+  await db.insert(reviewAiAnalysisHeads).values({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    sourceEpoch: consent.sourceEpoch,
+    createdAt: input.now,
+    updatedAt: input.now,
+  })
+  const authorization = {
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    authorizationLineageId: input.authorizationLineageId,
+    stateVersion: 1,
+    state: 'enabled',
+    capabilities: ['reply_drafting'],
+    capabilityRuntimeProfileVersions: {
+      reply_drafting: AI_REPLY_OPERATION_PROFILE.capabilityRuntimeProfileVersion,
+    },
+    reviewAnalysisEpoch: 1,
+    replyDraftingEpoch: consent.replyDraftingEpoch,
+    propertyTrendsEpoch: 1,
+    authorizedSourceEpoch: consent.sourceEpoch,
+    analysisStartSequence: 0,
+    noticeVersion: consent.noticeVersion,
+    noticeDigest: consent.noticeDigest,
+    sourcePolicyId: consent.sourcePolicyId,
+    routingPolicyVersion: 1,
+    processingRegion: 'global',
+    providerDeploymentProfileVersion:
+      AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion,
+    redactionProfileFamily: consent.redactionProfileVersion,
+  } as const
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('repkey.merchant_ai_transition', '1', true)`)
+    await tx.insert(merchantAiConsentEvidence).values({
+      ...authorization,
+      capabilities: [...authorization.capabilities],
+      transitionKind: 'enable',
+      actorUserId: input.actorUserId,
+      reasonCode: 'merchant_enabled',
+      idempotencyKey: `ai-operation-fixture-enable-${input.authorizationLineageId}`,
+      requestHash: 'c'.repeat(64),
+      occurredAt: input.now,
+    })
+    await tx.insert(merchantAiEnablement).values({
+      ...authorization,
+      capabilities: [...authorization.capabilities],
+      updatedBy: input.actorUserId,
+      updatedAt: input.now,
+    })
+  })
+}
+
+/** Write the next consent transition: evidence first, then the head it names. */
+async function changeReplyDraftingConsent(
+  executor: AiFixtureExecutor,
+  input: Readonly<{
+    organizationId: string
+    propertyId: string
+    actorUserId: string
+    change: AiConsentChange
+    now: Date
+  }>,
+): Promise<void> {
+  const [head] = await executor
+    .select()
+    .from(merchantAiEnablement)
+    .where(
+      sql`${merchantAiEnablement.organizationId} = ${input.organizationId}
+        AND ${merchantAiEnablement.propertyId} = ${input.propertyId}`,
+    )
+    .limit(1)
+  if (!head) throw new Error('The fixture Property has no Merchant AI consent')
+  const { updatedBy: _updatedBy, updatedAt: _updatedAt, ...current } = head
+  const revoked = input.change === 'revoke'
+  const next = {
+    ...current,
+    stateVersion: head.stateVersion + 1,
+    ...(revoked
+      ? { state: 'revoked', capabilities: [], capabilityRuntimeProfileVersions: {} }
+      : { replyDraftingEpoch: head.replyDraftingEpoch + 1 }),
+  }
+  await executor.execute(
+    sql`SELECT set_config('repkey.merchant_ai_transition', '1', true)`,
+  )
+  await executor.insert(merchantAiConsentEvidence).values({
+    ...next,
+    transitionKind: revoked ? 'revoke' : 'change',
+    actorUserId: input.actorUserId,
+    reasonCode: revoked ? 'merchant_revoked' : 'merchant_changed',
+    idempotencyKey: `ai-operation-fixture-${input.change}-${next.stateVersion}`,
+    requestHash: 'c'.repeat(64),
+    occurredAt: input.now,
+  })
+  await executor
+    .update(merchantAiEnablement)
+    .set({ ...next, updatedBy: input.actorUserId, updatedAt: input.now })
+    .where(
+      sql`${merchantAiEnablement.organizationId} = ${input.organizationId}
+        AND ${merchantAiEnablement.propertyId} = ${input.propertyId}`,
+    )
+}
+
+/**
  * Install the organization, the property and an open reply-drafting control.
  * The seed leaves every capability killed and draining (fail closed); the
  * ledger reads the heads inside the admission transaction, so the fixture
@@ -148,7 +334,7 @@ export async function installAiOperationFixture(
   ) {
     throw new Error(`AI execution control ${CAPABILITY_SCOPE_KEY} has an invalid state`)
   }
-  const initialPosture: ControlPosture = {
+  const initialPosture: AiControlPosture = {
     executionState: head.executionState,
     admissionState: head.admissionState,
   }
@@ -171,57 +357,123 @@ export async function installAiOperationFixture(
     profileVersion: 1,
     sourceEpoch: 1,
   })
+  const authorizationLineageId = randomUUID()
+  await seedReplyDraftingConsent(db, {
+    organizationId,
+    propertyId,
+    actorUserId,
+    authorizationLineageId,
+    now,
+  })
 
-  const heads = await db
-    .select({
-      scopeKey: aiExecutionControlHeads.scopeKey,
-      controlId: aiExecutionControlHeads.controlId,
-      generation: aiExecutionControlHeads.generation,
-    })
-    .from(aiExecutionControlHeads)
-  const control = (scopeKey: string) => {
-    const found = heads.find((candidate) => candidate.scopeKey === scopeKey)
-    if (!found) throw new Error(`AI execution control ${scopeKey} is not seeded`)
-    return found
+  /** The control heads as they stand: a seeded operation is claimed under them. */
+  const claimedControls = async (v2: boolean) => {
+    const heads = await db
+      .select({
+        scopeKey: aiExecutionControlHeads.scopeKey,
+        controlId: aiExecutionControlHeads.controlId,
+        generation: aiExecutionControlHeads.generation,
+      })
+      .from(aiExecutionControlHeads)
+    const control = (scopeKey: string) => {
+      const found = heads.find((candidate) => candidate.scopeKey === scopeKey)
+      if (!found) throw new Error(`AI execution control ${scopeKey} is not seeded`)
+      return found
+    }
+    const providerDeployment = v2
+      ? AI_REPLY_V2_PROFILE.providerDeploymentProfileVersion
+      : AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion
+    return {
+      global: control('global'),
+      provider: control(`provider:${providerDeployment}`),
+      capability: control(CAPABILITY_SCOPE_KEY),
+    }
   }
-  const global = control('global')
-  const provider = control(
-    `provider:${AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion}`,
-  )
-  const capability = control(CAPABILITY_SCOPE_KEY)
+
+  const seedReview = async (seed: AiReviewSeed = {}) => {
+    const id = seed.id ?? randomUUID()
+    await db.insert(reviews).values({
+      id,
+      organizationId,
+      propertyId,
+      platform: 'google',
+      firstFetchedAt: now,
+      sourceEpoch: AI_OPERATION_FIXTURE_CONSENT.sourceEpoch,
+      sourceRevision: 1,
+      analysisSequence: 0,
+    })
+    await db.insert(reviewSourceContents).values({
+      reviewId: id,
+      organizationId,
+      propertyId,
+      platform: 'google',
+      externalId: `ai-operation-fixture-${id}`,
+      externalLocationId: 'locations/ai-operation-fixture',
+      rating: 4,
+      reviewedAt: now,
+      firstFetchedAt: now,
+      lastFetchedAt: now,
+      contentExpiresAt:
+        seed.contentExpiresAt ?? new Date(now.getTime() + 30 * 24 * 60 * 60_000),
+      sourceEpoch: AI_OPERATION_FIXTURE_CONSENT.sourceEpoch,
+      sourceRevision: 1,
+      aiSourceByteLength: seed.sourceByteCount ?? 20,
+      aiSourceDigest: seed.sourceDigest ?? 'e'.repeat(64),
+    })
+    return id
+  }
 
   return Object.freeze({
+    authorizationLineageId,
+    seedReview,
     async seedOperation(seed: AiOperationSeed = {}) {
       const id = seed.id ?? randomUUID()
+      const sourceDigest = seed.sourceDigest ?? 'e'.repeat(64)
+      const sourceByteCount = seed.sourceByteCount ?? 20
+      const reviewId =
+        seed.reviewId ?? (await seedReview({ sourceDigest, sourceByteCount }))
+      const v2 = seed.replyDraftingV2 !== undefined
+      const { global, provider, capability } = await claimedControls(v2)
+      const [consent] = await db
+        .select({ replyDraftingEpoch: merchantAiEnablement.replyDraftingEpoch })
+        .from(merchantAiEnablement)
+        .where(eq(merchantAiEnablement.propertyId, propertyId))
+        .limit(1)
       await db.insert(aiOperations).values({
         id,
         idempotencyScope: `reply:${id}`,
         idempotencyKey: id,
         requestFingerprint: 'f'.repeat(64),
-        sourceDigest: seed.sourceDigest ?? 'e'.repeat(64),
-        sourceByteCount: seed.sourceByteCount ?? 20,
+        sourceDigest,
+        sourceByteCount,
         command: AI_REPLY_OPERATION_PROFILE.command,
         capability: AI_REPLY_OPERATION_PROFILE.capability,
         organizationId,
         propertyId,
         actorUserId,
         systemPrincipal: null,
-        reviewId: randomUUID(),
-        sourceEpoch: 1,
+        reviewId,
+        sourceEpoch: AI_OPERATION_FIXTURE_CONSENT.sourceEpoch,
         sourceRevision: 1,
         reviewedAtEpochMillis: now.getTime(),
         tone: 'professional',
         baseReplyStateRevision: 0,
-        propertyProfileVersion: 1,
-        providerDeploymentProfileVersion:
-          AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion,
-        operationProfileVersion: seed.replyDraftingV2
-          ? 'reply-suggestion-v2'
+        propertyProfileVersion: AI_OPERATION_FIXTURE_CONSENT.propertyProfileVersion,
+        authorizationLineageId,
+        noticeVersion: AI_OPERATION_FIXTURE_CONSENT.noticeVersion,
+        noticeDigest: AI_OPERATION_FIXTURE_CONSENT.noticeDigest,
+        sourcePolicyId: AI_OPERATION_FIXTURE_CONSENT.sourcePolicyId,
+        redactionProfileVersion: AI_OPERATION_FIXTURE_CONSENT.redactionProfileVersion,
+        providerDeploymentProfileVersion: v2
+          ? AI_REPLY_V2_PROFILE.providerDeploymentProfileVersion
+          : AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion,
+        operationProfileVersion: v2
+          ? AI_REPLY_V2_PROFILE.profileVersion
           : AI_REPLY_OPERATION_PROFILE.profileVersion,
         replyDraftingV2: seed.replyDraftingV2 ?? null,
         rewriteParentOperationId: seed.replyDraftingV2?.parentOperationId ?? null,
-        capabilityRuntimeProfileVersion: seed.replyDraftingV2
-          ? 'reply-drafting-runtime-v2'
+        capabilityRuntimeProfileVersion: v2
+          ? AI_REPLY_V2_PROFILE.capabilityRuntimeProfileVersion
           : AI_REPLY_OPERATION_PROFILE.capabilityRuntimeProfileVersion,
         globalControlId: global.controlId,
         globalControlGeneration: global.generation,
@@ -229,7 +481,13 @@ export async function installAiOperationFixture(
         providerControlGeneration: provider.generation,
         capabilityControlId: capability.controlId,
         capabilityControlGeneration: capability.generation,
-        capabilityFences: {},
+        capabilityFences: {
+          capability: AI_REPLY_OPERATION_PROFILE.capability,
+          replyDraftingEpoch:
+            consent?.replyDraftingEpoch ??
+            AI_OPERATION_FIXTURE_CONSENT.replyDraftingEpoch,
+          baseReplyStateRevision: 0,
+        },
         state: seed.state ?? 'pending',
         executionAttempt: seed.executionAttempt ?? 0,
         executionPermitId: seed.executionPermitId ?? null,
@@ -238,6 +496,21 @@ export async function installAiOperationFixture(
         expiresAt: seed.expiresAt ?? new Date(now.getTime() + 60 * 60_000),
       })
       return id
+    },
+    async changeConsent(change: AiConsentChange, executor?: AiFixtureExecutor) {
+      const write = (tx: AiFixtureExecutor) =>
+        changeReplyDraftingConsent(tx, {
+          organizationId,
+          propertyId,
+          actorUserId,
+          change,
+          now,
+        })
+      // The transition flag is transaction-local, so the write needs one.
+      await (executor ? write(executor) : db.transaction(write))
+    },
+    async setCapabilityControl(posture: AiControlPosture) {
+      await transitionCapabilityControl(db, actorUserId, posture)
     },
     async remove() {
       await clear()

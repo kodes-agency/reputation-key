@@ -88,7 +88,7 @@ const GITHUB_RUNS_SCHEMA = z.array(
     headSha: z.string(),
     headBranch: z.string(),
     event: z.string(),
-    conclusion: z.string(),
+    conclusion: z.string().nullable(),
     attempt: z.number().int().positive(),
   }),
 )
@@ -328,8 +328,6 @@ export function downloadCiImageDigestMap(
       revision,
       '--event',
       'push',
-      '--status',
-      'success',
       '--limit',
       '100',
       '--json',

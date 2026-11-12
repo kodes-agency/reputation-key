@@ -61,6 +61,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/ai/infrastructure/adapters/ai-execution-admission.adapter.ts',
+    symbol: 'settle',
+    reason:
+      'The in-process gateway settles the operation its own admission granted: the settlement permit names the operation id, and the locked row must still carry the same execution permit, attempt, admission nonce and grant key before anything is charged.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
     symbol: 'listExpiredExecutions',
     reason:
@@ -205,13 +212,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     symbol: 'findLatestForUser',
     reason:
       "A removed member is asked why their workspace is gone while they are outside every tenant: the notice that answers lives in the Organization they can no longer open. The read is scoped to the session's own user id, admits one notification type, and returns an instant only — no Organization identity, name, actor or row id.",
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/feed/infrastructure/repositories/notification-gap.repository.ts',
-    symbol: 'countItemsMissingNotifications',
-    reason:
-      'The bounded health gauge intentionally counts notification gaps across all tenants and returns no tenant-owned content or identifiers.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {

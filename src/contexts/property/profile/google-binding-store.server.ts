@@ -1,0 +1,695 @@
+import { assertBindingProfile, normalizeConfirmedProfile } from './google-profile.server'
+import { createGooglePrimaryCategoryRefresh } from './google-category-store.server'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import type { Database } from '#/shared/db'
+import { properties } from '#/shared/db/schema/property.schema'
+import {
+  eventConsumerReceipts,
+  idempotencyReceipts,
+} from '#/shared/db/schema/outbox.schema'
+import { insertOutboxRow } from '#/shared/outbox/commit'
+import { trace } from '#/shared/observability/trace'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
+import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
+import { clearGooglePrimaryCategoryForProperty } from '#/shared/db/google-primary-category-purge'
+import { lockGoogleConnectionBindingAuthority } from '#/shared/db/google-connection-binding-authority'
+import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
+import { normalizeGooglePrimaryCategory } from '#/shared/domain/google-primary-category'
+import { isGoogleResourceSuffix } from '../domain/google-binding-contract'
+import {
+  PROPERTY_OPERATION_SWEEP_LIMIT,
+  PropertyGoogleBindingError,
+  type PropertyGoogleBindingStore,
+  type PropertyGoogleBindingInternalView,
+  type PropertyOperationCommit,
+} from '../application/ports/property-google-binding.port'
+import { propertyCreated, propertyGoogleBindingChanged } from '../domain/events'
+import {
+  propertyToRow,
+  summaryFromRow,
+  internalFromRow,
+} from '../infrastructure/mappers/property.mapper'
+import {
+  findLiveReceipt,
+  markRetentionReleased,
+  propertyReceiptKey,
+  RETENTION_UNRELEASED,
+  receiptFromRow,
+  recordReceipt,
+  type Tx,
+  replayReceipt,
+  ensureImportFollowUps,
+} from './operation-receipts.server'
+import {
+  awaitingRefreshGoogleReviewDestination,
+  unavailableGoogleReviewDestination,
+  verifiedGoogleReviewDestination,
+} from '../domain/google-review-destination'
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function deny(code: ConstructorParameters<typeof PropertyGoogleBindingError>[0]): never {
+  throw new PropertyGoogleBindingError(code)
+}
+
+function validateIdempotencyKey(value: string): void {
+  if (!UUID.test(value)) deny('invalid_binding')
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const candidate = error as { code?: unknown; cause?: unknown }
+  return candidate.code === '23505' || isUniqueViolation(candidate.cause)
+}
+
+const readPropertyRow = async (
+  executor: Pick<Database, 'select'>,
+  organizationIdValue: string,
+  propertyIdValue: string,
+) => {
+  const [row] = await executor
+    .select()
+    .from(properties)
+    .where(
+      and(
+        eq(properties.organizationId, organizationIdValue),
+        eq(properties.id, propertyIdValue),
+      ),
+    )
+    .limit(1)
+  return row
+}
+
+const lockPropertyRow = async (
+  tx: Tx,
+  organizationIdValue: string,
+  propertyIdValue: string,
+) => {
+  const [row] = await tx
+    .select()
+    .from(properties)
+    .where(
+      and(
+        eq(properties.organizationId, organizationIdValue),
+        eq(properties.id, propertyIdValue),
+      ),
+    )
+    .for('update')
+    .limit(1)
+  return row
+}
+
+export const createPropertyGoogleBindingStore = (
+  db: Database,
+  replyEffects?: ReplyScopeEffects,
+): PropertyGoogleBindingStore => {
+  const readReceipt: PropertyGoogleBindingStore['readReceipt'] = async (
+    organizationIdValue,
+    idempotencyKey,
+    now,
+    transaction,
+  ) => {
+    validateIdempotencyKey(idempotencyKey)
+    const [row] = await (transaction ?? db)
+      .select({ payload: idempotencyReceipts.payload })
+      .from(idempotencyReceipts)
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, 'property_operation'),
+          eq(
+            idempotencyReceipts.key,
+            propertyReceiptKey(organizationIdValue, idempotencyKey),
+          ),
+          sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz > ${now}`,
+        ),
+      )
+      .limit(1)
+    return row ? receiptFromRow(row) : null
+  }
+
+  return Object.freeze({
+    refreshPrimaryCategory: createGooglePrimaryCategoryRefresh(db),
+    readInternal: async (organizationIdValue, propertyIdValue) => {
+      const row = await readPropertyRow(db, organizationIdValue, propertyIdValue)
+      return row ? internalFromRow(row) : null
+    },
+
+    readByLocationIds: async (organizationIdValue, locationIds) => {
+      if (
+        locationIds.length < 1 ||
+        locationIds.length > 100 ||
+        new Set(locationIds).size !== locationIds.length ||
+        locationIds.some((locationIdValue) => !isGoogleResourceSuffix(locationIdValue))
+      ) {
+        deny('invalid_binding')
+      }
+      const rows = await db
+        .select()
+        .from(properties)
+        .where(
+          and(
+            eq(properties.organizationId, organizationIdValue),
+            inArray(properties.gbpLocationId, locationIds),
+            isNull(properties.deletedAt),
+          ),
+        )
+        .limit(100)
+      return rows.map(internalFromRow)
+    },
+
+    readSummary: async (organizationIdValue, propertyIdValue) => {
+      const row = await readPropertyRow(db, organizationIdValue, propertyIdValue)
+      return row ? summaryFromRow(row) : null
+    },
+
+    readReceipt,
+    ensureImportFollowUps,
+
+    createBoundProperty: async (input) => {
+      validateIdempotencyKey(input.idempotencyKey)
+      const existingReceipt = await readReceipt(
+        input.organizationId,
+        input.idempotencyKey,
+        input.now,
+      )
+      if (existingReceipt) return replayReceipt(existingReceipt, 'imported')
+      if (
+        input.property.organizationId !== input.organizationId ||
+        input.property.deletedAt !== null
+      ) {
+        deny('invalid_binding')
+      }
+      assertBindingProfile({
+        state: input.property.googleBindingState,
+        connectionId: input.property.googleConnectionId,
+        accountId: input.property.gbpAccountId,
+        locationId: input.property.gbpLocationId,
+        profileVersion: input.property.profileVersion,
+        profileSource: input.property.profileSource,
+        profileConfirmedAt: input.property.profileConfirmedAt,
+        profileConfirmedBy: input.property.profileConfirmedBy,
+      })
+      const connectionIdValue = input.property.googleConnectionId
+      if (!connectionIdValue) deny('invalid_binding')
+      // An imported Property is a created Property: Recent Activity learns of it
+      // from a property.created fact, committed with the row.
+      const created = propertyCreated({
+        organizationId: input.organizationId,
+        propertyId: input.property.id,
+        name: input.property.name,
+        slug: input.property.slug,
+        occurredAt: input.now,
+      })
+      const event = propertyGoogleBindingChanged({
+        organizationId: input.organizationId,
+        propertyId: input.property.id,
+        connectionId: connectionIdValue,
+        sourceEpoch: input.property.sourceEpoch,
+        change: 'created',
+        importFollowUps: true,
+        occurredAt: input.now,
+      })
+
+      try {
+        const result = await trace('property.googleBinding.create', () =>
+          db.transaction(async (tx) => {
+            const racedReceipt = await findLiveReceipt(
+              tx,
+              propertyReceiptKey(input.organizationId, input.idempotencyKey),
+              input.now,
+            )
+            if (racedReceipt) {
+              return replayReceipt(receiptFromRow(racedReceipt), 'imported')
+            }
+
+            if (
+              !(await lockGoogleConnectionBindingAuthority(tx, {
+                organizationId: input.organizationId,
+                connectionId: connectionIdValue,
+              }))
+            )
+              deny('connection_unavailable')
+            await tx.insert(properties).values(propertyToRow(input.property))
+            await recordReceipt(tx, {
+              organizationId: input.organizationId,
+              idempotencyKey: input.idempotencyKey,
+              destinationPropertyId: input.property.id,
+              outcome: 'imported',
+              sourceEpoch: input.property.sourceEpoch,
+              profileVersion: input.property.profileVersion,
+              now: input.now,
+            })
+            await insertOutboxRow(tx, created)
+            await insertOutboxRow(tx, event)
+            return {
+              propertyId: input.property.id,
+              outcome: 'imported',
+              sourceEpoch: input.property.sourceEpoch,
+              profileVersion: input.property.profileVersion,
+              replayed: false,
+              tombstone: false,
+            } satisfies PropertyOperationCommit
+          }),
+        )
+        return result
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error
+        const racedReceipt = await readReceipt(
+          input.organizationId,
+          input.idempotencyKey,
+          input.now,
+        )
+        if (racedReceipt) return replayReceipt(racedReceipt, 'imported')
+        deny('location_already_bound')
+      }
+    },
+
+    relink: async (input) => {
+      validateIdempotencyKey(input.idempotencyKey)
+      const profile = normalizeConfirmedProfile(input.profile)
+      const category = normalizeGooglePrimaryCategory(input.profile.googlePrimaryCategory)
+      const nextDestination = input.profile.googleReviewUri
+        ? verifiedGoogleReviewDestination({
+            uri: input.profile.googleReviewUri,
+            retrievedAt: input.now,
+            sourceEpoch: input.expectedSourceEpoch + 1,
+            profileVersion: input.expectedProfileVersion + 1,
+          })
+        : unavailableGoogleReviewDestination()
+      if (!nextDestination) deny('invalid_binding')
+      if (
+        !isGoogleResourceSuffix(input.accountId) ||
+        !isGoogleResourceSuffix(input.locationId)
+      ) {
+        deny('invalid_binding')
+      }
+      const existingReceipt = await readReceipt(
+        input.organizationId,
+        input.idempotencyKey,
+        input.now,
+      )
+      if (existingReceipt) {
+        return replayReceipt(existingReceipt, 'relinked', input.propertyId)
+      }
+      let event: ReturnType<typeof propertyGoogleBindingChanged> | undefined
+      try {
+        const result = await trace('property.googleBinding.relink', () =>
+          db.transaction(async (tx) => {
+            const racedReceipt = await findLiveReceipt(
+              tx,
+              propertyReceiptKey(input.organizationId, input.idempotencyKey),
+              input.now,
+            )
+            if (racedReceipt) {
+              return replayReceipt(
+                receiptFromRow(racedReceipt),
+                'relinked',
+                input.propertyId,
+              )
+            }
+            if (!(await lockGoogleConnectionBindingAuthority(tx, input))) {
+              deny('connection_unavailable')
+            }
+            const current = await lockPropertyRow(
+              tx,
+              input.organizationId,
+              input.propertyId,
+            )
+            if (!current) deny('property_not_found')
+            if (current.deletedAt !== null) deny('property_deleted')
+            if (current.sourceEpoch !== input.expectedSourceEpoch) deny('stale_binding')
+            if (current.profileVersion !== input.expectedProfileVersion)
+              deny('stale_profile')
+            if (current.googleBindingState === 'active') deny('active_binding_conflict')
+
+            const nextSourceEpoch = current.sourceEpoch + 1
+            const nextProfileVersion = current.profileVersion + 1
+            const [updated] = await tx
+              .update(properties)
+              .set({
+                googleConnectionId: input.connectionId,
+                gbpAccountId: input.accountId,
+                gbpLocationId: input.locationId,
+                googleBindingState: 'active',
+                sourceEpoch: nextSourceEpoch,
+                name: profile.name,
+                address: profile.address,
+                timezone: profile.timezone,
+                timezoneSource: 'tenant_confirmed',
+                timezoneResolvedAt: input.now,
+                profileVersion: nextProfileVersion,
+                profileSource: 'tenant_confirmed',
+                profileConfirmedAt: input.now,
+                profileConfirmedBy: profile.confirmedBy,
+                googleReviewUri: nextDestination.uri,
+                googleReviewDestinationState: nextDestination.state,
+                googleReviewDestinationRetrievedAt: nextDestination.retrievedAt,
+                googleReviewDestinationSourceEpoch: nextDestination.sourceEpoch,
+                googleReviewDestinationProfileVersion: nextDestination.profileVersion,
+                // A category Google gave is stored; none read keeps the one held.
+                googlePrimaryCategory: category ?? current.googlePrimaryCategory,
+                googlePrimaryCategoryUpdatedAt:
+                  category === null ? current.googlePrimaryCategoryUpdatedAt : input.now,
+                updatedAt: input.now,
+              })
+              .where(
+                and(
+                  eq(properties.organizationId, input.organizationId),
+                  eq(properties.id, input.propertyId),
+                  eq(properties.sourceEpoch, input.expectedSourceEpoch),
+                  eq(properties.profileVersion, input.expectedProfileVersion),
+                ),
+              )
+              .returning({ id: properties.id })
+            if (!updated) deny('stale_binding')
+            await purgeAiDraftsForProfile(
+              tx,
+              {
+                organizationId: input.organizationId,
+                propertyId: input.propertyId,
+              },
+              replyEffects,
+            )
+            await recordReceipt(tx, {
+              organizationId: input.organizationId,
+              idempotencyKey: input.idempotencyKey,
+              destinationPropertyId: input.propertyId,
+              outcome: 'relinked',
+              sourceEpoch: nextSourceEpoch,
+              profileVersion: nextProfileVersion,
+              now: input.now,
+            })
+            event = propertyGoogleBindingChanged({
+              organizationId: input.organizationId,
+              propertyId: input.propertyId,
+              connectionId: input.connectionId,
+              sourceEpoch: nextSourceEpoch,
+              change: 'relinked',
+              importFollowUps: true,
+              occurredAt: input.now,
+            })
+            await insertOutboxRow(tx, event)
+            return {
+              propertyId: input.propertyId,
+              outcome: 'relinked',
+              sourceEpoch: nextSourceEpoch,
+              profileVersion: nextProfileVersion,
+              replayed: false,
+              tombstone: false,
+            } satisfies PropertyOperationCommit
+          }),
+        )
+        return result
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error
+        const racedReceipt = await readReceipt(
+          input.organizationId,
+          input.idempotencyKey,
+          input.now,
+        )
+        if (racedReceipt) {
+          return replayReceipt(racedReceipt, 'relinked', input.propertyId)
+        }
+        deny('location_already_bound')
+      }
+    },
+
+    disconnect: async (input) => {
+      let event: ReturnType<typeof propertyGoogleBindingChanged> | undefined
+      const result = await trace('property.googleBinding.disconnect', () =>
+        db.transaction(async (tx) => {
+          const current = await lockPropertyRow(
+            tx,
+            input.organizationId,
+            input.propertyId,
+          )
+          if (!current) deny('property_not_found')
+          if (current.deletedAt !== null) deny('property_deleted')
+          if (current.googleBindingState === 'disconnected') {
+            await clearGooglePrimaryCategoryForProperty(tx, input)
+            return summaryFromRow(current)
+          }
+          if (current.sourceEpoch !== input.expectedSourceEpoch) deny('stale_binding')
+          if (current.profileVersion !== input.expectedProfileVersion)
+            deny('stale_profile')
+          if (current.googleBindingState !== 'active' || !current.googleConnectionId) {
+            deny('active_binding_conflict')
+          }
+          const nextSourceEpoch = current.sourceEpoch + 1
+          const nextDestination = awaitingRefreshGoogleReviewDestination({
+            state:
+              current.googleReviewDestinationState as PropertyGoogleBindingInternalView['googleReviewDestination']['state'],
+            uri: current.googleReviewUri,
+            retrievedAt: current.googleReviewDestinationRetrievedAt,
+            sourceEpoch: current.googleReviewDestinationSourceEpoch,
+            profileVersion: current.googleReviewDestinationProfileVersion,
+          })
+          const [updated] = await tx
+            .update(properties)
+            .set({
+              googleBindingState: 'disconnected',
+              sourceEpoch: nextSourceEpoch,
+              googleReviewDestinationState: nextDestination.state,
+              googlePrimaryCategory: null,
+              googlePrimaryCategoryUpdatedAt: null,
+              updatedAt: input.now,
+            })
+            .where(
+              and(
+                eq(properties.organizationId, input.organizationId),
+                eq(properties.id, input.propertyId),
+                eq(properties.sourceEpoch, input.expectedSourceEpoch),
+                eq(properties.profileVersion, input.expectedProfileVersion),
+              ),
+            )
+            .returning()
+          if (!updated) deny('stale_binding')
+          await purgeAiDraftsForProfile(
+            tx,
+            {
+              organizationId: input.organizationId,
+              propertyId: input.propertyId,
+            },
+            replyEffects,
+          )
+          event = propertyGoogleBindingChanged({
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            connectionId: googleConnectionId(current.googleConnectionId),
+            sourceEpoch: nextSourceEpoch,
+            change: 'disconnected',
+            occurredAt: input.now,
+          })
+          await insertOutboxRow(tx, event)
+          return summaryFromRow(updated)
+        }),
+      )
+      return result
+    },
+
+    scrubProviderIdentity: async (input) => {
+      let event: ReturnType<typeof propertyGoogleBindingChanged> | undefined
+      const result = await trace('property.googleBinding.scrub', () =>
+        db.transaction(async (tx) => {
+          const current = await lockPropertyRow(
+            tx,
+            input.organizationId,
+            input.propertyId,
+          )
+          if (!current) deny('property_not_found')
+          if (current.deletedAt !== null) deny('property_deleted')
+          if (
+            current.googleBindingState === 'unbound' &&
+            current.googleConnectionId === null &&
+            current.gbpAccountId === null &&
+            current.gbpLocationId === null
+          ) {
+            return summaryFromRow(current)
+          }
+          if (current.sourceEpoch !== input.expectedSourceEpoch) deny('stale_binding')
+          if (current.profileVersion !== input.expectedProfileVersion)
+            deny('stale_profile')
+          if (!current.googleConnectionId) deny('invalid_binding')
+          const nextSourceEpoch = current.sourceEpoch + 1
+          const [updated] = await tx
+            .update(properties)
+            .set({
+              googleConnectionId: null,
+              gbpAccountId: null,
+              gbpLocationId: null,
+              googleBindingState: 'unbound',
+              sourceEpoch: nextSourceEpoch,
+              googleReviewUri: null,
+              googleReviewDestinationState: 'unavailable',
+              googleReviewDestinationRetrievedAt: null,
+              googleReviewDestinationSourceEpoch: null,
+              googleReviewDestinationProfileVersion: null,
+              googlePrimaryCategory: null,
+              googlePrimaryCategoryUpdatedAt: null,
+              updatedAt: input.now,
+            })
+            .where(
+              and(
+                eq(properties.organizationId, input.organizationId),
+                eq(properties.id, input.propertyId),
+                eq(properties.sourceEpoch, input.expectedSourceEpoch),
+                eq(properties.profileVersion, input.expectedProfileVersion),
+              ),
+            )
+            .returning()
+          if (!updated) deny('stale_binding')
+          await purgeAiDraftsForProfile(
+            tx,
+            {
+              organizationId: input.organizationId,
+              propertyId: input.propertyId,
+            },
+            replyEffects,
+          )
+          event = propertyGoogleBindingChanged({
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            connectionId: googleConnectionId(current.googleConnectionId),
+            sourceEpoch: nextSourceEpoch,
+            change: 'deletion_started',
+            occurredAt: input.now,
+          })
+          await insertOutboxRow(tx, event)
+          return summaryFromRow(updated)
+        }),
+      )
+      return result
+    },
+
+    releaseRetention: async (input) => {
+      const uniqueKeys = [...new Set(input.idempotencyKeys)]
+      if (
+        uniqueKeys.length === 0 ||
+        uniqueKeys.length > PROPERTY_OPERATION_SWEEP_LIMIT ||
+        uniqueKeys.some((key) => !UUID.test(key))
+      ) {
+        deny('invalid_binding')
+      }
+      const rows = await markRetentionReleased(
+        db,
+        input.organizationId,
+        uniqueKeys,
+        input.releasedAt,
+      )
+      return rows.length
+    },
+
+    sweepReleasedExpired: async (input) => {
+      if (
+        !Number.isInteger(input.limit) ||
+        input.limit < 1 ||
+        input.limit > PROPERTY_OPERATION_SWEEP_LIMIT
+      ) {
+        deny('sweep_limit_invalid')
+      }
+      return db.transaction(async (tx) => {
+        const rows = await tx
+          .select({ key: idempotencyReceipts.key })
+          .from(idempotencyReceipts)
+          .where(
+            and(
+              eq(idempotencyReceipts.scope, 'property_operation'),
+              sql`${idempotencyReceipts.payload}->'retentionReleasedAt' <> 'null'::jsonb`,
+              sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz <= ${input.now}`,
+            ),
+          )
+          .orderBy(
+            sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz`,
+            idempotencyReceipts.key,
+          )
+          .for('update', { skipLocked: true })
+          .limit(input.limit)
+        if (rows.length === 0) return 0
+        const deleted = await tx
+          .delete(idempotencyReceipts)
+          .where(
+            and(
+              eq(idempotencyReceipts.scope, 'property_operation'),
+              inArray(
+                idempotencyReceipts.key,
+                rows.map((row) => row.key),
+              ),
+            ),
+          )
+          .returning({ key: idempotencyReceipts.key })
+        return deleted.length
+      })
+    },
+
+    countUnreleasedExpired: async (input) => {
+      if (
+        !Number.isInteger(input.limit) ||
+        input.limit < 1 ||
+        input.limit > PROPERTY_OPERATION_SWEEP_LIMIT
+      ) {
+        deny('sweep_limit_invalid')
+      }
+      const rows = await db
+        .select({ key: idempotencyReceipts.key })
+        .from(idempotencyReceipts)
+        .where(
+          and(
+            eq(idempotencyReceipts.scope, 'property_operation'),
+            RETENTION_UNRELEASED,
+            sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz <= ${input.now}`,
+          ),
+        )
+        .orderBy(
+          sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz`,
+          idempotencyReceipts.key,
+        )
+        .limit(input.limit)
+      return rows.length
+    },
+
+    releaseRetentionFromEvent: async (input) => {
+      const uniqueKeys = [...new Set(input.idempotencyKeys)]
+      if (
+        !UUID.test(input.eventId) ||
+        uniqueKeys.length === 0 ||
+        uniqueKeys.length > PROPERTY_OPERATION_SWEEP_LIMIT ||
+        uniqueKeys.some((key) => !UUID.test(key))
+      ) {
+        deny('invalid_binding')
+      }
+      return db.transaction(async (tx) => {
+        const [insertedReceipt] = await tx
+          .insert(eventConsumerReceipts)
+          .values({
+            eventId: input.eventId,
+            consumerName: 'property.import-retention-release',
+            status: 'applied',
+            createdAt: input.releasedAt,
+          })
+          .onConflictDoNothing()
+          .returning({ eventId: eventConsumerReceipts.eventId })
+        if (!insertedReceipt) return 'duplicate'
+        await markRetentionReleased(
+          tx,
+          input.organizationId,
+          uniqueKeys,
+          input.releasedAt,
+        )
+        return 'applied'
+      })
+    },
+
+    cleanupOrganization: async (organizationIdValue: OrganizationId) => {
+      const rows = await db
+        .delete(idempotencyReceipts)
+        .where(
+          and(
+            eq(idempotencyReceipts.scope, 'property_operation'),
+            sql`${idempotencyReceipts.payload}->>'organizationId' = ${organizationIdValue}`,
+          ),
+        )
+        .returning({ key: idempotencyReceipts.key })
+      return rows.length
+    },
+  })
+}

@@ -105,6 +105,8 @@ async function createHarness(
       | 'output_truncated'
       | 'completed_without_delivery'
       | 'operation_ambiguous'
+      | 'source_revision_changed'
+      | 'capability_epoch_changed'
     /** The notice the Property's consent was recorded under. Defaults to the served one. */
     consentNotice?: Readonly<{ noticeVersion: string; noticeDigest: string }>
     /**
@@ -271,7 +273,7 @@ async function createHarness(
     },
     operations: persistence.operations,
     outputs: {
-      storeAnalysis: vi.fn(),
+      storeAnalysisV3: vi.fn(),
       settleEphemeralReply,
       findCurrentReviewIdsByAttention: vi.fn(),
       readAnalysisForDelivery: vi.fn(),

@@ -5,7 +5,7 @@ import type {
   ChangeMonthlyPortalGoalNowRequest,
   PortalGoalChangeFacts,
   ReviseMonthlyPortalGoalRequest,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 
 export type PortalGoalChangeSubmission =
   | Readonly<{ when: 'now'; data: Omit<ChangeMonthlyPortalGoalNowRequest, 'propertyId'> }>

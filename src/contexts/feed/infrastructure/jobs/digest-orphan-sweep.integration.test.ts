@@ -21,15 +21,10 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import type { InsertNotificationJobData } from './insert-notification.job'
-import {
-  parseOutboxNotificationDelivery,
-  withOutboxNotificationDelivery,
-} from '../outbox-notification-delivery'
-import { createNotificationDeliverySettlement } from '../repositories/notification-delivery-settlement.repository'
+import { createNoticeWriter, type Notice } from '../../notify/consumers.server'
 import { createNotificationEmailRepository } from '../repositories/notification-email.repository'
 import { createDigestNotificationJobHandler } from './digest-notification.job'
-import { createFakeJobLogger } from './test-fixtures'
+import { createFakeJobLogger, waitingWorkState } from './test-fixtures'
 
 const ORG = organizationId('digest-orphan-sweep-org')
 const USER = userId('digest-orphan-sweep-user')
@@ -84,14 +79,13 @@ describe.sequential(
 
     /** Settle the access-removed notice while Redis refuses the urgent job. */
     const settleWhileRedisIsDown = async () => {
-      const input: InsertNotificationJobData = {
+      const notice: Notice = {
         userId: USER,
         organizationId: ORG,
         propertyId: null,
         type: 'account.organization_access_removed',
         resourceType: 'organization',
         resourceId: ORG,
-        eventId: EVENT,
         payload: {},
         audience: {
           kind: 'affected_organization_user',
@@ -99,18 +93,8 @@ describe.sequential(
           eventType: 'identity.member.removed',
         },
       }
-      let queued: unknown
-      const queue = withOutboxNotificationDelivery(
-        { add: vi.fn(async (_name, data) => void (queued = data)) },
-        { insertReceipt: vi.fn(async () => {}) },
-        {
-          eventType: 'identity.member.removed',
-          consumerName: 'notification.on-identity-member-removed',
-        },
-      )
-      await queue.add('insert-notification', input)
       const logger = createFakeJobLogger()
-      const settlement = createNotificationDeliverySettlement({
+      const writer = createNoticeWriter({
         ratingForRouting: async () => null,
         db,
         clock: () => NOW,
@@ -120,13 +104,15 @@ describe.sequential(
         enqueueImmediateEmail: vi.fn(async () => {
           throw new Error('READONLY You can not write against a read only replica.')
         }),
+        authorizeAudience: async () => true,
+        workState: waitingWorkState(),
       })
-      const { audience, ...notificationInput } = input
-      await settlement.settleAuthorized(
-        notificationInput,
-        parseOutboxNotificationDelivery(queued)!,
-        audience,
-      )
+      await writer.write({
+        eventId: EVENT,
+        consumerName: 'notification.on-identity-member-removed',
+        status: 'applied',
+        notices: [notice],
+      })
       return logger
     }
 

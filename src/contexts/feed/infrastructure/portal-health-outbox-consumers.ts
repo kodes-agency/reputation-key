@@ -1,6 +1,6 @@
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { organizationId, portalId, propertyId, unbrand } from '#/shared/domain/ids'
+import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
@@ -10,8 +10,8 @@ import {
   type PortalHealthReason,
   type PortalHealthStatus,
 } from '../application/portal-health-notification'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
+import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 import {
   buildPropertyPayload,
   type PropertyPayloadDeps,
@@ -33,11 +33,10 @@ type Payload = Readonly<{
 }>
 
 export type PortalHealthNotificationConsumerDeps = PropertyPayloadDeps &
+  NoticeDeliveryDeps &
   Readonly<{
-    queue: NotificationJobEnqueuePort
     responsibleManagers: ResponsibleManagerLookupPort
     userLookup: Pick<UserLookupPort, 'findByRole'>
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
     logger: LoggerPort
   }>
 
@@ -69,15 +68,12 @@ function parse(event: ConsumerEvent): Payload {
 export async function handleNotificationPortalHealthChanged(
   deps: PortalHealthNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<ConsumerResult> {
   const payload = parse(event)
   if (payload.status === 'healthy' || !isActionablePortalHealthReason(payload.reason)) {
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      ON_PORTAL_HEALTH_CHANGED_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
+    return deliverNotices(deps, event, ON_PORTAL_HEALTH_CHANGED_CONSUMER, [], {
+      status: 'obsolete',
+    })
   }
 
   const organization = organizationId(payload.organizationId)
@@ -92,47 +88,38 @@ export async function handleNotificationPortalHealthChanged(
     )
   }
   const where = await buildPropertyPayload(deps, organization, property)
+  const status = payload.status
+  const reason = payload.reason
 
-  await Promise.all(
-    recipients.map((recipient) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipient,
-          organizationId: organization,
-          propertyId: property,
-          type: 'portal.health_attention' as const,
-          resourceType: 'portal' as const,
-          resourceId: portal,
-          eventId: event.eventId,
-          // Both facts are closed enums the event already carries. Without
-          // them the notice could only say a portal "may need attention",
-          // which is true of every cause and useful for none.
-          payload: {
-            ...where,
-            portalHealthStatus: payload.status,
-            portalHealthReason: payload.reason,
-          },
-          audience: {
-            kind: 'portal_health' as const,
-            portalId: portal,
-            status: payload.status,
-            reason: payload.reason,
-            // The fact occurs when the interval it opened takes effect.
-            effectiveFrom: new Date(payload.occurredAt).toISOString(),
-          },
-        },
-        { jobId: `${event.eventId}-${unbrand(recipient)}` },
-      ),
-    ),
-  )
-
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  return deliverNotices(
+    deps,
+    event,
     ON_PORTAL_HEALTH_CHANGED_CONSUMER,
-    'applied',
+    recipients.map((recipient) => ({
+      userId: recipient,
+      organizationId: organization,
+      propertyId: property,
+      type: 'portal.health_attention' as const,
+      resourceType: 'portal' as const,
+      resourceId: portal,
+      // Both facts are closed enums the event already carries. Without
+      // them the notice could only say a portal "may need attention",
+      // which is true of every cause and useful for none.
+      payload: {
+        ...where,
+        portalHealthStatus: status,
+        portalHealthReason: reason,
+      },
+      audience: {
+        kind: 'portal_health' as const,
+        portalId: portal,
+        status,
+        reason,
+        // The fact occurs when the interval it opened takes effect.
+        effectiveFrom: new Date(payload.occurredAt).toISOString(),
+      },
+    })),
   )
-  return { status: 'applied' }
 }
 
 export function registerPortalHealthNotificationConsumer(

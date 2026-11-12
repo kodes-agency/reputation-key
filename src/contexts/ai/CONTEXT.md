@@ -561,22 +561,17 @@ Nothing can run on Anthropic until it is selected, so nothing is exposed today.
 ### Analysing, storing and aggregating v3
 
 `analyze-review-event.ts` is one skeleton (authorize, read the source, claim, call the provider,
-store, settle). The v2 and v3 analysis differ at six points of it, and a
-`ReviewAnalysisContract` (`review-analysis-contract.ts`) names them: the profile facts the binding
-and the authorization gate compare, whether the source read also returns the numbered sentences,
-what is prepared before the claim, what the provider request carries beyond the review, whether a
-Property's authorization was recorded under the contract this one serves, and how the answer is
-accepted and stored. The use case knows none of it. The v2 contract
-(`review-analysis-contract-v2.ts`) is everything that used to run inline there, moved without
-change (profile facts, answer schema, the issue-label refusal, the attention formula, the call
-that stores the analysis), and is the default of the use case: a v2 claim and provider request
-are byte-for-byte what they were. `review-analysis-runtime.ts` builds v3 only when the live
-runtime catalogue names `review-analysis-v3` for `review_analysis`; since the switch-on
-(2026-10-30) the catalogue holds v3 alone and its parser refuses anything else, so every build
-runs v3 and the v2 contract is the retired form, kept so an operation claimed before the deploy
-can still be read and settled.
+store, settle). A `ReviewAnalysisContract` (`review-analysis-contract.ts`) names the points that
+depend on the analysis profile: the profile facts the binding and the authorization gate compare,
+whether the source read also returns the numbered sentences, what is prepared before the claim,
+what the provider request carries beyond the review, whether a Property's authorization was
+recorded under the contract this one serves, and how the answer is accepted and stored. The use
+case takes the contract as a dependency and knows none of it; `build.ts` always builds v3. The
+runtime catalogue holds `review-analysis-v3` alone for `review_analysis` and its parser refuses
+anything else. The v2 analysis code is gone; rows and operations it left behind stay readable
+through the profile catalogue and the stored-provenance readers.
 
-What the v3 contract (`review-analysis-contract-v3.ts`) does that v2 does not:
+What the v3 contract (`review-analysis-contract-v3.ts`) does:
 
 - Before the claim it reads the Property's Google primary category through
   `PropertyVocabularyContextPort`, resolves the vocabulary hints, and asks `AiProviderChoicePort`
@@ -591,12 +586,12 @@ What the v3 contract (`review-analysis-contract-v3.ts`) does that v2 does not:
   sentences, the hints (never the Property's name) and the provider it was claimed under, so the
   gateway can end it with `provider_profile_changed` after a switch.
 - The answer is the gateway's normalized one, checked by `reviewAnalysisV3GatewayResultSchema`
-  and never the provider's own. Attention is derived with the v2 formula
+  and never the provider's own. Attention is derived with the attention formula
   (`deriveReviewAttentionV2`) from the stored answer and the star rating, then the analysis is
   stored through `AiOutputStorePort.storeAnalysisV3`. An answer that fails the schema is a
-  charged `output_invalid`, exactly as a v2 answer that fails its schema is.
+  charged `output_invalid`.
 
-`storeAnalysisV3` writes, in the transaction the v2 write uses and under the same guards (the
+`storeAnalysisV3` writes, in one transaction and under guards (the
 source epoch and revision, the authorization lineage, the review analysis epoch, the operation's
 attempt), one `ai_review_analyses` row (`ready`, no primary category, its Urgent reason when its
 attention is urgent), the mention rows and the sentence numbers each cites
@@ -731,7 +726,15 @@ authority.
 Provider calls are admitted once per lane before an execution attempt is
 claimed (ADR 0058): interactive work (reply drafts, on-demand analysis) and
 background work (history) have independent global, organization and property
-buckets. Historical and backfill analysis events queue their provider work in
+buckets. The last authority before a provider call is
+`infrastructure/adapters/ai-execution-admission.adapter.ts`: one transaction
+locks the executing operation, re-reads the consent, epochs, processing profile
+and control generations it was claimed under (`ai-authorized-effect.ts`) and
+its review source (`ai-review-source-fence.ts`), in the output write's lock
+order, and only then reserves the budget. Whether an admission is open,
+charged or released is read from that reservation; an operation admits again
+only after a release at zero cost, and the reservation reaper charges every
+stale reservation in full. Historical and backfill analysis events queue their provider work in
 `ai_review_analysis_backlog`, which a 5-second drain empties newest review
 first, sixteen analyses at a time, and records an enrollment caught up as soon as
 its last review settles; a review opened in the Inbox is analysed ahead of the
@@ -994,11 +997,11 @@ for an event that is gone.
 
 ## Reply drafting v2 contract — registered dark (B1, 2026-10-31)
 
-The served drafting selection remains `reply-drafting-runtime-v1` / `reply-suggestion-v1`.
-The notice, UI, historical profile readers and v1 wire pins are unchanged. The registered
-v2 catalogue row still has `served: false`. B2 registers its streaming execution as
-compatible with the notice already in force (ADR 0074); only a later serving selection
-can admit it through the gateway. No new notice or consent write accompanies B2.
+The served drafting selection is `reply-drafting-runtime-v2` / `reply-suggestion-v2`; the
+`reply-drafting-runtime-v1` / `reply-suggestion-v1` row is `served: false` and stays in the
+catalogue for historical operations. The notice, UI, historical profile readers and v1 wire
+pins are unchanged. B2 registered the streaming execution as compatible with the notice
+already in force (ADR 0074). No new notice or consent write accompanied B2.
 
 The new identities are operation `reply-suggestion-v2`, profile `reply-draft-v4`, runtime
 `reply-drafting-runtime-v2`, prompt `reply-suggestion-prompt-v2` and provenance v4.
@@ -1044,7 +1047,7 @@ Re-verified map items 1–6 on the supplied stacked base `af57b9c36` (current im
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1 — profile/prompt/schema/provenance       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/reply-drafting-v2-schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                             |
 | 2 — numbered input/options/binding         | `src/shared/reply-drafting-v2-request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                        |
-| 3 — effort/output/reservation bounds       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/db/ai/ai-budget.ts:96`                                                                                                                               |
+| 3 — effort/output/reservation bounds       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/db/ai/ai-budget.ts:97`                                                                                                                               |
 | 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/infrastructure/adapters/reply-rewrite-parent.ts:16`                                             |
 | 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                 |
 | 6 — frame choice/usage/adoption            | `src/contexts/review/application/ai-reply-v2-frame.ts:21`, `src/contexts/review/infrastructure/repositories/ai-frame-reservation.ts:156`, `src/contexts/review/infrastructure/ai-suggested-draft-store.ts:481` |

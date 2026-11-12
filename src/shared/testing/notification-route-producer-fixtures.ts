@@ -8,7 +8,6 @@ import {
   identityMemberPropertyAccessChanged,
   identityMemberRemoved,
   identityMemberRoleChanged,
-  identityOrganizationLifecycleChanged,
 } from '#/contexts/identity/domain/events'
 import {
   inboxAssignmentsReleased,
@@ -175,16 +174,6 @@ export const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       userId: RECIPIENT,
       reference: REPORT_REFERENCE,
       outcome: 'accepted',
-      occurredAt: OCCURRED_AT,
-    }),
-  'identity.organization_lifecycle.changed': () =>
-    identityOrganizationLifecycleChanged({
-      organizationId: ORG,
-      closureLineageId: CLOSURE_LINEAGE,
-      state: 'purge_pending',
-      revision: 3,
-      reactivationRequired: true,
-      recoverableUntil: new Date('2026-10-02T09:00:00.000Z'),
       occurredAt: OCCURRED_AT,
     }),
   'inbox.inbox_item.created': () =>
@@ -504,7 +493,6 @@ export const SETTLED_RESOURCE: Readonly<Record<string, string>> = {
   'portal.approved_destination.updated': DESTINATION,
   'integration.google_account.connected': CONNECTION,
   'integration.google_account.disconnected': CONNECTION,
-  'identity.organization_lifecycle.changed': ORG,
 }
 
 /**
@@ -514,16 +502,6 @@ export const SETTLED_RESOURCE: Readonly<Record<string, string>> = {
 export const SETTLING_FACTS: Readonly<Record<string, () => DomainEvent>> = {
   'notification.settle-on-portal-destination-decided': () =>
     destinationUpdated('approved'),
-  'notification.settle-on-organization-purge-cancelled': () =>
-    identityOrganizationLifecycleChanged({
-      organizationId: ORG,
-      closureLineageId: CLOSURE_LINEAGE,
-      state: 'active',
-      revision: 4,
-      reactivationRequired: true,
-      recoverableUntil: new Date('2026-10-02T09:00:00.000Z'),
-      occurredAt: OCCURRED_AT,
-    }),
   'notification.settle-on-portal-health-recovered': () =>
     portalHealthChanged({
       portalId: PORTAL,

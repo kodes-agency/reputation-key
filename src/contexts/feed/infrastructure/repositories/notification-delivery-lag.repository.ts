@@ -10,7 +10,7 @@ import type {
 } from '../../application/ports/notification-delivery-lag.repository'
 import { MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT } from '../../application/ports/notification-delivery-lag.repository'
 import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../../application/beta-notification-trigger-matrix'
-import { notificationDeliveryReceiptPrefixes } from '../outbox-notification-delivery'
+import { notificationDeliveryReceiptPrefixes } from '../notification-delivery-receipts'
 import { notificationRouteValues as routeValues } from './notification-route-values'
 import { assertStatementTimeoutMs, withHealthReadTimeout } from './health-read-timeout'
 import { activePropertyCondition } from './active-property'

@@ -266,7 +266,7 @@ export type InboxItemDetail = Readonly<{
    * Optional rather than required ONLY because hand-built detail fixtures
    * predate the field (9 literal sites, 7 of them `src/components/inbox`
    * stories). Every producer sets it — `inbox.repository.ts` `findDetailById`
-   * on both branches, `in-memory-inbox-repo.ts` on both — and
+   * on both branches, the Storybook-only fake on both — and
    * `getInboxItemDetail` coerces a missing one to `null`, so the payload a
    * client reads always carries the key with a `number | null` value. Tighten
    * to required once those fixtures name it.

@@ -404,7 +404,6 @@ describe('createOperationsSnapshot', () => {
       clock,
       versions: VERSIONS,
       runtime: RUNTIME,
-      readMissingNotificationCount: async () => 4,
       readNotificationDeliveryLag: async () => {
         throw new Error('anti-join scan failed')
       },
@@ -432,7 +431,6 @@ describe('createOperationsSnapshot', () => {
     expect(snapshot.quarantine?.count).toBe(2)
     expect(snapshot.reviews.refreshDueCount).toBe(1)
     expect(snapshot.replyPublication.counts.ambiguous).toBe(1)
-    expect(snapshot.notifications.missingForInboxItemCount).toBe(4)
     expect(snapshot.notifications.deliveryLag.sourceReceiptPending).toBe(0)
   })
 
@@ -487,7 +485,6 @@ describe('createOperationsSnapshot', () => {
         clock,
         versions: VERSIONS,
         runtime: RUNTIME,
-        readMissingNotificationCount: async () => 4,
       })
 
       const pending = reader.read()
@@ -497,7 +494,6 @@ describe('createOperationsSnapshot', () => {
       expect(snapshot.degraded).toEqual(['health.outbox'])
       expect(snapshot.reviews.refreshDueCount).toBe(1)
       expect(snapshot.replyPublication.counts.ambiguous).toBe(1)
-      expect(snapshot.notifications.missingForInboxItemCount).toBe(4)
     } finally {
       vi.useRealTimers()
     }
@@ -528,7 +524,6 @@ describe('createOperationsSnapshot', () => {
         'health.sync',
         'health.replyPublication',
         'health.notificationEmail',
-        'health.notificationGap',
         'health.notificationDeliveryLag',
         'health.syncPush',
       ])
@@ -549,11 +544,6 @@ describe('createOperationsSnapshot', () => {
             },
             {
               signal: 'notificationEmail',
-              outcome: 'not_started',
-              elapsedMs: OPS_SECTION_BUDGET_MS,
-            },
-            {
-              signal: 'notificationGap',
               outcome: 'not_started',
               elapsedMs: OPS_SECTION_BUDGET_MS,
             },

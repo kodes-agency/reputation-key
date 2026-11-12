@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Check } from 'lucide-react'
-import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalOfCard } from '#/contexts/reporting/monthly-goals/contracts'
 import { Button } from '#/components/ui/button'
 import { TONE_INK } from '#/components/ui/tone'
 import { cn } from '#/lib/utils'

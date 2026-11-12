@@ -1,5 +1,4 @@
 // Notification acceptance examples use real producers and the worker dispatcher.
-import { identityOrganizationLifecycleChanged } from '#/contexts/identity/domain/events'
 import {
   inboxHandlingCycleOpened,
   inboxHandlingCycleReopened,
@@ -49,13 +48,11 @@ import {
   MANDATORY_EMAIL_JOB_NAME,
   URGENT_EMAIL_JOB_NAME,
 } from '../email/send-emails.server'
-import { parseOutboxNotificationDelivery } from './outbox-notification-delivery'
 
 import {
   ACTOR,
   ADMIN,
   BULK,
-  CLOSURE_LINEAGE,
   destinationUpdated,
   GOAL,
   handlingCycleScope,
@@ -268,19 +265,6 @@ const NO_NOTICE: Readonly<
     }>
   >
 > = {
-  'identity.organization_lifecycle.changed': {
-    fact: () =>
-      identityOrganizationLifecycleChanged({
-        organizationId: ORG,
-        closureLineageId: CLOSURE_LINEAGE,
-        state: 'closing',
-        revision: 2,
-        reactivationRequired: true,
-        recoverableUntil: new Date('2026-10-02T09:00:00.000Z'),
-        occurredAt: OCCURRED_AT,
-      }),
-    status: 'obsolete',
-  },
   'inbox.inbox_item.created': {
     fact: PRODUCED_FACTS['inbox.inbox_item.created']!,
     status: 'applied',
@@ -504,7 +488,7 @@ describe('every beta notification route queues its notice from its real producer
   for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX.filter(
     (candidate) => candidate.settles === undefined,
   )) {
-    it(`${route.eventType}: ${route.consumerName} queues its notification durably`, async () => {
+    it(`${route.eventType}: ${route.consumerName} writes its notification durably`, async () => {
       const result = await dispatch(PRODUCED_FACTS[route.eventType]!())
       const { envelope } = result
       const queued = expectAnnouncingRoute(
@@ -513,9 +497,8 @@ describe('every beta notification route queues its notice from its real producer
         SELECTED_FACT_TYPES[route.eventType],
       )
       for (const job of queued) {
-        expect(parseOutboxNotificationDelivery(job)).toMatchObject({
+        expect(job).toMatchObject({
           eventId: envelope.eventId,
-          eventType: route.eventType,
           consumerName: route.consumerName,
         })
         expect(parseNotificationAudience(job.audience), job.type).not.toBeNull()
@@ -553,67 +536,6 @@ describe('every beta notification route queues its notice from its real producer
       })
     })
   }
-})
-
-/**
- * The last warning before an irreversible deletion has no Property, and the
- * delivery-time check used to admit a Property-less notice only for an
- * affected Organization user — so this route reached nobody. The AccountAdmin
- * role is held at the Organization, so it is now re-read there.
- */
-describe('the Purge Pending final notice reaches its AccountAdmins', () => {
-  const authorizerFor = (deps: RouteDeps) =>
-    createNotificationAudienceAuthorizer({
-      ...deps,
-      portalHealthLookup: {
-        findPortalHealthNotificationFacts: vi.fn(async () => null),
-      },
-      organizationAccountAuthority: {
-        isAffectedRecipient: vi.fn(async () => false),
-      },
-    })
-
-  it('identity.organization_lifecycle.changed: every queued admin still passes the check', async () => {
-    const deps = currentRouteDeps()
-    const { queued } = await dispatch(
-      PRODUCED_FACTS['identity.organization_lifecycle.changed']!(),
-      deps,
-    )
-    const authorize = authorizerFor(deps)
-
-    // Every queued recipient is a current AccountAdmin.
-    expect(queued.map((job) => job.userId)).toEqual([ADMIN])
-    for (const job of queued) {
-      await expect(
-        authorize({
-          userId: job.userId,
-          organizationId: job.organizationId,
-          propertyId: job.propertyId,
-          audience: parseNotificationAudience(job.audience)!,
-        }),
-      ).resolves.toBe(true)
-    }
-  })
-
-  it('refuses the notice for someone who has lost the role since it was queued', async () => {
-    const deps = currentRouteDeps()
-    const { queued } = await dispatch(
-      PRODUCED_FACTS['identity.organization_lifecycle.changed']!(),
-      deps,
-    )
-    deps.userLookup.findByRole.mockResolvedValue([])
-
-    for (const job of queued) {
-      await expect(
-        authorizerFor(deps)({
-          userId: job.userId,
-          organizationId: job.organizationId,
-          propertyId: job.propertyId,
-          audience: parseNotificationAudience(job.audience)!,
-        }),
-      ).resolves.toBe(false)
-    }
-  })
 })
 
 /**

@@ -1,22 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Job } from 'bullmq'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
+import type { NoticeWriter } from '../../notify/consumers.server'
 import {
-  createInsertNotificationHandler,
+  createInsertNotificationDrainHandler,
   type InsertNotificationJobData,
 } from './insert-notification.job'
-import { buildFakeInsertNotificationDeps } from '../../application/use-cases/test-fixtures'
-import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import {
-  parseOutboxNotificationDelivery,
-  withOutboxNotificationDelivery,
-} from '../outbox-notification-delivery'
-import { waitingWorkState } from './test-fixtures'
+import { createFakeJobLogger } from './test-fixtures'
+
+const PROPERTY = '11111111-1111-4111-8111-111111111111'
 
 const data: InsertNotificationJobData = {
   userId: userId('user-1'),
   organizationId: organizationId('org-1'),
-  propertyId: propertyId('11111111-1111-4111-8111-111111111111'),
-  // On in the app by default; a new review is an arrival, off by default (D4).
+  propertyId: propertyId(PROPERTY),
   type: 'feedback.created',
   resourceType: 'inbox_item',
   resourceId: 'item-1',
@@ -24,236 +21,104 @@ const data: InsertNotificationJobData = {
   payload: { propertyName: 'Riverside Hotel', platform: 'google' },
   audience: {
     kind: 'responsible_scope',
-    scope: { kind: 'property', propertyId: '11111111-1111-4111-8111-111111111111' },
+    scope: { kind: 'property', propertyId: PROPERTY },
   },
 }
 
-const buildDeps = (authorized = true) => ({
-  ...buildFakeInsertNotificationDeps(),
-  authorizeAudience: vi.fn().mockResolvedValue(authorized),
-  workState: waitingWorkState(),
-})
-
-const durableData = async (): Promise<InsertNotificationJobData> => {
-  let captured: unknown
-  const queue = withOutboxNotificationDelivery(
-    {
-      add: vi.fn(async (_name, queued) => {
-        captured = queued
-      }),
-    },
-    { insertReceipt: vi.fn(async () => {}) },
-    {
-      eventType: 'inbox.inbox_item.created',
-      consumerName: 'notification.on-inbox-item-created',
-    },
-  )
-  await queue.add('insert-notification', data)
-  return captured as InsertNotificationJobData
+const delivery = {
+  eventId: 'event-1',
+  eventType: 'inbox.inbox_item.created',
+  consumerName: 'notification.on-inbox-item-created',
+  receiptKey: 'abc123',
 }
 
-describe('insert-notification job', () => {
-  it('logs the job lifecycle through the injected child logger', async () => {
-    const deps = buildDeps()
-    const childLogger = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      child: vi.fn(),
-    }
-    childLogger.child.mockReturnValue(childLogger)
-    vi.mocked(deps.logger.child).mockReturnValue(childLogger)
-    const handler = createInsertNotificationHandler(deps)
-
-    await handler({ data } as Job<InsertNotificationJobData>)
-
-    expect(deps.logger.child).toHaveBeenCalledWith({ type: data.type })
-    expect(childLogger.info).toHaveBeenNthCalledWith(
-      1,
-      'Processing insert-notification job',
-    )
-    expect(childLogger.info).toHaveBeenNthCalledWith(2, 'Notification inserted')
+const build = () => {
+  const write = vi.fn<NoticeWriter['write']>(async () => 'applied')
+  const handler = createInsertNotificationDrainHandler({
+    noticeWriter: { write },
+    logger: createFakeJobLogger(),
   })
+  return { write, handler }
+}
 
-  it('passes concrete property scope to the use case', async () => {
-    const deps = buildDeps()
-    const handler = createInsertNotificationHandler(deps)
+const run = (handler: ReturnType<typeof build>['handler'], job: unknown) =>
+  handler({ data: job } as Job)
 
-    await handler({ data } as Job<InsertNotificationJobData>)
+describe('insert-notification drain', () => {
+  it('writes a queued delivery through the writer under the receipt its enqueue recorded', async () => {
+    const { write, handler } = build()
 
-    expect(deps.notificationRepo.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ propertyId: data.propertyId }),
-    )
-    expect(deps.authorizeAudience).toHaveBeenCalledWith({
-      userId: data.userId,
-      organizationId: data.organizationId,
-      propertyId: data.propertyId,
-      audience: data.audience,
+    await run(handler, { ...data, delivery })
+
+    const { audience, eventId: _eventId, ...notice } = data
+    expect(write).toHaveBeenCalledWith({
+      eventId: 'event-1',
+      consumerName: 'notification.materialized:notification.on-inbox-item-created:abc123',
+      status: 'applied',
+      notices: [{ ...notice, audience }],
     })
   })
 
-  // A grouped notice counts the items that still stand when it is delivered,
-  // not the ones its command touched.
-  it('restates a grouped notice at the count that still stands', async () => {
-    const deps = buildDeps()
-    deps.authorizeAudience.mockResolvedValue({ itemCount: 2 })
-    const handler = createInsertNotificationHandler(deps)
-    const grouped: InsertNotificationJobData = {
-      ...data,
-      type: 'inbox.bulk_reopened',
-      payload: { propertyName: 'Riverside Hotel', itemCount: 5 },
-    }
+  it('never hands the delivery marker on as part of the notice', async () => {
+    const { write, handler } = build()
 
-    await handler({ data: grouped } as Job<InsertNotificationJobData>)
+    await run(handler, { ...data, delivery })
 
-    expect(deps.notificationRepo.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        payload: { propertyName: 'Riverside Hotel', itemCount: 2 },
-        title: '2 items reopened at Riverside Hotel',
-      }),
-    )
+    expect(write.mock.calls[0]![0].notices[0]).not.toHaveProperty('delivery')
   })
 
-  it('queues the email with the audience the recipient was admitted under', async () => {
-    const deps = buildDeps()
-    vi.mocked(deps.preferenceRepo.resolveForDelivery).mockImplementation(
-      async (_userId, _orgId, _propertyId, _category, channel) =>
-        channel === 'email'
-          ? { enabled: true, cadence: 'immediate' }
-          : { enabled: true, cadence: 'daily' },
-    )
-    const handler = createInsertNotificationHandler(deps)
+  it('writes a job with no marker under a receipt of its own, the same for a redelivery', async () => {
+    const { write, handler } = build()
 
-    await handler({ data } as Job<InsertNotificationJobData>)
+    await run(handler, data)
+    await run(handler, data)
 
-    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ recipientAudience: data.audience }),
-    )
+    const [first, second] = write.mock.calls.map(([call]) => call.consumerName)
+    expect(first).toMatch(/^notification\.drained:[0-9a-f]{32}$/)
+    expect(second).toBe(first)
   })
 
-  it('suppresses a stale recipient without persisting or retrying', async () => {
-    const deps = buildDeps(false)
-    const handler = createInsertNotificationHandler(deps)
+  it('consumes a job queued before notices carried an audience, writing nothing', async () => {
+    const { write, handler } = build()
+    const { audience: _audience, ...legacy } = data
+
+    await run(handler, legacy)
+
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('consumes a job whose audience is invalid, writing nothing', async () => {
+    const { write, handler } = build()
+
+    await run(handler, { ...data, audience: { kind: 'nobody' } })
+
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('refuses a delivery marker that names another event', async () => {
+    const { write, handler } = build()
 
     await expect(
-      handler({ data } as Job<InsertNotificationJobData>),
-    ).resolves.toBeUndefined()
-    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
-  })
-
-  it('atomically settles an authorized outbox delivery through PostgreSQL', async () => {
-    const deps = buildDeps()
-    const deliverySettlement = {
-      settleAuthorized: vi.fn(async () => 'applied' as const),
-      settleObsolete: vi.fn(async () => {}),
-    }
-    const queued = await durableData()
-    const delivery = parseOutboxNotificationDelivery(queued)!
-    const handler = createInsertNotificationHandler({ ...deps, deliverySettlement })
-
-    await handler({ data: queued } as Job<InsertNotificationJobData>)
-
-    expect(deliverySettlement.settleAuthorized).toHaveBeenCalledWith(
-      expect.not.objectContaining({
-        audience: expect.anything(),
-        delivery: expect.anything(),
-      }),
-      delivery,
-      data.audience,
-    )
-    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
-  })
-
-  it('settles a delivery-time authority denial as an obsolete delivery receipt', async () => {
-    const deps = buildDeps(false)
-    const deliverySettlement = {
-      settleAuthorized: vi.fn(async () => 'applied' as const),
-      settleObsolete: vi.fn(async () => {}),
-    }
-    const queued = await durableData()
-    const delivery = parseOutboxNotificationDelivery(queued)!
-    const handler = createInsertNotificationHandler({ ...deps, deliverySettlement })
-
-    await handler({ data: queued } as Job<InsertNotificationJobData>)
-
-    expect(deliverySettlement.settleObsolete).toHaveBeenCalledWith(
-      { organizationId: data.organizationId },
-      delivery,
-    )
-    expect(deliverySettlement.settleAuthorized).not.toHaveBeenCalled()
-  })
-
-  it('rejects a tampered durable marker instead of falling back to an unfenced write', async () => {
-    const deps = buildDeps()
-    const deliverySettlement = {
-      settleAuthorized: vi.fn(async () => 'applied' as const),
-      settleObsolete: vi.fn(async () => {}),
-    }
-    const queued = await durableData()
-    const malformed = {
-      ...queued,
-      delivery: { ...queued.delivery!, receiptKey: 'tampered' },
-    }
-    const handler = createInsertNotificationHandler({ ...deps, deliverySettlement })
-
-    await expect(
-      handler({ data: malformed } as Job<InsertNotificationJobData>),
+      run(handler, { ...data, delivery: { ...delivery, eventId: 'event-2' } }),
     ).rejects.toThrow('invalid outbox delivery marker')
-    expect(deliverySettlement.settleAuthorized).not.toHaveBeenCalled()
-    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
+    expect(write).not.toHaveBeenCalled()
   })
 
-  it('fails closed for a legacy job without an audience descriptor', async () => {
-    const deps = buildDeps()
-    const handler = createInsertNotificationHandler(deps)
-    const legacy = {
-      ...data,
-      audience: undefined,
-    } as unknown as InsertNotificationJobData
+  it('refuses a job missing its identity', async () => {
+    const { write, handler } = build()
 
-    await expect(
-      handler({ data: legacy } as Job<InsertNotificationJobData>),
-    ).resolves.toBeUndefined()
-    expect(deps.authorizeAudience).not.toHaveBeenCalled()
-    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
-  })
-
-  it('fails closed for a malformed audience descriptor', async () => {
-    const deps = buildDeps()
-    const handler = createInsertNotificationHandler(deps)
-    const malformed = {
-      ...data,
-      audience: { kind: 'responsible_scope' },
-    } as unknown as InsertNotificationJobData
-
-    await expect(
-      handler({ data: malformed } as Job<InsertNotificationJobData>),
-    ).resolves.toBeUndefined()
-    expect(deps.authorizeAudience).not.toHaveBeenCalled()
-    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
-  })
-
-  it('rethrows audience lookup failures so BullMQ can retry safely', async () => {
-    const deps = buildDeps()
-    deps.authorizeAudience.mockRejectedValue(new Error('authority unavailable'))
-    const handler = createInsertNotificationHandler(deps)
-
-    await expect(handler({ data } as Job<InsertNotificationJobData>)).rejects.toThrow(
-      'authority unavailable',
+    await expect(run(handler, { ...data, userId: '' })).rejects.toThrow(
+      'invalid insert-notification job',
     )
-    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
+    expect(write).not.toHaveBeenCalled()
   })
 
-  it('rethrows invalid payload failures so BullMQ can classify the attempt', async () => {
-    const handler = createInsertNotificationHandler(buildDeps())
-    const invalid = { ...data, propertyId: '' } as InsertNotificationJobData
+  it('lets a writer failure fail the job so it is retried', async () => {
+    const { write, handler } = build()
+    write.mockRejectedValueOnce(new Error('database unavailable'))
 
-    await expect(
-      handler({ data: invalid } as Job<InsertNotificationJobData>),
-    ).rejects.toMatchObject({
-      _tag: 'NotificationError',
-      code: 'invalid_input',
-    })
+    await expect(run(handler, { ...data, delivery })).rejects.toThrow(
+      'database unavailable',
+    )
   })
 })

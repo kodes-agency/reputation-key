@@ -453,3 +453,158 @@ describe.sequential('saving the Property look media (real PostgreSQL)', () => {
     )
   })
 })
+
+describe.sequential(
+  'who may save the Property look media, and what is refused (real PostgreSQL)',
+  () => {
+    const failsWith = (code: string) => (error: unknown) =>
+      isPortalError(error) && error.code === code
+
+    it('centres the missing half of a focal point that is given in part', async () => {
+      const asset = await insertAsset('hero')
+
+      await setHero({ propertyId: PROPERTY, assetId: asset.id, focalX: 0.2 })
+
+      await expect(profileRow()).resolves.toMatchObject({
+        hero_asset_id: asset.id,
+        hero_focal_x: 0.2,
+        hero_focal_y: 0.5,
+      })
+    })
+
+    it('trims each description and clears an empty one, per language', async () => {
+      const asset = await insertAsset('hero')
+      await query(
+        `INSERT INTO property_portal_brand_contents
+         (id, organization_id, property_id, locale, title, short_description, hero_alt_text,
+          version, updated_by, created_at, updated_at)
+       VALUES ($1, $2, $3, 'bg', 'Авела', 'Курорт', 'Старо описание', 1, $4, $5, $5)`,
+        [randomUUID(), ORG_A, PROPERTY, ADMIN, NOW],
+      )
+
+      await setHero({
+        propertyId: PROPERTY,
+        assetId: asset.id,
+        altTexts: [
+          { locale: 'en', text: '  Evening on the sea terrace ' },
+          { locale: 'bg', text: '   ' },
+        ],
+      })
+
+      await expect(contentRow('en')).resolves.toMatchObject({
+        hero_alt_text: 'Evening on the sea terrace',
+      })
+      await expect(contentRow('bg')).resolves.toMatchObject({ hero_alt_text: null })
+    })
+
+    it('refuses a description over 160 characters before anything persists', async () => {
+      const asset = await insertAsset('hero')
+
+      await expect(
+        setHero({
+          propertyId: PROPERTY,
+          assetId: asset.id,
+          altTexts: [{ locale: 'en', text: 'x'.repeat(161) }],
+        }),
+      ).rejects.toSatisfy(failsWith('invalid_description'))
+
+      await expect(profileRow()).resolves.toMatchObject({
+        hero_asset_id: null,
+        look_version: 3,
+      })
+      await expect(contentRow('en')).resolves.toBeUndefined()
+    })
+
+    it.each([
+      ['outside the photograph', { focalX: 1.2, focalY: 0.5 }],
+      ['not a number', { focalX: Number.NaN, focalY: 0.5 }],
+    ])('refuses a focal point %s', async (_label, focal) => {
+      const asset = await insertAsset('hero')
+
+      await expect(
+        setHero({ propertyId: PROPERTY, assetId: asset.id, ...focal }),
+      ).rejects.toSatisfy(failsWith('invalid_theme'))
+
+      await expect(profileRow()).resolves.toMatchObject({
+        hero_asset_id: null,
+        look_version: 3,
+      })
+    })
+
+    it('refuses a logo, an image of nobody and an image of another Organization as the photograph', async () => {
+      const logo = await insertAsset('logo')
+      const tenantBProperty = randomUUID()
+      await query(
+        `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+       VALUES ($1, $2, 'other-tenant', 'other-tenant', 'UTC', $3, $3)`,
+        [tenantBProperty, ORG_B, NOW],
+      )
+      const foreign = buildTestPortalMediaAsset({
+        organizationId: ORG_B,
+        propertyId: propertyId(tenantBProperty),
+        purpose: 'hero',
+        createdBy: ADMIN,
+      })
+      await createPortalMediaAssetRepository(getDb()).insert(foreign)
+
+      for (const assetId of [logo.id, randomUUID(), foreign.id]) {
+        await expect(setHero({ propertyId: PROPERTY, assetId })).rejects.toSatisfy(
+          failsWith('media_not_found'),
+        )
+      }
+      await expect(profileRow()).resolves.toMatchObject({
+        hero_asset_id: null,
+        look_version: 3,
+      })
+      await expect(pendingKeys()).resolves.toEqual([])
+    })
+
+    it('refuses an id that is not a UUID as a missing image', async () => {
+      await expect(
+        setHero({ propertyId: PROPERTY, assetId: 'not-an-id' }),
+      ).rejects.toSatisfy(failsWith('media_not_found'))
+      await expect(profileRow()).resolves.toMatchObject({ look_version: 3 })
+    })
+
+    it.each(['PropertyManager', 'Member'] as const)(
+      'refuses a %s the photograph',
+      async (role) => {
+        const asset = await insertAsset('hero')
+
+        await expect(
+          savePropertyHero(deps())(
+            { propertyId: PROPERTY, assetId: asset.id },
+            buildTestAuthContext({ role, organizationId: ORG_A, userId: ADMIN }),
+          ),
+        ).rejects.toSatisfy(failsWith('forbidden'))
+        await expect(profileRow()).resolves.toMatchObject({
+          hero_asset_id: null,
+          look_version: 3,
+        })
+      },
+    )
+
+    it('refuses a photograph as the logo, and anyone but an Account Admin', async () => {
+      const photo = await insertAsset('hero')
+      const logo = await insertAsset('logo')
+
+      await expect(
+        setLogo({ propertyId: PROPERTY, assetId: photo.id }),
+      ).rejects.toSatisfy(failsWith('media_not_found'))
+      await expect(
+        savePropertyLogo(deps())(
+          { propertyId: PROPERTY, assetId: logo.id },
+          buildTestAuthContext({
+            role: 'PropertyManager',
+            organizationId: ORG_A,
+            userId: ADMIN,
+          }),
+        ),
+      ).rejects.toSatisfy(failsWith('forbidden'))
+      await expect(profileRow()).resolves.toMatchObject({
+        logo_asset_id: null,
+        look_version: 3,
+      })
+    })
+  },
+)

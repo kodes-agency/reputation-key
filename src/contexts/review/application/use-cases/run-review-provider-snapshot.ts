@@ -1,3 +1,4 @@
+import { translatedGoogleReviewApi } from '../google-review-api-error'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import {
@@ -558,7 +559,7 @@ const fetchListPage = async (
   try {
     return {
       ok: true,
-      page: await deps.googleReviewApi.listReviewsPage({
+      page: await translatedGoogleReviewApi(deps.googleReviewApi).listReviewsPage({
         organizationId: input.organizationId,
         propertyId: input.propertyId,
         connectionId: input.connectionId,
@@ -733,7 +734,7 @@ const confirmTargetedCandidate = async (
 
   let result
   try {
-    result = await deps.googleReviewApi.getReview({
+    result = await translatedGoogleReviewApi(deps.googleReviewApi).getReview({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       connectionId: input.connectionId,

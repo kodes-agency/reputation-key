@@ -370,14 +370,11 @@ the `portal.on-property-restored` worker consumer raises the fact for each of it
 live Portals (not deleted, not archived) that still has no manager, because
 Restore itself checks only the Property's manager (ADR 0052).
 
-Removing a member releases their Portal responsibilities twice. The removal
-itself releases them before the membership is deleted, in a commit of its own,
-and until that delete the member is still an eligible manager, so an assignment
-another admin saves in between is accepted. The `portal.on-member-removed`
-worker consumer therefore releases again from `identity.member.removed`, the
-fact every removal path records with the membership delete: every assignment
-the member is no longer eligible for, with the gap recorded and announced as
-for any release. Eligibility is asked at delivery, so a member invited again in
+Removing a member releases their Portal responsibilities from
+`identity.member.removed`, the fact every removal path records with the
+membership delete: the `portal.on-member-removed` worker consumer releases every
+assignment the member is no longer eligible for, with the gap recorded and
+announced as for any release. Eligibility is asked at delivery, so a member invited again in
 the meantime keeps what they may hold.
 
 A save of a Portal's managers reads eligibility twice: before its write, and
@@ -428,6 +425,8 @@ hidden in a segment do not survive, and the original is never stored.
   the row becomes `taken_down` and is never served; its object is then removed and
   `object_deleted_at` recorded. The row stays, because snapshots name assets by id
   with no foreign key. A failed removal is retried by the sweep.
+  The Property look's and a Portal look's photograph dialog offer it ("Take this photo down")
+  to an Account Admin with Portals writes on; it also clears the photograph from the look.
 - **Sweep** (`sweepPortalMedia`, hourly, not capability-gated): finishes takedown
   removals, and deletes `active` assets older than a day that no Brand Profile,
   Portal look override, link or publication snapshot refers to (object, then row, in
@@ -577,8 +576,8 @@ the PDF and preview use the same measures and planners, checked with real fonts.
   checks tenant scope and permissions, and spends the address rate limit.
 - The PDF renderer loads lazily so processes that never print need not load fonts.
   Fonts, image readers, QR helpers and shared layout helpers remain shared with
-  the preview. `portal-print-kit-how-to.ts` remains with its Immersive office and
-  print-shop instructions.
+  the preview. The Immersive office and print-shop instructions are served by
+  `portal-print-kit-pieces.ts` and drawn by `portal-print-kit-how-to.tsx`.
 
 There are no print-kit, print-code or own-look rollout switches. Own looks keep
 all current options and authorization rules. Surviving server functions keep their

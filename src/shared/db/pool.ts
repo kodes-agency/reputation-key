@@ -6,6 +6,11 @@ import { Pool, type ClientBase } from 'pg'
 
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
+import {
+  bindPoolCheckouts,
+  flushScopeObservations,
+  observeClient,
+} from './scope-observation.server'
 
 // BQC-7.1: the production build bundles this module TWICE (the nitro app
 // chunk and the lazy SSR service chunk each inline their own copy), so a
@@ -228,6 +233,10 @@ export function getPool(): Pool {
     pool.on('error', (err) => {
       getLogger().warn({ error: err.message }, '[db] idle pool connection error')
     })
+    // Row-security observe mode: counts what a policy would refuse and times
+    // each request's statements. It never changes a statement or its result.
+    pool.on('connect', (client) => observeClient(client))
+    bindPoolCheckouts(pool)
     // Retry only acquisition failures. Never replay pool.query(): a write may
     // have committed before a connection failure made its outcome ambiguous.
     wrapPoolConnectWithRetry(pool)
@@ -268,5 +277,6 @@ export async function closePool(): Promise<void> {
   const store = poolStore()
   const pool = store[POOL_KEY]
   store[POOL_KEY] = undefined
+  flushScopeObservations()
   if (pool) await pool.end()
 }

@@ -85,13 +85,6 @@ export type OperationsSnapshotDeps = Readonly<{
     /** SourceContentPolicy.policyVersion. */
     sourceContentPolicy: number
   }>
-  /**
-   * Reader for the `notification.missing_for_inbox_item` gauge, forwarded to
-   * the health checker. Injected by the composition root because the query
-   * lives in the notification context and `src/shared/**` never imports
-   * `src/contexts/**`. Absent = the gauge reads 0.
-   */
-  readMissingNotificationCount?: () => Promise<number>
   /** Notification-owned bounded source→Redis→PostgreSQL delivery evidence. */
   readNotificationDeliveryLag?: () => Promise<NotificationDeliveryLagRead>
   /**
@@ -255,9 +248,6 @@ function zeroHealthSignals(): HealthSignalValues {
         capturedUnresolvedCount: 0,
       },
     },
-    // 0, not a guess: an unreadable section must not fabricate a
-    // notification gap either. `degraded` is what says "unknown".
-    notificationGap: 0,
     notificationDeliveryLag: {
       sourceReceiptPending: 0,
       sourceReceiptPendingByEventType: {},
@@ -366,10 +356,7 @@ async function readDatabaseSignals(read: SignalRead) {
   const sync = await read('sync', cap)
   const replyPublication = await read('replyPublication', cap)
   const notificationEmail = await read('notificationEmail', cap)
-  const [notificationGap, notificationDeliveryLag] = await Promise.all([
-    read('notificationGap', cap),
-    read('notificationDeliveryLag', cap),
-  ])
+  const notificationDeliveryLag = await read('notificationDeliveryLag', cap)
   // Last: its ledger reads are the heaviest, and a stall degrades only itself.
   const syncPush = await read('syncPush', cap)
   return {
@@ -378,7 +365,6 @@ async function readDatabaseSignals(read: SignalRead) {
     sync,
     replyPublication,
     notificationEmail,
-    notificationGap,
     notificationDeliveryLag,
     syncPush,
   }
@@ -521,9 +507,6 @@ export function createOperationsSnapshot(
     // live for everyone and an untouched overdue backlog is a real fault.
     emailDeliveryEnabled: isCapabilityOpenToEveryOrganization('notification.send_email'),
     isEmailDeliveryAllowed: deps.isEmailDeliveryAllowed,
-    // Forwarded, not computed here: the notification-gap query is owned by the
-    // notification context.
-    readMissingNotificationCount: deps.readMissingNotificationCount,
     readNotificationDeliveryLag: deps.readNotificationDeliveryLag,
   })
 

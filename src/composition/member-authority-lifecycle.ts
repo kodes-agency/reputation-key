@@ -1,11 +1,11 @@
 // Composition — the Identity/Property, Identity/Portal and Identity/Inbox
 // member-authority seam.
 //
-// ARC-03-T9. This adapter is the ONE place that knows a departing member holds
-// four independent authorities. It consumes named context capabilities
-// (Property/Portal responsibility runtimes, the Inbox assignment runtime,
-// Identity's grant revocation) — never a repository — and provides the two
-// member-authority lifecycle callbacks consumed by Identity.
+// ARC-03-T9. This adapter is the ONE place that knows a member's role change
+// can end three independent responsibilities. It consumes named context
+// capabilities (Property/Portal responsibility runtimes, the Inbox assignment
+// runtime) — never a repository — and provides the callback Identity runs
+// once a role change commits. A removal's releases run from its fact.
 //
 // WHY a deferred binding still exists: Identity is constructed before the three
 // downstream contexts, so the adapter cannot be built at the moment Identity
@@ -21,16 +21,10 @@ import { organizationId, userId } from '#/shared/domain/ids'
 import {
   listPropertyIdsNoLongerEligible,
   MANAGER_BECAME_INELIGIBLE_END_REASON,
-  MANAGER_OFFBOARDED_END_REASON,
   type ResponsibleManagerEligibilityDeps,
 } from '#/shared/responsible-manager-eligibility'
 
 type MemberAuthorityLifecycle = Readonly<{
-  releaseMemberAuthorities: (
-    organizationId: string,
-    userId: string,
-    actorId: string | null,
-  ) => Promise<void>
   reconcileResponsibleManagerEligibility: (
     organizationId: string,
     userId: string,
@@ -38,59 +32,17 @@ type MemberAuthorityLifecycle = Readonly<{
   ) => Promise<void>
 }>
 
-/** Identity's own authority over a member's property access grants. */
-export type MemberPropertyAccessRevocation = Readonly<{
-  revokeAllPropertyAccessForUser: (
-    organizationId: string,
-    userId: string,
-  ) => Promise<unknown>
-}>
-
 export type MemberAuthorityLifecycleDeps = Readonly<{
   clock: Clock
   propertyResponsibility: PropertyResponsibilityRuntime
   portalResponsibility: PortalResponsibilityRuntime
   inboxAssignments: InboxAssignmentRuntime
-  propertyAccess: MemberPropertyAccessRevocation
   eligibility: ResponsibleManagerEligibilityDeps
 }>
 
 export function createMemberAuthorityLifecycle(
   deps: MemberAuthorityLifecycleDeps,
 ): MemberAuthorityLifecycle {
-  const releaseMemberAuthorities = async (
-    orgId: string,
-    memberId: string,
-    actorId: string | null,
-  ): Promise<void> => {
-    const at = deps.clock()
-    // Each release records its own responsibility_became_needed facts in the
-    // outbox inside its transaction; nothing is announced here.
-    await Promise.all([
-      deps.propertyResponsibility.releaseForUser({
-        organizationId: orgId,
-        userId: memberId,
-        at,
-        endReason: MANAGER_OFFBOARDED_END_REASON,
-        actorId,
-      }),
-      deps.portalResponsibility.releaseForUser({
-        organizationId: orgId,
-        userId: memberId,
-        at,
-        endReason: MANAGER_OFFBOARDED_END_REASON,
-        actorId,
-      }),
-      deps.inboxAssignments.releaseAssignmentsForUser({
-        organizationId: organizationId(orgId),
-        userId: userId(memberId),
-        actorId: actorId ? userId(actorId) : null,
-        at,
-      }),
-    ])
-    await deps.propertyAccess.revokeAllPropertyAccessForUser(orgId, memberId)
-  }
-
   const reconcileResponsibleManagerEligibility = async (
     orgId: string,
     memberId: string,
@@ -147,7 +99,6 @@ export function createMemberAuthorityLifecycle(
   }
 
   return Object.freeze({
-    releaseMemberAuthorities,
     reconcileResponsibleManagerEligibility,
   })
 }
@@ -180,11 +131,6 @@ export function createDeferredMemberAuthorityLifecycle(): DeferredMemberAuthorit
       // Async so an unbound seam REJECTS rather than throwing synchronously —
       // identical to the throwing placeholders this replaced, so every caller's
       // error handling keeps working.
-      releaseMemberAuthorities: async (
-        orgId: string,
-        memberId: string,
-        actorId: string | null,
-      ) => resolve().releaseMemberAuthorities(orgId, memberId, actorId),
       reconcileResponsibleManagerEligibility: async (
         orgId: string,
         memberId: string,

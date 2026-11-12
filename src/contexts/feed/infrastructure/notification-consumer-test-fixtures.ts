@@ -2,6 +2,7 @@
 
 import { vi, type Mock } from 'vitest'
 import type { Queue } from 'bullmq'
+import type { NoticeWriter } from '../notify/consumers.server'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -26,6 +27,9 @@ export type FakeNotificationConsumerDeps = Readonly<{
   queue: Queue
   addMock: Mock
   jobs: FakeJob[]
+  /** Records each notice it is given as a job on `jobs`, and its receipt on `receipts`. */
+  noticeWriter: NoticeWriter
+  receipts: Readonly<{ insertReceipt: Mock }>
   userLookup: MockedPort<UserLookupPort>
   responsibleManagers: MockedPort<ResponsibleManagerLookupPort>
   replyApproval: MockedPort<ReplyApprovalAuthorityPort>
@@ -39,15 +43,53 @@ export type FakeNotificationConsumerDeps = Readonly<{
   logger: MockedPort<LoggerPort>
 }>
 
+/**
+ * A writer that hands each notice to `queue.add` as the job a queued delivery
+ * once was, then records the receipt, so a test reads what a consumer wrote
+ * from the queue and receipt mocks it already holds.
+ */
+export const noticeWriterOver = (
+  queue: Readonly<{
+    add(name: string, data: unknown, opts?: unknown): Promise<unknown>
+  }>,
+  receipts: Readonly<{
+    insertReceipt(eventId: string, consumerName: string, status: string): Promise<unknown>
+  }>,
+): NoticeWriter => ({
+  write: async ({ eventId, consumerName, status, notices }) => {
+    for (const notice of notices) {
+      await queue.add(
+        'insert-notification',
+        { ...notice, eventId },
+        { jobId: `${eventId}-${notice.userId}` },
+      )
+    }
+    await receipts.insertReceipt(eventId, consumerName, status)
+    return status
+  },
+})
+
 const createFakeQueue = (): Pick<
   FakeNotificationConsumerDeps,
-  'queue' | 'addMock' | 'jobs'
+  'queue' | 'addMock' | 'jobs' | 'noticeWriter' | 'receipts'
 > => {
   const jobs: FakeJob[] = []
   const addMock = vi.fn(async (name: string, data: unknown, opts?: unknown) => {
     jobs.push(opts === undefined ? { name, data } : { name, data, opts })
   })
-  return { queue: { add: addMock } as unknown as Queue, addMock, jobs }
+  const receipts = {
+    insertReceipt: vi.fn(
+      async (_eventId: string, _consumerName: string, _status: string) => {},
+    ),
+  }
+  const noticeWriter = noticeWriterOver({ add: addMock }, receipts)
+  return {
+    queue: { add: addMock } as unknown as Queue,
+    addMock,
+    jobs,
+    noticeWriter,
+    receipts,
+  }
 }
 
 export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps => {

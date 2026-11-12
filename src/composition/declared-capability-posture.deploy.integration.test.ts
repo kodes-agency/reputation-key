@@ -446,37 +446,34 @@ describe('a deploy whose migration cannot take its lock', () => {
     DEPLOY_TIMEOUT_MS,
   )
 
-  // The Better Auth track runs first, statement by statement on a pool of its
-  // own, and its tables are the ones every request reads.
+  // The journal owns Better Auth's tables. A column the pinned runtime expects
+  // and the journal never created stops the deploy instead of being added.
   it(
-    'gives up the same way when the Better Auth track cannot take its lock',
+    'refuses a Better Auth column the journal does not create',
     async () => {
       const current = await deploy({
         REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: MIGRATOR_KEY,
       })
       expect(current.code).toBe(0)
-      // What a Better Auth upgrade is to this database: a column the track has
-      // to add. Nothing in the journal reads `user.image`.
+      // What a Better Auth upgrade without its migration is to this database.
       await db.query('ALTER TABLE "user" DROP COLUMN "image"')
+      try {
+        const run = await deploy({})
 
-      const { run, holderLetGo } = await deployWhileLocked(
-        'LOCK TABLE "user" IN ACCESS SHARE MODE',
-      )
-
-      expect({ code: run.code, holderLetGo }).toEqual({ code: 1, holderLetGo: false })
-      expect(run.stderr).toContain('canceling statement due to lock timeout')
-      expect(run.stderr).toContain(
-        '[migrate-deploy] Lock wait: a Better Auth schema statement waited 5 s',
-      )
-      expect(run.stdout).not.toContain('auth track applied')
-      // The track adds only what is missing, so the rerun adds the column.
-      const rerun = await deploy({})
-      expect(rerun.code).toBe(0)
-      const column = await db.query(
-        `SELECT 1 FROM information_schema.columns
-         WHERE table_schema = 'public' AND table_name = 'user' AND column_name = 'image'`,
-      )
-      expect(column.rowCount).toBe(1)
+        expect(run.code).toBe(1)
+        expect(run.stdout).toContain('"missingColumns":["user.image"]')
+        expect(run.stderr).toContain(
+          'The pinned Better Auth expects tables or columns the journal does not create',
+        )
+        expect(postureLine(run)).toBeUndefined()
+        const column = await db.query(
+          `SELECT 1 FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'user' AND column_name = 'image'`,
+        )
+        expect(column.rowCount).toBe(0)
+      } finally {
+        await db.query('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "image" text')
+      }
     },
     DEPLOY_TIMEOUT_MS,
   )

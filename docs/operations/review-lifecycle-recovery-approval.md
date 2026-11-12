@@ -9,19 +9,19 @@ they point to loopback. The worker must remain stopped.
 First inspect the aggregate report:
 
 ```sh
-pnpm ops restore-verify --operator <id>
+pnpm ops restore-verify --operator <id> journal=<file>
 ```
 
 Apply by typing the exact environment name:
 
 ```sh
-pnpm ops restore-verify --operator <id> --reason <change-ref> --apply --yes closed-beta-v2
+pnpm ops restore-verify --operator <id> journal=<file> --reason <change-ref> --apply --yes closed-beta-v2
 ```
 
 Missing or incorrect confirmation refuses before runtime boot or mutation.
 The command logs the confirmed environment, named operator, time and
 correlation ID before reserving or resuming recovery work. No signed Review
-approval bundle or trusted keyring is required.
+bundle, digest or trusted keyring exists, and no `REVIEW_LIFECYCLE_RECOVERY_APPROVAL_*` setting is read.
 
 The Review receipt still binds the source release, manifest, restore point,
 sibling, policy, frozen report, recovery UUID and generation. Its existing

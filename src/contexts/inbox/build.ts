@@ -8,6 +8,7 @@
 //     before the worker begins processing outbox jobs.
 
 import type { Database } from '#/shared/db'
+import { registerInboxMemberOffboardingConsumers } from './infrastructure/member-offboarding-outbox-consumers'
 import type { ConsumerRegistry } from '#/shared/outbox'
 import {
   createInboxAssignmentRuntime,
@@ -260,6 +261,11 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     })
     registerInboxPropertyLifecycleConsumers(consumerRegistry, {
       responseTargetStore,
+      clock: input.clock,
+    })
+    registerInboxMemberOffboardingConsumers(consumerRegistry, {
+      db: input.db,
+      commandStore,
       clock: input.clock,
     })
   }

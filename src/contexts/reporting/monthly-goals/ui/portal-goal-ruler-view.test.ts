@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   PortalGoalCardView,
   PortalGoalRunningMonth,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { portalGoalRuler } from './portal-goal-ruler-view'
 import {
   CARD_FIRST_DAYS,

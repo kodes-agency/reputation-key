@@ -11,7 +11,7 @@ import type {
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
 import { integrationError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
-import { isGbpApiError } from '../../domain/gbp-api-error'
+import { isGoogleCallError } from '../../domain/google-call-error'
 import { executeGoogleProviderResponse } from '../../provider/google-client.server'
 import {
   GOOGLE_BUSINESS_MANAGE_SCOPE,
@@ -363,7 +363,7 @@ export const createGoogleOAuthAdapter = (config: {
     } catch (error) {
       if (
         descriptor.routeKey === 'oauth.token.exchange' &&
-        isGbpApiError(error) &&
+        isGoogleCallError(error) &&
         (error.dispatch === 'unknown' ||
           ['transport_error', 'deadline_exceeded', 'response_too_large'].includes(
             error.executionCode ?? '',
@@ -542,7 +542,7 @@ export const createGoogleOAuthAdapter = (config: {
         ? 'confirmed_revoked'
         : 'cleanup_ambiguous'
     } catch (error) {
-      return isGbpApiError(error) && error.dispatch === 'not_sent'
+      return isGoogleCallError(error) && error.dispatch === 'not_sent'
         ? 'confirmed_not_sent'
         : 'cleanup_ambiguous'
     }

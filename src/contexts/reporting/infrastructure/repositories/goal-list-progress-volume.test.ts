@@ -15,10 +15,9 @@ import { createPortalGroupPublicApi } from '#/contexts/portal/infrastructure/por
 import { createPortalGroupRepository } from '#/contexts/portal/infrastructure/repositories/portal-group.repository'
 import { createGoalMetricBatchReader } from './goal-metric-batch-reader'
 import { createGoalMetricSnapshotReader } from './goal-metric-snapshot'
-import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createGoalProgramRepository } from './goal-program.repository'
 import { seedCountReadings, seedGoalMonth } from '../testing/goal-running-month-seed'
-import { METRIC_VERSION_IDS } from '../../readings/contracts'
+import { METRIC_VERSION_IDS, metricRegistry } from '../../readings/contracts'
 
 describe.sequential('Goal list progress at volume (integration)', () => {
   let held: HeldTransaction | undefined
@@ -112,7 +111,7 @@ describe.sequential('Goal list progress at volume (integration)', () => {
 
   it('reads all 60 goals with the same statement count as one goal and preserves each total', async () => {
     if (!held) throw new Error('Progress fixture is unavailable')
-    const registry = createMetricRegistryRepository()
+    const registry = metricRegistry
     const metrics = {
       queryGoalMetric: queryGoalMetric({
         registry,
@@ -169,7 +168,7 @@ describe.sequential('Goal list progress at volume (integration)', () => {
     )
     const subject = first.assignments[0]!.subject
     if (subject.kind !== 'portal') throw new Error('Expected a Portal goal')
-    const registry = createMetricRegistryRepository()
+    const registry = metricRegistry
     const read = createGoalMetricBatchReader(db, registry, () => now)
     const before = await read(queries)
     await client.query('SAVEPOINT missing_projection_case')
@@ -225,7 +224,7 @@ describe.sequential('Goal list progress at volume (integration)', () => {
     const groups = createPortalGroupPublicApi(createPortalGroupRepository(db), () => now)
     // This is the same named read exposed by Portal's public API.
     const portals = createPortalRepository(db)
-    const registry = createMetricRegistryRepository()
+    const registry = metricRegistry
     const single = queryGoalMetric({
       registry,
       clock: () => now,

@@ -1,13 +1,14 @@
 // Who hears that an escalation was resolved: the people who were told it was
 // raised, and not the people who were told about some other escalation.
 
+import { noticeWriterOver } from './notification-consumer-test-fixtures'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { inboxItemId, propertyId, userId, type UserId } from '#/shared/domain/ids'
 import type { InboxItemFacts } from '../application/ports/notification-inbox-item-lookup.port'
-import { handleNotificationInboxEscalationResolved } from './escalation-resolution-outbox-consumers'
+import { handleNotificationInboxEscalationResolved } from '../notify/inbox.server'
 
 const ORG = 'organization-resolution-audience'
 const ITEM = inboxItemId('93000000-0000-4000-8000-000000000002')
@@ -53,13 +54,16 @@ const itemFacts = (overrides: Partial<InboxItemFacts>): InboxItemFacts => ({
 
 /** No assignee, so the resolution falls to the item's responsible scope. */
 const makeDeps = (item: InboxItemFacts) => {
-  const jobs: Array<{ data: unknown }> = []
+  const queue = {
+    add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
+      jobs.push({ name, data, opts })
+    }),
+  }
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
+  const jobs: Array<{ name: string; data: unknown; opts?: unknown }> = []
   return {
-    queue: {
-      add: vi.fn(async (_name: string, data: unknown) => {
-        jobs.push({ data })
-      }),
-    },
+    queue,
+    noticeWriter: noticeWriterOver(queue, receipts),
     escalationResolutions: {
       findEscalationResolutionFacts: vi.fn(async () => ({
         propertyId: PROPERTY,
@@ -84,7 +88,7 @@ const makeDeps = (item: InboxItemFacts) => {
     notifications: {
       findRecipientsOfNotice: vi.fn(async (): Promise<readonly UserId[]> => []),
     },
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     jobs,
   }
 }

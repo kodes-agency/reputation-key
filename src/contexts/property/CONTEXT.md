@@ -51,6 +51,13 @@ store commits state, `sourceEpoch`, revision, responsibility, destination state,
 and identifier-only facts atomically. `isPropertyActive` is the request-time gate
 used before provider and public Portal effects.
 
+The writers live beside the feature they serve: `profile/` (the profile update
+store and the Google binding store with its receipts), `lifecycle/` (the
+transition store) and `responsibility/` (the Responsible Manager repository).
+A Property's fields are listed once, in `infrastructure/mappers/property.mapper.ts`:
+reading a row, writing one and the columns a patch may set all derive from that
+list, and a field added to `Property` does not compile until it is listed there.
+
 The server functions retain their paths and validators and use
 `shared/commands/command.server.ts` for the common request shell. Property owns
 the action, target Property, error/status mapping in `server/property-shared.ts`
@@ -98,13 +105,11 @@ foreign keys deliberately stop cross-owner deletion.
     guessed and offboarding is not blocked. Only an active Property also raises
     `property.responsibility_became_needed`: an archived one needs a manager to
     be restored, not an urgent notice (ADR 0052).
-    Removing a member releases their Property responsibilities twice: before
-    the membership is deleted, in a commit of its own, and again from
+    Removing a member releases their Property responsibilities from
     `identity.member.removed` (`property.on-member-removed`), the fact every
-    removal path records with the membership delete. Until that delete the
-    member is still eligible, so an assignment saved in between is accepted,
-    and only the second release sees it. Eligibility is asked at delivery, so a
-    member invited again in the meantime keeps what they may hold.
+    removal path records with the membership delete. Eligibility is asked at
+    delivery, so a member invited again in the meantime keeps what they may
+    hold.
     A save of the managers reads eligibility twice: before its write, and again
     once the write has committed. The first read is not under the write's lock,
     so a removal, role change or lost access that commits in between is seen by

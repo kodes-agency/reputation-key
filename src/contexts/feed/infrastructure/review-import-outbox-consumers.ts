@@ -37,14 +37,14 @@ import {
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import type { NotificationAudience } from '../application/notification-audience'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationImportFailureReason } from '../domain/notification-payload'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
+import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 import {
   buildPropertyPayload,
   type PropertyPayloadDeps,
@@ -62,8 +62,8 @@ export type PropertyImportInitiatorLookup = Readonly<{
 }>
 
 export type ReviewImportNotificationConsumerDeps = PropertyPayloadDeps &
+  NoticeDeliveryDeps &
   Readonly<{
-    queue: NotificationJobEnqueuePort
     userLookup: Pick<UserLookupPort, 'findByRole'>
     responsibleManagers: Pick<
       ResponsibleManagerLookupPort,
@@ -75,7 +75,6 @@ export type ReviewImportNotificationConsumerDeps = PropertyPayloadDeps &
     >
     importInitiators: PropertyImportInitiatorLookup
     logger: LoggerPort
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
     clock: () => Date
   }>
 
@@ -243,16 +242,13 @@ async function countUnanswered(
 export async function handleNotificationReviewHistoryImportFinished(
   deps: ReviewImportNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<ConsumerResult> {
   const fact = parse(event)
   // A retryable failure is RepKey's problem, not the reader's.
   if (fact.outcome === 'failed' && fact.failureReason === 'temporary') {
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      ON_REVIEW_HISTORY_IMPORT_FINISHED_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
+    return deliverNotices(deps, event, ON_REVIEW_HISTORY_IMPORT_FINISHED_CONSUMER, [], {
+      status: 'obsolete',
+    })
   }
 
   const recipients = await resolveRecipients(deps, fact)
@@ -261,50 +257,40 @@ export async function handleNotificationReviewHistoryImportFinished(
       { correlationId: event.correlationId ?? undefined },
       'Review history import notification has no recipients',
     )
-  } else {
-    const [where, unanswered] = await Promise.all([
-      buildPropertyPayload(deps, fact.organizationId, fact.propertyId),
-      fact.outcome === 'completed'
-        ? countUnanswered(
-            deps,
-            fact,
-            event.recordedAt === undefined ? null : new Date(event.recordedAt),
-          )
-        : null,
-    ])
-    const payload = {
-      ...where,
-      importOutcome: fact.outcome,
-      importedCount: fact.reviewsObserved,
-      ...(unanswered === null ? {} : { unansweredCount: unanswered }),
-      ...(fact.failureReason === null ? {} : { importFailureReason: fact.failureReason }),
-    }
-    await Promise.all(
-      recipients.userIds.map((recipientId) =>
-        deps.queue.add(
-          INSERT_NOTIFICATION_JOB_NAME,
-          {
-            userId: recipientId,
-            organizationId: fact.organizationId,
-            propertyId: fact.propertyId,
-            type: 'property.review_import_finished',
-            resourceType: 'property',
-            resourceId: unbrand(fact.propertyId),
-            eventId: event.eventId,
-            payload,
-            audience: recipients.audience,
-          },
-          { jobId: `${event.eventId}-${recipientId}` },
-        ),
-      ),
-    )
+    return deliverNotices(deps, event, ON_REVIEW_HISTORY_IMPORT_FINISHED_CONSUMER, [])
   }
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  const [where, unanswered] = await Promise.all([
+    buildPropertyPayload(deps, fact.organizationId, fact.propertyId),
+    fact.outcome === 'completed'
+      ? countUnanswered(
+          deps,
+          fact,
+          event.recordedAt === undefined ? null : new Date(event.recordedAt),
+        )
+      : null,
+  ])
+  const payload = {
+    ...where,
+    importOutcome: fact.outcome,
+    importedCount: fact.reviewsObserved,
+    ...(unanswered === null ? {} : { unansweredCount: unanswered }),
+    ...(fact.failureReason === null ? {} : { importFailureReason: fact.failureReason }),
+  }
+  return deliverNotices(
+    deps,
+    event,
     ON_REVIEW_HISTORY_IMPORT_FINISHED_CONSUMER,
-    'applied',
+    recipients.userIds.map((recipientId) => ({
+      userId: recipientId,
+      organizationId: fact.organizationId,
+      propertyId: fact.propertyId,
+      type: 'property.review_import_finished' as const,
+      resourceType: 'property' as const,
+      resourceId: unbrand(fact.propertyId),
+      payload,
+      audience: recipients.audience,
+    })),
   )
-  return { status: 'applied' }
 }
 
 export function registerReviewImportNotificationConsumers(

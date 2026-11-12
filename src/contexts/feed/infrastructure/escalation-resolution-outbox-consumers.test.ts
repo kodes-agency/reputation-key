@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { noticeWriterOver } from './notification-consumer-test-fixtures'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
   createConsumerRegistry,
@@ -7,11 +8,11 @@ import {
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { inboxItemId, propertyId, userId, type UserId } from '#/shared/domain/ids'
+import { registerEscalationResolutionNotificationConsumer } from './inbox-notice-routes'
 import {
   handleNotificationInboxEscalationResolved,
   ON_INBOX_ESCALATION_RESOLVED_CONSUMER,
-  registerEscalationResolutionNotificationConsumer,
-} from './escalation-resolution-outbox-consumers'
+} from '../notify/inbox.server'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -49,13 +50,16 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
 })
 
 const makeDeps = () => {
+  const queue = {
+    add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
+      jobs.push({ name, data, opts })
+    }),
+  }
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   const jobs: Array<{ name: string; data: unknown; opts?: unknown }> = []
   return {
-    queue: {
-      add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
-        jobs.push({ name, data, opts })
-      }),
-    },
+    queue,
+    noticeWriter: noticeWriterOver(queue, receipts),
     escalationResolutions: {
       findEscalationResolutionFacts: vi.fn(async () => ({
         propertyId: PROPERTY,
@@ -83,7 +87,7 @@ const makeDeps = () => {
     notifications: {
       findRecipientsOfNotice: vi.fn(async (): Promise<readonly UserId[]> => []),
     },
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     jobs,
   }
 }

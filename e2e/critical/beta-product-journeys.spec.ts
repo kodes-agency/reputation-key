@@ -28,9 +28,14 @@ import {
 } from '../helpers/fixtures'
 import { mailStubControl } from '../fixtures/mail-stub'
 import {
+  MONTHLY_PORTAL_GOALS,
+  addPortalGoalFor,
   localToday,
+  readStoredGoal,
   seedPortalGoalProperty,
   seedPortalHistory,
+  stopPortalGoal,
+  storedGoalStatus,
   tearDownPortalGoalProperties,
 } from '../helpers/portal-goal-fixtures'
 import {
@@ -92,16 +97,7 @@ async function endOpenGoalPrograms(page: Page, propertyId: string) {
     .map((entry) => entry.program)
     .filter((program) => program.status !== 'ended')
   for (const program of open) {
-    await callServerFn(page, {
-      file: 'src/contexts/reporting/server/goal-programs.ts',
-      exportName: 'changeGoalProgramStatus',
-      data: {
-        propertyId,
-        programId: program.id,
-        status: 'ended',
-        reason: 'E2E cleanup of a program left open by an earlier run.',
-      },
-    })
+    await stopPortalGoal(page, propertyId, program.id)
   }
 }
 
@@ -189,7 +185,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     path: string
     accessArtifactId: string
   }> | null = null
-  const activeGoalName = `E2E Active Governed Goal ${e2eRunId.slice(-8)}`
+  // A goal for a group is named for it and its measure.
+  const activeGoalName = `E2E Rotating Group ${e2eRunId.slice(-8)} · Scans`
 
   test('P1 Portal management and opaque public URL survive reload', async ({ page }) => {
     // This journey ends on the public Portal as a guest: it needs the seeded
@@ -916,24 +913,15 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // Next month, named: the program is then scheduled with no month open, which
     // is the head the SQL below replaces with a completed one.
     const nextMonth = await nextGoalStartMonth(seed.p1PropertyId)
-    const created = await callServerFn<{ program: { id: string; status: string } }>(
-      page,
-      {
-        file: 'src/contexts/reporting/server/goal-programs.ts',
-        exportName: 'createGoalProgram',
-        data: {
-          propertyId: seed.p1PropertyId,
-          name: activeGoalName,
-          description: 'Active goal program backed by joined qualified scan facts.',
-          metric: 'qualified_scans',
-          targetValue: scanGoalTarget,
-          subjects: [{ kind: 'portal_group', portalGroupId: portal.groupId }],
-          startMonth: nextMonth,
-        },
-      },
-    )
-    governedGoalDefinitionId = created.program.id
-    expect(created.program.status).toBe('scheduled')
+    const governedGoalId = await addPortalGoalFor(page, {
+      propertyId: seed.p1PropertyId,
+      subject: { kind: 'portal_group', portalGroupId: portal.groupId },
+      metric: 'qualified_scans',
+      targetValue: scanGoalTarget,
+      startMonth: nextMonth,
+    })
+    governedGoalDefinitionId = governedGoalId
+    expect(await storedGoalStatus(seed.p1PropertyId, governedGoalId)).toBe('scheduled')
 
     const temporalized = await dbQuery<{ id: string }>(
       `WITH original_version AS MATERIALIZED (
@@ -1018,12 +1006,12 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       [
         seed.organizationId,
         seed.p1PropertyId,
-        created.program.id,
+        governedGoalId,
         period.period_start,
         period.period_end,
       ],
     )
-    expect(temporalized).toEqual([{ id: created.program.id }])
+    expect(temporalized).toEqual([{ id: governedGoalId }])
 
     await enqueueGoalProgramMaintenance({
       organizationId: seed.organizationId,
@@ -1045,7 +1033,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
           [
             seed.organizationId,
             seed.p1PropertyId,
-            created.program.id,
+            governedGoalId,
             period.period_start,
             period.period_end,
           ],
@@ -1063,14 +1051,14 @@ test.describe('Critical: beta-local-1 product journeys', () => {
             `SELECT status, evaluation_state, value, sample_count, reason
              FROM goal_monthly_results
              WHERE program_id = $1::uuid`,
-            [created.program.id],
+            [governedGoalId],
           ),
           backgroundJobs: await dbQuery(
             `SELECT event_type, published_at
              FROM outbox_events
              WHERE source_aggregate_id = $1
              ORDER BY created_at, id`,
-            [created.program.id],
+            [governedGoalId],
           ),
         }),
       },
@@ -1119,34 +1107,27 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     page,
   }) => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
-    const goalName = `E2E Goal Program ${e2eRunId.slice(-8)}`
     // A DIFFERENT subject from the program the previous journey leaves active:
     // gsa_no_overlapping_subject_metric_intervals permits one open assignment
     // per (subject, metric), and ending that one here would pull the ground out
-    // from under the Member journey that reads it.
-    const subjects = [{ kind: 'property', propertyId: seed.p1PropertyId }]
+    // from under the Member journey that reads it. This goal is the Property's own.
     // Every create below names next month. A goal that starts this month opens
     // the month at once and, once ended, keeps the Property as its subject
     // until that month is over, which would refuse the next run of this journey.
     const nextMonth = await nextGoalStartMonth(seed.p1PropertyId)
-    const created = await callServerFn<{ program: { id: string; status: string } }>(
-      page,
-      {
-        file: 'src/contexts/reporting/server/goal-programs.ts',
-        exportName: 'createGoalProgram',
-        data: {
-          propertyId: seed.p1PropertyId,
-          name: goalName,
-          description: 'Created through the real goal program command.',
-          metric: 'qualified_scans',
-          targetValue: 12,
-          subjects,
-          startMonth: nextMonth,
-        },
+    const { programId } = await callServerFn<{ programId: string }>(page, {
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'setMonthlyPortalGoal',
+      data: {
+        propertyId: seed.p1PropertyId,
+        metric: 'qualified_scans',
+        targetValue: 12,
+        startMonth: nextMonth,
+        targetSource: 'own',
       },
-    )
-    expect(created.program.id).toBeTruthy()
-    expect(created.program.status).toBe('scheduled')
+    })
+    expect(programId).toBeTruthy()
+    expect(await storedGoalStatus(seed.p1PropertyId, programId)).toBe('scheduled')
 
     // Revision is not exercised here. A program that has not started can be
     // revised (the change replaces the version that was waiting and keeps the
@@ -1158,25 +1139,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // the second attempt must be refused — that is the half worth asserting,
     // because a status machine that silently accepts a repeat would let an
     // ended program be resurrected.
-    await callServerFn(page, {
-      file: 'src/contexts/reporting/server/goal-programs.ts',
-      exportName: 'changeGoalProgramStatus',
-      data: {
-        propertyId: seed.p1PropertyId,
-        programId: created.program.id,
-        status: 'ended',
-        reason: 'E2E end of the goal program.',
-      },
-    })
+    await stopPortalGoal(page, seed.p1PropertyId, programId)
     const reEnd = await callServerFnExpectError(page, {
-      file: 'src/contexts/reporting/server/goal-programs.ts',
-      exportName: 'changeGoalProgramStatus',
-      data: {
-        propertyId: seed.p1PropertyId,
-        programId: created.program.id,
-        status: 'active',
-        reason: 'E2E attempt to resurrect an ended program.',
-      },
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'stopMonthlyPortalGoal',
+      data: { propertyId: seed.p1PropertyId, programId },
     })
     expect(reEnd.message ?? reEnd.code ?? '').toMatch(/invalid_transition/i)
 
@@ -1189,23 +1156,22 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     })
     expect(listed.programs.map((entry) => entry.program)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: created.program.id, status: 'ended' }),
+        expect.objectContaining({ id: programId, status: 'ended' }),
       ]),
     )
 
     // P3 belongs to locked Org B, so the same command is refused across the
     // tenant boundary (P2 is in-org since capability policy is organization-wide).
     const denied = await callServerFnExpectError(page, {
-      file: 'src/contexts/reporting/server/goal-programs.ts',
-      exportName: 'createGoalProgram',
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'setMonthlyPortalGoal',
       data: {
         propertyId: seed.p3PropertyId,
-        name: `Denied ${goalName}`,
         metric: 'qualified_scans',
         targetValue: 1,
-        subjects: [{ kind: 'property', propertyId: seed.p3PropertyId }],
         // P1's month: the refusal comes before the command reads any calendar.
         startMonth: nextMonth,
+        targetSource: 'own',
       },
     })
     expect(denied.message ?? denied.code ?? '').toMatch(
@@ -1226,7 +1192,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       exportName: 'changeMonthlyPortalGoalNow',
       data: {
         propertyId: seed.p3PropertyId,
-        programId: created.program.id,
+        programId,
         month: nextMonth,
         targetValue: 1,
         expectedTarget: 12,
@@ -1242,15 +1208,14 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     // A target the metric's own rule refuses: counts must be positive integers.
     const invalidTarget = await callServerFnExpectError(page, {
-      file: 'src/contexts/reporting/server/goal-programs.ts',
-      exportName: 'createGoalProgram',
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'setMonthlyPortalGoal',
       data: {
         propertyId: seed.p1PropertyId,
-        name: `Invalid ${goalName}`,
         metric: 'qualified_scans',
         targetValue: 4.5,
-        subjects,
         startMonth: nextMonth,
+        targetSource: 'own',
       },
     })
     expect(invalidTarget.message ?? invalidTarget.code ?? '').toMatch(
@@ -1446,25 +1411,16 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // is running has that month open from the moment it is created.
     const month = await currentGoalStartMonth(seed.p1PropertyId)
     const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
-    const created = await callServerFn<{ program: { id: string; status: string } }>(
-      page,
-      {
-        file: 'src/contexts/reporting/server/goal-programs.ts',
-        exportName: 'createGoalProgram',
-        data: {
-          propertyId: seed.p1PropertyId,
-          name: `${portalName} · Private ratings`,
-          metric: 'portal_rating_count',
-          targetValue: 5,
-          subjects: [{ kind: 'portal', portalId: portal.id }],
-          startMonth: month,
-        },
-      },
-    )
-    const goalId = created.program.id
+    const goalId = await addPortalGoalFor(page, {
+      propertyId: seed.p1PropertyId,
+      subject: { kind: 'portal', portalId: portal.id },
+      metric: 'portal_rating_count',
+      targetValue: 5,
+      startMonth: month,
+    })
 
     try {
-      expect(created.program.status).toBe('active')
+      expect(await storedGoalStatus(seed.p1PropertyId, goalId)).toBe('active')
       // Its own page (PG-21): titled for its Portal, with the same Change sheet
       // as the Monthly portal goal's.
       await page.goto(`/properties/${seed.p1PropertyId}/goals/${goalId}`)
@@ -1505,30 +1461,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       // What was written: the month carries its own number, one change is
       // logged with the old and the new value, and a version with the new
       // number waits for next month, still for the one Portal.
-      const after = await callServerFnGet<{
-        version: {
-          id: string
-          targetValue: number
-          changeReason: string
-          effectiveFrom: Date
-        }
-        assignments: ReadonlyArray<{
-          programVersionId: string
-          subject: { kind: string; portalId?: string }
-        }>
-        results: ReadonlyArray<{ status: string; targetValue: number | null }>
-        targetChanges: ReadonlyArray<{
-          previousTargetValue: number
-          newTargetValue: number
-          followingOutcome: string
-          followingVersionId: string | null
-          targetSource: string | null
-        }>
-      }>(page, {
-        file: 'src/contexts/reporting/server/goal-programs.ts',
-        exportName: 'getGoalProgram',
-        data: { propertyId: seed.p1PropertyId, programId: goalId },
-      })
+      const after = await readStoredGoal(seed.p1PropertyId, goalId)
       expect(after.results).toEqual([
         expect.objectContaining({ status: 'open', targetValue: 3 }),
       ])
@@ -1554,16 +1487,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     } finally {
       // End the goal whatever happened above, as an operator would: a goal left
       // active here would outlive the Portal the afterAll archives.
-      await callServerFn(page, {
-        file: 'src/contexts/reporting/server/goal-programs.ts',
-        exportName: 'changeGoalProgramStatus',
-        data: {
-          propertyId: seed.p1PropertyId,
-          programId: goalId,
-          status: 'ended',
-          reason: 'E2E end of the single-portal goal.',
-        },
-      })
+      await stopPortalGoal(page, seed.p1PropertyId, goalId)
     }
   })
 

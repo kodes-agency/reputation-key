@@ -131,15 +131,15 @@ const NOTIFICATION_SETTLEMENT_OUTBOX =
 const NOTIFICATION_INTEGRATION_OUTBOX =
   'src/contexts/feed/infrastructure/integration-outbox-consumers.ts'
 const NOTIFICATION_ASSIGNMENT_RELEASE_OUTBOX =
-  'src/contexts/feed/infrastructure/assignment-release-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/inbox-notice-routes.ts'
 const NOTIFICATION_BULK_ASSIGNMENT_OUTBOX =
-  'src/contexts/feed/infrastructure/bulk-assignment-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/inbox-notice-routes.ts'
 const NOTIFICATION_ESCALATION_RESOLUTION_OUTBOX =
-  'src/contexts/feed/infrastructure/escalation-resolution-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/inbox-notice-routes.ts'
 const NOTIFICATION_HANDLING_CYCLE_OUTBOX =
   'src/contexts/feed/infrastructure/handling-cycle-outbox-consumers.ts'
 const NOTIFICATION_RESPONSE_TARGET_OUTBOX =
-  'src/contexts/feed/infrastructure/response-target-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/inbox-notice-routes.ts'
 
 // ── Event families ──────────────────────────────────────────────────
 
@@ -565,18 +565,6 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       registration: 'enabled',
     },
     { timeoutMs: 300_000 },
-  ),
-  job(
-    'reconcile-missing-notifications',
-    'src/contexts/feed/infrastructure/jobs/reconcile-missing-notifications.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:notification.reconcile',
-      schedule: 'every:600000',
-      registration: 'enabled',
-    },
-    { timeoutMs: 120_000 },
   ),
   job(
     'release-response-target-reminders',

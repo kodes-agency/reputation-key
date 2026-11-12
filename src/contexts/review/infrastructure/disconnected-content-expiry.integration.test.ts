@@ -220,7 +220,7 @@ async function retainedContent() {
     content_expires_at: DEADLINE,
     cache_text: 'Retained provider review',
     cache_deadline: DEADLINE,
-    observation_text: 'Retained provider review',
+    observation_text: null,
     observation_deadline: DEADLINE,
     provider_reply: 'Retained provider reply',
     reply_deadline: DEADLINE,

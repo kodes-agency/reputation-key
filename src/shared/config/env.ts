@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { z } from 'zod/v4'
 import { printOriginProblem } from '#/shared/config/print-origin'
 import { isRailwayPitrDatabaseUrl } from '#/shared/config/restore-mode'
@@ -444,22 +445,6 @@ const baseEnvSchema = z.object({
   // name to DATABASE_URL's private Railway hostname and refuse public/source
   // targets. Loopback drills must also name their explicit disposable target.
   RESTORE_DATABASE_SERVICE_NAME: z.string().min(1).optional(),
-  // Restore-only, one-shot Review lifecycle recovery authority. These three
-  // values are all-or-none and are refused outside RESTORE_MODE=isolated.
-  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON: z
-    .string()
-    .min(1)
-    .max(128 * 1024)
-    .optional(),
-  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256: z
-    .string()
-    .regex(/^[0-9a-f]{64}$/)
-    .optional(),
-  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON: z
-    .string()
-    .min(1)
-    .max(64 * 1024)
-    .optional(),
   // REG-04: permanent serving attestation for a Railway PITR sibling. The
   // isolated verifier prints this exact recovery run/generation pair. Once
   // RESTORE_MODE is removed, web and worker boot query the sibling database
@@ -571,26 +556,6 @@ const envSchema = baseEnvSchema.superRefine((env, context) => {
       message: 'Recovery cutover run ID and generation must be configured together',
     })
   }
-  const reviewRecoveryApprovalConfigured = [
-    env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON,
-    env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256,
-    env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON,
-  ].filter((value) => value !== undefined).length
-  if (reviewRecoveryApprovalConfigured !== 0 && reviewRecoveryApprovalConfigured !== 3) {
-    context.addIssue({
-      code: 'custom',
-      path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
-      message:
-        'Review lifecycle recovery approval bundle, digest, and public keys must be configured together',
-    })
-  } else if (reviewRecoveryApprovalConfigured === 3 && env.RESTORE_MODE !== 'isolated') {
-    context.addIssue({
-      code: 'custom',
-      path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
-      message:
-        'Review lifecycle recovery approval authority is allowed only in restore-isolated mode',
-    })
-  }
   if (
     env.RESTORE_MODE !== 'isolated' &&
     isRailwayPitrDatabaseUrl(env.DATABASE_URL) &&
@@ -628,6 +593,37 @@ export function parseEnvironment(
 export function getEnv(): Env {
   if (!_env) {
     _env = parseEnvironment(process.env)
+  }
+  return _env
+}
+
+/**
+ * Settings for an operator command that reads and writes the database and the
+ * queue Redis and nothing else. The settings only the web and mail paths use
+ * (sign-in, mail, Google OAuth, token encryption) are not required: when
+ * absent they are filled with a throwaway value no such command reads, random
+ * per process so nothing encrypted or signed with it can be used later. The
+ * rest of the schema is still checked in full. A command that sends mail,
+ * signs anyone in or calls Google boots through `getEnv`.
+ */
+export function getDatabaseOperatorEnv(): Env {
+  if (!_env) {
+    const throwaway = (bytes: number) => randomBytes(bytes).toString('hex')
+    const unused: Readonly<Record<string, string>> = {
+      BETTER_AUTH_SECRET: throwaway(32),
+      BETTER_AUTH_URL: 'http://localhost',
+      RESEND_API_KEY: throwaway(16),
+      GOOGLE_CLIENT_ID: throwaway(16),
+      GOOGLE_CLIENT_SECRET: throwaway(16),
+      ENCRYPTION_KEY: throwaway(32),
+      OAUTH_STATE_SECRET: throwaway(32),
+    }
+    _env = parseEnvironment({
+      ...unused,
+      ...Object.fromEntries(
+        Object.entries(process.env).filter(([, value]) => value !== undefined),
+      ),
+    })
   }
   return _env
 }

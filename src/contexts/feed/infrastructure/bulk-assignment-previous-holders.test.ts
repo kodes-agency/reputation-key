@@ -8,8 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
-import { handleNotificationBulkAssignmentCompleted } from './bulk-assignment-outbox-consumers'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from './notification-consumer-test-fixtures'
+import { handleNotificationBulkAssignmentCompleted } from '../notify/inbox.server'
 import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { notificationLink, renderNotification } from '../domain/notification-templates'
@@ -64,12 +67,14 @@ const moved = (
 const makeDeps = () => {
   const fakes = createNotificationConsumerDeps()
   fakes.displayNames.findPropertyName.mockResolvedValue('Riverside Hotel')
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
     queue: fakes.queue,
     userLookup: fakes.userLookup,
     displayNames: fakes.displayNames,
     logger: fakes.logger,
-    receipts: { insertReceipt: vi.fn(async () => {}) },
+    receipts,
     fakes,
   }
 }
@@ -116,7 +121,7 @@ describe('a bulk reassignment and the people who held the items', () => {
           // No longer the assignee, but may still act on the Property.
           audience: { kind: 'property_operator' },
         }),
-        opts: { jobId: `${EVENT_ID}-${HOLDER}-${PROPERTY_A}-unassigned` },
+        opts: { jobId: `${EVENT_ID}-${HOLDER}` },
       },
       {
         data: expect.objectContaining({
@@ -125,7 +130,7 @@ describe('a bulk reassignment and the people who held the items', () => {
           resourceId: ITEM_3,
           payload: expect.objectContaining({ itemCount: 1 }),
         }),
-        opts: { jobId: `${EVENT_ID}-${HOLDER}-${PROPERTY_B}-unassigned` },
+        opts: { jobId: `${EVENT_ID}-${HOLDER}` },
       },
     ])
   })

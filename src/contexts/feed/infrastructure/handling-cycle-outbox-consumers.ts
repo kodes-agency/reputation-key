@@ -17,7 +17,6 @@ import {
   inboxItemId,
   organizationId,
   propertyId,
-  unbrand,
   userId,
   type OrganizationId,
   type UserId,
@@ -30,7 +29,7 @@ import type {
 } from '../application/notification-audience'
 import type { HandlingCycleNotificationFacts } from '../application/ports/notification-inbox-item-lookup.port'
 import { resolveHandlingCycleRecipients } from '../application/responsible-recipients'
-import type { InboxFanoutDeps } from './inbox-notification-fanout'
+import type { InboxFanoutDeps } from '../notify/inbox.server'
 import { buildInboxItemPayload } from './notification-payload-facts'
 import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 
@@ -371,10 +370,6 @@ export async function handleNotificationBulkReopenCompleted(
         actorUserId,
       },
     })),
-    {
-      jobId: (notice) =>
-        `${event.eventId}-${unbrand(notice.userId)}-${notice.propertyId}`,
-    },
   )
 }
 

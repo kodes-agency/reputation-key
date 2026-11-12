@@ -270,11 +270,6 @@ export function printFinalSecondStatus(
 /** "16 · guide 29": a sub-line's or a second headline's counter. */
 export const printFinalShortCounter = (typed: number, guide: number): string =>
   `${typed} · guide ${guide}`
-
-/** The heading over a language's fields (§8). */
-export const printFinalLanguageHeading = (locale: GuestLocale, index: number): string =>
-  `${languageName(locale)} · ${index === 0 ? 'prints larger' : 'prints smaller, under a short rule'}`
-
 /** The hint under the select with two languages (§8). */
 export const printFinalTwoLanguagesHint = (first: GuestLocale): string =>
   `With two languages, keep the ${languageName(first)} headline to one line.`

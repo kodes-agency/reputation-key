@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-07
+amended_on: 2026-11-11
 ---
 
 # Google Business Profile Access Disclosure
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-07
-**Version:** 2.6
+**Effective date:** 2026-11-11
+**Version:** 2.7
 **Accountable owner:** Bozhidar Denev
 
 ## What access Reputation Key requests
@@ -96,13 +96,8 @@ allow".
 ### Independently controlled AI capabilities
 
 Google Business Profile API Support supplied written guidance for the exact
-per-Property architecture described in the linked request. The repository
-therefore treats these as three independent controlled capabilities, not as
-one blanket AI permission:
-
-- Review Analysis;
-- Reply Drafting; and
-- Property Trends, which also depends on Review Analysis.
+per-Property architecture described in the linked request. Review Analysis and Reply Drafting are separate
+controlled capabilities, each requiring its own permission.
 
 Each capability remains unavailable unless the merchant has deliberately
 enabled that capability for the Property, and provider, regional,
@@ -229,7 +224,7 @@ AI purpose, or publication behavior changes.
 
 ## Changes
 
-This disclosure takes effect on 2026-11-07 and is version 2.6. It replaces version 2.5, effective 2026-11-06, which replaced version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
+This disclosure takes effect on 2026-11-11 and is version 2.7. It replaces version 2.6, effective 2026-11-07, which replaced version 2.5, effective 2026-11-06, which replaced version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -281,3 +276,5 @@ thank-you and the same Google Review option; correction and withdrawal apply
 only to stored responses. It takes effect on publication without a waiting
 period, on the accountable owner's decision for the two closed-beta
 Organizations the owner controls. Existing users are not asked to accept again.
+
+Version 2.7 (2026-11-11) states that Property Trends has ended, so Review Analysis and Reply Drafting are the two controlled AI capabilities, each requiring its own permission. It takes effect on publication without a waiting period, on the accountable owner's decision for the two closed-beta Organizations the owner controls. Existing users are not asked to accept again.

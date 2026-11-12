@@ -21,8 +21,8 @@ import type {
   ReviseMonthlyPortalGoalRequest,
   SetMonthlyPortalGoalRequest,
   StopMonthlyPortalGoalRequest,
-} from '../application/dto/monthly-portal-goal.types'
-import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
+} from './contracts'
+import type { PortalGoalRecommendation } from './contracts'
 import {
   isPortalCountGoal,
   isPortalGoalMeasure,

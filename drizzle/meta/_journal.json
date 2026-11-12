@@ -936,8 +936,128 @@
     {
       "idx": 133,
       "version": "7",
-      "when": 1800200009000,
-      "tag": "0133_staff_address_leases",
+      "when": 1800300008000,
+      "tag": "0133_better_auth_tables",
+      "breakpoints": true,
+      "prerequisite": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1800400008000,
+      "tag": "0134_review_provider_snapshot_runs_completed_property_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1800500008000,
+      "tag": "0135_metric_readings_property_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1800600008000,
+      "tag": "0136_metric_readings_portal_only_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1800700008000,
+      "tag": "0137_metric_readings_group_only_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1800800008000,
+      "tag": "0138_metric_readings_org_prop_version_event_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1800900008000,
+      "tag": "0139_guest_responses_retention_deadline_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1801000008000,
+      "tag": "0140_scan_events_created_at_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1801100008000,
+      "tag": "0141_scan_events_ip_hash_redaction_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1801200008000,
+      "tag": "0142_scan_events_session_id_redaction_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1801300008000,
+      "tag": "0143_guest_qualified_scans_occurred_at_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1801400008000,
+      "tag": "0144_outbox_events_published_at_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1801500008000,
+      "tag": "0145_notifications_coalesced_latest_at_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1801600008000,
+      "tag": "0146_notification_email_queue_created_at_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1801700008000,
+      "tag": "0147_resend_webhook_deliveries_retention_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1801800008000,
+      "tag": "0148_recent_activity_entries_created_at_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1801900008000,
+      "tag": "0149_audit_logs_created_at_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1801901008000,
+      "tag": "0150_staff_address_leases",
       "breakpoints": true
     }
   ]

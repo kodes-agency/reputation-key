@@ -12,7 +12,10 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from './notification-consumer-test-fixtures'
 import {
   handleNotificationGoogleAccountDisconnected,
   handleNotificationGoogleReauthorizationRequired,
@@ -51,14 +54,16 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
 const makeDeps = () => {
   const fakes = createNotificationConsumerDeps()
   fakes.userLookup.findByRole.mockResolvedValue([ADMIN])
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
     queue: fakes.queue,
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
     userLookup: fakes.userLookup,
     googleConnectionProperties: {
       findGoogleNotificationAnchor: vi.fn(async () => PROPERTY),
     },
     logger: fakes.logger,
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     fakes,
   }
 }

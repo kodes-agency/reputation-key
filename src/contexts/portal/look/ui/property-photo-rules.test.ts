@@ -9,6 +9,7 @@ import {
   focalMoved,
   photoDialogTitle,
   savedDescriptions,
+  replacementLocales,
   photoButtonLabel,
   type PhotoDialogState,
 } from './property-photo-rules'
@@ -145,5 +146,16 @@ describe('the dialog wording', () => {
     expect(focalMoved(null, { x: 0.5, y: 0.5 })).toBe(true)
     expect(focalMoved({ x: 0.5, y: 0.5 }, { x: 0.5, y: 0.5 })).toBe(false)
     expect(focalMoved({ x: 0.5, y: 0.5 }, { x: 0.4, y: 0.5 })).toBe(true)
+  })
+})
+
+describe('replacementLocales', () => {
+  it('adds the languages the old photograph was described in to the offered ones', () => {
+    expect(replacementLocales(['en'], { en: 'A', bg: 'Б', de: 'D' })).toEqual([
+      'en',
+      'bg',
+      'de',
+    ])
+    expect(replacementLocales(['en', 'bg'], { bg: 'Б' })).toEqual(['en', 'bg'])
   })
 })

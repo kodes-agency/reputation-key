@@ -17,6 +17,7 @@
 // or latch the job family's repair state. It also never records or clears the
 // Property's sync failure: the full retry owns that.
 
+import { translatedGoogleReviewApi } from '../google-review-api-error'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { compareHead, type HeadComparison } from '../../domain/head-check'
@@ -177,7 +178,7 @@ export const createRunReviewHeadCheck = (
     now: Date,
     persist: RunReviewHeadCheckDeps['persist'],
   ): Promise<RunReviewHeadCheckResult> => {
-    const head = await deps.googleReviewApi.readReviewsHead({
+    const head = await translatedGoogleReviewApi(deps.googleReviewApi).readReviewsHead({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       connectionId: input.connectionId,
