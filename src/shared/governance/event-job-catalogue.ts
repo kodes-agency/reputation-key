@@ -683,7 +683,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       // Recovery accepts invitations: a membership is an Organization write.
       capability: 'identity.invite',
       action: 'system:identity.accept_invitation',
-      schedule: 'every:60000',
+      schedule: 'every:300000',
       registration: 'enabled',
     },
     { retryBackoff: 'fixed:5000', timeoutMs: 60_000 },

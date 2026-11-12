@@ -586,6 +586,39 @@ describe('worker observability', () => {
     )
   })
 
+  it('logs a completed job at debug and a slow one at warn', () => {
+    logger.info.mockClear()
+    logger.debug.mockClear()
+    logger.warn.mockClear()
+    createJobWorker(
+      'background',
+      vi.fn(async () => undefined),
+      1,
+    )
+    const listeners = fakeWorkers().at(-1)!.listeners
+
+    listeners.get('completed')?.(
+      { id: 'a', name: 'quick', data: {}, processedOn: 1_000, finishedOn: 1_050 },
+      undefined,
+      'active',
+    )
+    listeners.get('completed')?.(
+      { id: 'b', name: 'slow', data: {}, processedOn: 1_000, finishedOn: 41_000 },
+      undefined,
+      'active',
+    )
+
+    expect(logger.debug).toHaveBeenCalledWith(
+      { queue: 'background', jobName: 'quick' },
+      'job completed',
+    )
+    expect(logger.warn).toHaveBeenCalledWith(
+      { queue: 'background', jobName: 'slow', durationMs: 40_000 },
+      'job completed slowly',
+    )
+    expect(logger.info).not.toHaveBeenCalled()
+  })
+
   it('persists started, successful, terminal-failure, and stalled runtime heads', async () => {
     const observationSink = {
       recordStarted: vi.fn(async () => undefined),
