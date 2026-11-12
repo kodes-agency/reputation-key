@@ -2555,7 +2555,6 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       revision: 1,
       supersedes: null,
       occurredAt: categoryAt,
-      googleReviewDestinationVerified: true,
     } as const
     const recorded = await workflowStore.recordCompletedReview(workflowCommand)
     const workflowRevision = new Date(newerAt.getTime() + 1)
@@ -2591,12 +2590,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       `SELECT event_type, event_version, payload
        FROM outbox_events
        WHERE organization_id = $1
-         AND event_type IN (
-           'portal.content_review.completed',
-           'portal.configuration_completeness.recorded',
-           'portal.approved_destination_ratio.recorded'
-         )
-       ORDER BY event_type`,
+         AND event_type = 'portal.content_review.completed'`,
       [ORG_A],
     )
     expect(
@@ -2604,12 +2598,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         event_type,
         event_version,
       ]),
-    ).toEqual([
-      ['portal.approved_destination_ratio.recorded', 2],
-      // Completeness names the fields it counted, which v3 carries.
-      ['portal.configuration_completeness.recorded', 3],
-      ['portal.content_review.completed', 2],
-    ])
+    ).toEqual([['portal.content_review.completed', 2]])
     for (const fact of workflowFacts.rows) {
       expect(fact.payload).toMatchObject({
         sourceAggregateVersion: workflowRevision.toISOString(),

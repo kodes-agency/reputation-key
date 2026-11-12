@@ -16,7 +16,6 @@ import type {
 import type { PortalPublicationState } from './portal-publication'
 import type { PortalAccessArtifactChannel } from './portal-access-artifact'
 import type { PortalHealthReason, PortalHealthStatus } from './portal-health'
-import type { PortalConfigurationFieldSet } from './portal-configuration-completeness'
 import {
   assertPortalLifecycleFact,
   createPortalEvent,
@@ -305,7 +304,7 @@ export type PortalConfigurationCompletenessRecorded = PortalLifecycleFact<
     completedFields: number
     requiredFields: number
     /** Which fields were counted; facts from before the Immersive Hub count say `legacy`. */
-    fieldSet: PortalConfigurationFieldSet
+    fieldSet: 'legacy' | 'immersive_hub'
   }
 >
 
@@ -658,13 +657,6 @@ export const portalAccessArtifactPublished = (
   })
 }
 
-type PortalWorkflowFact =
-  | PortalContentReviewCompleted
-  | PortalConfigurationCompletenessRecorded
-  | PortalApprovedDestinationRatioRecorded
-
-type PortalWorkflowFactArgs<T extends PortalWorkflowFact> = PortalEventArgs<T>
-
 function assertPortalWorkflowFact(args: PortalWorkflowFactFields): void {
   assertPortalLifecycleFact(args)
   assert(args.reviewId.trim().length > 0, 'reviewId must be non-empty')
@@ -675,55 +667,11 @@ function assertPortalWorkflowFact(args: PortalWorkflowFactFields): void {
 }
 
 export const portalContentReviewCompleted = (
-  args: PortalWorkflowFactArgs<PortalContentReviewCompleted>,
+  args: PortalEventArgs<PortalContentReviewCompleted>,
 ): PortalContentReviewCompleted => {
   assertPortalWorkflowFact(args)
   return createPortalEvent({
     _tag: 'portal.content_review.completed',
-    ...args,
-  })
-}
-
-export const portalConfigurationCompletenessRecorded = (
-  args: PortalWorkflowFactArgs<PortalConfigurationCompletenessRecorded>,
-): PortalConfigurationCompletenessRecorded => {
-  assertPortalWorkflowFact(args)
-  assert(
-    Number.isInteger(args.requiredFields) && args.requiredFields > 0,
-    'requiredFields must be a positive integer',
-  )
-  assert(
-    Number.isInteger(args.completedFields) &&
-      args.completedFields >= 0 &&
-      args.completedFields <= args.requiredFields,
-    'completedFields must be between zero and requiredFields',
-  )
-  assert(
-    args.fieldSet === 'legacy' || args.fieldSet === 'immersive_hub',
-    'fieldSet must name the fields that were counted',
-  )
-  return createPortalEvent({
-    _tag: 'portal.configuration_completeness.recorded',
-    ...args,
-  })
-}
-
-export const portalApprovedDestinationRatioRecorded = (
-  args: PortalWorkflowFactArgs<PortalApprovedDestinationRatioRecorded>,
-): PortalApprovedDestinationRatioRecorded => {
-  assertPortalWorkflowFact(args)
-  assert(
-    Number.isInteger(args.configuredDestinations) && args.configuredDestinations >= 0,
-    'configuredDestinations must be a non-negative integer',
-  )
-  assert(
-    Number.isInteger(args.approvedDestinations) &&
-      args.approvedDestinations >= 0 &&
-      args.approvedDestinations <= args.configuredDestinations,
-    'approvedDestinations must be between zero and configuredDestinations',
-  )
-  return createPortalEvent({
-    _tag: 'portal.approved_destination_ratio.recorded',
     ...args,
   })
 }

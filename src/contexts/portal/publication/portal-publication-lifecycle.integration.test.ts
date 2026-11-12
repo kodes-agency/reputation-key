@@ -1273,24 +1273,13 @@ describe.sequential('rollbackPortalPublication (real PostgreSQL, two tenants)', 
 })
 
 describe.sequential('completeContentReview (real PostgreSQL, two tenants)', () => {
-  const VERIFIED = { ...LIVE_DESTINATION, retrievedAt: NOW } as const
-
-  function review(
-    destination: Destination | Error = VERIFIED,
-    accessible?: PropertyId[],
-  ) {
+  function review(accessible?: PropertyId[]) {
     const db = getDb()
     const groupRepo = createPortalGroupRepository(db)
     return completeContentReview({
       portalRepo: createPortalRepository(db),
       staffPublicApi: staffApi(accessible ?? null),
       portalGroupLookup: { findGroupForPortal: groupRepo.findGroupForPortal },
-      propertyGoogleReviewDestinationApi: {
-        getGoogleReviewDestination: async () => {
-          if (destination instanceof Error) throw destination
-          return destination
-        },
-      },
       factStore: createPortalWorkflowFactStore(db),
       clock: () => NOW,
     })
@@ -1324,9 +1313,7 @@ describe.sequential('completeContentReview (real PostgreSQL, two tenants)', () =
 
     expect(result.status).toBe('recorded')
     const facts = await factsOf(ORG_A)
-    expect(facts.map((row) => row.event_type).sort()).toEqual([
-      'portal.approved_destination_ratio.recorded',
-      'portal.configuration_completeness.recorded',
+    expect(facts.map((row) => row.event_type)).toEqual([
       'portal.content_review.completed',
     ])
     for (const fact of facts) {
@@ -1340,64 +1327,13 @@ describe.sequential('completeContentReview (real PostgreSQL, two tenants)', () =
         occurredAt: NOW.toISOString(),
       })
     }
-    expect(
-      facts.find((row) => row.event_type.includes('completeness'))?.payload,
-    ).toMatchObject({ fieldSet: 'immersive_hub', requiredFields: 5 })
   })
 
-  it.each([
-    ['the Property has no Google review destination', null],
-    [
-      'the destination is waiting for a refresh',
-      { ...VERIFIED, state: 'awaiting_refresh' },
-    ],
-  ] as const)(
-    'records the Google destination as not verified when %s',
-    async (_case, destination) => {
-      const verified = await seedLive(ORG_A)
-      const unverified = await seedLive(ORG_A)
-      await clearFacts()
-      const input = (portal: PortalId) => ({
-        portalId: portal,
-        reviewId: 'review-1',
-        revision: 1,
-      })
-
-      await review()(input(verified.portal), ctxOf(ORG_A))
-      await review(destination as Destination)(input(unverified.portal), ctxOf(ORG_A))
-
-      const [withDestination, without] = [verified, unverified].map(async (live) => {
-        const rows = await factsOf(ORG_A, 'portal.configuration_completeness.recorded')
-        return rows.find((row) => row.payload.portalId === live.portal)?.payload
-      })
-      const completed = async (counted: typeof withDestination) =>
-        Number((await counted)?.completedFields)
-      expect(await completed(without)).toBe((await completed(withDestination)) - 1)
-    },
-  )
-
-  it('records nothing when the Google destination cannot be read', async () => {
-    const live = await seedLive(ORG_A)
-    await clearFacts()
-    const lookupFailure = new Error('property destination lookup unavailable')
-
-    await expect(
-      review(lookupFailure)(
-        { portalId: live.portal, reviewId: 'review-1', revision: 1 },
-        ctxOf(ORG_A),
-      ),
-    ).rejects.toBe(lookupFailure)
-
-    expect(await factsOf(ORG_A)).toEqual([])
-  })
-
-  it('passes complete correction lineage without creating an unrelated review', async () => {
+  it('passes correction lineage without creating an unrelated review', async () => {
     const live = await seedLive(ORG_A)
     await clearFacts()
     const lineage = {
       contentReviewSourceEventId: randomUUID(),
-      configurationSourceEventId: randomUUID(),
-      destinationRatioSourceEventId: randomUUID(),
     }
 
     await review()(
@@ -1411,17 +1347,9 @@ describe.sequential('completeContentReview (real PostgreSQL, two tenants)', () =
     )
 
     const facts = await factsOf(ORG_A)
-    expect(facts).toHaveLength(3)
-    const supersedes = (tag: string) =>
-      facts.find((row) => row.event_type === tag)?.payload.supersedesSourceEventId
-    expect(supersedes('portal.content_review.completed')).toBe(
+    expect(facts).toHaveLength(1)
+    expect(facts[0]?.payload.supersedesSourceEventId).toBe(
       lineage.contentReviewSourceEventId,
-    )
-    expect(supersedes('portal.configuration_completeness.recorded')).toBe(
-      lineage.configurationSourceEventId,
-    )
-    expect(supersedes('portal.approved_destination_ratio.recorded')).toBe(
-      lineage.destinationRatioSourceEventId,
     )
     for (const fact of facts) {
       expect(fact.payload).toMatchObject({ reviewId: 'review-1', revision: 2 })
@@ -1433,7 +1361,7 @@ describe.sequential('completeContentReview (real PostgreSQL, two tenants)', () =
     await clearFacts()
 
     await expect(
-      review(VERIFIED, [])(
+      review([])(
         { portalId: live.portal, reviewId: 'review-1', revision: 1 },
         ctxOf(ORG_A),
       ),

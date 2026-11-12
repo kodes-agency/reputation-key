@@ -882,23 +882,13 @@ so on.
 (Member) or a dark capability never gets a button the server would refuse. `nothingToPublish` is the question the publish use case answers `unchanged` to.
 A Portal that is not live has no change list: it has no live version to differ from.
 
-A content review (`completeContentReview`, a live Portal only) records three facts at
-once. Its `reviewId` is the browser's idempotency key and becomes the facts'
-`source_aggregate_id`; the request schema holds it, and the three event ids a correction
-supersedes, to a UUID, so a fact never carries text of a caller's choosing. The configuration completeness counts five fields on the working copy Publish reads,
-under the Portal lock (`portal-configuration-completeness.ts`): the Portal name; the
-primary language's welcome line, link preview and link labels (what the `primary_text`
-check asks); the Property look (a Brand Profile with a display name and an accent; a Portal's own
-look does not change this field); a
-Linktree link guests can open (the Linktree on and an approved link); and the Property's
-verified Google review destination, which the use case looks up. The fact names the fields
-it counted (`fieldSet: 'immersive_hub'`, event version 3). Every version 1 and 2 fact
-counted the legacy settings (name, `portals.description`, the Portal theme's colour, link
-categories, link addresses), which a v3 Portal cannot complete. Reporting does not project
-these workflow facts into metric readings. The destination ratio counts every
-link: one with a Property destination when that destination is approved, a raw legacy
-address by the safe-link allowlist (ADR 0044). The facts retain the durable record and
-idempotency of the editor’s link-check action.
+A content review (`completeContentReview`, a live Portal only) records one fact,
+`portal.content_review.completed`, under the Portal lock. Its `reviewId` is the browser's
+idempotency key and becomes the fact's `source_aggregate_id`; the request schema holds it,
+and the event id a correction supersedes, to a UUID, so a fact never carries text of a
+caller's choosing. A repeat of the same `reviewId` and revision answers `duplicate`. Facts
+recorded before this change also carried a configuration completeness count and a
+destination ratio; those rows stay and nothing reads them, and no new ones are written.
 
 The earlier issued-image implementation (presigned browser upload, issuance
 table, background job) was removed and is not coming back. The nullable
