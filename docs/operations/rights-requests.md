@@ -103,7 +103,8 @@ private bucket by hand and delete the local copy.
 - **notification** (`access`, `property`, `organization`): see below.
 - **google-integration** on `property` also deletes the Property's finished
   Google execution permits, and refuses while a Google call is admitted or
-  under way for it.
+  under way for it before its deadline. A permit left admitted or started past
+  its deadline is dead and goes with the Property.
 - **staff** (`property`, `organization`): a Property erasure deletes that
   Property's Staff participations, Portal responsibilities, Portal Group
   memberships, onboardings and Staff settings; a closure deletes the whole
@@ -112,8 +113,8 @@ private bucket by hand and delete the local copy.
 - **identity** (`property`, `organization`): a Property erasure deletes its
   access grants and AI decide-later records; a closure deletes them for every
   Property, plus every member's AI notice receipts and product update receipts
-  and settings. Login identities stay: a person may belong to another
-  Organization.
+  and settings, and the Organization's memberships and invitations. Login
+  identities stay: a person may belong to another Organization.
 - **property** (`property`, `organization`): each Property becomes a
   content-free tombstone (`purged`, no name, address or Google binding) and
   its Responsible Managers are deleted. A closure tombstones every Property of
@@ -122,18 +123,22 @@ private bucket by hand and delete the local copy.
 - **activity** (`property`, `organization`) also pseudonymises the audit
   records: every event stays, and each user id, email address, name, IP
   address and free-text note in it is replaced by `pseudonym:` and a keyed
-  hash. One person gets the same pseudonym throughout one erasure, and a
-  restore replay writes the same values again. A Property erasure changes that
-  Property's audit events only. Operator handles (`ops:<name>`), including the
-  record of the rights request itself, stay.
+  hash, including email addresses inside longer text and detail keys that name
+  a person. One person gets the same pseudonym throughout one erasure, and a
+  restore replay with the same server secret writes the same values again; a
+  rotated secret gives the replayed copy other, still consistent, pseudonyms. A
+  Property erasure changes that Property's audit events and the audit log rows
+  whose details name the Property. Operator handles (`ops:<name>`), including
+  the record of the rights request itself, stay.
 - **work-items** (`organization`, last): deletes the Organization's settled
-  work items. It refuses while any item is pending, running, uncertain or
+  work items and the outbox events a restore fenced, which are never delivered
+  and never age out. It refuses while any item is pending, running, uncertain or
   quarantined, or while an outbox event of the Organization is unsettled,
   since delivery would pick that event up again. Settle or cancel the work,
   then run the same command again.
 
-Outbox events are not erased early: settled events age out with the 30-day
-outbox retention. The other tables an erasure keeps on purpose (lifecycle and
+Other outbox events are not erased early: settled events age out with the
+30-day outbox retention. The other tables an erasure keeps on purpose (lifecycle and
 erasure evidence, AI consent evidence, operational history under legal hold,
 reply authorization proof) are listed with their reason in
 `src/composition/rights-coverage.test.ts`.

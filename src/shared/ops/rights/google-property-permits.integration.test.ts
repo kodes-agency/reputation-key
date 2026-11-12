@@ -1,7 +1,9 @@
 // Google's Property erasure and its execution permits, against real
 // PostgreSQL: Property A and B of one Organization beside a second
 // Organization. Erasing A deletes A's finished permits only, journaled first,
-// refuses while a Google call is admitted for A, and a replay deletes them again.
+// refuses while a Google call for A is admitted or started before its
+// deadline, and a replay deletes them again. A permit left admitted or started
+// past its deadline is dead and goes with the Property.
 
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -26,6 +28,7 @@ import {
 } from './google-rights-executor'
 
 const LATER = new Date(RIGHTS_FIXTURE_AT.getTime() + 60_000)
+const IN_AN_HOUR = () => new Date(Date.now() + 3_600_000)
 
 let lease: TestLease
 let db: Database
@@ -35,24 +38,27 @@ const organizations: string[] = []
 async function seedPermit(
   organizationId: string,
   propertyId: string,
-  state: 'admitted' | 'completed',
+  state: 'admitted' | 'started' | 'completed',
+  deadline: Date = LATER,
 ): Promise<void> {
+  const started = state !== 'admitted'
   await query(
     `INSERT INTO authorization_execution_permits (
        capability, organization_id, property_id, initiator_user_id, operation_key,
        route_key, route_catalog_version, quota_policy_id, authorization_vector, state,
        admitted_at, start_deadline_at, started_at, operation_deadline_at, completed_at)
      VALUES ('property.publish_reply', $1, $2, 'user-dana', $3, 'route', 'v1', 'quota',
-             '{}'::jsonb, $4, $5, $6, $7, $8, $7)`,
+             '{}'::jsonb, $4, $5, $6, $7, $8, $9)`,
     [
       organizationId,
       propertyId,
       `operation-${randomUUID()}`,
       state,
       RIGHTS_FIXTURE_AT,
-      LATER,
-      state === 'completed' ? RIGHTS_FIXTURE_AT : null,
-      state === 'completed' ? LATER : null,
+      state === 'admitted' ? deadline : LATER,
+      started ? RIGHTS_FIXTURE_AT : null,
+      started ? deadline : null,
+      state === 'completed' ? deadline : null,
     ],
   )
 }
@@ -141,19 +147,39 @@ describe('Google Property erasure and execution permits', () => {
     expect(await permits(other.organizationId)).toEqual(otherBefore)
   })
 
-  it('refuses while a Google call is admitted for the Property and changes nothing', async () => {
-    const first = await seed(2)
-    await seedPermit(first.organizationId, first.propertyIds[0]!, 'admitted')
-    const before = await permits(first.organizationId)
-    const put = vi.fn(async () => {})
+  it.each(['admitted', 'started'] as const)(
+    'refuses while a Google call is %s for the Property before its deadline and changes nothing',
+    async (state) => {
+      const first = await seed(2)
+      await seedPermit(first.organizationId, first.propertyIds[0]!, state, IN_AN_HOUR())
+      const before = await permits(first.organizationId)
+      const put = vi.fn(async () => {})
 
-    const result = await erase(first, { put, alert: () => {} })
+      const result = await erase(first, { put, alert: () => {} })
 
-    expect(result.code).toBe(1)
-    expect(result.err.join('\n')).toContain('live_execution_permits=1')
-    expect(put).not.toHaveBeenCalled()
-    expect(await permits(first.organizationId)).toEqual(before)
-  })
+      expect(result.code).toBe(1)
+      expect(result.err.join('\n')).toContain('live_execution_permits=1')
+      expect(put).not.toHaveBeenCalled()
+      expect(await permits(first.organizationId)).toEqual(before)
+    },
+  )
+
+  it.each(['admitted', 'started'] as const)(
+    'deletes a permit left %s past its deadline with the Property',
+    async (state) => {
+      const first = await seed(2)
+      const [a, b] = first.propertyIds as [string, string]
+      await seedPermit(first.organizationId, a, state)
+      const bBefore = await permits(first.organizationId, b)
+
+      const result = await erase(first)
+
+      expect(result.err).toEqual([])
+      expect(result.code).toBe(0)
+      expect(await permits(first.organizationId, a)).toEqual([])
+      expect(await permits(first.organizationId, b)).toEqual(bBefore)
+    },
+  )
 
   it('deletes nothing and raises the alert when the journal write rejects', async () => {
     const first = await seed(2)

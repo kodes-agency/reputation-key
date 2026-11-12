@@ -1,7 +1,8 @@
 // Activity's rights executor and the audit records, against real PostgreSQL:
 // Property A and B of one Organization beside a second Organization. The audit
 // rows keep the event and lose the person, only in the erased scope, and a
-// replay after a restore writes the same pseudonyms again.
+// replay after a restore writes the same pseudonyms again. Audit log rows
+// belong to a Property through the Property id in their details.
 
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -87,27 +88,42 @@ async function seed(properties: number): Promise<RightsSeeded> {
     },
   )
   const user = userOf(seeded.organizationId)
-  await query(
-    `INSERT INTO audit_logs
-       (id, organization_id, user_id, action, resource_type, resource_id, details, ip_address)
-     VALUES (gen_random_uuid()::text, $1, $2, 'goal.program.status_changed', 'goal_program',
-             'program-1', $3::jsonb, $4),
-            (gen_random_uuid()::text, $1, 'system', 'goal.program.activated', 'goal_program',
-             'program-1', $5::jsonb, NULL)`,
+  const [a, b] = seeded.propertyIds
+  const logs: Array<[string, Record<string, unknown>, string | null]> = [
     [
-      seeded.organizationId,
       user,
-      JSON.stringify({
-        propertyId: seeded.propertyIds[0],
+      {
+        propertyId: a,
         status: 'paused',
         reason: 'Dana Rivera asked to pause',
         contact: 'dana@example.test',
+        summary: 'Call dana@example.test before Friday',
         actors: [user],
-      }),
+        votes: { [user]: 1 },
+      },
       IP,
-      JSON.stringify({ resultCount: 2 }),
     ],
-  )
+    ['system', { resultCount: 2 }, null],
+    ['ops:auditor', { propertyId: a, status: 'active' }, null],
+    ...(b === undefined
+      ? []
+      : [
+          [user, { propertyId: b, reason: 'Sam asked' }, IP] as [
+            string,
+            Record<string, unknown>,
+            string,
+          ],
+        ]),
+  ]
+  for (const [userId, details, ip] of logs) {
+    await query(
+      `INSERT INTO audit_logs
+         (id, organization_id, user_id, action, resource_type, resource_id, details, ip_address)
+       VALUES (gen_random_uuid()::text, $1, $2, 'goal.program.status_changed', 'goal_program',
+               'program-1', $3::jsonb, $4)`,
+      [seeded.organizationId, userId, JSON.stringify(details), ip],
+    )
+  }
   organizations.push(seeded.organizationId)
   return seeded
 }
@@ -126,12 +142,13 @@ async function snapshot(
   )
   const logs = await query(
     `SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.id), '[]'::jsonb) AS rows
-     FROM audit_logs t WHERE organization_id = $1`,
-    [organizationId],
+     FROM audit_logs t WHERE organization_id = $1
+     ${propertyId ? "AND details->>'propertyId' = $2" : ''}`,
+    propertyId ? [organizationId, propertyId] : [organizationId],
   )
   return {
     events: events.rows[0]?.rows as unknown[],
-    logs: propertyId ? [] : (logs.rows[0]?.rows as unknown[]),
+    logs: logs.rows[0]?.rows as unknown[],
   }
 }
 
@@ -149,8 +166,11 @@ async function putBack(
     `INSERT INTO audit_events SELECT * FROM jsonb_populate_recordset(null::audit_events, $1::jsonb)`,
     [JSON.stringify(rows.events)],
   )
-  if (propertyId) return
-  await query('DELETE FROM audit_logs WHERE organization_id = $1', [organizationId])
+  await query(
+    `DELETE FROM audit_logs WHERE organization_id = $1
+     ${propertyId ? "AND details->>'propertyId' = $2" : ''}`,
+    propertyId ? [organizationId, propertyId] : [organizationId],
+  )
   await query(
     `INSERT INTO audit_logs SELECT * FROM jsonb_populate_recordset(null::audit_logs, $1::jsonb)`,
     [JSON.stringify(rows.logs)],
@@ -167,6 +187,8 @@ const replay = (
       replayers: createActivityErasureReplayers(SECRET),
     }),
   )
+
+type LogRow = Readonly<{ user_id: string; details: Record<string, unknown> }>
 
 type EventRow = Readonly<{
   actor_type: string
@@ -203,7 +225,15 @@ describe('activity rights executor and audit records', () => {
     const user = userOf(first.organizationId)
     const aBefore = await snapshot(first.organizationId, a)
     const bBefore = await snapshot(first.organizationId, b)
-    const logsBefore = await snapshot(first.organizationId)
+    const systemLog = async () =>
+      (
+        await query(
+          `SELECT to_jsonb(t) AS row FROM audit_logs t
+           WHERE organization_id = $1 AND user_id = 'system'`,
+          [first.organizationId],
+        )
+      ).rows[0]?.row
+    const systemBefore = await systemLog()
     const otherBefore = await snapshot(other.organizationId)
     const { store, entries } = recordingJournalStore()
 
@@ -228,8 +258,18 @@ describe('activity rights executor and audit records', () => {
     expect(person.action).toBe('member.role_changed')
     expect(JSON.stringify(aAfter)).not.toContain(user)
     expect(aAfter.events).toHaveLength(aBefore.events.length)
+    const aLogs = aAfter.logs as LogRow[]
+    expect(aLogs).toHaveLength(2)
+    expect(aLogs.find((log) => log.details.status === 'paused')!.user_id).toBe(
+      person.actor_id,
+    )
+    expect(aLogs.find((log) => log.details.status === 'active')!.user_id).toBe(
+      'ops:auditor',
+    )
+    expect(JSON.stringify(aAfter.logs)).not.toContain('Dana')
+    expect(bBefore.logs).toHaveLength(1)
     expect(await snapshot(first.organizationId, b)).toEqual(bBefore)
-    expect((await snapshot(first.organizationId)).logs).toEqual(logsBefore.logs)
+    expect(await systemLog()).toEqual(systemBefore)
     expect(await snapshot(other.organizationId)).toEqual(otherBefore)
 
     await putBack(first.organizationId, aBefore, a)
@@ -293,22 +333,25 @@ describe('activity rights executor and audit records', () => {
       expect(text).not.toContain(personal)
     }
     expect(after.events).toHaveLength(before.events.length)
-    expect(after.logs).toHaveLength(2)
-    const logs = after.logs as Array<{
-      user_id: string
-      details: Record<string, unknown>
-    }>
-    const personLog = logs.find((log) => log.user_id !== 'system')!
+    expect(after.logs).toHaveLength(4)
+    const logs = after.logs as LogRow[]
+    const personLog = logs.find((log) => log.details.status === 'paused')!
     expect(personLog.user_id).toMatch(/^pseudonym:/)
     expect(personLog.details).toMatchObject({
       propertyId: first.propertyIds[0],
       status: 'paused',
       actors: [personLog.user_id],
+      votes: { [personLog.user_id]: 1 },
     })
+    expect(personLog.details.summary).toMatch(
+      /^Call pseudonym:[0-9a-f]{32} before Friday$/,
+    )
     expect(logs.find((log) => log.user_id === 'system')!.details).toEqual({
       resultCount: 2,
     })
-    expect(text).toContain('ops:auditor')
+    expect(logs.find((log) => log.details.status === 'active')!.user_id).toBe(
+      'ops:auditor',
+    )
     expect(await snapshot(other.organizationId)).toEqual(otherBefore)
 
     await putBack(first.organizationId, before)

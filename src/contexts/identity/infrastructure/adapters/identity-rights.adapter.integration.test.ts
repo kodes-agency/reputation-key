@@ -1,7 +1,8 @@
 // Identity's rights executor against real PostgreSQL: Property A and B of one
 // Organization beside a second Organization. A Property erasure removes that
 // Property's access grants and AI decision deferrals; a closure also removes the
-// Organization's AI notice and product update receipts and settings.
+// Organization's AI notice and product update receipts and settings, and its
+// memberships and invitations.
 
 import { randomUUID } from 'node:crypto'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -26,6 +27,8 @@ describeRightsIsolation({
     { table: 'merchant_ai_notice_update_receipts', hasProperty: false },
     { table: 'product_update_receipts', hasProperty: false },
     { table: 'product_update_settings', hasProperty: false },
+    { table: 'invitation', hasProperty: false, organizationColumn: 'organizationId' },
+    { table: 'member', hasProperty: false, organizationColumn: 'organizationId' },
   ],
   executor: (db) => createIdentityRightsExecutor(db),
   replayers: [identityPropertyErasureReplayer, identityOrganizationErasureReplayer],
@@ -70,6 +73,24 @@ describeRightsIsolation({
       `INSERT INTO product_update_settings (user_id, organization_id, auto_show)
        VALUES ($1, $2, false)`,
       [userId, organizationId],
+    )
+    await query(
+      `INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
+       VALUES ($1, $2, $3, 'admin', $4)`,
+      [randomUUID(), userId, organizationId, RIGHTS_FIXTURE_AT],
+    )
+    await query(
+      `INSERT INTO invitation
+         (id, "organizationId", email, role, status, "expiresAt", "propertyIds", "inviterId", "createdAt")
+       VALUES ($1, $2, $3, 'member', 'pending', $4, $5, $6, $4)`,
+      [
+        randomUUID(),
+        organizationId,
+        `${randomUUID()}@example.test`,
+        RIGHTS_FIXTURE_AT,
+        JSON.stringify([randomUUID()]),
+        userId,
+      ],
     )
   },
   async cleanupOrganization(query, organizationId) {

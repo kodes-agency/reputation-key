@@ -6,7 +6,8 @@
 // any item is pending, running, uncertain or quarantined. An unsettled outbox
 // event refuses too, because outbox delivery admits an event again once its
 // work item is gone. Settled events stay with their own 30-day retention and
-// are never admitted again.
+// are never admitted again. Events a restore fenced are never delivered and
+// never age out, so the closure deletes them.
 
 import type { Database } from '#/shared/db'
 import {
@@ -42,7 +43,7 @@ export function createWorkItemsRightsExecutor(db: Database): RightsExecutor {
   return Object.freeze({
     name: 'work-items',
     scopes: ['organization'] as const,
-    tables: { organization: ['work_items'] },
+    tables: { organization: ['work_items', 'outbox_events', 'event_consumer_receipts'] },
     journalContexts: [CONTEXT] as const,
     async preflight(plan) {
       const held = await readWorkItemsFootprint(db, plan.organizationId)
@@ -53,6 +54,7 @@ export function createWorkItemsRightsExecutor(db: Database): RightsExecutor {
       const held = await readWorkItemsFootprint(db, plan.organizationId)
       return [
         `work_items ${held.items}`,
+        `outbox_events ${held.fencedEvents} (recovery-fenced, deleted)`,
         `erasure blockers: unfinished_work_items=${held.unfinished} unsettled_outbox_events=${held.unsettledEvents}`,
       ]
     },

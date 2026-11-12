@@ -129,6 +129,17 @@ async function footprint(tx: Tx, organizationId: string) {
   }
 }
 
+/**
+ * A permit whose Google call may still start or still be running. Once its
+ * deadline passes the call is over, whatever state the permit was left in.
+ */
+const LIVE_PERMIT = sql`(
+  (state = 'admitted' AND start_deadline_at > now())
+  OR (state = 'started' AND operation_deadline_at > now())
+)`
+
+const IN_FLIGHT_ITEM = sql`status IN ('pending', 'processing')`
+
 async function propertyFootprint(tx: Tx, organizationId: string, propertyId: string) {
   const result = await tx.execute(sql`
     SELECT
@@ -140,7 +151,7 @@ async function propertyFootprint(tx: Tx, organizationId: string, propertyId: str
         WHERE organization_id = ${organizationId}
           AND (destination_property_id = ${propertyId}
             OR existing_property_id = ${propertyId})
-          AND status IN ('pending', 'processing')) AS in_flight_import_items,
+          AND ${IN_FLIGHT_ITEM}) AS in_flight_import_items,
       (SELECT count(*)::int FROM google_imports AS parent
         WHERE parent.organization_id = ${organizationId}
           AND EXISTS (
@@ -162,7 +173,7 @@ async function propertyFootprint(tx: Tx, organizationId: string, propertyId: str
       (SELECT count(*)::int FROM authorization_execution_permits
         WHERE organization_id = ${organizationId}
           AND property_id = ${propertyId}::uuid
-          AND state IN ('admitted', 'started')) AS live_permits
+          AND ${LIVE_PERMIT}) AS live_permits
   `)
   const row = result.rows[0] as Row | undefined
   return {
@@ -518,7 +529,7 @@ async function deleteReturningIds(
 
 type PropertyFootprint = Awaited<ReturnType<typeof propertyFootprint>>
 
-/** A live permit is a Google call admitted or under way for the Property. */
+/** A live permit is a Google call admitted or under way for the Property, before its deadline. */
 function propertyBlockers(held: PropertyFootprint): string | null {
   const found = [
     ...(held.inFlight > 0 ? [`in_flight_import_items=${held.inFlight}`] : []),
@@ -561,12 +572,35 @@ export async function eraseGoogleIntegrationForProperty(
   )
 }
 
+/**
+ * Holds the Property's import items and permits until the erase commits, so
+ * none of them becomes in flight or live between the check and the delete.
+ */
+async function lockPropertyRows(
+  tx: Tx,
+  organizationId: string,
+  propertyId: string,
+): Promise<void> {
+  await tx.execute(sql`
+    SELECT 1 FROM google_import_items
+    WHERE organization_id = ${organizationId}
+      AND (destination_property_id = ${propertyId}
+        OR existing_property_id = ${propertyId})
+    FOR UPDATE`)
+  await tx.execute(sql`
+    SELECT 1 FROM authorization_execution_permits
+    WHERE organization_id = ${organizationId}
+      AND property_id = ${propertyId}::uuid
+    FOR UPDATE`)
+}
+
 /** The erase inside a caller's transaction, for restore replay. */
 export async function eraseGoogleIntegrationForPropertyInTx(
   tx: Tx,
   organizationId: string,
   propertyId: string,
 ): Promise<GoogleClosureOutcome> {
+  await lockPropertyRows(tx, organizationId, propertyId)
   const blocked = propertyBlockers(
     await propertyFootprint(tx, organizationId, propertyId),
   )
@@ -577,6 +611,7 @@ export async function eraseGoogleIntegrationForPropertyInTx(
           WHERE organization_id = ${organizationId}
             AND (destination_property_id = ${propertyId}
               OR existing_property_id = ${propertyId})
+            AND NOT ${IN_FLIGHT_ITEM}
           RETURNING import_id AS parent_id`,
   )
   // Progress and retention both require the parent's count to equal its items.
@@ -606,6 +641,7 @@ export async function eraseGoogleIntegrationForPropertyInTx(
       DELETE FROM authorization_execution_permits
       WHERE organization_id = ${organizationId}
         AND property_id = ${propertyId}::uuid
+        AND NOT ${LIVE_PERMIT}
       RETURNING 1`)
   return {
     ok: true,

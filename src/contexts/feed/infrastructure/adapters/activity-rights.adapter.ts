@@ -168,7 +168,7 @@ async function reportCounts(
       ? [`recent_activity_actor_label_redactions ${Number(row.redactions)}`]
       : []),
     `audit_events ${audit.events} (pseudonymised, kept)`,
-    ...(property === null ? [`audit_logs ${audit.logs} (pseudonymised, kept)`] : []),
+    `audit_logs ${audit.logs} (pseudonymised, kept)`,
   ]
 }
 
@@ -223,6 +223,7 @@ export function createActivityRightsExecutor(
         'recent_activity_entries',
         'recent_activity_replay_facts',
         'audit_events',
+        'audit_logs',
       ],
     },
     journalContexts: [CONTEXT] as const,

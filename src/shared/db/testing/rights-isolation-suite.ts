@@ -26,6 +26,8 @@ export type RightsIsolationTable = Readonly<{
   table: string
   /** Whether the rows carry a property_id, so a Property erasure can be compared. */
   hasProperty: boolean
+  /** The Organization column when it is not organization_id (Better Auth's tables). */
+  organizationColumn?: string
 }>
 
 type SuitePool = Pool
@@ -63,6 +65,10 @@ export type RightsIsolationConfig = Readonly<{
 
 type Seed = Readonly<{ first: RightsSeeded; other: RightsSeeded }>
 
+function organizationColumnOf(column: string | undefined): string {
+  return column ? `"${column}"` : 'organization_id'
+}
+
 function snapshotOf(
   query: RightsQuery,
   config: RightsIsolationConfig,
@@ -71,11 +77,11 @@ function snapshotOf(
 ): Promise<string> {
   return (async () => {
     const tables: Record<string, unknown> = {}
-    for (const { table, hasProperty } of config.tables) {
+    for (const { table, hasProperty, organizationColumn } of config.tables) {
       if (propertyId && !hasProperty) continue
       const result = await query(
         `SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text), '[]'::jsonb) AS rows
-         FROM ${table} t WHERE t.organization_id = $1
+         FROM ${table} t WHERE t.${organizationColumnOf(organizationColumn)} = $1
          ${propertyId ? 'AND t.property_id::text = $2' : ''}`,
         propertyId ? [organizationId, propertyId] : [organizationId],
       )
@@ -148,10 +154,11 @@ export function describeRightsIsolation(config: RightsIsolationConfig): void {
     afterAll(async () => lease.release())
     afterEach(async () => {
       for (const organizationId of organizations) {
-        for (const { table } of config.tables) {
-          await lease.pool.query(`DELETE FROM ${table} WHERE organization_id = $1`, [
-            organizationId,
-          ])
+        for (const { table, organizationColumn } of config.tables) {
+          await lease.pool.query(
+            `DELETE FROM ${table} WHERE ${organizationColumnOf(organizationColumn)} = $1`,
+            [organizationId],
+          )
         }
         await config.cleanupOrganization?.(query, organizationId)
         await lease.pool.query('DELETE FROM properties WHERE organization_id = $1', [

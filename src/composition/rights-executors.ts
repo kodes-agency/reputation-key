@@ -78,7 +78,10 @@ export type RightsExecutorsDeps = Readonly<{
   journal: RightsJournal
   runNotification: NotificationRightsExecutorDeps['run']
   portalObjectStore: Pick<StoragePort, 'deleteObject'>
-  /** Server-side secret the audit pseudonyms are keyed with; replay needs the same one. */
+  /**
+   * Server-side secret the audit pseudonyms are keyed with. A replay under a
+   * rotated secret writes other pseudonyms, consistent within the replayed scope.
+   */
   auditPseudonymSecret: string
   /** The named operator for guest-response erasure; absent means that apply is denied. */
   operator?: GuestRightsExecutorDeps['operator']

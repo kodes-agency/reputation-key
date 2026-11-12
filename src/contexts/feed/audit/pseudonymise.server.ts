@@ -7,12 +7,21 @@
 // the ids, emails and addresses they hide cannot be recovered by hashing guesses.
 // Operator handles (`ops:<name>`) and service ids name no
 // customer and stay.
+//
+// The secret may rotate. Pseudonyms only need to agree within one erasure,
+// which rewrites its whole scope in one transaction, and each erasure already
+// has its own key (the journal entry id is part of it). A replay after a
+// restore rewrites the restored rows of that scope in one transaction too, so
+// a rotated secret gives that copy other, but still consistent, pseudonyms;
+// rows an earlier run already pseudonymised are left as they are. No pseudonym
+// is stored or compared anywhere else.
 
 import { createHmac } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import type { Tx } from '#/shared/db'
 
 const PREFIX = 'pseudonym:'
+const OPERATOR_PREFIX = 'ops:'
 const KEY_PURPOSE = 'audit-pseudonym:v1:'
 const BATCH = 500
 
@@ -25,6 +34,7 @@ const PERSON_DETAIL_KEYS: ReadonlySet<string> = new Set([
   'changeReason',
   'displayName',
   'email',
+  'followingReason',
   'initiatorUserId',
   'ipAddress',
   'memberUserId',
@@ -35,11 +45,15 @@ const PERSON_DETAIL_KEYS: ReadonlySet<string> = new Set([
   'userId',
 ])
 
-const EMAIL = /^[^\s@]+@[^\s@]+$/u
+/** An email address anywhere in a string; a pseudonym never contains `@`. */
+const EMAIL_IN_TEXT = /[^\s@"'<>(),;:]+@[^\s@"'<>(),;:]+/gu
 
 export type AuditPseudonymScope = Readonly<{
   organizationId: string
-  /** Set for a Property erasure: only that Property's audit events change. */
+  /**
+   * Set for a Property erasure: only that Property's audit events, and the
+   * `audit_logs` rows whose details name it, change.
+   */
   propertyId?: string
 }>
 
@@ -81,13 +95,21 @@ type LogRow = Readonly<{
 const isPersonValue = (value: string | null, people: ReadonlySet<string>) =>
   value !== null && !value.startsWith(PREFIX) && people.has(value)
 
+/** `system` and operator handles name no customer. */
+const isServiceUser = (userId: string) =>
+  userId === 'system' || userId.startsWith(OPERATOR_PREFIX)
+
+/** audit_logs has no Property column: its goal rows carry the Property in details. */
+function logScope(scope: AuditPseudonymScope) {
+  const property = scope.propertyId
+    ? sql` AND details->>'propertyId' = ${scope.propertyId}`
+    : sql``
+  return sql`organization_id = ${scope.organizationId}${property}`
+}
+
 /** The user ids the scope's audit rows name. */
 async function peopleOf(tx: Tx, scope: AuditPseudonymScope): Promise<Set<string>> {
   const property = scope.propertyId ? sql` AND property_id = ${scope.propertyId}` : sql``
-  const logs = scope.propertyId
-    ? sql``
-    : sql`UNION SELECT user_id FROM audit_logs
-          WHERE organization_id = ${scope.organizationId} AND user_id <> 'system'`
   const result = await tx.execute(sql`
     SELECT actor_id AS id FROM audit_events
       WHERE organization_id = ${scope.organizationId}${property}
@@ -95,7 +117,9 @@ async function peopleOf(tx: Tx, scope: AuditPseudonymScope): Promise<Set<string>
     UNION SELECT resource_id FROM audit_events
       WHERE organization_id = ${scope.organizationId}${property}
         AND resource_type IN ('member', 'user') AND resource_id IS NOT NULL
-    ${logs}
+    UNION SELECT user_id FROM audit_logs
+      WHERE ${logScope(scope)}
+        AND user_id <> 'system' AND user_id NOT LIKE ${`${OPERATOR_PREFIX}%`}
   `)
   return new Set(
     result.rows
@@ -129,6 +153,17 @@ function pseudonymisedEvent(
   }
 }
 
+function pseudonymisedText(
+  value: string,
+  people: ReadonlySet<string>,
+  pseudonym: Pseudonymise,
+  personalKey: boolean,
+): string {
+  if (value.startsWith(PREFIX)) return value
+  if (personalKey || people.has(value)) return pseudonym(value)
+  return value.replace(EMAIL_IN_TEXT, (email) => pseudonym(email))
+}
+
 function pseudonymisedDetails(
   value: unknown,
   people: ReadonlySet<string>,
@@ -136,19 +171,17 @@ function pseudonymisedDetails(
   key?: string,
 ): unknown {
   if (typeof value === 'string') {
-    const personal =
-      (key !== undefined && PERSON_DETAIL_KEYS.has(key)) ||
-      people.has(value) ||
-      EMAIL.test(value)
-    return personal ? pseudonym(value) : value
+    const personalKey = key !== undefined && PERSON_DETAIL_KEYS.has(key)
+    return pseudonymisedText(value, people, pseudonym, personalKey)
   }
   if (Array.isArray(value)) {
     return value.map((item) => pseudonymisedDetails(item, people, pseudonym, key))
   }
   if (value !== null && typeof value === 'object') {
     return Object.fromEntries(
+      // A key can name a person too (a map keyed by user id or email).
       Object.entries(value).map(([entryKey, entry]) => [
-        entryKey,
+        pseudonymisedText(entryKey, people, pseudonym, false),
         pseudonymisedDetails(entry, people, pseudonym, entryKey),
       ]),
     )
@@ -163,7 +196,7 @@ function pseudonymisedLog(
 ): LogRow {
   return {
     ...row,
-    user_id: row.user_id === 'system' ? row.user_id : pseudonym(row.user_id),
+    user_id: isServiceUser(row.user_id) ? row.user_id : pseudonym(row.user_id),
     ip_address: row.ip_address === null ? null : pseudonym(row.ip_address),
     details: pseudonymisedDetails(row.details, people, pseudonym),
   }
@@ -210,7 +243,7 @@ async function rewriteEvents(
 
 async function rewriteLogs(
   tx: Tx,
-  organizationId: string,
+  scope: AuditPseudonymScope,
   people: ReadonlySet<string>,
   pseudonym: Pseudonymise,
 ): Promise<number> {
@@ -221,7 +254,7 @@ async function rewriteLogs(
       await tx.execute(sql`
         SELECT id, user_id, ip_address, details
         FROM audit_logs
-        WHERE organization_id = ${organizationId} AND id > ${after}
+        WHERE ${logScope(scope)} AND id > ${after}
         ORDER BY id LIMIT ${BATCH}
       `)
     ).rows as LogRow[]
@@ -238,7 +271,7 @@ async function rewriteLogs(
           details = next.details
       FROM jsonb_to_recordset(${JSON.stringify(updates)}::jsonb)
         AS next(id text, user_id text, ip_address text, details jsonb)
-      WHERE log.organization_id = ${organizationId} AND log.id = next.id
+      WHERE log.organization_id = ${scope.organizationId} AND log.id = next.id
     `)
     changed += updates.length
   }
@@ -247,8 +280,7 @@ async function rewriteLogs(
 /**
  * Pseudonymises the scope's audit rows inside the caller's transaction and
  * returns the rows changed. `key` must be the same for an erasure and its
- * replay. A Property scope changes that Property's audit events only; the
- * `audit_logs` table has no Property column.
+ * replay.
  */
 export async function pseudonymiseAuditRecords(
   tx: Tx,
@@ -258,8 +290,7 @@ export async function pseudonymiseAuditRecords(
   const pseudonym = pseudonymiser(key)
   const people = await peopleOf(tx, scope)
   const events = await rewriteEvents(tx, scope, people, pseudonym)
-  if (scope.propertyId) return events
-  return events + (await rewriteLogs(tx, scope.organizationId, people, pseudonym))
+  return events + (await rewriteLogs(tx, scope, people, pseudonym))
 }
 
 export async function countAuditRecords(
@@ -271,9 +302,8 @@ export async function countAuditRecords(
     SELECT
       (SELECT count(*)::int FROM audit_events
         WHERE organization_id = ${scope.organizationId}${property}) AS events,
-      (SELECT count(*)::int FROM audit_logs
-        WHERE organization_id = ${scope.organizationId}) AS logs
+      (SELECT count(*)::int FROM audit_logs WHERE ${logScope(scope)}) AS logs
   `)
   const row = result.rows[0] as { events: number; logs: number }
-  return { events: Number(row.events), logs: scope.propertyId ? 0 : Number(row.logs) }
+  return { events: Number(row.events), logs: Number(row.logs) }
 }

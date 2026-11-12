@@ -29,7 +29,8 @@ const RETAINED: Readonly<Record<string, string>> = {
   operational_action_history_heads: 'legal-hold evidence, never touched',
   operational_action_history_legal_holds: 'legal-hold evidence, never touched',
   operational_action_history_records: 'legal-hold evidence, never touched',
-  outbox_events: 'settled events age out with the 30-day outbox retention',
+  outbox_events:
+    'settled events age out with the 30-day outbox retention; closure deletes the recovery-fenced ones, which never settle',
   reply_publication_authorizations: 'content-free proof of a manager authorization',
 }
 
@@ -39,7 +40,7 @@ const RETAINED: Readonly<Record<string, string>> = {
  * payload. Tables with none of these hold configuration or counters.
  */
 const PERSONAL_COLUMN =
-  /^(user_id|actor_id|operator_id|email|display_name|ip_address|name|address|phone|payload|details|.+_user_id|.+_by)$/
+  /^(user_id|actor_id|operator_id|email|display_name|ip_address|name|address|phone|payload|details|.+_user_id|.+_by|userId|inviterId|ipAddress|userAgent)$/
 
 /**
  * Personal-data tables that no executor erases yet for a scope. Each name is a
@@ -51,9 +52,10 @@ const KNOWN_GAPS: Readonly<Record<TenantScope, ReadonlyArray<string>>> = {
   property: [],
 }
 
-const COLUMN_FOR: Readonly<Record<TenantScope, string>> = {
-  organization: 'organization_id',
-  property: 'property_id',
+/** Better Auth's tables name their Organization column in camel case. */
+const COLUMNS_FOR: Readonly<Record<TenantScope, ReadonlyArray<string>>> = {
+  organization: ['organization_id', 'organizationId'],
+  property: ['property_id'],
 }
 
 const tenantTables = DATA_FATE_AUTHORITY.flatMap((row) => {
@@ -71,7 +73,8 @@ const tenantTables = DATA_FATE_AUTHORITY.flatMap((row) => {
 
 function personalTablesOf(scope: TenantScope) {
   return tenantTables.filter(
-    ({ columns, isPersonal }) => isPersonal && columns.includes(COLUMN_FOR[scope]),
+    ({ columns, isPersonal }) =>
+      isPersonal && COLUMNS_FOR[scope].some((column) => columns.includes(column)),
   )
 }
 

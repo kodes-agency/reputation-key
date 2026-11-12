@@ -2,7 +2,9 @@
 // an Organization holding Property A and B beside a second Organization. A
 // Property request erases A and leaves B and the other Organization
 // byte-identical; an Organization request erases the whole Organization and
-// leaves the other one byte-identical. A second case checks that each
+// leaves the other one byte-identical. Each Property's Portals carry scans,
+// guest responses and Staff rows, so a command that touched Portal rows before
+// Guest and Staff applied would refuse. A second case checks that each
 // executor's declared tables include every table its deletes cascade into.
 // Journal-first writes, the resurrect-and-replay through the restore fence and
 // the rejected journal put are proved per executor in its own integration
@@ -51,6 +53,70 @@ let db: Database
 let query: RightsQuery
 let userId: string
 const organizations: string[] = []
+
+/**
+ * A place Portal with a scan, a guest response and Staff rows, and a Staff
+ * member's personal Portal: rows of other contexts that reference the Portals
+ * and must be gone before Portal's own deletes run.
+ */
+async function seedPortalUse(organizationId: string, propertyId: string) {
+  const portalId = randomUUID()
+  const personalPortalId = randomUUID()
+  const groupId = randomUUID()
+  const participationId = randomUUID()
+  const at = RIGHTS_FIXTURE_AT
+  await query(
+    `INSERT INTO portals (id, organization_id, property_id, entity_id, name, slug, created_at, updated_at)
+     VALUES ($1, $2, $3::uuid, $3::text, 'Front Desk', $4, $5, $5)`,
+    [portalId, organizationId, propertyId, `portal-${portalId}`, at],
+  )
+  await query(
+    `INSERT INTO portals (id, organization_id, property_id, entity_id, kind, public_name, name, slug,
+                          created_at, updated_at)
+     VALUES ($1, $2, $3::uuid, $3::text, 'personal', 'Dana', 'Dana', $4, $5, $5)`,
+    [personalPortalId, organizationId, propertyId, `portal-${personalPortalId}`, at],
+  )
+  await query(
+    `INSERT INTO portal_groups (id, organization_id, property_id, name)
+     VALUES ($1, $2, $3, 'Front desk')`,
+    [groupId, organizationId, propertyId],
+  )
+  await query(
+    `INSERT INTO staff_participations
+       (id, organization_id, property_id, user_id, display_name, created_by, personal_portal_id)
+     VALUES ($1, $2, $3, $4, 'Dana Rivera', $4, $5)`,
+    [participationId, organizationId, propertyId, userId, personalPortalId],
+  )
+  await query(
+    `INSERT INTO portal_responsibilities
+       (organization_id, property_id, portal_id, staff_participation_id, effective_from, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [organizationId, propertyId, portalId, participationId, at, userId],
+  )
+  await query(
+    `INSERT INTO portal_group_memberships
+       (organization_id, property_id, portal_id, portal_group_id, created_by)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [organizationId, propertyId, portalId, groupId, userId],
+  )
+  await query(
+    `INSERT INTO scan_events (id, organization_id, portal_id, property_id, source, session_id,
+                              ip_hash, created_at)
+     VALUES ($1, $2, $3, $4, 'qr', $5, 'fixture-hash', $6)`,
+    [randomUUID(), organizationId, portalId, propertyId, randomUUID(), at],
+  )
+  await query(
+    `INSERT INTO guest_responses (
+       id, organization_id, property_id, portal_id, status, rating, response_consent,
+       text_consent, private_feedback_threshold, correction_count,
+       rating_source_event_id, feedback_source_event_id, submitted_at,
+       feedback_submitted_at, feedback_submission_revision, retention_deadline,
+       created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, 'submitted', 2, true, true, 3, 0, $5, $6, $7, $7, 1,
+               $7::timestamptz + interval '700 days', $7, $7)`,
+    [randomUUID(), organizationId, propertyId, portalId, randomUUID(), randomUUID(), at],
+  )
+}
 
 async function seedProperty(organizationId: string, propertyId: string) {
   const reviewId = randomUUID()
@@ -139,6 +205,7 @@ async function seedProperty(organizationId: string, propertyId: string) {
      VALUES ('user:a', 'Actor', 'admin', 'created', 'review', $3, $2, $1, $3)`,
     [organizationId, propertyId, `event-${propertyId}`],
   )
+  await seedPortalUse(organizationId, propertyId)
   await writeAuditEvent(db, {
     organizationId,
     propertyId,
@@ -282,6 +349,13 @@ describe('composed rights executors', () => {
         [org],
       )
       for (const table of [
+        'guest_responses',
+        'scan_events',
+        'portal_responsibilities',
+        'portal_group_memberships',
+        'staff_participations',
+        'portals',
+        'portal_groups',
         'audit_events',
         'audit_logs',
         'reply_templates',

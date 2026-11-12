@@ -198,7 +198,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'feed',
     disposition: 'recoverable_archive',
     authority: 'ACT-01',
-    exitCriteria: `${RETAINED_HISTORY} Organization closure keeps the event and replaces every person identifier, IP address and free-text note with a pseudonym.`,
+    exitCriteria: `${RETAINED_HISTORY} Organization closure, and Property erasure for the rows whose details name the Property, keep the event and replace every person identifier, IP address and free-text note with a pseudonym.`,
   }),
   ...rows({
     schemaFile: 'auth.ts',
@@ -214,6 +214,8 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'SAFE-02/PPL-01',
+    exitCriteria:
+      "Organization closure deletes the Organization's memberships and invitations; the participant scope erases a person's login.",
   }),
   ...rows({
     schemaFile: 'dac.schema.ts',
@@ -489,7 +491,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'active_authority',
     authority: 'ARC-01',
     exitCriteria:
-      'Settled outbox events age out with the 30-day outbox retention; erasure does not delete them early.',
+      'Settled outbox events age out with the 30-day outbox retention; erasure does not delete them early. Organization closure deletes the events a restore fenced, which are never delivered and never age out.',
   }),
   ...rows({
     schemaFile: 'staff-accounts.schema.ts',
