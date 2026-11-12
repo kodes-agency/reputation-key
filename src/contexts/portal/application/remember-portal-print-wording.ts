@@ -1,4 +1,4 @@
-// Portal context — remembers a final print's wording as the Portal's saved one
+// Portal context — remembers a print's wording as the Portal's saved one
 // (2026-10-27), once its file is made: after a download, the saved wording is what
 // printed. Like the last print's memory it is a convenience for the next visit to
 // Share, so a manager who has the file is never refused it because the wording
@@ -6,7 +6,7 @@
 
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
+import type { PrintSavedWording } from '#/shared/domain/portal-print-wording'
 import type { PortalPrintWordingRepository } from './ports/portal-print-wording.repository'
 
 export type RememberPrintWordingDeps = Readonly<{
@@ -21,7 +21,7 @@ export async function rememberPrintWording(
     organizationId: OrganizationId
     propertyId: PropertyId
     portalId: PortalId
-    wording: PrintFinalSavedWording
+    wording: PrintSavedWording
   }>,
 ): Promise<void> {
   try {
