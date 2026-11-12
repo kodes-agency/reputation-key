@@ -7,6 +7,7 @@
 // board's sentences exactly. Not imported by production code.
 import type {
   PortalHistoryEntry,
+  PortalPublicationHistory,
   PortalVersionDetail,
   PortalVersionItem,
   PortalVersions,
@@ -17,6 +18,22 @@ export const STORY_NOW = new Date('2026-09-30T07:05:00.000Z')
 export const STORY_TIME_ZONE = 'Europe/Sofia'
 export const STORY_PORTAL_NAME = 'Pool & Terrace'
 export const STORY_PENDING_CHANGES = 2
+
+/** The publication history as the History tab reads it, holding `count` changes in the draft. */
+export function storyPublicationHistory(count: number): PortalPublicationHistory {
+  return {
+    current: null,
+    priorActivations: [],
+    hasPendingChanges: count > 0,
+    pendingChanges: Array.from({ length: count }, (_unused, index) => ({
+      kind: 'portal_links' as const,
+      key: `change-${index}`,
+      changedAt: '2026-09-30T06:00:00.000Z',
+      changedBy: null,
+    })),
+    nextCursor: null,
+  }
+}
 
 const elena = { userId: 'user-elena', displayName: 'Elena Petrova' }
 const georgi = { userId: 'user-georgi', displayName: 'Georgi Ivanov' }
