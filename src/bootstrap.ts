@@ -412,6 +412,7 @@ export async function bootstrap(
       container.integrationWorkerRuntime.sweepImportLifecycle ?? undefined,
     guestContactRequestRetentionSweep: container.guestContactRequestRetentionSweep,
     reviewObservationRetentionSweep: container.reviewObservationRetentionSweep,
+    reviewSnapshotRunRetentionSweep: container.reviewSnapshotRunRetentionSweep,
   })
   container.jobRegistry.register(RETENTION_SWEEP_JOB_NAME, retentionSweepHandler)
   logger.info({ job: RETENTION_SWEEP_JOB_NAME }, 'registered retention sweep job handler')
