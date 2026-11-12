@@ -1,11 +1,11 @@
 // The read owns check-in eligibility and numbers. Nothing changes until a manager
 // chooses; no counted activity means no suggested number.
 
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalCheckIn,
   PortalGoalLastMonth,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { formatNumber } from '#/lib/format'
 import { lastMonthWords } from './portal-goal-running-view'
 import { dayWords, monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'

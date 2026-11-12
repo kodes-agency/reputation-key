@@ -1,13 +1,13 @@
 // The read owns states, numbers and dates. Property-local YYYY-MM-DD days and YYYY-MM
 // months must not shift with the reader's time zone.
 
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalCardView,
   PortalGoalOfCard,
   PortalGoalSoFar,
   PortalReadinessRow,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { formatLocalDate, formatMonthName, formatNumber } from '#/lib/format'
 import { PORTAL_NO_SCAN_HINT } from './portal-goal-copy'
 

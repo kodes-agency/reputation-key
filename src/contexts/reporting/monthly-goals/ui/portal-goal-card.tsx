@@ -2,7 +2,7 @@
 // receives restored focus. Elsewhere the card title receives focus after setting or
 // answering a check-in.
 
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import { CardContent } from '#/components/ui/card'
 import { GoalCardFrame } from '../../../../components/goals/goal-card-frame'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'

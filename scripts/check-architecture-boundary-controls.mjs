@@ -295,7 +295,7 @@ const allowedControls = [
     name: 'Portal results stories may render the goal line',
     file: 'src/contexts/reporting/portal-results/ui/portal-analytics-tab.stories.tsx',
     source:
-      "import '#/contexts/reporting/monthly-goals/ui/portal-goal-results-line'\nimport '#/contexts/reporting/application/dto/monthly-portal-goal.types'\n",
+      "import '#/contexts/reporting/monthly-goals/ui/portal-goal-results-line'\nimport '#/contexts/reporting/monthly-goals/contracts'\n",
   },
   {
     name: 'Reporting build may assemble Portal results read and storage',

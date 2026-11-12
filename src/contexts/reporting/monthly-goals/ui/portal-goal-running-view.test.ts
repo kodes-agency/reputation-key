@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   PortalGoalLastMonth,
   PortalGoalRunningMonth,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { lastMonthWords, runningWords, stoppedWords } from './portal-goal-running-view'
 
 /** G10, Nov 22: 23 of 40, 22 of 30 days gone, behind. */

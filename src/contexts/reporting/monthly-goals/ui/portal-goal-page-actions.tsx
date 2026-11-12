@@ -4,8 +4,8 @@
 // Stop.
 
 import { useRef, useState, type ReactNode, type RefObject } from 'react'
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
-import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
+import type { PortalGoalOfCard } from '#/contexts/reporting/monthly-goals/contracts'
 import { Button } from '#/components/ui/button'
 import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'

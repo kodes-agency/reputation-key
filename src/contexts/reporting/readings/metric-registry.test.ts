@@ -1,19 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { METRIC_VERSION_IDS } from '../readings/contracts'
-import { createMetricRegistryRepository } from './repositories/metric-registry.repository'
+import { METRIC_VERSION_IDS, metricRegistry } from './contracts'
 
-describe('createMetricRegistryRepository', () => {
+describe('metricRegistry', () => {
   it('fails closed for an unknown registry version', async () => {
-    await expect(
-      createMetricRegistryRepository().findVersionById('version-missing'),
-    ).resolves.toBeNull()
+    await expect(metricRegistry.findVersionById('version-missing')).resolves.toBeNull()
   })
 
   it('returns the code-reviewed policy for a pinned version', async () => {
     await expect(
-      createMetricRegistryRepository().findVersionById(
-        METRIC_VERSION_IDS.portalRatingAverageGoal,
-      ),
+      metricRegistry.findVersionById(METRIC_VERSION_IDS.portalRatingAverageGoal),
     ).resolves.toEqual({
       definition: expect.objectContaining({
         id: '11111111-1111-4111-8111-111111110303',

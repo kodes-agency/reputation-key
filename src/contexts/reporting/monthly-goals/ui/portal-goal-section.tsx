@@ -3,7 +3,7 @@
 
 import { useEffect, type ReactNode } from 'react'
 import { useRouterState } from '@tanstack/react-router'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import { RegionError } from '#/components/ui/region-error'
 import { SectionTitle } from '#/components/ui/section-title'
 import { Skeleton } from '#/components/ui/skeleton'

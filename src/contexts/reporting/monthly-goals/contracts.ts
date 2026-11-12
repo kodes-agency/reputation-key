@@ -1,7 +1,24 @@
 // Browser-safe goal figures, change fences and several-subject page contracts.
 // Days are Property-local YYYY-MM-DD; months are YYYY-MM.
 
-import type { GoalMetric } from '../domain/goal-program'
+import type {
+  GoalMetric,
+  GoalMetricEvaluation,
+  GoalMonthlyResultStatus,
+  GoalProgramStatus,
+  GoalSubject,
+  GoalTargetSource,
+} from '../domain/goal-program'
+import type {
+  PortalGoalMeasure,
+  PortalGoalRatio,
+} from '../domain/goal-recommendation-types'
+
+export type {
+  PortalGoalMeasure,
+  PortalGoalRatio,
+  PortalGoalRecommendation,
+} from '../domain/goal-recommendation-types'
 
 /** What the month so far says about one goal. */
 export type GoalProgressReading =
@@ -101,4 +118,944 @@ export type PortalGoalSeveralPageView = Readonly<{
   subjects: readonly PortalGoalSingleSubject[]
   today: string
   goal: PortalGoalSeveralOfPage
+}>
+
+/** One published Portal's steps before the number is ready. */
+export type PortalReadinessRow = Readonly<{
+  portalId: string
+  name: string
+  live: boolean
+  /** Its code is made and its QR or NFC marker published. */
+  codeMade: boolean
+  /** A scan has arrived since that code was made. */
+  firstScan: boolean
+  /**
+   * The local days since its code was made, once 14 or more have passed with
+   * no scan; null otherwise (a younger code, or one that has been scanned).
+   */
+  noScanSinceCodeDays: number | null
+}>
+
+/** This month so far at the Property, per measure; null where it cannot be read. */
+export type PortalGoalSoFar = Readonly<{ ratings: number | null; scans: number | null }>
+
+/** What the card shows of the first weeks: each Portal's steps and the month so far. */
+export type PortalGoalFirstWeeks = Readonly<{
+  /** The Property's local day today, for the header tile. */
+  today: string
+  /** This month. */
+  month: string
+  soFar: PortalGoalSoFar
+  /** Published Portals, in name order. */
+  portals: readonly PortalReadinessRow[]
+}>
+
+/** One Portal in the number: "Reception · 11 in 14 days". */
+export type PortalGoalBasisPortal = Readonly<{
+  name: string
+  /** Its readings of the measure on its live days in the basis. */
+  count: number
+  liveDays: number
+}>
+
+/** What the number stands on: the Portals with 2 weeks live, over the basis. */
+export type PortalGoalOfferBasis = Readonly<{
+  /** "from the last 2 weeks": the longest live run among them, in whole weeks. */
+  weeks: 2 | 3 | 4
+  /** The longest live days among them: "in the 14 days to Oct 22". */
+  days: number
+  /** The basis's last day: yesterday. */
+  lastDay: string
+  /** Their readings of the measure on their live days: "brought in 16". */
+  count: number
+  /** In name order, never by count. */
+  portals: readonly PortalGoalBasisPortal[]
+}>
+
+/** A live Portal not in the number yet: it joins once it has 2 weeks. */
+export type PortalGoalNewPortal = Readonly<{
+  name: string
+  liveDays: number
+  /** The local day it joins the number. */
+  joinsOn: string
+}>
+
+/**
+ * The number the ready card offers, for one month and one measure:
+ * this month through the 20th, else the next; private ratings, or scans when
+ * the Portals had scans but no private ratings.
+ */
+export type PortalGoalOffer = Readonly<{
+  /** The month offered, `YYYY-MM`. */
+  month: string
+  /** This month: it counts from its first day, with what already counts. */
+  current: boolean
+  /** The offered month's days: "a 30-day month". */
+  days: number
+  measure: PortalGoalMeasure
+  /** "your usual", "a bit more" (the recommended number) and "stretch". */
+  choices: Readonly<{ usual: number; aBitMore: number; stretch: number }>
+  /** The usual for the whole offered month, rounded half up: "about 34 a month". */
+  usualAbout: number
+  /**
+   * The usual "your usual" is rounded from, exact: what an own number is
+   * measured against ("about 4 times"). The next month's is the whole month's;
+   * this month's is what already counts plus the days left at the usual.
+   */
+  usualExact: PortalGoalRatio
+  basis: PortalGoalOfferBasis
+  /** Live Portals not in the number yet, in name order. */
+  newPortals: readonly PortalGoalNewPortal[]
+  /** This month so far at the Property, when this month is offered; else null. */
+  soFar: number | null
+  /** This month offered: its days left with today, and what they add at the usual. */
+  rest: Readonly<{ daysLeft: number; about: number }> | null
+  /** The Property's time zone, whose months the goal follows. */
+  timezone: string
+}>
+
+/** One measure's numbers for the set sheet; null where it has none to offer. */
+export type PortalGoalMeasureOffers = Readonly<{
+  /** The rest of this month, on top of what already counts. */
+  current: PortalGoalOffer | null
+  /** The whole of the next month. */
+  next: PortalGoalOffer | null
+}>
+
+/**
+ * What the set sheet works from: the month it opens on, the two
+ * months a goal may start in with this month so far (for a number of the
+ * manager's own, which the sheet starts empty), each measure's offers for both
+ * months, and, in the first weeks, the day the recommended number is ready.
+ */
+export type PortalGoalSheetFacts = Readonly<{
+  ratingsAvailable?: boolean
+  /** The month the card offers: this month through the 20th local day, else the next. */
+  month: string
+  ownNumber: Readonly<{
+    current: Readonly<{ key: string; soFar: PortalGoalSoFar }>
+    next: Readonly<{ key: string }>
+  }>
+  offers: Readonly<Record<PortalGoalMeasure, PortalGoalMeasureOffers>>
+  /** While the first weeks last: when the recommended number is ready; else null. */
+  readyOn: string | null
+}>
+
+/**
+ * The month a goal is counting, as its card draws it: the governed figure
+ * against the month's own number, the days, and the pace, all decided by the
+ * read.
+ */
+export type PortalGoalRunningMonth = Readonly<{
+  /** `YYYY-MM`. */
+  key: string
+  /**
+   * What the month counts: its own version's measure, which a change from a
+   * coming month ("Count scans instead") does not touch.
+   */
+  measure: PortalGoalMeasure
+  /** The month's own number, else its version's. */
+  target: number
+  /** The governed figure so far; null when it cannot be read, never a zero. */
+  value: number | null
+  /** The month's local days that have begun, today included. */
+  elapsedDays: number
+  /** The month's local days. */
+  totalDays: number
+  /** The local days still to begin after today ("9 days left" counts today too). */
+  daysAfterToday: number
+  /**
+   * `goalPace` says behind (true) or on pace (false); null when the month is
+   * not judged: its first days, fewer than 5 expected by today, or no
+   * figure.
+   */
+  belowPace: boolean | null
+  /** The first days of the month, which are never judged: no pace word and no tick. */
+  quietDays: boolean
+}>
+
+/** One published Portal's count this month, under "From your portals". */
+export type PortalGoalPortalCount = Readonly<{
+  kind?: 'personal'
+  portalId: string
+  name: string
+  count: number
+}>
+
+/**
+ * What the Portals brought in this month: plain counts in name order,
+ * never sorted by count. Each published Portal with what the others leave
+ * (draft, disabled, archived and deleted Portals and readings with no Portal,
+ * "Other portals"); one Portal that brought in all of it; or, from 5 Portals,
+ * how many.
+ */
+export type PortalGoalRows =
+  | Readonly<{
+      kind: 'rows'
+      portals: readonly PortalGoalPortalCount[]
+      elsewhere: number
+    }>
+  | Readonly<{ kind: 'one'; name: string }>
+  | Readonly<{ kind: 'many'; count: number }>
+
+/** The month before this one, while its result is being read and through the 7th. */
+export type PortalGoalLastMonth = Readonly<{
+  /** `YYYY-MM`. */
+  key: string
+  /** What that month counted, under its own version. */
+  measure: PortalGoalMeasure
+  /**
+   * Once closed, its result's figure; while it is read, the governed figure so
+   * far. Null when it cannot be read.
+   */
+  value: number | null
+  /** That month's own number. */
+  target: number
+  outcome: 'updating' | 'met' | 'not_met' | 'unavailable'
+  /**
+   * The local day its final figure is due: "Final figure on Dec 2". Null while
+   * it is still read after that day, so no day already gone is promised.
+   */
+  finalOn: string | null
+}>
+
+/**
+ * The Property's Monthly portal goal on its card: while it waits for its first
+ * month, the day it starts and this month so far; while it runs (or after it
+ * was stopped, to the end of the month it still counts), that month with the
+ * governed figure, never the recommendation's, and each Portal's count; and
+ * the month before, while it is read and through the 7th.
+ */
+export type PortalGoalOfCard = Readonly<{
+  programId: string
+  /** The version a change is made against. */
+  version: number
+  measure: PortalGoalMeasure
+  status: 'scheduled' | 'active' | 'paused' | 'ended'
+  /** Its current version's number. */
+  target: number
+  /** Scheduled: the local day its first month begins; else null. */
+  startsOn: string | null
+  /**
+   * Active, or stopped with this month still counting: the month it is
+   * counting; else null.
+   */
+  month: PortalGoalRunningMonth | null
+  /**
+   * With a month: what each Portal brought in, drawn only when the counts add
+   * up to the governed figure; else null.
+   */
+  rows: PortalGoalRows | null
+  /**
+   * Stopped with this month still counting: the local day it was stopped (null
+   * when no day was recorded) and the month's last day; else null.
+   */
+  stopped: Readonly<{ on: string | null; monthEnd: string }> | null
+  /** The month before, while its result is read and through the 7th; else null. */
+  lastMonth: PortalGoalLastMonth | null
+  /** Scheduled: this month so far at the Property; null when it cannot be read. */
+  currentMonthSoFar: number | null
+  /**
+   * Paused, or stopped with no month counting now: the latest month of it
+   * still open or being read, as `YYYY-MM` with that month's own target (on
+   * Dec 1 a goal stopped in November still counts November); else null.
+   */
+  countingMonth: Readonly<{
+    key: string
+    /** What that month counts, under its own version. */
+    measure: PortalGoalMeasure
+    target: number
+  }> | null
+  /** What a change is made against; null once the goal has been stopped. */
+  change: PortalGoalChangeFacts | null
+  /**
+   * Stopped: the month a new goal can start in, the one after the last month
+   * this one counts, when the set sheet offers it; else null.
+   */
+  newGoalFrom: string | null
+  /** On local days 1 to 7, the month-start check-in, until it is answered; else null. */
+  checkIn: PortalGoalCheckIn | null
+}>
+
+/**
+ * The month-start check-in: on local days 1
+ * to 7 of a month that is not the goal's first, while the goal runs and until
+ * a manager answers it, whether the month keeps its number. Nothing changes
+ * unless a manager chooses. The read decides it all; the card words it.
+ */
+export type PortalGoalCheckIn = Readonly<{
+  /** `YYYY-MM`: the running month it asks about. */
+  month: string
+  /** What that month counts. */
+  measure: PortalGoalMeasure
+  /** The number the month is judged against now: "Keep 40". */
+  target: number
+}> &
+  (
+    | Readonly<{
+        /** "Use 45" (the offer's recommended number), "Keep 40", or another number. */
+        kind: 'offer'
+        /**
+         * The number recommended for the month now, the sheet's: the rest of
+         * the month on top of what already counts (`current` true); on its
+         * first day with nothing in yet, the same numbers worked out for the
+         * whole month (`current` false: "a 31-day month gets about 38").
+         */
+        offer: PortalGoalOffer
+      }>
+    /** The recommended number is the month's already: one line, and "Change". */
+    | Readonly<{ kind: 'same' }>
+    | Readonly<{
+        /** Nothing of the measure came in over the basis: "Keep 40", or another number. */
+        kind: 'nothing'
+        /** The weeks the basis covers: "in the last 4 weeks". */
+        weeks: 2 | 3 | 4
+      }>
+  )
+
+/**
+ * The Overview prompt carries the offer's month, recommended number and measure.
+ */
+export type PortalGoalPrompt = Readonly<{
+  /** `YYYY-MM`: the month offered. */
+  month: string
+  /** The recommended number for it. */
+  number: number
+  /** A manager chose "Not now" for this month (or a later one): the Overview shows nothing. */
+  deferred: boolean
+}>
+
+/** An arm the set sheet opens from: what it works from. */
+type WithSheet = Readonly<{ sheet: PortalGoalSheetFacts }>
+
+/**
+ * The card's arm. Before a goal: no Portal at all (or none live and no draft),
+ * draft Portals only, the first weeks, a number ready to use (with scans only,
+ * scans first), nothing counted, or a recommendation that cannot be read; each
+ * of the last four opens the set sheet. With one: the goal, with the same
+ * facts for the sheet that changes it (its offers) and, once it is stopped,
+ * sets the next one.
+ */
+export type PortalGoalCardView =
+  | Readonly<{ state: 'no_portal' }>
+  | Readonly<{
+      state: 'drafts_only'
+      drafts: readonly Readonly<{ portalId: string; name: string }>[]
+    }>
+  | (PortalGoalFirstWeeks &
+      WithSheet &
+      Readonly<{
+        state: 'getting_ready'
+        /** When the closest live Portal has 2 weeks live; null when that is not known. */
+        readyOn: string | null
+      }>)
+  | (WithSheet &
+      Readonly<{
+        state: 'ready' | 'scans_only'
+        offer: PortalGoalOffer
+        /** What the Overview says of it, and whether a manager put that off. */
+        prompt: PortalGoalPrompt
+      }>)
+  | (WithSheet &
+      Readonly<{
+        state: 'nothing_counted'
+        /** The weeks the basis covers: "No scans in the last 2 weeks." */
+        weeks: 2 | 3 | 4
+      }>)
+  | (WithSheet & Readonly<{ state: 'recommendation_unreadable' }>)
+  | (WithSheet &
+      Readonly<{
+        state: 'goal'
+        /** The Property's local day today, for the header tile. */
+        today: string
+        goal: PortalGoalOfCard
+      }>)
+
+export type PortalGoalCardState = PortalGoalCardView['state']
+
+/** What the card's Use (and the set sheet) sends: one number, one measure, from one month. */
+export type SetMonthlyPortalGoalRequest = Readonly<{
+  propertyId: string
+  metric: PortalGoalMeasure
+  targetValue: number
+  /** `YYYY-MM`: the month the card or the sheet named. */
+  startMonth: string
+  /** What the screen offered; recorded only as far as the recommendation bears it out. */
+  targetSource: 'recommended' | 'own'
+}>
+
+/** The goal a change or a stop is for. */
+type OfTheGoal = Readonly<{ propertyId: string; programId: string }>
+
+/**
+ * "November, now" (and the month-start check-in's Use): the running month's
+ * number, and the months after it, from the change facts' `now`.
+ */
+export type ChangeMonthlyPortalGoalNowRequest = OfTheGoal &
+  Readonly<{
+    /** `YYYY-MM`: the running month the sheet showed. */
+    month: string
+    targetValue: number
+    expectedTarget: number
+    expectedVersion: number
+    expectedFollowingMonth: string
+    /** The manager's note, stored with the change. */
+    note?: string
+    targetSource: 'recommended' | 'own'
+  }>
+
+/**
+ * "From Dec 1" and "Count scans instead": the goal from its next month; on the
+ * average's own page, its level from its next month.
+ */
+export type ReviseMonthlyPortalGoalRequest = OfTheGoal &
+  Readonly<{
+    metric: PortalGoalMeasure | 'portal_rating_average'
+    targetValue: number
+    expectedVersion: number
+    /**
+     * `YYYY-MM`: the month the sheet said the change starts with (the change
+     * facts' `nextMonthKey`); refused once the month has turned since.
+     */
+    startMonth: string
+    /** The manager's note, stored on the new version. */
+    note?: string
+    targetSource: 'recommended' | 'own'
+  }>
+
+/** Stop: the goal ends, and keeps the month it is counting. */
+export type StopMonthlyPortalGoalRequest = OfTheGoal
+
+/** The check-in's Keep: the month keeps its number, and the check-in is answered. */
+export type KeepMonthlyPortalGoalRequest = OfTheGoal &
+  Readonly<{
+    /** `YYYY-MM`: the month the check-in asked about. */
+    month: string
+  }>
+
+/** The Overview prompt's "Not now", for the month it named. */
+export type DeferMonthlyPortalGoalPromptRequest = Readonly<{
+  propertyId: string
+  /** `YYYY-MM`: the month the prompt named. */
+  month: string
+}>
+
+/** A Portal's Results line: which Portal, at which Property. */
+export type MonthlyPortalGoalLineRequest = Readonly<{
+  propertyId: string
+  portalId: string
+}>
+
+/**
+ * This month's Portal contribution toward the Monthly portal goal,
+ * and the Portal's own goal when it has one. Null (no line) for a draft Portal,
+ * and when neither goal is counting this month.
+ */
+export type PortalGoalLineView = Readonly<{
+  /** `YYYY-MM`: this month, on the Property's calendar. */
+  month: string
+  /**
+   * The Portal's count of the month the Monthly portal goal is counting, in
+   * that month's measure: only when every Portal's count adds up to the
+   * goal's governed figure (as the card's rows are) and the Portal has brought
+   * something in (a count of at least 1); else null.
+   */
+  monthlyGoal: Readonly<{ measure: PortalGoalMeasure; count: number }> | null
+  /**
+   * The goal for this Portal alone, when one is counting this month and its
+   * governed figure can be read: its month so far against the month's number;
+   * else null.
+   */
+  ownGoal: Readonly<{
+    programId: string
+    measure: PortalGoalMeasure
+    value: number
+    target: number
+  }> | null
+}>
+
+/** What a count goal of the add sheet is for: one Portal, or one Portal Group. */
+export type PortalGoalAddSubject =
+  | Readonly<{ kind: 'portal'; portalId: string }>
+  | Readonly<{ kind: 'portal_group'; portalGroupId: string }>
+
+/** "20 · your usual", "22 · a bit more" (the recommended number), "24 · stretch". */
+export type PortalGoalAddChoices = Readonly<{
+  usual: number
+  aBitMore: number
+  stretch: number
+}>
+
+/** The goal that already counts the measure for a subject from the month offered. */
+export type PortalGoalAddHeld = Readonly<{ programId: string; name: string }>
+
+/** One Portal or Portal Group a goal can be added for, in the month and measure offered. */
+export type PortalGoalAddOffer = Readonly<{
+  staffTarget?: boolean
+  measure?: PortalGoalMeasure
+  subject: PortalGoalAddSubject
+  name: string
+  /**
+   * The rule on its own rate and month so far (a group's rate is its members'
+   * summed); null while it has no number: new, nothing counted, or unreadable.
+   */
+  choices: PortalGoalAddChoices | null
+  /** This month so far, when this month is offered and it can be read; else null. */
+  soFar: number | null
+  /** Live but not in the number yet: the local day it is ("New · ready Oct 29"). */
+  readyOn: string | null
+  /** "Has a goal": it takes no second goal on the measure. */
+  heldBy: PortalGoalAddHeld | null
+}>
+
+/** One row of "A goal for each portal". */
+export type PortalGoalAddEachRow = Readonly<{
+  offer: PortalGoalAddOffer
+  /** Ticked with its recommended number, unless it is new or has a goal. */
+  ticked: boolean
+  /** The number it starts on: its recommended one; null with none. */
+  number: number | null
+}>
+
+export type PortalGoalAddOptions = Readonly<{
+  /** The month offered: this month through the 20th local day, else the next. */
+  month: string
+  /** The month offered is this month: it counts from its first day. */
+  current: boolean
+  /** Private ratings, or scans when the Portals had scans but no private ratings. */
+  measure: PortalGoalMeasure
+  /** A goal for one Portal: each live Portal, in name order; none under 2 live Portals. */
+  onePortal: readonly PortalGoalAddOffer[]
+  /** A goal for each Portal: the same Portals, as rows. */
+  eachPortal: readonly PortalGoalAddEachRow[]
+  /** A goal for a Portal Group: each group with a live Portal, in name order. */
+  groups: readonly PortalGoalAddOffer[]
+  /** The average private rating for the whole Property. */
+  average: Readonly<{
+    /** It needs 10 private ratings a month: open with that many in the last 4 weeks. */
+    available: boolean
+    /** Every private rating of the last 4 weeks: "Your portals had 6 in the last 4 weeks." */
+    last4Weeks: number
+    heldBy: PortalGoalAddHeld | null
+  }>
+  /** The Property's time zone, whose months the goal follows. */
+  timezone: string
+}>
+
+/** A goal for one Portal, one Portal Group, or the average for the Property. */
+export type AddPortalGoalRequest = Readonly<{
+  propertyId: string
+  subject: PortalGoalAddSubject | Readonly<{ kind: 'property' }>
+  metric: PortalGoalMeasure | 'portal_rating_average'
+  targetValue: number
+  startMonth: string
+  /** What the sheet offered; the server stores `recommended` only when it is so. */
+  targetSource: 'recommended' | 'own'
+}>
+
+/** A goal for each ticked Portal, all in one month and measure. */
+export type AddPortalGoalsRequest = Readonly<{
+  propertyId: string
+  metric: PortalGoalMeasure
+  startMonth: string
+  items: readonly Readonly<{
+    portalId: string
+    targetValue: number
+    targetSource: 'recommended' | 'own'
+  }>[]
+}>
+
+/** What became of each Portal of a save for each Portal, in the order sent. */
+export type AddPortalGoalsResult = Readonly<{
+  outcomes: readonly Readonly<{ portalId: string; saved: boolean }>[]
+}>
+
+/**
+ * What a month of the history counted: private ratings or scans, or, on the
+ * average's own page, the average private rating.
+ */
+export type PortalGoalPageMeasure = PortalGoalMeasure | 'portal_rating_average'
+
+/** How a month came out, or how far it has got. */
+export type PortalGoalMonthOutcome =
+  'running' | 'updating' | 'met' | 'not_met' | 'unavailable'
+
+/** A closed month's result after a correction: when, and what it is now. */
+export type PortalGoalMonthCorrection = Readonly<{
+  /** The local day of the latest correction. */
+  on: string
+  value: number | null
+  outcome: 'met' | 'not_met' | 'unavailable'
+}>
+
+/** One month of the goal, or of a goal it took over from, on "Month by month". */
+export type PortalGoalPageMonth = Readonly<{
+  /** `YYYY-MM`. */
+  key: string
+  /** What the month counted, under its own version. */
+  measure: PortalGoalPageMeasure
+  /**
+   * Running, or still being read: the governed figure so far. Closed: its
+   * result, after any correction. Null when it cannot be read, never a zero.
+   */
+  value: number | null
+  /** The month's own number ("Number in November: 40"). */
+  target: number
+  outcome: PortalGoalMonthOutcome
+  /**
+   * The local day its final figure is due while it runs or is read (null once
+   * that day has gone with no figure), or the day it arrived once closed.
+   */
+  finalOn: string | null
+  /** A closed month a correction changed; else null. */
+  correction: PortalGoalMonthCorrection | null
+}>
+
+/** What the tiles say beside the month the goal is counting. */
+export type PortalGoalPageTiles = Readonly<{
+  /** The month before this one: its result, or that it had no goal. */
+  lastMonth: PortalGoalPageMonth | Readonly<{ key: string; outcome: 'no_goal' }>
+  /**
+   * The usual for this whole month, in what the goal counts now, rounded half
+   * up ("About 34 a month"), and the weeks it stands on; null with no usual.
+   */
+  usual: Readonly<{ about: number; weeks: 2 | 3 | 4 }> | null
+}>
+
+/** One published Portal's count this month, on the page (name order). */
+export type PortalGoalPagePortal = Readonly<{
+  kind?: 'personal'
+  portalId: string
+  name: string
+  count: number
+}>
+
+/**
+ * What the Portals brought in this month, drawn only when it adds up to the
+ * governed figure: every published Portal in name order (up to 100), what the
+ * rest brought in, and the figure itself.
+ */
+export type PortalGoalPageRows = Readonly<{
+  portals: readonly PortalGoalPagePortal[]
+  /** Draft, disabled, archived and deleted Portals, and readings with no Portal. */
+  elsewhere: number
+  /** The governed figure: "All portals 23". */
+  total: number
+  /** Only the first 100 Portals by name are listed. */
+  truncated: boolean
+}>
+
+/** An established Portal that has gone quiet: no scans since a day. */
+export type PortalGoalQuietFact = Readonly<{
+  /** The local day of its last scan. */
+  noScansSince: string
+  /** Its usual scans in a week, rounded half up. */
+  usualPerWeek: number
+}>
+
+/** Who made a change, and the local day. */
+type ChangeMade = Readonly<{
+  /** The local day. */
+  on: string
+  /** The member's id; a page names them. */
+  by: string
+}>
+
+/**
+ * One dated fact about the goal, newest first: its number set from
+ * a month, one month's own number set, the goal stopped, or Portals going live.
+ */
+export type PortalGoalChange =
+  | (ChangeMade &
+      Readonly<{
+        kind: 'set_from'
+        /** The first month the number counts. */
+        fromMonth: string
+        target: number
+        measure: PortalGoalPageMeasure
+        /** The measure changed from the version before. */
+        switched: boolean
+        source: 'recommended' | 'own' | null
+        note: string | null
+      }>)
+  | (ChangeMade &
+      Readonly<{
+        kind: 'set_month'
+        month: string
+        target: number
+        measure: PortalGoalPageMeasure
+        source: 'recommended' | 'own' | null
+        note: string | null
+      }>)
+  | (ChangeMade & Readonly<{ kind: 'stopped' }>)
+  | Readonly<{
+      kind: 'went_live'
+      on: string
+      /** The Portals whose current live run began that day, in name order. */
+      portals: readonly string[]
+    }>
+
+/** The other Portal goals, with this month so far of the active ones. */
+export type PortalGoalPageExtras = Readonly<{
+  goals: readonly GoalProgramBundle[]
+  /** Null when it could not be read: the rows say so, the page still draws. */
+  progress: readonly GoalListProgress[] | null
+  /** Each Portal and Portal Group subject's name, by `portal:<id>` or `portal_group:<id>`. */
+  subjectNames: Readonly<Record<string, string>>
+}>
+
+/**
+ * The Monthly portal goal's page: the card's arm (before a goal, it is what the
+ * page shows), with a goal the tiles, what each Portal brought in and the
+ * quiet Portals; with a goal or after one, the months of this goal and of the
+ * ones it took over from, and what changed; and the other Portal goals.
+ */
+export type PortalGoalPageView = Readonly<{
+  card: PortalGoalCardView
+  /** Today, the Property's local day: a date of another year says its year. */
+  today: string
+  /** The Property's time zone, whose months the goal follows. */
+  timezone: string
+  /** Published Portals in name order: "from all 3 portals", or the one by name. */
+  portals: readonly Readonly<{ portalId: string; name: string }>[]
+  /** With a goal; else null. */
+  tiles: PortalGoalPageTiles | null
+  /** With a running month whose counts add up; else null. */
+  rows: PortalGoalPageRows | null
+  /** Each established Portal that has gone quiet; others are absent. */
+  facts: Readonly<Record<string, PortalGoalQuietFact>>
+  /**
+   * Newest first, up to 24: the goal's and those of the goals it took over
+   * from, or with no goal now, the stopped goals' (none before a first goal).
+   */
+  months: readonly PortalGoalPageMonth[]
+  /** Newest first; none before a first goal. */
+  changes: readonly PortalGoalChange[]
+  extras: PortalGoalPageExtras
+  /** A month of the goal, or of one before it, has closed: it has results to see. */
+  anyMonthClosed: boolean
+}>
+
+/** What the month so far says of an average: the governed figure, or that it needs more ratings. */
+export type PortalGoalAverageReading = Exclude<
+  GoalProgressReading,
+  Readonly<{ kind: 'not_started' }>
+>
+
+/** The average private rating goal on its page: its level, and this month while it counts. */
+export type PortalGoalAverageOfPage = GoalOfPage &
+  Readonly<{
+    /** The version a change from a coming month is made against. */
+    version: number
+    /** Active: the month it counts, its own level, and its days; else null. */
+    month: Readonly<{
+      key: string
+      target: number
+      /** The local days still to begin after today ("9 days left" counts today too). */
+      daysAfterToday: number
+      reading: PortalGoalAverageReading
+    }> | null
+  }>
+
+/**
+ * `$goalId`'s read. A Property count goal is the Monthly portal goal, whose page
+ * is `/goals/portals`. A count goal for one Portal or one Portal Group has the
+ * Monthly portal goal's page made from its own subject (its card arm is always
+ * the goal, and it has no Portals' rows, quiet Portals or other goals). The
+ * average has a page of its own, with its months and changes. A goal for
+ * several subjects has a plain page: whom it counts, this month, and Stop.
+ */
+export type PortalGoalSinglePageView =
+  | Readonly<{ kind: 'monthly' }>
+  | Readonly<{
+      kind: 'subject'
+      subject: PortalGoalSingleSubject
+      page: PortalGoalPageView
+      /**
+       * The subject already holds a goal for the other measure from the month a
+       * change of measure would start: "Count scans instead" is not offered.
+       */
+      otherMeasureHeld: boolean
+    }>
+  | Readonly<{
+      kind: 'average'
+      subject: PortalGoalSingleSubject
+      /** Today, the Property's local day. */
+      today: string
+      goal: PortalGoalAverageOfPage
+      /** Its months, newest first, with their figures and results. */
+      months: readonly PortalGoalPageMonth[]
+      /** What changed, newest first. */
+      changes: readonly PortalGoalChange[]
+    }>
+  | PortalGoalSeveralPageView
+
+export type GoalProgram = Readonly<{
+  id: string
+  organizationId: string
+  propertyId: string
+  name: string
+  description: string | null
+  status: GoalProgramStatus
+  statusReason: string | null
+  currentVersion: number
+  createdBy: string
+  createdAt: Date
+  updatedAt: Date
+  /**
+   * When the goal was ended (migration 0062). Absent for a goal that has not
+   * ended, and for one ended before 0062 or by an old web server, which
+   * recorded no time. A read names it only when one was stored.
+   */
+  endedAt?: Date
+  /** Who ended it (migration 0062), named only when stored, with `endedAt`. */
+  endedBy?: string
+  /**
+   * The `YYYY-MM` month whose month-start check-in a manager answered with
+   * Keep (migration 0062); named only when one was stored.
+   */
+  checkInAnsweredMonth?: string
+}>
+
+export type GoalProgramVersion = Readonly<{
+  id: string
+  programId: string
+  organizationId: string
+  propertyId: string
+  version: number
+  metricDefinitionId: string
+  metricDefinitionVersionId: string
+  metric: GoalMetric
+  metricMinimumSample: number
+  targetValue: number
+  propertyTimezone: string
+  effectiveFrom: Date
+  effectiveTo: Date | null
+  changeReason: string
+  createdBy: string
+  createdAt: Date
+  /**
+   * Where the version's number came from (migration 0062). Absent, or null,
+   * when the command that wrote it did not say: every version written before
+   * 0062, by an old web server, or by a command that does not ask. A version
+   * that keeps its head's number, as a subject change does, keeps its source.
+   * A read names it only when one was stored.
+   */
+  targetSource?: GoalTargetSource | null
+}>
+
+export type GoalSubjectAssignment = Readonly<{
+  id: string
+  programId: string
+  programVersionId: string
+  organizationId: string
+  propertyId: string
+  metric: GoalMetric
+  subject: GoalSubject
+  effectiveFrom: Date
+  effectiveTo: Date | null
+  createdBy: string
+  createdAt: Date
+}>
+
+export type GoalMonthlyResult = Readonly<{
+  id: string
+  assignmentId: string
+  programId: string
+  programVersionId: string
+  organizationId: string
+  propertyId: string
+  periodStart: Date
+  periodEnd: Date
+  propertyTimezone: string
+  status: GoalMonthlyResultStatus
+  /**
+   * This month's own target. Null means the month uses its version's target.
+   * Opening a month never sets it, and it is locked once the period ends.
+   */
+  targetValue: number | null
+  evaluation: GoalMetricEvaluation
+  sourceCompleteThrough: Date | null
+  evaluationWatermark: Date | null
+  closedAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+  /** Present only when the immutable closed base is overlaid by a revision. */
+  revision?: Readonly<{
+    id: string
+    number: number
+    changeReason: string
+    createdAt: Date
+  }>
+}>
+
+/**
+ * What a change to a month's target did for the months after it:
+ * - `applied`: they carry the new target, through a version this change wrote
+ *   or because the plan for them already had it;
+ * - `replaced_scheduled_change`: a change that was waiting for its month had
+ *   the same measure and was replaced by one with the new target;
+ * - `kept_scheduled_change`: a change that was waiting had another measure and
+ *   was left as it was;
+ * - `not_applied`: asked for, and not done; `followingReason` says why;
+ * - `not_requested`: only the month was to change.
+ */
+export type GoalMonthTargetFollowingOutcome =
+  | 'applied'
+  | 'replaced_scheduled_change'
+  | 'kept_scheduled_change'
+  | 'not_applied'
+  | 'not_requested'
+
+/** Why the months after a changed one did not take the new target. */
+export type GoalMonthTargetFollowingReason = 'subject_unavailable' | 'metric_unavailable'
+
+/**
+ * One month's target, changed while the month ran: who, when, the old and the
+ * new value and an optional note. A command writes one of these per month it
+ * changed, all sharing `changeId`.
+ */
+export type GoalMonthTargetChange = Readonly<{
+  id: string
+  organizationId: string
+  propertyId: string
+  programId: string
+  monthlyResultId: string
+  changeId: string
+  previousTargetValue: number
+  newTargetValue: number
+  followingOutcome: GoalMonthTargetFollowingOutcome
+  followingReason: GoalMonthTargetFollowingReason | null
+  /**
+   * The version this change wrote for the months after it; null when it wrote
+   * none. A later change can replace that version before its month begins, and
+   * the version then keeps an empty window.
+   */
+  followingVersionId: string | null
+  note: string | null
+  createdBy: string
+  createdAt: Date
+  /**
+   * Where the new number came from (migration 0062), as on a version: named
+   * by a read only when one was stored.
+   */
+  targetSource?: GoalTargetSource | null
+}>
+
+export type GoalProgramBundle = Readonly<{
+  program: GoalProgram
+  /** Current definition head; historical versions stay addressable by result pins. */
+  version: GoalProgramVersion
+  /** Versions needed by this read; `getHistory` retains the complete definition history. */
+  versions: readonly GoalProgramVersion[]
+  /** Current assignments and the latest assignment of each historical subject. */
+  assignments: readonly GoalSubjectAssignment[]
+  /** Recent months in summaries; complete months in an explicit history read. */
+  results: readonly GoalMonthlyResult[]
+  /** Target origin computed across versions without hydrating the ledger. */
+  targetProvenance?: Readonly<
+    Record<string, Readonly<{ setAt: Date; setBy: string; countsFrom: Date }>>
+  >
+  /** Target changes for the months included in this read, oldest first. */
+  targetChanges?: readonly GoalMonthTargetChange[]
 }>

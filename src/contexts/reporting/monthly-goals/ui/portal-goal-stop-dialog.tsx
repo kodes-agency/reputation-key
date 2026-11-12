@@ -2,7 +2,7 @@
 // snapshot across refreshes. A refusal leaves it open. Running goals count through
 // month end; an unstarted goal frees its month immediately.
 
-import type { StopMonthlyPortalGoalRequest } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { StopMonthlyPortalGoalRequest } from '#/contexts/reporting/monthly-goals/contracts'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import {
