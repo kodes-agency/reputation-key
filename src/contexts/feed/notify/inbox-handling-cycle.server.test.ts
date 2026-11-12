@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { registerHandlingCycleNotificationConsumers } from '../infrastructure/inbox-notice-routes'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
   createConsumerRegistry,
@@ -13,14 +14,13 @@ import {
   ON_INBOX_BULK_REOPEN_COMPLETED_CONSUMER,
   ON_INBOX_HANDLING_CYCLE_OPENED_CONSUMER,
   ON_INBOX_HANDLING_CYCLE_REOPENED_CONSUMER,
-  registerHandlingCycleNotificationConsumers,
-} from './handling-cycle-outbox-consumers'
+} from './inbox-handling-cycle.server'
 import type {
   HandlingCycleNotificationFacts,
   InboxItemFacts,
   InboxItemLookupPort,
 } from '../application/ports/notification-inbox-item-lookup.port'
-import { noticeWriterOver } from './notification-consumer-test-fixtures'
+import { noticeWriterOver } from '../infrastructure/notification-consumer-test-fixtures'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()

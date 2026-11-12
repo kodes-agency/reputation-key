@@ -10,7 +10,7 @@
 // Property from its completion fact; the per-item reopen facts it stamps with
 // its bulkId notify nobody.
 
-import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerEvent } from '#/shared/outbox'
 import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
@@ -29,9 +29,9 @@ import type {
 } from '../application/notification-audience'
 import type { HandlingCycleNotificationFacts } from '../application/ports/notification-inbox-item-lookup.port'
 import { resolveHandlingCycleRecipients } from '../application/responsible-recipients'
-import type { InboxFanoutDeps } from '../notify/inbox.server'
-import { buildInboxItemPayload } from './notification-payload-facts'
-import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
+import type { InboxFanoutDeps } from './inbox.server'
+import { buildInboxItemPayload } from '../infrastructure/notification-payload-facts'
+import { deliverNotices, type NoticeDeliveryDeps } from './consumers.server'
 
 const OPENED_EVENT = 'inbox.handling_cycle.opened' as const
 const REOPENED_EVENT = 'inbox.handling_cycle.reopened' as const
@@ -371,29 +371,4 @@ export async function handleNotificationBulkReopenCompleted(
       },
     })),
   )
-}
-
-export function registerHandlingCycleNotificationConsumers(
-  registry: ConsumerRegistry,
-  deps: HandlingCycleNotificationConsumerDeps,
-): void {
-  const { registerConsumer } = registry
-  registerConsumer({
-    eventType: 'inbox.handling_cycle.opened',
-    consumerName: 'notification.on-inbox-handling-cycle-opened',
-    module: 'notification.handling-cycle-outbox-consumers',
-    handler: (event) => handleNotificationHandlingCycle(deps, event),
-  })
-  registerConsumer({
-    eventType: 'inbox.handling_cycle.reopened',
-    consumerName: 'notification.on-inbox-handling-cycle-reopened',
-    module: 'notification.handling-cycle-outbox-consumers',
-    handler: (event) => handleNotificationHandlingCycle(deps, event),
-  })
-  registerConsumer({
-    eventType: 'inbox.inbox_items.bulk_reopen_completed',
-    consumerName: 'notification.on-inbox-bulk-reopen-completed',
-    module: 'notification.handling-cycle-outbox-consumers',
-    handler: (event) => handleNotificationBulkReopenCompleted(deps, event),
-  })
 }
