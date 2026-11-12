@@ -181,16 +181,6 @@ export const Phone320: Story = {
   },
 }
 
-export const Phone390: Story = {
-  ...Phone320,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-}
-
-export const OnATablet: Story = {
-  ...Phone320,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-}
-
 export const OnADesktop: Story = {
   ...Phone320,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
@@ -264,4 +254,9 @@ export const ArrivingAtEndedTakesTheFocusWhenAsked: Story = {
     const asked = await endedTitle(canvasElement)
     await waitFor(() => expect(asked).toHaveFocus())
   },
+}
+
+export const OnATablet: Story = {
+  ...Phone320,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }

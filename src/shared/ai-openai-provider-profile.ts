@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
+import { digestOf } from './ai-digest'
 import { AI_GATEWAY_KEY_INVENTORY_V1 } from './ai-gateway-key-inventory'
 import { OPENAI_MODEL_SNAPSHOT } from './ai-openai-request-contract'
 import {
@@ -11,12 +10,6 @@ import {
 export { AI_GATEWAY_KEY_INVENTORY_V1 }
 export type { AiMaximumCostProfileV1, AiSettledUsageV1 }
 
-function digest(domain: string, value: unknown): string {
-  return createHash('sha256')
-    .update(domain, 'utf8')
-    .update(canonicalizeRfc8785(value), 'utf8')
-    .digest('hex')
-}
 export const OPENAI_REQUEST_SHAPE_V1 = Object.freeze({
   model: OPENAI_MODEL_SNAPSHOT,
   input: Object.freeze([
@@ -55,7 +48,7 @@ export const OPENAI_REQUEST_SHAPE_V1 = Object.freeze({
   ]),
 })
 
-export const OPENAI_REQUEST_SHAPE_V1_DIGEST = digest(
+export const OPENAI_REQUEST_SHAPE_V1_DIGEST = digestOf(
   'repkey-openai-request-shape-v1\0',
   OPENAI_REQUEST_SHAPE_V1,
 )
@@ -99,7 +92,7 @@ export const OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1 = Object.freeze({
   successStatus: 200,
 })
 
-export const OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1 = digest(
+export const OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1 = digestOf(
   'repkey-openai-provider-normalized-claims-v1\0',
   OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1,
 )

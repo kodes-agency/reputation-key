@@ -18,7 +18,7 @@ import {
   noticeWriterOver,
   NOTIF_TEST_IDS,
 } from './notification-consumer-test-fixtures'
-import { handleWorkflowNotificationEvent } from './workflow-outbox-consumers'
+import { handleWorkflowNotificationEvent } from '../notify/inbox-workflow.server'
 import { handleNotificationSettlementEvent } from './notification-settlement-outbox-consumers'
 import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
 

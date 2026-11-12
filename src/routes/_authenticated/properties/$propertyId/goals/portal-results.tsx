@@ -1,8 +1,8 @@
+import { useServedNow } from '#/components/hooks/served-clock'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Keep the results gate at goal.use and goal.update. Load shared reads on demand so no
 // results query joins first paint.
 
-import { useState } from 'react'
 import { Navigate, createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -44,7 +44,7 @@ export const Route = createFileRoute(
 function PortalGoalResultsRoute() {
   const { propertyId } = Route.useParams()
   const { can: canDo } = usePermissions()
-  const [now] = useState(() => new Date())
+  const now = useServedNow()
   const queries = portalGoalResultsQueries(propertyId)
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(queries.goals)

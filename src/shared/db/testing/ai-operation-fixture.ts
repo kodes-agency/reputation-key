@@ -1,4 +1,5 @@
 import type { ReplyDraftingV2Binding } from '#/shared/domain/reply-drafting-v2'
+import { resolveReplyDraftingV2Options } from '#/shared/reply-drafting-v2-request'
 // A real-PostgreSQL fixture for tests that drive the AI reservation ledger and
 // its admission: one organization, one property with an active processing
 // profile and Merchant AI consent to reply drafting, the reply-drafting
@@ -31,17 +32,20 @@ import { deleteTestOrganizationsWithExecutor } from './test-organization-cleanup
 export const AI_REPLY_OPERATION_PROFILE = Object.freeze({
   command: 'reply',
   capability: 'reply_drafting',
-  profileVersion: 'reply-suggestion-v1',
-  providerDeploymentProfileVersion: 'private-beta-global-v2',
-  capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
-  routeKey: 'reply-suggestion',
-})
-
-/** What a reply-drafting v2 operation is served under. */
-const AI_REPLY_V2_PROFILE = Object.freeze({
   profileVersion: 'reply-suggestion-v2',
   providerDeploymentProfileVersion: 'private-beta-global-v3',
   capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v2',
+  routeKey: 'reply-suggestion',
+})
+
+/** What a reply v2 row carries when a test does not say: one root draft, no rewrite. */
+export const AI_REPLY_V2_DEFAULT_BINDING: ReplyDraftingV2Binding = Object.freeze({
+  options: resolveReplyDraftingV2Options({ languageCode: 'en-Latn', variation: 0 }),
+  voiceDigest: 'a'.repeat(64),
+  generationSeed: 'b'.repeat(64),
+  parentOperationId: null,
+  rewriteOrdinal: 0,
+  rewriteIssues: [],
 })
 
 /** The consent every seeded operation is claimed under. */
@@ -367,7 +371,7 @@ export async function installAiOperationFixture(
   })
 
   /** The control heads as they stand: a seeded operation is claimed under them. */
-  const claimedControls = async (v2: boolean) => {
+  const claimedControls = async () => {
     const heads = await db
       .select({
         scopeKey: aiExecutionControlHeads.scopeKey,
@@ -380,9 +384,7 @@ export async function installAiOperationFixture(
       if (!found) throw new Error(`AI execution control ${scopeKey} is not seeded`)
       return found
     }
-    const providerDeployment = v2
-      ? AI_REPLY_V2_PROFILE.providerDeploymentProfileVersion
-      : AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion
+    const providerDeployment = AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion
     return {
       global: control('global'),
       provider: control(`provider:${providerDeployment}`),
@@ -432,8 +434,8 @@ export async function installAiOperationFixture(
       const sourceByteCount = seed.sourceByteCount ?? 20
       const reviewId =
         seed.reviewId ?? (await seedReview({ sourceDigest, sourceByteCount }))
-      const v2 = seed.replyDraftingV2 !== undefined
-      const { global, provider, capability } = await claimedControls(v2)
+      const replyDraftingV2 = seed.replyDraftingV2 ?? AI_REPLY_V2_DEFAULT_BINDING
+      const { global, provider, capability } = await claimedControls()
       const [consent] = await db
         .select({ replyDraftingEpoch: merchantAiEnablement.replyDraftingEpoch })
         .from(merchantAiEnablement)
@@ -464,17 +466,13 @@ export async function installAiOperationFixture(
         noticeDigest: AI_OPERATION_FIXTURE_CONSENT.noticeDigest,
         sourcePolicyId: AI_OPERATION_FIXTURE_CONSENT.sourcePolicyId,
         redactionProfileVersion: AI_OPERATION_FIXTURE_CONSENT.redactionProfileVersion,
-        providerDeploymentProfileVersion: v2
-          ? AI_REPLY_V2_PROFILE.providerDeploymentProfileVersion
-          : AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion,
-        operationProfileVersion: v2
-          ? AI_REPLY_V2_PROFILE.profileVersion
-          : AI_REPLY_OPERATION_PROFILE.profileVersion,
-        replyDraftingV2: seed.replyDraftingV2 ?? null,
-        rewriteParentOperationId: seed.replyDraftingV2?.parentOperationId ?? null,
-        capabilityRuntimeProfileVersion: v2
-          ? AI_REPLY_V2_PROFILE.capabilityRuntimeProfileVersion
-          : AI_REPLY_OPERATION_PROFILE.capabilityRuntimeProfileVersion,
+        providerDeploymentProfileVersion:
+          AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion,
+        operationProfileVersion: AI_REPLY_OPERATION_PROFILE.profileVersion,
+        replyDraftingV2,
+        rewriteParentOperationId: replyDraftingV2.parentOperationId,
+        capabilityRuntimeProfileVersion:
+          AI_REPLY_OPERATION_PROFILE.capabilityRuntimeProfileVersion,
         globalControlId: global.controlId,
         globalControlGeneration: global.generation,
         providerControlId: provider.controlId,

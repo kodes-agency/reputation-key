@@ -26,7 +26,7 @@ export const OPENAI_MODEL_SNAPSHOT = 'gpt-6-luna' as const
 // analysis route, whose static request caches (the quality check read 1,379,396 of
 // 1,599,608 input tokens from the cache). `maximumCostMicros` therefore needs no
 // cache-write term. Add one if the provider ever bills a cache write.
-export const OPENAI_PROMPT_CACHE_RETENTION = '24h' as const
+const OPENAI_PROMPT_CACHE_RETENTION = '24h' as const
 
 /**
  * Every model snapshot whose provenance this deployment can still VERIFY, newest
@@ -47,7 +47,6 @@ export const OPENAI_KNOWN_MODEL_SNAPSHOTS = Object.freeze([
 export const OPENAI_PROMPT_VERSIONS = Object.freeze({
   'review-analysis': 'review-analysis-prompt-v1',
   'reply-suggestion': 'reply-suggestion-prompt-v1',
-  'property-trend': 'property-trend-prompt-v1',
   'synthetic-canary': 'synthetic-canary-prompt-v1',
 } as const)
 
@@ -59,15 +58,10 @@ export const OPENAI_PROMPT_VERSIONS = Object.freeze({
  * - `minimal`: the pinned model snapshot rejects it with 400 `Unsupported value`.
  * - `xhigh` / `max`: measured against the live deployment, these exhaust the whole
  *   output budget on reasoning and return an EMPTY body on every non-trivial route
- *   (analysis 4096, trend 8192, reply 6144 tokens, all `max_output_tokens`
+ *   (analysis 4096, reply 6144 tokens, all `max_output_tokens`
  *   truncated). Re-admitting either requires new measurements, not a type edit.
  */
-export const AI_REASONING_EFFORTS_V1 = Object.freeze([
-  'none',
-  'low',
-  'medium',
-  'high',
-] as const)
+const AI_REASONING_EFFORTS_V1 = Object.freeze(['none', 'low', 'medium', 'high'] as const)
 
 export type AiReasoningEffortV1 = (typeof AI_REASONING_EFFORTS_V1)[number]
 

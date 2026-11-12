@@ -1,3 +1,4 @@
+import { replyRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import * as leakage from '#/shared/ai-reply-output-leakage'
 import { createAiEgressGatewayService } from './service'
 import { createSensitiveSourceLease } from './source-lease'
@@ -8,7 +9,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { admitForTest } from './execution-admission.test-fixtures'
 import { aiAdmissionDescriptorDigest, settlementPermitOf } from './execution-admission'
 import { createAiGatewayRoutePreparer } from './route-preparer'
-import { replyV2Request } from './reply-drafting-v2.test-fixtures'
 import { openAiRequestOf } from './review-evidence.test-fixtures'
 import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
 import {
@@ -16,7 +16,7 @@ import {
   digestRenderedReply,
 } from '#/shared/ai-reply-provenance'
 import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
-import { REPLY_DRAFTING_V2_OPERATION_PROFILE } from '#/shared/reply-drafting-v2-profile'
+import { REPLY_DRAFTING_V2_OPERATION_PROFILE } from '#/shared/reply/profile'
 import { REPLY_DRAFTING_V2_DYNAMIC_PROMPT_BYTES } from '#/shared/reply-drafting-v2-request'
 import { aiGatewayRequestMaxBytes } from '#/contexts/ai/infrastructure/adapters/ai-inprocess.adapter'
 
@@ -64,7 +64,7 @@ describe('reply v2 provider preparation and acceptance', () => {
     ],
   ])('attributes %s using controlled codes only', (reason, output) => {
     const refused = vi.fn()
-    const prepared = preparer('en', refused).prepare(replyV2Request())
+    const prepared = preparer('en', refused).prepare(replyRequest())
     expect(prepared.acceptProviderResult(output)).toBeNull()
     expect(refused).toHaveBeenCalledWith({ route: 'reply-suggestion', reason })
     expect(JSON.stringify(refused.mock.calls)).not.toContain(output.replyText)
@@ -72,7 +72,7 @@ describe('reply v2 provider preparation and acceptance', () => {
 
   it('accepts a prose semicolon without a refusal or a rewrite', () => {
     const refused = vi.fn()
-    const prepared = preparer('en', refused).prepare(replyV2Request())
+    const prepared = preparer('en', refused).prepare(replyRequest())
     expect(
       prepared.acceptProviderResult({
         ...OUTPUT,
@@ -90,7 +90,7 @@ describe('reply v2 provider preparation and acceptance', () => {
       .mockReturnValue('scanner_unavailable')
     const refused = vi.fn()
     try {
-      const prepared = preparer('en', refused).prepare(replyV2Request())
+      const prepared = preparer('en', refused).prepare(replyRequest())
       expect(prepared.acceptProviderResult(OUTPUT)).toBeNull()
       expect(refused).toHaveBeenCalledWith({
         route: 'reply-suggestion',
@@ -104,7 +104,7 @@ describe('reply v2 provider preparation and acceptance', () => {
 
   it('attributes final frame limits and language failures', () => {
     const refused = vi.fn()
-    const limits = replyV2Request()
+    const limits = replyRequest()
     limits.replyV2Frame!.candidates[0]!.suffix = 'x'.repeat(4096)
     expect(
       preparer('en', refused).prepare(limits).acceptProviderResult(OUTPUT),
@@ -113,7 +113,7 @@ describe('reply v2 provider preparation and acceptance', () => {
       route: 'reply-suggestion',
       reason: 'reply_limits',
     })
-    const language = replyV2Request()
+    const language = replyRequest()
     language.replyV2Frame!.candidates[0]!.suffix =
       'Това е дълъг текст на друг език. '.repeat(5)
     expect(
@@ -127,10 +127,10 @@ describe('reply v2 provider preparation and acceptance', () => {
 
   it('passes the served gateway after switch-on', () =>
     expect(
-      parseAiGatewayRouteRequest(replyV2Request()).binding.operationProfileVersion,
+      parseAiGatewayRouteRequest(replyRequest()).binding.operationProfileVersion,
     ).toBe('reply-suggestion-v2'))
   it('uses numbered redaction, fixed knobs, synthetic examples and the v2 prompt identity', () => {
-    const request = replyV2Request(
+    const request = replyRequest(
       'We waited a long time.\nContact person@example.test for more information.',
     )
     const prepared = preparer().prepare(request)
@@ -171,21 +171,21 @@ describe('reply v2 provider preparation and acceptance', () => {
     expect(prepared.invocation.descriptor.limits.costMicros).toBe(expected)
   })
   it('refuses invalid numbering, changed voice identity and arbitrary apology text', () => {
-    const numbering = replyV2Request()
+    const numbering = replyRequest()
     numbering.source.sentences = [
       { number: 2, text: numbering.source.sentences![0]!.text },
     ]
     expect(() => preparer().prepare(numbering)).toThrow('invalid_request')
-    const voice = replyV2Request()
+    const voice = replyRequest()
     voice.replyV2Frame!.voiceDigest = 'c'.repeat(64)
     expect(() => preparer().prepare(voice)).toThrow('policy_unavailable')
-    const arbitrary = replyV2Request()
+    const arbitrary = replyRequest()
     arbitrary.binding.replyDraftingV2!.options.apologyStart = 'client words'
     expect(() => preparer().prepare(arbitrary)).toThrow('Invalid drafting options')
   })
   it('carries only controlled codes after a hard failure and never feeds rejected wording to a rewrite', () => {
     const rejected = 'We are sorry. Call us about the cockroaches, please.'
-    const prepared = preparer().prepare(replyV2Request())
+    const prepared = preparer().prepare(replyRequest())
     expect(
       prepared.acceptProviderResult({
         ...OUTPUT,
@@ -196,7 +196,7 @@ describe('reply v2 provider preparation and acceptance', () => {
     expect(prepared.repairIssues?.()).toEqual(
       expect.arrayContaining(['invitation', 'damaging_words', 'avoidance']),
     )
-    const child = replyV2Request()
+    const child = replyRequest()
     Object.assign(child.binding.replyDraftingV2!, {
       parentOperationId: child.operationId,
       rewriteOrdinal: 1,
@@ -208,7 +208,7 @@ describe('reply v2 provider preparation and acceptance', () => {
     expect(message).toContain('A previous draft for this review broke these rules:')
   })
   it('signs the exact accepted framed text and authenticates Spanish choices without avoidance metadata', () => {
-    const request = replyV2Request(
+    const request = replyRequest(
       'Esperamos mucho tiempo. La habitación era tranquila.',
       'es-Latn',
     )
@@ -244,8 +244,8 @@ describe('reply v2 provider preparation and acceptance', () => {
     expect(JSON.stringify(token)).not.toContain('avoidTerms')
   })
   it('binds every option and voice identity in the admitted descriptor', () => {
-    const original = preparer().prepare(replyV2Request())
-    const changed = replyV2Request()
+    const original = preparer().prepare(replyRequest())
+    const changed = replyRequest()
     changed.binding.replyDraftingV2!.options.maxWords = 18
     changed.binding.replyDraftingV2!.options.length = 'short'
     const next = preparer().prepare(changed)
@@ -261,7 +261,7 @@ describe('reply v2 provider preparation and acceptance', () => {
     )
   })
   it('settles a rejected answer once before returning only fixed rewrite codes', async () => {
-    const request = replyV2Request()
+    const request = replyRequest()
     const prepared = preparer().prepare(request)
     const rejected = 'We are sorry. Call us about the cockroaches, please.'
     const charge = vi.fn<AiAdmissionClient['settle']>(async (admission, outcome) => ({

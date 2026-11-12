@@ -14,7 +14,7 @@ import { PRINT_KIT_INK } from '#/shared/domain/portal-print-kit-palette'
 import { qrDarkRuns, type QrMatrix } from './print-kit-qr'
 type Corner = Readonly<{ x: number; y: number }>
 
-/** The tile's code: one rectangle per run of dark modules, inside its quiet zone (the final kit draws it too). */
+/** The tile's code: one rectangle per run of dark modules, inside its quiet zone (the print kit draws it too). */
 export function drawCode(
   doc: PDFKit.PDFDocument,
   qr: QrMatrix,

@@ -80,12 +80,6 @@ const unavailableInference: AiInferencePort = Object.freeze({
     code: 'provider_unavailable' as const,
     retryAfterEpochMillis: null,
   }),
-  generateTrend: async () => ({
-    route: 'property-trend' as const,
-    status: 'error' as const,
-    code: 'provider_unavailable' as const,
-    retryAfterEpochMillis: null,
-  }),
 })
 
 const unavailableAdmission: AiAdmissionPort = Object.freeze({
@@ -260,12 +254,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     outputs,
     processingProfiles,
     nowEpochMillis,
-    ...(reviewAnalysisContract === undefined
-      ? {}
-      : {
-          reviewAnalysisProfileVersion:
-            reviewAnalysisContract.operationProfile.profileVersion,
-        }),
+    reviewAnalysisProfileVersion: reviewAnalysisContract.operationProfile.profileVersion,
   }
   let replyLanguageDetector:
     Awaited<ReturnType<typeof createCld3ReplyLanguageDetector>> | undefined

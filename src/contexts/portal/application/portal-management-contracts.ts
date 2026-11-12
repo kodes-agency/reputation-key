@@ -35,7 +35,7 @@ export type {
   PortalPrintKitLastPrint,
   PortalPrintKitView,
 } from './portal-print-kit-context'
-export type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
+export type { PrintSavedWording } from '#/shared/domain/portal-print-wording'
 export type { PortalReview, PortalReviewChange } from './use-cases/get-portal-review'
 export type { PublishPortalsChangesResult } from './use-cases/publish-portal-changes'
 export type { ReviewCheck, ReviewLanguageRow } from '../domain/portal-review-rules'

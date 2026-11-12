@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
+import { digestOf } from './ai-digest'
 import { OPENAI_MODEL_SNAPSHOT } from './ai-openai-request-contract'
 import { OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1 } from './ai-openai-provider-profile'
 import { OPENAI_PROVIDER_ATTESTATION_V1 } from './ai-openai-provider-attestation'
@@ -49,8 +48,8 @@ const AI_PROVIDER_DEPLOYMENT_PROFILE_FIELDS_V2 = Object.freeze({
 
 export const AI_PROVIDER_DEPLOYMENT_PROFILE_V2 = Object.freeze({
   ...AI_PROVIDER_DEPLOYMENT_PROFILE_FIELDS_V2,
-  profileDigest: createHash('sha256')
-    .update('repkey-ai-provider-deployment-profile-v2\0', 'utf8')
-    .update(canonicalizeRfc8785(AI_PROVIDER_DEPLOYMENT_PROFILE_FIELDS_V2), 'utf8')
-    .digest('hex'),
+  profileDigest: digestOf(
+    'repkey-ai-provider-deployment-profile-v2\0',
+    AI_PROVIDER_DEPLOYMENT_PROFILE_FIELDS_V2,
+  ),
 })

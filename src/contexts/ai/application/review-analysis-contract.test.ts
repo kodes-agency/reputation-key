@@ -19,7 +19,7 @@ import {
 } from '#/shared/review-analysis-v3'
 import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
 import type { ReviewAnalysisMentionV3, ReviewAnalysisReadV1 } from '../domain/types'
-import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/review-analysis-v3-profile'
+import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/analysis/profile'
 import { createReviewAnalysisContractV3 } from './review-analysis-contract-v3'
 
 const SERVED_NOTICE = {

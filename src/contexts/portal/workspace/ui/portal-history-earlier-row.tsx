@@ -38,6 +38,7 @@ export function PortalHistoryEarlierRow({
             type="button"
             variant="link"
             size="inline"
+            touch
             className="text-sm"
             aria-label={`Show ${versions.length} earlier versions`}
             onClick={() => {

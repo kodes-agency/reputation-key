@@ -1,10 +1,9 @@
-import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
+import { digestOf } from './ai-digest'
 import type { AiProviderId } from './ai-provider-ids'
 import type { AiProviderPriceCatalogue } from './ai-provider-pricing'
 
 // What a provider is attested to be (contract section 7.1). An operation profile
-// says what is asked, in no provider's terms (`ai-logical-operation-profile.ts`).
+// says what is asked, in no provider's terms (`analysis/profile.ts`, `reply/profile.ts`).
 // An attestation says how one provider is asked, what it answers with, what it
 // charges and what it promises about the data, and each fact in it is one a
 // reviewer can compare with the code that acts on it. The two meet in a pairing:
@@ -61,10 +60,7 @@ export type AiProviderAttestation = AiProviderAttestationFacts &
   Readonly<{ attestationVersion: typeof AI_PROVIDER_ATTESTATION_VERSION; digest: string }>
 
 export function digestProviderAttestationValue(domain: string, value: unknown): string {
-  return createHash('sha256')
-    .update(domain, 'utf8')
-    .update(canonicalizeRfc8785(value), 'utf8')
-    .digest('hex')
+  return digestOf(domain, value)
 }
 
 export function deepFreezeProviderContract<Value>(value: Value): Value {
