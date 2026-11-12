@@ -7,7 +7,7 @@ import { expect, mocked, userEvent, waitFor, within } from 'storybook/test'
 import { action, makeResources, portal } from './__fixtures__/portal-editor-fixtures'
 import type { PortalPreviewReader } from '#/components/features/portal/portal-preview/portal-preview-pane'
 import { PortalWritesOffDecorator } from '#/components/features/portal/portal-overview/portal-writes-off-decorator'
-import { PortalUnsavedChangesPrompt } from '#/components/features/portal/portal-detail/portal-unsaved-changes-prompt'
+import { PortalUnsavedChangesPrompt } from '#/contexts/portal/workspace/ui/portal-unsaved-changes-prompt'
 import { PortalEditor } from './portal-editor'
 import { PortalDraftAutosaveProvider } from './portal-draft-autosave-context'
 import { PortalDraftSaveStatus } from './portal-draft-save-status'
@@ -63,6 +63,18 @@ type Story = StoryObj<typeof EditorWithStatus>
 /** One language's card in Welcome, found by the language's name. */
 function languageCard(canvasElement: HTMLElement, language: RegExp) {
   return within(within(canvasElement).getByRole('group', { name: language }))
+}
+
+/** The property-wide and portal-own welcome lines in the Bulgarian card. */
+function bulgarianWelcomeFields(bulgarian: ReturnType<typeof languageCard>) {
+  return {
+    propertyField: bulgarian.getByLabelText('Welcome line for every portal', {
+      selector: '#portal-content-title-bg',
+    }),
+    ownField: bulgarian.getByLabelText('This portal’s welcome line', {
+      selector: '#portal-override-title-bg',
+    }),
+  }
 }
 
 /** The same portal for someone who may not change the property's wording. */
@@ -378,11 +390,9 @@ export const PropertyManagerReadsThePropertyWording: Story = {
       bulgarian.getByText('Only an account admin can change it.'),
     ).toBeVisible()
     // Read-only, not disabled: the wording is shown at full contrast.
-    await expect(
-      bulgarian.getByLabelText('Welcome line for every portal', {
-        selector: '#portal-content-title-bg',
-      }),
-    ).toHaveAttribute('readonly')
+    await expect(bulgarianWelcomeFields(bulgarian).propertyField).toHaveAttribute(
+      'readonly',
+    )
     await expect(
       bulgarian.queryByRole('button', { name: 'Save property wording' }),
     ).toBeNull()
@@ -413,12 +423,7 @@ export const LanguageWithoutPropertyWording: Story = {
     await expect(
       bulgarian.getByRole('button', { name: 'Save property wording' }),
     ).toBeVisible()
-    const propertyField = bulgarian.getByLabelText('Welcome line for every portal', {
-      selector: '#portal-content-title-bg',
-    })
-    const ownField = bulgarian.getByLabelText('This portal’s welcome line', {
-      selector: '#portal-override-title-bg',
-    })
+    const { propertyField, ownField } = bulgarianWelcomeFields(bulgarian)
     await expect(
       Boolean(
         propertyField.compareDocumentPosition(ownField) &

@@ -3,8 +3,8 @@
 // group goals reuse this page without Property-wide Portal rows or other goals.
 
 import { useId, type ReactNode } from 'react'
-import type { PortalGoalPageView } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
-import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalPageView } from '#/contexts/reporting/monthly-goals/contracts'
+import type { PortalGoalOfCard } from '#/contexts/reporting/monthly-goals/contracts'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'

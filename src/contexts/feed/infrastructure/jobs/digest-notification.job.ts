@@ -24,7 +24,7 @@ import type { NotificationRepositoryPort } from '../../application/ports/notific
 import type { UserLookupPort } from '../../application/ports/notification-user-lookup.port'
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
 import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
-import type { NotificationWorkState } from '../../application/notification-work-state'
+import { type NotificationWorkState } from '../../application/ports/notification-work-state.port'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import { DUE_RECIPIENT_SWEEP_CAP } from '../repositories/notification-due-recipients.query'
@@ -86,7 +86,7 @@ export type DigestDeps = Readonly<{
   /** The recipient's current membership, access and responsibility. */
   isRecipientEligible: NotificationRecipientStanding
   /** Whether the work each line asks for is still waiting. */
-  workState: Pick<NotificationWorkState, 'isWaiting'>
+  workState: Pick<NotificationWorkState, 'isWaitingMany'>
   /** `env.BETTER_AUTH_URL`. Injected, never read from env inside the job. */
   baseUrl: string
   activeOneClickUnsubscribeKeyVersion: () => string

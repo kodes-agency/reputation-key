@@ -23,7 +23,7 @@ vi.mock('#/contexts/property/server/property-responsible-managers', () => ({
 }))
 vi.mock('#/routes/-queries/route-queries', () => ({
   propertiesQuery: {},
-  // The shared member list read; the route no longer keeps a copy of it.
+  // The shared member list read.
   membersQuery: () => ({ queryKey: ['members'], queryFn: () => server.listMembers() }),
 }))
 vi.mock('#/routes/_authenticated/properties/$propertyId/-settings-queries', () => ({
@@ -65,9 +65,8 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-// Manager administration belongs to the Account Admin (ADR 0033, amended
-// 2026-10). The loader reads only what the viewer's role may read, so a
-// Property Manager's page never issues a read the server would refuse.
+// Manager administration belongs to the Account Admin. The loader reads only what the viewer's role may read,
+// so a Property Manager's page never issues a read the server would refuse.
 describe('Members route loader by role', () => {
   it("reads invitations and every member's Property access for an Account Admin", async () => {
     await runLoader('AccountAdmin')

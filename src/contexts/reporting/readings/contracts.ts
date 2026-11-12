@@ -335,6 +335,15 @@ export function findMetricVersionById(versionId: string): GovernedMetricVersion 
   return METRIC_VERSIONS_BY_ID[versionId] ?? null
 }
 
+export type MetricRegistry = Readonly<{
+  findVersionById(definitionVersionId: string): Promise<GovernedMetricVersion | null>
+}>
+
+export const metricRegistry: MetricRegistry = {
+  findVersionById: async (definitionVersionId) =>
+    findMetricVersionById(definitionVersionId),
+}
+
 export type PortalDestinationKind = 'google_review' | 'secondary_link'
 
 /** Validate the exact Guest fact shape before it can become a governed reading. */

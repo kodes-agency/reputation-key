@@ -8,7 +8,7 @@ import { unbrand } from '#/shared/domain/ids'
 import type {
   WORKFLOW_NOTIFICATION_CONSUMERS,
   WorkflowNotificationConsumerDeps,
-} from './workflow-outbox-consumers'
+} from '../notify/inbox-workflow.server'
 import {
   createNotificationConsumerDeps,
   NOTIF_TEST_IDS,

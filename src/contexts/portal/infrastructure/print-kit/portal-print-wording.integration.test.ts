@@ -1,8 +1,9 @@
-// The saved wording of the final print kit over real PostgreSQL (2026-10-27): what
+// The saved wording of the print kit over real PostgreSQL (2026-10-27): what
 // "Save wording" stores, what the print kit read says of it, and whose Portal each
 // of them reaches. The use cases are the real ones over the real repositories and
 // the real Portal rows; the repository's own constraints are its own test's.
 
+import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
@@ -34,14 +35,9 @@ const { getPool } = setupIntegrationDb({
   tables: PRINT_KIT_INTEGRATION_TABLES,
 })
 
-const staffPublicApi: StaffPublicApi = {
-  getAccessiblePropertyIds: async () => null,
-  getAssignedPortals: async () => [],
-}
-
 const OWN = { en: { headline: 'Thanks for staying', subline: 'Tell us more' } }
 
-async function harness() {
+async function harness(accessible: readonly string[] | null = null) {
   await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
   await seedLiveImmersiveSnapshot({
     organizationId: COMPLETE_SCENARIO.organizationId,
@@ -52,6 +48,10 @@ async function harness() {
   const db = getDb()
   const portalRepo = createPortalRepository(db)
   const wordingRepo = createPortalPrintWordingRepository(db)
+  const staffPublicApi: StaffPublicApi = {
+    getAccessiblePropertyIds: async () => accessible as never,
+    getAssignedPortals: async () => [],
+  }
   return {
     save: savePortalPrintWording({
       portalRepo,
@@ -144,6 +144,133 @@ describe.sequential('Saved print wording (real PostgreSQL)', () => {
           customWords: OWN,
         }),
         viewer,
+      ),
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(await rows()).toEqual([])
+  })
+  it('refuses a staff name in saved print wording of a personal Portal without saving it', async () => {
+    const { save, ctx } = await harness()
+    await getPool().query(
+      `UPDATE portals SET kind = 'personal', name = 'Polly Smith', public_name = 'Harbor'
+       WHERE id = $1`,
+      [COMPLETE_SCENARIO.portalId],
+    )
+
+    await expect(
+      save(
+        parsed({
+          portalId: COMPLETE_SCENARIO.portalId,
+          callToAction: 'how_was_stay',
+          customWords: { en: { headline: 'Ask Polly', subline: '' } },
+        }),
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: 'personal_portal_name_private' })
+
+    expect(await rows()).toEqual([])
+  })
+
+  it('saves the wording and the own words, normalised, as the Portal’s', async () => {
+    const { save, read, ctx } = await harness()
+    const portalId = COMPLETE_SCENARIO.portalId
+
+    const stored = await save(
+      parsed({
+        portalId,
+        callToAction: 'how_was_stay',
+        customWords: {
+          en: { headline: '  Thanks for\nstaying ', subline: 'Tell us more' },
+        },
+      }),
+      ctx,
+    )
+
+    const wording = {
+      callToAction: 'how_was_stay',
+      customWords: { en: { headline: 'Thanks for staying', subline: 'Tell us more' } },
+    }
+    expect(stored).toEqual(wording)
+    expect((await read({ portalId }, ctx)).savedWording).toEqual(wording)
+  })
+
+  it('keeps own words only where they differ from the wording’s copy, and none when none does', async () => {
+    const { save, ctx } = await harness()
+    const portalId = COMPLETE_SCENARIO.portalId
+
+    const stored = await save(
+      parsed({
+        portalId,
+        callToAction: 'how_was_stay',
+        customWords: {
+          en: { headline: 'How was your stay?', subline: 'Share your experience' },
+          bg: { headline: 'Благодарим', subline: '' },
+        },
+      }),
+      ctx,
+    )
+    expect(stored).toEqual({
+      callToAction: 'how_was_stay',
+      customWords: { bg: { headline: 'Благодарим', subline: '' } },
+    })
+
+    const plain = await save(
+      parsed({
+        portalId,
+        callToAction: 'how_did_we_do',
+        customWords: { en: { headline: 'How did we do?', subline: 'About 30 seconds' } },
+      }),
+      ctx,
+    )
+    expect(plain).toEqual({ callToAction: 'how_did_we_do', customWords: null })
+  })
+
+  it('does not judge whether the words fit a print: that is the download’s', async () => {
+    const { save, ctx } = await harness()
+    const sixty = 'W'.repeat(60)
+
+    await expect(
+      save(
+        parsed({
+          portalId: COMPLETE_SCENARIO.portalId,
+          callToAction: 'how_did_we_do',
+          customWords: { en: { headline: sixty, subline: sixty } },
+        }),
+        ctx,
+      ),
+    ).resolves.toMatchObject({ customWords: { en: { headline: sixty } } })
+  })
+
+  it.each(['Get 10% off', 'Feel free to tell us; free dessert'])(
+    'refuses own words that offer something for the review, as the download does (%s)',
+    async (headline) => {
+      const { save, ctx } = await harness()
+
+      await expect(
+        save(
+          parsed({
+            portalId: COMPLETE_SCENARIO.portalId,
+            callToAction: 'how_did_we_do',
+            customWords: { en: { headline, subline: '' } },
+          }),
+          ctx,
+        ),
+      ).rejects.toMatchObject({
+        code: 'print_format_not_offered',
+        context: { cause: 'remove_offer' },
+      })
+
+      expect(await rows()).toEqual([])
+    },
+  )
+
+  it('refuses a Portal in a Property the caller is not assigned to', async () => {
+    const { save, ctx } = await harness([randomUUID()])
+
+    await expect(
+      save(
+        parsed({ portalId: COMPLETE_SCENARIO.portalId, callToAction: 'how_did_we_do' }),
+        ctx,
       ),
     ).rejects.toMatchObject({ code: 'forbidden' })
 

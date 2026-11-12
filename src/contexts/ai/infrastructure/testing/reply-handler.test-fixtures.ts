@@ -105,6 +105,8 @@ async function createHarness(
       | 'output_truncated'
       | 'completed_without_delivery'
       | 'operation_ambiguous'
+      | 'source_revision_changed'
+      | 'capability_epoch_changed'
     /** The notice the Property's consent was recorded under. Defaults to the served one. */
     consentNotice?: Readonly<{ noticeVersion: string; noticeDigest: string }>
     /**
@@ -222,13 +224,9 @@ async function createHarness(
           },
           settlementReceipt: {
             version: 'ai-settlement-receipt-v1' as const,
-
-            grantKid: 'grant-v1',
             operationId: request.operationId,
             permitId: request.permitId,
             attemptNumber: request.attemptNumber,
-            nonce: 'AQIDBA',
-            requestBindingHmac: 'A'.repeat(43),
             disposition: 'success' as const,
             reportedDisposition: 'success' as const,
             providerRetryable: false,

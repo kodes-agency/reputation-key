@@ -21,7 +21,7 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type {
   PortalCommandStore,
   RepublishPortalCommand,
-} from '../ports/portal-command-store.port'
+} from '../../publication/portal-command-store-port.server'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import { loadPortalOrThrow } from '../load-accessible-portal'

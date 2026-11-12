@@ -18,7 +18,7 @@ import type {
   PortalCommandStore,
   RemovePortalFromGroupCommand,
   UpdatePortalGroupCommand,
-} from '../application/ports/portal-command-store.port'
+} from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import {
   groupMovementEntries,

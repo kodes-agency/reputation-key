@@ -8,7 +8,7 @@ import type {
   PortalGoalChangeFacts,
   PortalGoalOffer,
   PortalGoalSheetFacts,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import {
   OFFER_NOVEMBER,
   OFFER_SCANS,

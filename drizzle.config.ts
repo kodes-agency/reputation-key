@@ -10,8 +10,8 @@ if (!databaseUrl) throw new Error('DATABASE_URL is required for Drizzle tooling'
 
 // The migratable barrel IS the boundary: every app-owned table. Auth
 // tables (user, session, account, verification, organization, member,
-// invitation) are excluded by the barrel and managed by
-// `pnpm auth:migrate` (Better Auth CLI). tablesFilter is derived FROM the
+// invitation) are excluded by the barrel: they follow the pinned Better Auth
+// runtime's schema. tablesFilter is derived FROM the
 // barrel (never a second hand-maintained list): db:push introspects only
 // these tables — without it, push pulls the auth tables, hits interactive
 // rename/conflict prompts, and dies in non-TTY shells.
@@ -28,15 +28,16 @@ export default defineConfig({
     url: databaseUrl,
   },
   tablesFilter: managedTables,
-  // Schema authority (BQC-5.4): Better Auth owns its tables; this journal owns
-  // application tables, DB-only constructs, and control-plane seed data. The
+  // Schema authority (BQC-5.4): this journal owns Better Auth's tables (as the
+  // pinned runtime defines them), application tables, DB-only constructs, and
+  // control-plane seed data. The
   // Drizzle model is verified semantically against migrated metadata by
   // src/shared/db/migration-verification.test.ts. Migrate-based workflow:
   // edit schema -> append a hand-written migration to drizzle/ -> `pnpm db:migrate`
   // (src/shared/db/CONTEXT.md, "Change loop"; the journal is never regenerated).
   // Do NOT use db:push — it bypasses the journal and concealed prior drift.
-  // Deploy order is `pnpm auth:migrate` -> `pnpm db:migrate`, so constructs
-  // targeting Better Auth tables resolve. BQC-7.1 runs both tracks inside the
+  // The Better Auth file is a journal prerequisite, so constructs targeting its
+  // tables resolve on an empty database. BQC-7.1 runs the journal inside the
   // Railway preDeployCommand via scripts/migrate-deploy.ts (advisory-locked,
   // idempotent, forward-recovery); CI's "Predeploy migration parity" step
   // proves end-state equivalence.

@@ -427,3 +427,10 @@ retry and a repeated click reuse it, and any finished answer rotates it.
   attempt, permit, usage, disposition and delivery deadlines. Admission grants
   and browser provenance remain signed. Unknown usage, reaping and late
   settlement retain the accounting rules above.
+
+- **2026-11-12** — Admission returns a typed, single-use admission minted in
+  process by the PostgreSQL authority, in place of the signed grant, request
+  binding HMAC and nonce, and none of them is written. Settlement needs an open
+  reservation for the stored permit and attempt. New reply provenance names the
+  execution permit and attempt; adoption still accepts a token bound to the
+  request binding HMAC of a row admitted earlier.

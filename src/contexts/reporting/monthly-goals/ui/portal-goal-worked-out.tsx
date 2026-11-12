@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import type { PortalGoalOffer } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalOffer } from '#/contexts/reporting/monthly-goals/contracts'
 import { ExplainTrigger } from '#/components/ui/explain-trigger'
 import { IconButton } from '#/components/ui/icon-button'
 import { Popover, PopoverContent } from '#/components/ui/popover'

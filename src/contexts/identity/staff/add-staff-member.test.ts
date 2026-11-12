@@ -35,9 +35,9 @@ function setup(fail?: StaffOnboardingStep, existingMember = false) {
     }
   }
   const store: StaffAccountStore = {
-    withAddressLocks: async (_org, _emails, run) => run(store),
+    withAddressLocks: async (_emails, run) => run(store),
     markDeliveryProblem: vi.fn(async () => {}),
-    withAddressLock: async (_org, _email, run) => {
+    withAddressLock: async (_email, run) => {
       const previous = queue
       let release = () => {}
       queue = new Promise<void>((resolve) => {
@@ -144,7 +144,6 @@ describe('addStaffMember', () => {
         ...store,
         markDeliveryProblem: vi.fn(async () => {}),
         withAddressLock: async <T>(
-          _org: string,
           _email: string,
           run: (store: StaffAccountStore) => Promise<T>,
         ) => run(store),
@@ -199,7 +198,7 @@ describe('addStaffMember', () => {
     const store: StaffAccountStore = {
       ...h.deps.store,
       markDeliveryProblem: vi.fn(async () => {}),
-      withAddressLock: async (_org, _email, run) => run(store),
+      withAddressLock: async (_email, run) => run(store),
       addressFacts: async () => ({
         ...facts,
         staffParticipantId: 'existing-person',
@@ -293,7 +292,6 @@ describe('addStaffMember', () => {
         ...store,
         markDeliveryProblem: vi.fn(async () => {}),
         withAddressLock: async <T>(
-          _org: string,
           _email: string,
           run: (value: StaffAccountStore) => Promise<T>,
         ) => run(store),
@@ -358,7 +356,6 @@ it('conceals another Organization from a PropertyManager on add', async () => {
       ...store,
       markDeliveryProblem: vi.fn(async () => {}),
       withAddressLock: async <T>(
-        _org: string,
         _email: string,
         run: (value: StaffAccountStore) => Promise<T>,
       ) => run(store),
@@ -391,7 +388,6 @@ it.each(['AccountAdmin', 'PropertyManager'] as const)(
         ...store,
         markDeliveryProblem: vi.fn(async () => {}),
         withAddressLock: async <T>(
-          _org: string,
           _email: string,
           run: (value: StaffAccountStore) => Promise<T>,
         ) => run(store),

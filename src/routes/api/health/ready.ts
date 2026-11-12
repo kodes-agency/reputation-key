@@ -9,7 +9,7 @@
 // WORKER HEARTBEAT IS DELIBERATELY NOT PART OF WEB READINESS: the web tier
 // serves traffic without a worker, so a degraded non-critical worker must
 // not take web traffic down. Worker-heartbeat alerting consumes the ops
-// metrics snapshot (/api/health/metrics) — that is BQC-7.4's job.
+// metrics snapshot (/api/health/metrics).
 import { createFileRoute } from '@tanstack/react-router'
 import { isContainerReady } from '#/composition/container-readiness.server'
 import { areRedisDependenciesHealthy } from '#/shared/health/redis-dependencies'

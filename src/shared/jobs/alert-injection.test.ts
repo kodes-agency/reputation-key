@@ -127,7 +127,6 @@ function healthySnapshot(): MutableSnapshot {
         oldestAcceptedUnresolvedAgeMs: null,
         capturedUnresolvedCount: 0,
       },
-      missingForInboxItemCount: 0,
       deliveryLag: {
         sourceReceiptPending: 0,
         sourceReceiptPendingByEventType: {},
@@ -258,7 +257,6 @@ describe('alert registry contract (BQC-7.4)', () => {
       'notification.email-stalled',
       'notification.immediate-email-acceptance-lag',
       'notification.in-app-delivery-lag',
-      'notification.missing-for-inbox-item',
       'observability.snapshot-degraded',
       'queue.oldest-age',
       'queue.quarantine-growth',
@@ -531,17 +529,6 @@ const BREACHES: readonly Breach[] = [
           oldestAgeMs: 9 * 60 * 60 * 1000,
         },
       }
-    },
-  },
-  {
-    name: 'notification.missing-for-inbox-item',
-    severity: 'P1',
-    runbook: 'runbooks.md §15',
-    threshold: 0,
-    windowMs: 5 * 60 * 1000,
-    value: 3,
-    apply: (s) => {
-      s.notifications = { ...s.notifications, missingForInboxItemCount: 3 }
     },
   },
   {

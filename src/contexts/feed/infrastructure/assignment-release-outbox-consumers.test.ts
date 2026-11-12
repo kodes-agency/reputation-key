@@ -7,6 +7,7 @@ import {
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, userId } from '#/shared/domain/ids'
+import { registerAssignmentReleaseNotificationConsumer } from './inbox-notice-routes'
 import {
   createNotificationConsumerDeps,
   noticeWriterOver,
@@ -14,8 +15,7 @@ import {
 import {
   handleNotificationAssignmentsReleased,
   ON_INBOX_ASSIGNMENTS_RELEASED_CONSUMER,
-  registerAssignmentReleaseNotificationConsumer,
-} from './assignment-release-outbox-consumers'
+} from '../notify/inbox.server'
 import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()

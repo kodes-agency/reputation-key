@@ -6,6 +6,7 @@ import {
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { registerBulkAssignmentNotificationConsumer } from './inbox-notice-routes'
 import {
   createNotificationConsumerDeps,
   noticeWriterOver,
@@ -13,8 +14,7 @@ import {
 import {
   handleNotificationBulkAssignmentCompleted,
   ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER,
-  registerBulkAssignmentNotificationConsumer,
-} from './bulk-assignment-outbox-consumers'
+} from '../notify/inbox.server'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()

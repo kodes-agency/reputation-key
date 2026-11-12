@@ -27,7 +27,7 @@ import {
   joinPhrases,
   nativeLanguage,
   phraseText,
-} from '#/components/features/portal/portal-history/portal-history-phrase'
+} from '#/contexts/portal/workspace/ui/portal-history-phrase'
 import {
   describeReviewCheck,
   reviewCheckContext,

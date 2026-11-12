@@ -1,27 +1,24 @@
 // The gateway and admission authority run in process. PostgreSQL owns permits
 // and budget settlement; the gateway releases output only after settlement.
 
-import type { KeyObject } from 'node:crypto'
 import type { Pool } from 'pg'
 import type { Env } from '#/shared/config/env'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { createCld3ReplyLanguageDetector } from '#/shared/ai-reply-language-verifier'
 import {
-  assertAiAdmissionPrivateKeyInventory,
-  assertAiAdmissionPublicKeyringInventory,
   assertAiProvenancePrivateKeyInventory,
-  assertAiRequestBindingKeyringInventory,
   resolveAiGatewayRuntimeKeyInventory,
 } from '#/shared/ai-gateway-key-inventory'
 import {
   createAiEgressGatewayService,
   type AiEgressGatewayService,
 } from '#/shared/ai-provider-control/service'
+import { aiAdmissionDescriptorSchema } from '#/shared/ai-internal-transport-contract'
 import {
-  createAiExecutionAdmissionService,
-  type AiExecutionAdmissionService,
-} from '#/shared/ai-provider-control/admission-service'
-import { createPostgresAiAdmissionAuthority } from '#/shared/db/ai/postgres-admission-authority'
+  isMintedAiExecutionAdmission,
+  settlementPermitOf,
+  type AiExecutionAdmissionAuthority,
+} from '#/shared/ai-provider-control/execution-admission'
+import { createAiExecutionAdmissionAdapter } from '#/contexts/ai/infrastructure/adapters/ai-execution-admission.adapter'
 import { createAiGatewayRoutePreparer } from '#/shared/ai-provider-control/route-preparer'
 import { createOpenAiConnector } from '#/shared/ai-provider-control/openai-connector'
 import { createOpenAiProviderAdapter } from '#/shared/ai-provider-control/openai-provider-adapter'
@@ -33,7 +30,6 @@ import { OPERATOR_PROVIDER_SELECTION } from '#/shared/ai-provider-control/operat
 import { createLocalAiProviderFetch } from '#/shared/ai-provider-control/local-provider-fetch'
 import {
   loadEd25519PrivateKey,
-  loadEd25519PublicKeyring,
   loadSafetyIdentifierKey,
 } from '#/shared/ai-provider-control/key-material'
 import type { AiAdmissionClient } from '#/shared/ai-provider-control/contracts'
@@ -48,25 +44,48 @@ export type AiEgressRuntime = Readonly<{
   service(): Promise<AiEgressGatewayService>
 }>
 
+function unavailable(): Error {
+  return new Error('AI admission authority is unavailable')
+}
+
 /**
- * The admission service decides synchronously against the database; the gateway
- * expects the client shape the mTLS transport used to present. The two differ
- * only in the discriminant name and an ignored `signal` — the wire's cancellation
- * had a socket to abort, a function call does not.
+ * The admission authority decides against the database; the gateway expects
+ * the client shape the mTLS transport used to present, with an ignored `signal`
+ * — the wire's cancellation had a socket to abort, a function call does not. A
+ * descriptor that is not the strict contract is refused before the database, and
+ * a database failure surfaces as one opaque error, never as an admission.
  */
-function inProcessAdmissionClient(
-  service: AiExecutionAdmissionService,
+export function inProcessAdmissionClient(
+  authority: AiExecutionAdmissionAuthority,
 ): AiAdmissionClient {
   return Object.freeze({
-    authorize: async (request) => {
-      const result = await service.authorize(request)
-      return result.ok
-        ? Object.freeze({ status: 'authorized' as const, grant: result.grant })
+    authorize: async (descriptor) => {
+      if (!aiAdmissionDescriptorSchema.safeParse(descriptor).success) {
+        return Object.freeze({ status: 'denied' as const, code: 'malformed_request' })
+      }
+      let result: Awaited<ReturnType<AiExecutionAdmissionAuthority['authorize']>>
+      try {
+        result = await authority.authorize(descriptor)
+      } catch {
+        throw unavailable()
+      }
+      return result.status === 'admitted'
+        ? Object.freeze({ status: 'authorized' as const, admission: result.admission })
         : Object.freeze({ status: 'denied' as const, code: result.code })
     },
-    settle: async (permit, outcome) => {
-      const result = await service.settle(permit, outcome)
-      return result.ok
+    settle: async (admission, outcome) => {
+      // Only an admission this process's authority minted names an attempt
+      // whose reservation it may close.
+      if (!isMintedAiExecutionAdmission(admission)) {
+        return Object.freeze({ status: 'denied' as const, code: 'permit_mismatch' })
+      }
+      let result: Awaited<ReturnType<AiExecutionAdmissionAuthority['settle']>>
+      try {
+        result = await authority.settle(settlementPermitOf(admission), outcome)
+      } catch {
+        throw unavailable()
+      }
+      return result.status === 'settled'
         ? Object.freeze({ status: 'settled' as const, receipt: result.receipt })
         : Object.freeze({ status: 'denied' as const, code: result.code })
     },
@@ -146,40 +165,8 @@ export function createAiEgressRuntime(
       AI_KEY_INVENTORY_PROFILE: env.AI_KEY_INVENTORY_PROFILE,
     })
 
-    const requestBindingKeys = createVersionedHmacKeyring(
-      requireEnv(env.AI_REQUEST_BINDING_HMAC_KEYS, 'AI_REQUEST_BINDING_HMAC_KEYS'),
-    )
-    assertAiRequestBindingKeyringInventory(requestBindingKeys, keyInventory)
-
     const safety = loadSafetyIdentifierKey(
       requireEnv(env.AI_SAFETY_IDENTIFIER_HMAC_KEYS, 'AI_SAFETY_IDENTIFIER_HMAC_KEYS'),
-    )
-
-    const admissionPublicKeys: ReadonlyMap<string, KeyObject> = loadEd25519PublicKeyring(
-      requireEnv(
-        env.AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON,
-        'AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON',
-      ),
-    )
-    assertAiAdmissionPublicKeyringInventory(admissionPublicKeys, keyInventory)
-
-    const admissionKid = requireEnv(
-      env.AI_ADMISSION_ED25519_KID,
-      'AI_ADMISSION_ED25519_KID',
-    )
-    const admissionPrivateKey = loadEd25519PrivateKey(
-      requireEnv(
-        env.AI_ADMISSION_ED25519_PRIVATE_KEY_B64,
-        'AI_ADMISSION_ED25519_PRIVATE_KEY_B64',
-      ),
-    )
-    // The public keyring above is pinned; this pins the key that signs. A
-    // private key that does not pair with it signs grants that the gateway then
-    // fails to verify, after the database has admitted the operation and
-    // reserved its budget, and the operation answers `operation_ambiguous`.
-    assertAiAdmissionPrivateKeyInventory(
-      { kid: admissionKid, privateKey: admissionPrivateKey },
-      keyInventory,
     )
 
     const provenanceKid = requireEnv(
@@ -198,22 +185,11 @@ export function createAiEgressRuntime(
     )
 
     const admission = inProcessAdmissionClient(
-      createAiExecutionAdmissionService({
-        requestBindingKeys,
-        signingKid: admissionKid,
-        signingPrivateKey: admissionPrivateKey,
-        database: createPostgresAiAdmissionAuthority({
-          pool: input.pool,
-          signingKid: admissionKid,
-          now: input.clock,
-        }),
-      }),
+      createAiExecutionAdmissionAdapter({ pool: input.pool, now: input.clock }),
     )
 
     const connector = createOpenAiConnector({
       apiKey: requireEnv(env.OPENAI_API_KEY, 'OPENAI_API_KEY'),
-      requestBindingKeys,
-      admissionPublicKeys,
       // Unset in production, where the connector pins its own outbound path to
       // api.openai.com. The guard above is what keeps it unset there.
       ...(env.AI_PROVIDER_LOCAL_STUB === undefined
@@ -231,7 +207,6 @@ export function createAiEgressRuntime(
 
     const preparer = createAiGatewayRoutePreparer({
       providers,
-      requestBindingKeys,
       safetyIdentifierKey: safety.key,
       replyLanguageDetector: await createCld3ReplyLanguageDetector(),
       provenanceKid,
@@ -249,7 +224,6 @@ export function createAiEgressRuntime(
       admission,
       providers,
       preparer,
-      admissionPublicKeys,
     })
   }
 

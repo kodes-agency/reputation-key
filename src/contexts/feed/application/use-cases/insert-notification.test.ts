@@ -8,7 +8,7 @@ import { buildFakeInsertNotificationDeps } from './test-fixtures'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { Notification, NotificationCategory } from '../../domain/notification-types'
 import { applyCoalescence } from '../../domain/notification-policy'
-import { SETTLED_EMAIL_REASON } from '../../domain/notification-settlement'
+import { SETTLED_EMAIL_REASON } from '../../domain/notification-actionable'
 import {
   resolveCategoryPreference,
   type CategoryPreferenceValues,

@@ -2,7 +2,7 @@
 // Focus the first control when the step changes.
 
 import { useEffect, useRef, type ReactNode } from 'react'
-import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
+import type { PortalGoalAddOptions } from '#/contexts/reporting/monthly-goals/contracts'
 import { GoalSheetHeader } from '../../../../components/goals/goal-sheet-frame'
 import { PortalGoalAddEach } from './portal-goal-add-each'
 import {

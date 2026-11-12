@@ -481,7 +481,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'staff-accounts.schema.ts',
-    exportNames: ['staffOnboardings', 'staffPropertySettings'],
+    exportNames: ['staffAddressLeases', 'staffOnboardings', 'staffPropertySettings'],
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'ADR 0076',

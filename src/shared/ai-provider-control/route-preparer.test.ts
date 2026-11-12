@@ -31,7 +31,6 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
@@ -168,7 +167,6 @@ function preparer(
   const provenance = generateKeyPairSync('ed25519')
   return createAiGatewayRoutePreparer({
     ...(onOutputRefused ? { onOutputRefused } : {}),
-    requestBindingKeys: createVersionedHmacKeyring(`request-v1:${'11'.repeat(32)}`),
     safetyIdentifierKey: Buffer.alloc(32, 7),
     replyLanguageDetector: {
       detect,
@@ -195,7 +193,7 @@ const acceptedAnalysis = Object.freeze({
   urgent: null,
 })
 const fakeReceipt = () => ({ marker: 'settled-receipt' }) as never
-const fakeGrant = () => ({}) as never
+const fakeAdmission = () => ({}) as never
 
 beforeEach(() => {
   vi.spyOn(process.versions, 'node', 'get').mockReturnValue(
@@ -235,7 +233,7 @@ describe('gateway route-preparer source lifetime', () => {
     })
     const accepted = prepared.acceptProviderResult(acceptedAnalysis)
     expect(accepted).not.toBeNull()
-    expect(accepted?.buildResponse(fakeReceipt(), fakeGrant())).toMatchObject({
+    expect(accepted?.buildResponse(fakeReceipt(), fakeAdmission())).toMatchObject({
       route: 'review-analysis',
       status: 'success',
       result: { contract: 'review-analysis-v3' },
@@ -258,7 +256,7 @@ describe('gateway route-preparer source lifetime', () => {
     })
     const accepted = prepared.acceptProviderResult(acceptedAnalysis)
     expect(accepted).not.toBeNull()
-    const response = accepted?.buildResponse(fakeReceipt(), fakeGrant())
+    const response = accepted?.buildResponse(fakeReceipt(), fakeAdmission())
     expect(response).toMatchObject({
       route: 'review-analysis',
       status: 'success',
@@ -412,7 +410,8 @@ describe('gateway route-preparer source lifetime', () => {
     expect(accepted).not.toBeNull()
     expect(
       accepted?.buildResponse(fakeReceipt(), {
-        requestBindingHmac: 'A'.repeat(43),
+        permitId: '10000000-0000-4000-8000-000000000002',
+        attemptNumber: 1,
         replyTokenExpiresAtEpochMillis: Date.now() + 60_000,
         replyDraftExpiresAtEpochMillis: Date.now() + 120_000,
       } as never),

@@ -9,6 +9,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { toast } from 'sonner'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
 import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
@@ -93,7 +94,7 @@ async function tidy() {
 /** The action sits right after "Open on Google", before the copy items. */
 export const Offered: Story = {
   args: { answer: 'no_reply' },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const menu = await openMenu(canvasElement)
     const labels = menu
       .getAllByRole('menuitem')
@@ -107,15 +108,13 @@ export const Offered: Story = {
     expect(check).not.toHaveAttribute('aria-busy')
     expect(check).not.toHaveAttribute('aria-disabled')
     await tidy()
-  },
+  }),
 }
-
-export const OfferedLight: Story = { ...Offered, parameters: { theme: 'light' } }
 
 /** Running: the item says so, is busy, and the menu stays open on it. */
 export const Checking: Story = {
   args: { answer: 'never' },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const menu = await openMenu(canvasElement)
     await userEvent.click(checkItem(menu))
 
@@ -130,10 +129,8 @@ export const Checking: Story = {
     await userEvent.click(running)
     expect(screen.getByRole('menu')).toBeInTheDocument()
     await tidy()
-  },
+  }),
 }
-
-export const CheckingLight: Story = { ...Checking, parameters: { theme: 'light' } }
 
 /** The answer is a toast, and the menu closes behind it. */
 async function playAnswer(canvasElement: HTMLElement, toastText: string) {

@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { ZodError } from 'zod/v4'
-import {
-  parseAiGatewayRouteRequest,
-  parseAiGatewayRouteResponse,
-} from './ai-gateway-transport-contract'
+import { ZodError, z } from 'zod/v4'
+import { parseAiGatewayRouteRequest } from './ai-gateway-transport-contract'
+import { AI_ANALYSIS_V2_OUTPUT_SCHEMA } from './ai-route-output-schemas'
+import { reviewAnalysisV3GatewayResultSchema } from './review-analysis-v3-request'
 import {
   analysisRequest,
   analysisV3Request,
@@ -301,43 +300,44 @@ describe('review-analysis v3 evidence request', () => {
       issueLabel: null,
     } as const
 
+    // The answer a response carries is one the route accepted under one of the
+    // two analysis contracts; this is the check that admits it.
+    const analysisAnswerSchema = z.union([
+      AI_ANALYSIS_V2_OUTPUT_SCHEMA,
+      reviewAnalysisV3GatewayResultSchema,
+    ])
+
     function success(result: unknown) {
       return {
         route: 'review-analysis',
         status: 'success',
-        result,
+        result: analysisAnswerSchema.parse(result),
         settlementReceipt: receipt,
       }
     }
 
     it('still parses a v2 answer, which is the only one served', () => {
-      expect(parseAiGatewayRouteResponse(success(v2Result))).toMatchObject({
+      expect(success(v2Result)).toMatchObject({
         status: 'success',
         result: v2Result,
       })
     })
 
     it('parses a v3 answer: the normalized answer and what normalizing it did', () => {
-      expect(parseAiGatewayRouteResponse(success(v3Result))).toMatchObject({
+      expect(success(v3Result)).toMatchObject({
         status: 'success',
         result: v3Result,
       })
     })
 
     it('does not take one answer for the other', () => {
-      expect(() =>
-        parseAiGatewayRouteResponse(
-          success({ ...v2Result, contract: 'review-analysis-v3' }),
-        ),
-      ).toThrow(ZodError)
-      expect(() =>
-        parseAiGatewayRouteResponse(
-          success({ contract: 'review-analysis-v3', ...v2Result }),
-        ),
-      ).toThrow(ZodError)
-      expect(() =>
-        parseAiGatewayRouteResponse(success({ ...v3Result, answer: v2Result })),
-      ).toThrow(ZodError)
+      expect(() => success({ ...v2Result, contract: 'review-analysis-v3' })).toThrow(
+        ZodError,
+      )
+      expect(() => success({ contract: 'review-analysis-v3', ...v2Result })).toThrow(
+        ZodError,
+      )
+      expect(() => success({ ...v3Result, answer: v2Result })).toThrow(ZodError)
     })
 
     it('refuses an answer that breaks the stored contract, a flag it does not know or a repeated one', () => {
@@ -368,16 +368,14 @@ describe('review-analysis v3 evidence request', () => {
         },
       ]
       for (const result of wrong) {
-        expect(() => parseAiGatewayRouteResponse(success(result))).toThrow(ZodError)
+        expect(() => success(result)).toThrow(ZodError)
       }
     })
 
     it('carries no provider text beyond the stored contract', () => {
-      expect(() =>
-        parseAiGatewayRouteResponse(
-          success({ ...v3Result, providerAnswer: { raw: 'text' } }),
-        ),
-      ).toThrow(ZodError)
+      expect(() => success({ ...v3Result, providerAnswer: { raw: 'text' } })).toThrow(
+        ZodError,
+      )
     })
   })
 })

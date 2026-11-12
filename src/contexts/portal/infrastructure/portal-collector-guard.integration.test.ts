@@ -13,7 +13,7 @@ import {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
 } from '#/contexts/reporting/application/public-api'
-import type { UpdatePortalCommand } from '../application/ports/portal-command-store.port'
+import type { UpdatePortalCommand } from '../publication/portal-command-store-port.server'
 import {
   portalArchived,
   portalDeleted,

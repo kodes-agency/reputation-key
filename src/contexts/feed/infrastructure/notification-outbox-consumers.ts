@@ -16,10 +16,7 @@ import {
   inboxItemId as brandInboxItemId,
   organizationId as brandOrganizationId,
 } from '#/shared/domain/ids'
-import {
-  inboxItemCreatedNotices,
-  type InboxFanoutDeps,
-} from './inbox-notification-fanout'
+import { inboxItemCreatedNotices, type InboxFanoutDeps } from '../notify/inbox.server'
 import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 
 const INBOX_ITEM_CREATED_EVENT = 'inbox.inbox_item.created' as const

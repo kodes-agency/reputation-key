@@ -32,7 +32,7 @@ import { PROPERTY_IMPORT_RETENTION_RELEASED_EVENT } from '#/contexts/integration
 
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import type { GoogleImportStore } from '#/contexts/integration/application/ports/google-import-store.port'
-import * as bindingModule from '#/contexts/property/infrastructure/property-google-binding-store'
+import * as bindingModule from '#/contexts/property/profile/google-binding-store.server'
 import * as importStoreModule from '#/contexts/integration/imports/import-store.server'
 import { createTokenEncryptionAdapter } from '#/contexts/integration/infrastructure/adapters/token-encryption.adapter'
 import {

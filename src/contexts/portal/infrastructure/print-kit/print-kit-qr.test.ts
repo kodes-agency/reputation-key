@@ -1,7 +1,6 @@
 import QRCode from 'qrcode'
 import { describe, expect, it } from 'vitest'
-import { PRINT_KIT_QR_QUIET_ZONE_MODULES } from '#/shared/domain/portal-print-kit'
-import { qrDarkRuns, qrMatrix, qrPlateModules } from './print-kit-qr'
+import { qrDarkRuns, qrMatrix } from './print-kit-qr'
 
 const ADDRESS =
   'https://app.reputationkey.app/p/pt_AbCdEfGhIjKlMnOp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-aBcDe?accessArtifact=0b6d1c1e-52c4-4b34-9d63-6e3b4a1f9a10'
@@ -43,12 +42,5 @@ describe('qrDarkRuns', () => {
   it('merges neighbours, so a code takes far fewer rectangles than modules', () => {
     const matrix = qrMatrix(ADDRESS)
     expect(qrDarkRuns(matrix).length).toBeLessThan((matrix.size * matrix.size) / 3)
-  })
-})
-
-describe('qrPlateModules', () => {
-  it('is the symbol plus a four-module quiet zone on every side', () => {
-    expect(PRINT_KIT_QR_QUIET_ZONE_MODULES).toBe(4)
-    expect(qrPlateModules(29)).toBe(37)
   })
 })

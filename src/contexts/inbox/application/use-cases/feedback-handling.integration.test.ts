@@ -5,16 +5,12 @@ import { correctFeedbackHandlingOutcome } from './correct-feedback-handling-outc
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
-  dropInboxUseCaseTenant,
-  runScopedId,
-} from '../../infrastructure/inbox-database-fixtures-use-case-ids'
-import {
-  clearInboxUseCaseRows,
+  clearInboxOrganization,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
+  dropInboxUseCaseTenant,
   openFixturePool,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
-import {
+  runScopedId,
   seedInboxItem,
   seedInboxOrganization,
 } from '../../infrastructure/inbox-database-fixtures'
@@ -119,7 +115,7 @@ describe.sequential('feedback handling commands', () => {
     await seedInboxOrganization(pool, ORG_ID, [PROPERTY_ID])
   })
 
-  beforeEach(() => clearInboxUseCaseRows(pool, ORG_ID))
+  beforeEach(() => clearInboxOrganization(pool, ORG_ID))
 
   afterAll(async () => {
     clearEventSchemas()

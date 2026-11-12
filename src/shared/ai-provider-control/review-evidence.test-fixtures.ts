@@ -11,12 +11,15 @@ import {
   analysisV3Request,
   receipt,
 } from '#/shared/ai-gateway-transport-contract.test-fixtures'
-import type { ReviewAnalysisGatewayRequestV1 } from '#/shared/ai-gateway-transport-contract'
+import type {
+  AiGatewayRouteResponseV1,
+  ReviewAnalysisGatewayRequestV1,
+} from '#/shared/ai-gateway-transport-contract'
+import { reviewAnalysisV3GatewayResultSchema } from '#/shared/review-analysis-v3-request'
 import {
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
   REVIEW_ANALYSIS_V3_OPENAI_PAIRING,
 } from '#/shared/review-analysis-v3-profile'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { PreparedGatewayRouteExecution } from './contracts'
 import type { PreparedAiInvocation } from './prepared-invocation'
 import {
@@ -58,7 +61,6 @@ export function evidencePreparer(
 ) {
   const provenance = generateKeyPairSync('ed25519')
   return createAiGatewayRoutePreparer({
-    requestBindingKeys: createVersionedHmacKeyring(`request-v1:${'11'.repeat(32)}`),
     safetyIdentifierKey: Buffer.alloc(32, 7),
     replyLanguageDetector: {
       detect: () => ({ language: 'en', probability: 1, reliable: true }),
@@ -71,4 +73,22 @@ export function evidencePreparer(
 }
 
 export const fakeSettlementReceipt = () => receipt as never
-export const fakeGrant = () => ({}) as never
+export const fakeAdmission = () => ({}) as never
+
+/**
+ * A built analysis response, with a v3 answer checked by the schema its reader
+ * applies before storing it.
+ */
+export function checkedAnalysisResponse(
+  response: AiGatewayRouteResponseV1 | undefined,
+): AiGatewayRouteResponseV1 {
+  if (response === undefined) throw new Error('expected a built response')
+  if (
+    response.status === 'success' &&
+    response.route === 'review-analysis' &&
+    'contract' in response.result
+  ) {
+    reviewAnalysisV3GatewayResultSchema.parse(response.result)
+  }
+  return response
+}

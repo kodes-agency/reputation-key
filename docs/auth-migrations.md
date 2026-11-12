@@ -3,12 +3,14 @@
 **Status:** Accepted
 **Scope:** Auth tables managed by better-auth
 
-Auth tables and their custom columns are managed in normal development and
-deployment by the **schema API in the exact repository-pinned `better-auth`
-runtime**, not by hand-written SQL. The
-`scripts/better-auth-schema.ts` runner applies pending auth-table changes as
-`pnpm auth:migrate`. Manual `ALTER TABLE` / `CREATE TABLE` against auth tables is
-a **STRICT NO** — it silently drifts the live DB. (This exact drift once left
+Auth tables and their custom columns are part of the committed journal in
+`drizzle/`. Migration `0133` creates the tables exactly as the
+repository-pinned `better-auth` runtime does, on a database that has none yet;
+a database the runtime already provisioned keeps its tables untouched.
+`pnpm db:migrate-deploy` runs that one journal and then refuses to finish if the
+pinned runtime expects a table or column the journal does not create. Manual
+`ALTER TABLE` / `CREATE TABLE` against a live auth table is a **STRICT NO** —
+it silently drifts the live DB. (This exact drift once left
 `invitation.propertyIds` and Organization custom columns missing, so every
 invite returned a 500.)
 
@@ -20,37 +22,26 @@ invite returned a 500.)
 
 ## Fresh-database provisioning
 
-The pinned Better Auth schema API creates all eight auth tables on an empty
-database. This is exercised by CI and by `pnpm db:migrate-deploy`; no manual
-auth bootstrap belongs in the normal deployment path.
+`pnpm db:migrate-deploy` (and `pnpm db:migrate`) builds the auth tables from the
+journal on an empty database. CI still runs `pnpm auth:migrate` first, so every
+run also proves that the journal adopts tables the runtime created, as it did
+on the beta. `pnpm check:schema-drift` compares both with `structure.sql`.
 
-Use the production authority, `pnpm db:migrate-deploy`, to run the Better Auth
-runtime track, the Drizzle journal, and provider-subject initialization. For
-schema-only local or CI setup, run `pnpm auth:migrate` followed by
-`pnpm db:migrate`.
-
-The deploy runner invokes Better Auth's runtime track before the Drizzle
-constructs that reference auth-owned tables. `pnpm check:schema-drift` verifies
-the resulting auth tables against the query mirror, so no bootstrap SQL or
-compatibility test is needed.
-
-**Single source of truth for auth additionalFields:** `src/shared/auth/org-schema.ts` — imported by BOTH `src/shared/auth/auth.ts` (runtime) and `src/shared/auth/auth-cli.ts` (migration CLI). Edit it ONCE; both configs see the change. Never re-declare additionalFields inline in either file.
+**Single source of truth for auth additionalFields:** `src/shared/auth/org-schema.ts` — imported by BOTH `src/shared/auth/auth.ts` (runtime) and `src/shared/auth/auth-cli.ts` (schema runner). Edit it ONCE; both configs see the change. Never re-declare additionalFields inline in either file.
 
 ## Workflow — adding/changing an auth additionalField (e.g. a new column on `organization` / `invitation`)
 
 1. Edit `src/shared/auth/org-schema.ts` (the only place).
-2. `pnpm auth:migrate` to apply. The runner prints the table and column counts
-   it applied; there is no separate generate-and-review step.
+2. `pnpm auth:migrate` against a disposable database shows what the runtime
+   adds; write the same column as a journal migration
+   (`ALTER TABLE "invitation" ADD COLUMN IF NOT EXISTS ...`, nullable or with a
+   constant default) and mirror it in `src/shared/db/schema/auth.ts`.
+3. Regenerate `structure.sql` (the change loop in `src/shared/db/CONTEXT.md`).
 
 ## Do NOT
 
-- Add hand-written SQL migrations for auth tables. The pinned Better Auth
-  schema API is their sole migration authority.
+- Hand-patch a live auth column with raw SQL outside the journal.
 - Re-declare `additionalFields` inline in `auth.ts` or `auth-cli.ts` — use `org-schema.ts`.
-- Hand-patch an auth column with raw SQL when the tooling "didn't add it."
 
-If `auth:migrate` reports "schema is up to date" but you expect a missing
-column, the schema config (`auth-cli.ts`) has drifted from `auth.ts` — fix the
-shared `org-schema.ts`, then re-run. Never bypass with manual SQL. The
-standalone `@better-auth/cli` is deliberately not installed or fetched: its
+The standalone `@better-auth/cli` is deliberately not installed or fetched: its
 release line may lag the runtime and therefore describe a different schema.

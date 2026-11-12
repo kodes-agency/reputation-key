@@ -4,7 +4,7 @@ import {
   type NotificationType,
 } from '../domain/notification-types'
 import { classifyNotification } from '../domain/notification-delivery-policy'
-import { isSettleableNotificationType } from '../domain/notification-settlement'
+import { isSettleableNotificationType } from '../notify/settle.server'
 import type { NotificationAudience } from './notification-audience'
 
 export type RegisteredNotificationConsumer = Readonly<{

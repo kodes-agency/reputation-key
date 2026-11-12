@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type { NotificationWorkState } from '../../application/notification-work-state'
+import { type NotificationWorkState } from '../../application/ports/notification-work-state.port'
 import {
   createSendEmailsHandler,
   type SendEmailJobData,
@@ -30,6 +30,9 @@ const workState = (
   answer: Awaited<ReturnType<NotificationWorkState['isWaiting']>>,
 ): NotificationWorkState => ({
   isWaiting: vi.fn(async () => answer),
+  isWaitingMany: vi.fn(async (subjects: ReadonlyArray<unknown>) =>
+    subjects.map(() => answer),
+  ),
   finished: vi.fn(async ({ types }) => types),
 })
 

@@ -1,13 +1,13 @@
 import { hasOnlyUnicodeScalars } from './ai-json'
 import { REPLY_DRAFTING_V2_VERSIONS } from './reply-drafting-v2-schema'
-import { replyBodyIssueCodeSchema } from './reply-drafting-v2-binding'
+import type { ReplyBodyIssueCode } from './domain/reply-body-lint-policy'
+import type { ReplyDraftingV2Output } from './reply-drafting-v2-schema'
 import { replyDraftingV2FrameSchema } from './reply-drafting-v2-frame'
 import { z } from 'zod/v4'
 import {
   aiExecutionBindingSchema,
   aiInternalCanonicalUuidSchema,
   aiInternalSafeIdSchema,
-  aiSettlementReceiptSchema,
   type AiExecutionBindingV1,
   type AiSettlementReceiptV1,
 } from './ai-internal-transport-contract'
@@ -25,20 +25,20 @@ import {
   AI_RUNTIME_CAPABILITIES_V1,
   isExecutionCompatibleWithConsent,
 } from './ai-runtime-capability-contract'
-import {
-  AI_ANALYSIS_V2_OUTPUT_SCHEMA,
-  AI_TREND_SELECTION_OUTPUT_SCHEMA,
+import type {
+  AiAnalysisV2Output,
+  AiTrendSelectionOutput,
 } from './ai-route-output-schemas'
 import {
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-  personalizedReplyDraftOutputSchema,
+  type PersonalizedReplyDraft,
 } from './ai-personalized-reply-profile'
 import { AI_PROVIDER_IDS } from './ai-provider-ids'
 import { MAX_AI_REVIEW_SENTENCES_V1 } from './ai-review-source-contract'
 import {
   REVIEW_ANALYSIS_V3_OPERATION_PROFILE,
-  reviewAnalysisV3GatewayResultSchema,
   reviewSentencesAreNumberedFromOne,
+  type ReviewAnalysisV3GatewayResult,
   reviewSentencesMatchText,
   isCatalogueReviewPropertyContext,
 } from './review-analysis-v3-request'
@@ -50,10 +50,6 @@ const canonicalUuid = aiInternalCanonicalUuidSchema
 const nonnegativeSafeInteger = z.number().int().nonnegative().safe()
 const positiveSafeInteger = z.number().int().positive().safe()
 const internalSubjectId = aiInternalSafeIdSchema
-
-function utf8ByteLength(value: string): number {
-  return new TextEncoder().encode(value).byteLength
-}
 
 function hasOnlyAllowedUnicodeScalars(value: string): boolean {
   if (!hasOnlyUnicodeScalars(value)) return false
@@ -524,170 +520,97 @@ export type ReviewAnalysisSourcePayload = z.infer<typeof reviewAnalysisSourceSch
 export type { DeterministicAggregateWindow, DeterministicTrendCandidate }
 export type PropertyTrendProviderInput = PropertyTrendProviderInputV1
 
-const aiErrorCodeSchema = z.enum([
-  'forbidden',
-  'not_found',
-  'source_too_large',
-  'invalid_request',
-  'text_unavailable',
-  'language_not_supported',
-  'idempotency_conflict',
-  'operation_in_progress',
-  'operation_ambiguous',
-  'operation_abandoned',
-  'completed_without_delivery',
-  'merchant_opt_in_required',
-  'capability_not_opted_in',
-  'execution_suspended',
-  'source_expired',
-  'source_epoch_changed',
-  'source_revision_changed',
-  'analysis_sequence_changed',
-  'reply_state_changed',
-  'draft_invalidated',
-  'property_profile_changed',
-  'routing_policy_changed',
-  'provider_profile_changed',
-  'capability_epoch_changed',
-  'redaction_blocked',
-  'quota_exhausted',
-  'provider_rate_limited',
-  'provider_unavailable',
-  'provider_refused',
-  'output_invalid',
-  'output_truncated',
-  'policy_unavailable',
-])
+export type AiGatewayErrorCode =
+  | 'forbidden'
+  | 'not_found'
+  | 'source_too_large'
+  | 'invalid_request'
+  | 'text_unavailable'
+  | 'language_not_supported'
+  | 'idempotency_conflict'
+  | 'operation_in_progress'
+  | 'operation_ambiguous'
+  | 'operation_abandoned'
+  | 'completed_without_delivery'
+  | 'merchant_opt_in_required'
+  | 'capability_not_opted_in'
+  | 'execution_suspended'
+  | 'source_expired'
+  | 'source_epoch_changed'
+  | 'source_revision_changed'
+  | 'analysis_sequence_changed'
+  | 'reply_state_changed'
+  | 'draft_invalidated'
+  | 'property_profile_changed'
+  | 'routing_policy_changed'
+  | 'provider_profile_changed'
+  | 'capability_epoch_changed'
+  | 'redaction_blocked'
+  | 'quota_exhausted'
+  | 'provider_rate_limited'
+  | 'provider_unavailable'
+  | 'provider_refused'
+  | 'output_invalid'
+  | 'output_truncated'
+  | 'policy_unavailable'
 
-// A v3 answer is the normalized answer and what normalizing it did. It shares no
-// key with a v2 answer, so the two never match each other.
-const analysisPayloadSchema = z.union([
-  AI_ANALYSIS_V2_OUTPUT_SCHEMA,
-  reviewAnalysisV3GatewayResultSchema,
-])
+// The gateway builds every response in this process, from an answer its route
+// already accepted and a receipt the settlement authority issued, so a response
+// is a type rather than a schema parsed a second time.
 
-const replyPayloadSchema = personalizedReplyDraftOutputSchema
-  .omit({ languageCode: true, grounding: true })
-  .extend({
-    profileVersion: z.literal(AI_PERSONALIZED_REPLY_PROFILE_VERSION),
-    concreteLanguageTag: z.string().min(1).max(35),
-    replyText: personalizedReplyDraftOutputSchema.shape.replyText.refine(
-      (value) => utf8ByteLength(value) <= 16_384,
-    ),
-    provenanceToken: z.string().min(1).max(32_768),
-    expiresAtEpochMillis: positiveSafeInteger,
-    baseReplyStateRevision: nonnegativeSafeInteger,
-    templateGroup: z.enum(REPLY_TEMPLATE_LANGUAGE_GROUPS),
-  })
-  .superRefine((value, context) => {
-    const mapped = parseCanonicalReplyLanguageTag(value.concreteLanguageTag)
-    if (mapped === null || mapped.templateGroup !== value.templateGroup) {
-      context.addIssue({
-        code: 'custom',
-        message: 'reply language tag and template group are cross-wired',
-      })
-    }
-  })
+type AnalysisPayload = AiAnalysisV2Output | ReviewAnalysisV3GatewayResult
 
-const replyV2PayloadSchema = z
-  .object({
-    profileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.profile),
-    concreteLanguageTag: z.string().min(1).max(35),
-    templateGroup: z.enum(['en-Latn', 'es-Latn', 'bg-Cyrl']),
-    replyText: z
-      .string()
-      .trim()
-      .min(24)
-      .max(16_384)
-      .refine((text) => utf8ByteLength(text) <= 4_096),
-    case: z.enum([
-      'praise',
-      'praise_with_issue',
-      'mixed',
-      'complaint',
-      'serious',
-      'money',
-      'unclear',
-    ]),
-    mainPoint: z.array(z.number().int().positive()).min(1).max(2),
-    provenanceToken: z.string().min(1).max(32_768),
-    expiresAtEpochMillis: positiveSafeInteger,
-    baseReplyStateRevision: nonnegativeSafeInteger,
-  })
-  .strict()
-  .refine(
-    (v) =>
-      parseCanonicalReplyLanguageTag(v.concreteLanguageTag)?.templateGroup ===
-      v.templateGroup,
-  )
+type ReplyV1Payload = Omit<PersonalizedReplyDraft, 'languageCode' | 'grounding'> &
+  Readonly<{
+    profileVersion: typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION
+    concreteLanguageTag: string
+    replyText: string
+    provenanceToken: string
+    expiresAtEpochMillis: number
+    baseReplyStateRevision: number
+    templateGroup: (typeof REPLY_TEMPLATE_LANGUAGE_GROUPS)[number]
+  }>
 
-const trendPayloadSchema = AI_TREND_SELECTION_OUTPUT_SCHEMA
+type ReplyV2Payload = Readonly<{
+  profileVersion: typeof REPLY_DRAFTING_V2_VERSIONS.profile
+  concreteLanguageTag: string
+  templateGroup: 'en-Latn' | 'es-Latn' | 'bg-Cyrl'
+  replyText: string
+  case: ReplyDraftingV2Output['case']
+  mainPoint: readonly number[]
+  provenanceToken: string
+  expiresAtEpochMillis: number
+  baseReplyStateRevision: number
+}>
 
-function successSchema<Route extends string, Payload extends z.ZodTypeAny>(
-  route: Route,
-  payload: Payload,
-) {
-  return z
-    .object({
-      route: z.literal(route),
-      status: z.literal('success'),
-      result: payload,
-      settlementReceipt: aiSettlementReceiptSchema,
-    })
-    .strict()
-    .superRefine((value, context) => {
-      if (
-        value.settlementReceipt.disposition !== 'success' ||
-        value.settlementReceipt.settlementState !== 'settled'
-      ) {
-        context.addIssue({ code: 'custom', message: 'success requires settled receipt' })
-      }
-    })
-}
+type GatewaySuccess<Route extends string, Payload> = Readonly<{
+  route: Route
+  status: 'success'
+  result: Payload
+  settlementReceipt: AiSettlementReceiptV1
+}>
 
-function errorSchema<Route extends string>(route: Route) {
-  return z
-    .object({
-      route: z.literal(route),
-      status: z.literal('error'),
-      code: aiErrorCodeSchema,
-      retryAfterEpochMillis: z.union([positiveSafeInteger, z.null()]),
-    })
-    .strict()
-}
+type GatewayError<Route extends string> = Readonly<{
+  route: Route
+  status: 'error'
+  code: AiGatewayErrorCode
+  retryAfterEpochMillis: number | null
+}>
 
-const analysisSuccessSchema = successSchema('review-analysis', analysisPayloadSchema)
-const replySuccessSchema = successSchema(
-  'reply-suggestion',
-  z.union([replyPayloadSchema, replyV2PayloadSchema]),
-)
-const trendSuccessSchema = successSchema('property-trend', trendPayloadSchema)
-const analysisErrorSchema = errorSchema('review-analysis')
-const replyErrorSchema = errorSchema('reply-suggestion')
-  .extend({ rewriteIssues: z.array(replyBodyIssueCodeSchema).min(1).max(30).optional() })
-  .refine((v) => v.rewriteIssues === undefined || v.code === 'output_invalid')
-const trendErrorSchema = errorSchema('property-trend')
+type ReplyGatewayError = GatewayError<'reply-suggestion'> &
+  Readonly<{ rewriteIssues?: readonly ReplyBodyIssueCode[] }>
 
-const aiGatewayRouteResponseSchema = z.union([
-  analysisSuccessSchema,
-  analysisErrorSchema,
-  replySuccessSchema,
-  replyErrorSchema,
-  trendSuccessSchema,
-  trendErrorSchema,
-])
-
-export type AiGatewayRouteResponseV1 = z.infer<typeof aiGatewayRouteResponseSchema>
 export type AnalysisResult =
-  z.infer<typeof analysisSuccessSchema> | z.infer<typeof analysisErrorSchema>
+  GatewaySuccess<'review-analysis', AnalysisPayload> | GatewayError<'review-analysis'>
 export type ReplySuggestionResult =
-  z.infer<typeof replySuccessSchema> | z.infer<typeof replyErrorSchema>
+  GatewaySuccess<'reply-suggestion', ReplyV1Payload | ReplyV2Payload> | ReplyGatewayError
 export type TrendResult =
-  z.infer<typeof trendSuccessSchema> | z.infer<typeof trendErrorSchema>
+  | GatewaySuccess<'property-trend', AiTrendSelectionOutput>
+  | GatewayError<'property-trend'>
+export type AiGatewayRouteResponseV1 =
+  AnalysisResult | ReplySuggestionResult | TrendResult
 export type AiGatewayFailure =
-  | z.infer<typeof analysisErrorSchema>
-  | z.infer<typeof replyErrorSchema>
-  | z.infer<typeof trendErrorSchema>
+  GatewayError<'review-analysis'> | ReplyGatewayError | GatewayError<'property-trend'>
 
 /**
  * Which process may invoke which route.
@@ -707,10 +630,6 @@ export type AiGatewayCaller = 'web' | 'worker'
 
 export function parseAiGatewayRouteRequest(value: unknown): AiGatewayRouteRequestV1 {
   return aiGatewayRouteRequestSchema.parse(value)
-}
-
-export function parseAiGatewayRouteResponse(value: unknown): AiGatewayRouteResponseV1 {
-  return aiGatewayRouteResponseSchema.parse(value)
 }
 
 export type { AiExecutionBindingV1, AiSettlementReceiptV1 }

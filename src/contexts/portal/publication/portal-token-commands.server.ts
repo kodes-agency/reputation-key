@@ -14,7 +14,7 @@ import type {
   PortalCommandStore,
   RevokePortalTokensCommand,
   RotatePortalTokenCommand,
-} from '../application/ports/portal-command-store.port'
+} from './portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { fencePortalRevision } from '../infrastructure/portal-aggregate-fence'
 import { sameInstant } from '../infrastructure/portal-command-guards'

@@ -82,6 +82,7 @@ import type { GoogleReviewApiPort } from '../../application/ports/google-review-
 import type { GoogleReplyObservationStore } from '../../application/ports/google-reply-observation-store.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../../application/ports/reply-publication-dispatch-evidence.port'
 import type { ReadReviewBeforePublish } from '../../application/use-cases/read-review-before-publish'
+import { translatedGoogleReviewApi } from '../../application/google-review-api-error'
 import { attemptNeverDispatched } from './attempt-never-dispatched'
 import {
   buildPublishFailedEvent,
@@ -521,7 +522,7 @@ async function readUncertainAttempt(
   if (!review.googleConnectionId) return { kind: 'review_missing' }
   let result
   try {
-    result = await deps.googleReviewApi.getReview({
+    result = await translatedGoogleReviewApi(deps.googleReviewApi).getReview({
       organizationId: reply.organizationId,
       propertyId: review.propertyId,
       connectionId: review.googleConnectionId,

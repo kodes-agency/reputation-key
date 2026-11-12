@@ -1,7 +1,11 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import type { StaffAccountDeps } from './add-staff-member.server'
-import { requireStaffProperty, staffAddressRefusal } from './add-staff-member.server'
+import {
+  refusedAddress,
+  requireStaffProperty,
+  staffAddressRefusal,
+} from './add-staff-member.server'
 import type { StaffManagementStore } from './staff-management-store.port.server'
 import { staffAccountError } from '../domain/staff-account'
 import { identityError } from '../domain/errors'
@@ -67,9 +71,7 @@ async function finishRemoval(
     await deps.management.completeRemoval(ctx.organizationId, locked)
     return { removed: true as const }
   }
-  return found.email
-    ? deps.store.withAddressLock(ctx.organizationId, found.email, run)
-    : run()
+  return found.email ? deps.store.withAddressLock(found.email, run) : run()
 }
 
 export const removeStaffMember =
@@ -176,7 +178,7 @@ export const resendStaffInvitation =
         'participation_not_found',
         'This staff invitation has ended',
       )
-    return deps.store.withAddressLock(ctx.organizationId, found.email, async (store) => {
+    return deps.store.withAddressLock(found.email, async (store) => {
       await target(deps, input.participationId, ctx, 'staff.invite')
       const facts = await store.addressFacts(
         ctx.organizationId,
@@ -185,10 +187,13 @@ export const resendStaffInvitation =
       )
       if (facts.organizationIds.some((id) => id !== ctx.organizationId))
         throw staffAddressRefusal(ctx, deps.reportAddressRefusal)
-      const row = await deps.management.renewInvitation(
-        ctx.organizationId,
-        input.participationId,
-      )
+      const row = await deps.management
+        .renewInvitation(ctx.organizationId, input.participationId)
+        .catch((error: unknown) => {
+          throw refusedAddress(error)
+            ? staffAddressRefusal(ctx, deps.reportAddressRefusal)
+            : error
+        })
       await deps.spendInvitationBudget(ctx)
       try {
         await deps.deliverAccess(row, { invited: true, userId: null })

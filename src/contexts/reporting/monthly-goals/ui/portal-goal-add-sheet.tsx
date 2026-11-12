@@ -10,7 +10,7 @@ import type {
   AddPortalGoalsRequest,
   AddPortalGoalsResult,
   PortalGoalAddOptions,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { Button } from '#/components/ui/button'

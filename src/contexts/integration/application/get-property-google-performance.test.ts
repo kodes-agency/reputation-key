@@ -6,7 +6,7 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import { createGbpApiError } from '../domain/gbp-api-error'
+import { createGoogleCallError } from '../domain/google-call-error'
 import type { GooglePerformanceSourceReport } from './google-provider-contract'
 import {
   createGetPropertyGooglePerformance,
@@ -286,7 +286,7 @@ describe('getPropertyGooglePerformance', () => {
     'maps its own %s admission denial to a retryable authorization refresh',
     async (executionAdmissionCode, kind) => {
       const fetchReport = vi.fn(async () => {
-        throw createGbpApiError('fetchPerformanceReport', kind, {
+        throw createGoogleCallError('fetchPerformanceReport', kind, {
           executionAdmissionCode,
         })
       })
@@ -307,7 +307,7 @@ describe('getPropertyGooglePerformance', () => {
 
   it.each([
     [
-      createGbpApiError('fetchPerformanceReport', 'rate_limited', {
+      createGoogleCallError('fetchPerformanceReport', 'rate_limited', {
         retryAfterMs: 4_500,
       }),
       {
@@ -318,7 +318,7 @@ describe('getPropertyGooglePerformance', () => {
       },
     ],
     [
-      createGbpApiError('fetchPerformanceReport', 'parse_error'),
+      createGoogleCallError('fetchPerformanceReport', 'parse_error'),
       {
         status: 'error',
         errorCode: 'malformed_provider_response',
@@ -327,7 +327,7 @@ describe('getPropertyGooglePerformance', () => {
       },
     ],
     [
-      createGbpApiError('fetchPerformanceReport', 'permission_denied'),
+      createGoogleCallError('fetchPerformanceReport', 'permission_denied'),
       {
         status: 'error',
         errorCode: 'provider_rejected',
@@ -336,7 +336,7 @@ describe('getPropertyGooglePerformance', () => {
       },
     ],
     [
-      createGbpApiError('fetchPerformanceReport', 'upstream_error'),
+      createGoogleCallError('fetchPerformanceReport', 'upstream_error'),
       {
         status: 'error',
         errorCode: 'temporarily_unavailable',
@@ -345,7 +345,7 @@ describe('getPropertyGooglePerformance', () => {
       },
     ],
     [
-      createGbpApiError('fetchPerformanceReport', 'upstream_error', {
+      createGoogleCallError('fetchPerformanceReport', 'upstream_error', {
         retryAfterMs: 5_000,
       }),
       {

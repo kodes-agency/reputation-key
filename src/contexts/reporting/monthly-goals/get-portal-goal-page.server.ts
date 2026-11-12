@@ -5,13 +5,13 @@
 import { goalMonthDays } from '../domain/goal-pace'
 import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
 import { localDateOf } from '../domain/local-days'
-import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
-import type { PortalGoalPageView } from '../application/dto/monthly-portal-goal-page.types'
+import type { PortalGoalRecommendation } from './contracts'
+import type { PortalGoalPageView } from './contracts'
 import type {
   PortalGoalAverageOfPage,
   PortalGoalSingleSubject,
   PortalGoalSinglePageView,
-} from '../application/dto/portal-goal-single-page.types'
+} from './contracts'
 import { nextRevisionStart } from '../application/goal-revision-start'
 import { assignmentHoldsFrom } from './subject-assignments.server'
 import {

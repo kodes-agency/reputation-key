@@ -1,6 +1,7 @@
 // Share tab container: wires permissions, mutation state and copy state to the
 // sections below it. Every visibility rule is derived in portal-share-state.ts.
 
+import { useServedNow } from '#/components/hooks/served-clock'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FullBleedFrame } from '#/components/layout/page-shell'
 import { cn } from '#/lib/utils'
@@ -10,7 +11,7 @@ import { PortalCodeBlock } from './portal-code-block'
 import { PortalLinkIssueForm } from './portal-link-issue-form'
 import { PortalPrintKitNotLive } from './portal-print-kit-not-live'
 import {
-  PortalSharePrintFinalSection,
+  PortalSharePrintSection,
   PortalSharePrintKitAside,
 } from './portal-share-print-kit'
 import { PortalLinkReveal } from './portal-link-reveal'
@@ -33,6 +34,19 @@ import type { PortalShareProps } from './portal-share-types'
 
 export type { IssuedPortalLink } from './portal-share-types'
 
+function unpublishedNoticeProps(props: PortalShareProps, canManage: boolean) {
+  return {
+    notice:
+      props.publicationState === undefined
+        ? null
+        : describeUnpublishedCode(props.publicationState, canManage),
+    review:
+      canManage && props.propertyId !== undefined
+        ? { propertyId: props.propertyId, portalId: props.portalId }
+        : null,
+  }
+}
+
 export function PortalShare(props: PortalShareProps) {
   const { can } = usePermissions()
   // The same two questions the server asks before it makes, replaces or stops
@@ -49,7 +63,8 @@ export function PortalShare(props: PortalShareProps) {
     copyFailed: nfcCopyFailed,
   } = addresses.nfc
   const { error, isPending } = resolveMutationState(props)
-  const view = derivePortalShareViewFromProps(props, canManage, publicUrl)
+  const now = useServedNow()
+  const view = derivePortalShareViewFromProps(props, canManage, publicUrl, now)
   const kit = usePortalPrintKit(props, view)
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
@@ -65,18 +80,7 @@ export function PortalShare(props: PortalShareProps) {
           ask={describeWhoToAsk(canUpdate, props.managerNames ?? [])}
         />
 
-        <PortalUnpublishedNotice
-          notice={
-            props.publicationState === undefined
-              ? null
-              : describeUnpublishedCode(props.publicationState, canManage)
-          }
-          review={
-            canManage && props.propertyId !== undefined
-              ? { propertyId: props.propertyId, portalId: props.portalId }
-              : null
-          }
-        />
+        <PortalUnpublishedNotice {...unpublishedNoticeProps(props, canManage)} />
 
         <FormErrorBanner error={error} />
 
@@ -95,7 +99,7 @@ export function PortalShare(props: PortalShareProps) {
           />
         )}
 
-        <PortalSharePrintFinalSection kit={kit} countryCode={props.countryCode ?? null} />
+        <PortalSharePrintSection kit={kit} countryCode={props.countryCode ?? null} />
 
         <section
           className={cn('flex flex-col gap-4', kit.settling && 'hidden')}

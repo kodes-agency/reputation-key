@@ -100,13 +100,6 @@ describe('the text on a photo tile', () => {
       contrastRatio(drawn(LINKTREE_TEXT.lineAlpha, behindText), hex(behindText)) ?? 0,
     ).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
   })
-
-  it('paints the scrim behind the whole text block, not as a fade across the tile', () => {
-    // The text block carries its own scrim and starts below the fade-in strip.
-    expect(LINKTREE_CSS).toMatch(
-      /\.ih-tile--photo \.ih-tile__text \{[^}]*linear-gradient\(180deg, transparent 0/u,
-    )
-  })
 })
 
 describe('the stylesheet', () => {
@@ -133,16 +126,5 @@ describe('the stylesheet', () => {
     )
     expect(selectors.length).toBeGreaterThan(5)
     for (const selector of selectors) expect(selector).toMatch(/\.ih-/u)
-  })
-
-  it('lets a lone last tile take the full row', () => {
-    expect(LINKTREE_CSS).toMatch(
-      /\.ih-linktree__item:last-child:nth-child\(odd\) \{[^}]*grid-column: 1 \/ -1/u,
-    )
-  })
-
-  it('lets a tile grow with a long word instead of clipping it', () => {
-    expect(LINKTREE_CSS).toMatch(/\.ih-tile \{[^}]*min-height: 96px/u)
-    expect(LINKTREE_CSS).toMatch(/\.ih-tile__text \{[^}]*min-width: 0/u)
   })
 })

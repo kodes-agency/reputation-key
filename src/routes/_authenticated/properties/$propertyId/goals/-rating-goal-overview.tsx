@@ -1,7 +1,8 @@
 // Read setup and History only without an active goal. A failed goal read leaves the
 // Overview usable.
 
-import { useEffect, useState } from 'react'
+import { useServedNow } from '#/components/hooks/served-clock'
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RatingGoalOverview } from '#/contexts/reporting/rating-goals/ui/rating-goal-overview'
 import type { PortalNextStep } from '#/contexts/reporting/rating-goals/ui/rating-goal-portal-step'
@@ -37,7 +38,7 @@ export function OverviewRatingGoal({
 }: Props) {
   const { card, noActiveGoal } = useRatingGoalCard(propertyId)
   const { can } = usePermissions()
-  const [now] = useState(() => new Date())
+  const now = useServedNow()
   const setup = useQuery({
     ...ratingGoalSetupQuery(propertyId),
     enabled: noActiveGoal,

@@ -135,30 +135,27 @@ and backend-only until its approval and handling requirements are met.
 
 ## Runtime
 
-`build.ts` composes response lifecycle, public Portal resolution, qualified-action
+`responses/` owns the response lifecycle, its command store and repository
+(`*.server.ts`); `responses/contracts.ts` holds the browser-safe response view and its
+action rules. `build.ts` composes response lifecycle, public Portal resolution, qualified-action
 stores, integrity reads, rating-language reads (private ratings by the language of the
 page the guest saw, from the response's experience snapshot), reconciliation, and
 retention. PostgreSQL receipts own
 correctness; Redis provides abuse control and observation-loss monitoring. State,
 source-event identities, and identifier-only outbox facts commit atomically.
 
-Response and private-feedback withdrawals have dormant bucket-journal wiring in
-`infrastructure/guest-withdrawal-journal.server.ts`. Its
-`GUEST_WITHDRAWAL_JOURNAL_ACTIVE` setting ships false, preserving today's journey.
-When enabled, the command store checks the existing session/state predicate,
-writes an IDs-only intent outside the deletion transaction, then rechecks that
-predicate in the transaction. Failed bucket writes block deletion and produce a
+Response and private-feedback withdrawals journal to the bucket through
+`infrastructure/guest-withdrawal-journal.server.ts`, switched on by
+`GUEST_WITHDRAWAL_JOURNAL_ACTIVE`. The command store checks the existing
+session/state predicate, writes an IDs-only intent outside the deletion
+transaction, then rechecks that predicate in the transaction. A failed bucket
+write refuses the withdrawal before anything is deleted and produces a
 content-free monitoring alert. The journal records the response ID under distinct
 `guest_response` and `guest_feedback` target kinds, never the session or content.
 Existing self-service session matching and 24-hour deadlines remain in force.
-
-Activation requires an owner-approved release setting that constant true, after
-the isolated restore command replays both target kinds from local journal evidence
-and proves resurrected response and feedback erasure, including a replay-omitted
-negative control. Guest replay handlers for those target kinds, the command wiring
-and its proof remain outstanding. Verify the bucket's 45-day expiry and backups
-no older than 30 days, including the Manual
-backup, before activation. The passing data restore alone does not authorize it.
+The isolated restore command replays both target kinds from the local journal
+export. Bucket credentials and the 45-day expiry rule are required in every
+environment that serves guests; without them withdrawals refuse.
 
 `publicApi.requests` is Guest's request surface (`docs/standards.md` §3.1): what Guest's
 own server functions call, and nothing another context is typed against. A guest has no
