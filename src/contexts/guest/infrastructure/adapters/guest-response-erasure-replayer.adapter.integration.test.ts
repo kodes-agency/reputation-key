@@ -19,7 +19,7 @@ import {
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { Tx } from '#/shared/outbox/commit'
 import type { GuestResponse } from '../../domain/guest-response'
-import { createAtomicGuestResponseCommandStore } from '../guest-response-command-store'
+import { createAtomicGuestResponseCommandStore } from '../../responses/guest-response-command-store.server'
 import {
   createGuestFeedbackErasureReplayer,
   createGuestResponseErasureReplayer,

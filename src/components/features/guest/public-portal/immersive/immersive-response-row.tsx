@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import { ImmersiveRatingForm, type RatingSubmission } from './immersive-rating-form'
 import type { ResponseRow } from './immersive-response-rows'

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import type { Database } from '#/shared/db'
-import { createGuestResponseRepository } from './repositories/guest-response.repository'
+import { createGuestResponseRepository } from './guest-response.repository.server'
 import {
   guestResponseId,
   guestSessionId,
