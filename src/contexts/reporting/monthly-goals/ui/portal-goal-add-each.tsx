@@ -63,6 +63,7 @@ function EachRow({
           checked={row.ticked}
           disabled={row.disabled || pending}
           onCheckedChange={(checked) => onTick(row.portalId, checked === true)}
+          touch
           className="mt-0.5"
         />
         <div className="flex min-w-0 flex-col gap-1">
