@@ -18,7 +18,7 @@ import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import type {
   PortalCommandStore,
   ReplacePersonalPortalContentCommand,
-} from '../application/ports/portal-command-store.port'
+} from '../publication/portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { PORTAL_LOOK_FACETS } from '../domain/portal-look'
 import { portalPageEditKey } from '../domain/portal-page-edit'

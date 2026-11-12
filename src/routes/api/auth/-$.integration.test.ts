@@ -213,7 +213,7 @@ describe('provider routes at the /api/auth boundary, real provider and database'
     },
   )
 
-  // Organizations are operator-provisioned (ADR 0065): no signed-in
+  // Organizations are operator-provisioned: no signed-in
   // account may create one for itself, least of all one with no membership.
   it('never lets an account with no membership create an Organization', async () => {
     const cookie = await signIn(noMembership)

@@ -1,3 +1,4 @@
+import { metricRegistry } from '../../readings/contracts'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -17,7 +18,6 @@ import type { GoalMetricAggregateQuery } from '../../application/ports/metric.re
 import { createGoalMetricSnapshotReader } from './goal-metric-snapshot'
 import { createGoalMetricSourceStatus } from './goal-metric-source-status'
 import { createAtomicMetricCommandStore } from '../../readings/metric-command-store.server'
-import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createPropertyLocalDateResolver } from './property-local-date'
 import { recordMetrics } from '../../application/use-cases/record-metric'
 import { onRatingSubmittedDurably } from '../../readings/record-portal-metric.server'
@@ -272,7 +272,7 @@ describe.sequential('Goal metric durable source status (integration)', () => {
     await insertSource(SUBMITTED_EVENT, 'guest.rating.submitted', DELIVERY_AT)
     const project = recordMetrics({
       commandStore: createAtomicMetricCommandStore(db, randomUUID),
-      registry: createMetricRegistryRepository(),
+      registry: metricRegistry,
       clock: () => DELIVERY_AT,
       idGen: () => metricReadingId(randomUUID()),
       resolvePropertyLocalDate: createPropertyLocalDateResolver(db),

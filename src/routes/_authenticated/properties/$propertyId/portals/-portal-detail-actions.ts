@@ -17,6 +17,7 @@ import {
 } from '#/contexts/portal/server/portals'
 import { publishPortalChanges } from '#/contexts/portal/server/portal-publish-changes'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
+import { useTakeDownImage } from './-portal-media-takedown'
 import type { Action } from '#/components/hooks/use-action'
 import {
   actionErrorMessage,
@@ -184,6 +185,7 @@ function usePortalLookActions(propertyId: string, portalId: string): PortalLookA
     saveColours: useActionMutation(savePortalLookColours, { invalidateKeys }),
     saveIdentity: useActionMutation(savePortalLookIdentity, { invalidateKeys }),
     savePhoto: useActionMutation(savePortalLookPhoto, { invalidateKeys }),
+    takeDownImage: useTakeDownImage(),
   }
 }
 
@@ -191,7 +193,7 @@ function usePortalLookActions(propertyId: string, portalId: string): PortalLookA
  * The workspace header's "Open live page": the same reveal as "Download again", for
  * the purpose "show". It says why it failed itself (a rate limit, a retired
  * key) in Open live page's words, because the header has no banner to carry the error.
- * It shares the reveal's budget with "Download again" (ADR 0064).
+ * It shares the reveal's budget with "Download again".
  */
 export function usePortalOpenPageReveal() {
   return useActionMutation(revealPortalAddress, { errorMessage: openPageErrorMessage })

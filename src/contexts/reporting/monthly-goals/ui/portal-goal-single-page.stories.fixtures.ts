@@ -11,9 +11,9 @@
 import type {
   PortalGoalChange,
   PortalGoalPageView,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import type { PortalGoalSinglePageView } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
+import type { PortalGoalSinglePageView } from '#/contexts/reporting/monthly-goals/contracts'
 import { CHANGE_NOVEMBER } from './portal-goal-change.stories.fixtures'
 import { PAGE_RUNNING } from './portal-goal-page.stories.fixtures'
 import { CARD_RUNNING } from './portal-goal-running.stories.fixtures'

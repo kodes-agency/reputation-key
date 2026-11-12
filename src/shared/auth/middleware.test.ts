@@ -38,6 +38,8 @@ import {
   resolveTenantContext,
   resetTenantCache,
 } from './middleware'
+import { enrichSpan, runWithContext } from '#/shared/observability/request-context'
+import { getDatabaseScope } from '#/shared/db/tenant-scope.server'
 
 const makeHeaders = (extra: Record<string, string> = {}): Headers => {
   const h = new Headers()
@@ -164,6 +166,38 @@ describe('resolveTenantContext (integration through the delegate)', () => {
     expect(ctx.userId).toBe('user-456')
     expect(ctx.organizationId).toBe('org-123')
     expect(ctx.role).toBe('AccountAdmin')
+  })
+
+  it("gives the rest of the request the session Organization's database scope", async () => {
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-1', activeOrganizationId: 'org-123' },
+      user: { id: 'user-456' },
+    })
+    mockGetActiveMember.mockResolvedValue({ role: 'owner' })
+
+    const scope = await runWithContext('request', async () => {
+      enrichSpan({ useCase: 'getInbox' })
+      await resolveTenantContext(makeHeaders())
+      return getDatabaseScope()
+    })
+
+    expect(scope).toEqual({
+      kind: 'tenant',
+      organizationId: 'org-123',
+      entry: 'session',
+      name: 'getInbox',
+    })
+  })
+
+  it('enters no scope when the session does not resolve', async () => {
+    mockGetSession.mockResolvedValue(null)
+
+    const scope = await runWithContext('request', async () => {
+      await resolveTenantContext(makeHeaders()).catch(() => undefined)
+      return getDatabaseScope()
+    })
+
+    expect(scope).toBeUndefined()
   })
 
   it('propagates the tagged AuthError from the resolver', async () => {

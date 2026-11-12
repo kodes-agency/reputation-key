@@ -37,11 +37,12 @@ import type {
   ReviewReplySubmitted,
 } from '#/contexts/review/application/public-api'
 import {
+  inboxWorkflowNotices,
   publishFailedNotices,
   replyAuthorNotices,
   type DurableReplyPublishFailed,
   type DurableReplyRejected,
-} from './reply-outcome-notifications'
+} from '../notify/inbox.server'
 import {
   deliverNotices,
   type Notice,
@@ -56,7 +57,6 @@ import { resolveReplyApprovalRecipients } from '../application/reply-approval-re
 import { resolveEscalationRecipients } from '../application/escalation-recipients'
 import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
 import type { ActivePropertyLookup } from '../application/ports/active-property.port'
-import { inboxWorkflowNotices } from './inbox-notification-fanout'
 import type { NotificationAudience } from '../application/notification-audience'
 import {
   publicationCancelledNotices,

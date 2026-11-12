@@ -17,14 +17,12 @@ import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { PropertyGoogleBindingStore } from './application/ports/property-google-binding.port'
-import { createPropertyGoogleBindingStore } from './infrastructure/property-google-binding-store'
+import { createPropertyGoogleBindingStore } from './profile/google-binding-store.server'
 
 // Pass-through, so one test can hand the build a stub binding store.
-vi.mock('./infrastructure/property-google-binding-store', async (importOriginal) => {
+vi.mock('./profile/google-binding-store.server', async (importOriginal) => {
   const actual =
-    await importOriginal<
-      typeof import('./infrastructure/property-google-binding-store')
-    >()
+    await importOriginal<typeof import('./profile/google-binding-store.server')>()
   return {
     ...actual,
     createPropertyGoogleBindingStore: vi.fn(actual.createPropertyGoogleBindingStore),

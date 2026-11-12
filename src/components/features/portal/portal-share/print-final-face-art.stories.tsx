@@ -8,19 +8,27 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect } from 'storybook/test'
 import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { printKitFaces } from '#/shared/domain/portal-print-kit'
 import {
   PRINT_FINAL_ORIENTATIONS,
   PRINT_FINAL_PIECES,
   type PrintFinalFace,
   type PrintFinalRegion,
 } from '#/shared/domain/portal-print-final'
-import { choosePrintFinalTile } from '#/shared/domain/portal-print-final-code'
+import {
+  choosePrintFinalTile,
+  type PrintFinalTile,
+} from '#/shared/domain/portal-print-final-code'
 import { printFinalLiveArea } from '#/shared/domain/portal-print-final-measures'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
-import { pointsToPixels } from './print-kit-code-block-layout'
-import { PrintFinalFaceArt } from './print-final-face-art'
-import { BADGE_LOGO, DARK_LOGO, PHOTO } from './print-final-story-fixtures'
+import { PrintFinalDrawnFaceArt } from './print-final-face-art'
+import {
+  BADGE_LOGO,
+  DARK_LOGO,
+  PHOTO,
+  pointsToPixels,
+  storyFrontBlocks,
+} from './print-final-story-fixtures'
+import { usePrintFinalDrawnFace } from './use-print-final-drawn-face'
 import { usePrintKitCode } from './use-print-kit-code'
 
 type LookKind = 'paper' | 'immersive'
@@ -47,10 +55,20 @@ type Args = Readonly<{
 }>
 
 function Face({ face, args }: Readonly<{ face: PrintFinalFace; args: Args }>) {
-  const code = usePrintKitCode(null)
   const tile = choosePrintFinalTile({ ...face, address: 'short', symbolModules: 29 })
-  const [front] = printKitFaces(
-    { piece: 'counter_card', languages: args.languages, callToAction: 'rate' },
+  if (tile.isErr()) return null
+  return <DrawnFace face={face} args={args} tile={tile.value} />
+}
+
+function DrawnFace({
+  face,
+  args,
+  tile,
+}: Readonly<{ face: PrintFinalFace; args: Args; tile: PrintFinalTile }>) {
+  const code = usePrintKitCode(null)
+  const look = lookOf(args)
+  const blocks = storyFrontBlocks(
+    args.languages,
     {
       en: 'Review us on Google',
       es: 'Reseñe en Google',
@@ -58,7 +76,7 @@ function Face({ face, args }: Readonly<{ face: PrintFinalFace; args: Args }>) {
     },
     'Reception',
   )
-  if (tile.isErr() || front === undefined) return null
+  const drawn = usePrintFinalDrawnFace({ face, blocks, look, tile })
   const area = printFinalLiveArea(face)
   return (
     <figure data-final-face={`${face.piece}-${face.orientation}`} style={{ margin: 0 }}>
@@ -69,11 +87,9 @@ function Face({ face, args }: Readonly<{ face: PrintFinalFace; args: Args }>) {
           boxShadow: '0 1px 3px rgb(0 0 0 / 0.2)',
         }}
       >
-        <PrintFinalFaceArt
-          face={face}
-          blocks={front.blocks}
-          look={lookOf(args)}
-          tile={tile.value}
+        <PrintFinalDrawnFaceArt
+          drawn={drawn}
+          look={look}
           codeUrl={code.url}
           pt={pointsToPixels}
         />

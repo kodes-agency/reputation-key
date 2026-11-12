@@ -1,10 +1,9 @@
-// Startup probe (BQC-7.2) — 200 only when boot/config initialization is
+// Startup probe — 200 only when boot/config initialization is
 // COMPLETE: the composition container builds (getContainer() succeeds), the
 // applied migration set matches the on-disk journal, the required keys parse,
 // and the static policy configuration is valid. Until then 503. This remains a
-// startup diagnostic used by local/staging orchestration. Railway's ADR-0057
-// activation gate is
-// /api/health/ready; /api/health/live remains the dependency-free process
+// startup diagnostic used by local/staging orchestration. Railway's
+// activation gate is /api/health/ready; /api/health/live remains the dependency-free process
 // check, so a dependency flap after activation does not become liveness.
 //
 // The worker's startup posture is PROCESS-level, not endpoint-level: the

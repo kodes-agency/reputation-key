@@ -27,14 +27,13 @@ import {
 import type { GoalMetricAggregateQuery } from '../application/ports/metric.repository'
 import { recordMetrics } from '../application/use-cases/record-metric'
 import { retractMetrics } from '../application/use-cases/retract-metric'
-import { METRIC_VERSION_IDS } from '../readings/contracts'
+import { METRIC_VERSION_IDS, metricRegistry } from '../readings/contracts'
 import { createAtomicMetricCommandStore } from '../readings/metric-command-store.server'
 import {
   onRatingRetractedDurably,
   onRatingSubmittedDurably,
 } from '../readings/record-portal-metric.server'
 import { createGoalMetricSourceStatus } from './repositories/goal-metric-source-status'
-import { createMetricRegistryRepository } from './repositories/metric-registry.repository'
 import { createMetricRepository } from './repositories/metric.repository'
 import { createPortalAnalyticsRepository } from '../portal-results/portal-analytics.repository.server'
 import { createPropertyLocalDateResolver } from './repositories/property-local-date'
@@ -114,7 +113,7 @@ async function insertSource(
 function metricDeps(db: Database, at: Date) {
   return {
     commandStore: createAtomicMetricCommandStore(db, randomUUID),
-    registry: createMetricRegistryRepository(),
+    registry: metricRegistry,
     clock: () => at,
     idGen: () => metricReadingId(randomUUID()),
     resolvePropertyLocalDate: createPropertyLocalDateResolver(db),

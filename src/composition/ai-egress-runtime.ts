@@ -21,7 +21,7 @@ import {
   createAiExecutionAdmissionService,
   type AiExecutionAdmissionService,
 } from '#/shared/ai-provider-control/admission-service'
-import { createPostgresAiAdmissionAuthority } from '#/shared/db/ai/postgres-admission-authority'
+import { createAiExecutionAdmissionAdapter } from '#/contexts/ai/infrastructure/adapters/ai-execution-admission.adapter'
 import { createAiGatewayRoutePreparer } from '#/shared/ai-provider-control/route-preparer'
 import { createOpenAiConnector } from '#/shared/ai-provider-control/openai-connector'
 import { createOpenAiProviderAdapter } from '#/shared/ai-provider-control/openai-provider-adapter'
@@ -202,7 +202,7 @@ export function createAiEgressRuntime(
         requestBindingKeys,
         signingKid: admissionKid,
         signingPrivateKey: admissionPrivateKey,
-        database: createPostgresAiAdmissionAuthority({
+        database: createAiExecutionAdmissionAdapter({
           pool: input.pool,
           signingKid: admissionKid,
           now: input.clock,

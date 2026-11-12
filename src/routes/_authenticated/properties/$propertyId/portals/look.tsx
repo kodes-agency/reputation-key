@@ -1,6 +1,6 @@
 // The Property look: the photo, colours, name and logo, and default languages
-// every portal of a Property starts with (round-4 admin board 9; a portal can
-// have its own photo, colours, or name and logo, ADR 0070). The route owns the
+// every portal of a Property starts with (a portal can
+// have its own photo, colours, or name and logo). The route owns the
 // reads and the two autosaved writes; the page draws them.
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
@@ -10,6 +10,7 @@ import { can } from '#/shared/domain/permissions'
 import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
+import { useTakeDownImage } from './-portal-media-takedown'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
@@ -117,6 +118,7 @@ function PropertyLookRoute() {
   // portal has waiting to publish, exactly as the colours do.
   const saveHero = useActionMutation(savePropertyHero, { onSuccess: refreshPortals })
   const saveLogo = useActionMutation(savePropertyLogo, { onSuccess: refreshPortals })
+  const takeDownImage = useTakeDownImage()
 
   return (
     <PropertyLookPage
@@ -134,6 +136,7 @@ function PropertyLookRoute() {
       saveLocales={saveLocales}
       saveHero={saveHero}
       saveLogo={saveLogo}
+      takeDownImage={takeDownImage}
       media={experience.media}
       photoDescriptions={savedDescriptions(experience.content)}
     />

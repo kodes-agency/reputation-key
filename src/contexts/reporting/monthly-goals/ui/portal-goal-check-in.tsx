@@ -8,7 +8,7 @@ import type {
   KeepMonthlyPortalGoalRequest,
   PortalGoalCheckIn as CheckIn,
   PortalGoalOfCard,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import {
   actionErrorMessage,
   useActionMutation,

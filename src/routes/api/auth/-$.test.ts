@@ -1,4 +1,4 @@
-// Review §5.1 — the auth catch-all's brute-force limiter must be ON unless the
+// The auth catch-all's brute-force limiter must be ON unless the
 // E2E hatch is BOTH exact and authorized.
 //
 // Why this file exists: nothing in CI would otherwise demand a test for a
@@ -176,7 +176,7 @@ describe('auth catch-all rate limiting (review §5.1)', () => {
 // The reset request is the one allowed route that sends mail to an address the
 // caller names. Both per-IP limits (this route's and the provider's) let any
 // number of callers mail one member, so the route also counts per address, as
-// the app-owned verification resend does (ADR 0062 §6).
+// the app-owned verification resend does.
 describe('auth catch-all password reset requests', () => {
   const PER_ADDRESS = { maxRequests: 3, windowSeconds: 60 * 60 }
 
@@ -325,7 +325,7 @@ describe('auth catch-all allow list', () => {
     expect(mocks.handler).toHaveBeenCalledTimes(1)
   })
 
-  // The per-address limit on resending a verification link (ADR 0062 §6) lives
+  // The per-address limit on resending a verification link lives
   // in the app-owned resendVerificationEmail, which calls Better Auth
   // in-process. The raw route has only the per-IP limits, so it would let
   // anyone mail any unverified address over and over.

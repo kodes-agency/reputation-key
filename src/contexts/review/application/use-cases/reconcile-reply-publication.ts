@@ -2,6 +2,7 @@
 // read is recorded through the single observation authority, which alone may
 // confirm an exact current attempted reply as published.
 
+import { translatedGoogleReviewApi } from '../google-review-api-error'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
@@ -99,7 +100,7 @@ export const reconcileReplyPublication =
 
     let result
     try {
-      result = await deps.googleReviewApi.getReview({
+      result = await translatedGoogleReviewApi(deps.googleReviewApi).getReview({
         organizationId: input.organizationId,
         propertyId: review.propertyId,
         connectionId: review.googleConnectionId,

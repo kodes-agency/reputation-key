@@ -14,7 +14,7 @@ import type {
   PortalGoalMeasureOffers,
   PortalGoalOffer,
   PortalGoalSheetFacts,
-} from '../application/dto/monthly-portal-goal.types'
+} from './contracts'
 
 /**
  * The three choices for `month` and `measure`: the rest of this month, or the

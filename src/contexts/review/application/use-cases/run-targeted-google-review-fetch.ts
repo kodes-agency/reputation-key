@@ -1,3 +1,4 @@
+import { translatedGoogleReviewApi } from '../google-review-api-error'
 import type {
   GoogleConnectionId,
   OrganizationId,
@@ -98,7 +99,7 @@ export const runTargetedGoogleReviewFetch =
 
     let providerResult: Awaited<ReturnType<GoogleReviewApiPort['getReview']>>
     try {
-      providerResult = await deps.googleReviewApi.getReview({
+      providerResult = await translatedGoogleReviewApi(deps.googleReviewApi).getReview({
         organizationId: input.organizationId,
         propertyId: input.propertyId,
         connectionId: input.connectionId,

@@ -1,6 +1,6 @@
+import type { MetricRegistry } from '../../readings/contracts'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type { MetricRegistryRepository } from '../../application/ports/metric-registry.repository.port'
 import type { GoalMetricAggregate } from '../../application/ports/metric.repository'
 import {
   queryGoalMetric,
@@ -17,7 +17,7 @@ import {
 /** Live figures share one repeatable-read snapshot and one statement per page. */
 export function createGoalMetricBatchReader(
   db: Database,
-  registry: MetricRegistryRepository,
+  registry: MetricRegistry,
   clock: () => Date,
 ) {
   return async (

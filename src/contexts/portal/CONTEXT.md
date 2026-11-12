@@ -425,6 +425,8 @@ hidden in a segment do not survive, and the original is never stored.
   the row becomes `taken_down` and is never served; its object is then removed and
   `object_deleted_at` recorded. The row stays, because snapshots name assets by id
   with no foreign key. A failed removal is retried by the sweep.
+  The Property look's and a Portal look's photograph dialog offer it ("Take this photo down")
+  to an Account Admin with Portals writes on; it also clears the photograph from the look.
 - **Sweep** (`sweepPortalMedia`, hourly, not capability-gated): finishes takedown
   removals, and deletes `active` assets older than a day that no Brand Profile,
   Portal look override, link or publication snapshot refers to (object, then row, in
@@ -574,8 +576,8 @@ the PDF and preview use the same measures and planners, checked with real fonts.
   checks tenant scope and permissions, and spends the address rate limit.
 - The PDF renderer loads lazily so processes that never print need not load fonts.
   Fonts, image readers, QR helpers and shared layout helpers remain shared with
-  the preview. `portal-print-kit-how-to.ts` remains with its Immersive office and
-  print-shop instructions.
+  the preview. The Immersive office and print-shop instructions are served by
+  `portal-print-kit-pieces.ts` and drawn by `portal-print-kit-how-to.tsx`.
 
 There are no print-kit, print-code or own-look rollout switches. Own looks keep
 all current options and authorization rules. Surviving server functions keep their

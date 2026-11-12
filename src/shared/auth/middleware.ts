@@ -8,6 +8,8 @@ import type { AuthUser } from './auth'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { throwAuthError } from './auth-errors'
 import { resolveTenant, resetTenantResolutionCache } from './tenant-resolver'
+import { enterTenantScope } from '#/shared/db/tenant-scope.server'
+import { getSpanAttrs } from '#/shared/observability/request-context'
 
 // The tenant-resolution pipeline (session decode → per-request memo → tenant-cache
 // freshness decision table → member + built-in role authority) lives in the
@@ -55,12 +57,19 @@ export async function requireAuth(headers: Headers): Promise<AuthUser> {
  * Per architecture: "tenantMiddleware resolves org from session
  * and attaches to AuthContext."
  *
- * Thin delegate to the TenantResolver module — see ./tenant-resolver.ts.
+ * Delegates to the TenantResolver module — see ./tenant-resolver.ts — and
+ * gives the rest of the request that Organization's database scope.
  *
  * Throws if user is not authenticated or has no active organization.
  */
 export async function resolveTenantContext(headers: Headers): Promise<AuthContext> {
-  return resolveTenant(headers)
+  const ctx = await resolveTenant(headers)
+  enterTenantScope({
+    organizationId: ctx.organizationId,
+    entry: 'session',
+    name: getSpanAttrs().useCase ?? 'session',
+  })
+  return ctx
 }
 
 /** Reset the tenant cache completely. Test-only. */

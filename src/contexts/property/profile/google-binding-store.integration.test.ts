@@ -1,0 +1,855 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { Pool } from 'pg'
+import { getDb } from '#/shared/db'
+import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../domain/types'
+import {
+  PROPERTY_OPERATION_RECEIPT_TTL_MS,
+  PropertyGoogleBindingError,
+} from '../application/ports/property-google-binding.port'
+import { createPropertyGoogleBindingStore } from './google-binding-store.server'
+import { seedTestProperty } from '../infrastructure/property-test-fixtures'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
+import { propertyReceiptKey, propertyReceiptPayload } from './operation-receipts.server'
+
+const ORG_ID = organizationId('org-google-binding-integration')
+const OTHER_ORG_ID = organizationId('org-google-binding-other')
+const NOW = new Date('2026-08-10T10:00:00.000Z')
+const CONFIRMED_AT = new Date('2026-08-09T10:00:00.000Z')
+const CONNECTION_ID = googleConnectionId('00000000-0000-4000-8000-000000000101')
+const CONNECTION_ID_2 = googleConnectionId('00000000-0000-4000-8000-000000000102')
+
+let pool: Pool
+const db = getDb()
+
+function makeProperty(idSuffix: string, overrides: Partial<Property> = {}): Property {
+  const id = propertyId(`10000000-0000-4000-8000-${idSuffix.padStart(12, '0')}`)
+  return {
+    id,
+    organizationId: ORG_ID,
+    name: `Property ${idSuffix}`,
+    slug: `binding-property-${idSuffix}`,
+    timezone: 'America/New_York',
+    ...DEFAULT_PROPERTY_GOOGLE_PROFILE,
+    gbpLocationId: null,
+    googleConnectionId: null,
+    createdAt: NOW,
+    updatedAt: NOW,
+    deletedAt: null,
+    lifecycleState: 'active',
+    lifecycleReason: null,
+    lifecycleStateChangedAt: NOW,
+    purgeScheduledFor: null,
+    lifecycleInitiatedBy: null,
+    responsibleManagerRevision: 1,
+    responsibilityNeededSince: NOW,
+    countryCode: null,
+    countrySource: 'organization_default',
+    timezoneSource: 'legacy',
+    timezoneResolvedAt: null,
+    sourceEpoch: 0,
+    ...overrides,
+  }
+}
+
+function makeActiveProperty(idSuffix: string, locationId: string): Property {
+  return makeProperty(idSuffix, {
+    address: '1 Main Street',
+    gbpLocationId: locationId,
+    gbpAccountId: 'account-1',
+    googleConnectionId: CONNECTION_ID,
+    googleBindingState: 'active',
+    profileSource: 'tenant_confirmed',
+    profileConfirmedAt: CONFIRMED_AT,
+    profileConfirmedBy: 'user-1',
+    sourceEpoch: 1,
+    googleReviewDestination: {
+      state: 'verified',
+      uri: `https://search.google.com/local/writereview?placeid=${locationId}`,
+      retrievedAt: CONFIRMED_AT,
+      sourceEpoch: 1,
+      profileVersion: 1,
+    },
+  })
+}
+
+async function cleanup(): Promise<void> {
+  await pool.query(
+    `DELETE FROM idempotency_receipts
+     WHERE scope = 'property_operation' AND payload->>'organizationId' = $1`,
+    [ORG_ID],
+  )
+  await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG_ID])
+  await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
+}
+
+beforeAll(async () => {
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 4 })
+  const client = await pool.connect()
+  client.release()
+  clearEventSchemas()
+  registerAllEventSchemas()
+  await pool.query(
+    `INSERT INTO organization (id, name, slug, "createdAt")
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [ORG_ID, 'Google Binding Integration', 'google-binding-integration'],
+  )
+  await pool.query(
+    `INSERT INTO google_connections (
+       id, organization_id, google_subject,
+       encrypted_access_token, encrypted_refresh_token, token_expires_at,
+       scopes, connected_by, created_at, updated_at
+     )
+     VALUES
+       ($1, $3, 'binding-subject-1', 'encrypted', 'encrypted', NOW(), ARRAY['https://www.googleapis.com/auth/business.manage'], 'user-1', NOW(), NOW()),
+       ($2, $3, 'binding-subject-2', 'encrypted', 'encrypted', NOW(), ARRAY['https://www.googleapis.com/auth/business.manage'], 'user-2', NOW(), NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [CONNECTION_ID, CONNECTION_ID_2, ORG_ID],
+  )
+})
+
+beforeEach(async () => {
+  await cleanup()
+})
+
+afterAll(async () => {
+  await cleanup()
+  await pool.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG_ID])
+  await deleteTestOrganizations(pool, [ORG_ID])
+  clearEventSchemas()
+  await pool.end()
+})
+
+function bindingError(code: PropertyGoogleBindingError['code']) {
+  return (error: unknown) =>
+    error instanceof PropertyGoogleBindingError && error.code === code
+}
+
+describe.sequential('Property Google binding store', () => {
+  it('atomically creates and exactly replays a confirmed binding receipt', async () => {
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+    const property = makeActiveProperty('1', 'location-1')
+    const idempotencyKey = '20000000-0000-4000-8000-000000000001'
+
+    const committed = await store.createBoundProperty({
+      organizationId: ORG_ID,
+      idempotencyKey,
+      property,
+      now: NOW,
+    })
+    const replayed = await store.createBoundProperty({
+      organizationId: ORG_ID,
+      idempotencyKey,
+      property,
+      now: new Date(NOW.getTime() + 1_000),
+    })
+
+    expect(committed).toEqual({
+      propertyId: property.id,
+      outcome: 'imported',
+      sourceEpoch: 1,
+      profileVersion: 1,
+      replayed: false,
+      tombstone: false,
+    })
+    expect(replayed).toEqual({ ...committed, replayed: true })
+
+    const summary = await store.readSummary(ORG_ID, property.id)
+    expect(summary).toEqual({
+      state: 'active',
+      sourceEpoch: 1,
+      profileVersion: 1,
+      profileSource: 'tenant_confirmed',
+      profileConfirmedAt: CONFIRMED_AT,
+    })
+    expect(summary).not.toHaveProperty('connectionId')
+    expect(summary).not.toHaveProperty('accountId')
+
+    expect(summary).not.toHaveProperty('locationId')
+    expect(await store.readSummary(OTHER_ORG_ID, property.id)).toBeNull()
+
+    const receipt = await store.readReceipt(ORG_ID, idempotencyKey, NOW)
+    expect(receipt?.expiresAt).toEqual(
+      new Date(NOW.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS),
+    )
+    expect(
+      await store.readReceipt(
+        ORG_ID,
+        idempotencyKey,
+        new Date(NOW.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS),
+      ),
+    ).toBeNull()
+
+    const outbox = await pool.query(
+      `SELECT payload FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'property.google_binding.changed'`,
+      [ORG_ID],
+    )
+    expect(outbox.rows).toHaveLength(1)
+    expect(outbox.rows[0].payload).toMatchObject({
+      organizationId: ORG_ID,
+      propertyId: property.id,
+      connectionId: CONNECTION_ID,
+      sourceEpoch: 1,
+      change: 'created',
+      importFollowUps: true,
+    })
+    expect(outbox.rows[0].payload).not.toHaveProperty('accountId')
+    expect(outbox.rows[0].payload).not.toHaveProperty('locationId')
+
+    // Recent Activity sees an imported Property through the same fact a manual
+    // create records, committed once with the row and never on replay.
+    const created = await pool.query(
+      `SELECT payload FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'property.created'`,
+      [ORG_ID],
+    )
+    expect(created.rows).toHaveLength(1)
+    expect(created.rows[0].payload).toMatchObject({
+      organizationId: ORG_ID,
+      propertyId: property.id,
+      name: property.name,
+      slug: property.slug,
+    })
+    expect(created.rows[0].payload).not.toHaveProperty('connectionId')
+    expect(created.rows[0].payload).not.toHaveProperty('locationId')
+  })
+
+  it('records no created fact when a create is refused', async () => {
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+    await store.createBoundProperty({
+      organizationId: ORG_ID,
+      idempotencyKey: '20000000-0000-4000-8000-000000000021',
+      property: makeActiveProperty('21', 'contested-location'),
+      now: NOW,
+    })
+
+    await expect(
+      store.createBoundProperty({
+        organizationId: ORG_ID,
+        idempotencyKey: '20000000-0000-4000-8000-000000000022',
+        property: makeActiveProperty('22', 'contested-location'),
+        now: NOW,
+      }),
+    ).rejects.toSatisfy(bindingError('location_already_bound'))
+
+    const created = await pool.query(
+      `SELECT payload->>'propertyId' AS property_id FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'property.created'`,
+      [ORG_ID],
+    )
+    expect(created.rows).toEqual([{ property_id: makeActiveProperty('21', 'x').id }])
+  })
+  it('reads a bounded tenant-scoped import discovery view by location suffix', async () => {
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+    const property = makeActiveProperty('11', 'location-discovery')
+    await store.createBoundProperty({
+      organizationId: ORG_ID,
+      idempotencyKey: '20000000-0000-4000-8000-000000000011',
+      property,
+      now: NOW,
+    })
+
+    await expect(
+      store.readByLocationIds(ORG_ID, ['location-discovery', 'location-missing']),
+    ).resolves.toEqual([
+      {
+        organizationId: ORG_ID,
+        propertyId: property.id,
+        state: 'active',
+        connectionId: CONNECTION_ID,
+        accountId: 'account-1',
+        locationId: 'location-discovery',
+        sourceEpoch: 1,
+        profileVersion: 1,
+        name: 'Property 11',
+        address: '1 Main Street',
+        countryCode: null,
+        timezone: 'America/New_York',
+        profileSource: 'tenant_confirmed',
+        profileConfirmedAt: CONFIRMED_AT,
+        lifecycleState: 'active',
+        deletedAt: null,
+        googleReviewDestination: {
+          state: 'verified',
+          uri: 'https://search.google.com/local/writereview?placeid=location-discovery',
+          retrievedAt: CONFIRMED_AT,
+          sourceEpoch: 1,
+          profileVersion: 1,
+        },
+      },
+    ])
+    await expect(
+      store.readByLocationIds(OTHER_ORG_ID, ['location-discovery']),
+    ).resolves.toEqual([])
+    await expect(store.readByLocationIds(ORG_ID, [])).rejects.toMatchObject({
+      code: 'invalid_binding',
+    })
+    await expect(
+      store.readByLocationIds(
+        ORG_ID,
+        Array.from({ length: 101 }, (_, index) => `l${index}`),
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_binding' })
+  })
+
+  it('serializes duplicate active locations across concurrent creates', async () => {
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+    const results = await Promise.allSettled([
+      store.createBoundProperty({
+        organizationId: ORG_ID,
+        idempotencyKey: '20000000-0000-4000-8000-000000000002',
+        property: makeActiveProperty('2', 'shared-location'),
+        now: NOW,
+      }),
+      store.createBoundProperty({
+        organizationId: ORG_ID,
+        idempotencyKey: '20000000-0000-4000-8000-000000000003',
+        property: makeActiveProperty('3', 'shared-location'),
+        now: NOW,
+      }),
+    ])
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    const rejected = results.find((result) => result.status === 'rejected')
+    expect(rejected).toBeDefined()
+    expect((rejected as PromiseRejectedResult).reason).toSatisfy(
+      bindingError('location_already_bound'),
+    )
+  })
+
+  it("never reads, changes or replays another Organization's Property or receipt", async () => {
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+    const property = makeActiveProperty('9', 'location-9')
+    const idempotencyKey = '20000000-0000-4000-8000-000000000009'
+    await store.createBoundProperty({
+      organizationId: ORG_ID,
+      idempotencyKey,
+      property,
+      now: NOW,
+    })
+    const heldBefore = await store.readInternal(ORG_ID, property.id)
+
+    expect(await store.readInternal(OTHER_ORG_ID, property.id)).toBeNull()
+    expect(await store.readByLocationIds(OTHER_ORG_ID, ['location-9'])).toEqual([])
+    expect(await store.readReceipt(OTHER_ORG_ID, idempotencyKey, NOW)).toBeNull()
+    expect(await store.readReceipt(ORG_ID, idempotencyKey, NOW)).not.toBeNull()
+
+    await expect(
+      store.disconnect({
+        organizationId: OTHER_ORG_ID,
+        propertyId: property.id,
+        expectedSourceEpoch: 1,
+        expectedProfileVersion: 1,
+        now: NOW,
+      }),
+    ).rejects.toSatisfy(bindingError('property_not_found'))
+    await expect(
+      store.scrubProviderIdentity({
+        organizationId: OTHER_ORG_ID,
+        propertyId: property.id,
+        expectedSourceEpoch: 1,
+        expectedProfileVersion: 1,
+        now: NOW,
+      }),
+    ).rejects.toSatisfy(bindingError('property_not_found'))
+    await expect(
+      store.relink({
+        organizationId: OTHER_ORG_ID,
+        propertyId: property.id,
+        idempotencyKey: '20000000-0000-4000-8000-000000000019',
+        connectionId: CONNECTION_ID,
+        accountId: 'account-1',
+        locationId: 'location-9',
+        profile: {
+          name: 'Hijacked',
+          address: '1 Main Street',
+          timezone: 'America/New_York',
+          confirmedBy: 'user-9',
+          googleReviewUri: null,
+        },
+        expectedSourceEpoch: 1,
+        expectedProfileVersion: 1,
+        now: NOW,
+      }),
+    ).rejects.toBeInstanceOf(PropertyGoogleBindingError)
+
+    expect(await store.readInternal(ORG_ID, property.id)).toEqual(heldBefore)
+  })
+
+  it('relinks with source/profile CAS, confirmed profile replacement, and exact replay', async () => {
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+    const property = makeActiveProperty('4', 'old-location')
+    const disconnected = {
+      ...property,
+      googleBindingState: 'disconnected' as const,
+      sourceEpoch: 4,
+      profileVersion: 3,
+    }
+    await seedTestProperty(db, disconnected)
+
+    const input = {
+      organizationId: ORG_ID,
+      propertyId: property.id,
+      idempotencyKey: '20000000-0000-4000-8000-000000000004',
+      connectionId: CONNECTION_ID_2,
+      accountId: 'account-2',
+      locationId: 'location-2',
+      profile: {
+        name: '  Confirmed Name  ',
+        address: '  2 Main Street  ',
+        timezone: 'America/Chicago',
+        confirmedBy: 'user-2',
+        googleReviewUri: 'https://search.google.com/local/writereview?placeid=location-2',
+      },
+      expectedSourceEpoch: 4,
+      expectedProfileVersion: 3,
+      now: NOW,
+    } as const
+
+    const committed = await store.relink(input)
+    const replayed = await store.relink(input)
+    expect(committed).toMatchObject({
+      outcome: 'relinked',
+      sourceEpoch: 5,
+      profileVersion: 4,
+      replayed: false,
+    })
+    expect(replayed).toEqual({ ...committed, replayed: true })
+
+    const current = await store.readInternal(ORG_ID, property.id)
+    expect(current).toMatchObject({
+      state: 'active',
+      accountId: 'account-2',
+      locationId: 'location-2',
+      sourceEpoch: 5,
+      profileVersion: 4,
+      profileSource: 'tenant_confirmed',
+      profileConfirmedAt: NOW,
+      googleReviewDestination: {
+        state: 'verified',
+        uri: 'https://search.google.com/local/writereview?placeid=location-2',
+        retrievedAt: NOW,
+        sourceEpoch: 5,
+        profileVersion: 4,
+      },
+    })
+    const row = await pool.query(
+      `SELECT name, address, timezone, timezone_source, profile_confirmed_by
+       FROM properties WHERE organization_id = $1 AND id = $2`,
+      [ORG_ID, property.id],
+    )
+    expect(row.rows[0]).toEqual({
+      name: 'Confirmed Name',
+      address: '2 Main Street',
+      timezone: 'America/Chicago',
+      timezone_source: 'tenant_confirmed',
+      profile_confirmed_by: 'user-2',
+    })
+
+    await expect(
+      store.relink({
+        ...input,
+        idempotencyKey: '20000000-0000-4000-8000-000000000005',
+      }),
+    ).rejects.toSatisfy(bindingError('stale_binding'))
+    await expect(
+      store.relink({
+        ...input,
+        idempotencyKey: '20000000-0000-4000-8000-000000000006',
+        expectedSourceEpoch: 5,
+        expectedProfileVersion: 4,
+      }),
+    ).rejects.toSatisfy(bindingError('active_binding_conflict'))
+
+    // Relinking changes an existing Property's binding; nothing was created.
+    const created = await pool.query(
+      `SELECT 1 FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'property.created'`,
+      [ORG_ID],
+    )
+    expect(created.rows).toHaveLength(0)
+  })
+
+  it('disconnects then scrubs provider identity while preserving profile generations', async () => {
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+    const property = makeActiveProperty('5', 'location-5')
+    await seedTestProperty(db, property)
+
+    const disconnected = await store.disconnect({
+      organizationId: ORG_ID,
+      propertyId: property.id,
+      expectedSourceEpoch: 1,
+      expectedProfileVersion: 1,
+      now: NOW,
+    })
+    expect(disconnected).toMatchObject({
+      state: 'disconnected',
+      sourceEpoch: 2,
+      profileVersion: 1,
+    })
+    expect(await store.readInternal(ORG_ID, property.id)).toMatchObject({
+      googleReviewDestination: {
+        state: 'awaiting_refresh',
+        uri: 'https://search.google.com/local/writereview?placeid=location-5',
+      },
+    })
+    expect(
+      await store.disconnect({
+        organizationId: ORG_ID,
+        propertyId: property.id,
+        expectedSourceEpoch: 1,
+        expectedProfileVersion: 1,
+        now: NOW,
+      }),
+    ).toEqual(disconnected)
+
+    const scrubbed = await store.scrubProviderIdentity({
+      organizationId: ORG_ID,
+      propertyId: property.id,
+      expectedSourceEpoch: 2,
+      expectedProfileVersion: 1,
+      now: NOW,
+    })
+    expect(scrubbed).toMatchObject({
+      state: 'unbound',
+      sourceEpoch: 3,
+      profileVersion: 1,
+    })
+    expect(await store.readInternal(ORG_ID, property.id)).toMatchObject({
+      state: 'unbound',
+      connectionId: null,
+      accountId: null,
+      locationId: null,
+      profileVersion: 1,
+      googleReviewDestination: {
+        state: 'unavailable',
+        uri: null,
+      },
+    })
+    const outbox = await pool.query(
+      `SELECT payload->>'change' AS change
+       FROM outbox_events
+       WHERE organization_id = $1
+         AND property_id = $2
+         AND event_type = 'property.google_binding.changed'`,
+      [ORG_ID, property.id],
+    )
+    expect(outbox.rows.map((row) => row.change).sort()).toEqual([
+      'deletion_started',
+      'disconnected',
+    ])
+  })
+
+  it('replays retained deletion tombstones and sweeps only released expiries', async () => {
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+    const deletedProperty = makeActiveProperty('6', 'location-6')
+    const retainedProperty = makeActiveProperty('7', 'location-7')
+    const deletedKey = '20000000-0000-4000-8000-000000000007'
+    const retainedKey = '20000000-0000-4000-8000-000000000008'
+
+    // A retained deletion receipt must replay after its Property is gone.
+    await db.insert(idempotencyReceipts).values({
+      scope: 'property_operation',
+      key: propertyReceiptKey(ORG_ID, deletedKey),
+      payload: propertyReceiptPayload({
+        organizationId: ORG_ID,
+        idempotencyKey: deletedKey,
+        destinationPropertyId: null,
+        outcome: 'property_deleted',
+        destinationSourceEpoch: 2,
+        destinationProfileVersion: deletedProperty.profileVersion,
+        tombstone: true,
+        expiresAt: new Date(NOW.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS),
+        retentionReleasedAt: null,
+      }),
+      recordedAt: NOW,
+    })
+    await store.createBoundProperty({
+      organizationId: ORG_ID,
+      idempotencyKey: retainedKey,
+      property: retainedProperty,
+      now: NOW,
+    })
+
+    const deletionTime = new Date(NOW.getTime() + 1_000)
+    expect(await store.readReceipt(ORG_ID, deletedKey, deletionTime)).toMatchObject({
+      destinationPropertyId: null,
+      outcome: 'property_deleted',
+      destinationSourceEpoch: 2,
+      tombstone: true,
+    })
+    expect(
+      await store.createBoundProperty({
+        organizationId: ORG_ID,
+        idempotencyKey: deletedKey,
+        property: deletedProperty,
+        now: deletionTime,
+      }),
+    ).toMatchObject({
+      propertyId: null,
+      outcome: 'property_deleted',
+      replayed: true,
+      tombstone: true,
+    })
+
+    const releaseEventId = '30000000-0000-4000-8000-000000000001'
+    await pool.query(
+      `INSERT INTO outbox_events (
+         id, event_type, event_version, payload, organization_id,
+         source_context, source_aggregate_id, created_at
+       ) VALUES ($1, $2, 1, $3::jsonb, $4, 'integration', $6, $5)`,
+      [
+        releaseEventId,
+        'integration.property_import.retention_released',
+        JSON.stringify({ organizationId: ORG_ID, idempotencyKeys: [deletedKey] }),
+        ORG_ID,
+        deletionTime,
+        releaseEventId,
+      ],
+    )
+    const releaseInput = {
+      eventId: releaseEventId,
+      organizationId: ORG_ID,
+      idempotencyKeys: [deletedKey, deletedKey],
+      releasedAt: deletionTime,
+    } as const
+    expect(await store.releaseRetentionFromEvent(releaseInput)).toBe('applied')
+    expect(await store.releaseRetentionFromEvent(releaseInput)).toBe('duplicate')
+    const consumerReceipts = await pool.query(
+      `SELECT status FROM event_consumer_receipts
+       WHERE event_id = $1 AND consumer_name = 'property.import-retention-release'`,
+      [releaseEventId],
+    )
+    expect(consumerReceipts.rows).toEqual([{ status: 'applied' }])
+    expect(
+      await store.countUnreleasedExpired({
+        now: new Date(NOW.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS - 1),
+        limit: 100,
+      }),
+    ).toBe(0)
+    expect(
+      await store.countUnreleasedExpired({
+        now: new Date(NOW.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS),
+        limit: 100,
+      }),
+    ).toBe(1)
+    expect(
+      await store.sweepReleasedExpired({
+        now: new Date(NOW.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS - 1),
+        limit: 100,
+      }),
+    ).toBe(0)
+    expect(
+      await store.sweepReleasedExpired({
+        now: new Date(NOW.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS),
+        limit: 100,
+      }),
+    ).toBe(1)
+
+    const receiptRows = await pool.query(
+      `SELECT payload->>'idempotencyKey' AS idempotency_key
+       FROM idempotency_receipts
+       WHERE scope = 'property_operation' AND payload->>'organizationId' = $1`,
+      [ORG_ID],
+    )
+    expect(receiptRows.rows).toEqual([{ idempotency_key: retainedKey }])
+    expect(await store.cleanupOrganization(ORG_ID)).toBe(1)
+  })
+
+  describe('the Google primary category', () => {
+    const categoryRow = async (id: string) =>
+      (
+        await pool.query(
+          `SELECT google_primary_category AS category,
+                  google_primary_category_updated_at AS updated_at,
+                  source_epoch, profile_version
+           FROM properties WHERE organization_id = $1 AND id = $2`,
+          [ORG_ID, id],
+        )
+      ).rows[0]
+
+    const disconnect = (
+      store: ReturnType<typeof createPropertyGoogleBindingStore>,
+      property: Property,
+    ) =>
+      store.disconnect({
+        organizationId: ORG_ID,
+        propertyId: property.id,
+        expectedSourceEpoch: property.sourceEpoch,
+        expectedProfileVersion: property.profileVersion,
+        now: NOW,
+      })
+
+    const relinkInput = (
+      property: Property,
+      idempotencyKey: string,
+      googlePrimaryCategory: string | null | undefined,
+    ) =>
+      ({
+        organizationId: ORG_ID,
+        propertyId: property.id,
+        idempotencyKey,
+        connectionId: CONNECTION_ID_2,
+        accountId: 'account-2',
+        locationId: `location-relinked-${property.id.slice(-2)}`,
+        profile: {
+          name: 'Confirmed Name',
+          address: '2 Main Street',
+          timezone: 'America/Chicago',
+          confirmedBy: 'user-2',
+          ...(googlePrimaryCategory === undefined ? {} : { googlePrimaryCategory }),
+        },
+        expectedSourceEpoch: property.sourceEpoch + 1,
+        expectedProfileVersion: property.profileVersion,
+        now: NOW,
+      }) as const
+
+    it('is stored with the Property an import creates, beside the confirmed profile', async () => {
+      const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+      const property = makeActiveProperty('8', 'location-8')
+      const withCategory = {
+        ...property,
+        googlePrimaryCategory: 'Boat rental service',
+        googlePrimaryCategoryUpdatedAt: NOW,
+      }
+
+      await store.createBoundProperty({
+        organizationId: ORG_ID,
+        idempotencyKey: '20000000-0000-4000-8000-000000000008',
+        property: withCategory,
+        now: NOW,
+      })
+
+      expect(await categoryRow(property.id)).toEqual({
+        category: 'Boat rental service',
+        updated_at: NOW,
+        source_epoch: 1,
+        profile_version: 1,
+      })
+    })
+
+    it('is empty for a Property created with none, never an invented one', async () => {
+      const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+      const property = makeActiveProperty('9', 'location-9')
+
+      await store.createBoundProperty({
+        organizationId: ORG_ID,
+        idempotencyKey: '20000000-0000-4000-8000-000000000009',
+        property,
+        now: NOW,
+      })
+
+      expect(await categoryRow(property.id)).toMatchObject({
+        category: null,
+        updated_at: null,
+      })
+    })
+
+    it('is cleared on disconnect and read afresh on reconnect without changing retained identity', async () => {
+      const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+      const property = {
+        ...makeActiveProperty('10', 'location-10'),
+        googlePrimaryCategory: 'Hotel',
+        googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
+      }
+      await seedTestProperty(db, property)
+      await disconnect(store, property)
+      expect(await categoryRow(property.id)).toMatchObject({
+        category: null,
+        updated_at: null,
+      })
+      expect(await store.readInternal(ORG_ID, property.id)).toMatchObject({
+        state: 'disconnected',
+        connectionId: CONNECTION_ID,
+        accountId: 'account-1',
+        locationId: 'location-10',
+        googleReviewDestination: {
+          state: 'awaiting_refresh',
+          uri: property.googleReviewDestination?.uri,
+        },
+      })
+
+      await store.relink(
+        relinkInput(
+          property,
+          '20000000-0000-4000-8000-000000000010',
+          '  Boat rental service ',
+        ),
+      )
+
+      expect(await categoryRow(property.id)).toEqual({
+        category: 'Boat rental service',
+        updated_at: NOW,
+        // The relink bumps these; the category adds nothing to them.
+        source_epoch: 3,
+        profile_version: 2,
+      })
+    })
+
+    it.each([false, true])(
+      'keeps only a hint that disconnect has not cleared (disconnect first: %s)',
+      async (disconnectFirst) => {
+        const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+        const held = {
+          googlePrimaryCategory: 'Hotel',
+          googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
+        }
+        const cases: ReadonlyArray<readonly [string, string | null | undefined]> = [
+          ['11', null],
+          ['12', undefined],
+          ['13', '\u0000not text'],
+        ]
+
+        for (const [suffix, read] of cases) {
+          const property = {
+            ...makeActiveProperty(suffix, `location-${suffix}`),
+            ...held,
+            googleBindingState: disconnectFirst
+              ? ('active' as const)
+              : ('disconnected' as const),
+          }
+          await seedTestProperty(db, property)
+          if (disconnectFirst) await disconnect(store, property)
+          await store.relink({
+            ...relinkInput(property, `20000000-0000-4000-8000-0000000000${suffix}`, read),
+            expectedSourceEpoch: property.sourceEpoch + Number(disconnectFirst),
+          })
+
+          expect(await categoryRow(property.id), String(read)).toMatchObject({
+            category: disconnectFirst ? null : 'Hotel',
+            updated_at: disconnectFirst ? null : CONFIRMED_AT,
+          })
+        }
+      },
+    )
+
+    it('goes with the provider identity when it is scrubbed', async () => {
+      const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
+      const property = {
+        ...makeActiveProperty('14', 'location-14'),
+        googlePrimaryCategory: 'Hotel',
+        googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
+      }
+      await seedTestProperty(db, property)
+      await store.scrubProviderIdentity({
+        organizationId: ORG_ID,
+        propertyId: property.id,
+        expectedSourceEpoch: 1,
+        expectedProfileVersion: 1,
+        now: NOW,
+      })
+
+      expect(await categoryRow(property.id)).toMatchObject({
+        category: null,
+        updated_at: null,
+      })
+    })
+  })
+})

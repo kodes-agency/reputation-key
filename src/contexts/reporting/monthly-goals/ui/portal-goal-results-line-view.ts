@@ -2,7 +2,7 @@
 // Portal's own goal; otherwise show its contribution to the Property goal. Ineligible
 // or empty reads yield no line.
 
-import type { PortalGoalLineView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalLineView } from '#/contexts/reporting/monthly-goals/contracts'
 import { formatNumber } from '#/lib/format'
 import { monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'
 

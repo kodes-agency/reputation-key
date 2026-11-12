@@ -23,7 +23,7 @@ import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
 import type {
   PortalGoalCardView,
   PortalGoalSheetFacts,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { SHEET_NOVEMBER_22 } from './portal-goal-change.stories.fixtures'
 import {
   CARD_LAST_DAY,

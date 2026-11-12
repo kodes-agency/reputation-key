@@ -1,4 +1,4 @@
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 
 /**
  * A controlled state for the guest page, for manager previews and Storybook.

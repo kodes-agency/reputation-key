@@ -31,7 +31,7 @@ import {
   type PortalManagerEligibilityDeps,
 } from './portal-manager-eligibility'
 import type { PortalCopySource } from './portal-content-copy'
-import type { CreatePortalGroupMembership } from './ports/portal-command-store.port'
+import type { CreatePortalGroupMembership } from '../publication/portal-command-store-port.server'
 import type { PortalApprovedDestinationRepository } from './ports/portal-approved-destination.repository'
 import type { PortalExperienceRepository } from './ports/portal-experience.repository'
 import type { PortalGroupRepository } from './ports/portal-group.repository'

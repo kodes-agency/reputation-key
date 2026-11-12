@@ -64,7 +64,7 @@ import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/goog
 import { createAiControlAdapter } from '#/contexts/ai/infrastructure/adapters/ai-control.adapter'
 import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/infrastructure/adapters/property-processing-profile.adapter'
 import { propertyArchived } from '#/contexts/property/domain/events'
-import { createPropertyLifecycleCommandStore } from '#/contexts/property/infrastructure/property-lifecycle-command-store'
+import { createPropertyLifecycleCommandStore } from '#/contexts/property/lifecycle/transition-store.server'
 import {
   reviewReplyApproved,
   reviewReplyPublicationCancelled,

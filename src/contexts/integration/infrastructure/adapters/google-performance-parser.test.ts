@@ -3,7 +3,7 @@ import {
   GOOGLE_PERFORMANCE_DAILY_METRICS,
   MAX_GOOGLE_PERFORMANCE_DAILY_VALUE,
 } from '../../application/google-provider-contract'
-import { isGbpApiError } from '../../domain/gbp-api-error'
+import { isGoogleCallError } from '../../domain/google-call-error'
 import { parseGooglePerformanceResponse } from './google-performance-parser'
 
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
@@ -209,8 +209,8 @@ describe('Google Performance response parser', () => {
       })
       throw new Error('expected parser failure')
     } catch (error) {
-      expect(isGbpApiError(error)).toBe(true)
-      if (!isGbpApiError(error)) return
+      expect(isGoogleCallError(error)).toBe(true)
+      if (!isGoogleCallError(error)) return
       expect(error.kind).toBe('parse_error')
       expect(error.providerBodyBytes).toBeGreaterThan(0)
       expect(JSON.stringify(error)).not.toContain('UNKNOWN_NEW_METRIC')

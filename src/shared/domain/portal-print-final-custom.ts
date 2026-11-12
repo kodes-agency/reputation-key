@@ -80,22 +80,6 @@ export function printFinalCustomCopyProblem(
   return longest > PRINT_FINAL_CUSTOM_MAX_CHARACTERS ? 'too_long' : null
 }
 
-/** Why the own words of a print cannot print, or null: every language must be on the print, and each one's words whole. */
-export function printFinalCustomProblem(
-  custom: PrintFinalCustomWords,
-  languages: readonly GuestLocale[],
-): PrintFinalCustomProblem | null {
-  for (const [locale, copy] of Object.entries(custom) as [
-    GuestLocale,
-    PrintFinalCustomCopy,
-  ][]) {
-    if (!languages.includes(locale)) return 'language_not_on_print'
-    const problem = printFinalCustomCopyProblem(copy)
-    if (problem !== null) return problem
-  }
-  return null
-}
-
 /** One language's words on the print: its own words, normalised, else the wording's copy. */
 export function printFinalCopyOf(
   words: PrintFinalWordsChoice,

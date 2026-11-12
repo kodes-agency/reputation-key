@@ -3,6 +3,36 @@
 // dark tree logo like Oakmere's (it sits on the cream plate), and a lit interior
 // with a pale bed where the words go and a dark floor.
 
+import type { GuestLocale } from '#/shared/domain/guest-locale'
+import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
+
+const RATE_COPY: Readonly<
+  Record<GuestLocale, Readonly<{ headline: string; subline: string }>>
+> = {
+  en: { headline: 'Rate your visit', subline: 'Private, about 30 seconds' },
+  bg: { headline: 'Оценете посещението си', subline: 'Поверително, около 30 секунди' },
+  es: { headline: 'Valore su visita', subline: 'En privado, unos 30 segundos' },
+  it: { headline: 'Valuti la sua visita', subline: 'In privato, circa 30 secondi' },
+  fr: { headline: 'Évaluez votre visite', subline: 'En privé, environ 30 secondes' },
+  de: { headline: 'Bewerten Sie Ihren Besuch', subline: 'Privat, etwa 30 Sekunden' },
+}
+
+/** The words a front face carries in each language: a kicker over the "rate" headline and subline. */
+export const storyFrontBlocks = (
+  languages: readonly GuestLocale[],
+  titles: Readonly<Partial<Record<GuestLocale, string>>>,
+  fallbackTitle: string,
+): readonly PrintTextBlock[] =>
+  languages.map((locale) => ({
+    locale,
+    kicker: titles[locale] ?? fallbackTitle,
+    ...RATE_COPY[locale],
+  }))
+
+/** Points as CSS pixels, 96 to the inch: 144 pt is the 192 px that 2 in measures on a screen. */
+export const pointsToPixels = (points: number): string =>
+  `${Number(((points * 96) / 72).toFixed(4))}px`
+
 /** A blue badge logo, like the board's Harborline. */
 export const BADGE_LOGO =
   'data:image/svg+xml;charset=utf-8,' +

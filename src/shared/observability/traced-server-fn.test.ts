@@ -1,8 +1,10 @@
+import type { ClientBase } from 'pg'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 import type { DomainEvent } from '#/shared/events/events'
 import { clearEventSchemas, registerEventSchema } from '#/shared/events/schema-registry'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { observeClient } from '#/shared/db/scope-observation.server'
 import { getRequestContext } from './request-context'
 import { tracedHandler } from './traced-server-fn'
 
@@ -62,6 +64,45 @@ describe('tracedHandler command identity', () => {
     expect(values).toHaveBeenCalledOnce()
     expect(values.mock.calls[0]?.[0]).toMatchObject({
       payload: { commandId: requestId },
+    })
+  })
+})
+
+describe('tracedHandler database timing', () => {
+  it("logs the request's statement and transaction timing with its completion", async () => {
+    const query = vi.fn(async () => ({ rows: [] }))
+    const client = { query } as unknown as ClientBase
+    observeClient(client)
+
+    await tracedHandler<undefined, void>(
+      async () => {
+        await client.query('select 1')
+        await client.query('begin')
+        await client.query('select 2')
+        await client.query('commit')
+      },
+      'GET',
+      'getInbox',
+    )({ data: undefined })
+
+    expect(observabilityMocks.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dbStatements: 2,
+        dbAutocommitStatements: 1,
+        dbTransactions: 1,
+        dbStatementMs: expect.any(Number),
+        dbTransactionMs: expect.any(Number),
+        dbScopeSettingMs: 0,
+      }),
+      'request complete',
+    )
+  })
+
+  it('adds no database fields to a request that sent no statement', async () => {
+    await tracedHandler<undefined, void>(async () => undefined)({ data: undefined })
+
+    expect(observabilityMocks.info.mock.calls[0]?.[0]).toEqual({
+      duration: expect.any(Number),
     })
   })
 })

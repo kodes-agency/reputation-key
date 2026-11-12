@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { goalNewRedirect } from './-goal-new-redirect'
 
-// The New goal page is gone (PLAN PG-20): its old addresses open "Add a portal
+// The New goal page is gone: its old addresses open "Add a portal
 // goal" on the goal page, where the step they asked for is.
 describe('goalNewRedirect', () => {
   it('maps each old address and drops unknown keys', () => {
