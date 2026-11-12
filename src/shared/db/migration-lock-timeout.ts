@@ -1,5 +1,6 @@
-// The lock wait of the deploy migrator's two schema tracks
-// (scripts/migrate-deploy.ts).
+// The lock wait of the schema migrators: the journal
+// (scripts/migrate-deploy.ts, scripts/migrate-drizzle.ts) and the pinned
+// Better Auth runner (scripts/better-auth-schema.ts).
 //
 // A statement that waits for a lock keeps its request queued, and PostgreSQL
 // queues every later request on the same object behind it. A migration's
@@ -10,10 +11,10 @@
 // holder ran. With this bound the migrator gives up first and the deploy
 // fails, which leaves the previous release serving.
 //
-// The two tracks run on different sessions. The journal runs on the runner's
-// own session (`withMigrationLockTimeout`). The Better Auth track runs each
-// statement on the pool of `src/shared/auth/auth-cli.ts`, which bounds every
-// connection it opens (`boundMigrationLockWait`).
+// The journal runs on the runner's own session (`withMigrationLockTimeout`).
+// The Better Auth runner sends each statement on the pool of
+// `src/shared/auth/auth-cli.ts`, which bounds every connection it opens
+// (`boundMigrationLockWait`).
 //
 // What it does not bound is how long the migrator HOLDS a lock: each file
 // keeps its locks until that file commits. An application statement waiting
@@ -29,8 +30,8 @@ type MigrationSession = Readonly<{ query: (text: string) => Promise<unknown> }>
 
 /**
  * Bounds the lock wait of one session for as long as it lives. For a session
- * that only ever manages schema: the Better Auth track's pool sets it on each
- * connection, because that track sends `ALTER TABLE` on `user`, `session`,
+ * that only ever manages schema: the Better Auth runner's pool sets it on each
+ * connection, because that runner sends `ALTER TABLE` on `user`, `session`,
  * `member` and `organization`, which every request reads.
  */
 export async function boundMigrationLockWait(session: MigrationSession): Promise<void> {

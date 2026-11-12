@@ -39,12 +39,16 @@ export const scanEvents = pgTable(
   (t) => [
     index('scan_events_session_idx').on(t.sessionId),
     index('scan_events_portal_idx').on(t.portalId),
-    // scan_events_created_at_idx (the retention sweep's order) and the two
-    // partial indexes its pseudonym redactions read,
-    // scan_events_ip_hash_redaction_idx and
-    // scan_events_session_id_redaction_idx, are absent here on purpose: the
-    // concurrent-index sidecar builds them
-    // (src/shared/db/concurrent-index-registry.ts).
+    // The retention sweep's order. A redaction keeps its row, so each
+    // pseudonym redaction reads a partial index holding only the scans it has
+    // not cleared yet.
+    index('scan_events_created_at_idx').on(t.createdAt),
+    index('scan_events_ip_hash_redaction_idx')
+      .on(t.createdAt)
+      .where(sql`${t.ipHash} IS NOT NULL`),
+    index('scan_events_session_id_redaction_idx')
+      .on(t.createdAt)
+      .where(sql`${t.sessionId} IS NOT NULL`),
   ],
 )
 
@@ -88,9 +92,8 @@ export const guestQualifiedScans = pgTable(
       t.portalId,
       t.occurredAt,
     ),
-    // guest_qualified_scans_occurred_at_idx (the retention sweep's order) is absent here on
-    // purpose: the concurrent-index sidecar builds it
-    // (src/shared/db/concurrent-index-registry.ts).
+    // The retention sweep's order.
+    index('guest_qualified_scans_occurred_at_idx').on(t.occurredAt),
     foreignKey({
       name: 'guest_qualified_scans_participant_scope_fk',
       columns: [
@@ -323,9 +326,8 @@ export const guestResponses = pgTable(
       t.portalId,
       t.integrityOutcome,
     ),
-    // guest_responses_retention_deadline_idx (the retention sweep's order) is absent here on
-    // purpose: the concurrent-index sidecar builds it
-    // (src/shared/db/concurrent-index-registry.ts).
+    // The retention sweep's order.
+    index('guest_responses_retention_deadline_idx').on(t.retentionDeadline),
     foreignKey({
       name: 'guest_responses_participant_scope_fk',
       columns: [

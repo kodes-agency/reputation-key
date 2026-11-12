@@ -1,22 +1,26 @@
-// Real-Postgres coverage for the autocommit sidecar (database-03,
-// database-04). Every query here runs WITHOUT an explicit transaction:
-// `CREATE INDEX CONCURRENTLY` is refused inside one, so unlike most
-// integration tests in this repo this file cannot isolate itself with
-// BEGIN/ROLLBACK. Cleanup is explicit DELETE/DROP instead, mirroring the
-// retired google-property-binding-index.integration.test.ts, which had the
-// same constraint.
+// Real-Postgres coverage for the journaled concurrent indexes. Every query
+// here runs WITHOUT an explicit transaction: `CREATE INDEX CONCURRENTLY` is
+// refused inside one, so unlike most integration tests in this repo this file
+// cannot isolate itself with BEGIN/ROLLBACK. Cleanup is explicit DELETE/DROP
+// instead.
 
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { buildConcurrentIndex } from './concurrent-index-migration'
-import { CONCURRENT_INDEX_REGISTRY } from './concurrent-index-registry'
+import { journalConcurrentIndex } from './journal-concurrent-index'
+import { readMigrationJournal } from './migration-journal-order'
 
-function specFor(name: string): (typeof CONCURRENT_INDEX_REGISTRY)[number] {
-  const spec = CONCURRENT_INDEX_REGISTRY.find((candidate) => candidate.name === name)
-  if (!spec) throw new Error(`${name} not registered in concurrent-index-registry.ts`)
-  return spec
+function specFor(name: string) {
+  for (const { tag } of readMigrationJournal()) {
+    const spec = journalConcurrentIndex(
+      readFileSync(new URL(`../../../drizzle/${tag}.sql`, import.meta.url), 'utf8'),
+    )
+    if (spec?.name === name) return spec
+  }
+  throw new Error(`${name} is built by no journal file`)
 }
 
 const SPEC = specFor('review_provider_snapshot_runs_completed_property_idx')
@@ -49,7 +53,7 @@ async function readIndex(
   return result.rows[0] ?? null
 }
 
-describe('review_provider_snapshot_runs completed-property index sidecar', () => {
+describe('review_provider_snapshot_runs completed-property index', () => {
   let lease: TestLease
   let organizationId: string
   let propertyId: string
@@ -123,7 +127,7 @@ describe('review_provider_snapshot_runs completed-property index sidecar', () =>
   })
 })
 
-describe('metric_readings property/portal/group index sidecar (database-04)', () => {
+describe('metric_readings property/portal/group indexes', () => {
   let lease: TestLease
 
   beforeAll(async () => {
@@ -176,7 +180,7 @@ describe('metric_readings property/portal/group index sidecar (database-04)', ()
   })
 })
 
-describe('metric_readings event-time index sidecar', () => {
+describe('metric_readings event-time index', () => {
   let lease: TestLease
 
   beforeAll(async () => {
@@ -235,7 +239,7 @@ const RETENTION_INDEX_PREDICATES = [
   ['scan_events_session_id_redaction_idx', 'session_id IS NOT NULL'],
 ] as const
 
-describe('retention sweep index sidecar', () => {
+describe('retention sweep indexes', () => {
   let lease: TestLease
 
   beforeAll(async () => {
