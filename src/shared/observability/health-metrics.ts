@@ -83,15 +83,6 @@ export type HealthMetricsDeps = Readonly<{
    */
   isEmailDeliveryAllowed?: IsEmailDeliveryAllowed
   /**
-   * How many recent inbox items have NO notification row (the
-   * `notification.missing_for_inbox_item` gauge). The query belongs to the
-   * notification context, and `src/shared/**` must never import
-   * `src/contexts/**`, so the composition root injects the reader. Absent =
-   * 0: a deployment without the wiring reports "no known gap" rather than
-   * inventing one.
-   */
-  readMissingNotificationCount?: () => Promise<number>
-  /**
    * Bounded, identifier-only Notification source→Redis→PostgreSQL lag read.
    * The owning context supplies it through composition; shared observability
    * receives only counts, clocks, and saturation evidence.
@@ -292,16 +283,6 @@ export type HealthSnapshot = Readonly<{
     oldestAttemptedStuckAgeMs: number | null
     /** Terminal and provider outcomes of attempted email. */
     emailOutcomes: NotificationEmailOutcomes
-    /**
-     * Inbox items created inside the gap window (past the grace edge) with NO
-     * notification row for anybody and a delivery not yet decided — "a
-     * review arrived and nobody was told". An item whose recipients all muted
-     * it is decided, so it never counts. Above zero means delivery is late:
-     * the Feed consumer has not taken the item's fact, or an insert-notification
-     * job an earlier release queued has not run yet. Saturates at its scan cap; the alert pages on any
-     * count above zero, so the cap costs nothing.
-     */
-    missingForInboxItemCount: number
     /** Bounded end-to-end delivery evidence for every active beta family. */
     deliveryLag: NotificationDeliveryLagMetrics
   }>
@@ -337,7 +318,6 @@ export const HEALTH_SIGNALS = [
   'sync',
   'replyPublication',
   'notificationEmail',
-  'notificationGap',
   'notificationDeliveryLag',
   'syncPush',
 ] as const
@@ -352,7 +332,6 @@ export type HealthSignalValues = Readonly<{
   sync: HealthSnapshot['sync']
   replyPublication: HealthSnapshot['replyPublication']
   notificationEmail: NotificationEmailMetrics
-  notificationGap: number
   notificationDeliveryLag: NotificationDeliveryLagMetrics
   syncPush: SyncPushHealth
 }>
@@ -385,7 +364,6 @@ export function assembleHealthSnapshot(
     sync: values.sync,
     notifications: {
       ...values.notificationEmail,
-      missingForInboxItemCount: values.notificationGap,
       deliveryLag: values.notificationDeliveryLag,
     },
     replyPublication: values.replyPublication,
@@ -570,14 +548,14 @@ async function readReplyPublicationMetrics(
 }
 
 /**
- * The EMAIL half of the notifications block. `missingForInboxItemCount` is
- * deliberately excluded: it comes from the notification context through an
- * injected reader, not from this file's `notification_email_queue` query, and
- * the caller composes the two.
+ * The EMAIL half of the notifications block. `deliveryLag` is deliberately
+ * excluded: it comes from the notification context through an injected
+ * reader, not from this file's `notification_email_queue` query, and the
+ * caller composes the two.
  */
 export type NotificationEmailMetrics = Omit<
   HealthSnapshot['notifications'],
-  'missingForInboxItemCount' | 'deliveryLag'
+  'deliveryLag'
 >
 
 /**
@@ -1124,13 +1102,6 @@ function createHealthSignalReads(
           deps?.isEmailDeliveryAllowed ?? (() => true),
         ),
       ),
-    // Notification EXISTENCE health: did the in-app notification get written
-    // at all? Injected because the query lives in the notification context
-    // (see readMissingNotificationCount).
-    notificationGap: () =>
-      trace('health.check.notificationGap', async () =>
-        deps?.readMissingNotificationCount ? deps.readMissingNotificationCount() : 0,
-      ),
     notificationDeliveryLag: () =>
       trace('health.check.notificationDeliveryLag', () =>
         readNotificationDeliveryLagMetrics(deps?.readNotificationDeliveryLag, new Date()),
@@ -1167,10 +1138,7 @@ export function createHealthChecker(
         const sync = await signals.sync()
         const replyPublication = await signals.replyPublication()
         const notificationEmail = await signals.notificationEmail()
-        const [notificationGap, notificationDeliveryLag] = await Promise.all([
-          signals.notificationGap(),
-          signals.notificationDeliveryLag(),
-        ])
+        const notificationDeliveryLag = await signals.notificationDeliveryLag()
         const syncPush = await signals.syncPush()
         return assembleHealthSnapshot(now, {
           outbox,
@@ -1179,7 +1147,6 @@ export function createHealthChecker(
           sync,
           replyPublication,
           notificationEmail,
-          notificationGap,
           notificationDeliveryLag,
           syncPush,
         })
