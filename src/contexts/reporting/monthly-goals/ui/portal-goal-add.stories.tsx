@@ -49,6 +49,8 @@ type HarnessProps = Readonly<{
   opening?: PortalGoalAddOpening
   /** What the page does once goals were added: read them again. */
   onAdded?: PortalGoalAddCommands['onAdded']
+  /** The read the page holds once a goal was added, where the play needs it moved. */
+  readAfterAdded?: PortalGoalAddOptions
 }>
 
 /**
@@ -60,11 +62,14 @@ function Harness({
   options,
   opening = { step: 'choose', subject: null },
   onAdded = onAddedMock,
+  readAfterAdded,
 }: HarnessProps) {
+  const [moved, setMoved] = useState<PortalGoalAddOptions | null>(null)
+  const read = moved ?? options
   const [open, setOpen] = useState(false)
   const [key, setKey] = useState(0)
   const door = useRef<HTMLButtonElement>(null)
-  if (!portalGoalAddOffered(options)) return <p>Nothing to add here.</p>
+  if (!portalGoalAddOffered(read)) return <p>Nothing to add here.</p>
   return (
     <>
       <Button
@@ -84,12 +89,15 @@ function Harness({
         onOpenChange={setOpen}
         onSettled={() => setOpen(false)}
         propertyId={PROPERTY_ID}
-        options={options}
+        options={read}
         opening={opening}
         commands={{
           addPortalGoalFn: addOneMock,
           addPortalGoalsFn: addEachMock,
-          onAdded,
+          onAdded: async (subjects) => {
+            await onAdded(subjects)
+            if (readAfterAdded !== undefined) setMoved(readAfterAdded)
+          },
         }}
         onCloseAutoFocus={(event) => {
           event.preventDefault()
@@ -352,6 +360,94 @@ export const EachPortalAfterOneFailed: Story = {
     await expect(sheet.queryByText(message)).toBeNull()
     await expectToast('1 portal goal set')
     await expect(onAddedMock).toHaveBeenLastCalledWith([`portal:${ADD_IDS.RECEPTION}`])
+  },
+}
+
+/** Saves refused for different reasons in turn: the banner says the latest one. */
+export const RefusalsInTurn: Story = {
+  args: { options: ADD_EACH_OCT_23 },
+  play: async ({ canvasElement }) => {
+    addOneMock.mockRejectedValueOnce(refusal('start_month_changed'))
+    addOneMock.mockRejectedValueOnce(refusal('invalid_target'))
+    const { in: sheet } = await openSheet(canvasElement)
+    await choose(sheet, /^A goal for one portal/u)
+    await choose(sheet, /^Reception/u)
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 26 for November' }))
+    const first = 'The month has changed. Check the start and save again.'
+    await expect(await sheet.findByText(first)).toBeVisible()
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 26 for November' }))
+    const second = 'Enter a valid monthly target for this measure.'
+    await expect(await sheet.findByText(second)).toBeVisible()
+    await expect(sheet.queryByText(first)).toBeNull()
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 26 for November' }))
+    await expectToast('Reception goal set: 26 private ratings for November')
+  },
+}
+
+/** Set pressed twice while the save is out: one goal is sent and the sheet says it is saving. */
+export const SetPressedTwice: Story = {
+  args: { options: ADD_EACH_OCT_23 },
+  play: async ({ canvasElement }) => {
+    let settle: (value: { programId: string }) => void = () => undefined
+    addOneMock.mockImplementationOnce(
+      () => new Promise<{ programId: string }>((resolve) => (settle = resolve)),
+    )
+    const { in: sheet } = await openSheet(canvasElement)
+    await choose(sheet, /^A goal for one portal/u)
+    await choose(sheet, /^Reception/u)
+    await userEvent.dblClick(sheet.getByRole('button', { name: 'Set 26 for November' }))
+    await expect(await sheet.findByText('Saving…')).toBeVisible()
+    await expect(addOneMock).toHaveBeenCalledOnce()
+    settle({ programId: 'program-added' })
+    await expectToast('Reception goal set: 26 private ratings for November')
+    await expect(addOneMock).toHaveBeenCalledOnce()
+    await expect(onAddedMock).toHaveBeenCalledOnce()
+  },
+}
+
+/** After a partial save the retry sends only the row that was not kept. */
+export const EachPortalRetrySendsTheRowLeft: Story = {
+  args: { options: ADD_EACH_OCT_23, readAfterAdded: ADD_RECEPTION_HELD },
+  play: async ({ canvasElement }) => {
+    addEachMock.mockImplementationOnce(async ({ data }) => ({
+      outcomes: data.items.map(({ portalId }) => ({
+        portalId,
+        saved: portalId !== ADD_IDS.RESTAURANT,
+      })),
+    }))
+    const { in: sheet } = await openSheet(canvasElement)
+    await choose(sheet, /^A goal for each portal/u)
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 2 goals' }))
+    await expect(await sheet.findByText('Not saved, try again')).toBeVisible()
+    await userEvent.click(sheet.getByRole('button', { name: /^Set / }))
+    await waitFor(() => expect(addEachMock).toHaveBeenCalledTimes(2))
+    const retry = addEachMock.mock.calls[1]?.[0].data.items.map(
+      ({ portalId }) => portalId,
+    )
+    await expect(retry).toEqual([ADD_IDS.RESTAURANT])
+    await waitFor(() =>
+      expect(
+        within(document.body).queryByRole('dialog', { name: 'Add a portal goal' }),
+      ).toBeNull(),
+    )
+  },
+}
+
+export const RefusalsInTurnEach: Story = {
+  args: { options: ADD_EACH_OCT_23 },
+  play: async ({ canvasElement }) => {
+    addEachMock.mockRejectedValueOnce(refusal('start_month_changed'))
+    addEachMock.mockRejectedValueOnce(refusal('invalid_target'))
+    addOneMock.mockRejectedValueOnce(refusal('invalid_target'))
+    const { in: sheet } = await openSheet(canvasElement)
+    await choose(sheet, /^A goal for each portal/u)
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 2 goals' }))
+    const first = 'The month has changed. Check the start and save again.'
+    await expect(await sheet.findByText(first)).toBeVisible()
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 2 goals' }))
+    const second = 'Enter a valid monthly target for this measure.'
+    await expect(await sheet.findByText(second)).toBeVisible()
+    await expect(sheet.queryByText(first)).toBeNull()
   },
 }
 
