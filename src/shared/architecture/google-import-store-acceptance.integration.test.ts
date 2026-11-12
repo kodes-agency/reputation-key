@@ -27,7 +27,7 @@ import {
 } from '#/shared/testing/google-import-acceptance.test-fixtures'
 
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
-import type { GoogleImportV2Store } from '#/contexts/integration/application/ports/google-import-v2-store.port'
+import type { GoogleImportStore } from '#/contexts/integration/application/ports/google-import-store.port'
 import * as bindingModule from '#/contexts/property/profile/google-binding-store.server'
 import * as importStoreModule from '#/contexts/integration/imports/import-store.server'
 import { createTokenEncryptionAdapter } from '#/contexts/integration/infrastructure/adapters/token-encryption.adapter'
@@ -210,7 +210,7 @@ describe('public Google imports against the import store (PostgreSQL, fake trans
     const originalStoreFactory = importStoreModule.createImportStore
     const originalBindingFactory = bindingModule.createPropertyGoogleBindingStore
     let binding: ReturnType<typeof originalBindingFactory> | undefined
-    let store: GoogleImportV2Store | undefined
+    let store: GoogleImportStore | undefined
     const beforeWrite = vi.fn(async () => undefined)
     const afterWrite = vi.fn(async () => undefined)
     const createBoundProperty = vi.fn<

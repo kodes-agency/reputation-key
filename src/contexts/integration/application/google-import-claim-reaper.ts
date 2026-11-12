@@ -1,13 +1,13 @@
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { googlePropertyImportItemJobId } from './google-import-dispatch'
-import type { GoogleImportV2QueuePort } from './ports/gbp-queue.port'
-import type { GoogleImportV2Processor } from './google-import-v2-processor'
+import type { GoogleImportQueuePort } from './ports/gbp-queue.port'
+import type { GoogleImportProcessor } from './google-import-processor'
 import {
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
-  type GoogleImportV2Store,
-} from './ports/google-import-v2-store.port'
+  type GoogleImportStore,
+} from './ports/google-import-store.port'
 
-export type GoogleImportV2ClaimReaperResult = Readonly<{
+export type GoogleImportClaimReaperResult = Readonly<{
   dueItemsVisited: number
   claimsReleased: number
   itemsDispatched: number
@@ -16,19 +16,19 @@ export type GoogleImportV2ClaimReaperResult = Readonly<{
   itemFailures: number
 }>
 
-export type GoogleImportV2ClaimReaper = () => Promise<GoogleImportV2ClaimReaperResult>
+export type GoogleImportClaimReaper = () => Promise<GoogleImportClaimReaperResult>
 
-export function createGoogleImportV2ClaimReaper(
+export function createGoogleImportClaimReaper(
   deps: Readonly<{
-    store: Pick<GoogleImportV2Store, 'reserveDueItems' | 'releaseClaimForRetry'>
-    queue: GoogleImportV2QueuePort
-    processItem: GoogleImportV2Processor['process']
+    store: Pick<GoogleImportStore, 'reserveDueItems' | 'releaseClaimForRetry'>
+    queue: GoogleImportQueuePort
+    processItem: GoogleImportProcessor['process']
     logger: Pick<LoggerPort, 'warn'>
     clock: () => Date
     newDeliveryId: () => string
     limit?: number
   }>,
-): GoogleImportV2ClaimReaper {
+): GoogleImportClaimReaper {
   return async () => {
     const now = deps.clock()
     const dueItems = await deps.store.reserveDueItems(now, deps.limit ?? 100)
