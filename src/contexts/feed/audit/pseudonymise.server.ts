@@ -68,12 +68,21 @@ export type AuditPseudonymScope = Readonly<{
 }>
 
 /**
+ * Why an erasure or a replay that pseudonymises refuses: the setting that holds
+ * the secret is named, its value never is.
+ */
+export const AUDIT_PSEUDONYM_SECRET_MISSING =
+  'AUDIT_PSEUDONYM_SECRET is not set; audit records cannot be pseudonymised'
+
+/**
  * The HMAC key for one erasure: derived from a server secret and the journal
  * entry id. The id alone is stored beside the data, so it cannot be the key; the
- * secret is what a replay needs again.
+ * secret is what a replay needs again. Without one, nothing is pseudonymised.
  */
-export function auditPseudonymKey(secret: string, entryId: string): string {
-  if (secret.length === 0) throw new Error('The audit pseudonym secret is empty')
+export function auditPseudonymKey(secret: string | undefined, entryId: string): string {
+  if (secret === undefined || secret.length === 0) {
+    throw new Error(AUDIT_PSEUDONYM_SECRET_MISSING)
+  }
   return createHmac('sha256', secret).update(`${KEY_PURPOSE}${entryId}`).digest('hex')
 }
 

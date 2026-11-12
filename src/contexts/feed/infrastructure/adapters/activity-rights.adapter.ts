@@ -6,17 +6,23 @@
 // Operational Action History and its legal holds are independently required
 // evidence and are never touched; an unreleased legal hold refuses the erasure
 // before anything is written. Every statement is bound to the Organization id,
-// and the Property scope also to the Property id.
+// and the Property scope also to the Property id. Without the audit pseudonym
+// secret the erasure refuses at preflight and a replay refuses its entries, so
+// no audit record is left half pseudonymised.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import type {
+  BackupErasureLedgerEntry,
+  BackupErasureReplayer,
+} from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { assertOrganizationHeld } from '#/shared/db/lifecycle/assert-organization-held'
 import type { Tx } from '#/shared/outbox/commit'
 import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
 import { rightsJournalEntry } from '#/shared/ops/rights/rights-journal'
 import type { RightsRequestPlan } from '#/shared/ops/rights/rights-request-command'
 import {
+  AUDIT_PSEUDONYM_SECRET_MISSING,
   countAuditRecords,
   auditPseudonymKey,
   pseudonymiseAuditRecords,
@@ -129,7 +135,7 @@ async function activityRightsEraseInTransaction(
   return total(counts) + audit
 }
 
-function pseudonymKeyOf(plan: RightsRequestPlan, secret: string): string {
+function pseudonymKeyOf(plan: RightsRequestPlan, secret: string | undefined): string {
   const entry = rightsJournalEntry(plan, CONTEXT)
   if ('error' in entry) throw new Error(entry.error)
   return auditPseudonymKey(secret, entry.id)
@@ -172,9 +178,24 @@ async function reportCounts(
   ]
 }
 
+/**
+ * Why a restore cannot replay these journal entries' Activity erasures, or
+ * null: each one pseudonymises the audit records again, which needs the secret
+ * the erasure used.
+ */
+export function activityReplayRefusal(
+  entries: ReadonlyArray<Pick<BackupErasureLedgerEntry, 'context'>>,
+  pseudonymSecret: string | undefined,
+): string | null {
+  if (pseudonymSecret) return null
+  return entries.some((entry) => entry.context === CONTEXT)
+    ? AUDIT_PSEUDONYM_SECRET_MISSING
+    : null
+}
+
 /** Re-erases a restored cell: one replayer per subject class the executor journals. */
 export function createActivityErasureReplayers(
-  pseudonymSecret: string,
+  pseudonymSecret: string | undefined,
 ): ReadonlyArray<BackupErasureReplayer> {
   return [
     {
@@ -206,7 +227,7 @@ export function createActivityErasureReplayers(
 
 export function createActivityRightsExecutor(
   db: Database,
-  pseudonymSecret: string,
+  pseudonymSecret: string | undefined,
 ): RightsExecutor {
   return Object.freeze({
     name: CONTEXT,
@@ -231,6 +252,7 @@ export function createActivityRightsExecutor(
       if (plan.scope !== 'organization' && plan.scope !== 'property') {
         return { ok: false, error: `no ${CONTEXT} erasure for ${plan.scope}` }
       }
+      if (!pseudonymSecret) return { ok: false, error: AUDIT_PSEUDONYM_SECRET_MISSING }
       const refusal = await refusalOf(db, plan.organizationId, propertyOf(plan))
       return refusal ? { ok: false, error: refusal } : { ok: true }
     },

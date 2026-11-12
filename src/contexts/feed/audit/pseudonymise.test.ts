@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
+  AUDIT_PSEUDONYM_SECRET_MISSING,
   auditPseudonymKey,
   auditRowPseudonymiser,
   type AuditEventRow,
@@ -32,8 +33,11 @@ describe('auditPseudonymKey', () => {
     )
   })
 
-  it('refuses an empty secret', () => {
-    expect(() => auditPseudonymKey('', 'entry-1')).toThrow('empty')
+  it('refuses a missing or empty secret and names the setting, not a value', () => {
+    expect(() => auditPseudonymKey('', 'entry-1')).toThrow(AUDIT_PSEUDONYM_SECRET_MISSING)
+    expect(() => auditPseudonymKey(undefined, 'entry-1')).toThrow(
+      'AUDIT_PSEUDONYM_SECRET is not set',
+    )
   })
 })
 

@@ -10,10 +10,14 @@ import {
   createAiRightsExecutor,
 } from '#/contexts/ai/infrastructure/adapters/ai-rights.adapter'
 import {
+  activityReplayRefusal,
   createActivityErasureReplayers,
   createActivityRightsExecutor,
 } from '#/contexts/feed/infrastructure/adapters/activity-rights.adapter'
-import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import type {
+  BackupErasureLedgerEntry,
+  BackupErasureReplayer,
+} from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
   createGuestFeedbackErasureReplayer,
   createGuestResponseErasureReplayer,
@@ -79,10 +83,12 @@ export type RightsExecutorsDeps = Readonly<{
   runNotification: NotificationRightsExecutorDeps['run']
   portalObjectStore: Pick<StoragePort, 'deleteObject'>
   /**
-   * Server-side secret the audit pseudonyms are keyed with. A replay under a
-   * rotated secret writes other pseudonyms, consistent within the replayed scope.
+   * Server-side secret the audit pseudonyms are keyed with (AUDIT_PSEUDONYM_SECRET).
+   * A replay under a rotated secret writes other pseudonyms, consistent within
+   * the replayed scope. Absent, a Property or Organization erasure refuses at
+   * preflight, before anything changes, and a restore refuses an Activity entry.
    */
-  auditPseudonymSecret: string
+  auditPseudonymSecret: string | undefined
   /** The named operator for guest-response erasure; absent means that apply is denied. */
   operator?: GuestRightsExecutorDeps['operator']
   now?: () => Date
@@ -137,6 +143,17 @@ export function composeRightsExecutors(
     createStaffParticipantRightsExecutor({ db: deps.db, journal: deps.journal, now }),
     createWorkItemsRightsExecutor(deps.db),
   ]
+}
+
+/**
+ * Why a restore cannot replay these journal entries with this configuration,
+ * or null. The restore asks before it changes anything.
+ */
+export function rightsReplayRefusal(
+  entries: ReadonlyArray<Pick<BackupErasureLedgerEntry, 'context'>>,
+  deps: Pick<RightsExecutorsDeps, 'auditPseudonymSecret'>,
+): string | null {
+  return activityReplayRefusal(entries, deps.auditPseudonymSecret)
 }
 
 /** One replayer per journaled (context, subject class), for restore replay. */

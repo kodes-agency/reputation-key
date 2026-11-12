@@ -156,6 +156,9 @@ cutover mechanism. This procedure uses the PITR sibling described by
 4. Export `RESTORE_MODE=isolated`, `RESTORE_POINT_AT`,
    `RESTORE_DATABASE_SERVICE_NAME`, `RELEASE_SHA`, and `RELEASE_MANIFEST_SHA256`
    in the verifier process only. Never make restore variables shared variables.
+   When the erasure journal holds an Activity entry, export the beta's
+   `AUDIT_PSEUDONYM_SECRET` there too (rights-requests.md): apply refuses to
+   replay that entry without it.
    Carry no Redis, queue or bucket setting into that process (`REDIS_URL`,
    `QUEUE_REDIS_URL`, `PROVIDER_EPHEMERAL_REDIS_URL`, `AWS_S3_ACCESS_KEY`,
    `AWS_S3_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME`, `S3_INTERNAL_ENDPOINT`,

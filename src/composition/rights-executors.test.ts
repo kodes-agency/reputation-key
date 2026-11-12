@@ -6,10 +6,25 @@ import {
   createRightsJournal,
   rightsJournalEntry,
 } from '#/shared/ops/rights/rights-journal'
-import { RIGHTS_REQUEST_SCOPES } from '#/shared/ops/rights/rights-request-command'
-import { composeRightsExecutors, composeRightsReplayers } from './rights-executors'
+import {
+  RIGHTS_REQUEST_SCOPES,
+  type RightsRequestPlan,
+} from '#/shared/ops/rights/rights-request-command'
+import { AUDIT_PSEUDONYM_SECRET_MISSING } from '#/contexts/feed/audit/pseudonymise.server'
+import {
+  composeRightsExecutors,
+  composeRightsReplayers,
+  rightsReplayRefusal,
+} from './rights-executors'
 
 const NOTIFICATION_REPLAYERS = createNotificationRightsReplayers()
+const rightsPlanFor = (scope: 'property' | 'organization'): RightsRequestPlan => ({
+  scope,
+  mode: 'apply',
+  organizationId: 'org',
+  batchSize: 1,
+  receivedAt: new Date('2026-08-01T00:00:00.000Z'),
+})
 const deps = {
   db: {} as Database,
   journal: createRightsJournal(undefined),
@@ -36,6 +51,42 @@ describe('composeRightsExecutors', () => {
       'staff-participant',
       'work-items',
     ])
+  })
+
+  it('refuses a Property or Organization erasure at preflight without the audit pseudonym secret', async () => {
+    const activity = composeRightsExecutors(
+      { ...deps, auditPseudonymSecret: undefined },
+      false,
+    ).find(({ name }) => name === 'activity')!
+
+    for (const plan of [
+      {
+        ...rightsPlanFor('property'),
+        propertyId: '30000000-0000-4000-8000-000000000002',
+      },
+      rightsPlanFor('organization'),
+    ]) {
+      expect(await activity.preflight!(plan)).toEqual({
+        ok: false,
+        error: AUDIT_PSEUDONYM_SECRET_MISSING,
+      })
+    }
+  })
+
+  it('refuses to replay an Activity entry without the audit pseudonym secret, and nothing else', () => {
+    const missing = { auditPseudonymSecret: undefined }
+
+    expect(
+      rightsReplayRefusal([{ context: 'guest' }, { context: 'activity' }], missing),
+    ).toBe(AUDIT_PSEUDONYM_SECRET_MISSING)
+    expect(
+      rightsReplayRefusal([{ context: 'guest' }, { context: 'platform' }], missing),
+    ).toBeNull()
+    expect(
+      rightsReplayRefusal([{ context: 'activity' }], {
+        auditPseudonymSecret: 'audit-pseudonym-test-secret',
+      }),
+    ).toBeNull()
   })
 
   it('runs the notification executor alone for a final warning', () => {

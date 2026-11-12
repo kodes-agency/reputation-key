@@ -49,7 +49,10 @@ import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
 } from '../../src/contexts/review/application/public-api'
 import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
-import { composeRightsReplayers } from '../../src/composition/rights-executors'
+import {
+  composeRightsReplayers,
+  rightsReplayRefusal,
+} from '../../src/composition/rights-executors'
 import { applyRestoreResurrectionFence } from '../../src/shared/db/lifecycle/backup-erasure-ledger'
 import { loadNotificationRightsReplayers } from '../../src/contexts/feed/application/public-api'
 import { runOperatorCommand } from './operator-command'
@@ -78,11 +81,15 @@ async function main(): Promise<void> {
             args.positionals.find((token) => token.startsWith('journal='))?.slice(8) ??
             null,
           readFile: (path) => readFile(path, 'utf8'),
+          refusal: (entries) =>
+            rightsReplayRefusal(entries, {
+              auditPseudonymSecret: env.AUDIT_PSEUDONYM_SECRET,
+            }),
           apply: async (input) => {
             const replayers = composeRightsReplayers({
               db: container.db,
               now: container.clock,
-              auditPseudonymSecret: env.ENCRYPTION_KEY,
+              auditPseudonymSecret: env.AUDIT_PSEUDONYM_SECRET,
               notificationReplayers: await loadNotificationRightsReplayers(),
             })
             return container.db.transaction((tx) =>

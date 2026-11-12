@@ -43,6 +43,30 @@ Scopes: `access`, `guest-response`, `participant`, `property`, `organization`.
 executor's export files under that directory (mode 0600). Upload them to the
 private bucket by hand and delete the local copy.
 
+## Audit pseudonym secret
+
+A Property or Organization erasure replaces the people in the audit records
+with pseudonyms keyed by `AUDIT_PSEUDONYM_SECRET`, a secret of its own:
+`ENCRYPTION_KEY` keys nothing here, so rotating it changes no pseudonym. While
+`AUDIT_PSEUDONYM_SECRET` is unset, `pnpm ops rights-request` refuses such an
+erasure at preflight, before anything changes, and `pnpm ops restore-verify`
+refuses to replay a journal that holds an Activity entry, before any restore
+work. Reports, access exports and the other scopes do not need it. No command
+prints its value.
+
+Set it once, before deploying the release that reads it:
+
+1. Generate it: `openssl rand -hex 32` (64 lowercase hex characters).
+2. Keep it with the other beta secrets, and set it as the variable
+   `AUDIT_PSEUDONYM_SECRET` of the Railway service you run `pnpm ops` from in
+   `closed-beta-v2`. Only these two commands read it; the web and worker
+   processes do not need it.
+3. Give a restore verifier process the same value
+   ([backup and lifecycle](backup-and-lifecycle.md), restore step 4).
+
+Keep the value. A replay keyed with another one still gives each person one
+pseudonym, but not the one the erasure wrote.
+
 ## Executors
 
 - **google-integration** (`access`, `organization`): exports the lifecycle
