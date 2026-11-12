@@ -11,6 +11,7 @@ import { LINKTREE_LINKS_NO_PHOTO } from './__fixtures__/linktree-links'
 import { PhoneFrame } from './__fixtures__/phone-frame'
 import { STORY_HERO_PHOTO } from './__fixtures__/story-hero-photo'
 import { immersiveFooterCopy } from './immersive-footer-copy'
+import { HERO_TITLE_SCRIM, HERO_TOP_SCRIM, scrimReach } from './immersive-hero-scrim'
 import { ImmersiveShell } from './immersive-shell'
 
 const CHAMPAGNE = { accentColour: '#EAD6A8', fieldColour: '#15110D' } as const
@@ -57,6 +58,20 @@ export const G01Arrival: Story = {
     expect(canvasElement.querySelector('.ih-backdrop')?.getAttribute('aria-hidden')).toBe(
       'true',
     )
+    // The header's scrim hangs from the hero's top edge, the title's from its bottom edge.
+    const heroBox = canvasElement.querySelector('.ih-hero')?.getBoundingClientRect()
+    const topScrim = canvasElement
+      .querySelector('.ih-hero__scrim--top')
+      ?.getBoundingClientRect()
+    const titleScrim = canvasElement
+      .querySelector('.ih-hero__scrim--title')
+      ?.getBoundingClientRect()
+    expect(topScrim?.top).toBe(heroBox?.top)
+    expect(topScrim?.height).toBe(scrimReach(HERO_TOP_SCRIM))
+    expect(titleScrim?.bottom).toBe(heroBox?.bottom)
+    expect(titleScrim?.height).toBe(scrimReach(HERO_TITLE_SCRIM))
+    // The kicker keeps its distance above the hero's bottom edge.
+    expect(Math.round(heroMetrics(canvasElement).kickerFromBottom)).toBe(94)
   },
 }
 
@@ -79,9 +94,39 @@ export const G09NoPhoto: Story = {
     expect(canvasElement.querySelectorAll('img')).toHaveLength(0)
     const arch = canvasElement.querySelector('.ih-arch')
     expect(arch?.getAttribute('aria-hidden')).toBe('true')
+    // With no photo the kicker is drawn in the accent.
+    const kicker = canvasElement.querySelector<HTMLElement>('.ih-title__kicker')
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--ih-accent-text)'
+    root.appendChild(probe)
+    expect(kicker && getComputedStyle(kicker).color).toBe(getComputedStyle(probe).color)
+    probe.remove()
     expect(canvasElement.querySelector('feTurbulence')).not.toBeNull()
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('heading', { level: 1 })).toBeVisible()
+  },
+}
+
+/**
+ * A shell in a frame sits inside the app's own document: it must not force the
+ * document's colour scheme or background, and no document-level rule may match
+ * it. Only the page-height shell owns the document.
+ */
+export const FrameLeavesTheDocumentAlone: Story = {
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    expect(canvasElement.querySelector('.ih-root--page')).toBeNull()
+    expect(getComputedStyle(document.documentElement).colorScheme).not.toBe('dark')
+    expect(getComputedStyle(document.body).backgroundColor).not.toBe('rgb(13, 18, 16)')
+    // Every document-level rule of the shell's stylesheet is scoped to the page shell.
+    const css = Array.from(document.querySelectorAll('style'))
+      .map((style) => style.textContent ?? '')
+      .join('\n')
+    const documentRules = [...css.matchAll(/(?:^|\n)((?::root|html|body)[^{]*)\{/gu)]
+      .map((rule) => rule[1] ?? '')
+      .filter((selector) => selector.includes('.ih-root'))
+    expect(documentRules.length).toBeGreaterThan(0)
+    for (const selector of documentRules) expect(selector).toContain('.ih-root--page')
   },
 }
 
@@ -101,6 +146,7 @@ export const IgnoresTheAppTheme: Story = {
     expect(rootStyle.backgroundColor).toBe('rgb(21, 17, 13)')
     expect(rootStyle.colorScheme).toBe('dark')
     expect(getComputedStyle(document.documentElement).colorScheme).toBe('dark')
+    expect(getComputedStyle(document.body).backgroundColor).toBe('rgb(13, 18, 16)')
     expect(rootStyle.overflowWrap).toBe('break-word')
     expect(rootStyle.hyphens).toBe('auto')
     // A tile link takes the page's text colour, not the app's accent colour.
