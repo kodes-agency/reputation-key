@@ -10,14 +10,13 @@ import {
   isAiAdmissionLane,
 } from './admission-lanes'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
-import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/review-analysis-v3-profile'
+import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/analysis/profile'
 
 // What the provider counts against its token limit for one analysis is what the
 // request sends plus its output ceiling, which it reserves before it answers.
 // The input sizes are measured: v2 on a real import (2026-09-28), v3 on the
 // quality check of 424 synthetic reviews (2026-10-30, `gpt-6-luna`: 1,599,608
 // input tokens, 3,773 each).
-const V2_ANALYSIS_INPUT_TOKENS = 600
 const V3_ANALYSIS_INPUT_TOKENS = 3_800
 // A reply draft, as the provider counts it: its input (at most 4,015 tokens on the
 // realistic test set of 2026-11-01), plus its output ceiling.
@@ -60,16 +59,8 @@ describe('AI admission lanes', () => {
   })
 
   it('keeps the global lanes well inside the provider account limits', () => {
-    // v2 is retired and its profile stays; v3 is the analysis that runs. The
-    // larger of the two bounds what the lane may admit.
-    const v2 = AI_OPERATION_PROFILES.find(
-      (profile) => profile.profileVersion === 'review-analysis-v2',
-    )
-    const analysisTokens = Math.max(
-      V2_ANALYSIS_INPUT_TOKENS + (v2?.maxOutputTokens ?? Number.POSITIVE_INFINITY),
-      V3_ANALYSIS_INPUT_TOKENS +
-        REVIEW_ANALYSIS_V3_LOGICAL_PROFILE.limits.maxOutputTokens,
-    )
+    const analysisTokens =
+      V3_ANALYSIS_INPUT_TOKENS + REVIEW_ANALYSIS_V3_LOGICAL_PROFILE.limits.maxOutputTokens
     const { global } = AI_ADMISSION_RATE_PER_MINUTE
 
     expect(global.interactive + global.background).toBeLessThanOrEqual(

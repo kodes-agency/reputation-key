@@ -34,10 +34,8 @@ import {
   type AiReplyProvenancePayloadV2,
   type AiReplyProvenancePayloadV3,
 } from '#/shared/ai-reply-provenance'
-import {
-  AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
-  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-} from '#/shared/ai-personalized-reply-contract'
+import { AI_PERSONALIZED_REPLY_PROFILE_DIGEST } from '#/shared/ai-personalized-reply-contract'
+import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,

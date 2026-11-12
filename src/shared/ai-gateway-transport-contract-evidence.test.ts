@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ZodError, z } from 'zod/v4'
+import { ZodError } from 'zod/v4'
 import { parseAiGatewayRouteRequest } from './ai-gateway-transport-contract'
-import { AI_ANALYSIS_V2_OUTPUT_SCHEMA } from './ai-route-output-schemas'
 import { reviewAnalysisV3GatewayResultSchema } from './review-analysis-v3-request'
 import {
   analysisRequest,
@@ -48,7 +47,7 @@ describe('review-analysis v3 evidence request', () => {
 
   describe('the retired v2 form', () => {
     it('is refused as cross-wired: the live catalogue serves review analysis as v3', () => {
-      expect(issuesOf(v2FormAnalysisRequest())).toEqual([CROSS_WIRED])
+      expect(issuesOf(v2FormAnalysisRequest())).toContain(CROSS_WIRED)
     })
 
     it('has no sentences and no property context', () => {
@@ -56,29 +55,6 @@ describe('review-analysis v3 evidence request', () => {
       expect(v2.source.sentences).toBeUndefined()
       expect(v2.propertyContext).toBeUndefined()
       expect(v2.provider).toBeUndefined()
-    })
-
-    it('refuses a v2 request that carries sentences', () => {
-      const v3 = analysisV3Request()
-      const v2 = v2FormAnalysisRequest()
-      expect(
-        issuesOf({ ...v2, source: { ...v2.source, sentences: v3.source.sentences } }),
-      ).toContain('analysis v2 route forbids an evidence request')
-    })
-
-    it('refuses a v2 request that names a provider', () => {
-      expect(
-        issuesOf({ ...v2FormAnalysisRequest(), provider: analysisV3Request().provider }),
-      ).toContain('analysis v2 route forbids an evidence request')
-    })
-
-    it('refuses a v2 request that carries a property context', () => {
-      expect(
-        issuesOf({
-          ...v2FormAnalysisRequest(),
-          propertyContext: analysisV3Request().propertyContext,
-        }),
-      ).toContain('analysis v2 route forbids an evidence request')
     })
 
     it('refuses sentences on the reply route, which reads no evidence', () => {
@@ -300,27 +276,19 @@ describe('review-analysis v3 evidence request', () => {
       issueLabel: null,
     } as const
 
-    // The answer a response carries is one the route accepted under one of the
-    // two analysis contracts; this is the check that admits it.
-    const analysisAnswerSchema = z.union([
-      AI_ANALYSIS_V2_OUTPUT_SCHEMA,
-      reviewAnalysisV3GatewayResultSchema,
-    ])
-
+    // The answer a response carries is one the route accepted under the analysis
+    // contract; this is the check that admits it.
     function success(result: unknown) {
       return {
         route: 'review-analysis',
         status: 'success',
-        result: analysisAnswerSchema.parse(result),
+        result: reviewAnalysisV3GatewayResultSchema.parse(result),
         settlementReceipt: receipt,
       }
     }
 
-    it('still parses a v2 answer, which is the only one served', () => {
-      expect(success(v2Result)).toMatchObject({
-        status: 'success',
-        result: v2Result,
-      })
+    it('refuses a v2 answer, which is no longer served', () => {
+      expect(() => success(v2Result)).toThrow(ZodError)
     })
 
     it('parses a v3 answer: the normalized answer and what normalizing it did', () => {

@@ -53,6 +53,7 @@ import {
   FIXTURE_TIMEZONE,
 } from './rating-goal.stories.fixtures'
 import { wholeText } from './rating-goal-wizard.stories.play'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const NOW = new Date(FIXTURE_NOW)
 const NAMES: Readonly<Record<string, string>> = { 'user-ana': 'Ana Petrova' }
@@ -186,7 +187,7 @@ const inboxLinks = (canvasElement: HTMLElement) =>
 /** Two low reviews since the set: how many, what each set the goal back, opened in the Inbox. */
 export const LowReviews: Story = {
   args: { detail: DETAIL_LOW_REVIEWS },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const reviews = bandOf(canvas, QUESTION.reviews)
     await expect(
@@ -221,12 +222,7 @@ export const LowReviews: Story = {
       await expect(link.textContent).toBe('Open in the inbox')
       await expect(link.getAttribute('aria-label')).toContain(link.textContent)
     }
-  },
-}
-
-export const LowReviewsLight: Story = {
-  ...LowReviews,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** On a phone the link's touch target grows without moving its words off the date's line. */
@@ -280,7 +276,7 @@ export const SetbackNull: Story = {
 /** Google showed 4.0, then went back to 3.9: said in the band, on the chart and in the rows. */
 export const WentBack: Story = {
   args: { detail: DETAIL_WENT_BACK },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const rising = bandOf(canvas, QUESTION.rising)
     await expect(rising.getByText('Not lately. Google went back to 3.9')).toBeVisible()
@@ -296,12 +292,7 @@ export const WentBack: Story = {
       'Sep 30Google started showing 4.0',
       'Sep 24Ana Petrova set the goal: 4.1 at 1 a day',
     ])
-  },
-}
-
-export const WentBackLight: Story = {
-  ...WentBack,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** The pace changed on 1 Oct: the rows say who and when; the line to the goal does not mark it. */
@@ -583,7 +574,7 @@ export const WaitingForGoogle: Story = {
 /** Found reached (the exact average past the goal's line): said first, nothing that looks ahead. */
 export const FoundReached: Story = {
   args: { detail: DETAIL_FOUND_REACHED },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const where = whereOf(canvasElement)
     await expect(where.getByText('Google shows 4.1. You did it.')).toBeVisible()
@@ -607,12 +598,7 @@ export const FoundReached: Story = {
     await expect(
       within(figureOf(canvas, LINE)).getByText('Today 4.1'),
     ).toBeInTheDocument()
-  },
-}
-
-export const FoundReachedLight: Story = {
-  ...FoundReached,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** Found ended: said first, how it went, and no card of where it stands. */

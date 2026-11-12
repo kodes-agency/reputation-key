@@ -12,7 +12,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, propertyId, userId, type PropertyId } from '#/shared/domain/ids'
 import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
-import { PRINT_FINAL_DEFAULT_WORDING } from '#/shared/domain/portal-print-final-wording'
+import { PRINT_DEFAULT_WORDING } from '#/shared/domain/portal-print-wording'
 import { buildPersonalPortalUseCases } from '../build-personal-portals'
 import { assertPersonalPropertySource } from '../application/personal-portal-property-source'
 import {
@@ -893,8 +893,8 @@ describe.sequential('updatePersonalGuestPage', () => {
       ),
     ).toEqual([
       {
-        call_to_action: PRINT_FINAL_DEFAULT_WORDING.callToAction,
-        call_to_action_custom: PRINT_FINAL_DEFAULT_WORDING.customWords,
+        call_to_action: PRINT_DEFAULT_WORDING.callToAction,
+        call_to_action_custom: PRINT_DEFAULT_WORDING.customWords,
       },
     ])
   })

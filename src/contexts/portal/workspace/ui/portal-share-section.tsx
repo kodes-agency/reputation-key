@@ -33,7 +33,7 @@ export type PortalShareCommands = Readonly<{
   /** The print kit's read and its two commands. Absent: the tab offers no print kit. */
   printKit?: Readonly<{
     read: PortalPrintKitReader
-    downloadFinal: PortalPrintKitResources['downloadFinalMutation']
+    downloadPrint: PortalPrintKitResources['downloadPrintMutation']
     /** "Save wording" in the final print kit: Share opens on the words saved. */
     saveWording?: PortalPrintKitResources['saveWordingMutation']
   }>
@@ -90,7 +90,7 @@ export function PortalShareSection({
         printKit
           ? {
               read: printKit.read,
-              downloadFinalMutation: printKit.downloadFinal,
+              downloadPrintMutation: printKit.downloadPrint,
               saveWordingMutation: printKit.saveWording,
             }
           : undefined

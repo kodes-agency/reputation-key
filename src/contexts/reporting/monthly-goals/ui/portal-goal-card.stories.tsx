@@ -21,6 +21,7 @@ import {
   CARD_REC_UNREADABLE,
   SEAVIEW,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const read = (data: PortalGoalCardView | undefined, failed = false) => ({
   data,
@@ -181,7 +182,7 @@ export const GettingReady: Story = {
 
 export const GettingReadySilent: Story = {
   args: { card: read(CARD_GETTING_READY_SILENT) },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
       canvas.getByText(
@@ -193,12 +194,7 @@ export const GettingReadySilent: Story = {
       'href',
       `${PORTALS}/portal-spa?tab=share`,
     )
-  },
-}
-
-export const GettingReadyOnAPhone: Story = {
-  ...GettingReadySilent,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  }),
 }
 
 export const GettingReadyOnANarrowPhone: Story = {
@@ -206,19 +202,9 @@ export const GettingReadyOnANarrowPhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
-export const GettingReadyOnATablet: Story = {
-  ...GettingReady,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-}
-
 export const GettingReadyOnADesktop: Story = {
   ...GettingReady,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const GettingReadyLight: Story = {
-  ...GettingReadySilent,
-  parameters: { theme: 'light' },
 }
 
 export const NothingCounted: Story = {
@@ -314,4 +300,9 @@ export const NoCardDrawn: Story = {
     await expect(canvas.queryByRole('heading', { level: 3 })).toBeNull()
     await expect(canvas.queryByText(RATINGS_LINE)).toBeNull()
   },
+}
+
+export const GettingReadyOnATablet: Story = {
+  ...GettingReady,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }

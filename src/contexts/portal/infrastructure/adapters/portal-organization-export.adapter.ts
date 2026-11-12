@@ -482,7 +482,7 @@ async function readPayload(
                    ${utc('observed_at')} AS observed_at
             FROM portal_health_intervals WHERE organization_id = ${organizationId}`,
       )
-      // The choices of each Portal's last final print (the manager's own words
+      // The choices of each Portal's last print (the manager's own words
       // among them) and the image it used, by id: choices and a day, never an
       // address or a file. Its key is the Portal's own.
       const lastPrints = await readRows(

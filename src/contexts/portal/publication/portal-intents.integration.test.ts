@@ -19,10 +19,7 @@ import {
 } from '#/contexts/reporting/application/public-api'
 import { toPublicPortalLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
 import { printKitFileName } from '#/shared/domain/portal-print-kit'
-import {
-  printFinalDocumentTitle,
-  printFinalFileName,
-} from '#/shared/domain/portal-print-final-how-to'
+import { printDocumentTitle, printFileName } from '#/shared/domain/portal-print-how-to'
 import type { Portal } from '../domain/types'
 import type { PortalPublicationSnapshot } from '../domain/portal-publication-snapshot'
 import { resolvePublicPortalToken } from '../application/use-cases/resolve-public-portal-token'
@@ -389,8 +386,8 @@ async function expectPersonalPortalNameStaysPrivate(
       style: 'paper',
       paper: 'letter',
     }),
-    finalTitle: printFinalDocumentTitle(print.portalName, 'counter'),
-    finalFile: printFinalFileName(print.portalName, {
+    finalTitle: printDocumentTitle(print.portalName, 'counter'),
+    finalFile: printFileName(print.portalName, {
       piece: 'counter',
       orientation: 'upright',
       look: 'paper',

@@ -1,0 +1,396 @@
+import { describe, expect, it, vi } from 'vitest'
+import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
+import type { HandlingCycleNotificationFacts } from '../application/ports/notification-inbox-item-lookup.port'
+import type { ReplyWorkStatus } from '../application/ports/reply-work-state.port'
+import { createNotificationWorkState } from './settle.server'
+import type { NotificationType } from '../domain/notification-types'
+
+const ORG = organizationId('org-work')
+const ITEM = inboxItemId('item-work')
+const REVIEW = '95000000-0000-4000-8000-000000000003'
+const PORTAL = '95000000-0000-4000-8000-000000000006'
+const PROPERTY = '95000000-0000-4000-8000-000000000001'
+const SITE = '95000000-0000-4000-8000-000000000007'
+
+const cycle = (
+  overrides: Partial<HandlingCycleNotificationFacts> = {},
+): HandlingCycleNotificationFacts => ({
+  propertyId: PROPERTY,
+  portalId: null,
+  assignedTo: null,
+  propertyName: 'Riverside Hotel',
+  guestRating: null,
+  sourceType: 'review',
+  sourceId: REVIEW,
+  createdAt: new Date('2026-09-01T00:00:00.000Z'),
+  currentCycleNumber: 2,
+  currentSourceRevision: 1,
+  stateRevision: 4,
+  status: 'open',
+  ...overrides,
+})
+
+function build(
+  overrides: Partial<{
+    isEscalated: boolean | null
+    cycle: HandlingCycleNotificationFacts | null
+    cycleOf: (item: string) => HandlingCycleNotificationFacts | null
+    reply: ReplyWorkStatus | null
+    managers: ReadonlyArray<string>
+    health: Readonly<{ status: string; reason: string }> | null
+    /** The state of the site; null when it is gone. */
+    site: 'pending' | 'approved' | 'disabled' | 'quarantined' | null
+    /** Whether a live Portal is left to decide the site in; true unless said. */
+    sitePortal: boolean
+  }> = {},
+) {
+  const deps = {
+    escalationResolutions: {
+      findEscalationResolutionFacts: vi.fn(async () =>
+        overrides.isEscalated === null
+          ? null
+          : {
+              propertyId: propertyId(PROPERTY),
+              assignedTo: null,
+              propertyName: null,
+              isEscalated: overrides.isEscalated ?? true,
+              resolvedAt: null,
+              resolvedBy: null,
+            },
+      ),
+    },
+    inboxItemLookup: {
+      findHandlingCycleNotificationFacts: vi.fn(async (item: string) => {
+        if (overrides.cycleOf) return overrides.cycleOf(item)
+        return overrides.cycle === undefined ? cycle() : overrides.cycle
+      }),
+    },
+    replyStates: {
+      findReplyStatus: vi.fn(async () =>
+        overrides.reply === undefined ? 'pending_approval' : overrides.reply,
+      ),
+    },
+    portalHealthLookup: {
+      findPortalHealthNotificationFacts: vi.fn(async () =>
+        overrides.health === null
+          ? null
+          : {
+              propertyId: PROPERTY,
+              effectiveFrom: new Date('2026-09-01T00:00:00.000Z'),
+              ...(overrides.health ?? {
+                status: 'degraded',
+                reason: 'google_destination_unavailable',
+              }),
+            },
+      ),
+    },
+    destinationLookup: {
+      findDestinationApprovalNotificationFacts: vi.fn(async () =>
+        overrides.site === null
+          ? null
+          : {
+              propertyId: PROPERTY,
+              hostname: 'menu.example.com',
+              approvalState: overrides.site ?? 'pending',
+              requestedBy: 'manager-1',
+              portal:
+                overrides.sitePortal === false ? null : { id: PORTAL, name: 'Lobby' },
+              otherPortalCount: 0,
+            },
+      ),
+    },
+    responsibleManagers: {
+      findForProperty: vi.fn(async () => (overrides.managers ?? []).map(userId)),
+      findForPortal: vi.fn(async () => (overrides.managers ?? []).map(userId)),
+    },
+  }
+  return createNotificationWorkState(deps as never)
+}
+
+const ask = (
+  state: ReturnType<typeof build>,
+  type: Parameters<ReturnType<typeof build>['isWaiting']>[0]['type'],
+  resourceId: string = ITEM,
+  audience?: unknown,
+  recipient?: Parameters<ReturnType<typeof build>['isWaiting']>[0]['recipient'],
+) => state.isWaiting({ organizationId: ORG, type, resourceId, audience, recipient })
+
+const RECIPIENT = { userId: userId('user-recipient'), propertyId: propertyId(PROPERTY) }
+
+describe('whether the work a notice asks for still waits', () => {
+  it('asks the Inbox whether an escalation still stands', async () => {
+    await expect(ask(build(), 'inbox.escalated')).resolves.toBe(true)
+    await expect(ask(build({ isEscalated: false }), 'inbox.escalated')).resolves.toBe(
+      false,
+    )
+  })
+
+  it('neither holds back nor retires what the owner cannot answer for', async () => {
+    await expect(ask(build({ isEscalated: null }), 'inbox.escalated')).resolves.toBe(true)
+    await expect(ask(build({ cycle: null }), 'inbox.reopened')).resolves.toBe(true)
+    await expect(
+      build({ isEscalated: null }).finished({
+        organizationId: ORG,
+        resourceId: ITEM,
+        types: ['inbox.escalated'],
+      }),
+    ).resolves.toEqual(['inbox.escalated'])
+  })
+
+  it('asks Review whether the reply still waits for a decision or a retry', async () => {
+    await expect(ask(build(), 'reply.pending_approval')).resolves.toBe(true)
+    await expect(
+      ask(build({ reply: 'approved' }), 'reply.pending_approval'),
+    ).resolves.toBe(false)
+    await expect(
+      ask(build({ reply: 'publish_failed' }), 'reply.publish_failed'),
+    ).resolves.toBe(true)
+    await expect(ask(build({ reply: 'draft' }), 'reply.publish_failed')).resolves.toBe(
+      false,
+    )
+    await expect(ask(build({ reply: null }), 'reply.pending_approval')).resolves.toBe(
+      false,
+    )
+  })
+
+  it('treats a reply notice on an item that is not a review as finished', async () => {
+    const feedback = build({ cycle: cycle({ sourceType: 'feedback' }) })
+
+    await expect(ask(feedback, 'reply.pending_approval')).resolves.toBe(false)
+  })
+
+  it('keeps an item notice waiting only while its item is open', async () => {
+    for (const type of [
+      'review.created',
+      'review.updated',
+      'feedback.created',
+      'inbox.reopened',
+      'inbox.response_target_passed',
+      'inbox.assigned',
+    ] as const) {
+      await expect(ask(build(), type)).resolves.toBe(true)
+      await expect(
+        ask(build({ cycle: cycle({ status: 'closed' }) }), type),
+      ).resolves.toBe(false)
+    }
+  })
+
+  it('counts the cycles of a grouped reopen that are still their item head', async () => {
+    const ref = {
+      inboxItemId: ITEM,
+      sourceType: 'review',
+      sourceId: REVIEW,
+      cycleNumber: 2,
+      sourceRevision: 1,
+      stateRevision: 4,
+    }
+    const audience = {
+      kind: 'bulk_handling_cycle',
+      cycles: [ref, { ...ref, inboxItemId: 'item-moved-on', stateRevision: 3 }],
+      actorUserId: null,
+    }
+
+    await expect(ask(build(), 'inbox.bulk_reopened', ITEM, audience)).resolves.toEqual({
+      itemCount: 1,
+    })
+    await expect(
+      ask(
+        build({ cycle: cycle({ status: 'closed' }) }),
+        'inbox.bulk_reopened',
+        ITEM,
+        audience,
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('counts the items of a grouped assignment that are still open and still the recipient’s', async () => {
+    const audience = {
+      kind: 'bulk_inbox_assignee',
+      inboxItemIds: ['mine-open', 'mine-closed', 'moved-on', 'other-property', 'gone'],
+    }
+    const facts: Record<string, HandlingCycleNotificationFacts | null> = {
+      'mine-open': cycle({ assignedTo: RECIPIENT.userId }),
+      'mine-closed': cycle({ assignedTo: RECIPIENT.userId, status: 'closed' }),
+      'moved-on': cycle({ assignedTo: userId('user-colleague') }),
+      'other-property': cycle({ assignedTo: RECIPIENT.userId, propertyId: PORTAL }),
+      gone: null,
+    }
+    const state = build({ cycleOf: (item) => facts[item] ?? null })
+
+    await expect(
+      ask(state, 'inbox.bulk_assigned', ITEM, audience, RECIPIENT),
+    ).resolves.toEqual({ itemCount: 1 })
+  })
+
+  it('retires a grouped assignment once none of its items is open and the recipient’s', async () => {
+    const audience = { kind: 'bulk_inbox_assignee', inboxItemIds: [ITEM, 'item-two'] }
+
+    await expect(
+      ask(
+        build({ cycle: cycle({ assignedTo: userId('user-colleague') }) }),
+        'inbox.bulk_assigned',
+        ITEM,
+        audience,
+        RECIPIENT,
+      ),
+    ).resolves.toBe(false)
+    await expect(
+      ask(
+        build({ cycle: cycle({ assignedTo: RECIPIENT.userId, status: 'closed' }) }),
+        'inbox.bulk_assigned',
+        ITEM,
+        audience,
+        RECIPIENT,
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('cannot count a grouped assignment without its recipient, and so neither holds it nor retires it', async () => {
+    const audience = { kind: 'bulk_inbox_assignee', inboxItemIds: [ITEM] }
+
+    await expect(ask(build(), 'inbox.bulk_assigned', ITEM, audience)).resolves.toBe(true)
+  })
+
+  it('keeps a Portal Health notice waiting only while Health still needs a person', async () => {
+    await expect(ask(build(), 'portal.health_attention', PORTAL)).resolves.toBe(true)
+    await expect(
+      ask(
+        build({ health: { status: 'healthy', reason: 'operational' } }),
+        'portal.health_attention',
+        PORTAL,
+      ),
+    ).resolves.toBe(false)
+    await expect(
+      ask(build({ health: null }), 'portal.health_attention', PORTAL),
+    ).resolves.toBe(false)
+  })
+
+  it('keeps a notice about a site waiting only until the site is decided or gone', async () => {
+    await expect(ask(build(), 'portal.link_approval', SITE)).resolves.toBe(true)
+    for (const decided of ['approved', 'disabled', 'quarantined'] as const) {
+      await expect(
+        ask(build({ site: decided }), 'portal.link_approval', SITE),
+      ).resolves.toBe(false)
+    }
+    await expect(ask(build({ site: null }), 'portal.link_approval', SITE)).resolves.toBe(
+      false,
+    )
+  })
+
+  it('retires a site’s notice when no live Portal is left to decide it in', async () => {
+    await expect(
+      ask(build({ sitePortal: false }), 'portal.link_approval', SITE),
+    ).resolves.toBe(false)
+  })
+
+  it('always delivers the final deletion notice: no check can retire it', async () => {
+    await expect(ask(build(), 'account.organization_purge_pending', ORG)).resolves.toBe(
+      true,
+    )
+  })
+
+  it('keeps a responsibility request waiting only while nobody is responsible', async () => {
+    await expect(ask(build(), 'property.responsibility_needed', PROPERTY)).resolves.toBe(
+      true,
+    )
+    await expect(
+      ask(build({ managers: ['manager-1'] }), 'portal.responsibility_needed', PORTAL),
+    ).resolves.toBe(false)
+  })
+
+  it('never holds back a notice whose work it cannot check', async () => {
+    await expect(ask(build({ reply: null }), 'reply.approved')).resolves.toBe(true)
+  })
+})
+
+describe('which of a settling fact’s types are finished', () => {
+  it('keeps a type whose work was asked for again, and settles the rest', async () => {
+    const state = build({ reply: 'pending_approval' })
+
+    await expect(
+      state.finished({
+        organizationId: ORG,
+        resourceId: ITEM,
+        types: ['reply.pending_approval', 'reply.publish_failed'],
+      }),
+    ).resolves.toEqual(['reply.publish_failed'])
+  })
+
+  it('settles a site’s notice once it is decided, and keeps it while it waits', async () => {
+    const input = {
+      organizationId: ORG,
+      resourceId: SITE,
+      types: ['portal.link_approval'] as const,
+    }
+
+    await expect(
+      build({ site: 'approved' }).finished({ ...input, types: [...input.types] }),
+    ).resolves.toEqual(['portal.link_approval'])
+    await expect(
+      build({ site: 'pending' }).finished({ ...input, types: [...input.types] }),
+    ).resolves.toEqual([])
+  })
+
+  it('asks the Inbox once for every item notice a closed cycle settles', async () => {
+    const lookup = vi.fn(async () => cycle({ status: 'closed' }))
+    const state = createNotificationWorkState({
+      inboxItemLookup: { findHandlingCycleNotificationFacts: lookup },
+    } as never)
+
+    await expect(
+      state.finished({
+        organizationId: ORG,
+        resourceId: ITEM,
+        types: ['review.created', 'feedback.created', 'inbox.reopened'],
+      }),
+    ).resolves.toHaveLength(3)
+    expect(lookup).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles a type it cannot check', async () => {
+    await expect(
+      build().finished({
+        organizationId: ORG,
+        resourceId: 'connection-1',
+        types: ['integration.reauthorization_required'],
+      }),
+    ).resolves.toEqual(['integration.reauthorization_required'])
+  })
+})
+
+describe('asking about many notices at once', () => {
+  it('answers each notice in order and reads each item once', async () => {
+    const cycleOf = vi.fn((_item: string) => cycle())
+    const state = build({ cycleOf })
+    const subject = (type: NotificationType, resourceId: string) => ({
+      organizationId: ORG,
+      type,
+      resourceId,
+    })
+    await expect(
+      state.isWaitingMany([
+        subject('review.created', ITEM),
+        subject('inbox.reopened', ITEM),
+        subject('integration.reauthorization_required', 'connection-1'),
+        subject('feedback.created', 'other-item'),
+      ]),
+    ).resolves.toEqual([true, true, true, true])
+    expect(cycleOf.mock.calls.map(([item]) => item).sort()).toEqual([ITEM, 'other-item'])
+  })
+
+  it('matches the single question for a closed item and a reconnect request', async () => {
+    const state = build({ cycle: cycle({ status: 'closed' }) })
+    const subjects = [
+      { organizationId: ORG, type: 'review.created' as const, resourceId: ITEM },
+      {
+        organizationId: ORG,
+        type: 'integration.reauthorization_required' as const,
+        resourceId: 'connection-1',
+      },
+    ]
+    await expect(state.isWaitingMany(subjects)).resolves.toEqual([
+      await state.isWaiting(subjects[0]!),
+      await state.isWaiting(subjects[1]!),
+    ])
+  })
+})

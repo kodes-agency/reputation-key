@@ -11,7 +11,7 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   isStillActionable,
   SETTLED_EMAIL_REASON,
-} from '../domain/notification-settlement'
+} from '../domain/notification-actionable'
 import { handleNotificationSettlementEvent } from './notification-settlement-outbox-consumers'
 import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
 

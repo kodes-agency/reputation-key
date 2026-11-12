@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import {
-  PRINT_FINAL_LOOKS,
-  PRINT_FINAL_ORIENTATIONS,
-  PRINT_FINAL_PIECES,
-  PRINT_FINAL_PRINTERS,
-} from '#/shared/domain/portal-print-final'
-import { PRINT_FINAL_MAX_QUANTITY } from '#/shared/domain/portal-print-final-offer'
+  PRINT_LOOKS,
+  PRINT_ORIENTATIONS,
+  PRINT_PIECES,
+  PRINT_PRINTERS,
+} from '#/shared/domain/portal-print'
+import { PRINT_MAX_QUANTITY } from '#/shared/domain/portal-print-offer'
 import {
   PRINT_KIT_MAX_LANGUAGES,
   PRINT_KIT_PAPERS,
 } from '#/shared/domain/portal-print-kit'
-import { PRINT_FINAL_CALLS_TO_ACTION } from '#/shared/domain/portal-print-final-copy'
+import { PRINT_CALLS_TO_ACTION } from '#/shared/domain/portal-print-copy'
 import {
   PORTAL_LAST_PRINT_CTA_SQL_LIST,
   PORTAL_LAST_PRINT_LOOK_SQL_LIST,
@@ -29,12 +29,12 @@ const valuesOf = (sqlList: string): string[] =>
 
 describe('portal_last_prints schema', () => {
   it.each([
-    ['pieces', PORTAL_LAST_PRINT_PIECE_SQL_LIST, PRINT_FINAL_PIECES],
-    ['orientations', PORTAL_LAST_PRINT_ORIENTATION_SQL_LIST, PRINT_FINAL_ORIENTATIONS],
-    ['looks', PORTAL_LAST_PRINT_LOOK_SQL_LIST, PRINT_FINAL_LOOKS],
+    ['pieces', PORTAL_LAST_PRINT_PIECE_SQL_LIST, PRINT_PIECES],
+    ['orientations', PORTAL_LAST_PRINT_ORIENTATION_SQL_LIST, PRINT_ORIENTATIONS],
+    ['looks', PORTAL_LAST_PRINT_LOOK_SQL_LIST, PRINT_LOOKS],
     ['papers', PORTAL_LAST_PRINT_PAPER_SQL_LIST, PRINT_KIT_PAPERS],
-    ['printers', PORTAL_LAST_PRINT_PRINTER_SQL_LIST, PRINT_FINAL_PRINTERS],
-    ['calls to action', PORTAL_LAST_PRINT_CTA_SQL_LIST, PRINT_FINAL_CALLS_TO_ACTION],
+    ['printers', PORTAL_LAST_PRINT_PRINTER_SQL_LIST, PRINT_PRINTERS],
+    ['calls to action', PORTAL_LAST_PRINT_CTA_SQL_LIST, PRINT_CALLS_TO_ACTION],
   ] as const)(
     'lists exactly the domain %s in its CHECK constraint',
     (_name, list, domain) => {
@@ -43,7 +43,7 @@ describe('portal_last_prints schema', () => {
   )
 
   it('bounds the quantity and the languages as the download does', () => {
-    expect(PORTAL_LAST_PRINT_MAX_QUANTITY).toBe(PRINT_FINAL_MAX_QUANTITY)
+    expect(PORTAL_LAST_PRINT_MAX_QUANTITY).toBe(PRINT_MAX_QUANTITY)
     expect(PORTAL_LAST_PRINT_MAX_LANGUAGES).toBe(PRINT_KIT_MAX_LANGUAGES)
   })
 

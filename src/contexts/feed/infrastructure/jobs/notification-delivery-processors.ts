@@ -16,6 +16,7 @@ import {
   createImmediateEmailEnqueue,
   createQuietHoursRelease,
 } from '../../email/send-emails.server'
+import type { NotificationWorkState } from '../../application/ports/notification-work-state.port'
 import type { ImmediateEmailJobQueue } from '../../email/send-emails.server'
 import { createInsertNotificationDrainHandler } from './insert-notification.job'
 import type { NoticeWriter } from '../../notify/consumers.server'
@@ -40,7 +41,7 @@ export type NotificationDeliveryParts = Readonly<{
   preferenceRepo: NotificationPreferenceRepositoryPort
   userLookup: SendEmailsDeps['userLookup']
   recipientStanding: SendEmailsDeps['isRecipientEligible']
-  workState: SendEmailsDeps['workState']
+  workState: SendEmailsDeps['workState'] & Pick<NotificationWorkState, 'isWaitingMany'>
   noticeWriter: NoticeWriter
   clock: () => Date
   logger: LoggerPort

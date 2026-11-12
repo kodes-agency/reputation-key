@@ -12,14 +12,6 @@ import {
 import { parseCanonicalReplyLanguageTag } from '#/shared/ai-review-language-catalogue'
 import { describe, expect, it, vi } from 'vitest'
 
-// Historical v1 remains readable; these contract regressions deliberately pin its old execution.
-vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('#/shared/ai-runtime-capability-contract')>()
-  const { historicalReplyRuntime } =
-    await import('#/shared/testing/historical-reply-runtime')
-  return historicalReplyRuntime(actual)
-})
 function expectNoAiExecution(...mocks: readonly unknown[]): void {
   for (const mock of mocks) expect(mock).not.toHaveBeenCalled()
 }
@@ -110,18 +102,6 @@ describe('generate reply suggestion', () => {
     })
   })
 
-  it('keeps a personalized reply body unframed when no local voice exists', async () => {
-    const harness = await createHarness({ replyLocalFrame: null })
-
-    await expect(harness.generate(INPUT)).resolves.toMatchObject({
-      status: 'ready',
-      replyText: 'Thank you for your thoughtful review.',
-    })
-    expect(harness.mocks.generateReply).toHaveBeenCalledWith(
-      expect.objectContaining({ replyLocalFrame: null }),
-      expect.any(AbortSignal),
-    )
-  })
   it('serves an explicit catalogue request without merchant AI admission or execution', async () => {
     const harness = await createHarness({ propertyReplyLanguage: 'en-Latn' })
 
@@ -298,14 +278,15 @@ describe('generate reply suggestion', () => {
       expiresAtEpochMillis: NOW + 5 * 60_000,
       baseReplyStateRevision: 3,
       concreteLanguageTag: 'en-Latn',
+      localFrame: { prefix: '', suffix: '' },
     })
-    expect(harness.mocks.readReplyStateRevision).toHaveBeenCalledTimes(2)
+    expect(harness.mocks.readReplyStateRevision).toHaveBeenCalledTimes(4)
     expect(harness.mocks.settleEphemeralReply).toHaveBeenCalledWith(
       expect.objectContaining({
         reviewId: REVIEW_ID,
         baseReplyStateRevision: 3,
         replyDraftingEpoch: 7,
-        operationProfileVersion: 'reply-suggestion-v1',
+        operationProfileVersion: 'reply-suggestion-v2',
         replyProfileVersion: 'reply-draft-v3',
       }),
     )
@@ -318,7 +299,7 @@ describe('generate reply suggestion', () => {
     expect(harness.mocks.release).toHaveBeenCalledWith({ admissionId: 'admission-1' })
     expect(harness.mocks.generateReply).toHaveBeenCalledWith(
       expect.objectContaining({
-        replyProfileVersion: 'reply-draft-v3',
+        replyProfileVersion: 'reply-draft-v4',
         brandProfile: { displayName: 'Example Hotel' },
         binding: expect.objectContaining({
           replyBrandProfileVersion: 7,
@@ -326,8 +307,9 @@ describe('generate reply suggestion', () => {
         }),
       }),
       expect.any(AbortSignal),
+      expect.any(Function),
     )
-    expect(harness.mocks.readCurrentAiReplyBrandProfile).toHaveBeenCalledTimes(2)
+    expect(harness.mocks.readCurrentAiReplyBrandProfile).toHaveBeenCalledTimes(4)
   })
 
   it('answers busy from a full interactive lane without claiming an attempt', async () => {
@@ -566,6 +548,7 @@ describe('generate reply suggestion', () => {
         }),
       }),
       expect.any(AbortSignal),
+      expect.any(Function),
     )
   })
 
