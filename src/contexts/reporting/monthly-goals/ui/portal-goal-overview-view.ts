@@ -1,14 +1,14 @@
 // The goal never blocks the Overview. Hide unreadable, pending and ineligible prompts,
 // and honour Not now for the offered month.
 
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalCardView,
   PortalGoalCheckIn,
   PortalGoalOfCard,
   PortalGoalPrompt,
   PortalGoalRunningMonth,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { monthName, portalGoalCount } from './portal-goal-words'
 
 export type OverviewPortalGoalView =

@@ -1,7 +1,7 @@
 // Show all removes its trigger, so focus the first revealed change.
 
 import { useState } from 'react'
-import type { PortalGoalChange } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
+import type { PortalGoalChange } from '#/contexts/reporting/monthly-goals/contracts'
 import { Button } from '#/components/ui/button'
 import { GoalHistoryList } from '../../../../components/goals/goal-history-list'
 import {

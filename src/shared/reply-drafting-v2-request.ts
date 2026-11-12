@@ -1,5 +1,5 @@
 import { REPLY_DRAFTING_V2_APOLOGY_STARTS as APOLOGIES } from './domain/reply-drafting-v2'
-import { createHash } from 'node:crypto'
+import { digestOf } from './ai-digest'
 import { canonicalizeRfc8785 } from './canonical-json'
 import EXAMPLES from './reply-drafting-v2-examples.json'
 import BULGARIAN from './reply-drafting-v2-examples-bg.json'
@@ -17,10 +17,10 @@ import {
 export const REPLY_DRAFTING_V2_ROUTE_MAX_BYTES = 131_072
 /** Upper bound for the appended examples and controlled rewrite instructions, including JSON escaping. */
 export const REPLY_DRAFTING_V2_DYNAMIC_PROMPT_BYTES = 16_384
-export const REPLY_DRAFTING_V2_EXAMPLES_DIGEST = createHash('sha256')
-  .update('repkey-reply-synthetic-examples-v1\0')
-  .update(canonicalizeRfc8785({ en: EXAMPLES, bg: BULGARIAN }))
-  .digest('hex')
+export const REPLY_DRAFTING_V2_EXAMPLES_DIGEST = digestOf(
+  'repkey-reply-synthetic-examples-v1\0',
+  { en: EXAMPLES, bg: BULGARIAN },
+)
 
 function language(tag: string): keyof typeof APOLOGIES {
   if (tag.startsWith('bg-')) return 'bg'

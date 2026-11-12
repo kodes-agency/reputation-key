@@ -23,7 +23,7 @@ import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
 import type {
   PortalGoalCardView,
   PortalGoalSheetFacts,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { SHEET_NOVEMBER_22 } from './portal-goal-change.stories.fixtures'
 import {
   CARD_LAST_DAY,
@@ -277,11 +277,6 @@ export const SetRecommendedOnANarrowPhone: Story = {
     await expectLinksRow(inSheet)
   },
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-}
-
-export const SetRecommendedOnAPhone: Story = {
-  ...SetRecommendedOnANarrowPhone,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
 }
 
 export const SetRecommendedOnATablet: Story = {
@@ -999,12 +994,6 @@ export const Change320: Story = {
     await expect(inSheet.getByRole('button', { name: 'Cancel' })).toBeVisible()
   },
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-}
-
-/** 390 px: still the full-screen sheet. */
-export const ChangeOnAPhone: Story = {
-  ...Change320,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
 }
 
 /** From 820 px the change opens as a dialog, with both months and the note. */

@@ -29,6 +29,7 @@ import type {
   RatingGoalCardView,
   RatingGoalHistoryEntry,
 } from '#/contexts/reporting/rating-goals/contracts'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const NOW = new Date(FIXTURE_NOW)
 const read = <T,>(data: T | undefined, failed = false) => ({
@@ -514,31 +515,19 @@ export const HistoryTabInsideSection: Story = {
       </RatingGoalViews>
     </div>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const section = await expectTabsInsideSection(canvasElement, 'History')
     await expect(section.getByText('Reach 4.3 on Google')).toBeVisible()
     await expect(section.getByText('Keep 4.2 on Google')).toBeVisible()
-  },
+  }),
 }
 export const HistoryTabInsideSectionPhone320: Story = {
   ...HistoryTabInsideSection,
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
-export const HistoryTabInsideSectionPhone390: Story = {
-  ...HistoryTabInsideSection,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-}
-export const HistoryTabInsideSectionTablet: Story = {
-  ...HistoryTabInsideSection,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-}
 export const HistoryTabInsideSectionDesktop: Story = {
   ...HistoryTabInsideSection,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-export const HistoryTabInsideSectionLight: Story = {
-  ...HistoryTabInsideSection,
-  parameters: { theme: 'light' },
 }
 
 /** The Active view with no goal yet: the same one region, its tabs, then the door. */
@@ -570,4 +559,9 @@ export const ReachedFourNineNowFourEight: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Keep 4.9' }))
     await expect(args.onStart).toHaveBeenCalledWith({ kind: 'keep', targetTenths: 49 })
   },
+}
+
+export const HistoryTabInsideSectionTablet: Story = {
+  ...HistoryTabInsideSection,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }

@@ -12,7 +12,7 @@ import { REPLY_DRAFTING_V2_ROUTE_MAX_BYTES } from '#/shared/reply-drafting-v2-re
 // WHAT DELIBERATELY SURVIVES, because it is product rule rather than transport:
 //   - the caller/route authorization. `AI_RUNTIME_CAPABILITIES_V1` declares
 //     which process may invoke which route (reply drafting is web-callable,
-//     trend analysis is worker-only). That is a real constraint on what a
+//     review analysis is worker-only). That is a real constraint on what a
 //     process may spend money on, and it outlives the wire.
 //   - the per-route deadline ceiling, so a caller cannot ask for an unbounded
 //     provider call.
@@ -29,12 +29,8 @@ import {
   type AiGatewayRouteResponseV1,
   type AnalysisResult,
   type ReplySuggestionResult,
-  type TrendResult,
 } from '#/shared/ai-gateway-transport-contract'
-import {
-  AI_REVIEW_ROUTE_MAX_BYTES,
-  AI_TREND_ROUTE_MAX_BYTES,
-} from '#/shared/ai-internal-transport-contract'
+import { AI_REVIEW_ROUTE_MAX_BYTES } from '#/shared/ai-internal-transport-contract'
 import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/ai-runtime-capability-contract'
 import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/review-analysis-v3-request'
 import { createSensitiveSourceLease } from '#/shared/ai-provider-control/source-lease'
@@ -44,13 +40,11 @@ import type { AiInferencePort } from '../../application/ports/ai-inference.port'
 const OUTER_DEADLINE_MILLIS = Object.freeze({
   'review-analysis': 100_000,
   'reply-suggestion': 100_000,
-  'property-trend': 100_000,
 } satisfies Readonly<Record<AiGatewayRouteRequestV1['route'], number>>)
 
 const REQUEST_MAX_BYTES = Object.freeze({
   'review-analysis': AI_REVIEW_ROUTE_MAX_BYTES,
   'reply-suggestion': AI_REVIEW_ROUTE_MAX_BYTES,
-  'property-trend': AI_TREND_ROUTE_MAX_BYTES,
 } satisfies Readonly<Record<AiGatewayRouteRequestV1['route'], number>>)
 
 // A review-analysis v3 request carries its sentences beside its text, so it has
@@ -158,13 +152,6 @@ export const createAiInProcessInference = (
     generateReply: async (request, signal, progress): Promise<ReplySuggestionResult> => {
       const result = await invoke(request, signal, progress)
       if (result.route !== 'reply-suggestion') {
-        throw new TypeError('AI gateway response is invalid')
-      }
-      return result
-    },
-    generateTrend: async (request, signal): Promise<TrendResult> => {
-      const result = await invoke(request, signal)
-      if (result.route !== 'property-trend') {
         throw new TypeError('AI gateway response is invalid')
       }
       return result

@@ -6,7 +6,7 @@ import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import {
   REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
-} from '#/shared/review-analysis-v3-profile'
+} from '#/shared/analysis/profile'
 import { ANTHROPIC_PROVIDER_ATTESTATION_V1, anthropicPairingOf } from './attestation'
 import { anthropicWireSchemaOf } from './schema-transform'
 

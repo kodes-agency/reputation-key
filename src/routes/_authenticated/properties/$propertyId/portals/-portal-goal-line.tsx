@@ -1,4 +1,4 @@
-// A Portal's Results line for the Monthly portal goal (PLAN PG-16): read through
+// A Portal's Results line for the Monthly portal goal: read through
 // the Goals route's Portal-goal queries, only for someone who may set the goal
 // (`goal.create`, with Goals on), only on the Results tab, and never for a
 // draft Portal, which has no line. While it is read the tab keeps its loading
@@ -6,7 +6,7 @@
 // line, and the tab shows its figures.
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { PortalDetailPortal } from '#/components/features/portal/portal-detail/portal-detail-types'
+import type { PortalDetailPortal } from '#/contexts/portal/workspace/ui/portal-detail-types'
 import { PortalGoalResultsLine } from '#/contexts/reporting/monthly-goals/ui/portal-goal-results-line'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'

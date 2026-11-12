@@ -19,14 +19,22 @@
 # through its own sudo, out of reach).
 #   0. With PLAYWRIGHT_DEPS_CACHE_DIR set (CI restores it with actions/cache),
 #      apt's archive starts with the packages an earlier run downloaded, so a
-#      warm run fetches only what Ubuntu has updated since, and no mirror can
-#      stall it. After a complete download the directory is refreshed.
+#      warm run fetches only what Ubuntu has updated since. apt still reads
+#      Ubuntu's package lists from the mirrors first, so a stalling mirror can
+#      hold even a warm run. After a complete download the directory is
+#      refreshed.
 #   1. Download only (APT::Get::Download-Only). Stopping apt mid-download
 #      leaves nothing half-installed, so when the deadline passes, the mirror
 #      apt prefers is dropped from the list for the rest of this job and the
 #      download runs once more. Packages that already arrived stay in
 #      /var/cache/apt/archives.
 #   2. Install what was downloaded, so no package download is left to stall.
+#   3. When the download stalls on both mirrors and the cache was restored,
+#      install the cached packages without a mirror (on 2026-11-11 both
+#      stalled for hours). They can trail Ubuntu's latest versions by up to a
+#      week, the age of the cache key. Packages the runner already has at the
+#      same or a newer version are left alone, so apt is never asked to
+#      downgrade.
 # A missed deadline fails the step with a message naming the phase and mirror.
 #
 # Usage: [PLAYWRIGHT_DEPS_CACHE_DIR=dir] sh scripts/ci/install-playwright-deps.sh \
@@ -92,6 +100,33 @@ refresh_cache() {
     find "$ARCHIVES" -maxdepth 1 -name '*.deb' -exec cp -t "$CACHE_DIR" {} +
 }
 
+# Phase 3: installs the cached packages in apt's archive without a mirror.
+# Fails when no cache was restored or apt cannot install them offline.
+install_offline() {
+  [ -n "$CACHE_DIR" ] || return 1
+  cached=0
+  missing=""
+  for deb in "$ARCHIVES"/*.deb; do
+    [ -e "$deb" ] || continue
+    cached=$((cached + 1))
+    name=$(dpkg-deb -f "$deb" Package) && version=$(dpkg-deb -f "$deb" Version) || continue
+    installed=$(dpkg-query -W -f='${Status} ${Version}' "$name" 2>/dev/null |
+      awk '$3 == "installed" { print $4 }')
+    if [ -n "$installed" ] && dpkg --compare-versions "$installed" ge "$version"; then
+      continue
+    fi
+    missing="$missing $deb"
+  done
+  [ "$cached" -gt 0 ] || return 1
+  # Every cached package is already installed: nothing is left to fetch.
+  [ -n "$missing" ] || return 0
+  sudo rm -f "$DOWNLOAD_ONLY"
+  # One word per package file: archive file names hold no spaces.
+  # shellcheck disable=SC2086
+  sudo timeout --kill-after=15 "$INSTALL_SECONDS" \
+    apt-get install -y --no-download --no-install-recommends $missing
+}
+
 trap 'sudo rm -f "$DOWNLOAD_ONLY"' EXIT
 seed_archives
 echo 'APT::Get::Download-Only "true";' | sudo tee "$DOWNLOAD_ONLY" >/dev/null
@@ -110,6 +145,10 @@ if timed_out "$status"; then
   status=0
   install_deps "$DOWNLOAD_SECONDS" "$@" || status=$?
   if timed_out "$status"; then
+    if install_offline; then
+      echo "::warning title=Ubuntu mirrors stalling::Downloading packages took over ${DOWNLOAD_SECONDS}s from $stalled and again from $next, so this job installed the cached packages without a mirror."
+      exit 0
+    fi
     fail "Downloading packages took over ${DOWNLOAD_SECONDS}s from $stalled and again from $next. Ubuntu's mirrors are stalling; re-run the job later."
   fi
 fi

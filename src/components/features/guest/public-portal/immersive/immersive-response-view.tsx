@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react'
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import { GlassSurface } from './glass-surface'
 import { ImmersiveAfterRating } from './immersive-after-rating'
 import { ImmersiveRatingCard } from './immersive-rating-card'

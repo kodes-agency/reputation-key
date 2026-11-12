@@ -1,4 +1,3 @@
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type {
   GenerateReplySuggestionDependencies,
   GenerateReplySuggestionInput,
@@ -48,7 +47,7 @@ export function releaseReplyAdmissionOnce(
 
 export async function rewriteReplyDraftingV2<Result>(
   input: Readonly<{
-    attempt: ReplyDraftingV2Attempt | undefined
+    attempt: ReplyDraftingV2Attempt
     operationId: string
     issues: readonly ReplyBodyIssueCode[] | undefined
     nowEpochMillis: number
@@ -60,7 +59,7 @@ export async function rewriteReplyDraftingV2<Result>(
   }>,
 ): Promise<Result> {
   const { attempt, issues } = input
-  if (!attempt || attempt.rewriteOrdinal !== 0 || !issues?.length) return input.refused
+  if (attempt.rewriteOrdinal !== 0 || !issues?.length) return input.refused
   const deadline = attempt.logicalDeadlineEpochMillis ?? input.nowEpochMillis + 150_000
   if (input.nowEpochMillis >= deadline || !(await input.recheck())) return input.refused
   await input.release()
@@ -81,7 +80,7 @@ export async function rewriteReplyDraftingV2<Result>(
 export function bindReplyDraftingV2(
   base: AiExecutionBinding,
   facts: Readonly<{
-    attempt: ReplyDraftingV2Attempt | undefined
+    attempt: ReplyDraftingV2Attempt
     languageCode: string
     generationSeed: string
     voiceDigest: string | null
@@ -93,7 +92,6 @@ export function bindReplyDraftingV2(
   }>,
 ): AiExecutionBinding {
   const { attempt, input } = facts
-  if (!attempt) return base
   if (!facts.voiceDigest) throw new TypeError('V2 reply requires a bound voice')
   return {
     ...base,
@@ -156,15 +154,9 @@ export async function admitInteractiveDraft(
   }
 }
 
-/** The explicit attempt is a contract-test seam; production follows the served catalogue. */
+/** The explicit attempt is how a rewrite runs as a child of its parent operation. */
 export function selectedReplyDraftingAttempt(
   attempt?: ReplyDraftingV2Attempt,
-): ReplyDraftingV2Attempt | undefined {
-  return (
-    attempt ??
-    (getAiRuntimeCapability('reply_drafting').operationProfileVersion ===
-    'reply-suggestion-v2'
-      ? rootReplyDraftingV2Attempt()
-      : undefined)
-  )
+): ReplyDraftingV2Attempt {
+  return attempt ?? rootReplyDraftingV2Attempt()
 }

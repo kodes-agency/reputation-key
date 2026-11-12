@@ -20,7 +20,7 @@ const registered = BETA_NOTIFICATION_TRIGGER_MATRIX.map(
 describe('executable beta notification trigger matrix', () => {
   it('covers every implemented beta type with a durable trigger and derived category', () => {
     expect(betaNotificationTriggerMatrixViolations(registered)).toEqual([])
-    expect(BETA_DARK_NOTIFICATION_TYPES).toEqual([])
+    expect(BETA_DARK_NOTIFICATION_TYPES).toEqual(['account.organization_purge_pending'])
   })
 
   it('fails when a real notification trigger loses durable registration', () => {

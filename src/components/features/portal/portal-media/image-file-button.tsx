@@ -1,6 +1,6 @@
-// The button that opens the file picker, and the picker it opens (visually
-// hidden but labelled, so a test or a screen reader can reach it). The same file
-// can be chosen again after a refusal, so the input is emptied once it is read.
+// The button that opens the file picker, and the picker it opens (not drawn, but
+// labelled so a test can reach it). The same file can be chosen again after a
+// refusal, so the input is emptied once it is read.
 
 import { useRef, type ChangeEvent } from 'react'
 import { Button } from '#/components/ui/button'
@@ -36,7 +36,7 @@ export function ImageFileButton({
         ref={input}
         type="file"
         accept={PORTAL_IMAGE_ACCEPT}
-        className="sr-only"
+        className="hidden"
         tabIndex={-1}
         aria-label={inputLabel}
         onChange={choose}

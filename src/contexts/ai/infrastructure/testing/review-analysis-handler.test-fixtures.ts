@@ -19,6 +19,11 @@ import {
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { AI_REVIEW_LANGUAGE_REGION_NODE_VERSION } from '#/shared/generated/ai-review-language-canonical-regions-v1'
 import { afterEach, vi } from 'vitest'
+import {
+  TEST_REVIEW_SENTENCES,
+  VALID_V3_ANSWER,
+  createTestReviewAnalysisContract,
+} from '#/contexts/ai/infrastructure/testing/review-analysis-contract.test-fixtures'
 const handlerDatabase = useAiHandlerDatabase()
 
 /**
@@ -76,20 +81,6 @@ const OPERATION_ID = '71000000-0000-4000-8000-000000000103' as AiOperationId
 const PERMIT_ID = '71000000-0000-4000-8000-000000000104'
 const LINEAGE_ID = '71000000-0000-4000-8000-000000000105'
 const SHA = 'a'.repeat(64)
-const VALID_ANALYSIS_RESULT = Object.freeze({
-  sentiment: 'negative' as const,
-  sentimentValence: -90,
-  urgencySignals: Object.freeze(['health'] as const),
-  aspects: Object.freeze([
-    Object.freeze({
-      aspect: 'service' as const,
-      polarity: 'negative' as const,
-      intensity: -90,
-    }),
-  ]),
-  issueLabel: 'service recovery',
-})
-
 const input = Object.freeze({
   organizationId: ORGANIZATION_ID,
   propertyId: PROPERTY_ID,
@@ -223,7 +214,7 @@ async function createHarness(
         : { createdAt: new Date(options.operationCreatedAtEpochMillis) }),
     })
   }
-  const storeAnalysis = vi.fn(async () => {
+  const storeAnalysisV3 = vi.fn(async (_request: unknown) => {
     await persistence.patchOperation({ state: 'succeeded_pending_delivery' })
     return true
   })
@@ -249,16 +240,12 @@ async function createHarness(
       : {
           route: 'review-analysis' as const,
           status: 'success' as const,
-          result: options.analysisResult ?? VALID_ANALYSIS_RESULT,
+          result: options.analysisResult ?? VALID_V3_ANSWER,
           settlementReceipt: {
             version: 'ai-settlement-receipt-v1' as const,
-
-            grantKid: 'grant_v1',
             operationId: request.operationId,
             permitId: request.permitId,
             attemptNumber: request.attemptNumber,
-            nonce: 'AQIDBA',
-            requestBindingHmac: 'A'.repeat(43),
             disposition: 'success' as const,
             reportedDisposition: 'success' as const,
             providerRetryable: false,
@@ -282,6 +269,7 @@ async function createHarness(
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
       text: 'The kitchen made several guests sick.',
+      sentences: TEST_REVIEW_SENTENCES,
       rating: options.rating ?? 1,
       languageCode: options.languageCode === undefined ? 'en-US' : options.languageCode,
       reviewedAtEpochMillis: NOW - 1_000,
@@ -321,16 +309,16 @@ async function createHarness(
         },
   )
   const dependencies = {
+    contract: createTestReviewAnalysisContract({ storeAnalysisV3 }),
     authorization: persistence.authorization,
     control: persistence.control,
     inference: {
       analyzeReview,
       generateReply: vi.fn(),
-      generateTrend: vi.fn(),
     },
     operations: persistence.operations,
     outputs: {
-      storeAnalysis,
+      storeAnalysisV3,
       settleEphemeralReply: vi.fn(),
       findCurrentReviewIdsByAttention: vi.fn(),
       readAnalysisForDelivery: vi.fn(),
@@ -381,7 +369,7 @@ async function createHarness(
     analyze: createAnalyzeReviewEvent(dependencies),
     mocks: {
       analyzeReview,
-      storeAnalysis,
+      storeAnalysisV3,
       recordFailure,
       applyReviewAnalysis,
       advanceWithoutAnalysis,
@@ -411,7 +399,6 @@ export {
   PROPERTY_ID,
   REVIEW_ID,
   SHA,
-  VALID_ANALYSIS_RESULT,
   withDriftedLanguageRuntime,
   withPinnedLanguageRuntime,
 }

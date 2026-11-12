@@ -360,29 +360,6 @@ export const createAtomicInboxCommandStore = (
   }
 
   return {
-    releaseAssignmentsForUser: async (input, lent) => {
-      return trace('inbox.commandStore.releaseAssignmentsForUser', async () => {
-        const released = await inTransaction(db, lent, async (tx) => {
-          const candidates = await tx
-            .select({ id: inboxItems.id })
-            .from(inboxItems)
-            .where(
-              and(
-                eq(inboxItems.organizationId, input.organizationId),
-                eq(inboxItems.assignedTo, input.userId),
-              ),
-            )
-            .orderBy(inboxItems.id)
-          return releaseAssignmentRows(
-            tx,
-            { ...input, releaseReason: 'member_offboarded' },
-            candidates.map((candidate) => candidate.id),
-          )
-        })
-        return { released }
-      })
-    },
-
     releaseIneligibleAssignmentsForUser: async (input, lent) => {
       return trace('inbox.commandStore.releaseIneligibleAssignmentsForUser', async () => {
         const released = await inTransaction(db, lent, async (tx) => {
@@ -464,7 +441,10 @@ export const createAtomicInboxCommandStore = (
             .map((candidate) => candidate.id)
           return releaseAssignmentRows(
             tx,
-            { ...input, releaseReason: 'member_became_ineligible' },
+            {
+              ...input,
+              releaseReason: input.releaseReason ?? 'member_became_ineligible',
+            },
             candidateIds,
           )
         })

@@ -12,6 +12,7 @@ import { aiOperations, aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
+import { replyDynamicDeveloperBytes } from '#/shared/reply-drafting-v2-request'
 import { createAiOperationExecutionReaperHandler } from '#/shared/jobs/ai-operation-execution-reaper.job'
 import {
   AI_REPLY_OPERATION_PROFILE,
@@ -32,10 +33,22 @@ const ROUTE_KEY = AI_REPLY_OPERATION_PROFILE.routeKey
 const PAYLOAD_BYTES = 512
 
 const profile = AI_OPERATION_PROFILES.find(
-  (candidate) => candidate.sourceRoute === ROUTE_KEY,
+  (candidate) =>
+    candidate.sourceRoute === ROUTE_KEY &&
+    candidate.profileVersion === AI_REPLY_OPERATION_PROFILE.profileVersion,
 )
 if (!profile) throw new Error('reply-suggestion profile is not registered')
-const RESERVED = maximumCostMicros(profile, PAYLOAD_BYTES)
+// A reply v2 request carries a per-request part of its prompt that the profile's
+// static figure does not include; admission prices it in.
+const RESERVED = maximumCostMicros(
+  {
+    ...profile,
+    staticTokenBearingBytes:
+      profile.staticTokenBearingBytes +
+      replyDynamicDeveloperBytes(profile.profileVersion),
+  },
+  PAYLOAD_BYTES,
+)
 
 describe.sequential('AI budget ledger (real PostgreSQL)', () => {
   const db = getDb()
@@ -110,10 +123,10 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
     await expect(
       db.transaction((tx) => budget.admitAiOperation(tx, admission(first))),
     ).resolves.toEqual({ ok: true, operationId: first, reservedMicros: RESERVED })
-    // A replayed admission returns the live reservation instead of reserving twice.
+    // One reservation per operation: a second admission reserves nothing.
     await expect(
       db.transaction((tx) => budget.admitAiOperation(tx, admission(first))),
-    ).resolves.toEqual({ ok: true, operationId: first, reservedMicros: RESERVED })
+    ).resolves.toEqual({ ok: false, code: 'already_reserved' })
     await expect(window()).resolves.toMatchObject({
       reservedMicros: RESERVED,
       settledMicros: 0,
@@ -145,92 +158,78 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
     await db.transaction((tx) => budget.settleAiOperation(tx, second, 0))
   })
 
-  it('releases only stale unadmitted reservations at zero cost', async () => {
-    const stale = await fixture.seedOperation()
-    await expect(
-      db.transaction((tx) => budget.admitAiOperation(tx, admission(stale))),
-    ).resolves.toMatchObject({ ok: true })
+  /** Leave the window room for exactly one more reservation. */
+  const roomForOne = async () => {
     const before = await window()
     await db
-      .update(aiOperations)
-      .set({ budgetReservedAt: sql`clock_timestamp() - interval '16 minutes'` })
-      .where(eq(aiOperations.id, stale))
-    const fresh = await fixture.seedOperation()
-    // The window has room for exactly one live reservation; the reaper job's
-    // tick frees it alongside the operation recovery sweep.
-    const released: number[] = []
-    const reaperTick = createAiOperationExecutionReaperHandler({
-      reap: async () => ({
-        recoveryCandidatesVisited: 0,
-        operationsFenced: 0,
-        operationsDelivered: 0,
-        operationsSettled: 0,
-        operationsRaced: 0,
-        candidatesFailed: 0,
-        batchFull: false,
-      }),
-      releaseStaleReservations: async () => {
-        const count = await db.transaction(reapStaleAiReservations)
-        released.push(count)
-        return count
-      },
-    })
-    await reaperTick({} as Job)
-    expect(released).toEqual([1])
-    await expect(
-      db.transaction((tx) => budget.admitAiOperation(tx, admission(fresh))),
-    ).resolves.toMatchObject({ ok: true })
+      .update(aiOrganizationCostWindows)
+      .set({ capMicros: before.reservedMicros + before.settledMicros + RESERVED })
+      .where(eq(aiOrganizationCostWindows.organizationId, ORGANIZATION_ID))
+  }
 
-    await expect(db.transaction((tx) => reapStaleAiReservations(tx))).resolves.toBe(0)
-    await expect(operation(stale)).resolves.toMatchObject({ actualMicros: 0 })
-    await expect(
-      operation(stale).then((row) => row.budgetSettledAt),
-    ).resolves.not.toBeNull()
-    await expect(operation(fresh)).resolves.toMatchObject({
-      reservedMicros: RESERVED,
-      budgetSettledAt: null,
-    })
-    await expect(window()).resolves.toMatchObject({
-      reservedMicros: before.reservedMicros,
-      settledMicros: before.settledMicros,
-    })
-    await db.transaction((tx) => budget.settleAiOperation(tx, fresh, 0))
-  })
+  // Every reservation is taken by an admission that may dispatch on it. While
+  // the previous release runs beside this one, a reservation carries the
+  // admission nonce too; the charge does not depend on it.
+  it.each([
+    ['with', 'admitted-reservation'],
+    ['without', null],
+  ] as const)(
+    'charges a stale reservation in full %s an admission nonce and keeps its cost against the cap',
+    async (_with, admissionNonce) => {
+      await roomForOne()
+      const stale = await fixture.seedOperation()
+      await expect(
+        db.transaction((tx) => budget.admitAiOperation(tx, admission(stale))),
+      ).resolves.toMatchObject({ ok: true })
+      await db
+        .update(aiOperations)
+        .set({
+          admissionNonce,
+          budgetReservedAt: sql`clock_timestamp() - interval '16 minutes'`,
+        })
+        .where(eq(aiOperations.id, stale))
+      const before = await window()
 
-  it('charges a stale admitted reservation once and keeps its cost against the cap', async () => {
-    const stale = await fixture.seedOperation()
-    await expect(
-      db.transaction((tx) => budget.admitAiOperation(tx, admission(stale))),
-    ).resolves.toMatchObject({ ok: true })
-    await db
-      .update(aiOperations)
-      .set({
-        admissionNonce: 'admitted-reservation',
-        budgetReservedAt: sql`clock_timestamp() - interval '16 minutes'`,
+      // The reaper job's tick charges it alongside the operation recovery sweep.
+      const charged: number[] = []
+      const reaperTick = createAiOperationExecutionReaperHandler({
+        reap: async () => ({
+          recoveryCandidatesVisited: 0,
+          operationsFenced: 0,
+          operationsDelivered: 0,
+          operationsSettled: 0,
+          operationsRaced: 0,
+          candidatesFailed: 0,
+          batchFull: false,
+        }),
+        releaseStaleReservations: async () => {
+          const count = await db.transaction(reapStaleAiReservations)
+          charged.push(count)
+          return count
+        },
       })
-      .where(eq(aiOperations.id, stale))
-    const before = await window()
+      await reaperTick({} as Job)
+      expect(charged).toEqual([1])
+      await expect(operation(stale)).resolves.toMatchObject({
+        actualMicros: RESERVED,
+        budgetSettledAt: expect.any(Date),
+      })
+      const expectedWindow = {
+        reservedMicros: before.reservedMicros - RESERVED,
+        settledMicros: before.settledMicros + RESERVED,
+      }
+      await expect(window()).resolves.toMatchObject(expectedWindow)
+      await expect(db.transaction(reapStaleAiReservations)).resolves.toBe(0)
+      await expect(window()).resolves.toMatchObject(expectedWindow)
 
-    await expect(db.transaction(reapStaleAiReservations)).resolves.toBe(1)
-    await expect(operation(stale)).resolves.toMatchObject({
-      actualMicros: RESERVED,
-      budgetSettledAt: expect.any(Date),
-    })
-    const expectedWindow = {
-      reservedMicros: before.reservedMicros - RESERVED,
-      settledMicros: before.settledMicros + RESERVED,
-    }
-    await expect(window()).resolves.toMatchObject(expectedWindow)
-    await expect(db.transaction(reapStaleAiReservations)).resolves.toBe(0)
-    await expect(window()).resolves.toMatchObject(expectedWindow)
-
-    const next = await fixture.seedOperation()
-    await expect(
-      db.transaction((tx) => budget.admitAiOperation(tx, admission(next))),
-    ).resolves.toEqual({ ok: false, code: 'budget_exhausted' })
-    await expect(
-      db.transaction((tx) => budget.settleAiOperation(tx, stale, 0)),
-    ).rejects.toThrow(/different cost/)
-    await expect(window()).resolves.toMatchObject(expectedWindow)
-  })
+      const next = await fixture.seedOperation()
+      await expect(
+        db.transaction((tx) => budget.admitAiOperation(tx, admission(next))),
+      ).resolves.toEqual({ ok: false, code: 'budget_exhausted' })
+      await expect(
+        db.transaction((tx) => budget.settleAiOperation(tx, stale, 0)),
+      ).rejects.toThrow(/different cost/)
+      await expect(window()).resolves.toMatchObject(expectedWindow)
+    },
+  )
 })

@@ -502,51 +502,6 @@ export const createGoalProgramRepository = (
       }
     },
 
-    async rename(input) {
-      return db.transaction(async (tx) => {
-        const [row] = await tx
-          .update(goalPrograms)
-          .set({
-            name: input.name,
-            description: input.description,
-            updatedAt: input.at,
-          })
-          .where(
-            and(
-              eq(goalPrograms.organizationId, input.organizationId),
-              eq(goalPrograms.propertyId, input.propertyId),
-              eq(goalPrograms.id, input.programId),
-              ne(goalPrograms.status, 'ended'),
-              // Only while the goal still says what the command read: a
-              // rename that landed in between is not undone, and the audit
-              // row below names the name this one really replaced.
-              eq(goalPrograms.name, input.previousName),
-              input.previousDescription === null
-                ? isNull(goalPrograms.description)
-                : eq(goalPrograms.description, input.previousDescription),
-            ),
-          )
-          .returning()
-        if (!row) return null
-        await tx.insert(auditLogs).values({
-          organizationId: input.organizationId,
-          userId: input.actorId,
-          action: 'goal.program.renamed',
-          resourceType: 'goal_program',
-          resourceId: input.programId,
-          details: {
-            propertyId: input.propertyId,
-            previousName: input.previousName,
-            name: input.name,
-            // The text of a description is not kept here; that it changed is,
-            // so an edit of the description alone does not read as no change.
-            descriptionChanged: input.description !== input.previousDescription,
-          },
-        })
-        return mapProgram(row)
-      })
-    },
-
     // Keep, on the Monthly portal goal's month-start check-in: the answered
     // month alone. Neither `current_version` nor `status` moves, so the
     // transition guard has nothing to refuse, and `updated_at` stays the time

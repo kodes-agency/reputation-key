@@ -4,6 +4,18 @@ import { assertOnlineConstraints, contractionRequirement } from './migration-saf
 import { journalConcurrentIndex } from './journal-concurrent-index'
 import { readMigrationJournal } from './migration-journal-order'
 
+const NEW_TABLES = `DO $auth$
+BEGIN
+  IF to_regclass('public."user"') IS NULL THEN
+    CREATE TABLE "user" ("id" text NOT NULL PRIMARY KEY, "email" text NOT NULL UNIQUE);
+    CREATE TABLE "session" ("id" text NOT NULL PRIMARY KEY, "userId" text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE);
+    CREATE INDEX "session_userId_idx" ON "session" ("userId");
+  ELSIF to_regclass('public."session"') IS NULL THEN
+    RAISE EXCEPTION 'The user table exists without its sessions';
+  END IF;
+END
+$auth$;`
+
 describe('online migration safeguards', () => {
   it.each([
     'ALTER TABLE records ADD CHECK (value > 0);',
@@ -165,6 +177,25 @@ describe('online migration safeguards', () => {
     'ALTER TABLE records ADD fresh int--> statement-breakpointALTER TABLE records ALTER value DROP DEFAULT;',
     "DO $$ BEGIN EXECUTE 'ALTER TABLE records ADD fresh int'; END $$;",
     'UNKNOWN MIGRATION STATEMENT;',
+    'CREATE INDEX CONCURRENTLY records_idx ON records (value) WHERE value IS NOT NULL AND state = 1;',
+    'CREATE INDEX CONCURRENTLY records_idx ON records (value) WHERE value IS NOT TRUE;',
+    NEW_TABLES.replace('"session" ("userId")', '"records" ("value")'),
+    NEW_TABLES.replace(
+      'CREATE TABLE "session"',
+      'CREATE TABLE "session" AS SELECT 1; CREATE TABLE "other"',
+    ),
+    NEW_TABLES.replace(
+      "RAISE EXCEPTION 'The user table exists without its sessions'",
+      'DROP TABLE records',
+    ),
+    NEW_TABLES.replace(
+      'to_regclass(\'public."user"\') IS NULL',
+      '(SELECT count(*) FROM records) = 0',
+    ),
+    NEW_TABLES.replace('to_regclass(\'public."session"\') IS NULL', 'refresh_records()'),
+    NEW_TABLES.replace('END IF;', 'END IF; DELETE FROM records;'),
+    NEW_TABLES.replace('$auth$;', '$auth$; DROP TABLE records;'),
+    `${NEW_TABLES}\nDROP TABLE records;`,
   ])('requires reader-removal evidence for %s', (sql) => {
     expect(() => contractionRequirement(sql)).toThrow('reader-removal commit')
   })
@@ -190,6 +221,11 @@ describe('online migration safeguards', () => {
     'ALTER TABLE records ADD CONSTRAINT positive CHECK (value > 0) NOT VALID;',
     'ALTER TABLE records ADD CONSTRAINT parent_fk FOREIGN KEY (parent_id) REFERENCES parents (id) NOT VALID;',
     'ALTER TABLE records VALIDATE CONSTRAINT positive;',
+    'CREATE INDEX CONCURRENTLY "records_idx" ON "records" ("created_at") WHERE "value" IS NOT NULL;',
+    'CREATE INDEX CONCURRENTLY records_idx ON records (created_at) WHERE (value IS NULL);',
+    NEW_TABLES,
+    `-- Creates the tables only on a new database.\n${NEW_TABLES}\n--> statement-breakpoint\nCREATE TABLE records (value int);`,
+    NEW_TABLES.replace(/ {2}ELSIF[\s\S]*?(?= {2}END IF)/, ''),
   ])('keeps compatible table changes as expands: %s', (sql) => {
     expect(contractionRequirement(sql)).toBeNull()
   })

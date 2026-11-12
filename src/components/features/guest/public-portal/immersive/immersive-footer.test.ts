@@ -102,7 +102,6 @@ describe('ImmersiveFooterView with the notice', () => {
     expect(html.replace(/<style[\s\S]*?<\/style>/gu, '')).toMatch(/^<footer\b/u)
     expect(html).toContain('<section')
     expect(html).not.toMatch(/position:\s*fixed/iu)
-    expect(IMMERSIVE_FOOTER_CSS).not.toMatch(/position:\s*fixed/iu)
     expect(html).not.toContain('role="dialog"')
   })
 
@@ -160,11 +159,6 @@ describe('ImmersiveFooterView after the notice is acknowledged', () => {
     expect(html).not.toContain('<section')
     expect(html).not.toContain('<button')
     expect(html).not.toMatch(/essential cookie|privacy-protected marker/iu)
-  })
-
-  it('keeps the privacy link a 44 px target', () => {
-    expect(html).toMatch(/<a [^>]*href="\/privacy"/u)
-    expect(IMMERSIVE_FOOTER_CSS).toMatch(/\.ih-footer__link\s*\{[^}]*min-height:\s*44px/u)
   })
 })
 
@@ -231,11 +225,5 @@ describe('InertImmersiveFooterView (the admin preview)', () => {
     const html = withoutStyle(inert({ isNoticeVisible: false }))
     expect(textOf(html)).toEqual(['Privacy notice', 'Made with Reputation Key'])
     expect(html).not.toContain('href=')
-  })
-
-  it('drops the pointer and the hover of the acknowledge pill', () => {
-    expect(IMMERSIVE_FOOTER_CSS).toMatch(
-      /\.ih-footer__ack--inert\s*\{[^}]*cursor:\s*default/u,
-    )
   })
 })

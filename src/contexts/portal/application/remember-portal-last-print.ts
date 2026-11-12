@@ -1,14 +1,14 @@
-// Portal context — remembers a final print as the Portal's last (final design
+// Portal context — remembers a print as the Portal's last (design
 // spec §11, slice 12), once its file is made. The memory is a convenience for the
 // next visit to Share, so a manager who has the file is never refused it because
 // the memory could not be written: the failure is logged and the print stands.
 
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { printFinalOwnWordsToSend } from '#/shared/domain/portal-print-final-custom'
-import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-last'
-import type { PrintFinalChoice } from '#/shared/domain/portal-print-final-offer'
-import type { DownloadPortalPrintFinalInput } from './dto/portal-print-final.dto'
+import { printOwnWordsToSend } from '#/shared/domain/portal-print-custom'
+import type { PrintLastSettings } from '#/shared/domain/portal-print-last'
+import type { PrintChoice } from '#/shared/domain/portal-print-offer'
+import type { DownloadPortalPrintInput } from './dto/portal-print.dto'
 import type { PortalPrintKitContext } from './portal-print-kit-context'
 import type { PortalLastPrintRepository } from './ports/portal-last-print.repository'
 
@@ -24,9 +24,9 @@ export type RememberLastPrintDeps = Readonly<{
  * the ones that mean nothing to it.
  */
 function settingsOf(
-  choice: PrintFinalChoice,
-  input: DownloadPortalPrintFinalInput,
-): PrintFinalLastSettings {
+  choice: PrintChoice,
+  input: DownloadPortalPrintInput,
+): PrintLastSettings {
   return {
     piece: choice.piece,
     orientation: choice.orientation,
@@ -40,7 +40,7 @@ function settingsOf(
     backPage: choice.backPage ?? false,
     languages: input.languages,
     callToAction: input.callToAction,
-    customWords: printFinalOwnWordsToSend(
+    customWords: printOwnWordsToSend(
       { preset: input.callToAction, custom: input.customWords ?? null },
       input.languages,
     ),
@@ -53,8 +53,8 @@ export async function rememberLastPrint(
     organizationId: OrganizationId
     propertyId: PropertyId
     portalId: PortalId
-    choice: PrintFinalChoice
-    input: DownloadPortalPrintFinalInput
+    choice: PrintChoice
+    input: DownloadPortalPrintInput
     look: PortalPrintKitContext['look']
   }>,
 ): Promise<void> {
@@ -79,7 +79,7 @@ export async function rememberLastPrint(
     // no Portal id (a banned log key; the request's own correlation finds it).
     deps.logger.warn(
       { err: error, errorCode: 'portal_last_print_not_remembered' },
-      'The last final print could not be remembered; the file was made',
+      'The last print could not be remembered; the file was made',
     )
   }
 }

@@ -58,8 +58,8 @@ Shared-area dependency and production/test fences are enforced by `eslint.config
 The shared root is not a general placement target. Its retained files are narrow multi-owner contracts: AI/provider schemas and pinned vectors, canonical JSON, closed JSON validation, merchant-AI notices, Reply language, responsible-manager eligibility, Google Review/Performance wire normalization, and provider-subject bindings. New workflow orchestration belongs in an owning context.
 
 Responsible-manager eligibility has two owners, Property and Portal, and its
-contract includes the one rule both follow when a member is removed: release
-again, from `identity.member.removed`, what the member still holds and may no
+contract includes the one rule both follow when a member is removed: release,
+from `identity.member.removed`, what the member still holds and may no
 longer hold (`releaseRemovedMemberResponsibilities`), through the one handler
 that reads the fact and records the receipt after the release
 (`removed-member-consumer.ts`). The root holds only that rule and that handler.
@@ -79,14 +79,18 @@ gateway schemas. It accepts a typed `parse` function and preserves byte, UTF-8,
 duplicate-key, Unicode, depth, node and number-policy checks for provider bodies
 and key material. Parsing and diagnostics share their parsed-value checks; the
 gateway adds its noncharacter restriction to the common Unicode scalar check.
-Admission grants and request-binding keys still have runtime callers. Identity uses the bare `provider-source` advisory scope; its bytes and
+Identity uses the bare `provider-source` advisory scope; its bytes and
 PostgreSQL hash input must stay stable.
 
-AI settlement uses `settle(permit, outcome)` in process. The PostgreSQL admission
-authority checks the stored attempt and permit and prices usage from the stored
-provider. Unknown dispatched usage costs the reservation; proved no-dispatch
-releases it at zero. Settlement results are unsigned. Grant verification, browser
-provenance signatures, output binding and delivery deadlines remain independent.
+AI admission is in process and typed. The PostgreSQL authority mints an
+`AiExecutionAdmission` (`ai-provider-control/execution-admission.ts`) that only the
+AI admission adapter may create; the dispatch gate spends it once and checks its
+attempt, limits, deadline and descriptor digest against the exact bytes. No grant,
+request-binding HMAC or nonce is signed or stored. Settlement uses
+`settle(permit, outcome)`: the authority checks the stored attempt and permit and an
+open reservation and prices usage from the stored provider. Unknown dispatched usage
+costs the reservation; proved no-dispatch releases it at zero. Browser provenance
+signatures, output binding and delivery deadlines remain independent.
 
 ## Authentication and runtime
 

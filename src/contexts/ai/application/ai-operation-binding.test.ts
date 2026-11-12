@@ -96,7 +96,7 @@ describe('AI operation binding', () => {
     const binding = replyExecutionBinding({
       ...SHARED_FACTS,
       input: REPLY_REQUEST,
-      operationProfile: operationProfile('reply-suggestion-v1'),
+      operationProfile: operationProfile('reply-suggestion-v2'),
       concreteReplyLanguage: parseCanonicalReplyLanguageTag('en-Latn')!,
       brandProfile: { version: 7, displayNameDigest: 'b'.repeat(64) },
       replyDraftingEpoch: 4,
@@ -113,8 +113,8 @@ describe('AI operation binding', () => {
       replyBrandProfileVersion: 7,
       replyBrandDisplayNameDigest: 'b'.repeat(64),
       aiSubjectHmacKeyVersion: null,
-      operationProfileVersion: 'reply-suggestion-v1',
-      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
+      operationProfileVersion: 'reply-suggestion-v2',
+      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v2',
     })
   })
 
@@ -122,7 +122,7 @@ describe('AI operation binding', () => {
     const binding = analysisExecutionBinding({
       ...SHARED_FACTS,
       input: ANALYSIS_EVENT,
-      operationProfile: operationProfile('review-analysis-v2'),
+      operationProfile: operationProfile('review-analysis-v3'),
       reviewAnalysisEpoch: 2,
       subjectHmacKeyVersion: 'ai-subject-hmac-v1',
     })
@@ -133,8 +133,8 @@ describe('AI operation binding', () => {
     expect(binding).toMatchObject({
       capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 2 },
       aiSubjectHmacKeyVersion: 'ai-subject-hmac-v1',
-      operationProfileVersion: 'review-analysis-v2',
-      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
+      operationProfileVersion: 'review-analysis-v3',
+      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2',
     })
   })
 

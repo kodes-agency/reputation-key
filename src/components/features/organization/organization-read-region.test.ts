@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { QueryClient, QueryObserver, type UseQueryResult } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 import { RegionError } from '#/components/ui/region-error'
-import { PortalReadState } from '../portal/portal-detail/portal-read-state'
+import { PortalReadState } from '#/contexts/portal/workspace/ui/portal-read-state'
 import { OrganizationReadRegion } from './organization-read-region'
 
 function region(kind: 'organization' | 'portal', query: UseQueryResult<number>) {

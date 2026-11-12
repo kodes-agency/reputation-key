@@ -16,13 +16,13 @@ import type {
   GovernedMetricVersion,
   MetricScope,
   SourcePolicyClass,
+  MetricRegistry,
 } from '../../readings/contracts'
 import type {
   MetricCommandStore,
   MetricSourceReceipt,
   RecordMetricEntry,
 } from '../ports/metric-command-store.port'
-import type { MetricRegistryRepository } from '../ports/metric-registry.repository.port'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 import type { PortalDestinationKind } from '../../domain/portal-link-attribution'
 import { validatePortalReading } from '../../readings/contracts'
@@ -56,7 +56,7 @@ export type RecordMetricInput = Readonly<{
 
 export type RecordMetricDeps = Readonly<{
   commandStore: MetricCommandStore
-  registry: MetricRegistryRepository
+  registry: MetricRegistry
   clock: () => Date
   idGen: () => MetricReadingId
   resolvePropertyLocalDate: (

@@ -194,12 +194,9 @@ export function buildContainerCapabilities({
     policyAdmin: identity.policy.admin,
     portalPublicApi: portal.publicApi,
     handleResendEvent: notification.delivery.handleResendEvent,
-    // The worker's insert, email and digest processors, plus the repair sweep
-    // for deliveries that never settled (undefined when no job queue exists).
+    // The worker's insert, email and digest processors.
     notificationDelivery: Object.freeze({
       createProcessors: notification.delivery.createProcessors,
-      reconcileMissingNotificationsHandler:
-        notification.delivery.reconcileMissingNotificationsHandler,
     }),
     // BQC-2.2: version-gated strong read of persisted policy state.
     // Workers await this before starting; side-effect paths use it for
@@ -235,6 +232,7 @@ export function buildContainerCapabilities({
     // Worker-only durable consumer registration contributed by owning contexts.
     // Every context registers into THIS container's registry.
     registerOutboxConsumers: () => {
+      identity.worker.registerOutboxConsumers(consumerRegistry)
       integration.worker.registerOutboxConsumers(consumerRegistry)
       review.worker.registerOutboxConsumers(consumerRegistry)
       portal.worker.registerOutboxConsumers(consumerRegistry)

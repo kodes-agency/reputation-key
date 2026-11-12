@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { BACKUP_ERASURE_LEDGER_CONTEXTS } from '#/shared/db/schema/backup-erasure-ledger.schema'
 import { createNotificationRightsReplayers } from '#/contexts/feed/rights/replayer.server'
-import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
+import {
+  createRightsJournal,
+  rightsJournalEntry,
+} from '#/shared/ops/rights/rights-journal'
 import { composeRightsExecutors, composeRightsReplayers } from './rights-executors'
 
 const NOTIFICATION_REPLAYERS = createNotificationRightsReplayers()
@@ -116,6 +119,40 @@ describe('composeRightsExecutors', () => {
         `${context}:${subjectClass}:${targetKind ?? 'scope'}`,
     )
     expect(new Set(keys).size).toBe(keys.length)
+  })
+})
+
+describe('journal keys the rights command can write', () => {
+  it('has a registered replayer for every guest response and feedback key', () => {
+    const registered = composeRightsReplayers({
+      ...deps,
+      notificationReplayers: NOTIFICATION_REPLAYERS,
+    }).map(
+      ({ context, subjectClass, targetKind }) =>
+        `${context}:${subjectClass}:${targetKind ?? 'scope'}`,
+    )
+    const guestResponse = rightsJournalEntry(
+      {
+        scope: 'guest-response',
+        mode: 'apply',
+        organizationId: 'org',
+        propertyId: 'property',
+        responseId: 'response',
+        batchSize: 1,
+        receivedAt: new Date('2026-08-01T00:00:00.000Z'),
+      },
+      'guest',
+    )
+    if ('error' in guestResponse) throw new Error(guestResponse.error)
+    const written = [
+      guestResponse,
+      { ...guestResponse, journalTargets: { kind: 'guest_feedback', ids: ['response'] } },
+    ] as const
+    for (const entry of written) {
+      expect(registered).toContain(
+        `${entry.context}:${entry.subjectClass}:${entry.journalTargets?.kind}`,
+      )
+    }
   })
 })
 

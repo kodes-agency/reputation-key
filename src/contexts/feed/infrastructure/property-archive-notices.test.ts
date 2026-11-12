@@ -15,9 +15,10 @@ import { notificationId, unbrand, type NotificationId } from '#/shared/domain/id
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   createNotificationConsumerDeps,
+  noticeWriterOver,
   NOTIF_TEST_IDS,
 } from './notification-consumer-test-fixtures'
-import { handleWorkflowNotificationEvent } from './workflow-outbox-consumers'
+import { handleWorkflowNotificationEvent } from '../notify/inbox-workflow.server'
 import { handleNotificationSettlementEvent } from './notification-settlement-outbox-consumers'
 import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
 
@@ -59,9 +60,11 @@ describe('a publication the archive cancelled', () => {
     // Property eligibility ignores the lifecycle: every admin still passes.
     fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
     fakes.activeProperty.mockResolvedValue(active)
+    const receipts = { insertReceipt: vi.fn(async () => undefined) }
     return {
       ...fakes,
-      receipts: { insertReceipt: vi.fn(async () => undefined) },
+      receipts,
+      noticeWriter: noticeWriterOver({ add: fakes.addMock }, receipts),
     }
   }
   const cancelled = () =>

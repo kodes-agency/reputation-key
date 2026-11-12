@@ -13,6 +13,8 @@ import type { Job } from 'bullmq'
 import { createGatedJobHandler } from './delayed-execution-gate'
 import { JobTimeoutError, UnknownJobError } from './errors'
 import { createJobRegistry } from './registry'
+import { declareRequestProcess, getDatabaseScope } from '#/shared/db/tenant-scope.server'
+import { resetScopeProcessForTest } from '#/shared/db/scope-store.server'
 import {
   initDelayedExecutionPolicy,
   resetDelayedExecutionPolicy,
@@ -59,6 +61,7 @@ function fakeJob(over: Record<string, unknown> = {}): Job {
 }
 
 afterEach(() => {
+  resetScopeProcessForTest()
   resetDelayedExecutionPolicy()
   vi.clearAllMocks()
   vi.restoreAllMocks()
@@ -312,5 +315,64 @@ describe('createGatedJobHandler', () => {
 
     await expect(dispatch(fakeJob())).resolves.toBeUndefined()
     expect(handler).toHaveBeenCalledOnce()
+  })
+})
+
+describe('database scope of gated jobs', () => {
+  function dispatchRecordingScope(jobName: string) {
+    decideMock.mockResolvedValue(ALLOW)
+    initDelayedExecutionPolicy({ decide: decideMock })
+    const registry = createJobRegistry()
+    const seen: unknown[] = []
+    registry.register(jobName, async () => {
+      seen.push(getDatabaseScope())
+    })
+    return { dispatch: createGatedJobHandler('default', registry), seen }
+  }
+
+  it("runs Organization-scoped work under the payload's Organization", async () => {
+    const { dispatch, seen } = dispatchRecordingScope('import-gbp-property-item')
+
+    await dispatch(
+      fakeJob({ name: 'import-gbp-property-item', data: { organizationId: 'org-1' } }),
+    )
+
+    expect(seen).toEqual([
+      {
+        kind: 'tenant',
+        organizationId: 'org-1',
+        entry: 'job',
+        name: 'import-gbp-property-item',
+      },
+    ])
+    expect(getDatabaseScope()).toBeUndefined()
+  })
+
+  it('runs tenant-cross and unscoped work as named system work', async () => {
+    const { dispatch, seen } = dispatchRecordingScope('health-check')
+
+    await dispatch(fakeJob())
+
+    expect(seen).toEqual([{ kind: 'system', name: 'job:health-check' }])
+  })
+
+  it('enters no scope for a denied job', async () => {
+    decideMock.mockResolvedValue(decision())
+    initDelayedExecutionPolicy({ decide: decideMock })
+    const registry = createJobRegistry()
+    const handler = vi.fn(async () => {})
+    registry.register('health-check', handler)
+
+    await createGatedJobHandler('default', registry)(fakeJob())
+
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('cannot run system work in a request process', async () => {
+    const { dispatch, seen } = dispatchRecordingScope('health-check')
+    declareRequestProcess()
+
+    await expect(dispatch(fakeJob())).rejects.toThrow('system database scope refused')
+    expect(seen).toEqual([])
   })
 })

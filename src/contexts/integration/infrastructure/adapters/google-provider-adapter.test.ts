@@ -19,10 +19,10 @@ import type {
 } from '../../application/ports/google-authorized-provider-executor.port'
 import type { GoogleProviderDispatch } from '#/shared/google-provider-control/egress-gateway'
 import {
-  isGbpApiError,
-  type GbpApiDispatch,
-  type GbpApiError,
-} from '../../domain/gbp-api-error'
+  isGoogleCallError,
+  type GoogleCallDispatch,
+  type GoogleCallFailure,
+} from '../../domain/google-call-error'
 import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
@@ -107,7 +107,7 @@ function admissionDenied(
 
 async function providerError(
   result: GoogleProviderExecutionResult,
-): Promise<GbpApiError> {
+): Promise<GoogleCallFailure> {
   try {
     await executeGoogleProviderRaw({
       operation: 'fetchPerformanceReport',
@@ -117,7 +117,7 @@ async function providerError(
       nowMs: () => NOW_MS,
     })
   } catch (error) {
-    if (isGbpApiError(error)) return error
+    if (isGoogleCallError(error)) return error
     throw error
   }
   throw new Error('expected the provider call to reject')
@@ -289,7 +289,7 @@ describe('executeGoogleProviderRaw dispatch evidence', () => {
   it('keeps the domain dispatch union identical to the gateway union', () => {
     // The domain may not import shared/google-provider-control, so it declares
     // its own copy; a drift would let a new gateway value vanish at this seam.
-    expectTypeOf<GbpApiDispatch>().toEqualTypeOf<GoogleProviderDispatch>()
+    expectTypeOf<GoogleCallDispatch>().toEqualTypeOf<GoogleProviderDispatch>()
   })
 
   it('carries a not_sent executor rejection with its execution code', async () => {
@@ -446,7 +446,7 @@ describe('executeGoogleProviderRaw dispatch evidence', () => {
       await vi.advanceTimersByTimeAsync(5_000)
 
       expect(lateFetch).toHaveBeenCalledTimes(1)
-      expect(isGbpApiError(error)).toBe(true)
+      expect(isGoogleCallError(error)).toBe(true)
       expect(error).toMatchObject({ kind: 'upstream_error', dispatch: 'unknown' })
     })
   })

@@ -171,13 +171,14 @@ function createHarness(
     propertyAccess: async () => options.grants ?? [],
     authorization: { readMerchantAuthorization },
     outputs: {
-      storeAnalysis: vi.fn(),
+      storeAnalysisV3: vi.fn(),
       settleEphemeralReply: vi.fn(),
       findCurrentReviewIdsByAttention: vi.fn(),
       readAnalysisForDelivery,
     },
     processingProfiles: { readForAi, refreshForAi: vi.fn() },
     nowEpochMillis: options.clock ?? (() => NOW),
+    reviewAnalysisProfileVersion: REVIEW_ANALYSIS_PROFILE.profileVersion,
   } as unknown as ReadAiInsightsDependencies
 
   return {

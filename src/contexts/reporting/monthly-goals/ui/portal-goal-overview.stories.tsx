@@ -10,7 +10,7 @@ import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
 import type { PortalGoalCheckInCommands } from './portal-goal-check-in'
 import { CARD_CHECK_IN } from './portal-goal-check-in.stories.fixtures'
@@ -220,16 +220,6 @@ export const ReadyPhone320: Story = {
   },
 }
 
-export const RunningOnAPhone: Story = {
-  ...Running,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-}
-
-export const RunningOnATablet: Story = {
-  ...Running,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-}
-
 export const RunningOnADesktop: Story = {
   ...Running,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
@@ -238,4 +228,9 @@ export const RunningOnADesktop: Story = {
 export const RunningLight: Story = {
   ...Running,
   parameters: { theme: 'light' },
+}
+
+export const RunningOnATablet: Story = {
+  ...Running,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }

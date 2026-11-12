@@ -2,20 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   describePrintKitNotLive,
-  describeUnprintable,
   isNothingLiveRefusal,
-  languageChoiceLabel,
   printKitAvailability,
   printKitHasLiveVersion,
 } from './print-kit-state'
-
-describe('languageChoiceLabel', () => {
-  it('names each language in its own words', () => {
-    expect(languageChoiceLabel(['en', 'bg'])).toBe('English + Български')
-    expect(languageChoiceLabel(['es'])).toBe('Español')
-  })
-})
-
 describe('printKitAvailability', () => {
   it('is ready when the address can be fetched again', () => {
     expect(printKitAvailability({ canDownloadAgain: true })).toEqual({
@@ -112,23 +102,5 @@ describe('describePrintKitNotLive', () => {
 
   it('offers no link to the review when the tab was not told the property', () => {
     expect(describePrintKitNotLive('draft', { portalId: 'portal-1' }).review).toBeNull()
-  })
-})
-
-describe('what the fonts cannot print', () => {
-  it('names the characters in one line, and counts the rest past six', () => {
-    expect(describeUnprintable(['Ω', 'ψ'])).toBe(
-      'These characters will not print, because the print kit’s fonts don’t have them: Ω ψ.',
-    )
-    expect(describeUnprintable(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'])).toBe(
-      'These characters will not print, because the print kit’s fonts don’t have them: a b c d e f and 2 more.',
-    )
-  })
-
-  it('leaves out characters with nothing to show, such as an emoji’s variation selector', () => {
-    expect(describeUnprintable(['🏊', '\uFE0F'])).toBe(
-      'These characters will not print, because the print kit’s fonts don’t have them: 🏊.',
-    )
-    expect(describeUnprintable(['\uFE0F'])).toBeNull()
   })
 })

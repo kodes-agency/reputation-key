@@ -1,4 +1,4 @@
-import type { GuestResponseView } from '../use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import type { PublicPortalResult } from '#/contexts/portal/application/public-api'
 import { fontSetForGuestSurface, type FontSet } from '#/shared/font-sets'
 

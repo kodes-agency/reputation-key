@@ -4,7 +4,7 @@ import {
 } from '../../application/google-provider-contract'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
 import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
-import { createGbpApiError } from '../../domain/gbp-api-error'
+import { createGoogleCallError } from '../../domain/google-call-error'
 import { executeGoogleProviderRaw } from '../../provider/google-client.server'
 import { parseGooglePerformanceResponse } from './google-performance-parser'
 import { validateGoogleProviderSuffix } from './google-resource-suffix'
@@ -28,7 +28,7 @@ export const createGooglePerformanceAdapter = (
   return Object.freeze({
     fetchReport: async (input, accessToken, authorization) => {
       if (!validateGoogleProviderSuffix(input.locationId)) {
-        throw createGbpApiError('fetchPerformanceReport', 'parse_error')
+        throw createGoogleCallError('fetchPerformanceReport', 'parse_error')
       }
       const response = await executeGoogleProviderRaw({
         operation: 'fetchPerformanceReport',

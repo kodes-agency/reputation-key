@@ -45,6 +45,7 @@ type Input = Readonly<{
   locales: readonly OfferedGuestLocale[]
   /** Sends an image to the media endpoint; the real upload when left out. */
   uploadImage: PortalImageUploader | undefined
+  takeDownImage: ((assetId: string) => Promise<unknown>) | undefined
   preview: Readonly<{
     portal: PreviewPortal | null
     data: PropertyLookPreviewData
@@ -61,6 +62,7 @@ export function usePropertyLookMediaControls({
   descriptions,
   locales,
   uploadImage,
+  takeDownImage,
   preview,
 }: Input) {
   const { media, moveFocal, saveHero, saveLogo } = usePropertyLookMedia(
@@ -79,6 +81,14 @@ export function usePropertyLookMediaControls({
     onFocalChange: moveFocal,
     onSave: saveHero,
     onRemove: () => saveHero({ assetId: null }),
+    ...(takeDownImage
+      ? {
+          onTakeDown: async (assetId: string) => {
+            await takeDownImage(assetId)
+            await saveHero({ assetId: null })
+          },
+        }
+      : {}),
     renderPhone: (hero) => (
       <PropertyLookPhone
         portal={forPropertyPhoto(preview.portal)}

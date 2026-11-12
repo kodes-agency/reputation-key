@@ -69,17 +69,14 @@ function createFakes(
     releaseForUser: portalRelease,
   } as unknown as PortalResponsibilityRuntime
   const inboxAssignments = {
-    releaseAssignmentsForUser: vi.fn(async () => ({ released: 2 })),
     releaseIneligibleAssignmentsForUser: vi.fn(async () => ({ released: 1 })),
   } as unknown as InboxAssignmentRuntime
-  const propertyAccess = { revokeAllPropertyAccessForUser: vi.fn(async () => undefined) }
   const eligible = new Set(seed.eligibleProperties ?? [])
   const deps: MemberAuthorityLifecycleDeps = {
     clock,
     propertyResponsibility,
     portalResponsibility,
     inboxAssignments,
-    propertyAccess,
     eligibility: {
       listActiveManagers: async () =>
         eligible.size > 0
@@ -99,63 +96,10 @@ function createFakes(
     propertyResponsibility,
     portalResponsibility,
     inboxAssignments,
-    propertyAccess,
   }
 }
 
 describe('member authority lifecycle seam', () => {
-  it('releases all four authorities exactly once', async () => {
-    const fakes = createFakes()
-    const lifecycle = createMemberAuthorityLifecycle(fakes.deps)
-
-    await lifecycle.releaseMemberAuthorities(ORG, MEMBER, ACTOR)
-
-    expect(fakes.propertyResponsibility.releaseForUser).toHaveBeenCalledTimes(1)
-    // I17: the release names the admin who caused it, so the gap notices it
-    // raises never go back to them.
-    expect(fakes.propertyResponsibility.releaseForUser).toHaveBeenCalledWith({
-      organizationId: ORG,
-      userId: MEMBER,
-      at: AT,
-      endReason: 'manager_offboarded',
-      actorId: ACTOR,
-    })
-    expect(fakes.portalResponsibility.releaseForUser).toHaveBeenCalledTimes(1)
-    expect(fakes.inboxAssignments.releaseAssignmentsForUser).toHaveBeenCalledTimes(1)
-    expect(fakes.inboxAssignments.releaseAssignmentsForUser).toHaveBeenCalledWith({
-      organizationId: ORG,
-      userId: MEMBER,
-      actorId: ACTOR,
-      at: AT,
-    })
-    expect(fakes.propertyAccess.revokeAllPropertyAccessForUser).toHaveBeenCalledTimes(1)
-  })
-
-  it('passes a null actor through for provider lifecycle hooks', async () => {
-    const fakes = createFakes()
-    const lifecycle = createMemberAuthorityLifecycle(fakes.deps)
-
-    await lifecycle.releaseMemberAuthorities(ORG, MEMBER, null)
-
-    expect(fakes.inboxAssignments.releaseAssignmentsForUser).toHaveBeenCalledWith(
-      expect.objectContaining({ actorId: null }),
-    )
-  })
-
-  it('surfaces the first rejection instead of swallowing it', async () => {
-    const fakes = createFakes()
-    vi.mocked(fakes.portalResponsibility.releaseForUser).mockRejectedValueOnce(
-      new Error('portal release failed'),
-    )
-    const lifecycle = createMemberAuthorityLifecycle(fakes.deps)
-
-    await expect(lifecycle.releaseMemberAuthorities(ORG, MEMBER, ACTOR)).rejects.toThrow(
-      'portal release failed',
-    )
-    // A failed release must not look like a successful offboarding.
-    expect(fakes.propertyAccess.revokeAllPropertyAccessForUser).not.toHaveBeenCalled()
-  })
-
   it('reconciliation releases only the ineligible assignments', async () => {
     const fakes = createFakes({
       propertyAssignments: [
@@ -214,7 +158,7 @@ describe('deferred member authority lifecycle binding', () => {
     const deferred = createDeferredMemberAuthorityLifecycle()
 
     await expect(
-      deferred.port.releaseMemberAuthorities(ORG, MEMBER, ACTOR),
+      deferred.port.reconcileResponsibleManagerEligibility(ORG, MEMBER, ACTOR),
     ).rejects.toThrow('member authority lifecycle seam is not bound yet')
   })
 
@@ -224,9 +168,11 @@ describe('deferred member authority lifecycle binding', () => {
     const implementation = createMemberAuthorityLifecycle(fakes.deps)
 
     deferred.provide(implementation)
-    await deferred.port.releaseMemberAuthorities(ORG, MEMBER, ACTOR)
+    await deferred.port.reconcileResponsibleManagerEligibility(ORG, MEMBER, ACTOR)
 
-    expect(fakes.propertyAccess.revokeAllPropertyAccessForUser).toHaveBeenCalledTimes(1)
+    expect(
+      fakes.inboxAssignments.releaseIneligibleAssignmentsForUser,
+    ).toHaveBeenCalledTimes(1)
     expect(() => deferred.provide(implementation)).toThrow('already bound')
   })
 })

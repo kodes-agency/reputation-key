@@ -1,3 +1,4 @@
+import { metricRegistry } from './readings/contracts'
 import { createPortalRatingGoalGuard } from './infrastructure/portal-rating-goal-guard'
 import { createGoalMetricBatchReader } from './infrastructure/repositories/goal-metric-batch-reader'
 import { findPortalRatingGoalBlock } from './application/running-portal-rating-goal'
@@ -30,7 +31,6 @@ import type {
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
 import type { MetricPublicApi, PortalRatingGoalReadApi } from './application/public-api'
 
-import { createMetricRegistryRepository } from './infrastructure/repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from './infrastructure/repositories/property-local-date'
 import { createGoalMetricSnapshotReader } from './infrastructure/repositories/goal-metric-snapshot'
 import { createAtomicMetricCommandStore } from './readings/metric-command-store.server'
@@ -181,7 +181,7 @@ export type ReportingContextBuildInput = Readonly<{
 }>
 
 function buildMetricModule(input: ReportingContextBuildInput) {
-  const registry = createMetricRegistryRepository()
+  const registry = metricRegistry
   const portalAnalytics = createPortalAnalyticsRepository(input.db, input.clock)
   const goalCorrectionImpacts = createGoalMetricCorrectionImpactLookup(input.db)
   const currentGoogleReputation = createCurrentGoogleReputationSnapshotRepository(
@@ -381,6 +381,11 @@ function buildGoalModule(
     prompts: portalGoalPrompts,
     now: input.clock,
   })
+  const goalPageDeps = (policy: GoalExecutionPolicy) => ({
+    ...monthlyPortalGoalReads(policy),
+    subjectNames: goalProgramSubjects,
+    logger: input.logger,
+  })
   const monthlyPortalGoalCommands = (policy: GoalExecutionPolicy) => ({
     policy,
     repository: goalProgramRepo,
@@ -395,11 +400,9 @@ function buildGoalModule(
       page: (policy, ...args) =>
         readMonthlyPortalGoalPage(
           {
-            ...monthlyPortalGoalReads(policy),
+            ...goalPageDeps(policy),
             history: (programId, propertyId, actor) =>
               readGoalPrograms(policy).get({ programId, propertyId }, actor),
-            subjectNames: goalProgramSubjects,
-            logger: input.logger,
           },
           ...args,
         ),
@@ -460,15 +463,7 @@ function buildGoalModule(
   })
   const portalGoalSingle: PortalGoalSinglePageRequestApi['portalGoalSingle'] =
     Object.freeze({
-      page: (policy, ...args) =>
-        readPortalGoalSinglePage(
-          {
-            ...monthlyPortalGoalReads(policy),
-            subjectNames: goalProgramSubjects,
-            logger: input.logger,
-          },
-          ...args,
-        ),
+      page: (policy, ...args) => readPortalGoalSinglePage(goalPageDeps(policy), ...args),
     })
   const programs: GoalProgramRequestApi &
     GoalProgressRequestApi &
@@ -476,12 +471,6 @@ function buildGoalModule(
     MonthlyPortalGoalRequestApi &
     PortalGoalAddRequestApi &
     PortalGoalSinglePageRequestApi = Object.freeze({
-    create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
-    changeStatus: (policy, ...args) => buildGoalPrograms(policy).changeStatus(...args),
-    rename: (policy, ...args) => buildGoalPrograms(policy).rename(...args),
-    changeMonthTarget: (policy, ...args) =>
-      buildGoalPrograms(policy).changeMonthTarget(...args),
-    get: (policy, ...args) => readGoalPrograms(policy).get(...args),
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
     history: (policy, ...args) => readGoalPrograms(policy).history!(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),

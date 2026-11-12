@@ -4,8 +4,8 @@
 import type {
   PortalGoalNewPortal,
   PortalGoalOffer,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 import { formatNumber } from '#/lib/format'
 import {
   dayWords,

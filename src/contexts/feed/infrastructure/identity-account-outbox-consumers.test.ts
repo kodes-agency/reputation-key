@@ -10,13 +10,14 @@ import {
   BETA_FEEDBACK_OUTCOME_CONSUMER,
   handleBetaFeedbackOutcomeEvent,
   handleIdentityAccountNotificationEvent,
-  handleOrganizationPurgePendingNotice,
   IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS,
-  ORGANIZATION_PURGE_PENDING_CONSUMER,
   registerIdentityAccountNotificationConsumers,
 } from './identity-account-outbox-consumers'
 import { INVITATION_ACCEPTED_INVITER_CONSUMER } from './invitation-accepted-inviter-notice'
-import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from './notification-consumer-test-fixtures'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -45,9 +46,11 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
 
 const makeDeps = () => {
   const fakes = createNotificationConsumerDeps()
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
     queue: fakes.queue,
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
+    receipts,
     userLookup: fakes.userLookup,
     displayNames: fakes.displayNames,
     logger: fakes.logger,
@@ -345,98 +348,6 @@ describe('Identity account mandatory notification consumers', () => {
     ).rejects.toThrow('attribution mismatch')
     expect(deps.queue.add).not.toHaveBeenCalled()
     expect(deps.receipts.insertReceipt).not.toHaveBeenCalled()
-  })
-})
-
-// LIF-01 program bullet 5 — the mandatory final notice at Purge Pending.
-describe('Purge Pending final-notice consumer', () => {
-  beforeEach(() => {
-    clearEventSchemas()
-    registerAllEventSchemas()
-  })
-  afterEach(() => {
-    clearEventSchemas()
-  })
-
-  const lifecycleEvent = (state: string): ConsumerEvent => ({
-    eventId: EVENT_ID,
-    eventType: 'identity.organization_lifecycle.changed',
-    eventVersion: 1,
-    payload: {
-      organizationId: ORG,
-      closureLineageId: '11111111-1111-4111-8111-111111111111',
-      state,
-      revision: 4,
-      reactivationRequired: true,
-      recoverableUntil: '2026-09-27T09:30:00.000Z',
-      occurredAt: '2026-09-27T09:30:00.000Z',
-    },
-    organizationId: ORG,
-    propertyId: null,
-    sourceContext: 'identity',
-    sourceAggregateId: ORG,
-    recordedAt: '2026-09-27T09:30:00.000Z',
-  })
-
-  it('sends the notice at purge_pending, naming the organization', async () => {
-    const deps = makeDeps()
-    deps.fakes.userLookup.findByRole.mockResolvedValue(['admin-1'])
-    deps.fakes.displayNames.findOrganizationName.mockResolvedValue('Riverside Group')
-
-    const result = await handleOrganizationPurgePendingNotice(
-      deps,
-      lifecycleEvent('purge_pending'),
-    )
-
-    expect(result).toEqual({ status: 'applied' })
-    expect(deps.fakes.displayNames.findOrganizationName).toHaveBeenCalledWith(ORG)
-    expect(deps.queue.add).toHaveBeenCalledWith(
-      'insert-notification',
-      expect.objectContaining({
-        userId: 'admin-1',
-        type: 'account.organization_purge_pending',
-        eventId: EVENT_ID,
-        payload: { organizationName: 'Riverside Group' },
-      }),
-      { jobId: `${EVENT_ID}-admin-1` },
-    )
-    expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
-      EVENT_ID,
-      ORGANIZATION_PURGE_PENDING_CONSUMER,
-      'applied',
-    )
-  })
-
-  it.each(['closure_requested', 'closing', 'purging', 'closed', 'active'])(
-    'records an obsolete receipt and sends nothing for %s',
-    async (state) => {
-      const deps = makeDeps()
-
-      const result = await handleOrganizationPurgePendingNotice(
-        deps,
-        lifecycleEvent(state),
-      )
-
-      expect(result).toEqual({ status: 'obsolete' })
-      expect(deps.queue.add).not.toHaveBeenCalled()
-      expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
-        EVENT_ID,
-        ORGANIZATION_PURGE_PENDING_CONSUMER,
-        'obsolete',
-      )
-    },
-  )
-
-  it('refuses a mis-attributed envelope rather than notifying the wrong tenant', async () => {
-    const deps = makeDeps()
-
-    await expect(
-      handleOrganizationPurgePendingNotice(deps, {
-        ...lifecycleEvent('purge_pending'),
-        organizationId: 'org-other',
-      }),
-    ).rejects.toThrow('attribution mismatch')
-    expect(deps.queue.add).not.toHaveBeenCalled()
   })
 })
 

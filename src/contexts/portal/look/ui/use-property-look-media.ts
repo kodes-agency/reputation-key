@@ -103,9 +103,12 @@ export function usePropertyLookMedia(
   const saveLogo = useCallback(
     async (assetId: string | null) => {
       const result = await savesRef.current.saveLogo({ data: { propertyId, assetId } })
-      land(result.media)
+      // Only the logo: the answer's photograph is as it was when the request
+      // left, and a focal point moved meanwhile would be put back.
+      mediaRef.current = { ...mediaRef.current, logo: result.media.logo }
+      setMediaState(mediaRef.current)
     },
-    [land, propertyId],
+    [propertyId],
   )
 
   return { media, moveFocal, saveHero, saveLogo }

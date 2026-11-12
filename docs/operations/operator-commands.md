@@ -34,6 +34,89 @@ through the operator-command harness
   error that says what does the work instead, and every report ends with the
   same pointer. Their entries below say what that is.
 
+## Command census
+
+Every command in `scripts/ops/commands.ts` is listed here with what it loads at
+start and why it stays. A test fails when a command is missing from this table.
+
+Boot: `database` commands run on the database and queue settings alone (no
+sign-in, mail, Google OAuth or encryption settings, no application container;
+`pnpm ops queue status default --operator <id>` needs only `DATABASE_URL` and
+`QUEUE_REDIS_URL`). `application` commands also build the refusing operator
+container and need the full settings. `--help` opens neither.
+
+| Command                                                   | Boot        | Why it stays                                                                                                                                                       |
+| --------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ai` (`release-orphan-sequences`)                         | database    | Releases analysis sequences a past leak left behind.                                                                                                               |
+| `ai` (`drafts-report`)                                    | database    | Draft usage aggregates for the cost review.                                                                                                                        |
+| `ai-approve-enrollment`                                   | database    | Approves an AI enrollment.                                                                                                                                         |
+| `ai-control`                                              | database    | Stop, resume and inspect AI execution.                                                                                                                             |
+| `ai-reopen-analyses`                                      | database    | Reopens analyses the automatic reopen gave up on.                                                                                                                  |
+| `audit-events`                                            | application | Reads the audit trail.                                                                                                                                             |
+| `bootstrap-owner`                                         | application | First Organization on an empty database.                                                                                                                           |
+| `check-google-oauth`                                      | application | Release check on the Google OAuth setup.                                                                                                                           |
+| `copy-notification-defaults`                              | application | Copies notification defaults to Properties.                                                                                                                        |
+| `db-roles`                                                | application | Database role and grant report.                                                                                                                                    |
+| `deploy-ci-images`                                        | application | The release step.                                                                                                                                                  |
+| `disconnect-connection`                                   | application | Reports a Google disconnect.                                                                                                                                       |
+| `erase-retired-readings`                                  | application | Erases retired readings behind the erasure journal.                                                                                                                |
+| `erasure-journal-export`, `erasure-journal-expiry`        | application | Erasure journal export and expiry.                                                                                                                                 |
+| `feedback-issue`, `feedback-sync`, `triage-beta-feedback` | application | Beta feedback support queue; each signs a reference with the sign-in secret.                                                                                       |
+| `feedback-layout`                                         | database    | Beta feedback layout export.                                                                                                                                       |
+| `gbp-subscribe`                                           | application | Reports Google notification subscriptions.                                                                                                                         |
+| `inbox`                                                   | application | Kept: the Response Target exclusion is a standing repair named in runbook §29 and its writers are wired in `src/composition/restated-revision-exclusion-ports.ts`. |
+| `inspect`                                                 | application | Explains one ExecutionPolicy decision.                                                                                                                             |
+| `jobs`                                                    | application | Acknowledges a job family repair.                                                                                                                                  |
+| `purge`                                                   | database    | Retention and Review lifecycle reports and runs.                                                                                                                   |
+| `quarantine`                                              | application | Failure quarantine inspect, redrive, discard.                                                                                                                      |
+| `queue`                                                   | database    | Pause, resume and status of a queue.                                                                                                                               |
+| `rights-request`                                          | application | Rights requests (export, erasure).                                                                                                                                 |
+| `rebuild-projection`                                      | application | Kept: runbook §5 names it as the repair for a missing inbox item.                                                                                                  |
+| `reconcile-publication`                                   | application | Reports a publication reconcile.                                                                                                                                   |
+| `refresh`                                                 | database    | Enqueues one Review refresh sweep.                                                                                                                                 |
+| `reparse-review-translations`                             | database    | Kept until the beta count below reads 0.                                                                                                                           |
+| `report-capability-refusal`                               | database    | Capability refusal report.                                                                                                                                         |
+| `restore-preflight`, `restore-verify`                     | application | Restore rehearsal and verification.                                                                                                                                |
+| `review-observations`                                     | application | Kept until the beta count below reads 0.                                                                                                                           |
+| `storage-cors`                                            | application | Bucket CORS check, run after every deploy.                                                                                                                         |
+| `work`                                                    | application | Durable work items; replaces `quarantine` after its removal.                                                                                                       |
+
+Retained until the data says they are done. Run each count read-only against the
+beta database and report it; the command stays until the count reads 0.
+
+- `reparse-review-translations`: Reviews still carrying Google's translation
+  envelope in their stored text.
+
+  ```sql
+  SELECT count(*) FROM review_source_contents
+  WHERE text LIKE '(Translated by Google)%' AND position('(Original)' IN text) > 0;
+  ```
+
+- `review-observations prune`: observation rows that repeat the row before them
+  (same epoch, revision, digest and content state) and are not the Review's
+  newest. Run it outside a deploy window: it reads `review_source_observations`
+  in full.
+
+  ```sql
+  WITH applied AS (
+    SELECT o.review_id, o.observation_sequence, o.comparison_result,
+           r.source_observation_sequence AS newest,
+           o.source_epoch, o.material_revision, o.observation_digest, o.content_state,
+           lag(o.source_epoch) OVER h AS p_epoch,
+           lag(o.material_revision) OVER h AS p_revision,
+           lag(o.observation_digest) OVER h AS p_digest,
+           lag(o.content_state) OVER h AS p_state
+    FROM review_source_observations o
+    JOIN reviews r ON r.id = o.review_id
+    WHERE o.comparison_result <> 'out_of_order_ignored'
+    WINDOW h AS (PARTITION BY o.review_id ORDER BY o.observation_sequence)
+  )
+  SELECT count(*) FROM applied
+  WHERE comparison_result = 'unchanged' AND observation_sequence <> newest
+    AND p_epoch = source_epoch AND p_revision = material_revision
+    AND p_digest = observation_digest AND p_state = content_state;
+  ```
+
 The commands:
 
 - `ops:bootstrap-owner <owner email> <owner name> <organization name>` — create the first Organization and its AccountAdmin (role `owner`) on an EMPTY database, initial password on stdin; refuses once any Organization or membership exists, or any user besides the lone owner an interrupted run left behind. Everything after the Better Auth sign-up commits in one transaction, so re-running the same command after a failure resumes that owner (`ownerAccount: reuse` in the dry run) instead of refusing. The one operator-authored account: every other account is invited from the app. Destructive-class confirmation. Both the dry run and the apply report `controlledBetaCapabilities`: a new Organization is dark for every controlled-beta capability unless `BETA_ALLOWLIST_ORGS` is `*` or names its ID, on web AND worker (ADR 0032, 2026-09-27).

@@ -169,6 +169,21 @@ describe('queryGoalMetric', () => {
     })
   })
 
+  it.each([
+    ['one millisecond before', '2026-07-01T23:59:59.999Z', 'updating'],
+    ['exactly at', '2026-07-02T00:00:00.000Z', 'eligible'],
+    ['one millisecond after', '2026-07-02T00:00:00.001Z', 'eligible'],
+  ] as const)(
+    'ends the late-arrival window of a period %s 24 hours after it closes',
+    async (_name, now, state) => {
+      const { useCase } = harness({ now: new Date(now) })
+
+      await expect(
+        useCase(query(METRIC_VERSION_IDS.portalRatingCountGoal)),
+      ).resolves.toMatchObject({ state })
+    },
+  )
+
   it('keeps a period updating while any relevant durable receipt is pending', async () => {
     const { useCase } = harness({
       aggregate: aggregate({ sum: 12, sampleCount: 12, readingCount: 12 }),
@@ -200,6 +215,22 @@ describe('queryGoalMetric', () => {
     await expect(
       eligible.useCase(query(METRIC_VERSION_IDS.portalRatingAverageGoal)),
     ).resolves.toMatchObject({ state: 'eligible', exactValue: 4.3, sampleCount: 10 })
+
+    const weighted = harness({
+      versionId: METRIC_VERSION_IDS.portalRatingAverageGoal,
+      metricKey: 'portal.rating_average',
+      minimumSample: 10,
+      precision: 1,
+      aggregate: aggregate({
+        sum: 10,
+        weightedSum: 43,
+        sampleCount: 10,
+        readingCount: 10,
+      }),
+    })
+    await expect(
+      weighted.useCase(query(METRIC_VERSION_IDS.portalRatingAverageGoal)),
+    ).resolves.toMatchObject({ exactValue: 4.3 })
 
     const insufficient = harness({
       versionId: METRIC_VERSION_IDS.portalRatingAverageGoal,

@@ -7,6 +7,7 @@ import type {
 } from './staff-management-store.port.server'
 import type { StaffOnboarding } from '../domain/staff-account'
 import { staffAccountError } from '../domain/staff-account'
+import { lockStaffAddresses } from './staff-address-lease.server'
 
 export const createStaffManagementStore = (
   db: Database,
@@ -48,7 +49,11 @@ export const createStaffManagementStore = (
   },
   denyAccess: async (org, target) => {
     await db.transaction(async (tx) => {
-      // Acceptance locks this row too: it either precedes removal or sees the ended participation.
+      // Acceptance locks the invitation and then this row: take them in the same
+      // order, so it either precedes removal or sees the ended participation.
+      await tx.execute(
+        sql`SELECT id FROM invitation WHERE "organizationId" = ${org} AND "staffParticipationId" = ${target.participationId} ORDER BY id FOR UPDATE`,
+      )
       await tx.execute(
         sql`SELECT id FROM staff_participations WHERE organization_id = ${org} AND id = ${target.participationId}::uuid FOR UPDATE`,
       )
@@ -151,19 +156,36 @@ export const createStaffManagementStore = (
       sql`INSERT INTO staff_property_settings (organization_id, property_id, colleague_list_enabled, updated_by, updated_at) VALUES (${org}, ${property}::uuid, ${enabled}, ${actor}, ${clock()}) ON CONFLICT (organization_id, property_id) DO UPDATE SET colleague_list_enabled = EXCLUDED.colleague_list_enabled, updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at`,
     )
   },
-  renewInvitation: async (org, participation) => {
-    const result = await db.execute(
-      sql`UPDATE invitation i SET status = 'pending', "expiresAt" = ${new Date(clock().getTime() + 7 * 86400000)} FROM staff_participations p WHERE i."organizationId" = ${org} AND i."staffParticipationId" = ${participation} AND p.id::text = i."staffParticipationId" AND p.organization_id = i."organizationId" AND p.status = 'active' AND p.ended_at IS NULL AND i.status IN ('pending', 'expired') RETURNING i.id, i.email, i."staffParticipationId" AS "staffParticipationId", p.property_id AS "propertyId", p.personal_portal_id AS "portalId", p.display_name AS "displayName", i."inviterId" AS "requestedBy"`,
-    )
-    if (!result.rows[0])
-      throw staffAccountError(
-        'participation_not_found',
-        'This staff invitation has ended',
+  renewInvitation: async (org, participation) =>
+    db.transaction(async (tx) => {
+      const open = await tx.execute(
+        sql`SELECT lower(email) AS email FROM invitation WHERE "organizationId" = ${org} AND "staffParticipationId" = ${participation} AND status IN ('pending', 'expired')`,
       )
-    return {
-      ...result.rows[0],
-      organizationId: org,
-      invitationId: result.rows[0].id,
-    } as StaffOnboarding
-  },
+      await lockStaffAddresses(
+        tx,
+        open.rows.map((row) => String(row.email)),
+      )
+      // Manager invitations take the same address lock, so this answer holds until commit.
+      const competing = await tx.execute(
+        sql`SELECT 1 FROM invitation WHERE lower(email) IN (SELECT lower(email) FROM invitation WHERE "organizationId" = ${org} AND "staffParticipationId" = ${participation} AND status IN ('pending', 'expired')) AND "organizationId" <> ${org} AND status = 'pending' AND "expiresAt" > ${clock()} LIMIT 1`,
+      )
+      if (competing.rows.length)
+        throw staffAccountError(
+          'other_organization',
+          'This address belongs to another Organization',
+        )
+      const result = await tx.execute(
+        sql`UPDATE invitation i SET status = 'pending', "expiresAt" = ${new Date(clock().getTime() + 7 * 86400000)} FROM staff_participations p WHERE i."organizationId" = ${org} AND i."staffParticipationId" = ${participation} AND p.id::text = i."staffParticipationId" AND p.organization_id = i."organizationId" AND p.status = 'active' AND p.ended_at IS NULL AND i.status IN ('pending', 'expired') RETURNING i.id, i.email, i."staffParticipationId" AS "staffParticipationId", p.property_id AS "propertyId", p.personal_portal_id AS "portalId", p.display_name AS "displayName", i."inviterId" AS "requestedBy"`,
+      )
+      if (!result.rows[0])
+        throw staffAccountError(
+          'participation_not_found',
+          'This staff invitation has ended',
+        )
+      return {
+        ...result.rows[0],
+        organizationId: org,
+        invitationId: result.rows[0].id,
+      } as StaffOnboarding
+    }),
 })

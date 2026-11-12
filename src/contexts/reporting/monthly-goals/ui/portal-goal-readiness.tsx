@@ -2,7 +2,7 @@
 // explanation and share link, never a warning colour.
 
 import { Check, Circle } from 'lucide-react'
-import type { PortalReadinessRow } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalReadinessRow } from '#/contexts/reporting/monthly-goals/contracts'
 import { InlineLink } from '#/components/ui/inline-link'
 import { TONE_INK } from '#/components/ui/tone'
 import { cn } from '#/lib/utils'

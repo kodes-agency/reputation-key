@@ -2,7 +2,7 @@
 // they reconcile to the governed total.
 
 import { useId } from 'react'
-import type { PortalGoalRows } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalRows } from '#/contexts/reporting/monthly-goals/contracts'
 import { InlineLink } from '#/components/ui/inline-link'
 import { portalCountsWords } from './portal-goal-running-view'
 

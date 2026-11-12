@@ -16,6 +16,7 @@ import {
 import {
   digestRenderedReply,
   verifyAiReplyProvenance,
+  type AiReplyProvenancePayload,
 } from '#/shared/ai-reply-provenance'
 import type {
   AiReplyProvenancePublicKeyring,
@@ -46,6 +47,24 @@ function constantEqual(left: string | null, right: string): boolean {
     leftBytes.fill(0)
     rightBytes.fill(0)
   }
+}
+
+// The locked row must be the execution the token names: its request binding
+// HMAC, or its execution permit and attempt.
+function executionBindingMatches(
+  operation: Readonly<{
+    requestBindingHmac: string | null
+    executionPermitId: string | null
+    executionAttempt: number
+  }>,
+  provenance: AiReplyProvenancePayload,
+): boolean {
+  if ('requestBindingHmac' in provenance)
+    return constantEqual(operation.requestBindingHmac, provenance.requestBindingHmac)
+  return (
+    operation.executionPermitId === provenance.executionPermitId &&
+    operation.executionAttempt === provenance.executionAttempt
+  )
 }
 
 function replyFenceMatches(
@@ -263,7 +282,7 @@ export const createAiSuggestedDraftStore = (
           operation.executionPermitId === null ||
           operation.budgetSettledAt === null ||
           operation.actualMicros === null ||
-          !constantEqual(operation.requestBindingHmac, provenance.requestBindingHmac)
+          !executionBindingMatches(operation, provenance)
         ) {
           return { status: 'rejected', reason: 'invalid' } as const
         }

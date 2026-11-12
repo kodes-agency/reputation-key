@@ -2,7 +2,6 @@ import { getTableName, isTable, type SQL } from 'drizzle-orm'
 import { getTableConfig, PgDialect, type PgTable } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import { RETENTION_RULES } from '#/composition/retention-rules'
-import { CONCURRENT_INDEX_REGISTRY } from '../concurrent-index-registry'
 import * as schema from '../schema/migratable'
 import type { RetentionRule } from './execute-retention-rule'
 
@@ -75,19 +74,6 @@ function modelIndexesLeadingWith(
   return [...indexed, ...keyed]
 }
 
-/** Every index the concurrent sidecar builds on the table that leads with the column. */
-function sidecarIndexesLeadingWith(
-  tableName: string,
-  column: string,
-): readonly TimestampIndex[] {
-  return CONCURRENT_INDEX_REGISTRY.filter(
-    (spec) => spec.table === tableName && spec.columns[0] === column,
-  ).map((spec) => {
-    const [, where] = spec.createSql.split(/\bWHERE\b/)
-    return { name: spec.name, predicate: where ? plainPredicate(where) : null }
-  })
-}
-
 function servesRule(rule: RetentionRule, index: TimestampIndex): boolean {
   if (index.predicate === null) return rule.operation !== 'redact'
   return (
@@ -97,10 +83,7 @@ function servesRule(rule: RetentionRule, index: TimestampIndex): boolean {
 
 function servingIndexNames(rule: RetentionRule): readonly string[] {
   const model = tables.get(rule.table)
-  return [
-    ...(model ? modelIndexesLeadingWith(model, rule.tsColumn) : []),
-    ...sidecarIndexesLeadingWith(rule.table, rule.tsColumn),
-  ]
+  return (model ? modelIndexesLeadingWith(model, rule.tsColumn) : [])
     .filter((index) => servesRule(rule, index))
     .map((index) => index.name)
 }
@@ -111,16 +94,8 @@ function ruleFor(subject: string): RetentionRule {
   return rule
 }
 
-/**
- * Rules with no index for their batch, each for a stated reason.
- * `ratings` and `feedback` are pre-beta inventory with no writer (the Guest
- * Response tables replaced them), so their scans do not grow.
- */
+/** Rules with no index for their batch, each for a stated reason. */
 const NOT_LED_BY_TIMESTAMP: Readonly<Record<string, string>> = {
-  'ratings.abuse_pseudonym': 'pre-beta inventory, no writer',
-  'ratings.guest_session_pseudonym': 'pre-beta inventory, no writer',
-  'feedback.abuse_pseudonym': 'pre-beta inventory, no writer',
-  'feedback.guest_session_pseudonym': 'pre-beta inventory, no writer',
   // The rule reads two states by equality, then the timestamp.
   notification_digest_batches:
     'served by notification_digest_batches_retention_idx (state, updated_at)',

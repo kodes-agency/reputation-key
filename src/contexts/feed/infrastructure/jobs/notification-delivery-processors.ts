@@ -6,7 +6,6 @@
 import type { Job } from 'bullmq'
 import type { Pool } from 'pg'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { notificationEmailId, notificationId } from '#/shared/domain/ids'
 import type { OneClickUnsubscribeTarget } from '../../application/one-click-unsubscribe-token'
 import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
 import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
@@ -17,11 +16,10 @@ import {
   createImmediateEmailEnqueue,
   createQuietHoursRelease,
 } from '../../email/send-emails.server'
+import type { NotificationWorkState } from '../../application/ports/notification-work-state.port'
 import type { ImmediateEmailJobQueue } from '../../email/send-emails.server'
-import {
-  createInsertNotificationHandler,
-  type InsertNotificationJobData,
-} from './insert-notification.job'
+import { createInsertNotificationDrainHandler } from './insert-notification.job'
+import type { NoticeWriter } from '../../notify/consumers.server'
 import {
   createSendEmailsHandler,
   type SendEmailsDeps,
@@ -43,16 +41,8 @@ export type NotificationDeliveryParts = Readonly<{
   preferenceRepo: NotificationPreferenceRepositoryPort
   userLookup: SendEmailsDeps['userLookup']
   recipientStanding: SendEmailsDeps['isRecipientEligible']
-  workState: SendEmailsDeps['workState']
-  authorizeAudience: Parameters<
-    typeof createInsertNotificationHandler
-  >[0]['authorizeAudience']
-  deliverySettlement: Parameters<
-    typeof createInsertNotificationHandler
-  >[0]['deliverySettlement']
-  ratingForRouting: Parameters<
-    typeof createInsertNotificationHandler
-  >[0]['ratingForRouting']
+  workState: SendEmailsDeps['workState'] & Pick<NotificationWorkState, 'isWaitingMany'>
+  noticeWriter: NoticeWriter
   clock: () => Date
   logger: LoggerPort
 }>
@@ -90,24 +80,9 @@ export const createNotificationDeliveryProcessors = (
   const resolveOrganizationScope = createNotificationOrganizationScopeResolver(
     worker.pool,
   )
-  // The queue row alone is inert, so the insert handler dispatches an urgent
-  // email itself. The capability is org-gated at execution, so enqueuing is
-  // safe even when a tenant has email disabled.
-  const insertHandler = createInsertNotificationHandler({
-    notificationRepo: parts.notificationRepo,
-    emailRepo: parts.emailRepo,
-    preferenceRepo: parts.preferenceRepo,
-    clock: parts.clock,
-    idGen: () => notificationId(crypto.randomUUID()),
-    emailIdGen: () => notificationEmailId(crypto.randomUUID()),
+  const insertHandler = createInsertNotificationDrainHandler({
+    noticeWriter: parts.noticeWriter,
     logger: parts.logger,
-    authorizeAudience: parts.authorizeAudience,
-    workState: parts.workState,
-    deliverySettlement: parts.deliverySettlement,
-    ratingForRouting: parts.ratingForRouting,
-    enqueueImmediateEmail: worker.jobQueue
-      ? createImmediateEmailEnqueue(worker.jobQueue, 'notification:urgent-enqueue')
-      : undefined,
   })
 
   const urgentEmailHandler = createSendEmailsHandler({
@@ -157,7 +132,7 @@ export const createNotificationDeliveryProcessors = (
 
   return Object.freeze({
     insert: async (job: Job) => {
-      await insertHandler(job as Job<InsertNotificationJobData>)
+      await insertHandler(job)
     },
     email: async (job: Job) => {
       await urgentEmailHandler(job as Job<SendEmailJobData>)

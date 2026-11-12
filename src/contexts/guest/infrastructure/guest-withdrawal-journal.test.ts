@@ -14,7 +14,7 @@ import {
 } from '#/shared/domain/ids'
 import { guestFeedbackRetracted } from '../domain/events'
 import type { GuestResponse } from '../domain/guest-response'
-import { createAtomicGuestResponseCommandStore } from './guest-response-command-store'
+import { createAtomicGuestResponseCommandStore } from '../responses/guest-response-command-store.server'
 
 const NOW = new Date('2026-11-08T12:00:00.000Z')
 const JOURNAL_ID = '83000000-0000-4000-8000-000000000001'

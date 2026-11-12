@@ -26,7 +26,7 @@ own source review, inbox, property, portal, identity, or goal state.
 - The notification audience may read Goal monthly-result facts only through
   Goal's application public API.
 - Whether a notice's work still waits is asked of the context that owns it,
-  through `application/notification-work-state.ts` (built into the delivery
+  through `notify/settle.server.ts` (built into the delivery
   processors in `infrastructure/jobs/notification-delivery-processors.ts`, which
   pass it to the insert, immediate-email and digest jobs): Inbox's lookups, Review's reply state through
   `ReplyWorkStateLookupPort` (`review.lookups.reply.findStatesByReviewIds`,
@@ -180,7 +180,7 @@ that choice, pending product confirmation:
   immediate emails, or ten digest lines.
 - Only durable receipts fence repeat deliveries for them. The unread key no
   longer does, so two deliveries of one resource under different event ids,
-  such as a repair sweep overlapping the original, each send an email.
+  such as an outbox replay overlapping the original, each send an email.
 - The anchor's `read` status is not a read by the user, so its `read_at` is
   NULL (`isEmailOnlyAnchor`), and the send treats it as unread; settlement
   stamps it like any row. Anchors stored before 2026-09-28 carry `read_at` =
@@ -499,20 +499,18 @@ and to the AccountAdmins who were told it was raised — proved by Feed's own
 item's current `escalated_at` — and to nobody who was not.
 
 A notice that asks its reader for work stops asking once the work is done.
-The actionable types are named in `domain/notification-settlement.ts` — the
+The actionable types are named in `domain/notification-actionable.ts` — the
 arrivals (`review.created`, `review.updated`, `feedback.created`) included;
 the settlement consumers retire every recipient's still-waiting row for a
 (type, resource) when the finishing fact arrives and cancel the still-sendable
 mail behind them. `property.archived` settles by Property instead, every
 actionable notice there except the Organization's Google reconnect request. A
 grouped reopen is settled by row id, once none of the cycles it stands for is
-still its item's open head. The one retractable type,
-`account.organization_purge_pending`, is taken back when the purge is
-cancelled, its mail cancelled as `purge_cancelled`. Settling stamps
+still its item's open head. Settling stamps
 `resolvedAt` and leaves `status` alone, because read is not resolved: a
 settled row leaves the unread count and the Unread tab and stays in the feed
 under a "Done" marker; a repeat on the resource is a new row. The work itself
-is asked (`application/notification-work-state.ts`) before a notice is
+is asked (`notify/settle.server.ts`) before a notice is
 written (finished work settles the delivery as obsolete, with no row), before
 its email or digest line leaves, and before a settling fact retires a type,
 so a request made again since keeps its notice. Immediately before the
@@ -624,7 +622,7 @@ assigned to its recipient on that Property (the work check is given the
 recipient for it). Both counts are restated at send. A closed cycle settles a grouped
 reopen in-app once none of its items stands, except a row that coalesced a
 second bulk reopen.
-Notification jobs perform insert, immediate-email, digest, and missing-notification repair work.
+Notification jobs perform immediate-email and digest work. The `insert-notification` processor only drains jobs an earlier release left in Redis, writing each through the notice writer.
 `email/send-emails.server.ts` sends immediate mail: it renders a row once, stores the
 provider request on the row (`provider_request`) before the first attempt, and every
 retry re-checks the recipient and sends that stored request under the same key until the
@@ -634,12 +632,7 @@ digest groups lines in queue order and freezes membership from those same lines.
 `digest-batch-identity.ts` owns member, request and provider-key fingerprints;
 assembly uses the email renderer's group contract. The repository retains the
 transactional batch and member settlement boundary.
-A durable delivery is settled once its materialization receipt is claimed: a
-row was written, preferences asked for none, or the recipient no longer
-qualified. The repair replays a delivery Redis accepted that never settled
-through its route's own consumer, under the source fact's event id; a settled
-delivery is never repaired, and never counts as a gap, and a delivery the
-original fan-out never queued is never queued by the repair.
+A durable delivery is settled when its consumer's receipt is claimed, in the transaction that writes its notices: a row was written, preferences asked for none, or the recipient no longer qualified. A redelivery that finds the receipt writes nothing.
 All queue, clock, logger, identifier, capability-policy, and upstream lookup
 dependencies are provided by composition; modules do not read ambient roots.
 Immediate mail for an Organization-scoped mandatory notice is a job of its
@@ -731,7 +724,7 @@ database isolation still requires the integration project.
 payload/copy parity, note audience precedence, bulk/per-item arrival order and
 receipt-last retries for assignment, note and escalation fanout. Those single-item
 routes share `inboxWorkflowNotices` in
-`infrastructure/inbox-notification-fanout.ts`; grouped routes keep their
+`notify/inbox.server.ts`; grouped routes keep their
 per-Property identities. The Inbox and reply consumers return their notices to
 `deliverNotices`, so on the worker each notice commits with its receipt;
 `notify/consumers.server.integration.test.ts` runs every producer route, the

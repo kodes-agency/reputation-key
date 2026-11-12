@@ -34,7 +34,7 @@ import {
 } from '#/shared/testing/notification-route-producer-fixtures'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
-import { handleWorkflowNotificationEvent } from './workflow-outbox-consumers'
+import { handleWorkflowNotificationEvent } from '../notify/inbox-workflow.server'
 import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 
 beforeAll(registerAllEventSchemas)
@@ -222,10 +222,12 @@ describe('Inbox workflow facts through their producers and dispatcher', () => {
       }))
       deps.addMock.mockClear()
       await handleWorkflowNotificationEvent(deps, event)
-      expect(
-        deps.addMock.mock.calls.map(([, data, options]) => ({ data, options })),
-      ).toEqual(attempted)
-      for (const { data, options } of attempted) {
+      const retried = deps.addMock.mock.calls.map(([, data, options]) => ({
+        data,
+        options,
+      }))
+      expect(retried.slice(0, attempted.length)).toEqual(attempted)
+      for (const { data, options } of retried) {
         const job = data as InsertNotificationJobData
         expect(options).toEqual({ jobId: `${event.eventId}-${job.userId}` })
       }

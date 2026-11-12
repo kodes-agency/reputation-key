@@ -5,12 +5,15 @@ import { insertOutboxRow } from '#/shared/outbox/commit'
 import { identityMemberInvited } from '../domain/events'
 import { staffAccountError, type StaffOnboarding } from '../domain/staff-account'
 import type { StaffManagementStore } from './staff-management-store.port.server'
+import { lockStaffAddresses } from './staff-address-lease.server'
+import { readAddressFacts } from './staff-account-store.server'
 
 export const replaceStaffInvitation =
   (db: Database, clock: () => Date): StaffManagementStore['replaceInvitation'] =>
   async (input, spendBudget) =>
     db.transaction(async (tx) => {
       const { organizationId: org, participationId: participation } = input
+      await lockStaffAddresses(tx, [input.oldEmail.toLowerCase(), input.email])
       // Acceptance uses this participation fence too. Recheck after waiting for it.
       const invitations = await tx.execute(
         sql`SELECT id, status, email FROM invitation WHERE "organizationId" = ${org} AND "staffParticipationId" = ${participation} ORDER BY (id = (SELECT invitation_id FROM staff_onboardings WHERE organization_id = ${org} AND staff_participation_id = ${participation}::uuid)) DESC NULLS LAST, "createdAt" DESC, id DESC FOR UPDATE`,
@@ -37,6 +40,24 @@ export const replaceStaffInvitation =
         throw staffAccountError(
           'operation_conflict',
           'Only an invitation that has not been accepted can change email.',
+        )
+      // Manager invitations take the same address lock, so this answer holds until commit.
+      const facts = await readAddressFacts(
+        tx,
+        clock,
+        org,
+        String(person.property_id),
+        input.email,
+      )
+      if (facts.organizationIds.some((id) => id !== org))
+        throw staffAccountError(
+          'other_organization',
+          'This address belongs to another Organization',
+        )
+      if (facts.alreadyInvited || facts.alreadyStaffHere)
+        throw staffAccountError(
+          'already_invited',
+          'This email is already staff or has an invitation. Use another address.',
         )
       await spendBudget()
       await tx.execute(

@@ -17,6 +17,17 @@ import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyrin
 import type { TargetedGoogleReviewReferenceResolver } from '../ports/targeted-google-review-reference.port'
 import { runTargetedGoogleReviewFetch } from './run-targeted-google-review-fetch'
 
+/** What the integration adapter throws for a call Google answered or refused. */
+const providerFailure = (
+  fields: Readonly<{ code: string; providerStatus?: number; retryAfterMs?: number }>,
+) =>
+  Object.assign(new Error('provider call failed'), {
+    _tag: 'GbpApiError',
+    dispatch: 'answered',
+    providerStatus: 429,
+    ...fields,
+  })
+
 const organizationId = 'org-targeted-review' as OrganizationId
 const propertyId = '00000000-0000-4000-8000-000000000011' as PropertyId
 const connectionId = '00000000-0000-4000-8000-000000000012' as GoogleConnectionId
@@ -316,6 +327,31 @@ describe('runTargetedGoogleReviewFetch', () => {
       const { useCase } = setup({ getError: new Error('socket hang up') })
 
       await expect(useCase(request)).rejects.toThrow('socket hang up')
+    })
+  })
+
+  describe('provider failures on the governed read', () => {
+    it.each([
+      [{ code: 'rate_limited', retryAfterMs: 7_000 }, 'provider_rate_limited', true],
+      [{ code: 'auth_failed', providerStatus: 401 }, 'authorization_changed', false],
+      [{ code: 'upstream_error', providerStatus: 404 }, 'provider_rejected', false],
+    ] as const)('translates %j into %s', async (fields, code, recoverable) => {
+      const { useCase, persist } = setup({ getError: providerFailure(fields) })
+
+      await expect(useCase(request)).rejects.toMatchObject({
+        _tag: 'GoogleReviewApiError',
+        code,
+        recoverable,
+      })
+      expect(persist).not.toHaveBeenCalled()
+    })
+
+    it('carries the provider backoff hint', async () => {
+      const { useCase } = setup({
+        getError: providerFailure({ code: 'rate_limited', retryAfterMs: 7_000 }),
+      })
+
+      await expect(useCase(request)).rejects.toMatchObject({ retryAfterMs: 7_000 })
     })
   })
 })

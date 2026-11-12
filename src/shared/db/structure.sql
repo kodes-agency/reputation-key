@@ -7940,6 +7940,17 @@ CREATE TABLE "public"."session" (
 
 
 --
+-- Name: staff_address_leases; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE "public"."staff_address_leases" (
+    "address_key" bigint NOT NULL,
+    "holder" "uuid" NOT NULL,
+    "expires_at" timestamp with time zone NOT NULL
+);
+
+
+--
 -- Name: staff_onboardings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9642,6 +9653,14 @@ ALTER TABLE ONLY "public"."session"
 
 ALTER TABLE ONLY "public"."session"
     ADD CONSTRAINT "session_token_key" UNIQUE ("token");
+
+
+--
+-- Name: staff_address_leases staff_address_leases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."staff_address_leases"
+    ADD CONSTRAINT "staff_address_leases_pkey" PRIMARY KEY ("address_key");
 
 
 --

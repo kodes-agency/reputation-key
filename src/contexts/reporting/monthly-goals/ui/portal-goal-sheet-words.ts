@@ -1,11 +1,11 @@
 // The read owns recommendation numbers. Share wording across set, change and add
 // sheets; derive own-number differences through Reporting's rule.
 
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalOffer,
   PortalGoalSheetFacts,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { ownNumberNote } from '#/contexts/reporting/application/goal-number-steps'
 import { formatNumber } from '#/lib/format'
 import type { GoalStatusPart } from '../../../../components/goals/goal-setup-parts'

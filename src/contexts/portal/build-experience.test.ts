@@ -3,19 +3,20 @@
 
 import { describe, expect, it } from 'vitest'
 import { buildExperienceUseCases } from './build-experience'
-import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import { getDb } from '#/shared/db'
+import { createPortalRepository } from './infrastructure/repositories/portal.repository'
+import { createPortalLookRepository } from './infrastructure/repositories/portal-look.repository'
 import type { PortalExperienceRepository } from './application/ports/portal-experience.repository'
 import type { PortalMediaAssetRepository } from './application/ports/portal-media-asset.repository'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { createInMemoryPortalLookRepo } from '#/shared/testing/in-memory-portal-look-repo'
 
 describe('buildExperienceUseCases', () => {
   it('composes the look save with the other experience use cases', () => {
     const useCases = buildExperienceUseCases({
       experienceRepo: {} as PortalExperienceRepository,
       mediaRepo: {} as PortalMediaAssetRepository,
-      portalRepo: createInMemoryPortalRepo(),
-      portalLookRepo: createInMemoryPortalLookRepo(),
+      portalRepo: createPortalRepository(getDb()),
+      portalLookRepo: createPortalLookRepository(getDb()),
       staffPublicApi: {} as StaffPublicApi,
       idGen: () => 'id',
       clock: () => new Date(0),

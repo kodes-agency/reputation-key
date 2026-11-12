@@ -19,9 +19,9 @@ import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-sto
 import { getDb } from '#/shared/db'
 import { portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { DownloadPortalPrintFinalInput } from '../../application/dto/portal-print-final.dto'
-import type { PortalPrintFinalRenderer } from '../../application/ports/portal-print-final-renderer.port'
-import { createPortalPrintFinal } from '../../application/use-cases/create-portal-print-final'
+import type { DownloadPortalPrintInput } from '../../application/dto/portal-print.dto'
+import type { PortalPrintRenderer } from '../../application/ports/portal-print-renderer.port'
+import { createPortalPrint } from '../../application/use-cases/create-portal-print'
 import { getPortalPrintKit } from '../../application/use-cases/get-portal-print-kit'
 import { revealPortalAddress } from '../../application/use-cases/reveal-portal-address'
 import { testPortalTokenCodec } from '../testing/portal-token-codec-fixture'
@@ -51,7 +51,7 @@ import {
   storePrintKitPicture,
   type PrintKitCodeSeed,
 } from './__fixtures__/print-kit-live-seed'
-import { createPdfKitPrintFinalRenderer } from './pdfkit-print-final-renderer'
+import { createPdfKitPrintRenderer } from './pdfkit-print-renderer'
 import { createPropertyCountryReader } from './print-kit-property-country'
 
 const { getPool } = setupIntegrationDb({
@@ -196,12 +196,12 @@ async function harness() {
   const portalRepo = createPortalRepository(db)
   const publicationRepo = createPortalPublicationRepository(db)
   const mediaRepo = createPortalMediaAssetRepository(db)
-  const real = createPdfKitPrintFinalRenderer({
+  const real = createPdfKitPrintRenderer({
     now: () => new Date('2026-10-26T10:00:00Z'),
     compress: false,
   })
-  const rendered: Parameters<PortalPrintFinalRenderer['render']>[0][] = []
-  const renderer: PortalPrintFinalRenderer = {
+  const rendered: Parameters<PortalPrintRenderer['render']>[0][] = []
+  const renderer: PortalPrintRenderer = {
     render: async (input) => {
       rendered.push(input)
       return real.render(input)
@@ -216,7 +216,7 @@ async function harness() {
       lastPrintRepo: createPortalLastPrintRepository(db),
       wordingRepo: createPortalPrintWordingRepository(db),
     }),
-    make: createPortalPrintFinal({
+    make: createPortalPrint({
       portalRepo,
       staffPublicApi,
       publicationRepo,
@@ -249,7 +249,7 @@ async function harness() {
   }
 }
 
-const request = (portal: string): DownloadPortalPrintFinalInput => ({
+const request = (portal: string): DownloadPortalPrintInput => ({
   portalId: portal,
   piece: 'counter',
   orientation: 'upright',
@@ -262,9 +262,7 @@ const request = (portal: string): DownloadPortalPrintFinalInput => ({
 })
 
 /** What a print was drawn from, with each picture reduced to its hash. */
-const drawnFrom = (
-  input: Parameters<PortalPrintFinalRenderer['render']>[0] | undefined,
-) => ({
+const drawnFrom = (input: Parameters<PortalPrintRenderer['render']>[0] | undefined) => ({
   wordmark: input?.wordmark,
   accentColour: input?.accentColour,
   fieldColour: input?.fieldColour,

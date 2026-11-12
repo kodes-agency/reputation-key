@@ -1,4 +1,5 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
+import { openNextReviewCycleForTest } from '#/contexts/inbox/infrastructure/review-cycle-reopen.test-fixtures'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
@@ -817,7 +818,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
 
     const blocker = await pool.connect()
     let blockerOpen = false
-    let reopen: ReturnType<typeof cycleStore.startNext> | null = null
+    let reopen: ReturnType<typeof openNextReviewCycleForTest> | null = null
     let observedClose: ReturnType<typeof handleInboxReplyObserved> | null = null
     try {
       await blocker.query('BEGIN')
@@ -829,14 +830,9 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
          FOR UPDATE`,
         [ITEM, ORG],
       )
-      reopen = cycleStore.startNext({
+      reopen = openNextReviewCycleForTest(getDb(), {
         inboxItemId: ITEM,
         organizationId: ORG,
-        expected: {
-          cycleNumber: closedHead.currentCycleNumber,
-          materialReviewRevision: closedHead.currentMaterialReviewRevision,
-          stateRevision: closedHead.stateRevision,
-        },
         materialReviewRevision: 1,
         openedReason: 'manual_reopen',
         manualReopenReason: 'internal_follow_up_still_needed',
@@ -910,7 +906,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     // the observed close then acquires the same order and closes that new cycle.
     const blocker = await pool.connect()
     let blockerOpen = false
-    let reopen: ReturnType<typeof cycleStore.startNext> | null = null
+    let reopen: ReturnType<typeof openNextReviewCycleForTest> | null = null
     let observedClose: Promise<'applied' | 'obsolete'> | null = null
     try {
       await blocker.query('BEGIN')
@@ -923,14 +919,9 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
         [ITEM, ORG],
       )
 
-      reopen = cycleStore.startNext({
+      reopen = openNextReviewCycleForTest(getDb(), {
         inboxItemId: ITEM,
         organizationId: ORG,
-        expected: {
-          cycleNumber: closedHead.currentCycleNumber,
-          materialReviewRevision: closedHead.currentMaterialReviewRevision,
-          stateRevision: closedHead.stateRevision,
-        },
         materialReviewRevision: 1,
         openedReason: 'manual_reopen',
         manualReopenReason: 'internal_follow_up_still_needed',
@@ -1385,14 +1376,9 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
 
     const cycleHead = await deps.handlingCycleStore.findHead(ITEM, ORG)
     if (cycleHead === null) throw new Error('seeded Handling Cycle is missing')
-    await deps.handlingCycleStore.startNext({
+    await openNextReviewCycleForTest(getDb(), {
       inboxItemId: ITEM,
       organizationId: ORG,
-      expected: {
-        cycleNumber: cycleHead.currentCycleNumber,
-        materialReviewRevision: cycleHead.currentMaterialReviewRevision,
-        stateRevision: cycleHead.stateRevision,
-      },
       materialReviewRevision: 2,
       openedReason: 'material_revision_changed',
       openedBy: null,
@@ -1424,14 +1410,9 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     const deps = consumerDeps()
     const cycleHead = await deps.handlingCycleStore.findHead(ITEM, ORG)
     if (cycleHead === null) throw new Error('seeded Handling Cycle is missing')
-    await deps.handlingCycleStore.startNext({
+    await openNextReviewCycleForTest(getDb(), {
       inboxItemId: ITEM,
       organizationId: ORG,
-      expected: {
-        cycleNumber: cycleHead.currentCycleNumber,
-        materialReviewRevision: cycleHead.currentMaterialReviewRevision,
-        stateRevision: cycleHead.stateRevision,
-      },
       materialReviewRevision: 2,
       openedReason: 'material_revision_changed',
       openedBy: null,
@@ -1538,14 +1519,9 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
       const cycleStore = createReviewHandlingCycleStore(getDb())
       const closedHead = await cycleStore.findHead(ITEM, ORG)
       if (closedHead === null) throw new Error('seeded Handling Cycle is missing')
-      await cycleStore.startNext({
+      await openNextReviewCycleForTest(getDb(), {
         inboxItemId: ITEM,
         organizationId: ORG,
-        expected: {
-          cycleNumber: closedHead.currentCycleNumber,
-          materialReviewRevision: closedHead.currentMaterialReviewRevision,
-          stateRevision: closedHead.stateRevision,
-        },
         materialReviewRevision: 1,
         openedReason: 'manual_reopen',
         manualReopenReason: 'internal_follow_up_still_needed',
@@ -1724,14 +1700,9 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
       const cycleStore = createReviewHandlingCycleStore(getDb())
       const closedHead = await cycleStore.findHead(ITEM, ORG)
       if (closedHead === null) throw new Error('seeded Handling Cycle is missing')
-      await cycleStore.startNext({
+      await openNextReviewCycleForTest(getDb(), {
         inboxItemId: ITEM,
         organizationId: ORG,
-        expected: {
-          cycleNumber: closedHead.currentCycleNumber,
-          materialReviewRevision: closedHead.currentMaterialReviewRevision,
-          stateRevision: closedHead.stateRevision,
-        },
         materialReviewRevision: 1,
         openedReason: 'manual_reopen',
         manualReopenReason: 'internal_follow_up_still_needed',

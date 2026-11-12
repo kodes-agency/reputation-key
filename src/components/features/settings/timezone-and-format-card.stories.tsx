@@ -1,7 +1,7 @@
 // The Profile card for timezone and date format (D6). These stories moved
 // here from the notification settings page, which no longer holds the fields;
 // what they prove is unchanged, save for the card's own loading and failure.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { toast } from 'sonner'
@@ -297,27 +297,29 @@ export const ResetPutsBackWhatIsInEffect: Story = {
   },
 }
 
+/** What a save in another tab does to the card's read; set by the harness below. */
+const anotherTab: { saveBerlin?: () => void } = {}
+
 /** The card under a read that another tab's save refreshes. */
 function RefreshedByAnotherTab() {
   const [settings, setSettings] = useState(userSettings)
+  useEffect(() => {
+    anotherTab.saveBerlin = () =>
+      setSettings({ ...userSettings, timezone: 'Europe/Berlin' })
+    return () => {
+      anotherTab.saveBerlin = undefined
+    }
+  }, [])
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setSettings({ ...userSettings, timezone: 'Europe/Berlin' })}
-      >
-        Another tab saves Berlin
-      </button>
-      <TimezoneAndFormatCard
-        settings={settings}
-        failed={false}
-        retrying={false}
-        onRetry={onRetry}
-        organizationId="org-1"
-        organizationName="Harbor Hotels"
-        updateUserSettings={asAction(updateUserSettingsMock)}
-      />
-    </>
+    <TimezoneAndFormatCard
+      settings={settings}
+      failed={false}
+      retrying={false}
+      onRetry={onRetry}
+      organizationId="org-1"
+      organizationName="Harbor Hotels"
+      updateUserSettings={asAction(updateUserSettingsMock)}
+    />
   )
 }
 
@@ -330,9 +332,7 @@ export const KeepsAnEditWhenAnotherTabSaves: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await pickFormat(canvas, 'English (US)')
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Another tab saves Berlin' }),
-    )
+    anotherTab.saveBerlin?.()
 
     expect(
       canvas.getByRole('combobox', { name: 'Date and time format' }),

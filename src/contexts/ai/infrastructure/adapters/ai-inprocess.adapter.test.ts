@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/ai-runtime-capability-contract'
 import type { AiEgressGatewayService } from '#/shared/ai-provider-control/service'
 import type { AiGatewayRouteRequestV1 } from '#/shared/ai-gateway-transport-contract'
@@ -7,13 +7,8 @@ import {
   v2FormAnalysisRequest,
   analysisV3Request,
   replyRequest,
-  trendRequest,
 } from '#/shared/ai-gateway-transport-contract.test-fixtures'
-import {
-  AI_REVIEW_ROUTE_MAX_BYTES,
-  AI_TREND_ROUTE_MAX_BYTES,
-} from '#/shared/ai-internal-transport-contract'
-import { replyV2Request } from '#/shared/ai-provider-control/reply-drafting-v2.test-fixtures'
+import { AI_REVIEW_ROUTE_MAX_BYTES } from '#/shared/ai-internal-transport-contract'
 import { REPLY_DRAFTING_V2_ROUTE_MAX_BYTES } from '#/shared/reply-drafting-v2-request'
 import { MAX_AI_REVIEW_SENTENCES_V1 } from '#/shared/ai-review-source-contract'
 import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/review-analysis-v3-request'
@@ -47,18 +42,9 @@ function recordingGateway() {
   return { seen, service }
 }
 
-/**
- * Complete request metadata lets active routes reach caller authorization.
- * Trends retains its recorded binding to prove that retirement rejects it
- * before the gateway is constructed.
- */
+/** Complete request metadata lets active routes reach caller authorization. */
 function requestFor(route: AiGatewayRouteRequestV1['route']): AiGatewayRouteRequestV1 {
-  const base =
-    route === 'reply-suggestion'
-      ? replyV2Request()
-      : route === 'property-trend'
-        ? trendRequest()
-        : analysisRequest()
+  const base = route === 'reply-suggestion' ? replyRequest() : analysisRequest()
   return { ...base, deadlineEpochMillis: NOW + 30_000 }
 }
 
@@ -109,29 +95,6 @@ describe('in-process AI inference caller authorization', () => {
       ).rejects.toThrow(/caller is not authorized for route/)
       // The refusal must precede the provider call, not follow it — unauthorized
       // spend is exactly what this boundary exists to prevent.
-      expect(seen).toEqual([])
-    },
-  )
-})
-
-describe('retired Trends inference', () => {
-  it.each(['web', 'worker'] as const)(
-    'refuses Trends from %s before constructing the gateway',
-    async (caller) => {
-      const { seen, service } = recordingGateway()
-      const gateway = vi.fn(async () => service)
-      const port = createAiInProcessInference({
-        gateway,
-        caller,
-        nowEpochMillis: () => NOW,
-      })
-      await expect(
-        port.generateTrend(
-          requestFor('property-trend') as never,
-          new AbortController().signal,
-        ),
-      ).rejects.toThrow(/route binding is cross-wired/)
-      expect(gateway).not.toHaveBeenCalled()
       expect(seen).toEqual([])
     },
   )
@@ -195,9 +158,7 @@ describe('in-process AI inference request bound', () => {
       AI_REVIEW_ROUTE_MAX_BYTES,
     )
     expect(aiGatewayRequestMaxBytes(analysisRequest())).toBe(AI_REVIEW_V3_ROUTE_MAX_BYTES)
-    expect(aiGatewayRequestMaxBytes(replyRequest())).toBe(AI_REVIEW_ROUTE_MAX_BYTES)
-    expect(aiGatewayRequestMaxBytes(trendRequest())).toBe(AI_TREND_ROUTE_MAX_BYTES)
-    expect(aiGatewayRequestMaxBytes(replyV2Request())).toBe(
+    expect(aiGatewayRequestMaxBytes(replyRequest())).toBe(
       REPLY_DRAFTING_V2_ROUTE_MAX_BYTES,
     )
     expect(aiGatewayRequestMaxBytes(analysisV3Request())).toBe(

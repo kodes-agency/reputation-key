@@ -10,9 +10,9 @@ import {
 import type { GoogleProviderRouteKey } from '#/shared/google-provider-control/contracts'
 import {
   googleRetryDelayMs,
-  googleRetryFloorMs,
   parseGoogleRetryAfterMs,
 } from '#/shared/google-provider-control/provider-call'
+import { googleRetryFloorMs } from '#/shared/google-provider-control/retry-floor'
 import { googleProviderErrorStatus } from '#/shared/domain/google-provider-failure'
 import {
   isGoogleDisconnectRevokeAuthorization,
@@ -27,8 +27,9 @@ import type {
 } from '../application/ports/google-authorized-provider-executor.port'
 import type { GoogleDisconnectRevokeDispatchHooks } from '../application/google-disconnect-revoke'
 import { isIntegrationError } from '../domain/errors'
-import { createGbpApiError, type GbpApiErrorKind } from '../domain/gbp-api-error'
 import {
+  createGoogleCallError,
+  type GoogleCallErrorKind,
   googleCallErrorCodeForExecution,
   googleCallErrorCodeForStatus,
 } from '../domain/google-call-error'
@@ -503,7 +504,7 @@ export function gatewayFailureError(
   failure: GoogleProviderExecutionFailure,
 ) {
   const gatewayKind = googleCallErrorCodeForExecution(failure)
-  return createGbpApiError(operation, gatewayKind, {
+  return createGoogleCallError(operation, gatewayKind, {
     retryAfterMs: retryableBackoffMs(gatewayKind, failure.retryAfterMs),
     ...(failure.code === 'admission_denied' && failure.admissionCode !== undefined
       ? { executionAdmissionCode: failure.admissionCode }
@@ -518,7 +519,7 @@ export function gatewayFailureError(
 
 /** Retryable kinds always carry a real wait; the rest carry the raw hint. */
 function retryableBackoffMs(
-  kind: GbpApiErrorKind,
+  kind: GoogleCallErrorKind,
   hintMs: number | null,
 ): number | undefined {
   return kind === 'rate_limited' || kind === 'upstream_error'
@@ -612,7 +613,7 @@ export function providerStatusError(
 ) {
   const statusKind = googleCallErrorCodeForStatus(response.status)
   const observedAtMs = nowMs()
-  return createGbpApiError(operation, statusKind, {
+  return createGoogleCallError(operation, statusKind, {
     providerBodyBytes: response.body.byteLength,
     dispatch: 'answered',
     providerStatus: response.status,
@@ -639,7 +640,9 @@ export async function executeGoogleProviderResponse(
   const startedAtMs = input.nowMs()
   if (!Number.isSafeInteger(startedAtMs)) {
     // Refused before the executor exists for this call: nothing was sent.
-    throw createGbpApiError(input.operation, 'upstream_error', { dispatch: 'not_sent' })
+    throw createGoogleCallError(input.operation, 'upstream_error', {
+      dispatch: 'not_sent',
+    })
   }
   let result: GoogleProviderExecutionResult
   const timeoutMs = input.timeoutMs ?? PROVIDER_DEADLINE_MS
@@ -668,7 +671,9 @@ export async function executeGoogleProviderResponse(
     // The executor threw, or the adapter deadline fired while it was still
     // running. The gateway does not observe this abort signal, so the request
     // may still have left (or leave) after we stopped waiting.
-    throw createGbpApiError(input.operation, 'upstream_error', { dispatch: 'unknown' })
+    throw createGoogleCallError(input.operation, 'upstream_error', {
+      dispatch: 'unknown',
+    })
   } finally {
     clearTimeout(deadlineTimer)
     input.signal?.removeEventListener('abort', abortFromCaller)
@@ -693,7 +698,7 @@ export async function executeGoogleProviderRaw(
       !JSON_CONTENT_TYPE.test(result.headers.contentType)
     ) {
       // Google answered 200; only the representation is unusable here.
-      throw createGbpApiError(input.operation, 'parse_error', {
+      throw createGoogleCallError(input.operation, 'parse_error', {
         providerBodyBytes,
         dispatch: 'answered',
         providerStatus: result.status,
@@ -714,7 +719,7 @@ export async function executeGoogleProviderJson(
   try {
     return decodeProviderJson(result.body)
   } catch {
-    throw createGbpApiError(input.operation, 'parse_error', {
+    throw createGoogleCallError(input.operation, 'parse_error', {
       providerBodyBytes,
       dispatch: 'answered',
       providerStatus: result.status,

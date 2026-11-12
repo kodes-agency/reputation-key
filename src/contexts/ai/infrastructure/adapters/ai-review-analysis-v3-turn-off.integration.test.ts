@@ -23,7 +23,7 @@ import {
 import { createGoogleConnectionCeremonyFixture } from '#/shared/testing/google-connection-ceremony-fixture'
 import { requestGooglePrimaryCategoryRefresh } from '#/shared/db/google-primary-category-refresh'
 import { createRefreshBoundGoogleCategories } from '#/contexts/integration/application/refresh-bound-google-categories'
-import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
+import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {

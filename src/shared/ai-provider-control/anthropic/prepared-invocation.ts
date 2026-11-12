@@ -1,5 +1,4 @@
 import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
   finalizePreparedProviderInvocation,
   type DerivedDescriptorFacts,
@@ -14,8 +13,6 @@ const preparedAnthropicInvocationBrand: unique symbol = Symbol(
 
 export type PreparedAnthropicInvocation = Readonly<{
   descriptor: AiAdmissionDescriptorV1
-  requestBindingKeyId: string
-  requestBindingHmac: string
   sdkRequest: ClosedAnthropicRequest
   canonicalProviderBytes: Uint8Array
   [preparedAnthropicInvocationBrand]: true
@@ -27,7 +24,6 @@ export function createPreparedAnthropicInvocation(
     providerPayload: unknown
     sdkRequest: ClosedAnthropicRequest
     createDescriptor: (facts: DerivedDescriptorFacts) => AiAdmissionDescriptorV1
-    requestBindingKeys: VersionedHmacKeyring
     traceStage?: (stage: PreparedInvocationTraceStage) => void
   }>,
 ): PreparedAnthropicInvocation {
@@ -42,11 +38,9 @@ export function createPreparedAnthropicInvocation(
         throw new TypeError('Anthropic descriptor prompt cache shard must be zero')
       }
     },
-    createInvocation: (request, canonicalProviderBytes) =>
+    createInvocation: (descriptor, canonicalProviderBytes) =>
       Object.freeze({
-        descriptor: request.descriptor,
-        requestBindingKeyId: request.requestBindingKeyId,
-        requestBindingHmac: request.requestBindingHmac,
+        descriptor,
         sdkRequest: input.sdkRequest,
         canonicalProviderBytes,
         [preparedAnthropicInvocationBrand]: PREPARED_ANTHROPIC_INVOCATION_BRAND_VALUE,

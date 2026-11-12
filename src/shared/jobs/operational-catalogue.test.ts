@@ -77,6 +77,7 @@ describe('job operational catalogue', () => {
     'generate-organization-export',
     'purge-expired-organization-exports',
     'advance-organization-lifecycle',
+    'reconcile-missing-notifications',
   ])('retains a removal tombstone for the retired %s scheduler', (jobName) => {
     const plan = createOperationalSchedulerPlan()
 

@@ -7,16 +7,8 @@ import {
 import { aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { eq } from 'drizzle-orm'
-import { expect, it, vi } from 'vitest'
+import { expect, it } from 'vitest'
 
-// Historical v1 remains readable; these contract regressions deliberately pin its old execution.
-vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('#/shared/ai-runtime-capability-contract')>()
-  const { historicalReplyRuntime } =
-    await import('#/shared/testing/historical-reply-runtime')
-  return historicalReplyRuntime(actual)
-})
 import type { AiOperationId } from '../domain/types'
 import { createAiOrganizationSpendAdapter } from '../infrastructure/adapters/ai-organization-spend.adapter'
 

@@ -212,6 +212,34 @@ describe.sequential('staff private results and accepted roster (PostgreSQL)', ()
     )
     expect((await reader().results(scope(row), 'week')).ratingCount).toBe(1)
   })
+  it('keeps the average a day closed at when a rating is corrected after midnight', async () => {
+    const row = await seed()
+    const ids: string[] = []
+    for (const value of [5, 4, 3, 4, 4])
+      ids.push(await reading(row, 'rating', '2026-11-03T10:00:00Z', value))
+    await lease.pool.query(
+      `INSERT INTO metric_corrections (reading_id, source_event_id, kind, reason, actor_type, actor_id, replacement_value, event_at, recorded_at) VALUES ($1, $2, 'replace', 'test', 'system', 'test', 1, $3, $3)`,
+      [ids[0], randomUUID(), new Date('2026-11-04T10:00:00Z')],
+    )
+    expect(await reader().results(scope(row), 'week')).toMatchObject({
+      ratingCount: 5,
+      averageRating: 4,
+    })
+  })
+  it('moves the average when the same correction is recorded before midnight', async () => {
+    const row = await seed()
+    const ids: string[] = []
+    for (const value of [5, 4, 3, 4, 4])
+      ids.push(await reading(row, 'rating', '2026-11-03T10:00:00Z', value))
+    await lease.pool.query(
+      `INSERT INTO metric_corrections (reading_id, source_event_id, kind, reason, actor_type, actor_id, replacement_value, event_at, recorded_at) VALUES ($1, $2, 'replace', 'test', 'system', 'test', 1, $3, $3)`,
+      [ids[0], randomUUID(), new Date('2026-11-03T21:59:45Z')],
+    )
+    expect(await reader().results(scope(row), 'week')).toMatchObject({
+      ratingCount: 5,
+      averageRating: 3.2,
+    })
+  })
   it('includes accepted zero-scan colleagues in name order and excludes unaccepted and removed people', async () => {
     const row = await seed()
     await seedStaffAccountUser(lease.pool, row)

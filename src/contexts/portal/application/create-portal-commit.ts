@@ -10,7 +10,7 @@ import { buildPortalHealthFact } from '../publication/portal-facts.server'
 import type { NewPortalLocales } from '../domain/portal-new-locales'
 import type { Portal, PortalGroup, PortalId } from '../domain/types'
 import type { UserId } from '#/shared/domain/ids'
-import type { CreatePortalCommand } from './ports/portal-command-store.port'
+import type { CreatePortalCommand } from '../publication/portal-command-store-port.server'
 import type { CreatePortalInput } from './dto/create-portal.dto'
 import { buildGroupMembership } from './create-portal-resolvers'
 import { planPortalContentCopy, type PortalCopySource } from './portal-content-copy'
@@ -30,7 +30,7 @@ export type NewPortalPlan = Readonly<{
   group: PortalGroup | null
   source: PortalCopySource | null
   personalPortal?: Readonly<{
-    printWording?: import('#/shared/domain/portal-print-final-wording').PrintFinalSavedWording
+    printWording?: import('#/shared/domain/portal-print-wording').PrintSavedWording
     publicName: string
     sourceFence?: CreatePortalCommand['personalSourceFence']
   }>

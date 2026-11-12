@@ -33,10 +33,8 @@ import {
   type AiReplyProvenancePayloadV2,
   type AiReplyProvenancePayloadV3,
 } from '#/shared/ai-reply-provenance'
-import {
-  AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
-  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-} from '#/shared/ai-personalized-reply-contract'
+import { AI_PERSONALIZED_REPLY_PROFILE_DIGEST } from '#/shared/ai-personalized-reply-contract'
+import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -84,40 +82,56 @@ const CONSENT_CONTRACT_FACTS = {
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519')
 
-function provenanceToken(overrides: Partial<AiReplyProvenancePayloadV1> = {}): string {
-  return signAiReplyProvenance(
-    {
-      version: 'ai-reply-provenance-v1',
-      kid: 'provenance-v1',
-      operationId: '74000000-0000-4000-8000-000000000004',
-      actorId: ACTOR_USER_ID,
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      reviewId: REVIEW_ID,
-      requestBindingHmac: 'A'.repeat(43),
-      sourceEpoch: SOURCE_EPOCH,
-      sourceRevision: SOURCE_REVISION,
-      baseReplyStateRevision: 0,
-      replyDraftingEpoch: 1,
-      propertyProfileVersion: 1,
-      providerDeploymentProfileVersion: 'private-beta-global-v2',
-      operationProfileVersion: 'reply-suggestion-v1',
-      modelSnapshot: 'gpt-5.4-mini-2026-03-17',
-      promptVersion: 'reply-suggestion-prompt-v1',
-      outputLeakageProfileVersion: 'ai-output-leakage-v1',
-      outputLeakageProfileDigest: 'a'.repeat(64),
-      replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
-      replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-      templateId: 'appreciation_positive',
-      concreteLanguageTag: 'en-Latn-US',
-      templateGroup: 'en-Latn',
-      renderedSuggestionDigest: digestRenderedReply(SUGGESTION),
-      tokenExpiresAtEpochMillis: NOW.getTime() + 5 * 60_000,
-      draftExpiresAtEpochMillis: NOW.getTime() + 30 * 60_000,
-      ...overrides,
-    },
-    privateKey,
-  )
+type RequestBoundPayloadV1 = Extract<
+  AiReplyProvenancePayloadV1,
+  { requestBindingHmac: string }
+>
+
+function provenancePayload(
+  overrides: Partial<RequestBoundPayloadV1> = {},
+): RequestBoundPayloadV1 {
+  return {
+    version: 'ai-reply-provenance-v1',
+    kid: 'provenance-v1',
+    operationId: '74000000-0000-4000-8000-000000000004',
+    actorId: ACTOR_USER_ID,
+    organizationId: ORGANIZATION_ID,
+    propertyId: PROPERTY_ID,
+    reviewId: REVIEW_ID,
+    requestBindingHmac: 'A'.repeat(43),
+    sourceEpoch: SOURCE_EPOCH,
+    sourceRevision: SOURCE_REVISION,
+    baseReplyStateRevision: 0,
+    replyDraftingEpoch: 1,
+    propertyProfileVersion: 1,
+    providerDeploymentProfileVersion: 'private-beta-global-v2',
+    operationProfileVersion: 'reply-suggestion-v1',
+    modelSnapshot: 'gpt-5.4-mini-2026-03-17',
+    promptVersion: 'reply-suggestion-prompt-v1',
+    outputLeakageProfileVersion: 'ai-output-leakage-v1',
+    outputLeakageProfileDigest: 'a'.repeat(64),
+    replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
+    replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
+    templateId: 'appreciation_positive',
+    concreteLanguageTag: 'en-Latn-US',
+    templateGroup: 'en-Latn',
+    renderedSuggestionDigest: digestRenderedReply(SUGGESTION),
+    tokenExpiresAtEpochMillis: NOW.getTime() + 5 * 60_000,
+    draftExpiresAtEpochMillis: NOW.getTime() + 30 * 60_000,
+    ...overrides,
+  }
+}
+
+function provenanceToken(overrides: Partial<RequestBoundPayloadV1> = {}): string {
+  return signAiReplyProvenance(provenancePayload(overrides), privateKey)
+}
+
+function permitBoundProvenanceToken(
+  binding: Readonly<{ executionPermitId: string; executionAttempt: number }>,
+  overrides: Partial<RequestBoundPayloadV1> = {},
+): string {
+  const { requestBindingHmac: _requestBinding, ...payload } = provenancePayload(overrides)
+  return signAiReplyProvenance({ ...payload, ...binding }, privateKey)
 }
 
 function personalizedProvenanceToken(
@@ -326,6 +340,8 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     reviewId?: string
     replyBrandProfileVersion?: number
     replyBrandDisplayNameDigest?: string
+    requestBindingHmac?: string | null
+    executionAttempt?: number
   }) => {
     const [globalControl] = await db
       .select()
@@ -409,17 +425,26 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       capabilityControlGeneration: capabilityControl.generation,
       routeKey: 'reply-suggestion',
       executionPermitId: input.permitId,
-      admissionNonce: `nonce-${input.operationId}`,
-      requestBindingKeyId: 'binding-v1',
-      requestBindingHmac: REQUEST_BINDING_HMAC,
-      grantKid: 'grant-v1',
+      ...(input.requestBindingHmac === null
+        ? {
+            admissionNonce: null,
+            requestBindingKeyId: null,
+            requestBindingHmac: null,
+            grantKid: null,
+          }
+        : {
+            admissionNonce: `nonce-${input.operationId}`,
+            requestBindingKeyId: 'binding-v1',
+            requestBindingHmac: input.requestBindingHmac ?? REQUEST_BINDING_HMAC,
+            grantKid: 'grant-v1',
+          }),
       costWindowId: input.permitId,
       reservedMicros: 50_000,
       actualMicros: 42,
       budgetReservedAt: createdAt,
       budgetSettledAt: NOW,
       state: 'succeeded',
-      executionAttempt: 1,
+      executionAttempt: input.executionAttempt ?? 1,
       createdAt,
       updatedAt: NOW,
       expiresAt,
@@ -1339,4 +1364,195 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       ).resolves.toEqual([{ disposition: 'none' }])
     },
   )
+
+  describe('execution binding', () => {
+    const PERMIT_REVIEW = reviewId('74000000-0000-4000-8000-0000000000b1')
+    const LEGACY_REVIEW = reviewId('74000000-0000-4000-8000-0000000000b2')
+    const PERMIT_OPERATION = '74000000-0000-4000-8000-000000000020'
+    const PERMIT = '74000000-0000-4000-8000-000000000120'
+    const OTHER_OPERATION = '74000000-0000-4000-8000-000000000021'
+    const OTHER_PERMIT = '74000000-0000-4000-8000-000000000121'
+    const LEGACY_OPERATION = '74000000-0000-4000-8000-000000000022'
+    const LEGACY_PERMIT = '74000000-0000-4000-8000-000000000122'
+
+    const acceptFor = (
+      review: ReturnType<typeof reviewId>,
+      provenanceToken: string,
+      input: Partial<{
+        organizationId: ReturnType<typeof organizationId>
+        propertyId: ReturnType<typeof propertyId>
+        reviewId: ReturnType<typeof reviewId>
+        actorUserId: ReturnType<typeof userId>
+      }> = {},
+    ) =>
+      store.accept({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: review,
+        actorUserId: ACTOR_USER_ID,
+        text: SUGGESTION,
+        provenanceToken,
+        now: NOW,
+        ...input,
+      })
+
+    const adoptionOf = async (
+      review: ReturnType<typeof reviewId>,
+      operation: string,
+    ) => ({
+      replies: await db
+        .select({ id: replies.id })
+        .from(replies)
+        .where(eq(replies.reviewId, review)),
+      operation: await db
+        .select({ disposition: aiOperations.replyAdoptionDisposition })
+        .from(aiOperations)
+        .where(eq(aiOperations.id, operation)),
+    })
+
+    beforeAll(async () => {
+      const repository = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
+      await repository.upsert(reviewFixture(PERMIT_REVIEW, 'ai-suggested-draft-permit'))
+      await repository.upsert(reviewFixture(LEGACY_REVIEW, 'ai-suggested-draft-legacy'))
+      // The permit-bound execution was retried once and keeps no request
+      // binding HMAC, as an execution admitted without one would.
+      await seedSucceededReplyOperation({
+        operationId: PERMIT_OPERATION,
+        permitId: PERMIT,
+        sourceRevision: SOURCE_REVISION,
+        baseReplyStateRevision: 0,
+        reviewId: PERMIT_REVIEW,
+        requestBindingHmac: null,
+        executionAttempt: 2,
+      })
+      await seedSucceededReplyOperation({
+        operationId: OTHER_OPERATION,
+        permitId: OTHER_PERMIT,
+        sourceRevision: SOURCE_REVISION,
+        baseReplyStateRevision: 0,
+        reviewId: PERMIT_REVIEW,
+      })
+      await seedSucceededReplyOperation({
+        operationId: LEGACY_OPERATION,
+        permitId: LEGACY_PERMIT,
+        sourceRevision: SOURCE_REVISION,
+        baseReplyStateRevision: 0,
+        reviewId: LEGACY_REVIEW,
+      })
+    })
+
+    it('adopts a permit-bound draft only for the permit and attempt that delivered it', async () => {
+      const bound = (
+        binding: Readonly<{ executionPermitId: string; executionAttempt: number }>,
+        overrides: Partial<RequestBoundPayloadV1> = {},
+      ) =>
+        permitBoundProvenanceToken(binding, {
+          operationId: PERMIT_OPERATION,
+          reviewId: PERMIT_REVIEW,
+          baseReplyStateRevision: 0,
+          ...overrides,
+        })
+      const delivered = { executionPermitId: PERMIT, executionAttempt: 2 }
+      const otherOrganization = organizationId('ai-suggested-draft-other-org')
+      const otherProperty = propertyId('74000000-0000-4000-8000-0000000000b9')
+      const otherActor = userId('ai-suggested-draft-other-user')
+
+      const refusals = [
+        acceptFor(
+          PERMIT_REVIEW,
+          bound({ executionPermitId: OTHER_PERMIT, executionAttempt: 2 }),
+        ),
+        acceptFor(
+          PERMIT_REVIEW,
+          bound({ executionPermitId: OTHER_PERMIT, executionAttempt: 1 }),
+        ),
+        acceptFor(
+          PERMIT_REVIEW,
+          bound({ executionPermitId: PERMIT, executionAttempt: 1 }),
+        ),
+        acceptFor(
+          PERMIT_REVIEW,
+          bound({ executionPermitId: PERMIT, executionAttempt: 3 }),
+        ),
+        acceptFor(REVIEW_ID, bound(delivered, { reviewId: REVIEW_ID })),
+        acceptFor(PERMIT_REVIEW, bound(delivered, { actorId: otherActor }), {
+          actorUserId: otherActor,
+        }),
+      ]
+      for (const refusal of refusals) {
+        await expect(refusal).resolves.toEqual({ status: 'rejected', reason: 'invalid' })
+      }
+      await expect(
+        acceptFor(
+          PERMIT_REVIEW,
+          bound(delivered, { organizationId: otherOrganization }),
+          {
+            organizationId: otherOrganization,
+          },
+        ),
+      ).resolves.toMatchObject({ status: 'rejected' })
+      await expect(
+        acceptFor(PERMIT_REVIEW, bound(delivered, { propertyId: otherProperty }), {
+          propertyId: otherProperty,
+        }),
+      ).resolves.toMatchObject({ status: 'rejected' })
+      // A legacy token cannot adopt an execution that holds no request binding.
+      await expect(
+        acceptFor(
+          PERMIT_REVIEW,
+          provenanceToken({
+            operationId: PERMIT_OPERATION,
+            reviewId: PERMIT_REVIEW,
+            baseReplyStateRevision: 0,
+          }),
+        ),
+      ).resolves.toEqual({ status: 'rejected', reason: 'invalid' })
+      await expect(adoptionOf(PERMIT_REVIEW, PERMIT_OPERATION)).resolves.toEqual({
+        replies: [],
+        operation: [{ disposition: 'none' }],
+      })
+
+      await expect(acceptFor(PERMIT_REVIEW, bound(delivered))).resolves.toMatchObject({
+        status: 'accepted',
+        reply: { text: SUGGESTION, aiGenerated: true, stateRevision: 1 },
+      })
+      await expect(adoptionOf(PERMIT_REVIEW, PERMIT_OPERATION)).resolves.toMatchObject({
+        operation: [{ disposition: 'adopted' }],
+      })
+    })
+
+    it('adopts a legacy draft only with the request binding its execution holds', async () => {
+      const legacy = (requestBindingHmac: string) =>
+        provenanceToken({
+          operationId: LEGACY_OPERATION,
+          reviewId: LEGACY_REVIEW,
+          baseReplyStateRevision: 0,
+          requestBindingHmac,
+        })
+
+      await expect(acceptFor(LEGACY_REVIEW, legacy('B'.repeat(43)))).resolves.toEqual({
+        status: 'rejected',
+        reason: 'invalid',
+      })
+      await expect(adoptionOf(LEGACY_REVIEW, LEGACY_OPERATION)).resolves.toEqual({
+        replies: [],
+        operation: [{ disposition: 'none' }],
+      })
+
+      await expect(
+        acceptFor(LEGACY_REVIEW, legacy(REQUEST_BINDING_HMAC)),
+      ).resolves.toMatchObject({
+        status: 'accepted',
+        reply: { text: SUGGESTION, aiGenerated: true, stateRevision: 1 },
+      })
+      await expect(adoptionOf(LEGACY_REVIEW, LEGACY_OPERATION)).resolves.toMatchObject({
+        operation: [{ disposition: 'adopted' }],
+      })
+    })
+  })
 })

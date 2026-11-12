@@ -1,24 +1,19 @@
-import { generateKeyPairSync } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
-import {
-  signAiExecutionGrant,
-  type AiExecutionGrantV1,
-} from '#/shared/ai-internal-transport-contract'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
-import { REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING } from '#/shared/review-analysis-v3-profile'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import { REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING } from '#/shared/analysis/profile'
 import {
   evidencePreparer,
-  fakeGrant,
+  fakeAdmission,
   fakeSettlementReceipt,
   preparableV3Request,
   v3TestProfile,
 } from '../review-evidence.test-fixtures'
+import { admitForTest } from '../execution-admission.test-fixtures'
 import { createAiProviderRegistry } from '../provider-selection'
 import {
   PINNED_ANTHROPIC_DISPATCHER_LIMITS,
@@ -37,9 +32,6 @@ import { createAnthropicProviderPreparation } from './provider-adapter'
 import { ANTHROPIC_MESSAGES_URL } from './request-profile'
 
 const NOW = 1_780_000_001_000
-const requestBindingKeys = createVersionedHmacKeyring(`request-v1:${'11'.repeat(32)}`)
-const admissionKeys = generateKeyPairSync('ed25519')
-let nonce = 0
 
 beforeEach(() => {
   vi.spyOn(process.versions, 'node', 'get').mockReturnValue(
@@ -85,29 +77,8 @@ function preparedExecution() {
   }).prepare(request)
 }
 
-function grantFor(invocation: PreparedAnthropicInvocation): AiExecutionGrantV1 {
-  nonce += 1
-  return signAiExecutionGrant(
-    {
-      version: 'ai-execution-grant-v1',
-      subjectKind: invocation.descriptor.subjectKind,
-      grantKid: 'grant-v1',
-      requestBindingKeyId: invocation.requestBindingKeyId,
-      requestBindingHmac: invocation.requestBindingHmac,
-      route: invocation.descriptor.route,
-      operationId: invocation.descriptor.operationId,
-      permitId: invocation.descriptor.permitId,
-      attemptNumber: invocation.descriptor.attemptNumber,
-      nonce: Buffer.alloc(32, nonce).toString('base64url'),
-      limits: invocation.descriptor.limits,
-      callerDeadlineEpochMillis: invocation.descriptor.callerDeadlineEpochMillis,
-      issuedAtEpochMillis: NOW - 1_000,
-      expiresAtEpochMillis: invocation.descriptor.callerDeadlineEpochMillis,
-      replyTokenExpiresAtEpochMillis: null,
-      replyDraftExpiresAtEpochMillis: null,
-    },
-    admissionKeys.privateKey,
-  )
+function admissionFor(invocation: PreparedAnthropicInvocation) {
+  return admitForTest(invocation.descriptor, { issuedAtEpochMillis: NOW - 1_000 })
 }
 
 function harness(
@@ -115,18 +86,16 @@ function harness(
   options: Readonly<{ pinnedOutboundFactory?: () => PinnedAnthropicOutbound }> = {},
 ) {
   const invocation = preparedInvocation()
-  const grant = grantFor(invocation)
+  const admission = admissionFor(invocation)
   const outbound = scriptedMessagesFetch(script)
   const connector = createAnthropicConnector({
     apiKey: 'invented-key',
-    requestBindingKeys,
-    admissionPublicKeys: new Map([['grant-v1', admissionKeys.publicKey]]),
     now: () => NOW,
     ...(options.pinnedOutboundFactory === undefined
       ? { outboundFetch: outbound }
       : { pinnedOutboundFactory: options.pinnedOutboundFactory }),
   })
-  return { invocation, grant, outbound, connector }
+  return { invocation, admission, outbound, connector }
 }
 
 const outputSchema = z.object({ ok: z.boolean() }).strict()
@@ -139,7 +108,7 @@ describe('Anthropic connector through the official SDK', () => {
     const expected = Buffer.from(value.invocation.canonicalProviderBytes)
     const outcome = await value.connector.invoke(
       value.invocation,
-      value.grant,
+      value.admission,
       outputSchema,
       new AbortController().signal,
     )
@@ -161,7 +130,7 @@ describe('Anthropic connector through the official SDK', () => {
     ])
     const outcome = await value.connector.invoke(
       value.invocation,
-      value.grant,
+      value.admission,
       outputSchema,
       new AbortController().signal,
     )
@@ -217,7 +186,7 @@ describe('Anthropic connector through the official SDK', () => {
       ])
       const outcome = await value.connector.invoke(
         value.invocation,
-        value.grant,
+        value.admission,
         outputSchema,
         new AbortController().signal,
       )
@@ -231,7 +200,7 @@ describe('Anthropic connector through the official SDK', () => {
     ['caller_aborted', 'caller_aborted'],
   ])('maps an abort after dispatch from %s', async (reason, disposition) => {
     const invocation = preparedInvocation()
-    const grant = grantFor(invocation)
+    const admission = admissionFor(invocation)
     const controller = new AbortController()
     const outbound = vi.fn(async () => {
       controller.abort(reason)
@@ -239,13 +208,11 @@ describe('Anthropic connector through the official SDK', () => {
     })
     const connector = createAnthropicConnector({
       apiKey: 'invented-key',
-      requestBindingKeys,
-      admissionPublicKeys: new Map([['grant-v1', admissionKeys.publicKey]]),
       now: () => NOW,
       outboundFetch: outbound,
     })
     await expect(
-      connector.invoke(invocation, grant, outputSchema, controller.signal),
+      connector.invoke(invocation, admission, outputSchema, controller.signal),
     ).resolves.toMatchObject({ disposition, outboundFetchUsed: true })
   })
 
@@ -266,7 +233,7 @@ describe('Anthropic connector through the official SDK', () => {
     await expect(
       value.connector.invoke(
         value.invocation,
-        value.grant,
+        value.admission,
         outputSchema,
         new AbortController().signal,
       ),
@@ -300,21 +267,19 @@ describe('Anthropic connector through the official SDK', () => {
     ])
     const connector = createAnthropicConnector({
       apiKey: 'invented-key',
-      requestBindingKeys,
-      admissionPublicKeys: new Map([['grant-v1', admissionKeys.publicKey]]),
       now: () => NOW,
       outboundFetch: outbound,
     })
 
     const outcome = await connector.invoke(
       invocation,
-      grantFor(invocation),
+      admissionFor(invocation),
       execution.outputSchema,
       new AbortController().signal,
     )
     expect(outcome.disposition).toBe('success')
     const accepted = execution.acceptProviderResult(outcome.result)
-    const response = accepted?.buildResponse(fakeSettlementReceipt(), fakeGrant())
+    const response = accepted?.buildResponse(fakeSettlementReceipt(), fakeAdmission())
 
     expect(response).toMatchObject({
       route: 'review-analysis',

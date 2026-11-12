@@ -1,5 +1,5 @@
 import type { GuestResponseScope } from '../ports/guest-response.repository'
-import type { GuestResponseView } from './guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import type { GuestSession } from '../../domain/guest-session'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {

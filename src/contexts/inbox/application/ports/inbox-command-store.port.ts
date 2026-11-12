@@ -169,21 +169,6 @@ export type ApplyReplyObservedCommand = Readonly<{
 
 export type InboxCommandStore = Readonly<{
   /**
-   * Offboarding release: clear every assignment owned by one departing user
-   * and record one unassigned fact per item in the same transaction.
-   */
-  releaseAssignmentsForUser(
-    input: Readonly<{
-      organizationId: OrganizationId
-      userId: UserId
-      /** Null for provider lifecycle hooks that do not expose the initiating actor. */
-      actorId: UserId | null
-      at: Date
-    }>,
-    tx?: Tx,
-  ): Promise<Readonly<{ released: number }>>
-
-  /**
    * Eligibility reconciliation: re-check every currently assigned Property
    * against the exact assignee authority inside the write transaction, then
    * clear only assignments whose authority is definitively no longer current.
@@ -194,7 +179,9 @@ export type InboxCommandStore = Readonly<{
     input: Readonly<{
       organizationId: OrganizationId
       userId: UserId
-      actorId: UserId
+      actorId: UserId | null
+      /** A removed member's release says so; otherwise they became ineligible. */
+      releaseReason?: 'member_offboarded'
       at: Date
     }>,
     tx?: Tx,

@@ -9,6 +9,7 @@ import {
   ON_RATING_GOAL_TRANSITIONED_CONSUMER,
 } from '../notify/goals.server'
 import { registerRatingGoalNoticeConsumer } from './goal-notice-routes'
+import { noticeWriterOver } from './notification-consumer-test-fixtures'
 
 const IDS = {
   event: '92000000-0000-4000-8000-000000000001',
@@ -58,12 +59,15 @@ const event = (
 
 const makeDeps = () => {
   const jobs: Array<{ name: string; data: Record<string, unknown>; opts?: unknown }> = []
+  const queue = {
+    add: vi.fn(async (name: string, data: Record<string, unknown>, opts?: unknown) => {
+      jobs.push({ name, data, opts })
+    }),
+  }
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
-    queue: {
-      add: vi.fn(async (name: string, data: Record<string, unknown>, opts?: unknown) => {
-        jobs.push({ name, data, opts })
-      }),
-    },
+    queue,
+    noticeWriter: noticeWriterOver(queue, receipts),
     responsibleManagers: {
       findForProperty: vi.fn(async () => [MANAGER, SECOND_MANAGER]),
       findForPortal: vi.fn(async () => []),
@@ -79,7 +83,7 @@ const makeDeps = () => {
       error: vi.fn(),
       child: vi.fn(),
     },
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     jobs,
   }
 }

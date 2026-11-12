@@ -5,7 +5,7 @@ import type {
   GoogleBusinessInformationPort,
 } from '../../application/google-provider-contract'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
-import { createGbpApiError } from '../../domain/gbp-api-error'
+import { createGoogleCallError } from '../../domain/google-call-error'
 import { executeGoogleProviderJson } from '../../provider/google-client.server'
 import {
   parseGoogleProviderResourceSuffix,
@@ -131,7 +131,7 @@ export const createGoogleBusinessInformationAdapter = (
         input.accountDisplayName.length < 1 ||
         input.accountDisplayName.length > 1_024
       ) {
-        throw createGbpApiError('listLocations', 'parse_error')
+        throw createGoogleCallError('listLocations', 'parse_error')
       }
       const raw = await executeGoogleProviderJson({
         operation: 'listLocations',
@@ -148,7 +148,7 @@ export const createGoogleBusinessInformationAdapter = (
       })
       const parsed = locationsPageSchema.safeParse(raw)
       if (!parsed.success) {
-        throw createGbpApiError('listLocations', 'parse_error')
+        throw createGoogleCallError('listLocations', 'parse_error')
       }
       const items: GbpLocationCandidate[] = []
       const seen = new Set<string>()
@@ -162,7 +162,7 @@ export const createGoogleBusinessInformationAdapter = (
           verificationOf(rawLocation, observable),
         )
         if (!location || seen.has(location.binding.locationId)) {
-          throw createGbpApiError('listLocations', 'parse_error')
+          throw createGoogleCallError('listLocations', 'parse_error')
         }
         seen.add(location.binding.locationId)
         items.push(location)

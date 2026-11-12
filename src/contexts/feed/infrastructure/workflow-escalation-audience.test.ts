@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { unbrand, type UserId } from '#/shared/domain/ids'
-import { handleWorkflowNotificationEvent } from './workflow-outbox-consumers'
+import { handleWorkflowNotificationEvent } from '../notify/inbox-workflow.server'
 import { NOTIF_TEST_IDS } from './notification-consumer-test-fixtures'
 import {
   makeWorkflowDeps,

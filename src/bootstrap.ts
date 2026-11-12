@@ -621,33 +621,6 @@ async function registerNotificationJobs(
     'registered insert-notification job handler',
   )
 
-  // ── Unsettled notification delivery repair ───────────────────────
-  // The durable consumers are the delivery path; this sweep is the repair for
-  // a delivery Redis accepted that never settled (its insert job exhausted,
-  // or Redis lost it), which outbox redelivery cannot see once the consumer
-  // has recorded its receipt.
-  const { JOB_NAME: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } =
-    await import('#/contexts/feed/infrastructure/jobs/reconcile-missing-notifications.job')
-  const reconcileMissingNotifications =
-    container.notificationDelivery.reconcileMissingNotificationsHandler
-  if (reconcileMissingNotifications) {
-    container.jobRegistry.register(
-      RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME,
-      async (job) => {
-        await reconcileMissingNotifications(job)
-      },
-    )
-    logger.info(
-      { job: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME },
-      'registered reconcile-missing-notifications job handler',
-    )
-  } else {
-    logger.warn(
-      { job: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME },
-      'reconcile-missing-notifications not registered — no job queue, so unsettled notification deliveries will not self-heal',
-    )
-  }
-
   // Outbound email is CONTROLLED, not blocked: the handler exists, and the
   // delayed execution gate decides each send against current tenant policy.
   // A family that were blocked would retain no executable handler, so queued

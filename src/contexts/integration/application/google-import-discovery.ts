@@ -2,8 +2,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GoogleConnectionId, PropertyId } from '#/shared/domain/ids'
 import { googleImportProviderAuthorization } from './google-authorization-vector'
 import type { ProviderContentLeaseDto } from '#/shared/domain/provider-content-lease'
-import { isGbpApiError } from '../domain/gbp-api-error'
-import { googleCallError } from '../domain/google-call-error'
+import { isGoogleCallError, googleCallError } from '../domain/google-call-error'
 import type {
   GbpLocationCandidate,
   GoogleAccountManagementPort,
@@ -152,7 +151,7 @@ export function authorizerDenialErrorCode(
  * the operator into an endless retry loop with no actionable next step.
  */
 function providerDenialCode(error: unknown): GoogleImportDiscoveryErrorCode {
-  if (!isGbpApiError(error)) return 'provider_unavailable'
+  if (!isGoogleCallError(error)) return 'provider_unavailable'
   switch (googleCallError(error).code) {
     case 'auth_failed':
       return 'reauthentication_required'
@@ -272,7 +271,7 @@ export function createGoogleImportDiscovery(
         stage,
         code,
         reason: error instanceof Error ? error.name : 'unknown',
-        ...(isGbpApiError(error) ? { kind: error.kind } : {}),
+        ...(isGoogleCallError(error) ? { kind: error.kind } : {}),
       },
       'Google import discovery denied',
     )

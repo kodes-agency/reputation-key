@@ -21,7 +21,7 @@ import { unbrand, type UserId } from '#/shared/domain/ids'
 import type {
   CreatePortalCommand,
   PortalCommandStore,
-} from '../application/ports/portal-command-store.port'
+} from '../publication/portal-command-store-port.server'
 import { assertPersonalSourceFence } from './personal-portal-source-fence'
 import { portalError } from '../domain/errors'
 import { portalToRow } from './mappers/portal.mapper'

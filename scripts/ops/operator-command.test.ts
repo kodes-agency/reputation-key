@@ -9,11 +9,13 @@ import {
   RESTORE_PREFLIGHT_SPEC,
   RESTORE_VERIFY_SPEC,
 } from '../../src/shared/ops/restore-verify'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand, runOperatorCommand } from './operator-command'
 
 const fakes = vi.hoisted(() => ({
   env: {} as Record<string, string | undefined>,
+  databaseEnv: {} as Record<string, string | undefined>,
   getDb: vi.fn(),
+  bootOrder: [] as string[],
   createContainer: vi.fn(() => ({
     shutdown: { run: fakes.shutdown },
     opsQueues: { background: { close: fakes.closeQueue } },
@@ -26,7 +28,13 @@ const fakes = vi.hoisted(() => ({
   closeQueue: vi.fn(async () => {}),
 }))
 
-vi.mock('../../src/shared/config/env', () => ({ getEnv: () => fakes.env }))
+vi.mock('../../src/shared/config/env', () => ({
+  getEnv: () => fakes.env,
+  getDatabaseOperatorEnv: () => {
+    fakes.bootOrder.push('settings')
+    return fakes.databaseEnv
+  },
+}))
 vi.mock('../../src/shared/db', () => ({ getDb: fakes.getDb }))
 vi.mock('../../src/shared/db/pool', () => ({ closePool: fakes.closePool }))
 vi.mock('../../src/shared/observability/logger', () => ({ getLogger: vi.fn() }))
@@ -263,5 +271,53 @@ describe('restore apply confirmation before boot', () => {
       ]),
     ).toEqual({ exitCode: 0 })
     expect(fakes.getDb).toHaveBeenCalledOnce()
+  })
+})
+
+describe('a command that needs only the database and queue settings', () => {
+  const spec = { name: 'ops:queue', scope: 'global' as const, usage: 'ops:queue' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fakes.env = {}
+    fakes.databaseEnv = {}
+  })
+
+  it('runs without building the application container and closes the pool', async () => {
+    const action = vi.fn(async () => 0)
+
+    expect(await runDatabaseOperatorCommand(spec, action, [])).toEqual({ exitCode: 0 })
+    expect(fakes.getDb).toHaveBeenCalledOnce()
+    expect(fakes.runCore).toHaveBeenCalledOnce()
+    expect(fakes.createContainer).not.toHaveBeenCalled()
+    expect(fakes.closeJobQueueConnections).toHaveBeenCalledOnce()
+    expect(fakes.closePool).toHaveBeenCalledOnce()
+  })
+
+  it('reads the database settings before the pool reads its own', async () => {
+    fakes.bootOrder.length = 0
+    fakes.getDb.mockImplementationOnce(() => {
+      fakes.bootOrder.push('pool')
+    })
+
+    await runDatabaseOperatorCommand(spec, vi.fn(), [])
+    expect(fakes.bootOrder).toEqual(['settings', 'pool'])
+  })
+
+  it('closes the pool when the command throws', async () => {
+    fakes.runCore.mockRejectedValueOnce(new Error('boom'))
+
+    await expect(runDatabaseOperatorCommand(spec, vi.fn(), [])).rejects.toThrow('boom')
+    expect(fakes.closePool).toHaveBeenCalledOnce()
+  })
+
+  it('prints usage on --help and opens nothing', async () => {
+    const io = { out: vi.fn(), err: vi.fn() }
+
+    expect(await runDatabaseOperatorCommand(spec, vi.fn(), ['--help'], io)).toEqual({
+      exitCode: 0,
+    })
+    expect(io.out).toHaveBeenCalledWith('usage: ops:queue')
+    expect(fakes.getDb).not.toHaveBeenCalled()
   })
 })

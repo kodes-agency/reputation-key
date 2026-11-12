@@ -36,7 +36,7 @@ const DOUBLE_CAST = /\bas unknown\s+as Database\b/gu
 const REMAINING_SITES: Readonly<Record<string, number>> = {
   // Both repositories pass the transaction to read helpers typed
   // `db: Database`; the helpers need narrowing to the query surface they use.
-  'src/contexts/feed/infrastructure/repositories/notification-delivery-settlement.repository.ts': 1,
+  'src/contexts/feed/notify/notice-write.server.ts': 1,
   'src/contexts/feed/infrastructure/repositories/notification.repository.ts': 1,
   // The repository's port types every method `tx: Database`; the port needs a
   // transaction type of its own.

@@ -16,14 +16,16 @@ import { linkStaffInvitation } from '../staff/staff-invitation-link.server'
 // - A committed outbox row is the durable fact and is delivered by the relay.
 // - Guarded transitions (already-member/already-invited, last-owner,
 //   invitation lifecycle) record no fact.
-// - removeMember/changeMemberRole take the org advisory lock inside the
-//   transaction and re-check the last-owner invariant under it, preserving
-//   the pre-BQC-3.5 withOrgLock serialization semantics.
+// - removeMember/changeMemberRole share one lock order: the org advisory
+//   lock, then (removal only) the user-membership lock acceptance takes, then
+//   the actor's member row, then the target's. Under it they re-check that the
+//   actor is still an AccountAdmin and the last-owner invariant.
 
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db/index'
 import { invitation, member, session, user as userTable } from '#/shared/db/schema/auth'
+import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { isOwnerToken } from '#/shared/domain/roles'
@@ -49,12 +51,14 @@ import {
 } from '../domain/invitation-store-rules'
 import { grantInvitedPropertyAccess } from '../members/invited-property-access.adapter.server'
 import { revokeAllPropertyAccessForUser } from './repositories/property-access-grant.repository'
+import { MEMBER_ROLE_CLEANUP_CONSUMER } from '../members/member-role-cleanup.server'
 import type {
   AcceptedInvitation,
   AcceptInvitationCommand,
   CancelInvitationCommand,
   ChangeMemberRoleCommand,
   IdentityCommandStore,
+  PendingRoleChangeCleanup,
   InviteMemberCommand,
   RemoveMemberCommand,
   RenewInvitationCommand,
@@ -102,15 +106,22 @@ async function lockOrg(tx: Tx, orgId: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(${hashStringToInteger(orgId)})`)
 }
 
+/**
+ * Serializes membership creation and removal for one user, so two invitations
+ * cannot place one closed-beta account in different Organizations and an
+ * acceptance waits for a removal of the same user to commit.
+ */
+async function lockUserMembership(tx: Tx, userId: string): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user-organization-membership:${userId}`}, 0))`,
+  )
+}
+
 async function checkSingleOrganizationMembership(
   tx: Tx,
   input: Readonly<{ userId: string; organizationId: string }>,
 ): Promise<Readonly<{ hasCurrentMembership: boolean }>> {
-  // Serialize membership creation for this user so two invitations cannot
-  // simultaneously place one closed-beta account in different Organizations.
-  await tx.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user-organization-membership:${input.userId}`}, 0))`,
-  )
+  await lockUserMembership(tx, input.userId)
   const memberships = await tx
     .select({ organizationId: member.organizationId })
     .from(member)
@@ -145,18 +156,45 @@ async function countOwners(tx: Tx, orgId: string): Promise<number> {
 }
 
 /**
- * Lock the member row FOR UPDATE (under the org advisory lock) and re-check
- * the last-owner invariant. Without `newRole` the member is being removed and
- * any owner triggers the check; with `newRole` it fires only on owner
- * demotion. Single source for removeMember/changeMemberRole (BQC-5.9 E7).
+ * The admitting request saw the actor as an AccountAdmin; a concurrent
+ * demotion or removal may have committed since. The row is held FOR SHARE so
+ * the actor cannot lose the role before this command commits.
+ */
+async function recheckActor(tx: Tx, orgId: string, actorUserId: string): Promise<void> {
+  const rows = await tx
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.organizationId, orgId), eq(member.userId, actorUserId)))
+    .for('share')
+  if (!isOwnerToken(rows[0]?.role ?? '')) {
+    throw identityError('forbidden', 'Your role no longer allows changing members')
+  }
+}
+
+/**
+ * Take the lock order every member-role command shares, then re-check the
+ * actor and the last-owner invariant. Without `newRole` the member is being
+ * removed and any owner triggers the check; with `newRole` it fires only on
+ * owner demotion.
  */
 async function lockMemberForRoleChange(
   tx: Tx,
   orgId: string,
   memberId: string,
-  opts: { newRole?: string } = {},
+  opts: { newRole?: string; actorUserId?: string; removal?: boolean } = {},
 ): Promise<typeof member.$inferSelect> {
   await lockOrg(tx, orgId)
+  if (opts.removal) {
+    // A member row's user never changes, so it can name the lock before the
+    // row itself is locked.
+    const located = await tx
+      .select({ userId: member.userId })
+      .from(member)
+      .where(memberOfOrganization(memberId, orgId))
+      .limit(1)
+    if (located[0]) await lockUserMembership(tx, located[0].userId)
+  }
+  if (opts.actorUserId !== undefined) await recheckActor(tx, orgId, opts.actorUserId)
   const rows = await tx
     .select()
     .from(member)
@@ -280,6 +318,13 @@ async function markAcceptorEmailVerified(
     throw identityError('registration_failed', REGISTRATION_FAILED_MESSAGE)
   }
 }
+
+/**
+ * How long a role change's cleanup counts as owed to a retried request. Past
+ * it the durable consumer has long finished or alerted, and an identical
+ * request is a no-op the member screen refuses.
+ */
+const ROLE_CHANGE_RETRY_WINDOW = sql`interval '24 hours'`
 
 /**
  * What the store runs on: the pool-backed `Database`, or a transaction its
@@ -562,6 +607,7 @@ export const createAtomicIdentityCommandStore = (
             tx,
             command.organizationId as string,
             command.memberId,
+            { actorUserId: command.actorUserId, removal: true },
           )
           if (command.staffOnly && target.role !== 'member') return
           if (!command.staffOnly && target.role === 'member')
@@ -581,15 +627,12 @@ export const createAtomicIdentityCommandStore = (
               'forbidden',
               'Staff removal is unfinished. Retry removing this member before continuing',
             )
-          // Membership removal is also login offboarding. Revoke every
-          // current Better Auth session in the same transaction as the
-          // membership deletion and durable fact, so a stale cookie cannot
-          // survive a committed removal.
+          // Sessions, grants and the membership go in one commit, with the
+          // fact: a stale cookie or a grant cannot outlive the membership.
+          // The member row's trigger fences the Google connections this user
+          // authorized in the same commit; Integration releases the rest of
+          // their Google authority from the fact.
           await tx.delete(session).where(eq(session.userId, target.userId))
-          // LIF-01-T21: Identity owns `property_access_grant`, so revoking it
-          // belongs in this transaction rather than in a preceding one. A
-          // grant that survived a committed membership deletion would be
-          // live access with no membership behind it.
           await revokeAllPropertyAccessForUser(tx, {
             organizationId: command.organizationId as string,
             userId: target.userId,
@@ -614,14 +657,23 @@ export const createAtomicIdentityCommandStore = (
           )
         }
         await db.transaction(async (tx) => {
-          await lockMemberForRoleChange(
+          const target = await lockMemberForRoleChange(
             tx,
             command.organizationId as string,
             command.memberId,
-            {
-              newRole: command.newRole,
-            },
+            { newRole: command.newRole, actorUserId: command.actorUserId },
           )
+          if (target.userId !== (command.event.memberUserId as string)) {
+            throw identityError(
+              'organization_conflict',
+              'Role change fact does not match the locked member',
+            )
+          }
+          // The fact names the role it replaces; a change committed since
+          // the request read it would make that a false record.
+          if (target.role === command.newRole) {
+            throw identityError('validation_error', 'The member already has this role')
+          }
           await tx
             .update(member)
             .set({ role: command.newRole })
@@ -630,6 +682,52 @@ export const createAtomicIdentityCommandStore = (
             )
           await insertOutboxRow(tx, command.event)
         })
+      })
+    },
+
+    pendingRoleChangeCleanup: async (input) => {
+      const rows = await db
+        .select({ id: outboxEvents.id, payload: outboxEvents.payload })
+        .from(outboxEvents)
+        .where(
+          and(
+            eq(outboxEvents.organizationId, input.organizationId as string),
+            eq(outboxEvents.eventType, 'identity.member.role_changed'),
+            sql`${outboxEvents.payload}->>'memberUserId' = ${input.memberUserId}`,
+            sql`${outboxEvents.createdAt} > now() - ${ROLE_CHANGE_RETRY_WINDOW}`,
+          ),
+        )
+        .orderBy(desc(outboxEvents.createdAt))
+        .limit(1)
+      const newest = rows[0]
+      if (!newest) return null
+      const receipts = await db
+        .select({ eventId: eventConsumerReceipts.eventId })
+        .from(eventConsumerReceipts)
+        .where(
+          and(
+            eq(eventConsumerReceipts.eventId, newest.id),
+            eq(eventConsumerReceipts.consumerName, MEMBER_ROLE_CLEANUP_CONSUMER),
+          ),
+        )
+        .limit(1)
+      if (receipts[0]) return null
+      const actor = (newest.payload as { userId?: unknown }).userId
+      if (typeof actor !== 'string') return null
+      const pending: PendingRoleChangeCleanup = { eventId: newest.id, actorUserId: actor }
+      return pending
+    },
+
+    completeRoleChangeCleanup: async (eventId) => {
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(eventConsumerReceipts)
+          .values({
+            eventId,
+            consumerName: MEMBER_ROLE_CLEANUP_CONSUMER,
+            status: 'applied',
+          })
+          .onConflictDoNothing()
       })
     },
   }

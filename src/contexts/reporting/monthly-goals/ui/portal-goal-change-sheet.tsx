@@ -2,11 +2,11 @@
 // or month keys require a fresh read and reopening with the refusal preserved; a
 // stopped goal closes the sheet.
 
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalChangeFacts,
   PortalGoalOfCard,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { useState } from 'react'
 import { GoalSheetFrame } from '../../../../components/goals/goal-sheet-frame'
 import { goalSheetNow } from '../../../../components/goals/goal-sheet-clock'

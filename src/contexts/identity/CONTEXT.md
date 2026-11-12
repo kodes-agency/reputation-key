@@ -93,6 +93,12 @@ rights, erasure and export contributors, stay in the layer folders.
   still advance every previously or newly enabled capability epoch. A
   drafting-only notice preserves Review Analysis and trends epochs. Reads and
   delivery of existing outputs retain their previous rules. Lineage, state, source and control fences remain exact.
+- Every Merchant AI write (a single-Property command, each Property of a consent
+  ceremony, a standing renewal) runs `transitionMerchantAi` in
+  `consent/merchant-ai-transition.server.ts`: one lock order (provider source,
+  Property, membership, head), one set of fences, and the commit in
+  `consent/merchant-ai-transition-commit.server.ts`. A restore reset has no actor
+  and starts a new lineage, so it shares only that commit.
 - A Merchant AI decision deferral ("not now") is a per-Property marker, not consent:
   it records no evidence, notice or epoch, is refused while AI is enabled, keeps the
   first deferral on a repeat, and is deleted in the same transaction as an enable.
@@ -168,8 +174,15 @@ as `createdBy`. An invited Property that is deleted, belongs to another Organiza
 or names no Property is not granted and never holds the acceptance back; it is logged
 by count, never silent. An AccountAdmin may change another AccountAdmin's role; nobody
 changes their own role or removes themselves. Self-service leave is unavailable;
-another AccountAdmin removes the member and releases their responsibilities.
-The last-AccountAdmin guard holds under the Organization lock. Only an AccountAdmin
+another AccountAdmin removes the member. Removal deletes the member's sessions,
+Property access grants and membership in one commit with `identity.member.removed`;
+Property, Portal and Inbox release their responsibilities and Integration their
+Google authority from that fact. A role change commits the role, its permission
+version and `identity.member.role_changed` together, then reconciles Responsible
+Manager eligibility; the `identity.on-member-role-changed` consumer finishes that
+reconcile if the request did not, and the same request sent again resumes it.
+Both commands re-check, under the Organization lock, that the requesting
+AccountAdmin still is one, and the last-AccountAdmin guard holds under that lock. Only an AccountAdmin
 invites, cancels or resends invitations, creates members, edits a PropertyManager's
 Property scope and edits Organization settings; a PropertyManager holds `member.list`
 (Inbox assignment and Responsible managers read it) and nothing else about members,
@@ -196,9 +209,9 @@ Property access grants.
 
 `staff-accounts.ts` exposes Property-scoped batch checking, Add, Remove, Rename, Resend, list and colleague settings through execution policy under `staff.accounts` (controlled beta). The session-only self door requires current membership, an active link and active personal participation. It never accepts a person id. Members keep only their own password/profile actions and `staff.self`; no manager function admits them.
 
-Add reserves one operation and stable identifiers under the invitation email lock before creating anything. Each step commits independently and a failed step resumes; completion or cancellation clears email and name in the checkpoint statement. Staff invitation acceptance creates membership and login link in the same transaction on signed-in, registration and recovery paths, with no Property grant. Existing Organization members link directly. Remove first cancels acceptance and ends participation access, then converges on Portal archival and, at the last Property, link closure and Member-only login removal. A manager login survives. Personal responsibilities cannot be replaced through the older participation commands.
+Add reserves one operation and stable identifiers under the address lease before creating anything. Add, Remove, Resend and Change email hold a row in `staff_address_leases` for each address while they run, keyed by a hash of the address across Organizations, so a second command on the address waits without holding a database connection. The holder renews the row; a stopped holder's row expires after a minute and the next command takes it over. Each write checks the lease is still held, and every invitation write takes the transaction-scoped invitation email lock that manager invitations take, then rereads the address. One process-wide limit admits four staff commands at a time and queues forty. Each step commits independently and a failed step resumes; completion or cancellation clears email and name in the checkpoint statement. Staff invitation acceptance creates membership and login link in the same transaction on signed-in, registration and recovery paths, with no Property grant. Existing Organization members link directly. Remove first cancels acceptance and ends participation access, then converges on Portal archival and, at the last Property, link closure and Member-only login removal. A manager login survives. Personal responsibilities cannot be replaced through the older participation commands.
 
-`staff_onboardings` and `staff_property_settings` belong to Identity's retained `staff` export and purge contribution. The former holds contact data only while unfinished. The latter defaults the colleague list off. The notice version and acknowledgement time live on the effective-dated login link.
+`staff_onboardings` and `staff_property_settings` belong to Identity's retained `staff` export and purge contribution. The former holds contact data only while unfinished. The latter defaults the colleague list off. `staff_address_leases` holds no contact data and no rows once its commands finish. The notice version and acknowledgement time live on the effective-dated login link.
 
 ### Manager round 2 (2026-11-03)
 

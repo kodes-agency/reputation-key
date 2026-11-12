@@ -1,5 +1,5 @@
 // Every change that alters what the shell shows or decides from forgets its
-// remembered checks (ADR 0072). The shell keeps the session, the Organization and the
+// remembered checks (30-second shell cache). The shell keeps the session, the Organization and the
 // role for 30 seconds, so a site that forgets to forget leaves the person looking at
 // the old name, or opening pages with the old role, until the entry ages out.
 //

@@ -1,10 +1,6 @@
-import { type KeyObject } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
 import type { z } from 'zod/v4'
-import type { AiExecutionGrantV1 } from '#/shared/ai-internal-transport-contract'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
-  GrantNonceRegistry,
   PINNED_PROVIDER_DISPATCHER_LIMITS,
   closePinnedProviderOutbound,
   createPinnedProviderOutbound,
@@ -17,6 +13,7 @@ import {
   outcomeOfProviderThrow,
   refusalAtProviderDispatchGate,
 } from '../connector-outcomes'
+import type { AiExecutionAdmission } from '../execution-admission'
 import type { AiProviderConnection, AiProviderOutcome } from '../provider-contracts'
 import { classifyAnthropicRefusal } from './dispositions'
 import {
@@ -38,8 +35,6 @@ export type PinnedAnthropicOutbound = PinnedProviderOutbound
 
 type AnthropicConnectorDependencies = Readonly<{
   apiKey: string
-  requestBindingKeys: VersionedHmacKeyring
-  admissionPublicKeys: ReadonlyMap<string, KeyObject>
   outboundFetch?: typeof fetch
   now?: () => number
   pinnedOutboundFactory?: () => PinnedAnthropicOutbound
@@ -95,22 +90,18 @@ export function createAnthropicConnector(
   if (dependencies.apiKey.length === 0) {
     throw new Error('An Anthropic API key is required')
   }
-  const nonceRegistry = new GrantNonceRegistry()
   const now = dependencies.now ?? Date.now
   let cleanupHealthy = true
   return Object.freeze({
     invoke: async (
       invocation: PreparedAnthropicInvocation,
-      grant: AiExecutionGrantV1,
+      admission: AiExecutionAdmission,
       _outputSchema: z.ZodTypeAny,
       signal: AbortSignal,
     ): Promise<AiProviderOutcome<unknown>> => {
       const gateRefusal = refusalAtProviderDispatchGate({
         invocation,
-        grant,
-        requestBindingKeys: dependencies.requestBindingKeys,
-        admissionPublicKeys: dependencies.admissionPublicKeys,
-        nonceRegistry,
+        admission,
         now,
       })
       if (gateRefusal !== null) return gateRefusal
@@ -125,9 +116,9 @@ export function createAnthropicConnector(
         boundary = createOneShotAnthropicFetch({
           route: invocation.descriptor.route,
           apiKey: dependencies.apiKey,
-          permitId: grant.permitId,
+          permitId: admission.permitId,
           canonicalProviderBytes: invocation.canonicalProviderBytes,
-          responseBytes: grant.limits.responseBytes,
+          responseBytes: admission.limits.responseBytes,
           outboundFetch,
           signal,
         })
@@ -135,14 +126,18 @@ export function createAnthropicConnector(
         const response = await client.messages.create(mutableSdkRequest(invocation), {
           signal,
         })
-        return interpretAnthropicMessage(response, invocation, grant.limits.responseBytes)
+        return interpretAnthropicMessage(
+          response,
+          invocation,
+          admission.limits.responseBytes,
+        )
       } catch (error) {
         return outcomeOfProviderThrow({
           error,
           state: boundary?.state ?? null,
           pinnedAbsent: pinned === null,
           invocation,
-          responseBytes: grant.limits.responseBytes,
+          responseBytes: admission.limits.responseBytes,
           signal,
           classifyRefusal: classifyAnthropicRefusal,
           isInvalidOutput: (value) => value instanceof InvalidAnthropicOutputError,

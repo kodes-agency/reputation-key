@@ -1,4 +1,8 @@
-import { isCurrentAuthorizedEffect } from './ai-authorized-effect'
+import {
+  authorizedEffectOperationColumns,
+  isCurrentAuthorizedEffect,
+} from './ai-authorized-effect'
+import { readCurrentReviewSource, sourceHoldsOperation } from './ai-review-source-fence'
 import { and, eq, gt, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
@@ -34,31 +38,6 @@ function capabilityFence(value: unknown): Readonly<Record<string, unknown>> | nu
 }
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
-const authorizedEffectOperationColumns = {
-  state: aiOperations.state,
-  executionAttempt: aiOperations.executionAttempt,
-  command: aiOperations.command,
-  capability: aiOperations.capability,
-  organizationId: aiOperations.organizationId,
-  propertyId: aiOperations.propertyId,
-  sourceEpoch: aiOperations.sourceEpoch,
-  authorizationLineageId: aiOperations.authorizationLineageId,
-  noticeVersion: aiOperations.noticeVersion,
-  noticeDigest: aiOperations.noticeDigest,
-  propertyProfileVersion: aiOperations.propertyProfileVersion,
-  sourcePolicyId: aiOperations.sourcePolicyId,
-  redactionProfileVersion: aiOperations.redactionProfileVersion,
-  operationProfileVersion: aiOperations.operationProfileVersion,
-  capabilityRuntimeProfileVersion: aiOperations.capabilityRuntimeProfileVersion,
-  providerDeploymentProfileVersion: aiOperations.providerDeploymentProfileVersion,
-  capabilityFences: aiOperations.capabilityFences,
-  globalControlId: aiOperations.globalControlId,
-  globalControlGeneration: aiOperations.globalControlGeneration,
-  providerControlId: aiOperations.providerControlId,
-  providerControlGeneration: aiOperations.providerControlGeneration,
-  capabilityControlId: aiOperations.capabilityControlId,
-  capabilityControlGeneration: aiOperations.capabilityControlGeneration,
-} as const
 
 const reviewOperationColumns = {
   ...authorizedEffectOperationColumns,
@@ -123,69 +102,6 @@ const analysisRootKey = (input: AnalysisWriteFacts) => ({
   sourceRevision: input.sourceRevision,
   analysisSequence: input.analysisSequence,
 })
-
-/**
- * The review's source as it stands now, share-locked: its epoch, revision and
- * sequence, the digest and size of the canonical source an operation read, when
- * its content expires and where its reply state is. Every provider result is
- * written only if this still matches what the operation was claimed on.
- */
-async function readCurrentReviewSource(
-  tx: Transaction,
-  input: Readonly<{ organizationId: string; propertyId: string; reviewId: string }>,
-) {
-  const [source] = await tx
-    .select({
-      sourceEpoch: reviews.sourceEpoch,
-      sourceRevision: reviews.sourceRevision,
-      analysisSequence: reviews.analysisSequence,
-      sourceDigest: reviewSourceContents.aiSourceDigest,
-      sourceByteCount: reviewSourceContents.aiSourceByteLength,
-      contentExpiresAt: reviewSourceContents.contentExpiresAt,
-      replyStateRevision: reviews.replyStateRevision,
-    })
-    .from(reviews)
-    .innerJoin(
-      reviewSourceContents,
-      and(
-        eq(reviewSourceContents.reviewId, reviews.id),
-        eq(reviewSourceContents.organizationId, reviews.organizationId),
-        eq(reviewSourceContents.propertyId, reviews.propertyId),
-      ),
-    )
-    .where(
-      and(
-        eq(reviews.organizationId, input.organizationId),
-        eq(reviews.propertyId, input.propertyId),
-        eq(reviews.id, input.reviewId),
-      ),
-    )
-    .limit(1)
-    .for('share', { of: reviews })
-  return source
-}
-
-/**
- * Whether the review's source is still the one the operation read: the same
- * epoch and revision, the same canonical source by digest and size, and content
- * that had not expired when the provider completed. The contract's own fence
- * (the analysis sequence, the reply state) is checked by the caller.
- */
-function sourceHoldsOperation(
-  source: NonNullable<Awaited<ReturnType<typeof readCurrentReviewSource>>>,
-  operation: Readonly<{ sourceDigest: string | null; sourceByteCount: number | null }>,
-  input: Readonly<{ sourceEpoch: number; sourceRevision: number }>,
-  completedAt: Date,
-): boolean {
-  return (
-    source.sourceEpoch === input.sourceEpoch &&
-    source.sourceRevision === input.sourceRevision &&
-    source.sourceDigest === operation.sourceDigest &&
-    source.sourceByteCount === operation.sourceByteCount &&
-    source.contentExpiresAt !== null &&
-    source.contentExpiresAt > completedAt
-  )
-}
 
 type LockedReviewOperation = NonNullable<Awaited<ReturnType<typeof lockReviewOperation>>>
 
@@ -328,29 +244,6 @@ export const createAiOutputStoreAdapter = (
   >,
 ): AiOutputStorePort => {
   return {
-    async storeAnalysis(input) {
-      const result = input.result
-      if (result.status === 'ready') return false
-      return db.transaction(async (tx) => {
-        const verified = await verifyAnalysisWrite(tx, input, () => [
-          input.analysisProfileVersion === 'review-analysis-v2',
-        ])
-        if (!verified) return false
-
-        const inserted = await insertAnalysisRoot(tx, input, {
-          status: 'unavailable',
-          unavailableReason: result.reason,
-          sentiment: null,
-          primaryCategory: null,
-          issueLabel: null,
-          attention: null,
-          urgentReason: null,
-        })
-        if (!inserted) return false
-        await completeAnalysisOperation(tx, input, verified, {})
-        return true
-      })
-    },
     async storeAnalysisV3(input) {
       return db.transaction(async (tx) => {
         const verified = await verifyAnalysisWrite(tx, input, (operation) => [

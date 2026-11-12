@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { createPreparedAnthropicInvocation } from './prepared-invocation'
 import { buildClosedAnthropicRequest } from './request-builder'
 
@@ -26,7 +25,6 @@ describe('prepared Anthropic invocation', () => {
         providerPayload: { invented: false },
         sdkRequest,
         createDescriptor,
-        requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
     ).toThrow(
       new TypeError('Closed Anthropic request is not derived from its provider payload'),

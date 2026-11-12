@@ -1,30 +1,18 @@
 // Database adapter for the InboxItemLookupPort (ADR 0022).
-// Resolves a review to its inbox item via the inbox_items unique index on
-// (source_type, source_id, organization_id) — at most one row — and reads the
-// content-free render facts (ADR 0046 r.8) the events do not carry. The
-// property join mirrors notification-property-scope.repository.ts, which
-// already reads `properties` from this context. Whether an item arrived as
-// Google history is the predicate the missing-notification gauge also reads.
+// Resolves a review to its inbox item and reads the content-free render facts
+// (ADR 0046 r.8) the events do not carry. The Inbox's own rows come through
+// Reputation's named lookup; this adapter adds the Portal attribution and the
+// Property facts, which mirror notification-property-scope.repository.ts, the
+// other reader of `properties` in this context.
 import type { Database } from '#/shared/db'
-import { and, count, eq, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
-import { notExcludedFromResponseTargetReporting } from '#/shared/db/inbox-response-target-exclusions'
-import {
-  inboxHandlingCycleHeads,
-  inboxHandlingCycleResponseTargets,
-  inboxItems,
-  inboxNotes,
-  inboxResponseTargetReminders,
-} from '#/shared/db/schema/inbox.schema'
+import { and, eq, sql } from 'drizzle-orm'
+import { createInboxNotificationLookup } from '#/contexts/reputation/application/public-api'
 import { properties } from '#/shared/db/schema/property.schema'
-import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import {
   feedbackId,
-  inboxItemId,
-  userId,
   unbrand,
-  type ReviewId,
-  type OrganizationId,
   type InboxItemId,
+  type OrganizationId,
 } from '#/shared/domain/ids'
 import type {
   HandlingCycleNotificationFacts,
@@ -33,419 +21,151 @@ import type {
   ResponseTargetReminderNotificationFacts,
 } from '../../application/ports/notification-inbox-item-lookup.port'
 import type { FeedbackPortalLookupPort } from '../../application/ports/feedback-portal-lookup.port'
-import { historicalOnboardingItem } from '../historical-onboarding-item'
 import { activePropertyCondition } from '../repositories/active-property'
 
-/** Current ownership protects reassignment even after its outbox fact expires. */
-export const isCurrentInboxAssignee = (
-  organizationId: SQL,
-  itemId: SQL,
-  assigneeId: SQL,
-  afterCommandRevision: SQL,
-): SQL => sql`EXISTS (
-  SELECT 1 FROM ${inboxItems}
-  WHERE ${inboxItems.organizationId} = ${organizationId}
-    AND ${inboxItems.id}::text = ${itemId}
-    AND ${inboxItems.assignedTo} = ${assigneeId}
-    AND (${afterCommandRevision} IS NULL OR ${inboxItems.commandRevision} > ${afterCommandRevision})
-)`
-
-const findInboxItemFacts = async (
-  db: Database,
-  feedbackPortalLookup: FeedbackPortalLookupPort,
-  id: InboxItemId,
-  orgId: OrganizationId,
-): Promise<InboxItemFacts | null> => {
-  // Two reads, not a join: `inbox_items.property_id` is varchar while
-  // `properties.id` is uuid, so PostgreSQL has no operator for the
-  // column-to-column comparison. As a bound parameter the id casts cleanly.
-  const rows = await db
-    .select({
-      propertyId: inboxItems.propertyId,
-      rating: inboxItems.rating,
-      sourceType: inboxItems.sourceType,
-      sourceId: inboxItems.sourceId,
-      assignedTo: inboxItems.assignedTo,
-      createdAt: inboxItems.createdAt,
-    })
-    .from(inboxItems)
-    .where(
-      and(eq(inboxItems.organizationId, unbrand(orgId)), eq(inboxItems.id, unbrand(id))),
-    )
-    .limit(1)
-  const row = rows[0]
-  if (!row) return null
-
-  const sourcePortalId =
-    row.sourceType === 'feedback'
-      ? await feedbackPortalLookup.findPortalId(orgId, feedbackId(row.sourceId))
-      : null
-
-  // A missing/deleted property may still yield a local Portal rating and the
-  // age. A Google/provider rating never crosses this adapter boundary.
-  const propertyRows = await db
-    .select({ name: properties.name })
-    .from(properties)
-    .where(
-      and(
-        eq(properties.organizationId, unbrand(orgId)),
-        eq(properties.id, row.propertyId),
-      ),
-    )
-    .limit(1)
-
-  return {
-    propertyId: row.propertyId,
-    portalId: sourcePortalId,
-    assignedTo: row.assignedTo ? userId(row.assignedTo) : null,
-    propertyName: propertyRows[0]?.name ?? null,
-    guestRating: row.sourceType === 'feedback' ? (row.rating ?? null) : null,
-    sourceType: row.sourceType,
-    createdAt: row.createdAt,
-  }
-}
-
-/**
- * An open item's current cycle waits from the start of its measured Response
- * Target until the target completes. The target, not the item, is the clock:
- * a later cycle restarts it (ADR 0055).
- */
-/** Who has already written on this item. Identifiers only; never the text. */
-const findNoteAuthors = async (db: Database, id: InboxItemId, orgId: OrganizationId) => {
-  const rows = await db
-    .selectDistinct({ authorId: inboxNotes.userId })
-    .from(inboxNotes)
-    .where(
-      and(
-        eq(inboxNotes.organizationId, unbrand(orgId)),
-        eq(inboxNotes.inboxItemId, unbrand(id)),
-      ),
-    )
-  return rows.map((row) => userId(row.authorId))
-}
-
-const findWaitingSince = async (
-  db: Database,
-  id: InboxItemId,
-  orgId: OrganizationId,
-): Promise<Date | null> => {
-  const rows = await db
-    .select({ startAt: inboxHandlingCycleResponseTargets.startAt })
-    .from(inboxHandlingCycleHeads)
-    .innerJoin(
-      inboxHandlingCycleResponseTargets,
-      and(
-        eq(
-          inboxHandlingCycleResponseTargets.inboxItemId,
-          inboxHandlingCycleHeads.inboxItemId,
-        ),
-        eq(
-          inboxHandlingCycleResponseTargets.cycleNumber,
-          inboxHandlingCycleHeads.currentCycleNumber,
-        ),
-        eq(inboxHandlingCycleResponseTargets.performanceEligibility, 'measured'),
-        isNull(inboxHandlingCycleResponseTargets.completionAt),
-        // A cycle left out of reporting measures no waiting time.
-        notExcludedFromResponseTargetReporting({
-          inboxItemId: inboxHandlingCycleResponseTargets.inboxItemId,
-          cycleNumber: inboxHandlingCycleResponseTargets.cycleNumber,
-          organizationId: inboxHandlingCycleResponseTargets.organizationId,
-        }),
-      ),
-    )
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.organizationId, unbrand(orgId)),
-        eq(inboxHandlingCycleHeads.inboxItemId, unbrand(id)),
-        eq(inboxHandlingCycleHeads.status, 'open'),
-      ),
-    )
-    .limit(1)
-  return rows[0]?.startAt ?? null
-}
-
-// The review facts that move an Inbox item's open count, and the Inbox
-// consumers that apply them (inbox/infrastructure/outbox-consumers.ts). Named
-// here as strings: Feed reads their receipts, it does not import Inbox.
-const REVIEW_PROJECTION_EVENT_TYPES = [
-  'review.created',
-  'review.updated',
-  'review.reply.observed',
-]
-const REVIEW_PROJECTION_CONSUMERS = [
-  'inbox.on-review-created',
-  'inbox.on-review-updated',
-  'inbox.on-reply-observed',
-]
-const inList = (values: ReadonlyArray<string>) =>
-  sql.join(
-    values.map((value) => sql`${value}`),
-    sql`, `,
-  )
 export const createInboxItemLookupAdapter = (
   db: Database,
   feedbackPortalLookup: FeedbackPortalLookupPort,
-): InboxItemLookupPort => ({
-  async findInboxItemByReviewId(
-    reviewId: ReviewId,
+): InboxItemLookupPort => {
+  const inbox = createInboxNotificationLookup(db)
+
+  const findInboxItemFacts = async (
+    id: InboxItemId,
     orgId: OrganizationId,
-  ): Promise<InboxItemId | null> {
-    const rows = await db
-      .select({ id: inboxItems.id })
-      .from(inboxItems)
+  ): Promise<InboxItemFacts | null> => {
+    const row = await inbox.findItem(id, orgId)
+    if (!row) return null
+
+    const sourcePortalId =
+      row.sourceType === 'feedback'
+        ? await feedbackPortalLookup.findPortalId(orgId, feedbackId(row.sourceId))
+        : null
+
+    // A missing/deleted property may still yield a local Portal rating and the
+    // age. A Google/provider rating never crosses this adapter boundary.
+    // `inbox_items.property_id` is varchar while `properties.id` is uuid, so
+    // the id is read as a bound parameter.
+    const propertyRows = await db
+      .select({ name: properties.name })
+      .from(properties)
       .where(
         and(
-          eq(inboxItems.organizationId, unbrand(orgId)),
-          eq(inboxItems.sourceType, 'review'),
-          eq(inboxItems.sourceId, unbrand(reviewId)),
+          eq(properties.organizationId, unbrand(orgId)),
+          eq(properties.id, row.propertyId),
         ),
       )
       .limit(1)
-    return rows[0] ? inboxItemId(rows[0].id) : null
-  },
 
-  async findInboxItemFacts(
-    id: InboxItemId,
-    orgId: OrganizationId,
-  ): Promise<InboxItemFacts | null> {
-    return findInboxItemFacts(db, feedbackPortalLookup, id, orgId)
-  },
-
-  async isHistoricalOnboardingItem(
-    id: InboxItemId,
-    orgId: OrganizationId,
-  ): Promise<boolean> {
-    const rows = await db
-      .select({ historical: historicalOnboardingItem })
-      .from(inboxItems)
-      .where(
-        and(
-          eq(inboxItems.organizationId, unbrand(orgId)),
-          eq(inboxItems.id, unbrand(id)),
-        ),
-      )
-      .limit(1)
-    return rows[0]?.historical === true
-  },
-
-  async findHandlingCycleNotificationFacts(
-    id: InboxItemId,
-    orgId: OrganizationId,
-  ): Promise<HandlingCycleNotificationFacts | null> {
-    const heads = await db
-      .select({
-        propertyId: inboxHandlingCycleHeads.propertyId,
-        sourceType: inboxHandlingCycleHeads.sourceType,
-        sourceId: inboxHandlingCycleHeads.sourceId,
-        currentCycleNumber: inboxHandlingCycleHeads.currentCycleNumber,
-        currentSourceRevision: inboxHandlingCycleHeads.currentSourceRevision,
-        stateRevision: inboxHandlingCycleHeads.stateRevision,
-        status: inboxHandlingCycleHeads.status,
-      })
-      .from(inboxHandlingCycleHeads)
-      .where(
-        and(
-          eq(inboxHandlingCycleHeads.organizationId, unbrand(orgId)),
-          eq(inboxHandlingCycleHeads.inboxItemId, unbrand(id)),
-        ),
-      )
-      .limit(1)
-    const head = heads[0]
-    if (!head) return null
-    const item = await findInboxItemFacts(db, feedbackPortalLookup, id, orgId)
-    if (
-      !item ||
-      item.propertyId !== head.propertyId ||
-      item.sourceType !== head.sourceType
-    ) {
-      return null
-    }
     return {
-      ...item,
-      sourceId: head.sourceId,
-      currentCycleNumber: head.currentCycleNumber,
-      currentSourceRevision: head.currentSourceRevision,
-      stateRevision: head.stateRevision,
-      status: head.status,
+      propertyId: row.propertyId,
+      portalId: sourcePortalId,
+      assignedTo: row.assignedTo,
+      propertyName: propertyRows[0]?.name ?? null,
+      guestRating: row.sourceType === 'feedback' ? (row.rating ?? null) : null,
+      sourceType: row.sourceType,
+      createdAt: row.createdAt,
     }
-  },
+  }
 
-  findWaitingSince(id: InboxItemId, orgId: OrganizationId): Promise<Date | null> {
-    return findWaitingSince(db, id, orgId)
-  },
-
-  findNoteAuthors(id: InboxItemId, orgId: OrganizationId) {
-    return findNoteAuthors(db, id, orgId)
-  },
-
-  async countOpenReviewItemsForProperty(
-    property: string,
+  // A Property outside the workspace has no work to prompt.
+  const isActiveProperty = async (
+    propertyId: string,
     orgId: OrganizationId,
-  ): Promise<number> {
-    // The Handling Cycle head is the Inbox's own answer to "is this still
-    // open": it closes when the reply is live. Counting targets instead would
-    // have to choose a performance eligibility, and imported history is
-    // exactly the eligibility that choice excludes.
+  ): Promise<boolean> => {
     const rows = await db
-      .select({ open: count() })
-      .from(inboxHandlingCycleHeads)
+      .select({ id: properties.id })
+      .from(properties)
       .where(
         and(
-          eq(inboxHandlingCycleHeads.organizationId, unbrand(orgId)),
-          eq(inboxHandlingCycleHeads.propertyId, property),
-          eq(inboxHandlingCycleHeads.sourceType, 'review'),
-          eq(inboxHandlingCycleHeads.status, 'open'),
-        ),
-      )
-    return rows[0]?.open ?? 0
-  },
-
-  async hasPendingReviewProjections(
-    property: string,
-    orgId: OrganizationId,
-    recordedAt: Date,
-  ): Promise<boolean> {
-    // A fact is settled once the Inbox consumer wrote its receipt, whether it
-    // applied it or judged it obsolete. Only the last hour is read: dispatch
-    // retries end well inside it, so an older fact without a receipt is stuck
-    // rather than in flight, and the bound keeps the org/created_at index
-    // from walking the Organization's whole history.
-    const at = recordedAt.toISOString()
-    const pending = await db.execute<{ pending: boolean }>(sql`
-      SELECT EXISTS (
-        SELECT 1
-          FROM ${outboxEvents} AS fact
-         WHERE fact.organization_id = ${unbrand(orgId)}
-           AND fact.created_at <= ${at}::timestamptz
-           AND fact.created_at > ${at}::timestamptz - interval '1 hour'
-           AND fact.property_id = ${property}
-           AND fact.event_type IN (${inList(REVIEW_PROJECTION_EVENT_TYPES)})
-           AND NOT EXISTS (
-             SELECT 1
-               FROM ${eventConsumerReceipts} AS receipt
-              WHERE receipt.event_id = fact.id
-                AND receipt.consumer_name IN (${inList(REVIEW_PROJECTION_CONSUMERS)})
-           )
-      ) AS pending
-    `)
-    return pending.rows[0]?.pending === true
-  },
-
-  async findResponseTargetReminderNotificationFacts(
-    input,
-  ): Promise<ResponseTargetReminderNotificationFacts | null> {
-    const rows = await db
-      .select({
-        propertyId: inboxHandlingCycleHeads.propertyId,
-        sourceType: inboxHandlingCycleHeads.sourceType,
-        sourceId: inboxHandlingCycleHeads.sourceId,
-        currentCycleNumber: inboxHandlingCycleHeads.currentCycleNumber,
-        currentSourceRevision: inboxHandlingCycleHeads.currentSourceRevision,
-        stateRevision: inboxHandlingCycleHeads.stateRevision,
-        status: inboxHandlingCycleHeads.status,
-        targetKind: inboxHandlingCycleResponseTargets.targetKind,
-        reminderKind: inboxResponseTargetReminders.reminderKind,
-        scheduledFor: inboxResponseTargetReminders.scheduledFor,
-        dueAt: inboxHandlingCycleResponseTargets.dueAt,
-      })
-      .from(inboxResponseTargetReminders)
-      .innerJoin(
-        inboxHandlingCycleResponseTargets,
-        and(
-          eq(
-            inboxHandlingCycleResponseTargets.inboxItemId,
-            inboxResponseTargetReminders.inboxItemId,
-          ),
-          eq(
-            inboxHandlingCycleResponseTargets.cycleNumber,
-            inboxResponseTargetReminders.cycleNumber,
-          ),
-          eq(
-            inboxHandlingCycleResponseTargets.targetKind,
-            inboxResponseTargetReminders.targetKind,
-          ),
-          isNull(inboxHandlingCycleResponseTargets.completionAt),
-          eq(inboxHandlingCycleResponseTargets.performanceEligibility, 'measured'),
-          // A reminder released before its cycle was left out of reporting is
-          // obsolete, at fan-out and when the queued notification is built.
-          notExcludedFromResponseTargetReporting({
-            inboxItemId: inboxHandlingCycleResponseTargets.inboxItemId,
-            cycleNumber: inboxHandlingCycleResponseTargets.cycleNumber,
-            organizationId: inboxHandlingCycleResponseTargets.organizationId,
-          }),
-        ),
-      )
-      .innerJoin(
-        inboxHandlingCycleHeads,
-        and(
-          eq(
-            inboxHandlingCycleHeads.inboxItemId,
-            inboxResponseTargetReminders.inboxItemId,
-          ),
-          eq(
-            inboxHandlingCycleHeads.currentCycleNumber,
-            inboxResponseTargetReminders.cycleNumber,
-          ),
-          eq(inboxHandlingCycleHeads.status, 'open'),
-        ),
-      )
-      // A Property outside the workspace has no work to prompt: a reminder
-      // released before Inbox cancelled its slots is obsolete, both at fan-out
-      // and when the queued notification is materialized.
-      .innerJoin(
-        properties,
-        and(
-          eq(properties.id, inboxResponseTargetReminders.propertyId),
-          eq(properties.organizationId, inboxResponseTargetReminders.organizationId),
+          eq(properties.id, propertyId),
+          eq(properties.organizationId, unbrand(orgId)),
           sql.raw(activePropertyCondition('properties')),
         ),
       )
-      .where(
-        and(
-          eq(inboxResponseTargetReminders.inboxItemId, input.inboxItemId),
-          eq(inboxResponseTargetReminders.organizationId, input.organizationId),
-          eq(inboxResponseTargetReminders.cycleNumber, input.cycleNumber),
-          eq(inboxResponseTargetReminders.targetKind, input.targetKind),
-          eq(inboxResponseTargetReminders.reminderKind, input.reminderKind),
-          eq(inboxResponseTargetReminders.scheduledFor, input.scheduledFor),
-          isNotNull(inboxResponseTargetReminders.deliveredAt),
-          isNull(inboxResponseTargetReminders.cancelledAt),
-        ),
-      )
       .limit(1)
-    const row = rows[0]
-    if (!row) return null
-    const item = await findInboxItemFacts(
-      db,
-      feedbackPortalLookup,
-      input.inboxItemId,
-      input.organizationId,
-    )
-    // A measured target always has a due instant; the column is nullable only
-    // because an excluded cycle records eligibility without one, and this
-    // query admits measured, uncompleted targets only.
-    if (
-      !item ||
-      item.propertyId !== row.propertyId ||
-      item.sourceType !== row.sourceType ||
-      row.targetKind !== input.targetKind ||
-      row.reminderKind !== input.reminderKind ||
-      row.dueAt === null
-    ) {
-      return null
-    }
-    return {
-      ...item,
-      sourceType: row.sourceType,
-      sourceId: row.sourceId,
-      currentCycleNumber: row.currentCycleNumber,
-      currentSourceRevision: row.currentSourceRevision,
-      stateRevision: row.stateRevision,
-      status: row.status,
-      targetKind: input.targetKind,
-      reminderKind: input.reminderKind,
-      scheduledFor: row.scheduledFor,
-      dueAt: row.dueAt,
-    }
-  },
-})
+    return rows.length > 0
+  }
+
+  return {
+    findInboxItemByReviewId: (reviewId, orgId) =>
+      inbox.findItemByReviewId(reviewId, orgId),
+
+    findInboxItemFacts,
+
+    isHistoricalOnboardingItem: (id, orgId) =>
+      inbox.isHistoricalOnboardingItem(id, orgId),
+
+    async findHandlingCycleNotificationFacts(
+      id,
+      orgId,
+    ): Promise<HandlingCycleNotificationFacts | null> {
+      const head = await inbox.findHandlingCycleHead(id, orgId)
+      if (!head) return null
+      const item = await findInboxItemFacts(id, orgId)
+      if (
+        !item ||
+        item.propertyId !== head.propertyId ||
+        item.sourceType !== head.sourceType
+      ) {
+        return null
+      }
+      return {
+        ...item,
+        sourceId: head.sourceId,
+        currentCycleNumber: head.currentCycleNumber,
+        currentSourceRevision: head.currentSourceRevision,
+        stateRevision: head.stateRevision,
+        status: head.status,
+      }
+    },
+
+    findWaitingSince: (id, orgId) => inbox.findWaitingSince(id, orgId),
+
+    findNoteAuthors: (id, orgId) => inbox.findNoteAuthors(id, orgId),
+
+    countOpenReviewItemsForProperty: (property, orgId) =>
+      inbox.countOpenReviewItemsForProperty(property, orgId),
+
+    hasPendingReviewProjections: (property, orgId, recordedAt) =>
+      inbox.hasPendingReviewProjections(property, orgId, recordedAt),
+
+    async findResponseTargetReminderNotificationFacts(
+      input,
+    ): Promise<ResponseTargetReminderNotificationFacts | null> {
+      const row = await inbox.findResponseTargetReminder(input)
+      if (!row) return null
+      // A reminder released before Inbox cancelled its slots is obsolete, both
+      // at fan-out and when the queued notification is materialized.
+      if (!(await isActiveProperty(row.reminderPropertyId, input.organizationId))) {
+        return null
+      }
+      const item = await findInboxItemFacts(input.inboxItemId, input.organizationId)
+      // A measured target always has a due instant; the column is nullable only
+      // because an excluded cycle records eligibility without one, and this
+      // query admits measured, uncompleted targets only.
+      if (
+        !item ||
+        item.propertyId !== row.propertyId ||
+        item.sourceType !== row.sourceType ||
+        row.targetKind !== input.targetKind ||
+        row.reminderKind !== input.reminderKind ||
+        row.dueAt === null
+      ) {
+        return null
+      }
+      return {
+        ...item,
+        sourceType: row.sourceType,
+        sourceId: row.sourceId,
+        currentCycleNumber: row.currentCycleNumber,
+        currentSourceRevision: row.currentSourceRevision,
+        stateRevision: row.stateRevision,
+        status: row.status,
+        targetKind: input.targetKind,
+        reminderKind: input.reminderKind,
+        scheduledFor: row.scheduledFor,
+        dueAt: row.dueAt,
+      }
+    },
+  }
+}

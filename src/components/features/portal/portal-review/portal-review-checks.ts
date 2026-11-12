@@ -20,7 +20,7 @@ import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type {
   PortalResponsibleManagerState,
   ResponsibleManagerMember,
-} from '../portal-detail/portal-detail-types'
+} from '#/contexts/portal/workspace/ui/portal-detail-types'
 import {
   englishLanguage,
   joinPhrases,
@@ -28,7 +28,7 @@ import {
   plain,
   quoted,
   type Phrase,
-} from '../portal-history/portal-history-phrase'
+} from '#/contexts/portal/workspace/ui/portal-history-phrase'
 import {
   PORTAL_EDITOR_SECTION_LABELS,
   type PortalEditorSection,

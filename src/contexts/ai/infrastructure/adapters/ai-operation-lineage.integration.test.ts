@@ -26,6 +26,7 @@ import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
 } from '#/shared/review-analysis-v3-normalizer'
+import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import {
   analysisExecutionBinding,
@@ -36,7 +37,7 @@ import type {
   AiOperationNormalizationLineage,
   AiOperationProviderLineage,
 } from '../../application/ports/ai-operation-store.port'
-import type { AiExecutionStopFence } from '../../domain/types'
+import type { AiExecutionStopFence, AiOperationId } from '../../domain/types'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 
 const ORGANIZATION_ID = organizationId('ai-operation-lineage-test-org')
@@ -44,6 +45,8 @@ const PROPERTY_ID = propertyId('7a400000-0000-4000-8000-000000000003')
 const REVIEW_ID = reviewId('7a400000-0000-4000-8000-000000000004')
 const EVENT_ID = '7a400000-0000-4000-8000-000000000005'
 const NOW = new Date('2026-10-29T10:00:00.000Z')
+
+const HINTS = resolveReviewPropertyContext('Hotel').hintIdentity
 
 const OPENAI_LINEAGE: AiOperationProviderLineage = (() => {
   const profile = providerRequestProfileOf(OPENAI_PROVIDER_ATTESTATION_V1)
@@ -113,8 +116,8 @@ async function analysisRequest() {
     },
     authorizationLineageId: randomUUID(),
     operationProfile: {
-      profileVersion: 'review-analysis-v2',
-      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
+      profileVersion: 'review-analysis-v3',
+      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2',
     },
     reviewAnalysisEpoch: 1,
     evaluatedLanguage: 'en',
@@ -147,6 +150,8 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
     lineage: Readonly<{
       providerLineage?: AiOperationProviderLineage | null
       normalization?: AiOperationNormalizationLineage | null
+      vocabularyHints?:
+        ReturnType<typeof resolveReviewPropertyContext>['hintIdentity'] | null
     }> = {},
   ) =>
     operations().claim({
@@ -156,6 +161,7 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
       // The caller left the lineage out of the fingerprint; the store still refuses.
       requestFingerprint: aiRequestFingerprint(request),
       sourceProvenance: request.provenance,
+      vocabularyHints: HINTS,
       ...lineage,
       nowEpochMillis: NOW.getTime(),
       expiresAtEpochMillis: NOW.getTime() + 24 * 60 * 60_000,
@@ -214,34 +220,54 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
     expect(created.operation.normalization).toEqual(NORMALIZATION)
   })
 
-  it('records no lineage for an operation claimed without one, which is every v2 operation', async () => {
-    const created = await claim(await analysisRequest())
-
-    expect(created.status).toBe('created')
-    expect(created.operation.providerLineage).toBeNull()
-    expect(created.operation.normalization).toBeNull()
-    expect(await storedColumns()).toEqual({
-      providerId: null,
-      providerModel: null,
-      providerRequestProfileVersion: null,
-      providerRequestProfileDigest: null,
-      normalizationProfileVersion: null,
-      normalizationProfileDigest: null,
+  // An operation stored under the retired review-analysis-v2 profile carries no lineage and
+  // is read back under the deployment and runtime profile it was claimed under, so it can
+  // still be settled or abandoned. Nothing can claim a new one: the catalogue no longer
+  // holds the profile.
+  it('reads an operation stored under review-analysis-v2 with its recorded profile versions and no lineage', async () => {
+    await fixture.seedAnalysis({
+      profile: 'review-analysis-v2',
+      expiresAt: new Date(NOW.getTime() + 24 * 60 * 60_000),
+      analysisSequence: 1,
     })
-  })
+    await db
+      .update(aiOperations)
+      .set({ state: 'pending', executionAttempt: 0 })
+      .where(eq(aiOperations.organizationId, ORGANIZATION_ID))
+    const [row] = await db
+      .select({ id: aiOperations.id })
+      .from(aiOperations)
+      .where(eq(aiOperations.organizationId, ORGANIZATION_ID))
 
-  // The switch-on retired review-analysis-v2 and left its profile in the catalogue
-  // for this: an operation claimed under it before the deploy is read back under the
-  // deployment profile it was claimed under (`private-beta-global-v1`), not under the one
-  // in force (`private-beta-global-v2`), so it can still be settled or abandoned.
-  it('reads the profile versions the operation was claimed under, not those in force', async () => {
-    const created = await claim(await analysisRequest())
+    const claimed = await operations().claimExecution({
+      operationId: row!.id as AiOperationId,
+      organizationId: ORGANIZATION_ID,
+      expectedAttempt: 1,
+      nowEpochMillis: NOW.getTime(),
+    })
 
-    expect(created.operation.binding).toMatchObject({
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+    expect(claimed?.providerLineage).toBeNull()
+    expect(claimed?.normalization).toBeNull()
+    expect(claimed?.binding).toMatchObject({
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
       operationProfileVersion: 'review-analysis-v2',
       capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
     })
+  })
+
+  it('claims no new operation under the retired review-analysis-v2 profile', async () => {
+    const request = await analysisRequest()
+
+    await expect(
+      claim({
+        ...request,
+        binding: {
+          ...request.binding,
+          operationProfileVersion: 'review-analysis-v2',
+          capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
+        },
+      }),
+    ).rejects.toThrow(/operation profile is unavailable/)
   })
 
   it('replays the same request under the same lineage', async () => {
@@ -277,18 +303,17 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
     expect(await storedColumns()).toMatchObject({ providerId: 'openai' })
   })
 
-  it('also conflicts when only the request profile moved, the model changed or the lineage was dropped', async () => {
+  it('also conflicts when only the request profile moved or the model changed', async () => {
     const request = await analysisRequest()
     await claim(request, {
       providerLineage: OPENAI_LINEAGE,
       normalization: NORMALIZATION,
     })
 
-    const variants: ReadonlyArray<AiOperationProviderLineage | null> = [
+    const variants: ReadonlyArray<AiOperationProviderLineage> = [
       { ...OPENAI_LINEAGE, requestProfileDigest: 'f'.repeat(64) },
       { ...OPENAI_LINEAGE, requestProfileVersion: 'openai-responses-request-profile-v2' },
       { ...OPENAI_LINEAGE, model: 'gpt-5.6-luna-2' },
-      null,
     ]
     for (const providerLineage of variants) {
       const result = await claim(request, {
@@ -309,7 +334,6 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
     for (const normalization of [
       { ...NORMALIZATION, digest: 'f'.repeat(64) },
       { ...NORMALIZATION, version: 'review-analysis-normalization-v2' },
-      null,
     ]) {
       const result = await claim(request, {
         providerLineage: OPENAI_LINEAGE,
@@ -331,7 +355,11 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
           ...request,
           binding: { ...request.binding, operationProfileVersion: 'review-analysis-v3' },
         },
-        { providerLineage: OPENAI_LINEAGE, normalization: NORMALIZATION },
+        {
+          providerLineage: OPENAI_LINEAGE,
+          normalization: NORMALIZATION,
+          vocabularyHints: null,
+        },
       ),
     ).rejects.toThrow(/Failed query: insert into "ai_operations"/)
     const count = await db.execute(

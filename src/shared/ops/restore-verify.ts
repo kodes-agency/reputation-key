@@ -206,7 +206,7 @@ function recoveryInput(
     return 'REFUSED: RELEASE_SHA must identify the 40-character source revision restored.'
   }
   if (!/^[0-9a-f]{64}$/u.test(env.RELEASE_MANIFEST_SHA256 ?? '')) {
-    return 'REFUSED: RELEASE_MANIFEST_SHA256 must identify the signed source release.'
+    return 'REFUSED: RELEASE_MANIFEST_SHA256 must identify the source release manifest.'
   }
   if (!env.RESTORE_POINT_AT) {
     return 'REFUSED: RESTORE_POINT_AT is required and must be the exact provider restore point.'

@@ -35,7 +35,6 @@ import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type { Reply } from '../domain/types'
 import { reviewError } from '../domain/errors'
-import { denyLegacyReviewDestruction } from '../application/review-lifecycle-safety'
 import {
   AMBIGUOUS_RECONCILE_DELAY_MS,
   PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
@@ -45,7 +44,6 @@ import {
   type PersistedPublicationState,
   type PublicationStateEvent,
 } from '../domain/reply-publication-workflow'
-import { replyFromRow, replyToRow } from './mappers/reply.mapper'
 import {
   UNCERTAIN_ATTEMPT_OUTCOMES,
   type ReplyWriter,
@@ -70,10 +68,8 @@ import {
   propertyAdmitsCycle,
 } from './publication-property-admission'
 import {
-  deleteGoogleSyncMirrors,
   insertPublicationAttempt,
   insertPublicationAuthorization,
-  upsertMirrorReply,
 } from '#/contexts/reputation/application/public-api'
 
 /**
@@ -351,7 +347,6 @@ export const createAtomicReplyCommandStore = (
 ): ReplyCommandStore => {
   const {
     aiTextMayBeClaimed,
-    lockReplyReview,
     casUncertainAttempt,
     lockUncertainAttempt,
     guardedPublicationUpdate,
@@ -475,23 +470,6 @@ export const createAtomicReplyCommandStore = (
       createdAt: occurredAt,
     })
     return row
-  }
-
-  const mirrorUpsert = async (
-    tx: Tx,
-    replyToUpsert: Omit<Reply, 'createdAt' | 'updatedAt'>,
-    now?: Date,
-  ) => {
-    const row = replyToRow(replyToUpsert)
-    const updatedAt = now ?? clock()
-    const saved = await upsertMirrorReply(tx, row, updatedAt)
-    if (!saved) {
-      throw reviewError(
-        'repo_upsert_failed',
-        'Reply mirror upsert failed — no row returned',
-      )
-    }
-    return replyFromRow(saved)
   }
 
   return {
@@ -981,38 +959,6 @@ export const createAtomicReplyCommandStore = (
           return count
         })
         return cancelled
-      })
-    },
-
-    mirrorSyncedReply: async (command) => {
-      return trace('reply.commandStore.mirrorSyncedReply', async () => {
-        const saved = await db.transaction(async (tx) => {
-          await lockReplyReview(tx, command.organizationId, command.reviewId)
-          if (!command.reply) {
-            // Google no longer shows a reply — remove the mirror. No fact.
-            await deleteGoogleSyncMirrors(tx, {
-              organizationId: command.organizationId,
-              reviewId: command.reviewId,
-            })
-            return null
-          }
-          const mirrored = await mirrorUpsert(tx, command.reply, command.now)
-          if (command.event) await insertOutboxRow(tx, command.event)
-          return mirrored
-        })
-        return saved
-      })
-    },
-
-    purgeExpiredReview: async (reviewId, event) => {
-      return trace('reply.commandStore.purgeExpiredReview', async () => {
-        // SAFE-03: the current Review row still carries both provider content
-        // and stable RepKey Reply/history identity. Its Reply FK cascades, so
-        // this legacy command cannot be made safe without the REV-01 schema
-        // cutover. Deny before SQL and before recording a false expiry fact.
-        void reviewId
-        void event
-        denyLegacyReviewDestruction()
       })
     },
   }

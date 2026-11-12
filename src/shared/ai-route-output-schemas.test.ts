@@ -1,17 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { zodTextFormat } from 'openai/helpers/zod'
 import {
-  AI_ANALYSIS_V2_OUTPUT_SCHEMA,
-  AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA,
-  AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA,
-  AI_REPLY_SELECTION_OUTPUT_SCHEMA,
   AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA,
-  AI_TREND_SELECTION_OUTPUT_SCHEMA,
   AI_ROUTE_OUTPUT_JSON_SCHEMAS,
-  CONCRETE_REPLY_LANGUAGE_PATTERN,
-  TREND_SIGNAL_PATTERN,
-  mergeAiAnalysisV2Duplicates,
 } from './ai-route-output-schemas'
+import { replyDraftingV2OutputSchema } from './reply-drafting-v2-schema'
 import {
   REVIEW_ANALYSIS_V3_MAX_MENTIONS,
   REVIEW_ANALYSIS_V3_MAX_SENTENCE_REFS,
@@ -19,14 +12,10 @@ import {
   REVIEW_ANALYSIS_V3_STORED_SCHEMA,
 } from './review-analysis-v3'
 import { REVIEW_TOPICS_V3 } from './review-topic-taxonomy'
-import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from './aspect-taxonomy'
-import { REPLY_TEMPLATE_LANGUAGE_GROUPS } from './ai-review-language-catalogue'
 
 const cases = [
-  ['review-analysis-v2', AI_ANALYSIS_V2_OUTPUT_SCHEMA],
   ['review-analysis-v3', REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA],
-  ['reply-suggestion', AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA],
-  ['property-trend', AI_TREND_SELECTION_OUTPUT_SCHEMA],
+  ['reply-suggestion-v2', replyDraftingV2OutputSchema],
   ['synthetic-canary', AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA],
 ] as const
 
@@ -35,15 +24,6 @@ function requireRecord(value: unknown): Readonly<Record<string, unknown>> {
     throw new TypeError('expected JSON Schema object')
   }
   return value as Readonly<Record<string, unknown>>
-}
-
-function requireStringField(
-  value: Readonly<Record<string, unknown>>,
-  key: string,
-): string {
-  const field = value[key]
-  if (typeof field !== 'string') throw new TypeError(`expected JSON Schema ${key}`)
-  return field
 }
 
 describe('AI route output schema authority', () => {
@@ -88,32 +68,6 @@ describe('AI route output schema authority', () => {
   })
 
   it('enforces refinements the provider schema cannot express', () => {
-    expect(
-      AI_TREND_SELECTION_OUTPUT_SCHEMA.safeParse({
-        selectedSignalIds: ['sentiment.positive.up', 'sentiment.positive.up'],
-      }).success,
-    ).toBe(false)
-    expect(
-      AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({
-        sentiment: 'negative',
-        sentimentValence: -70,
-        urgencySignals: [],
-        aspects: [
-          { aspect: 'cleanliness', polarity: 'negative', intensity: -80 },
-          { aspect: 'cleanliness', polarity: 'negative', intensity: -60 },
-        ],
-        issueLabel: null,
-      }).success,
-    ).toBe(false)
-    expect(
-      AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({
-        sentiment: 'negative',
-        sentimentValence: -70,
-        urgencySignals: [],
-        aspects: [{ aspect: 'cleanliness', polarity: 'positive', intensity: -80 }],
-        issueLabel: null,
-      }).success,
-    ).toBe(false)
     const repeatedMention = {
       sentiment: 'negative',
       mentions: [
@@ -200,171 +154,6 @@ describe('AI route output schema authority', () => {
     expect(openObjects).toEqual([])
   })
 
-  it.each([
-    ['uppercase', 'Bed bugs'],
-    ['digits', 'room 2'],
-    ['punctuation', 'bed-bugs'],
-    ['five words', 'one two three four five'],
-    ['41 characters', 'a'.repeat(41)],
-    ['review excerpt with a proper noun', 'dirty sheets at Hilton'],
-  ])('rejects an issue label containing %s', (_case, issueLabel) => {
-    expect(
-      AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({
-        sentiment: 'negative',
-        sentimentValence: -70,
-        urgencySignals: [],
-        aspects: [{ aspect: 'cleanliness', polarity: 'negative', intensity: -80 }],
-        issueLabel,
-      }).success,
-    ).toBe(false)
-  })
-
-  describe('a review-analysis answer that lists one aspect twice', () => {
-    const answer = (aspects: ReadonlyArray<Readonly<Record<string, unknown>>>) => ({
-      sentiment: 'mixed',
-      sentimentValence: 10,
-      urgencySignals: [],
-      aspects,
-      issueLabel: null,
-    })
-
-    it('asks the provider for exactly the stored contract', () => {
-      expect(
-        zodTextFormat(AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA, 'review_analysis_v2').schema,
-      ).toEqual(AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v2'])
-    })
-
-    it('is a valid answer, and every other rule still holds', () => {
-      const repeated = answer([
-        { aspect: 'food_and_drink', polarity: 'positive', intensity: 70 },
-        { aspect: 'food_and_drink', polarity: 'negative', intensity: -40 },
-      ])
-      const repeatedSignal = {
-        ...answer([{ aspect: 'room', polarity: 'negative', intensity: -60 }]),
-        urgencySignals: ['safety', 'safety'],
-      }
-      for (const value of [repeated, repeatedSignal]) {
-        expect(AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(value).success).toBe(false)
-        expect(AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA.safeParse(value).success).toBe(true)
-      }
-      for (const broken of [
-        { ...repeated, sentiment: 'positive' },
-        answer([{ aspect: 'room', polarity: 'negative', intensity: -10 }]),
-        { ...repeated, issueLabel: 'Bed bugs' },
-      ]) {
-        expect(AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA.safeParse(broken).success).toBe(
-          false,
-        )
-      }
-    })
-
-    it('keeps the strongest record of each aspect where the aspect first appears', () => {
-      const merged = mergeAiAnalysisV2Duplicates(
-        AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA.parse({
-          ...answer([
-            { aspect: 'food_and_drink', polarity: 'positive', intensity: 40 },
-            { aspect: 'staff', polarity: 'positive', intensity: 60 },
-            { aspect: 'food_and_drink', polarity: 'negative', intensity: -70 },
-            { aspect: 'staff', polarity: 'positive', intensity: 30 },
-          ]),
-          urgencySignals: ['health', 'safety', 'health'],
-        }),
-      )
-      expect(merged.urgencySignals).toEqual(['health', 'safety'])
-      expect(merged.aspects).toEqual([
-        { aspect: 'food_and_drink', polarity: 'negative', intensity: -70 },
-        { aspect: 'staff', polarity: 'positive', intensity: 60 },
-      ])
-      expect(AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(merged).success).toBe(true)
-    })
-
-    it('keeps the negative record on an equal-magnitude tie, as the primary category does', () => {
-      const merged = mergeAiAnalysisV2Duplicates(
-        AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA.parse(
-          answer([
-            { aspect: 'room', polarity: 'positive', intensity: 50 },
-            { aspect: 'room', polarity: 'negative', intensity: -50 },
-          ]),
-        ),
-      )
-      expect(merged.aspects).toEqual([
-        { aspect: 'room', polarity: 'negative', intensity: -50 },
-      ])
-    })
-  })
-
-  it('accepts null and a bounded generic issue label', () => {
-    const value = {
-      sentiment: 'negative',
-      sentimentValence: -70,
-      urgencySignals: [],
-      aspects: [{ aspect: 'cleanliness', polarity: 'negative', intensity: -80 }],
-    } as const
-    expect(
-      AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({ ...value, issueLabel: null }).success,
-    ).toBe(true)
-    expect(
-      AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({
-        ...value,
-        issueLabel: 'bathroom maintenance',
-      }).success,
-    ).toBe(true)
-  })
-
-  it('accepts only governed aspect and polarity ids in trend signal grammar', () => {
-    for (const aspect of ASPECT_TAXONOMY_V1) {
-      for (const polarity of ASPECT_POLARITIES_V1) {
-        expect(TREND_SIGNAL_PATTERN.test(`aspect.${aspect}.${polarity}.up`)).toBe(true)
-        expect(TREND_SIGNAL_PATTERN.test(`aspect.${aspect}.${polarity}.down`)).toBe(true)
-      }
-    }
-    expect(TREND_SIGNAL_PATTERN.test('aspect.not_governed.negative.up')).toBe(false)
-  })
-
-  it('rejects an aspect outside the governed taxonomy before any consumer receives it', () => {
-    const result = AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({
-      sentiment: 'negative',
-      sentimentValence: -70,
-      urgencySignals: [],
-      aspects: [{ aspect: 'not_governed', polarity: 'negative', intensity: -80 }],
-      issueLabel: null,
-    })
-
-    expect(result.success).toBe(false)
-    expect(result.error?.issues[0]?.path).toEqual(['aspects', 0, 'aspect'])
-  })
-
-  it('pins personalized reply evidence and trend signal grammars in provider-visible JSON schema', () => {
-    const reply = requireRecord(AI_ROUTE_OUTPUT_JSON_SCHEMAS['reply-suggestion'])
-    const replyProperties = requireRecord(reply.properties)
-    const replyText = requireRecord(replyProperties.replyText)
-    const grounding = requireRecord(replyProperties.grounding)
-    const groundingItems = requireRecord(grounding.items)
-    const groundingProperties = requireRecord(groundingItems.properties)
-    const trend = requireRecord(AI_ROUTE_OUTPUT_JSON_SCHEMAS['property-trend'])
-    const trendProperties = requireRecord(trend.properties)
-    const selectedSignalIds = requireRecord(trendProperties.selectedSignalIds)
-    const items = requireRecord(selectedSignalIds.items)
-    expect(replyText).toMatchObject({ type: 'string', minLength: 24, maxLength: 1_200 })
-    expect(grounding).toMatchObject({ type: 'array', minItems: 1, maxItems: 3 })
-    expect(Object.keys(groundingProperties)).toEqual(['sourceExcerpt', 'replyExcerpt'])
-    expect(requireStringField(items, 'pattern')).toContain('aspect\\.')
-    expect(requireStringField(items, 'pattern')).not.toContain('category\\.')
-    expect(requireStringField(items, 'pattern')).not.toContain('valence\\.')
-  })
-
-  it('keeps the retired template selection schema available only as a historical verifier', () => {
-    expect(
-      AI_REPLY_SELECTION_OUTPUT_SCHEMA.safeParse({
-        templateId: 'appreciation_positive',
-        languageCode: 'en-Latn',
-      }).success,
-    ).toBe(true)
-    expect(AI_ROUTE_OUTPUT_JSON_SCHEMAS['reply-suggestion']).not.toEqual(
-      zodTextFormat(AI_REPLY_SELECTION_OUTPUT_SCHEMA, 'repkey_reply_suggestion_v1')
-        .schema,
-    )
-  })
   it('gives every provider-visible property a JSON Schema type (OpenAI rejects bare const)', () => {
     // OpenAI Structured Outputs answers 400 invalid_json_schema for any subschema
     // without a `type`, which is exactly what `z.literal` derives. That 400 is
@@ -396,25 +185,5 @@ describe('AI route output schema authority', () => {
       walk(schema, route)
     }
     expect(untyped).toEqual([])
-  })
-
-  // CONCRETE_REPLY_LANGUAGE_PATTERN is a second, independent enumeration of the
-  // reply languages: the catalogue decides which groups exist, this pattern decides
-  // which the provider is allowed to answer. bg-Cyrl was added to the catalogue and
-  // not here, so the model answered correctly and the gateway rejected it as
-  // `output_invalid` — a silent tenant-route failure. Keep them in step.
-  it('accepts every reply template language group the catalogue defines', () => {
-    const rejected = REPLY_TEMPLATE_LANGUAGE_GROUPS.filter(
-      (group) => !CONCRETE_REPLY_LANGUAGE_PATTERN.test(group),
-    )
-    expect(rejected).toEqual([])
-  })
-
-  it('accepts a region-suffixed form of every group and rejects an unknown group', () => {
-    for (const group of REPLY_TEMPLATE_LANGUAGE_GROUPS) {
-      expect(CONCRETE_REPLY_LANGUAGE_PATTERN.test(`${group}-BG`)).toBe(true)
-    }
-    expect(CONCRETE_REPLY_LANGUAGE_PATTERN.test('sw-Latn')).toBe(false)
-    expect(CONCRETE_REPLY_LANGUAGE_PATTERN.test('bg-Latn')).toBe(false)
   })
 })

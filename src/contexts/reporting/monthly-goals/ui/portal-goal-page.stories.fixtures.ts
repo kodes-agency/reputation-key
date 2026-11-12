@@ -8,11 +8,11 @@ import type {
   PortalGoalChange,
   PortalGoalPageMonth,
   PortalGoalPageView,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalCardView,
   PortalGoalOfCard,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import {
   CHANGE_DECEMBER_22,
   SHEET_DECEMBER,

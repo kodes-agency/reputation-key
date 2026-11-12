@@ -26,7 +26,6 @@ export function measureReplyDrafting(
     GenerateReplySuggestionDependencies,
     'measurements' | 'nowEpochMillis' | 'logger'
   >,
-  contract: 'v1' | 'v2',
   execute: (
     input: GenerateReplySuggestionInput,
   ) => Promise<GenerateReplySuggestionResult>,
@@ -46,7 +45,7 @@ export function measureReplyDrafting(
         requestKey: input.idempotencyKey,
         intent: input.intent ?? 'explicit',
         trigger: input.trigger ?? (input.length === 'short' ? 'shorter' : 'draft'),
-        contract,
+        contract: 'v2',
         outcome: result.status === 'ready' ? 'ready' : 'refused',
         refusalCode: result.status === 'unavailable' ? result.code : null,
         case: result.status === 'ready' ? (result.case ?? null) : null,
@@ -77,12 +76,10 @@ export function measureReplyDraftingAttempt(
     GenerateReplySuggestionDependencies,
     'measurements' | 'nowEpochMillis' | 'logger'
   >,
-  attempt: import('./workflow.server').ReplyDraftingV2Attempt | undefined,
+  attempt: import('./workflow.server').ReplyDraftingV2Attempt,
   execute: (
     input: GenerateReplySuggestionInput,
   ) => Promise<GenerateReplySuggestionResult>,
 ): typeof execute {
-  return attempt?.rewriteOrdinal === 1
-    ? execute
-    : measureReplyDrafting(deps, attempt ? 'v2' : 'v1', execute)
+  return attempt?.rewriteOrdinal === 1 ? execute : measureReplyDrafting(deps, execute)
 }

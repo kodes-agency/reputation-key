@@ -59,7 +59,7 @@ import type {
   OperatorAction,
   OperatorCommandSpec,
 } from '../../src/shared/ops/operator-command'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:reparse-review-translations'
 const USAGE =
@@ -215,7 +215,7 @@ export function createReparseReviewTranslationsAction(
 }
 
 async function main(): Promise<void> {
-  const result = await runOperatorCommand(
+  const result = await runDatabaseOperatorCommand(
     REPARSE_REVIEW_TRANSLATIONS_COMMAND_SPEC,
     createReparseReviewTranslationsAction({
       createStore: () => createReviewTranslationStore(getDb()),

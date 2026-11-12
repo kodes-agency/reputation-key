@@ -10,7 +10,7 @@ import { isOwnerToken } from '#/shared/domain/roles'
 import { identityError } from '../domain/errors'
 import { identityMemberRemoved } from '../domain/events'
 import { assertAnotherOwnerRemains } from './last-owner-guard.server'
-import { userId as toUserId, type OrganizationId } from '#/shared/domain/ids'
+import { userId as toUserId } from '#/shared/domain/ids'
 import type { RemoveMemberInput } from '../application/dto/invitation.dto'
 export type { RemoveMemberInput }
 
@@ -22,23 +22,6 @@ export type RemoveMemberDeps = Readonly<{
   identity: IdentityPort
   commandStore: IdentityCommandStore
   clock: () => Date
-  /** Fail-closed import lifecycle fence before membership removal. */
-  cancelGoogleImportsForUser?: (
-    organizationId: OrganizationId,
-    userId: string,
-  ) => Promise<void>
-  /** Fence any current OAuth grant authorized by the departing member. */
-  prepareGoogleConnectorDeparture?: (
-    organizationId: OrganizationId,
-    userId: string,
-    cause: 'member_removed',
-  ) => Promise<void>
-  /** Release Inbox/manager/access authorities without requiring replacements. */
-  releaseMemberAuthorities?: (
-    organizationId: OrganizationId,
-    userId: string,
-    actorId: string,
-  ) => Promise<void>
 }>
 export type RemoveMember = ReturnType<typeof removeMember>
 
@@ -48,8 +31,15 @@ export type RemoveMember = ReturnType<typeof removeMember>
  * Steps:
  * 1. Authorize — check that the user's role allows removing members
  * 2. Validate — load the target member; last-owner UX guard (the command
- *    store re-enforces the same invariant under the org advisory lock)
- * 3. Persist — command store: member delete + removed fact, atomic
+ *    store re-enforces it, and the actor's role, under the lock)
+ * 3. Persist — command store: sessions, grants, membership and the removed
+ *    fact in one transaction
+ *
+ * Everything the member held elsewhere is released from that fact by its
+ * owner: Property, Portal and Inbox responsibilities, and Google authority
+ * (Integration). The membership goes first, so nothing is released for a
+ * removal the store refuses, and a release that runs late re-proves what a
+ * member invited again since may hold.
  */
 export const removeMember =
   (deps: RemoveMemberDeps) =>
@@ -87,31 +77,15 @@ export const removeMember =
       )
     }
 
-    // LIF-01-T21 ordering, and it is deliberate. These two fences belong to
-    // Integration and cannot join the Identity transaction, so they run FIRST:
-    // a fenced connector with a surviving membership is a repairable state
-    // (`repairPartialOffboarding` converges it), while a deleted membership
-    // with a live provider grant is not. `property_access_grant` revocation
-    // moved OUT of `releaseMemberAuthorities` and INTO the command-store
-    // transaction for the same reason — Identity owns that table, so there is
-    // no excuse for revoking it in a separate commit.
+    // Staff removal is Identity's own and the store refuses a member whose
+    // staff removal is unfinished, so it goes first.
     await deps.removeStaffForMemberDeparture?.(targetMember.userId, ctx)
-    await deps.prepareGoogleConnectorDeparture?.(
-      ctx.organizationId,
-      targetMember.userId,
-      'member_removed',
-    )
-    await deps.cancelGoogleImportsForUser?.(ctx.organizationId, targetMember.userId)
-    await deps.releaseMemberAuthorities?.(
-      ctx.organizationId,
-      targetMember.userId,
-      ctx.userId,
-    )
 
     // 3. Persist + fact — atomic via the command store
     await deps.commandStore.removeMember({
       organizationId: ctx.organizationId,
       memberId: input.memberId,
+      actorUserId: ctx.userId,
       event: identityMemberRemoved({
         organizationId: ctx.organizationId,
         userId: toUserId(targetMember.userId),
