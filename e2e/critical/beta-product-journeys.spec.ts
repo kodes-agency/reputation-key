@@ -1537,6 +1537,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(nameInput).toHaveValue(seed.managerName)
 
     await page.goto('/settings/notifications')
+    // The selector is server-rendered before it hydrates: a click in that window
+    // is lost and the list never opens.
+    await waitForHydration(page)
     // Quiet hours say which clock they run on, and link to where it is set.
     await expect(
       page.getByText(/on your own clock/).getByRole('link', { name: 'Profile' }),
@@ -1567,12 +1570,14 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await clickWhenReady(reviewEmailSwitch)
     await expect(page.getByText('Notification preference updated')).toBeVisible()
     await page.reload()
+    await waitForHydration(page)
     await expect(reviewEmailSwitch).toBeEnabled({ timeout: 15_000 })
     await expectState(!initiallyEnabled)
 
     await clickWhenReady(reviewEmailSwitch)
     await expect(page.getByText('Notification preference updated')).toBeVisible()
     await page.reload()
+    await waitForHydration(page)
     await expect(reviewEmailSwitch).toBeEnabled({ timeout: 15_000 })
     await expectState(initiallyEnabled)
 
@@ -1597,12 +1602,14 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await clickWhenReady(portalGoalsInApp)
     await expect(page.getByText('Notification preference updated')).toBeVisible()
     await page.reload()
+    await waitForHydration(page)
     await expect(portalGoalsInApp).toBeEnabled({ timeout: 15_000 })
     await expectPortalGoals(!portalGoalsInitially)
 
     await clickWhenReady(portalGoalsInApp)
     await expect(page.getByText('Notification preference updated')).toBeVisible()
     await page.reload()
+    await waitForHydration(page)
     await expect(portalGoalsInApp).toBeEnabled({ timeout: 15_000 })
     await expectPortalGoals(portalGoalsInitially)
   })
