@@ -9,6 +9,7 @@
 
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useHydrated } from '#/components/hooks/use-hydrated'
 import { Smartphone } from 'lucide-react'
 import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
@@ -59,6 +60,15 @@ type Props = Readonly<{
   brandPatches?: BrandPatches
 }>
 
+// The server drew the pane unloaded; so does the first browser render.
+function useFirstRenderRead<T>(query: { data: T | undefined; isPending: boolean }) {
+  const hydrated = useHydrated()
+  return {
+    data: hydrated ? query.data : undefined,
+    isPending: !hydrated || query.isPending,
+  }
+}
+
 export function PortalPreviewPane({
   portalId,
   getPortalPreview,
@@ -88,7 +98,8 @@ export function PortalPreviewPane({
     // Switching the version keeps the last page up while the other one loads.
     placeholderData: keepPreviousData,
   })
-  const { data, isPending, isError, refetch } = query
+  const { data, isPending } = useFirstRenderRead(query)
+  const { isError, refetch } = query
   const preview = data?.status === 'ready' ? data.preview : null
   if (shownFor !== selection?.active) {
     setShownFor(selection?.active)

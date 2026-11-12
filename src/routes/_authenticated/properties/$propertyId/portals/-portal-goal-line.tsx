@@ -5,6 +5,7 @@
 // state, so a line that arrives moves nothing below it; a read that fails is no
 // line, and the tab shows its figures.
 import type { ReactNode } from 'react'
+import { useHydrated } from '#/components/hooks/use-hydrated'
 import { useQuery } from '@tanstack/react-query'
 import type { PortalDetailPortal } from '#/contexts/portal/workspace/ui/portal-detail-types'
 import { PortalGoalResultsLine } from '#/contexts/reporting/monthly-goals/ui/portal-goal-results-line'
@@ -56,16 +57,17 @@ export function usePortalGoalLine({
     enabled: shown,
     retry: false,
   })
+  const hydrated = useHydrated()
   if (!shown) return { line: null, pending: false }
   return {
     line:
-      read.data === undefined ? null : (
+      !hydrated || read.data === undefined ? null : (
         <PortalGoalResultsLine
           line={read.data}
           portalName={portal.name}
           propertyId={propertyId}
         />
       ),
-    pending: read.isPending,
+    pending: !hydrated || read.isPending,
   }
 }

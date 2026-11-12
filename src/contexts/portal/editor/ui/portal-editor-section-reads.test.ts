@@ -1,7 +1,11 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { pendingSectionReads, isResourceExpected } from './portal-editor-section-reads'
+import {
+  pendingSectionReads,
+  isResourceExpected,
+  withoutReadAnswers,
+} from './portal-editor-section-reads'
 import { PortalEditorSectionPanel } from './portal-editor-section-panel'
 import type { PortalEditorRead, PortalEditorResources } from './portal-editor-types'
 
@@ -84,5 +88,33 @@ describe('a section whose read has not answered', () => {
 
   it('leaves a section that reads nothing showing while another read has failed', () => {
     expect(panel('footer', failed)).not.toContain('couldn’t be loaded')
+  })
+})
+
+describe('withoutReadAnswers', () => {
+  it('leaves every read unanswered but keeps the reads and the portal', () => {
+    const answered = resourcesWith(
+      { linktree: loading },
+      {
+        links: [],
+        languageCoverage: { missingTotal: 2 } as never,
+        portalGroups: [],
+        responsibleManagers: { assignments: [] } as never,
+        responsibleManagerMembers: [],
+        portalExperience: {} as never,
+      },
+    )
+
+    const first = withoutReadAnswers(answered)
+
+    expect(first.portal).toBe(answered.portal)
+    expect(first.reads).toBe(answered.reads)
+    expect(first.links).toBeUndefined()
+    expect(first.languageCoverage).toBeUndefined()
+    expect(first.portalGroups).toBeUndefined()
+    expect(first.responsibleManagers).toBeUndefined()
+    expect(first.responsibleManagerMembers).toBeUndefined()
+    expect(first.portalExperience).toBeUndefined()
+    expect(answered.links).toEqual([])
   })
 })
