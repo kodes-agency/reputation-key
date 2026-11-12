@@ -2,13 +2,13 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-11
+amended_on: 2026-11-12
 ---
 
 # Closed Beta Participation Agreement — Reputation Key
 
 **Status:** Accepted for publication and invited-beta use
-**Effective date:** 2026-11-11
+**Effective date:** 2026-11-12
 **Version:** 2.9
 **Accountable owner:** Bozhidar Denev
 
@@ -47,7 +47,7 @@ release readiness, the core product includes:
 
 Core analytics are part of the Service. There is no product option to decline
 the affected operational metrics while continuing to use the workflow. The
-accepted [Privacy Notice version 3.8](/privacy), effective 2026-11-11, forms part
+accepted [Privacy Notice version 3.8](/privacy), effective 2026-11-12, forms part
 of this agreement and states the applicable roles, legal bases, and rights
 process.
 
@@ -255,7 +255,7 @@ agreement does not create them.
 
 ## 9. Data handling, retention, and providers
 
-The accepted [Privacy Notice version 3.8](/privacy), effective 2026-11-11, and
+The accepted [Privacy Notice version 3.8](/privacy), effective 2026-11-12, and
 its retention and provider schedules form part of this agreement. They cover
 Participant, Google source, Portal and Guest, manager-authored, AI-derived,
 monitoring, export, backup, and independently retained evidence classes.
@@ -309,7 +309,7 @@ capability schedule are available.
 
 This agreement is accepted together with:
 
-- Privacy Notice version 3.8, effective 2026-11-11, at `/privacy`;
+- Privacy Notice version 3.8, effective 2026-11-12, at `/privacy`;
 - Google Business Profile Access Disclosure version 2.7, effective 2026-11-11,
   at `/privacy/google-access-disclosure`;
 - the activated-capability schedule maintained in `src/shared/governance/capability-fate.ts`; and
@@ -323,7 +323,7 @@ invited Participant accepts the Participant obligations by joining.
 
 ## 13. Changes
 
-This agreement takes effect on 2026-11-11 and is version 2.9. It replaces version 2.8, effective 2026-11-11, which replaced version 2.7, effective 2026-11-07, which replaced version 2.6, effective 2026-11-06, which replaced version 2.5, effective 2026-11-03, which replaced version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
+This agreement takes effect on 2026-11-12 and is version 2.9. It replaces version 2.8, effective 2026-11-11, which replaced version 2.7, effective 2026-11-07, which replaced version 2.6, effective 2026-11-06, which replaced version 2.5, effective 2026-11-03, which replaced version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -397,4 +397,4 @@ flow.
 
 Version 2.8 (2026-11-11) states that Property Trends has ended, so Review Analysis and Reply Drafting are the two Property AI choices, and describes the manual procedure for Organization export, closure, permanent Property erasure and privacy requests, with an export provided within seven days from verified identity as a 24-hour download link deleted after download and after seven days at the latest. It names Privacy Notice 3.7 and Google Business Profile Access Disclosure 2.7, both effective 2026-11-11. It takes effect on publication without a waiting period, on the accountable owner's decision for the two closed-beta Organizations the owner controls. Existing users are not asked to accept again; new members continue to accept through the invitation flow.
 
-Version 2.9 (2026-11-11) states that a separate erasure record allows deletion made through the manual procedure to be repeated after a restore. It names Privacy Notice 3.8 and Google Business Profile Access Disclosure 2.7, both effective 2026-11-11. It takes effect on publication without a waiting period, on the accountable owner's decision for the two closed-beta Organizations the owner controls. Existing users are not asked to accept again; new members continue to accept through the invitation flow.
+Version 2.9 (2026-11-12) states that a separate erasure record allows deletion made through the manual procedure to be repeated after a restore. It names Privacy Notice 3.8, effective 2026-11-12, and Google Business Profile Access Disclosure 2.7, effective 2026-11-11. It takes effect on publication without a waiting period, on the accountable owner's decision for the two closed-beta Organizations the owner controls. Existing users are not asked to accept again; new members continue to accept through the invitation flow.

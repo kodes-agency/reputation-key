@@ -78,7 +78,7 @@ describe('current notice corrections', () => {
     expect(agreement).toContain(
       'Erasure replay was not tested, and the app’s restore verifier was not used.',
     )
-    expect(agreement).toContain('Privacy Notice version 3.8, effective 2026-11-11')
+    expect(agreement).toContain('Privacy Notice version 3.8, effective 2026-11-12')
     expect(agreement).toContain(
       'Google Business Profile Access Disclosure version 2.7, effective 2026-11-11',
     )
@@ -178,13 +178,13 @@ describe('current notice corrections', () => {
 
 describe('staff account release documents', () => {
   it.each([
-    ['privacy-notice', '3.8'],
-    ['internal-beta-agreement', '2.9'],
-    ['google-access-disclosure', '2.7'],
-  ])('publishes %s version %s on the approved release date', (file, version) => {
+    ['privacy-notice', '3.8', '2026-11-12'],
+    ['internal-beta-agreement', '2.9', '2026-11-12'],
+    ['google-access-disclosure', '2.7', '2026-11-11'],
+  ])('publishes %s version %s on the approved release date', (file, version, date) => {
     const text = readFileSync(`docs/legal/${file}.md`, 'utf8')
     expect(text).toContain(`**Version:** ${version}`)
-    expect(text).toContain('**Effective date:** 2026-11-11')
+    expect(text).toContain(`**Effective date:** ${date}`)
     expect(text).toContain('without a waiting period')
   })
   it.each(['privacy-notice', 'internal-beta-agreement'])(
@@ -195,7 +195,7 @@ describe('staff account release documents', () => {
       expect(body).toContain(
         'Managers may also see a marker when someone who has joined has had no scans for 14 days. It prompts a conversation; nothing happens automatically, and staff do not see it.',
       )
-      expect(text).toContain('amended_on: 2026-11-11')
+      expect(text).toContain('amended_on: 2026-11-12')
     },
   )
   it('preserves the Google ban and states the staff scan target and manager Google selection plainly', () => {
