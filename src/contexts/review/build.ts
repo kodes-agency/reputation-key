@@ -12,7 +12,10 @@ import type { Queue } from 'bullmq'
 import type { Pool } from 'pg'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { JobRegistry } from '#/shared/jobs/registry'
-import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
+import type {
+  GoogleConnectionStatusPort,
+  GoogleReviewApiPort,
+} from './application/ports/google-review-api.port'
 import type { PropertySourceEpochPort } from './application/ports/property-source-epoch.port'
 import type {
   PropertyPublicationScopePort,
@@ -144,6 +147,7 @@ export type ReviewContextBuildInput = Readonly<{
   idGen: () => string
   snapshotRunIdGen: () => string
   googleReviewApi: GoogleReviewApiPort
+  googleConnectionStatus: GoogleConnectionStatusPort
   targetedReviewReferences?: TargetedGoogleReviewReferenceResolver
   jobQueue: Queue | undefined
   /** Root-owned worker infrastructure captured by Review's runtime contribution. */
@@ -664,6 +668,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       replyRepo,
       replyCommandStore,
       googleReviewApi: input.googleReviewApi,
+      googleConnectionStatus: input.googleConnectionStatus,
       staffPublicApi: input.staffPublicApi,
       propertySourceEpoch: propertySourceEpochLookup,
       runSnapshot: useCases.runReviewProviderSnapshot,

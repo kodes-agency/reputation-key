@@ -97,6 +97,7 @@ function reviewContext(jobQueue: Queue) {
     idGen: () => 'scoped-job-enqueue-id',
     snapshotRunIdGen: () => 'scoped-job-enqueue-snapshot-run-id',
     googleReviewApi: {} as never,
+    googleConnectionStatus: { findStatus: async () => null },
     jobQueue,
     workerRuntime: {
       pool: {} as never,
