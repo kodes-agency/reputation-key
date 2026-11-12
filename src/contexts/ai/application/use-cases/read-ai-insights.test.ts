@@ -178,6 +178,7 @@ function createHarness(
     },
     processingProfiles: { readForAi, refreshForAi: vi.fn() },
     nowEpochMillis: options.clock ?? (() => NOW),
+    reviewAnalysisProfileVersion: REVIEW_ANALYSIS_PROFILE.profileVersion,
   } as unknown as ReadAiInsightsDependencies
 
   return {

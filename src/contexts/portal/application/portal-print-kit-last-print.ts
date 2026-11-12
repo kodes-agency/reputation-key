@@ -1,11 +1,11 @@
-// Portal context — the Portal's last final print, as the print kit read gives it
-// (final design spec §11, slice 12): what was printed and when, and whether the
+// Portal context — the Portal's last print, as the print kit read gives it
+// (design spec §11, slice 12): what was printed and when, and whether the
 // photo the print would use now is the one it used then. The photo is judged by
 // image and framing; the day it changed is when the image that prints now was
 // uploaded, when that was after the print.
 
 import { portalMediaAssetId, type OrganizationId } from '#/shared/domain/ids'
-import { printFinalPhotoChange } from '#/shared/domain/portal-print-final-last'
+import { printPhotoChange } from '#/shared/domain/portal-print-last'
 import type { PortalMediaAssetRepository } from './ports/portal-media-asset.repository'
 import type { PortalLastPrint } from './ports/portal-last-print.repository'
 import type {
@@ -39,7 +39,7 @@ export async function presentLastPrint(
   return {
     printedAt: last.printedAt.toISOString(),
     settings: last.settings,
-    photo: printFinalPhotoChange({
+    photo: printPhotoChange({
       last: { look: last.settings.look, photo: last.photo, printedAt: last.printedAt },
       current: { photo, addedAt: asset?.createdAt ?? null },
     }),

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { digestOf } from './ai-digest'
 import { z } from 'zod/v4'
 import rawCatalogue from './ai-reply-template-catalogue-v1.json'
 import {
@@ -15,7 +15,6 @@ import {
   createCld3ReplyLanguageDetector,
   verifyReplyTemplateCatalogueEntry,
 } from './ai-reply-language-verifier'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 
 export const AI_REPLY_TEMPLATE_CATALOGUE_VERSION =
   'gbp-reply-template-catalogue-v1' as const
@@ -162,10 +161,7 @@ export function parseAiReplyTemplateCatalogue(value: unknown): AiReplyTemplateCa
 }
 
 function digestCatalogue(value: AiReplyTemplateCatalogue): string {
-  return createHash('sha256')
-    .update('repkey-reply-template-catalogue-v1\0', 'utf8')
-    .update(canonicalizeRfc8785(value), 'utf8')
-    .digest('hex')
+  return digestOf('repkey-reply-template-catalogue-v1\0', value)
 }
 
 const catalogue = parseAiReplyTemplateCatalogue(rawCatalogue)

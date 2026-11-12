@@ -5,7 +5,7 @@
 // as a second attested provider.
 
 import { generateKeyPairSync } from 'node:crypto'
-import { operationProfileForCatalogue } from '#/shared/ai-operation-profile-views'
+import { operationProfileForCatalogue } from '#/shared/ai-operation-profile'
 import { LANGUAGE_CATALOGUE_DIGEST } from '#/shared/ai-review-language-catalogue'
 import {
   analysisV3Request,
@@ -19,7 +19,7 @@ import { reviewAnalysisV3GatewayResultSchema } from '#/shared/review-analysis-v3
 import {
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
   REVIEW_ANALYSIS_V3_OPENAI_PAIRING,
-} from '#/shared/review-analysis-v3-profile'
+} from '#/shared/analysis/profile'
 import type { PreparedGatewayRouteExecution } from './contracts'
 import type { PreparedAiInvocation } from './prepared-invocation'
 import {

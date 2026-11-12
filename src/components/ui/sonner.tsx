@@ -16,7 +16,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
   const theme = useResolvedTheme()
   return (
     <Sonner
-      className="toaster group"
+      // Sonner's phone rule sets the box 100% wide and offsets it, 16px past the right edge.
+      className="toaster group max-[600px]:w-auto!"
       theme={theme}
       richColors
       icons={{

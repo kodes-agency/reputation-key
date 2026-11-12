@@ -29,6 +29,7 @@ import {
   ADD_RECEPTION_HELD,
   ADD_SEAVIEW,
 } from './portal-goal-add.stories.fixtures'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const PROPERTY_ID = 'd0000000-0000-4000-8000-000000000001'
 
@@ -75,6 +76,7 @@ function Harness({
         ref={door}
         variant="link"
         size="inline"
+        touch
         onClick={() => {
           setOpen(true)
           setKey((last) => last + 1)
@@ -189,21 +191,16 @@ export const ChooseOnAPhone: Story = {
 }
 
 export const ChooseOnATablet: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const { in: inSheet } = await openSheet(canvasElement)
     await expectTheChoice(inSheet)
-  },
+  }),
   parameters: { viewport: { defaultViewport: 'tablet' } },
 }
 
 export const ChooseOnADesktop: Story = {
   ...ChooseOnATablet,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const ChooseLight: Story = {
-  ...ChooseOnATablet,
-  parameters: { theme: 'light' },
 }
 
 /** Under 10 private ratings in 4 weeks the average is closed, and says why. */

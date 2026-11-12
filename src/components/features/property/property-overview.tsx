@@ -1,3 +1,4 @@
+import { useServedNow } from '#/components/hooks/served-clock'
 import type { ReactNode } from 'react'
 // Dashboard → Overview (redesign rows 4, 5, 8, 12).
 //
@@ -12,7 +13,6 @@ import type { ReactNode } from 'react'
 // history can no longer read `REVIEWS 3 · AVG RATING 2.3` next to `252 items to
 // triage` just because a 30-day default was in force.
 import { Link } from '@tanstack/react-router'
-import { useState } from 'react'
 import type {
   AttentionSignals,
   DashboardData,
@@ -222,7 +222,7 @@ export function PropertyOverview({
   ratingGoal,
   portalGoal,
 }: PropertyOverviewProps) {
-  const [now] = useState(() => new Date())
+  const now = useServedNow()
   return (
     <PageShell tier="dashboard">
       <PageHeader

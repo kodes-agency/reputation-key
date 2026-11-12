@@ -15,9 +15,9 @@ import type { PortalResponsibleManagerRepository } from '../ports/portal-respons
 import type { PortalPrintWordingRepository } from '../ports/portal-print-wording.repository'
 import type { PortalLastPrintRepository } from '../ports/portal-last-print.repository'
 import {
-  printFinalOpeningWording,
-  PRINT_FINAL_DEFAULT_WORDING,
-} from '#/shared/domain/portal-print-final-wording'
+  printOpeningWording,
+  PRINT_DEFAULT_WORDING,
+} from '#/shared/domain/portal-print-wording'
 import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
 import { loadCopySource, loadTargetGroup } from '../create-portal-resolvers'
 import { linksToCopy } from '../portal-content-copy'
@@ -243,11 +243,8 @@ export async function copiedPrintWording(
     deps.printWordingRepo.find(ctx.organizationId, portalId(sourceId)),
     deps.lastPrintRepo.find(ctx.organizationId, portalId(sourceId)),
   ])
-  const wording = printFinalOpeningWording(saved, last?.settings ?? null)
-  if (
-    wording.callToAction === PRINT_FINAL_DEFAULT_WORDING.callToAction &&
-    !wording.customWords
-  )
+  const wording = printOpeningWording(saved, last?.settings ?? null)
+  if (wording.callToAction === PRINT_DEFAULT_WORDING.callToAction && !wording.customWords)
     return null
   try {
     assertPersonalPortalPublicText({ kind: 'personal', name }, wording.customWords)

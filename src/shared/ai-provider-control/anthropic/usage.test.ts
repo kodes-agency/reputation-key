@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING } from '#/shared/review-analysis-v3-profile'
+import { REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING } from '#/shared/analysis/profile'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,

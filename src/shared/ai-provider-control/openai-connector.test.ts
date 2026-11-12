@@ -6,9 +6,9 @@ import { Agent } from 'undici'
 import { zodTextFormat } from 'openai/helpers/zod'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import {
-  AI_ANALYSIS_V2_OUTPUT_SCHEMA,
-  AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA,
-} from '#/shared/ai-route-output-schemas'
+  REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA,
+  REVIEW_ANALYSIS_V3_STORED_SCHEMA,
+} from '#/shared/review-analysis-v3'
 import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
 import { admitForTest } from './execution-admission.test-fixtures'
 import {
@@ -639,11 +639,6 @@ function connectorDescriptor(
             capabilityControlId: '10000000-0000-4000-8000-000000000007',
             capabilityGeneration: 1,
           },
-          {
-            capability: 'property_trends',
-            capabilityControlId: '10000000-0000-4000-8000-000000000008',
-            capabilityGeneration: 1,
-          },
         ],
       },
     },
@@ -875,27 +870,39 @@ describe('official OpenAI SDK connector integration', () => {
     })
   })
 
-  // Closed beta, 2026-10-16 to 2026-10-25: an analysis answer that listed one
-  // aspect twice was billed and then refused, on every attempt, for 24 reviews.
-  // Structured Outputs cannot enforce "unique by aspect", so the connector
-  // parses with the answer schema and the gateway merges the duplicate.
-  it('passes on an analysis answer that lists one aspect twice', async () => {
+  // Structured Outputs cannot enforce "one mention per thing", so the connector
+  // parses with the provider answer schema and the normalizer merges repeats; the
+  // stored schema would refuse an answer that was already billed.
+  it('passes on an analysis answer that mentions one thing twice', async () => {
     const answer = {
-      sentiment: 'positive',
-      sentimentValence: 80,
-      urgencySignals: [],
-      aspects: [
-        { aspect: 'food_and_drink', polarity: 'positive', intensity: 70 },
-        { aspect: 'staff', polarity: 'positive', intensity: 60 },
-        { aspect: 'food_and_drink', polarity: 'positive', intensity: 85 },
+      sentiment: 'negative',
+      mentions: [
+        {
+          topic: 'facilities_equipment',
+          polarity: 'negative',
+          strength: 'clear',
+          thing: 'air conditioning',
+          issue: 'not working',
+          sentences: [1],
+          names_person: null,
+        },
+        {
+          topic: 'facilities_equipment',
+          polarity: 'negative',
+          strength: 'strong',
+          thing: 'air conditioning',
+          issue: 'very weak',
+          sentences: [2],
+          names_person: null,
+        },
       ],
-      issueLabel: null,
+      urgent: null,
     }
     const invoke = async (schema: z.ZodType) => {
       const harness = createConnectorHarness(
         async () => providerResponse({ parsed: answer }),
         JSON.parse(
-          JSON.stringify(zodTextFormat(schema, 'review_analysis_v2')),
+          JSON.stringify(zodTextFormat(schema, 'review_analysis_v3')),
         ) as ClosedJsonSchemaFormat,
       )
       return harness.connector.invoke(
@@ -906,11 +913,13 @@ describe('official OpenAI SDK connector integration', () => {
       )
     }
 
-    await expect(invoke(AI_ANALYSIS_V2_OUTPUT_SCHEMA)).resolves.toMatchObject({
+    await expect(invoke(REVIEW_ANALYSIS_V3_STORED_SCHEMA)).resolves.toMatchObject({
       disposition: 'output_invalid',
       usageKnown: true,
     })
-    await expect(invoke(AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA)).resolves.toMatchObject({
+    await expect(
+      invoke(REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA),
+    ).resolves.toMatchObject({
       disposition: 'success',
       result: answer,
     })

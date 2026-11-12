@@ -1,8 +1,9 @@
+import { useServedNow } from '#/components/hooks/served-clock'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Keep queries and server functions behind an on-demand loader import so they stay out
 // of first paint. Access requires goal.use and goal.read.
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -92,7 +93,7 @@ function useGoalsPageCatchesUp(propertyId: string, moved: boolean) {
 function GoogleRatingGoalRoute() {
   const { propertyId } = Route.useParams()
   const { can: canDo } = usePermissions()
-  const [now] = useState(() => new Date())
+  const now = useServedNow()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const read = useSuspenseQuery(ratingGoalDetailQuery(propertyId))
   const detail = read.data

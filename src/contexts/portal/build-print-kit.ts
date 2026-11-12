@@ -8,11 +8,11 @@ import type { PortalMediaAssetRepository } from './application/ports/portal-medi
 import type { PortalPublicationRepository } from './application/ports/portal-publication.repository'
 import type { PortalRepository } from './application/ports/portal.repository'
 import type { StoragePort } from './application/ports/storage.port'
-import { createPortalPrintFinal } from './application/use-cases/create-portal-print-final'
+import { createPortalPrint } from './application/use-cases/create-portal-print'
 import { getPortalPrintKit } from './application/use-cases/get-portal-print-kit'
 import { savePortalPrintWording } from './application/use-cases/save-portal-print-wording'
 import type { RevealPortalAddress } from './application/use-cases/reveal-portal-address'
-import type { PortalPrintFinalRenderer } from './application/ports/portal-print-final-renderer.port'
+import type { PortalPrintRenderer } from './application/ports/portal-print-renderer.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { PropertyCountryReader } from './infrastructure/print-kit/print-kit-property-country'
 
@@ -24,7 +24,7 @@ export type PortalPrintKitDeps = Readonly<{
     'loadWorkingCopy' | 'loadWorkingCopyWithLook' | 'findActiveForPortal'
   >
   mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
-  /** The final kit's memory of each Portal's last print. */
+  /** The kit's memory of each Portal's last print. */
   lastPrintRepo: PortalLastPrintRepository
   /** The wording each Portal saved for Share to open on. */
   wordingRepo: PortalPrintWordingRepository
@@ -41,11 +41,11 @@ export type PortalPrintKitDeps = Readonly<{
 // tsup) can import; loading it on first use keeps every process that never
 // makes a print kit (the simulation script under tsx among them) from
 // resolving them.
-const lazyFinalRenderer = (now: () => Date): PortalPrintFinalRenderer => ({
+const lazyRenderer = (now: () => Date): PortalPrintRenderer => ({
   render: async (input) => {
-    const { createPdfKitPrintFinalRenderer } =
-      await import('./infrastructure/print-kit/pdfkit-print-final-renderer')
-    return createPdfKitPrintFinalRenderer({ now }).render(input)
+    const { createPdfKitPrintRenderer } =
+      await import('./infrastructure/print-kit/pdfkit-print-renderer')
+    return createPdfKitPrintRenderer({ now }).render(input)
   },
 })
 
@@ -67,7 +67,7 @@ export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
       wordingRepo: deps.wordingRepo,
       clock: deps.clock,
     }),
-    createPortalPrintFinal: createPortalPrintFinal({
+    createPortalPrint: createPortalPrint({
       portalRepo: deps.portalRepo,
       staffPublicApi: deps.staffPublicApi,
       publicationRepo: deps.publicationRepo,
@@ -75,7 +75,7 @@ export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
       objectStore: deps.objectStore,
       sha256Hex,
       revealAddress: deps.revealAddress,
-      renderer: lazyFinalRenderer(deps.clock),
+      renderer: lazyRenderer(deps.clock),
       propertyCountry: deps.propertyCountry,
       lastPrintRepo: deps.lastPrintRepo,
       wordingRepo: deps.wordingRepo,

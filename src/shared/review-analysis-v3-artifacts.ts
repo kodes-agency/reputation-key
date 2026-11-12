@@ -1,8 +1,7 @@
 import '@tanstack/react-start/server-only'
-import { createHash } from 'node:crypto'
+import { digestOf } from './ai-digest'
 import { z } from 'zod/v4'
 import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from './ai-route-output-schemas'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import {
   REVIEW_ANALYSIS_V3_STORED_SCHEMA,
   REVIEW_ATTENTION_V2_DIGEST,
@@ -18,14 +17,7 @@ import {
   REVIEW_TOPIC_TAXONOMY_VERSION,
 } from './review-topic-taxonomy'
 
-function digest(domain: string, value: unknown): string {
-  return createHash('sha256')
-    .update(domain, 'utf8')
-    .update(canonicalizeRfc8785(value), 'utf8')
-    .digest('hex')
-}
-
-const providerAnswerSchemaDigest = digest(
+const providerAnswerSchemaDigest = digestOf(
   'repkey-ai-output-schema-v1\0',
   AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v3'],
 )
@@ -34,7 +26,7 @@ const providerAnswerSchemaDigest = digest(
 const storedJsonSchema = JSON.parse(
   JSON.stringify(z.toJSONSchema(REVIEW_ANALYSIS_V3_STORED_SCHEMA, { target: 'draft-7' })),
 ) as ReturnType<typeof z.toJSONSchema>
-const storedSchemaDigest = digest(
+const storedSchemaDigest = digestOf(
   'repkey-review-analysis-v3-stored-schema-v1\0',
   storedJsonSchema,
 )
@@ -52,7 +44,7 @@ export const REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS = Object.freeze({
   storedSchemaDigest,
 })
 
-export const REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS_DIGEST = digest(
+export const REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS_DIGEST = digestOf(
   'repkey-review-analysis-v3-logical-artifacts-v1\0',
   REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS,
 )

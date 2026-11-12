@@ -1,5 +1,5 @@
 import { materiallyChangedMerchantAiCapabilities } from './merchant-ai-notice-change'
-import { createHash } from 'node:crypto'
+import { digestOf } from './ai-digest'
 import { z } from 'zod/v4'
 import {
   MERCHANT_AI_NOTICES_IN_FORCE,
@@ -31,27 +31,20 @@ const runtimeEntrySchema = z
       'review-analysis-runtime-v2',
       'reply-drafting-runtime-v1',
       'reply-drafting-runtime-v2',
-      'property-trends-runtime-v1',
     ]),
-    purpose: z.enum(['ai.analyze', 'ai.generate_reply', 'ai.detect_trends']),
-    sourceRoute: z.enum(['review-analysis', 'reply-suggestion', 'property-trend']),
-    gatewayPath: z.enum([
-      '/v1/review-analysis',
-      '/v1/reply-suggestion',
-      '/v1/property-trend',
-    ]),
+    purpose: z.enum(['ai.analyze', 'ai.generate_reply']),
+    sourceRoute: z.enum(['review-analysis', 'reply-suggestion']),
+    gatewayPath: z.enum(['/v1/review-analysis', '/v1/reply-suggestion']),
     gatewayProfileVersion: z.enum([
       'review-analysis-gateway-v2',
       'reply-suggestion-gateway-v1',
       'reply-suggestion-gateway-v2',
-      'property-trend-gateway-v1',
     ]),
     caller: z.enum(['web', 'worker']),
     operationProfileVersion: z.enum([
       'review-analysis-v3',
       'reply-suggestion-v1',
       'reply-suggestion-v2',
-      'property-trend-v1',
     ]),
     providerDeploymentProfileVersion: z.enum([
       SERVED_PROVIDER_DEPLOYMENT_PROFILE,
@@ -153,10 +146,10 @@ export const AI_RUNTIME_CAPABILITIES_V1 = parseAiRuntimeCapabilitiesV1(
   EXPECTED_RUNTIME_CAPABILITIES,
 )
 
-export const AI_RUNTIME_CAPABILITIES_V1_DIGEST = createHash('sha256')
-  .update('ai-runtime-capabilities-v1\0', 'utf8')
-  .update(canonicalizeRfc8785(AI_RUNTIME_CAPABILITIES_V1), 'utf8')
-  .digest('hex')
+export const AI_RUNTIME_CAPABILITIES_V1_DIGEST = digestOf(
+  'ai-runtime-capabilities-v1\0',
+  AI_RUNTIME_CAPABILITIES_V1,
+)
 
 const CAPABILITY_SET = new Set<string>(CURRENT_MERCHANT_AI_CAPABILITIES)
 

@@ -258,11 +258,7 @@ export function useGoogleImport({
     const candidates = content.candidates.filter((candidate) =>
       state.selectedIds.has(candidate.candidateId),
     )
-    dispatch({
-      type: 'review',
-      candidates,
-      draft: createImportReviewDraft(candidates),
-    })
+    dispatch({ type: 'review', draft: createImportReviewDraft(candidates) })
     window.scrollTo({ top: 0, behavior: 'auto' })
   }
 

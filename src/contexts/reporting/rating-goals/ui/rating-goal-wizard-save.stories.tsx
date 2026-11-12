@@ -151,6 +151,9 @@ export const RefusalReadsTheGoalAgain: Story = {
     await waitFor(() => expect(fetchesOf('goal')).toBe(2))
     for (const name of ['setup', 'summaries', 'fleet', 'other property'])
       await expect(fetchesOf(name)).toBe(1)
+    // The refusal is read; the phone-width check measures the page, not the open wizard.
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(within(document.body).queryByRole('dialog')).toBeNull())
   },
 }
 
