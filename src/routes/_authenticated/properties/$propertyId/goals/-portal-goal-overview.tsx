@@ -3,7 +3,7 @@
 // because the strip disappears.
 
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import { withGoalRefusals } from '#/components/goals/goal-refusal'
 import {
   PORTAL_GOAL_OVERVIEW_TITLE_ID,

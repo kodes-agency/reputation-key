@@ -16,7 +16,7 @@ import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.sch
 import { properties } from '#/shared/db/schema/property.schema'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
+import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
 import type { GoogleImportV2Intent } from '#/contexts/integration/application/ports/google-import-v2-store.port'
 import { createGoogleImportV2Processor } from '#/contexts/integration/application/google-import-v2-processor'
 import { createGoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'

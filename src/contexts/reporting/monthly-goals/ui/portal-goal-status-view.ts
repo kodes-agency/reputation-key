@@ -2,7 +2,7 @@
 // verdict.
 
 import type { StatusPresentation } from '#/components/ui/status-badge'
-import type { PortalGoalRunningMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalRunningMonth } from '#/contexts/reporting/monthly-goals/contracts'
 import { GOAL_PACE_STATUS } from '../../../../components/goals/goal-pace-status'
 
 /**

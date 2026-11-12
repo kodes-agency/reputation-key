@@ -20,12 +20,12 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { updateProperty } from './application/use-cases/update-property'
 import { listProperties } from './application/use-cases/list-properties'
 import { getProperty } from './application/use-cases/get-property'
-import { createAtomicPropertyCommandStore } from './infrastructure/property-command-store'
-import { createPropertyGoogleBindingStore } from './infrastructure/property-google-binding-store'
-import { createPropertyLifecycleCommandStore } from './infrastructure/property-lifecycle-command-store'
+import { createAtomicPropertyCommandStore } from './profile/update-store.server'
+import { createPropertyGoogleBindingStore } from './profile/google-binding-store.server'
+import { createPropertyLifecycleCommandStore } from './lifecycle/transition-store.server'
 import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consumers'
 import { registerPropertyMemberOffboardingConsumers } from './infrastructure/member-offboarding-outbox-consumers'
-import { createPropertyResponsibleManagerRepository } from './infrastructure/repositories/property-responsible-manager.repository'
+import { createPropertyResponsibleManagerRepository } from './responsibility/manager-repository.server'
 import {
   listPropertyResponsibleManagers,
   updatePropertyResponsibleManagers,

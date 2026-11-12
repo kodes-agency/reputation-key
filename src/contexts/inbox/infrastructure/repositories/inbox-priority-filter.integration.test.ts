@@ -17,13 +17,13 @@ import {
 } from '#/shared/domain/ids'
 import type { AiReviewInsightsPort } from '../../application/ports/ai-review-insights.port'
 import type { InboxItem } from '../../domain/types'
-import { seedInboxOrganization } from '../inbox-database-fixtures'
 import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
+  seedInboxOrganization,
   setStoredManagerPriority,
-} from '../inbox-database-fixtures-use-cases-slice'
+} from '../inbox-database-fixtures'
 
 const ORG = organizationId('org-priority-fixture')
 const PROP = propertyId('94b10000-0000-4000-8000-0000000000a1')

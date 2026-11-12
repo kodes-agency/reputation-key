@@ -1,11 +1,11 @@
 import { Link } from '@tanstack/react-router'
 import { CalendarDays, Flag, Pencil, QrCode } from 'lucide-react'
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
-import type { PortalGoalPageView } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
+import type { PortalGoalPageView } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalOfCard,
   PortalGoalRunningMonth,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { CheckInSection } from '#/components/features/shared/check-in-section'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {

@@ -4,12 +4,12 @@
 // goals; closed months retain corrected results. Single-subject pages use only
 // their own history and measure. Changes and Portal go-lives are dated server facts.
 
-import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
+import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalChange,
   PortalGoalPageMeasure,
   PortalGoalPageMonth,
-} from '../application/dto/monthly-portal-goal-page.types'
+} from './contracts'
 import { localDateOf } from '../domain/local-days'
 import { effectiveMonthTarget } from '../application/goal-effective-month-target'
 import { versionNoteOf } from '../application/goal-version-reasons'

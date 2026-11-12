@@ -19,13 +19,13 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
-import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
 import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
   readOutboxFacts,
-} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
+  seedInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-assign-inbox-item-test')

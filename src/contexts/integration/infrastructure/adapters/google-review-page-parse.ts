@@ -20,7 +20,7 @@ import {
   reviewPageUrl,
   reviewReplyUrlField,
 } from './google-review-page'
-import { reviewApiError } from './google-review-api-errors'
+import { reviewApiError } from '#/contexts/review/application/public-api'
 import {
   parseReplyModeration,
   replyModerationFields,

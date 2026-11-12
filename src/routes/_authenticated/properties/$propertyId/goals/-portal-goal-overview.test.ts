@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import { CARD_RUNNING } from '#/contexts/reporting/monthly-goals/ui/portal-goal-running.stories.fixtures'
 import {
   CARD_READY,
@@ -9,7 +9,7 @@ import {
 import { putOffPortalGoalPrompt } from './-portal-goal-overview'
 import { portalGoalCardQuery } from './-portal-goal-queries'
 
-// "Not now" on the Overview's prompt (PLAN PG-16): the card's read is written
+// "Not now" on the Overview's prompt: the card's read is written
 // as the server will answer it, before the command is sent, and put back when
 // the command fails.
 

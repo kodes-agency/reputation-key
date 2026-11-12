@@ -125,7 +125,6 @@ function healthy(): MutableSnapshot {
         oldestAcceptedUnresolvedAgeMs: null,
         capturedUnresolvedCount: 0,
       },
-      missingForInboxItemCount: 0,
       deliveryLag: {
         sourceReceiptPending: 0,
         sourceReceiptPendingByEventType: {},
@@ -970,23 +969,6 @@ describe('sync.reconciliation-age', () => {
 })
 
 // ── notification delivery ─────────────────────────────────────────
-
-describe('notification.missing-for-inbox-item', () => {
-  it('fires on a single gap — nothing re-derives a missed notification', () => {
-    const s = healthy()
-    s.notifications = { ...s.notifications, missingForInboxItemCount: 1 }
-
-    expect(evaluateOne('notification.missing-for-inbox-item', s)).toMatchObject({
-      severity: 'P1',
-      value: 1,
-      threshold: 0,
-    })
-  })
-
-  it('stays silent when every inbox item has its notification', () => {
-    expect(evaluateOne('notification.missing-for-inbox-item', healthy())).toBeNull()
-  })
-})
 
 describe('notification.in-app-delivery-lag', () => {
   it('fires from durable source age when either delivery stage exceeds 60 seconds', () => {

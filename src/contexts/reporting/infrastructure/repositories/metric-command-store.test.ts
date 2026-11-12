@@ -1,3 +1,4 @@
+import { metricRegistry } from '../../readings/contracts'
 import { createPortalAnalyticsRepository } from '../../portal-results/portal-analytics.repository.server'
 import { randomUUID } from 'node:crypto'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
@@ -27,7 +28,6 @@ import type {
   GuestQualifiedScanRecorded,
 } from '#/contexts/guest/application/public-api'
 import { recordMetrics } from '../../application/use-cases/record-metric'
-import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createPropertyLocalDateResolver } from './property-local-date'
 import {
   onQualifiedScanRecordedDurably,
@@ -306,7 +306,7 @@ describe.sequential('metricCommandStore (integration)', () => {
       )
       const project = recordMetrics({
         commandStore: createAtomicMetricCommandStore(db, randomUUID),
-        registry: createMetricRegistryRepository(),
+        registry: metricRegistry,
         clock: () => QUALIFIED_AT,
         idGen: () => metricReadingId(randomUUID()),
         resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
@@ -463,7 +463,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     const outcomes: ReadingResult[] = []
     const project = recordMetrics({
       commandStore: createAtomicMetricCommandStore(db, randomUUID),
-      registry: createMetricRegistryRepository(),
+      registry: metricRegistry,
       clock: () => QUALIFIED_AT,
       idGen: () => metricReadingId(randomUUID()),
       resolvePropertyLocalDate: createPropertyLocalDateResolver(db),

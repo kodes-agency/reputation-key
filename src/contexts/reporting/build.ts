@@ -1,3 +1,4 @@
+import { metricRegistry } from './readings/contracts'
 import { createPortalRatingGoalGuard } from './infrastructure/portal-rating-goal-guard'
 import { createGoalMetricBatchReader } from './infrastructure/repositories/goal-metric-batch-reader'
 import { findPortalRatingGoalBlock } from './application/running-portal-rating-goal'
@@ -30,7 +31,6 @@ import type {
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
 import type { MetricPublicApi, PortalRatingGoalReadApi } from './application/public-api'
 
-import { createMetricRegistryRepository } from './infrastructure/repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from './infrastructure/repositories/property-local-date'
 import { createGoalMetricSnapshotReader } from './infrastructure/repositories/goal-metric-snapshot'
 import { createAtomicMetricCommandStore } from './readings/metric-command-store.server'
@@ -181,7 +181,7 @@ export type ReportingContextBuildInput = Readonly<{
 }>
 
 function buildMetricModule(input: ReportingContextBuildInput) {
-  const registry = createMetricRegistryRepository()
+  const registry = metricRegistry
   const portalAnalytics = createPortalAnalyticsRepository(input.db, input.clock)
   const goalCorrectionImpacts = createGoalMetricCorrectionImpactLookup(input.db)
   const currentGoogleReputation = createCurrentGoogleReputationSnapshotRepository(

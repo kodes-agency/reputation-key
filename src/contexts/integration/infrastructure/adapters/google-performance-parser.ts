@@ -7,7 +7,7 @@ import {
   type GoogleDailyMetric,
   type GooglePerformanceSourceReport,
 } from '../../application/google-provider-contract'
-import { createGbpApiError } from '../../domain/gbp-api-error'
+import { createGoogleCallError } from '../../domain/google-call-error'
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true })
 const INTEGER_VALUE = /^(0|[1-9][0-9]*)$/
@@ -70,7 +70,7 @@ export function parseGooglePerformanceResponse(
 ): GooglePerformanceSourceReport {
   const providerBodyBytes = input.body.byteLength
   const malformed = (): never => {
-    throw createGbpApiError('fetchPerformanceReport', 'parse_error', {
+    throw createGoogleCallError('fetchPerformanceReport', 'parse_error', {
       providerBodyBytes,
     })
   }

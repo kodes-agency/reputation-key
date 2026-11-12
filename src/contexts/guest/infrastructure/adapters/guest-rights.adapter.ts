@@ -28,9 +28,9 @@ import {
   GuestResponseLifecycleError,
   guestResponseLifecycle,
   type OperatorErasureAuthority,
-} from '../../application/use-cases/guest-response-lifecycle'
-import { createAtomicGuestResponseCommandStore } from '../guest-response-command-store'
-import { createGuestResponseRepository } from '../repositories/guest-response.repository'
+} from '../../responses/guest-response-lifecycle.server'
+import { createAtomicGuestResponseCommandStore } from '../../responses/guest-response-command-store.server'
+import { createGuestResponseRepository } from '../../responses/guest-response.repository.server'
 import { createGuestOrganizationExportContributor } from './guest-organization-export.adapter'
 import {
   drizzleGuestLifecycleWorkbench,

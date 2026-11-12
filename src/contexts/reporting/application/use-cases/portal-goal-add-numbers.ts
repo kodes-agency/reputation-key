@@ -14,11 +14,11 @@ import type {
   PortalGoalMeasure,
   RecommendationGroupDayCount,
 } from '../../domain/goal-recommendation-types'
-import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
+import type { PortalGoalRecommendation } from '../../monthly-goals/contracts'
 import type {
   PortalGoalAddChoices,
   PortalGoalAddSubject,
-} from '../dto/monthly-portal-goal-add.types'
+} from '../../monthly-goals/contracts'
 import { ratingSubjectSkipsPrivateRating } from '../goal-rating-eligibility'
 import type { PortalGoalFacts } from './goal-recommendation-read'
 

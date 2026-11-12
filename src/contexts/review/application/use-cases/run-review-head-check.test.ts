@@ -11,6 +11,17 @@ import type { HeadStoredCopy } from '../../domain/head-check'
 import type { GoogleReviewRead } from '../ports/google-review-api.port'
 import { createRunReviewHeadCheck } from './run-review-head-check'
 
+/** What the integration adapter throws for a call Google answered or refused. */
+const providerFailure = (
+  fields: Readonly<{ code: string; providerStatus?: number; retryAfterMs?: number }>,
+) =>
+  Object.assign(new Error('provider call failed'), {
+    _tag: 'GbpApiError',
+    dispatch: 'answered',
+    providerStatus: 429,
+    ...fields,
+  })
+
 const ORG = organizationId('org-head-check')
 const PROPERTY = propertyId('3f1c1d5e-0000-4000-8000-000000000001')
 const CONNECTION = googleConnectionId('3f1c1d5e-0000-4000-8000-000000000002')
@@ -362,5 +373,21 @@ describe('runReviewHeadCheck: a dark head check', () => {
       { event: 'review_head_check_run_not_recorded' },
       'Review head check history row could not be written',
     )
+  })
+
+  describe.each([
+    [{ code: 'rate_limited', retryAfterMs: 7_000 }, 'rate_limited'],
+    [{ code: 'upstream_error', providerStatus: 503 }, 'provider_unavailable'],
+    [{ code: 'upstream_error', providerStatus: 404 }, 'provider_rejected'],
+    [{ code: 'auth_failed', providerStatus: 401 }, 'authorization_changed'],
+  ] as const)('when Google answers with the provider failure %j', (fields, outcome) => {
+    it(`completes as ${outcome}`, async () => {
+      const { run, repository } = setup({ head: providerFailure(fields) })
+
+      await expect(run(input)).resolves.toEqual({ status: outcome })
+      expect(repository.recordRun).toHaveBeenCalledWith(
+        expect.objectContaining({ outcome, comparison: null }),
+      )
+    })
   })
 })

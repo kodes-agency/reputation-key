@@ -7,7 +7,7 @@ import {
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
 import { InlineLink } from '#/components/ui/inline-link'
-import { usePortalEditAccess } from '#/components/features/portal/portal-detail/use-portal-edit-access'
+import { usePortalEditAccess } from '#/components/features/portal/shared/use-portal-edit-access'
 import {
   LINK_ICONS,
   linkIconKeyOrDefault,

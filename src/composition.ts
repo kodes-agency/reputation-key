@@ -46,6 +46,7 @@ import {
   notificationEmailAddressKeys,
 } from './composition/read-and-notify-contexts'
 import { buildOperationalReadout } from './composition/operational-readout'
+import { declareRequestProcess } from '#/shared/db/tenant-scope.server'
 import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
 import {
   createDeferredMemberAuthorityLifecycle,
@@ -189,7 +190,6 @@ function buildContainer(
       policyStoreVersion: identity.policy.currentVersion,
     },
     notification: {
-      readMissingNotificationCount: notification.publicApi.readMissingNotificationCount,
       readNotificationDeliveryLag: notification.publicApi.readNotificationDeliveryLag,
     },
     guestObservationLoss: guest.observationLoss,
@@ -277,6 +277,7 @@ export function getContainer(): Container {
   if (store[CONTAINER_KEY]) return store[CONTAINER_KEY]
   assertContainerCanBuild()
   claimProcessContainer('web')
+  declareRequestProcess()
   try {
     const container = (store[CONTAINER_KEY] = createContainer())
     markContainerReady()

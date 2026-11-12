@@ -29,10 +29,7 @@ import {
   type GoalActor,
 } from '../application/use-cases/goal-program-shared'
 import type { GovernedGoalMetricResult } from '../application/use-cases/query-goal-metric'
-import type {
-  PortalGoalCardView,
-  PortalGoalOfCard,
-} from '../application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView, PortalGoalOfCard } from './contracts'
 import type { MonthlyPortalGoalPageDeps } from './monthly-portal-goal-page.server'
 import type { PortalGoalSinglePageDeps } from './get-portal-goal-page.server'
 
