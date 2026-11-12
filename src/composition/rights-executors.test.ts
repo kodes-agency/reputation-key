@@ -6,6 +6,7 @@ import {
   createRightsJournal,
   rightsJournalEntry,
 } from '#/shared/ops/rights/rights-journal'
+import { RIGHTS_REQUEST_SCOPES } from '#/shared/ops/rights/rights-request-command'
 import { composeRightsExecutors, composeRightsReplayers } from './rights-executors'
 
 const NOTIFICATION_REPLAYERS = createNotificationRightsReplayers()
@@ -24,11 +25,11 @@ describe('composeRightsExecutors', () => {
       'inbox',
       'guest',
       'reporting',
+      'staff',
       'portal',
       'ai',
       'activity',
       'identity-grants',
-      'staff',
       'property',
       'notification',
       'staff-participant',
@@ -52,6 +53,16 @@ describe('composeRightsExecutors', () => {
     }
   })
 
+  it('journals each context once per scope, so every entry has one place in the apply order', () => {
+    const executors = composeRightsExecutors(deps, false)
+    for (const scope of RIGHTS_REQUEST_SCOPES) {
+      const contexts = executors
+        .filter(({ scopes }) => scopes.includes(scope))
+        .flatMap(({ journalContexts }) => journalContexts)
+      expect(new Set(contexts).size, scope).toBe(contexts.length)
+    }
+  })
+
   it('covers the organization scope with the executors that erase it', () => {
     const covering = composeRightsExecutors(deps, false)
       .filter(({ scopes }) => scopes.includes('organization'))
@@ -62,10 +73,10 @@ describe('composeRightsExecutors', () => {
       'inbox',
       'guest',
       'reporting',
+      'staff',
       'portal',
       'ai',
       'activity',
-      'staff',
       'notification',
     ])
   })
