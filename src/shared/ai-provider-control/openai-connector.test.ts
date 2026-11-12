@@ -11,6 +11,7 @@ import {
 } from '#/shared/ai-route-output-schemas'
 import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
 import { admitForTest } from './execution-admission.test-fixtures'
+import { evaluateProviderDispatchGate } from './connector-boundary'
 import {
   buildClosedOpenAiRequest,
   createPreparedAiInvocation,
@@ -1218,6 +1219,7 @@ describe('official OpenAI SDK connector integration', () => {
       throw new Error('connection reset')
     })
     const ambiguous = createConnectorHarness(ambiguousOutbound)
+    const pristineBytes = Uint8Array.from(ambiguous.invocation.canonicalProviderBytes)
     const ambiguousOutcome = await ambiguous.connector.invoke(
       ambiguous.invocation,
       ambiguous.admission,
@@ -1227,6 +1229,17 @@ describe('official OpenAI SDK connector integration', () => {
     expect(ambiguousOutcome.disposition).toBe('transport_ambiguous')
     expect(ambiguousOutbound).toHaveBeenCalledTimes(1)
 
+    // The first call zeroed the bytes; present the identical, valid bytes again so
+    // only the spent admission can be the reason for the refusal.
+    ambiguous.invocation.canonicalProviderBytes.set(pristineBytes)
+    expect(
+      evaluateProviderDispatchGate({
+        invocation: ambiguous.invocation,
+        admission: ambiguous.admission,
+        currentTime: 1_780_000_001_000,
+      }).reasons,
+    ).toEqual(['admission_already_used'])
+    ambiguous.invocation.canonicalProviderBytes.set(pristineBytes)
     const reused = await ambiguous.connector.invoke(
       ambiguous.invocation,
       ambiguous.admission,

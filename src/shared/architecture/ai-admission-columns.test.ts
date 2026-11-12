@@ -1,7 +1,8 @@
 // The four admission handshake columns of `ai_operations` and the keys that fed
 // them are history: nothing reads or writes the columns, and no configuration
-// carries the keys. Only the schema declares the columns, so a later migration
-// can drop them without a reader to find first.
+// carries the keys. Only the schema declares the columns. Whole-row statements
+// name every declared column, so dropping them takes two steps: a deploy that
+// removes the schema declarations, then the migration.
 //
 // This reads source text. Test code is walked too, because a test that seeds
 // the columns would keep a writer alive. The names are assembled from fragments

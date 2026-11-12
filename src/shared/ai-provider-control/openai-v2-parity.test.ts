@@ -87,6 +87,7 @@ import { aiAdmissionDescriptorDigest } from './execution-admission'
 import { createAiGatewayRoutePreparer } from './route-preparer'
 import { GatewayPreparationError } from './contracts'
 import { preparableV3Request } from './review-evidence.test-fixtures'
+import { replyV2Request } from './reply-drafting-v2.test-fixtures'
 
 const PINNED_PROFILES = [
   {
@@ -255,12 +256,12 @@ afterEach(() => {
 
 const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
 
-function preparer() {
+function preparer(nonCyrillicLanguage = 'tr', safetyByte = 7) {
   return createAiGatewayRoutePreparer({
-    safetyIdentifierKey: Buffer.alloc(32, 7),
+    safetyIdentifierKey: Buffer.alloc(32, safetyByte),
     replyLanguageDetector: {
       detect: (text: string) => ({
-        language: /[\u0400-\u04ff]/u.test(text) ? 'bg' : 'tr',
+        language: /[\u0400-\u04ff]/u.test(text) ? 'bg' : nonCyrillicLanguage,
         probability: 1,
         reliable: true,
       }),
@@ -378,6 +379,34 @@ describe('OpenAI and the live profiles, as pinned at the switch-on', () => {
         descriptorDigest: aiAdmissionDescriptorDigest(descriptor),
         canonicalProviderBytesSha256: sha256(invocation.canonicalProviderBytes),
         canonicalProviderByteLength: invocation.canonicalProviderBytes.byteLength,
+      }).toEqual(pinned)
+    },
+  )
+
+  it.each([
+    [
+      'English',
+      () => replyV2Request(),
+      {
+        sha: '55d33cc9cac5578c26ac6b7746d7fc26480b44a2e9a6ca67b923bd43badfee74',
+        length: 16218,
+      },
+    ],
+    [
+      'Bulgarian',
+      () => replyV2Request('Чакахме дълго. Стаята беше тиха.', 'bg-Cyrl'),
+      {
+        sha: 'e056275bbd6f8a8bd16b21e24e29a9d6cfa27925a566da4b6dbe3c6ec980e4ab',
+        length: 17025,
+      },
+    ],
+  ] as const)(
+    'sends OpenAI byte for byte the reply-suggestion-v2 %s body',
+    (_language, request, pinned) => {
+      const { invocation } = preparer('en', 8).prepare(request())
+      expect({
+        sha: sha256(invocation.canonicalProviderBytes),
+        length: invocation.canonicalProviderBytes.byteLength,
       }).toEqual(pinned)
     },
   )
