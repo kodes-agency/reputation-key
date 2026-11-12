@@ -7,8 +7,8 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { composeRightsReplayers } from '#/composition/rights-executors'
 import {
-  createIdentityPropertyRightsExecutor,
-  createStaffOrganizationRightsExecutor,
+  createIdentityRightsExecutor,
+  createStaffRightsExecutor,
 } from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
 import { STAFF_LIFECYCLE_TABLES } from '#/contexts/identity/infrastructure/adapters/staff-organization-erasure'
 import { createPropertyRightsExecutor } from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
@@ -295,7 +295,7 @@ const propertyApply = (tenant: Tenant) =>
 function propertyExecutors(): ReadonlyArray<RightsExecutor> {
   return [
     createGoogleRightsExecutor({ db, now: () => NOW }),
-    createIdentityPropertyRightsExecutor(db),
+    createIdentityRightsExecutor(db),
     createPropertyRightsExecutor(db, () => NOW),
   ]
 }
@@ -326,7 +326,7 @@ describe.sequential('Property and Staff rights executors', () => {
       const out = result.out.join('\n')
       expect(out).toContain('property: properties 1')
       expect(out).toContain('property: property_responsible_managers 1')
-      expect(out).toContain('identity-grants: property_access_grant 1')
+      expect(out).toContain('identity: property_access_grant 1')
       expect(await stringify(asked)).toBe(before)
     })
 
@@ -407,6 +407,7 @@ describe.sequential('Property and Staff rights executors', () => {
       const replayers = composeRightsReplayers({
         db,
         now: () => NOW,
+        auditPseudonymSecret: 'audit-pseudonym-test-secret',
         notificationReplayers: [],
       })
       const fence = await db.transaction((tx) =>
@@ -529,7 +530,7 @@ describe.sequential('Property and Staff rights executors', () => {
       const before = await staffRows(asked.organizationId)
 
       const result = await runScript(organizationApply(asked), [
-        createStaffOrganizationRightsExecutor(db),
+        createStaffRightsExecutor(db),
       ])
 
       expect(result.exit).toBe(1)
@@ -562,7 +563,7 @@ describe.sequential('Property and Staff rights executors', () => {
 
       const result = await runScript(
         organizationApply(asked),
-        [createStaffOrganizationRightsExecutor(db)],
+        [createStaffRightsExecutor(db)],
         journal.store,
       )
 
@@ -600,6 +601,7 @@ describe.sequential('Property and Staff rights executors', () => {
           replayers: composeRightsReplayers({
             db,
             now: () => NOW,
+            auditPseudonymSecret: 'audit-pseudonym-test-secret',
             notificationReplayers: [],
           }),
         }),
@@ -610,6 +612,90 @@ describe.sequential('Property and Staff rights executors', () => {
       expect(await staffRows(other.organizationId)).toBe(otherBefore)
     })
 
+    it('tombstones every Property of the closed Organization, spares the other, and replays a restore', async () => {
+      const asked = await seedTenant()
+      const other = await seedTenant()
+      holdRightsOrganization(asked.organizationId)
+      const otherBefore = await stringify(other)
+      const restoreSet = [
+        ...(await captureProperty(asked, asked.propertyA)),
+        ...(await captureProperty(asked, asked.propertyB)),
+      ].filter(([table]) => table !== 'property_access_grant')
+      const journal = journalStore()
+
+      const result = await runScript(
+        organizationApply(asked),
+        [createPropertyRightsExecutor(db, () => NOW)],
+        journal.store,
+      )
+
+      expect(result.err).toEqual([])
+      expect(result.exit).toBe(0)
+      const tombstones = await lease.pool.query(
+        `SELECT name, address, lifecycle_state, lifecycle_reason, gbp_location_id
+         FROM properties WHERE organization_id = $1`,
+        [asked.organizationId],
+      )
+      expect(tombstones.rows).toEqual([
+        ...[0, 1].map(() => ({
+          name: 'erased-property',
+          address: null,
+          lifecycle_state: 'purged',
+          lifecycle_reason: 'erased on request',
+          gbp_location_id: null,
+        })),
+      ])
+      const managers = await lease.pool.query(
+        `SELECT count(*)::int AS count FROM property_responsible_managers
+         WHERE organization_id = $1`,
+        [asked.organizationId],
+      )
+      expect(managers.rows[0].count).toBe(0)
+      expect(await stringify(other)).toBe(otherBefore)
+      // The tombstone's updated_at is the time of the run, not of the erasure.
+      const tombstoneRows = async () =>
+        (
+          await lease.pool.query(
+            `SELECT (to_jsonb(t) - 'updated_at')::text AS row FROM properties t
+             WHERE organization_id = $1 ORDER BY id`,
+            [asked.organizationId],
+          )
+        ).rows
+      const after = await tombstoneRows()
+
+      const entries = [...journal.puts.values()].map(decodeErasureJournalEntry)
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({
+        context: 'property',
+        subjectClass: 'organization',
+      })
+
+      await restoreProperty(restoreSet)
+      expect(await tombstoneRows()).not.toEqual(after)
+      const fence = await db.transaction((tx) =>
+        applyRestoreResurrectionFence(tx, {
+          entries,
+          restorePointAt: RESTORE_POINT,
+          replayers: composeRightsReplayers({
+            db,
+            now: () => NOW,
+            auditPseudonymSecret: 'audit-pseudonym-test-secret',
+            notificationReplayers: [],
+          }),
+        }),
+      )
+
+      expect(fence.verified).toBe(true)
+      expect(await tombstoneRows()).toEqual(after)
+      const managersAfter = await lease.pool.query(
+        `SELECT count(*)::int AS count FROM property_responsible_managers
+         WHERE organization_id = $1`,
+        [asked.organizationId],
+      )
+      expect(managersAfter.rows[0].count).toBe(0)
+      expect(await stringify(other)).toBe(otherBefore)
+    })
+
     it('changes nothing when the journal write is rejected', async () => {
       const asked = await seedTenant()
       await seedStaff(asked)
@@ -618,7 +704,7 @@ describe.sequential('Property and Staff rights executors', () => {
 
       const result = await runScript(
         organizationApply(asked),
-        [createStaffOrganizationRightsExecutor(db)],
+        [createStaffRightsExecutor(db)],
         {
           put: async () => {
             throw new Error('bucket unavailable')

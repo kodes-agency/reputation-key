@@ -10,6 +10,8 @@ import {
   createActivityRightsExecutor,
 } from './activity-rights.adapter'
 
+const SECRET = 'audit-pseudonym-test-secret'
+
 describeRightsIsolation({
   environment: { acquireTestLease, deleteTestOrganizations },
   name: 'activity',
@@ -19,8 +21,8 @@ describeRightsIsolation({
     { table: 'recent_activity_replay_facts', hasProperty: true },
     { table: 'recent_activity_actor_label_redactions', hasProperty: false },
   ],
-  executor: (db) => createActivityRightsExecutor(db),
-  replayers: createActivityErasureReplayers(),
+  executor: (db) => createActivityRightsExecutor(db, SECRET),
+  replayers: createActivityErasureReplayers(SECRET),
   async seedProperty(query, organizationId, propertyId) {
     await query(
       `INSERT INTO recent_activity_entries

@@ -53,6 +53,7 @@ export function createGoogleRightsExecutor(
           deps.db,
           plan.organizationId,
           plan.propertyId,
+          now(),
         )
         return refusal ? { ok: false, error: refusal } : { ok: true }
       }
@@ -62,7 +63,12 @@ export function createGoogleRightsExecutor(
     },
     report: (plan) =>
       plan.scope === 'property' && plan.propertyId
-        ? readGoogleRightsPropertyReport(deps.db, plan.organizationId, plan.propertyId)
+        ? readGoogleRightsPropertyReport(
+            deps.db,
+            plan.organizationId,
+            plan.propertyId,
+            now(),
+          )
         : readGoogleRightsReport(deps.db, plan.organizationId, now()),
     async exportFiles(plan) {
       const payload = plan.propertyId
@@ -86,6 +92,7 @@ export function createGoogleRightsExecutor(
           deps.db,
           plan.organizationId,
           plan.propertyId,
+          now(),
         )
         return erased.ok ? { ok: true, lines: [`deleted=${erased.deleted}`] } : erased
       }
@@ -118,6 +125,7 @@ export function createGoogleRightsReplayers(
           tx,
           entry.organizationId,
           entry.propertyId,
+          now(),
         )
         if (!outcome.ok) throw new Error(outcome.error)
         return outcome.deleted
