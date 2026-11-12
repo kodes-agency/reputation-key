@@ -589,40 +589,20 @@ const openReplaceDialog = async (canvasElement: HTMLElement) => {
   )
 }
 
-export const PlannedReplacement: Story = {
-  args: { ...baseArgs, issuedLink },
-  play: async ({ canvasElement }) => {
-    const dialog = await openReplaceDialog(canvasElement)
-    await expect(dialog.getByRole('radio', { name: /^planned/i })).toBeChecked()
-    await expect(dialog.getByLabelText(/transition period \(days\)/i)).toHaveValue(30)
-    await expect(dialog.getByText(/between 1 and 90 days/i)).toBeInTheDocument()
-  },
-}
-
-export const SecurityReplacementHidesTransition: Story = {
-  args: { ...baseArgs, issuedLink },
-  play: async ({ canvasElement }) => {
-    const dialog = await openReplaceDialog(canvasElement)
-    await userEvent.click(dialog.getByRole('radio', { name: /at once, for security/i }))
-    await expect(dialog.queryByLabelText(/transition period \(days\)/i)).toBeNull()
-    // The submit says what it does: every printed code stops now.
-    await expect(
-      dialog.getByRole('button', { name: /replace now and stop the old code/i }),
-    ).toBeInTheDocument()
-  },
-}
-
 const spiedRotate = () =>
   Object.assign(
     fn(async (_input: RotateInput) => issuedLink),
     { isPending: false, error: null, isSuccess: false, data: null },
   ) as unknown as Action<RotateInput, LinkResult>
 
-export const PlannedReplacementUsesSharedDto: Story = {
+export const PlannedReplacement: Story = {
   args: { ...baseArgs, issuedLink, rotateMutation: spiedRotate() },
   play: async ({ canvasElement, args }) => {
     const dialog = await openReplaceDialog(canvasElement)
+    await expect(dialog.getByRole('radio', { name: /^planned/i })).toBeChecked()
     const days = dialog.getByLabelText(/transition period \(days\)/i)
+    await expect(days).toHaveValue(30)
+    await expect(dialog.getByText(/between 1 and 90 days/i)).toBeInTheDocument()
     await userEvent.clear(days)
     await userEvent.type(days, '7')
     await userEvent.click(dialog.getByRole('button', { name: /replace code/i }))
@@ -634,11 +614,13 @@ export const PlannedReplacementUsesSharedDto: Story = {
   },
 }
 
-export const SecurityReplacementSendsNoGracePeriod: Story = {
+export const SecurityReplacement: Story = {
   args: { ...baseArgs, issuedLink, rotateMutation: spiedRotate() },
   play: async ({ canvasElement, args }) => {
     const dialog = await openReplaceDialog(canvasElement)
     await userEvent.click(dialog.getByRole('radio', { name: /at once, for security/i }))
+    await expect(dialog.queryByLabelText(/transition period \(days\)/i)).toBeNull()
+    // The submit says what it does: every printed code stops now.
     await userEvent.click(
       dialog.getByRole('button', { name: /replace now and stop the old code/i }),
     )
@@ -660,16 +642,7 @@ const openStopDialog = async (canvasElement: HTMLElement) => {
   )
 }
 
-export const StopRequiresReason: Story = {
-  args: { ...baseArgs, issuedLink },
-  play: async ({ canvasElement }) => {
-    const dialog = await openStopDialog(canvasElement)
-    await expect(dialog.getByRole('button', { name: /stop all codes/i })).toBeDisabled()
-    await expect(dialog.getByLabelText(/reason/i)).toHaveFocus()
-  },
-}
-
-export const StopUsesSharedDto: Story = {
+export const StopAllCodes: Story = {
   args: {
     ...baseArgs,
     issuedLink,
@@ -680,6 +653,12 @@ export const StopUsesSharedDto: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const dialog = await openStopDialog(canvasElement)
+    await expect(dialog.getByRole('button', { name: /stop all codes/i })).toBeDisabled()
+    await expect(dialog.getByLabelText(/reason/i)).toHaveFocus()
+    // Blanks are not a reason.
+    await userEvent.type(dialog.getByLabelText(/reason/i), '   ')
+    await expect(dialog.getByRole('button', { name: /stop all codes/i })).toBeDisabled()
+    await userEvent.clear(dialog.getByLabelText(/reason/i))
     await userEvent.type(dialog.getByLabelText(/reason/i), '  Printed code retired  ')
     await userEvent.click(dialog.getByRole('button', { name: /stop all codes/i }))
     await waitFor(() =>

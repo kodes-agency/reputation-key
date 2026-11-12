@@ -254,3 +254,18 @@ export async function measurePhoneWidths(
   }
   return measurements
 }
+
+/**
+ * Target findings for the state drawn now, at every phone width the runner can set
+ * (the window's own width without one): lets a story fail on its own controls
+ * without taking on the rest of the page.
+ */
+export async function phoneTargetFindings(doc: Document = document): Promise<string[]> {
+  const view = doc.defaultView
+  if (!view) throw new Error('Expected a browser document')
+  if (!registry[VIEWPORT_SETTER]) return targetFindings(doc, view)
+  const measurements = await measurePhoneWidths(doc)
+  return measurements.flatMap(({ width, targets }) =>
+    targets.map((finding) => `${width} px: ${finding}`),
+  )
+}
