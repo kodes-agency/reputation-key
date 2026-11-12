@@ -112,7 +112,6 @@ beforeAll(async () => {
     db,
     env: { NODE_ENV: 'test', OPS_OPERATOR_IDENTITIES: OPERATOR },
     clock: () => new Date(),
-    logger: { warn: () => {} },
   })
   // ARC-03-T8: the real operator boot now binds the handle explicitly —
   // building it installs nothing.

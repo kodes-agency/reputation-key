@@ -59,7 +59,9 @@ afterEach(() => resetCapabilityPolicyStore())
 
 describe('durable Google category refresh', () => {
   it('reaches retryable provider admission even while the import capability is refused', async () => {
-    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'google' }),
+    )
     const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
     const row = ENTRY_POINT_CATALOGUE.find(
       (entry) =>
@@ -68,7 +70,7 @@ describe('durable Google category refresh', () => {
     if (!row) throw new Error('Category refresh consumer policy missing')
     const request = {
       principal: { kind: 'system' as const, id: 'consumer:category-refresh' },
-      organizationId: 'not-allowlisted',
+      organizationId: 'org-google-stopped',
       executionKind: 'consumer' as const,
       now: NOW,
     }

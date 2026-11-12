@@ -41,15 +41,27 @@ export const CAPABILITIES = [
 export type Capability = (typeof CAPABILITIES)[number]
 
 /**
- * Product fate is deliberately more precise than the runtime's three-way
- * core/non-core/blocked posture. Several different decisions fail closed in
- * the same runtime set but have different reactivation rules.
+ * The four operational switches (BETA_CAPABILITIES_OFF names). Each turns off
+ * a whole group of work: every call to Google, every AI call, every guest
+ * page and guest submission, and optional email. Everything off and
+ * Organization suspension are controls, not switches.
+ */
+export const FEATURE_SWITCHES = ['google', 'ai', 'guest_pages', 'optional_email'] as const
+
+export type FeatureSwitch = (typeof FEATURE_SWITCHES)[number]
+
+/**
+ * Product fate is deliberately more precise than the runtime's two-way
+ * on/blocked posture. Several different decisions fail closed in the same
+ * runtime set but have different reactivation rules.
  */
 export type CapabilityFate =
-  'core' | 'controlled_beta' | 'beta_disabled' | 'safety_blocked' | 'permanently_denied'
+  'core' | 'beta_disabled' | 'safety_blocked' | 'permanently_denied'
 
 export type CapabilityFateRecord = Readonly<{
   fate: CapabilityFate
+  /** The switch that turns this capability off; null when only the controls do. */
+  featureSwitch: FeatureSwitch | null
   authority: string
   activation: string
 }>
@@ -58,31 +70,31 @@ const fate = (
   value: CapabilityFate,
   authority: string,
   activation: string,
-): CapabilityFateRecord => Object.freeze({ fate: value, authority, activation })
+  featureSwitch: FeatureSwitch | null = null,
+): CapabilityFateRecord =>
+  Object.freeze({ fate: value, featureSwitch, authority, activation })
 
-const CORE = (authority: string) =>
+const CORE = (authority: string, featureSwitch: FeatureSwitch | null = null) =>
   fate(
     'core',
     authority,
-    'Enabled by default; global kill and tenant suspension still win.',
+    featureSwitch === null
+      ? 'Enabled by default; everything off and Organization suspension still win.'
+      : `Enabled by default; the ${featureSwitch} switch, everything off and Organization suspension still win.`,
+    featureSwitch,
   )
 
-const CONTROLLED = (authority: string) =>
-  fate(
-    'controlled_beta',
-    authority,
-    'Open to an Organization listed in BETA_ALLOWLIST_ORGS (or to all with `*`), plus any readiness gates; global kill and tenant suspension still win.',
-  )
-
-const DISABLED = (authority: string) =>
+const DISABLED = (authority: string, featureSwitch: FeatureSwitch | null = null) =>
   fate(
     'beta_disabled',
     authority,
     'Cannot be activated by tenant policy; requires an accepted product decision and code posture change.',
+    featureSwitch,
   )
 
 /**
- * Exhaustive product/runtime authority for the current capability vocabulary.
+ * Exhaustive product/runtime authority for the current capability vocabulary,
+ * and the switch each capability answers to.
  * Route/job/consumer catalogues reference these exact capability keys, so an
  * added capability cannot exist without an explicit fate decision.
  */
@@ -99,73 +111,91 @@ export const CAPABILITY_FATE = Object.freeze({
   'property.erase': DISABLED(
     'Ordinary product lifecycle uses recoverable Archive/Disconnect; permanent erasure is support-mediated.',
   ),
-  'property.connect_gbp': CORE('Google connection is part of the core manager journey.'),
-  'property.import_gbp_v2': CONTROLLED(
-    'Google discovery/import is active only through the governed import saga.',
+  'property.connect_gbp': CORE(
+    'Google connection is part of the core manager journey.',
+    'google',
   ),
-  'property.read_gbp_performance': CONTROLLED(
-    'Google performance is separately allowlisted and provider-readiness gated.',
+  'property.import_gbp_v2': CORE(
+    'Google discovery/import is active only through the governed import saga.',
+    'google',
+  ),
+  'property.read_gbp_performance': CORE(
+    'Google performance reads are provider-readiness gated.',
+    'google',
   ),
   'property.publish_reply': CORE(
     'Human-confirmed reply publication is core; automated publication remains denied.',
+    'google',
   ),
-  'notification.send_email': CONTROLLED(
-    'Email delivery is active by notification class and tenant policy; mandatory classes cannot be opted out.',
+  'notification.send_email': CORE(
+    'Optional email delivery follows notification class and recipient preference; mandatory classes go through notification.send_mandatory_email and survive this switch.',
+    'optional_email',
   ),
   'notification.send_mandatory_email': CORE(
-    'Mandatory account/security notices are Organization policy, not a product feature a tenant is admitted to: the last warning before an irreversible deletion must reach an Organization the email allowlist has never named.',
+    'Mandatory account/security notices are Organization policy, not optional mail: the last warning before an irreversible deletion must still go out while optional email is switched off.',
   ),
   'notification.in_app': CORE('In-app notification delivery is a beta core function.'),
-  'portal.read': CONTROLLED('Portal manager reads require controlled-beta policy.'),
-  'portal.write': CONTROLLED(
-    'Portal management and publication require controlled-beta policy and lifecycle readiness.',
+  'portal.read': CORE('Portal manager reads are beta core.'),
+  'portal.write': CORE(
+    'Portal management and publication are beta core, subject to lifecycle readiness.',
   ),
-  'portal.upload': CONTROLLED(
-    'Portal image upload is controlled beta behavior. The owner removed the SAFE-01 completion ceremony on 2026-09-30; the technical safeguards stay in the build (server-side re-encoding, metadata stripping, size and type limits, same-origin serving) - ADR 0063.',
+  'portal.upload': CORE(
+    'Portal image upload is beta core. The owner removed the SAFE-01 completion ceremony on 2026-09-30; the technical safeguards stay in the build (server-side re-encoding, metadata stripping, size and type limits, same-origin serving) - ADR 0063.',
   ),
-  'portal.public_read': CONTROLLED(
-    'The public review gateway is active only for published, allowlisted Portal resources.',
+  'portal.public_read': CORE(
+    'The public review gateway is active only for published Portal resources.',
+    'guest_pages',
   ),
-  'portal.guest_response': CONTROLLED(
-    'Private rating-first Guest Responses are controlled beta behavior.',
+  'portal.guest_response': CORE(
+    'Private rating-first Guest Responses are beta core.',
+    'guest_pages',
   ),
-  'portal.guest_text': CONTROLLED(
-    'Private feedback text is controlled beta behavior with separate retention and access rules.',
+  'portal.guest_text': CORE(
+    'Private feedback text is beta core with separate retention and access rules.',
+    'guest_pages',
   ),
   'portal.guest_contact': fate(
     'safety_blocked',
     'Contact Request storage is backend-only; phone is excluded and external beta activation awaits approved notice, handling, retention, and channel evidence.',
     'Remove the safety block only after named counsel/product approval and complete guest-notice, manager-handling, retention, and channel-readiness evidence; tenant policy alone cannot enable it.',
+    'guest_pages',
   ),
   'portal.guest_media': DISABLED(
     'Guest media is excluded from the first beta cohort and has no public issuance surface.',
+    'guest_pages',
   ),
-  'goal.use': CONTROLLED(
-    'Property, Portal Group, and individual Portal Goals over scans, rating count, and rating average are controlled beta.',
+  'goal.use': CORE(
+    'Property, Portal Group, and individual Portal Goals over scans, rating count, and rating average are beta core.',
   ),
-  'ai.analyze': CONTROLLED(
+  'ai.analyze': CORE(
     'Per-Property Review Analysis requires independent merchant authorization and readiness.',
+    'ai',
   ),
-  'ai.generate_reply': CONTROLLED(
+  'ai.generate_reply': CORE(
     'Per-Property genuine EN/BG drafting requires independent authorization and explicit human adoption.',
+    'ai',
   ),
   'ai.detect_trends': DISABLED(
     'Property Trends is retired; recorded grants do not authorize execution.',
+    'ai',
   ),
   'gbp.reply.auto_publish': fate(
     'permanently_denied',
     'Replies require explicit human confirmation and observed Google truth.',
     'No activation path exists.',
+    'google',
   ),
   'gbp.ai.cross_property_summary': fate(
     'permanently_denied',
     'AI processing is Property-local and cannot create cross-Property or cross-Organization summaries.',
     'No activation path exists.',
+    'ai',
   ),
   'gbp.review_solicitation_gamification': fate(
     'permanently_denied',
     'The beta does not use AI or competitive mechanics to influence review solicitation.',
     'No activation path exists.',
+    'ai',
   ),
   'review.use': CORE('Stable Google Review identity and lifecycle are beta core.'),
   'inbox.use': CORE('Inbox handling is beta core.'),
@@ -173,8 +203,8 @@ export const CAPABILITY_FATE = Object.freeze({
   'staff.use': CORE(
     'Staff Participants/participation/attribution are core; this does not activate Member login.',
   ),
-  'staff.accounts': CONTROLLED(
-    'ADR 0076 and owner decision D18 (2026-11-01): personal Portals and staff self reads are open to the beta cohort; scan targets have the separate STAFF_SCAN_TARGETS_ENABLED switch.',
+  'staff.accounts': CORE(
+    'ADR 0076 and owner decision D18 (2026-11-01): personal Portals and staff self reads are beta core; scan targets have the separate STAFF_SCAN_TARGETS_ENABLED switch.',
   ),
   'integration.use': CORE('Google integration lifecycle is beta core.'),
   'activity.use': CORE('Privacy-aware Recent Activity is beta core.'),
@@ -191,6 +221,14 @@ export const CAPABILITY_FATE = Object.freeze({
 export function listCapabilitiesByFate(target: CapabilityFate): readonly Capability[] {
   return (Object.entries(CAPABILITY_FATE) as Array<[Capability, CapabilityFateRecord]>)
     .filter(([, record]) => record.fate === target)
+    .map(([capability]) => capability)
+    .sort()
+}
+
+/** The capabilities one switch turns off. */
+export function listCapabilitiesBySwitch(target: FeatureSwitch): readonly Capability[] {
+  return (Object.entries(CAPABILITY_FATE) as Array<[Capability, CapabilityFateRecord]>)
+    .filter(([, record]) => record.featureSwitch === target)
     .map(([capability]) => capability)
     .sort()
 }

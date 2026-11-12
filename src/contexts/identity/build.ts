@@ -242,8 +242,6 @@ export type PlatformConsoleDeps = Readonly<{
   sendEmail: InvitationEmailSender
   baseUrl: string
   invitationExpiresInMs: number
-  /** Whether BETA_ALLOWLIST_ORGS covers the Organization (web's reading). */
-  isControlledBetaEnabled: (organizationId: string) => boolean
 }>
 
 export type PlatformConsole = Readonly<{
@@ -272,7 +270,6 @@ export function buildPlatformConsole(deps: PlatformConsoleDeps): PlatformConsole
   return Object.freeze({
     listOrganizations: listPlatformOrganizations({
       store,
-      isControlledBetaEnabled: deps.isControlledBetaEnabled,
       clock,
     }),
     provisionOrganization: provisionOrganization({
@@ -603,7 +600,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     db,
     env: deps.policy.env,
     clock,
-    logger,
   })
   const merchantAi = buildMerchantAi({
     ...deps,

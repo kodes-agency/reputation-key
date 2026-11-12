@@ -46,7 +46,7 @@ export const CAPABILITY_AUTHORITIES = [
   'catalogue',
   'fate',
   'global_posture',
-  'tenant_allowlist',
+  'organization_suspension',
   'permission_scope',
   'google_execution_control',
   'postgres_start_authority',
@@ -143,14 +143,9 @@ export type CapabilityRefusalInput = Readonly<{
  * who by".
  */
 const REASON_AUTHORITY = {
-  unknown_capability: 'catalogue',
   capability_blocked: 'fate',
   capability_disabled: 'global_posture',
-  org_not_allowlisted: 'tenant_allowlist',
-  property_not_allowlisted: 'tenant_allowlist',
-  org_suspended: 'tenant_allowlist',
-  property_suspended: 'tenant_allowlist',
-  missing_policy: 'tenant_allowlist',
+  org_suspended: 'organization_suspension',
 } as const satisfies Readonly<Record<CapabilityDenyReason, CapabilityAuthority>>
 
 // ── Chain assembly ──────────────────────────────────────────────────
@@ -290,10 +285,10 @@ export function createCapabilityRefusalExplainer(deps: CapabilityRefusalDeps) {
     if (input.role === undefined || input.organizationId === undefined) {
       reached.push(verdict('global_posture', 'not_evaluated'))
       reached.push(
-        verdict('tenant_allowlist', 'not_evaluated', null, [
+        verdict('organization_suspension', 'not_evaluated', null, [
           {
             name: 'why',
-            observed: 'no member context supplied; tenant authorities need (org, role)',
+            observed: 'no member context supplied; suspension needs (org, role)',
           },
         ]),
       )
@@ -310,7 +305,7 @@ export function createCapabilityRefusalExplainer(deps: CapabilityRefusalDeps) {
       if (!decision.allowed) {
         const reason = decision.reason as CapabilityDenyReason
         reached.push(
-          verdict(REASON_AUTHORITY[reason] ?? 'tenant_allowlist', 'refused', reason, [
+          verdict(REASON_AUTHORITY[reason], 'refused', reason, [
             { name: 'organizationId', observed: input.organizationId },
             ...(input.propertyId
               ? [{ name: 'propertyId', observed: input.propertyId }]
@@ -320,7 +315,7 @@ export function createCapabilityRefusalExplainer(deps: CapabilityRefusalDeps) {
         return report(capability, reached)
       }
       reached.push(verdict('global_posture', 'pass'))
-      reached.push(verdict('tenant_allowlist', 'pass'))
+      reached.push(verdict('organization_suspension', 'pass'))
     }
 
     if (input.permissionScope === undefined) {

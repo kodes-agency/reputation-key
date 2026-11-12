@@ -770,17 +770,12 @@ describe('AI consumer authorization', () => {
     return outcome.decision.reason
   }
 
-  /** The same, under one switched-off capability. */
+  /** The same, under one switch turned off. */
   const gateUnderStop = (
     stopped: string,
     consumerName: string,
     envelope: ConsumerEvent,
-  ) =>
-    gateUnder(
-      { BETA_ALLOWLIST_ORGS: ORGANIZATION_ID, BETA_CAPABILITIES_OFF: stopped },
-      consumerName,
-      envelope,
-    )
+  ) => gateUnder({ BETA_CAPABILITIES_OFF: stopped }, consumerName, envelope)
 
   beforeEach(() => {
     initDelayedExecutionPolicy(
@@ -820,8 +815,8 @@ describe('AI consumer authorization', () => {
     ).toEqual([])
   })
 
-  it('keeps analysing reviews and recording enrollment while trends are stopped', async () => {
-    const stopped = 'ai.detect_trends'
+  it('keeps recording reviews owed an analysis and enrollment while AI is switched off', async () => {
+    const stopped = 'ai'
 
     expect({
       analysis: await gateUnderStop(
@@ -841,22 +836,9 @@ describe('AI consumer authorization', () => {
   })
 
   it.each([
-    [
-      'ai.analyze is switched off',
-      { BETA_ALLOWLIST_ORGS: ORGANIZATION_ID, BETA_CAPABILITIES_OFF: 'ai.analyze' },
-    ],
-    [
-      'every capability is switched off',
-      { BETA_ALLOWLIST_ORGS: ORGANIZATION_ID, BETA_CAPABILITIES_OFF: 'all' },
-    ],
-    [
-      'the Organization is suspended',
-      { BETA_ALLOWLIST_ORGS: '*', BETA_SUSPENDED_ORGS: ORGANIZATION_ID },
-    ],
-    [
-      'the Organization is not allowlisted',
-      { BETA_ALLOWLIST_ORGS: 'another-organization' },
-    ],
+    ['AI is switched off', { BETA_CAPABILITIES_OFF: 'ai' }],
+    ['everything is switched off', { BETA_CAPABILITIES_OFF: 'all' }],
+    ['the Organization is suspended', { BETA_SUSPENDED_ORGS: ORGANIZATION_ID }],
   ])(
     'still delivers every review event to the analysis consumer while %s, and refuses it the provider call',
     async (_stop, env) => {
@@ -885,8 +867,8 @@ describe('AI consumer authorization', () => {
   it('still requires the Property a review event names', async () => {
     const unscoped = { ...event('review.created'), propertyId: null }
 
-    await expect(
-      gateUnder({ BETA_ALLOWLIST_ORGS: '*' }, AI_REVIEW_ANALYSIS_CONSUMER, unscoped),
-    ).resolves.toBe('missing_scope')
+    await expect(gateUnder({}, AI_REVIEW_ANALYSIS_CONSUMER, unscoped)).resolves.toBe(
+      'missing_scope',
+    )
   })
 })

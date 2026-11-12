@@ -149,11 +149,7 @@ async function seedProperty(): Promise<Fixture> {
     VALUES (${f.propertyId}::uuid, ${f.organizationId}, 'Renewal property', ${f.propertyId}, 'UTC', 'active', ${f.connectionId}::uuid, 'account', ${f.propertyId}, 'active', 'legacy', 0)`)
   await db.execute(sql`INSERT INTO review_ai_analysis_heads (organization_id, property_id, source_epoch, head_sequence)
     VALUES (${f.organizationId}, ${f.propertyId}::uuid, 0, 0)`)
-  initCapabilityPolicyStore(
-    createEnvCapabilityPolicyStore({
-      BETA_ALLOWLIST_ORGS: fixtures.map((item) => item.organizationId).join(','),
-    }),
-  )
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
   return f
 }
 
@@ -466,7 +462,6 @@ describe('standing renewal persistence', () => {
     await store.mutate(command(unbound))
     initCapabilityPolicyStore(
       createEnvCapabilityPolicyStore({
-        BETA_ALLOWLIST_ORGS: suspended.organizationId,
         BETA_SUSPENDED_ORGS: suspended.organizationId,
       }),
     )

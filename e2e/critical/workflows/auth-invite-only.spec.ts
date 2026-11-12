@@ -1,6 +1,6 @@
 // BQC-6.5 item 1 — invite-only authentication/session; no public
-// registration route. Runs against the LOCKED server (:3001) where
-// BETA_E2E_GLOBAL_CAPABILITIES is empty — the real beta posture.
+// registration route. Runs against the LOCKED server (:3001), which carries
+// the real beta posture.
 //
 // Transitions verified:
 //   unauthenticated deep-link → /login (session gate)

@@ -46,7 +46,7 @@ import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 
 beforeAll(registerAllEventSchemas)
 beforeEach(() => {
-  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: ORG }))
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
   initDelayedExecutionPolicy(
     createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
   )

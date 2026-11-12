@@ -123,13 +123,16 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     expect(decision.reason).toBe('capability_blocked')
   })
 
-  it('denies a non-core capability without an org allowlist row', async () => {
+  it('denies a capability whose switch is off', async () => {
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'ai' }),
+    )
     const policy = createExecutionPolicy(deps())
     const decision = await policy.decide(
-      request({ action: 'goal.read', capability: 'goal.use' }),
+      request({ action: 'ai.reply.generate', capability: 'ai.generate_reply' }),
     )
     expect(decision.allowed).toBe(false)
-    expect(decision.reason).toBe('org_not_allowlisted')
+    expect(decision.reason).toBe('capability_disabled')
   })
 
   it('denies when the permission is missing', async () => {
@@ -301,12 +304,9 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     expect(allowCore.allowed).toBe(true)
   })
   it('public Portal decisions use resolved property scope and explicit consent assertions', async () => {
-    initCapabilityPolicyStore({
-      isCapabilityGloballyEnabled: () => false,
-      isOrgAllowlisted: (organizationId, capability) =>
-        organizationId === ORG && capability === 'portal.guest_text',
-      isOrgSuspended: () => false,
-    })
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({ BETA_SUSPENDED_ORGS: 'org-suspended' }),
+    )
     const policy = createExecutionPolicy(deps())
     const consentAssertions = {
       analytics: false,
@@ -334,14 +334,14 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
         principal: { kind: 'public' },
         action: 'public:portal.response.text.submit',
         capability: 'portal.guest_text',
-        organizationId: 'org-not-listed',
+        organizationId: 'org-suspended',
         propertyId: 'p2',
         executionKind: 'public',
         requiredPublicConsents: ['response', 'freeText'],
         consentAssertions,
       }),
     )
-    expect(wrongOrganization.reason).toBe('org_not_allowlisted')
+    expect(wrongOrganization.reason).toBe('org_suspended')
 
     const declined = await policy.decide(
       request({
@@ -443,12 +443,20 @@ describe('operator principal (BQC-7.5)', () => {
   })
 
   it('global scope (no org) evaluates the global capability gate only', async () => {
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({
+        BETA_CAPABILITIES_OFF: 'google',
+        BETA_SUSPENDED_ORGS: ORG,
+      }),
+    )
     const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
     const deny = await policy.decide(
-      operatorRequest({ organizationId: undefined, capability: 'goal.use' }),
+      operatorRequest({
+        organizationId: undefined,
+        capability: 'property.publish_reply',
+      }),
     )
     expect(deny.allowed).toBe(false)
-    // goal.use is non-core → globally off without an e2e override.
     expect(deny.reason).toBe('capability_disabled')
 
     const allow = await policy.decide(

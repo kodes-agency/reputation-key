@@ -199,8 +199,8 @@ export function createDelayedExecutionPolicy(
       // inspect identifiers across tenants, but every candidate must be
       // authorized again with its real organization/property before work
       // (createScheduledScopeAuthorizer). Nothing below this line runs for
-      // the firing, so a handler that skips that step ignores the kill
-      // switch, suspension and the allowlist:
+      // the firing, so a handler that skips that step ignores the switches
+      // and suspension:
       // architecture/tenant-cross-schedule-authorization.test names how every
       // capability-gated tenant-cross schedule decides its candidates.
       // Worker/consumer invocations never receive this exception.

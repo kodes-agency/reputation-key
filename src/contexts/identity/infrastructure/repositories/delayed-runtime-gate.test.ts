@@ -27,7 +27,6 @@ const db = getDb()
 const ORG = 'org-delayed-gate'
 const POLICY_ENV = {
   NODE_ENV: 'test',
-  BETA_E2E_GLOBAL_CAPABILITIES: 'notification.send_email',
 } satisfies CapabilityPolicyEnv
 const EMAIL_DATA = {
   organizationId: ORG,
@@ -48,7 +47,6 @@ beforeAll(async () => {
       db,
       env: POLICY_ENV,
       clock: () => new Date(),
-      logger: { warn: () => {} },
     }),
   )
 })
@@ -89,7 +87,6 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
         db,
         env: POLICY_ENV,
         clock: () => new Date(),
-        logger: { warn: () => {} },
       }),
     )
   })

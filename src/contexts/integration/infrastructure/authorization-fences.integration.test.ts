@@ -62,9 +62,7 @@ const decide = (userId: string) => check(db, exchangeInput(userId))
 
 const installStore = (env: Record<string, string | undefined> = {}) => {
   resetCapabilityPolicyStore()
-  initCapabilityPolicyStore(
-    createEnvCapabilityPolicyStore({ BETA_E2E_GLOBAL_CAPABILITIES: CAPABILITY, ...env }),
-  )
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
 }
 
 async function cleanUp(): Promise<void> {

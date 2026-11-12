@@ -47,7 +47,7 @@ import {
   getTenantCacheStats,
   type TenantCacheStats,
 } from '#/shared/auth/tenant-cache-stats'
-import { isCapabilityOpenToEveryOrganization } from '#/shared/auth/beta-capabilities'
+import { checkGlobalCapability } from '#/shared/auth/beta-capabilities'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import type { JobRuntimeReport } from '#/shared/jobs/runtime-observations'
 import { getLogger } from '#/shared/observability/logger'
@@ -497,15 +497,13 @@ export function createOperationsSnapshot(
     // push is dark and new reviews only arrive on the discovery sweep.
     gbpPushEnabled: getEnv().GBP_PUBSUB_TOPIC.length > 0,
     reviewReconcileWithinHours: getEnv().REVIEW_RECONCILE_WITHIN_HOURS,
-    // Same kind of readiness fact: while `notification.send_email` is open to
-    // only some Organizations, rows queued while a scope was dark are an
-    // expected backlog — the alert must not cry wolf about it. A per-ORG
-    // grant is not globally enumerable, so this flag cannot see it;
-    // notifications.attemptedStuckCount covers that case (a row the delivery
-    // path actually touched and left unsent), judged per scope. Not the
-    // global check: that is false under BETA_ALLOWLIST_ORGS=*, where email is
-    // live for everyone and an untouched overdue backlog is a real fault.
-    emailDeliveryEnabled: isCapabilityOpenToEveryOrganization('notification.send_email'),
+    // Same kind of readiness fact: while optional email is switched off, rows
+    // queued meanwhile are an expected backlog — the alert must not cry wolf
+    // about it. A suspended Organization is not globally enumerable, so this
+    // flag cannot see it; notifications.attemptedStuckCount covers that case
+    // (a row the delivery path actually touched and left unsent), judged per
+    // scope.
+    emailDeliveryEnabled: checkGlobalCapability('notification.send_email').allowed,
     isEmailDeliveryAllowed: deps.isEmailDeliveryAllowed,
     readNotificationDeliveryLag: deps.readNotificationDeliveryLag,
   })

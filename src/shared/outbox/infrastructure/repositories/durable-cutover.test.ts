@@ -429,7 +429,6 @@ beforeAll(async () => {
     db,
     env: {} as CapabilityPolicyEnv,
     clock: () => new Date(),
-    logger: { warn: () => {} },
   })
   bindProcessPolicies(policyHandle)
 

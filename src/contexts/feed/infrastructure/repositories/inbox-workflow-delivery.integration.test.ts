@@ -105,9 +105,7 @@ describe.sequential('Inbox workflow delivery races (real PostgreSQL)', () => {
     await clear()
     now = OCCURRED_AT
     commandRevision = 1
-    initCapabilityPolicyStore(
-      createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: ORG }),
-    )
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
     initDelayedExecutionPolicy(
       createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
     )

@@ -13,10 +13,6 @@
 // The initial password is read from stdin (never an argument, never printed);
 // the owner changes it at /settings/security or through the reset flow.
 //
-// Both outputs report controlled-beta coverage (bootstrapAllowlistReport): a
-// brand-new Organization is exactly the one an explicit BETA_ALLOWLIST_ORGS
-// list does not name yet.
-//
 // Every later Organization is created from the operator console (/operator,
 // ADR 0065), which invites its first AccountAdmin instead of creating one.
 //
@@ -39,7 +35,6 @@ import {
   signUpResponseSchema,
 } from '../../src/contexts/identity/infrastructure/adapters/better-auth-schemas'
 import { deriveOrganizationSlug } from '../../src/shared/domain/organization-slug'
-import { bootstrapAllowlistReport } from '../../src/shared/ops/bootstrap-owner-allowlist'
 import {
   bootstrapState,
   type BootstrapSnapshot,
@@ -186,7 +181,6 @@ async function main(): Promise<void> {
               organizationName: input.organizationName,
               slug: deriveOrganizationSlug(input.organizationName),
               role: 'owner',
-              ...bootstrapAllowlistReport(process.env),
             },
             null,
             2,
@@ -211,7 +205,6 @@ async function main(): Promise<void> {
             email: input.email,
             ownerAccount: state.kind === 'resume' ? 'reused' : 'created',
             role: 'owner',
-            ...bootstrapAllowlistReport(process.env, organizationId),
             next: 'sign in at /login with the initial password and change it at /settings/security',
           },
           null,

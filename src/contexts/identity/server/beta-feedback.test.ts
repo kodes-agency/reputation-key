@@ -49,6 +49,7 @@ import {
   resetExecutionPolicy,
 } from '#/shared/auth/execution-policy'
 import {
+  createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
   type CapabilityPolicyStore,
@@ -98,17 +99,13 @@ const bug = {
   viewport: 'wide',
 } as const
 
-// Mirrors the deployed store's posture for the capability under test:
-// `feedback.beta_report` is core, so it is globally enabled and needs no
-// per-organization allowlist. Reporting must not depend on a Portal cohort.
+// `feedback.beta_report` answers to no switch, so reporting does not depend on
+// the feature the reporter is stuck on.
 function feedbackPolicyStore(
   overrides: Partial<CapabilityPolicyStore> = {},
 ): CapabilityPolicyStore {
   return {
-    isCapabilityGloballyEnabled: (capability) => capability === 'feedback.beta_report',
-    isOrgAllowlisted: (candidateOrganizationId, capability) =>
-      candidateOrganizationId === actor.organizationId &&
-      capability === 'portal.guest_response',
+    isCapabilityKilled: () => false,
     isOrgSuspended: () => false,
     ...overrides,
   }
@@ -297,13 +294,13 @@ describe('submit beta feedback server function', () => {
     expect(captured.message).not.toContain('"x"')
   })
 
-  it('accepts a report from an organization in no Portal cohort', async () => {
+  it('accepts a report while every switch is off', async () => {
     // Regression: reporting used to run through `feedback.respond`, which maps
-    // to the controlled-beta `portal.guest_response` capability. A manager whose
-    // organization had no Portal policy could not report that, or anything else.
+    // to the `portal.guest_response` capability. A manager whose guest pages
+    // were stopped could not report that, or anything else.
     initCapabilityPolicyStore(
-      feedbackPolicyStore({
-        isOrgAllowlisted: () => false,
+      createEnvCapabilityPolicyStore({
+        BETA_CAPABILITIES_OFF: 'google,ai,guest_pages,optional_email',
       }),
     )
 

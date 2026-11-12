@@ -53,7 +53,7 @@ const worker = createWorker({
 describe('Review Analysis backlog jobs under platform policy', () => {
   it('sends a queued review to the provider when policy allows its Organization', async () => {
     const rows = [queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY })]
-    const run = await worker({ BETA_ALLOWLIST_ORGS: STOPPED_ORGANIZATION }, rows)
+    const run = await worker({}, rows)
 
     await run.fire()
 
@@ -95,10 +95,7 @@ describe('Review Analysis backlog jobs under platform policy', () => {
       queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY }),
       queued(2, { org: OTHER_ORGANIZATION, prop: OTHER_PROPERTY }),
     ]
-    const run = await worker(
-      { BETA_ALLOWLIST_ORGS: '*', BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION },
-      rows,
-    )
+    const run = await worker({ BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION }, rows)
 
     await run.fire()
 
@@ -112,7 +109,7 @@ describe('Review Analysis backlog jobs under platform policy', () => {
 
   it('keeps a profile refusal queued past the horizon and drains it after restoration', async () => {
     const rows = [queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY })]
-    const run = await worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+    const run = await worker({}, rows)
     run.switches.profileUnavailable = true
     await run.fire()
     run.advance(24 * 60 * 60 * 1_000)
@@ -133,14 +130,11 @@ describe('Review Analysis backlog jobs under platform policy', () => {
 
   it('analyses a refused review once the stop is lifted and its hold has passed', async () => {
     const rows = [queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY })]
-    const run = await worker(
-      { BETA_ALLOWLIST_ORGS: '*', BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION },
-      rows,
-    )
+    const run = await worker({ BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION }, rows)
     await run.fire()
     const callsWhileStopped = run.analyzeReview.mock.calls.length
 
-    run.restartUnder({ BETA_ALLOWLIST_ORGS: '*' })
+    run.restartUnder({})
     run.advance(REFUSAL_HOLD_MILLIS - 1)
     await run.fire()
     const callsWhileHeld = run.analyzeReview.mock.calls.length
@@ -164,7 +158,7 @@ describe('Review Analysis backlog jobs under platform policy', () => {
   // and the handler never runs for a stopped one.
   it('analyses an opened review on demand when policy allows its Organization', async () => {
     const rows = [queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY })]
-    const run = await worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+    const run = await worker({}, rows)
 
     await run.analyzeNow(queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY }))
 
@@ -173,10 +167,7 @@ describe('Review Analysis backlog jobs under platform policy', () => {
 
   it('refuses the on-demand job for a suspended Organization before it claims the review', async () => {
     const rows = [queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY })]
-    const run = await worker(
-      { BETA_ALLOWLIST_ORGS: '*', BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION },
-      rows,
-    )
+    const run = await worker({ BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION }, rows)
 
     await expect(
       run.analyzeNow(queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY })),
@@ -201,7 +192,7 @@ describe('Review Analysis backlog jobs under platform policy', () => {
 describe('Review Analysis for a review that arrives during a stop', () => {
   it('analyses a new review on delivery when nothing is stopped', async () => {
     const rows: QueuedEntry[] = []
-    const run = await worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+    const run = await worker({}, rows)
 
     await run.arrive(1, STOPPED_SCOPE)
 
@@ -243,7 +234,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
         },
       ])
 
-      run.restartUnder({ BETA_ALLOWLIST_ORGS: '*' })
+      run.restartUnder({})
       run.advance(REFUSAL_HOLD_MILLIS)
       await run.fire()
 
@@ -258,10 +249,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
 
   it('keeps analysing another Organization on delivery while one is suspended', async () => {
     const rows: QueuedEntry[] = []
-    const run = await worker(
-      { BETA_ALLOWLIST_ORGS: '*', BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION },
-      rows,
-    )
+    const run = await worker({ BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION }, rows)
 
     await run.arrive(1, STOPPED_SCOPE)
     await run.arrive(2, { org: OTHER_ORGANIZATION, prop: OTHER_PROPERTY })
@@ -272,12 +260,12 @@ describe('Review Analysis for a review that arrives during a stop', () => {
     expect(rows.map((row) => row.organizationId)).toEqual([STOPPED_ORGANIZATION])
   })
 
-  // An Organization that is off the allowlist is refused for good, and most of
-  // its Properties never enabled AI. Their reviews must not pile up in the
-  // backlog waiting for a stop that is not one.
+  // A suspended Organization is refused, and most of its Properties never
+  // enabled AI. Their reviews must not pile up in the backlog waiting for a
+  // stop that is not one.
   it('queues nothing for a Property that never enabled AI, refused or not', async () => {
     const rows: QueuedEntry[] = []
-    const run = await worker({ BETA_ALLOWLIST_ORGS: OTHER_ORGANIZATION }, rows, {
+    const run = await worker({ BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION }, rows, {
       neverEnabled: [STOPPED_PROPERTY, OTHER_PROPERTY],
     })
     expect(await run.authorizations()).toEqual([null, null])
@@ -296,7 +284,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
 
   it('holds a review that arrives while the Review Analysis control is killed, and analyses it after the restore', async () => {
     const rows: QueuedEntry[] = []
-    const run = await worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+    const run = await worker({}, rows)
     await run.killReviewAnalysis()
 
     const arrival = await run.arrive(1, STOPPED_SCOPE)
@@ -341,7 +329,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
 
   it('leaves a review that was already queued untried while the control is killed', async () => {
     const rows = [queued(1, STOPPED_SCOPE)]
-    const run = await worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+    const run = await worker({}, rows)
     await run.killReviewAnalysis()
 
     await run.fire()
@@ -358,7 +346,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
 
   it('leaves an opened review queued when its on-demand analysis meets a killed control', async () => {
     const rows = [queued(1, STOPPED_SCOPE)]
-    const run = await worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+    const run = await worker({}, rows)
     await run.killReviewAnalysis()
 
     await run.analyzeNow(queued(1, STOPPED_SCOPE))
@@ -394,7 +382,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
     (_case, before, tried) => {
       async function triedThenKilledThenRestored() {
         const rows = [queued(1, STOPPED_SCOPE)]
-        const run = await worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+        const run = await worker({}, rows)
         run.switches.laneBusy = before.laneBusy
         await run.fire()
         const beforeTheKill = await run.operations()

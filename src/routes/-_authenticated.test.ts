@@ -173,8 +173,7 @@ describe('authenticated route', () => {
         to: '/unavailable',
         search: {
           feature: 'Goals',
-          category: 'needs_admin_enablement',
-          propertyId: 'property-1',
+          category: 'temporarily_unavailable',
         },
       }),
     )
@@ -192,8 +191,7 @@ describe('authenticated route', () => {
         to: '/unavailable',
         search: {
           feature: 'Goals',
-          category: 'needs_admin_enablement',
-          propertyId: 'property-1',
+          category: 'temporarily_unavailable',
         },
       },
     })

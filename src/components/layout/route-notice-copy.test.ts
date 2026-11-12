@@ -70,35 +70,13 @@ describe('a feature that is switched off', () => {
     },
   )
 
-  it('sends an admin-enablement refusal to the Property’s settings, where it can be lifted', () => {
-    expect(
-      noticeProps({
-        cause: 'feature',
-        title: 'Goals',
-        category: 'needs_admin_enablement',
-        propertyId: 'p2',
-      }).back,
-    ).toEqual({ to: '/properties/p2/settings', label: 'Open property settings' })
-  })
-
-  it('offers no settings link for a refusal no setting can lift', () => {
+  it('offers no settings link: no setting can lift a capability refusal', () => {
     for (const category of CAPABILITY_REFUSAL_CATEGORIES) {
-      if (REFUSAL_COPY[category].next !== null) continue
-      expect(
-        noticeProps({ cause: 'feature', title: 'Portals', category, propertyId: 'p2' })
-          .back,
-      ).toEqual({ to: '/properties', label: 'Back to properties' })
+      expect(noticeProps({ cause: 'feature', title: 'Portals', category }).back).toEqual({
+        to: '/properties',
+        label: 'Back to properties',
+      })
     }
-  })
-
-  it('falls back to the Properties list when there is no Property to open', () => {
-    expect(
-      noticeProps({
-        cause: 'feature',
-        title: 'Goals',
-        category: 'needs_admin_enablement',
-      }).back,
-    ).toEqual({ to: '/properties', label: 'Back to properties' })
   })
 })
 

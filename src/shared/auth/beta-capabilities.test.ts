@@ -1,384 +1,270 @@
-// Tests for BetaCapabilities module (B0.5).
+// Tests for the capability policy: four switches, everything off, suspension
+// and blocked fates.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   CAPABILITIES,
+  FEATURE_SWITCHES,
   checkBetaCapability,
   checkScopedCapability,
   assertBetaCapability,
   BetaCapabilityError,
+  capabilitiesOffProblem,
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
   createEnvCapabilityPolicyStore,
-  isCoreCapability,
   isBlockedCapability,
   isCapabilityJobEnabled,
   listAllCapabilities,
-  listCoreCapabilities,
   listBlockedCapabilities,
   checkGlobalCapability,
+  parseSwitchesOff,
+  type Capability,
   type CapabilityPolicyStore,
 } from './beta-capabilities'
+import { listCapabilitiesBySwitch } from '#/shared/governance/capability-fate'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 
-function makeStore(
-  overrides: Partial<CapabilityPolicyStore> = {},
-): CapabilityPolicyStore {
-  return {
-    isCapabilityGloballyEnabled: (cap) => {
-      if (cap === 'identity.invite' || cap === 'property.create') return true
-      return false
-    },
-    isOrgAllowlisted: (_orgId, _cap) => false,
-    isOrgSuspended: () => false,
-    ...overrides,
-  }
+const ORG = 'org-00000000-0000-0000-0000-000000000001'
+const OTHER_ORG = 'org-00000000-0000-0000-0000-000000000002'
+
+function install(env: Readonly<Record<string, string | undefined>>): void {
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
 }
 
-describe('BetaCapabilities', () => {
-  beforeEach(() => {
-    initCapabilityPolicyStore(makeStore())
-  })
+function allowedFor(organizationId: string): Capability[] {
+  return listAllCapabilities().filter(
+    (capability) => checkScopedCapability({ organizationId }, capability).allowed,
+  )
+}
 
+/** Every capability the beta ran before the switches, read from its fates. */
+const ON_TODAY: ReadonlyArray<Capability> = [
+  'activity.use',
+  'ai.analyze',
+  'ai.generate_reply',
+  'dashboard.use',
+  'feedback.beta_report',
+  'goal.use',
+  'identity.invite',
+  'inbox.use',
+  'integration.use',
+  'metric.internal',
+  'notification.in_app',
+  'notification.send_email',
+  'notification.send_mandatory_email',
+  'portal.guest_response',
+  'portal.guest_text',
+  'portal.public_read',
+  'portal.read',
+  'portal.upload',
+  'portal.write',
+  'property.connect_gbp',
+  'property.create',
+  'property.import_gbp_v2',
+  'property.publish_reply',
+  'property.read_gbp_performance',
+  'review.use',
+  'staff.accounts',
+  'staff.use',
+]
+
+describe('BetaCapabilities', () => {
   afterEach(() => {
     resetCapabilityPolicyStore()
+    delete process.env.RESTORE_MODE
   })
 
-  describe('checkBetaCapability', () => {
-    it('allows core capabilities for authenticated users', () => {
-      const ctx = buildTestAuthContext()
-      const decision = checkBetaCapability(ctx, 'identity.invite')
-      expect(decision.allowed).toBe(true)
-      expect(decision.reason).toBe('allowed')
+  describe('the beta environment', () => {
+    // What web and worker carry on the beta today: every Organization admitted
+    // (`*`), nothing switched off, nobody suspended. The allowlist variable is
+    // no longer read; the outcome must not move.
+    const BETA_ENV = { NODE_ENV: 'production', BETA_ALLOWLIST_ORGS: '*' }
+
+    it('runs exactly what it ran before, for every Organization', () => {
+      install(BETA_ENV)
+
+      expect(allowedFor(ORG)).toEqual(ON_TODAY)
+      expect(allowedFor(OTHER_ORG)).toEqual(ON_TODAY)
     })
 
-    it('denies non-core capabilities when org not allowlisted', () => {
-      const ctx = buildTestAuthContext()
-      const decision = checkBetaCapability(ctx, 'goal.use')
-      expect(decision.allowed).toBe(false)
-      expect(decision.reason).toBe('org_not_allowlisted')
-    })
+    it('refuses only the blocked fates, with the blocked reason', () => {
+      install(BETA_ENV)
 
-    it('allows non-core capabilities when org is allowlisted', () => {
-      const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(
-        makeStore({
-          isCapabilityGloballyEnabled: () => false,
-          isOrgAllowlisted: (orgId, cap) =>
-            orgId === ctx.organizationId && cap === 'goal.use',
-        }),
+      const refused = listAllCapabilities().filter(
+        (capability) => !ON_TODAY.includes(capability),
       )
-      const decision = checkBetaCapability(ctx, 'goal.use')
-      expect(decision.allowed).toBe(true)
-    })
-
-    it('denies blocked capabilities even when allowlisted', () => {
-      const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(
-        makeStore({
-          isCapabilityGloballyEnabled: () => true,
-          isOrgAllowlisted: () => true,
-        }),
-      )
-      const decision = checkBetaCapability(ctx, 'gbp.reply.auto_publish')
-      expect(decision.allowed).toBe(false)
-      expect(decision.reason).toBe('capability_blocked')
-    })
-
-    it('allows AI capabilities when org is allowlisted (Google conditionally permits)', () => {
-      const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(
-        makeStore({
-          isCapabilityGloballyEnabled: () => false,
-          isOrgAllowlisted: (orgId, cap) =>
-            orgId === ctx.organizationId && cap === 'ai.analyze',
-        }),
-      )
-      const decision = checkBetaCapability(ctx, 'ai.analyze')
-      expect(decision.allowed).toBe(true)
-      expect(decision.reason).toBe('allowed')
-    })
-
-    it('denies gbp.review_solicitation_gamification regardless of allowlist', () => {
-      const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(
-        makeStore({
-          isCapabilityGloballyEnabled: () => true,
-          isOrgAllowlisted: () => true,
-        }),
-      )
-      const decision = checkBetaCapability(ctx, 'gbp.review_solicitation_gamification')
-      expect(decision.allowed).toBe(false)
-      expect(decision.reason).toBe('capability_blocked')
-    })
-    it('promotes safe Portal, guest, and email capabilities through the Organization allowlist', () => {
-      const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(
-        makeStore({
-          isCapabilityGloballyEnabled: () => false,
-          isOrgAllowlisted: (orgId) => orgId === ctx.organizationId,
-        }),
-      )
-
-      for (const capability of [
-        'portal.write',
-        'portal.upload',
-        'portal.public_read',
-        'portal.guest_response',
-        'portal.guest_text',
-        'notification.send_email',
-      ] as const) {
-        expect(
-          checkScopedCapability(
-            { organizationId: ctx.organizationId, propertyId: 'p1' },
-            capability,
-          ),
-        ).toEqual({
-          allowed: true,
-          reason: 'allowed',
-          capability,
-        })
-        expect(
-          checkScopedCapability(
-            { organizationId: 'some-other-org', propertyId: 'p1' },
-            capability,
-          ).reason,
-        ).toBe('org_not_allowlisted')
+      expect(refused).toEqual([...listBlockedCapabilities()])
+      for (const capability of refused) {
+        expect(checkScopedCapability({ organizationId: ORG }, capability).reason).toBe(
+          'capability_blocked',
+        )
       }
     })
 
-    it('keeps Contact Request activation dark even when every scoped policy seam allows it', () => {
-      const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(
-        makeStore({
-          isCapabilityGloballyEnabled: () => true,
-          isOrgAllowlisted: () => true,
-        }),
-      )
+    it('reads the same with the retired admission list unset', () => {
+      install({ NODE_ENV: 'production' })
 
-      expect(
-        checkScopedCapability(
-          { organizationId: ctx.organizationId, propertyId: 'p1' },
-          'portal.guest_contact',
-        ),
-      ).toEqual({
-        allowed: false,
-        reason: 'capability_blocked',
-        capability: 'portal.guest_contact',
-      })
+      expect(allowedFor(ORG)).toEqual(ON_TODAY)
+    })
+  })
+
+  describe('switches', () => {
+    it('names four switches', () => {
+      expect(FEATURE_SWITCHES).toEqual(['google', 'ai', 'guest_pages', 'optional_email'])
     })
 
-    it('leaves Portal upload to tenant policy: allowed for a listed Organization, denied for the rest', () => {
-      const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(
-        makeStore({
-          isCapabilityGloballyEnabled: () => false,
-          isOrgAllowlisted: (orgId) => orgId === ctx.organizationId,
-        }),
+    it('puts every Google call under google', () => {
+      expect(listCapabilitiesBySwitch('google')).toEqual([
+        'gbp.reply.auto_publish',
+        'property.connect_gbp',
+        'property.import_gbp_v2',
+        'property.publish_reply',
+        'property.read_gbp_performance',
+      ])
+    })
+
+    it('puts every AI call under ai', () => {
+      expect(listCapabilitiesBySwitch('ai')).toEqual([
+        'ai.analyze',
+        'ai.detect_trends',
+        'ai.generate_reply',
+        'gbp.ai.cross_property_summary',
+        'gbp.review_solicitation_gamification',
+      ])
+    })
+
+    it('puts guest traffic under guest_pages and leaves Portal management alone', () => {
+      expect(listCapabilitiesBySwitch('guest_pages')).toEqual([
+        'portal.guest_contact',
+        'portal.guest_media',
+        'portal.guest_response',
+        'portal.guest_text',
+        'portal.public_read',
+      ])
+    })
+
+    it('puts optional email under optional_email and leaves mandatory notices alone', () => {
+      expect(listCapabilitiesBySwitch('optional_email')).toEqual([
+        'notification.send_email',
+      ])
+    })
+
+    it.each(FEATURE_SWITCHES)('%s off refuses exactly its group', (featureSwitch) => {
+      install({ BETA_CAPABILITIES_OFF: featureSwitch })
+
+      const group = listCapabilitiesBySwitch(featureSwitch)
+      for (const capability of group) {
+        expect(checkScopedCapability({ organizationId: ORG }, capability).allowed).toBe(
+          false,
+        )
+      }
+      expect(allowedFor(ORG)).toEqual(
+        ON_TODAY.filter((capability) => !group.includes(capability)),
       )
+      for (const capability of group.filter((entry) => ON_TODAY.includes(entry))) {
+        expect(checkScopedCapability({ organizationId: ORG }, capability).reason).toBe(
+          'capability_disabled',
+        )
+        expect(checkGlobalCapability(capability).reason).toBe('capability_disabled')
+      }
+    })
+
+    it('keeps mandatory notices running while optional email is off', () => {
+      install({ BETA_CAPABILITIES_OFF: 'optional_email' })
 
       expect(
         checkScopedCapability(
-          { organizationId: ctx.organizationId, propertyId: 'p1' },
-          'portal.upload',
+          { organizationId: ORG },
+          'notification.send_mandatory_email',
         ).allowed,
       ).toBe(true)
-      expect(
-        checkScopedCapability(
-          { organizationId: 'some-other-org', propertyId: 'p1' },
-          'portal.upload',
-        ),
-      ).toMatchObject({ allowed: false, reason: 'org_not_allowlisted' })
-    })
-
-    it('is stopped by the emergency kill switch like any other controlled capability', () => {
-      const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(
-        makeStore({
-          isCapabilityGloballyEnabled: () => false,
-          isCapabilityKilled: (cap) => cap === 'portal.upload',
-          isOrgAllowlisted: () => true,
-        }),
+      expect(checkGlobalCapability('notification.send_mandatory_email').allowed).toBe(
+        true,
       )
-      expect(
-        checkScopedCapability(
-          { organizationId: ctx.organizationId, propertyId: 'p1' },
-          'portal.upload',
-        ).allowed,
-      ).toBe(false)
+      expect(checkGlobalCapability('notification.send_email').allowed).toBe(false)
     })
 
-    it('denies all capabilities when org is suspended', () => {
-      const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(
-        makeStore({ isOrgSuspended: (orgId) => orgId === ctx.organizationId }),
-      )
-      const decision = checkBetaCapability(ctx, 'identity.invite')
-      expect(decision.allowed).toBe(false)
-      expect(decision.reason).toBe('org_suspended')
+    it('turns several switches off together', () => {
+      install({ BETA_CAPABILITIES_OFF: 'google, ai' })
+
+      expect(parseSwitchesOff({ BETA_CAPABILITIES_OFF: 'google, ai' })).toEqual([
+        'google',
+        'ai',
+      ])
+      expect(checkGlobalCapability('property.publish_reply').allowed).toBe(false)
+      expect(checkGlobalCapability('ai.generate_reply').allowed).toBe(false)
+      expect(checkGlobalCapability('portal.public_read').allowed).toBe(true)
+      expect(checkGlobalCapability('notification.send_email').allowed).toBe(true)
     })
 
-    it('denies core capabilities when globally disabled (kill switch)', () => {
-      const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(makeStore({ isCapabilityGloballyEnabled: () => false }))
-      const decision = checkBetaCapability(ctx, 'identity.invite')
-      expect(decision.allowed).toBe(false)
-      expect(decision.reason).toBe('capability_disabled')
+    it('refuses a name that is not a switch rather than ignore it', () => {
+      // A per-capability name left over from before would otherwise turn back
+      // on what its operator turned off.
+      for (const value of ['property.connect_gbp', 'google,ai.analyze', 'Google']) {
+        expect(capabilitiesOffProblem(value)).toMatch(/not a switch/)
+        expect(() =>
+          createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: value }),
+        ).toThrow(/not a switch/)
+      }
+      expect(capabilitiesOffProblem(undefined)).toBeNull()
+      expect(capabilitiesOffProblem('')).toBeNull()
+      expect(capabilitiesOffProblem('guest_pages,optional_email')).toBeNull()
     })
   })
 
-  describe('assertBetaCapability', () => {
-    it('throws BetaCapabilityError when denied', () => {
-      const ctx = buildTestAuthContext()
-      expect(() => assertBetaCapability(ctx, 'goal.use')).toThrow(BetaCapabilityError)
-    })
+  describe('everything off', () => {
+    it.each(['1', 'true', 'all', 'ALL'])(
+      'BETA_CAPABILITIES_OFF=%s refuses every capability',
+      (value) => {
+        install({ BETA_CAPABILITIES_OFF: value })
 
-    it('does not throw when allowed', () => {
-      const ctx = buildTestAuthContext()
-      expect(() => assertBetaCapability(ctx, 'identity.invite')).not.toThrow()
-    })
+        expect(allowedFor(ORG)).toEqual([])
+        expect(
+          checkScopedCapability({ organizationId: ORG }, 'identity.invite').reason,
+        ).toBe('capability_disabled')
+        expect(parseSwitchesOff({ BETA_CAPABILITIES_OFF: value })).toEqual([])
+      },
+    )
   })
 
-  describe('createEnvCapabilityPolicyStore', () => {
-    it('disables all capabilities when BETA_CAPABILITIES_OFF=1', () => {
-      const store = createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: '1' })
-      expect(store.isCapabilityGloballyEnabled('identity.invite')).toBe(false)
-      expect(store.isCapabilityGloballyEnabled('property.create')).toBe(false)
-    })
+  describe('suspension', () => {
+    it('refuses every capability for the suspended Organization and nobody else', () => {
+      install({ BETA_SUSPENDED_ORGS: ` ${ORG} ` })
 
-    it('treats BETA_CAPABILITIES_OFF=all as the global kill switch (BQC-0.4)', () => {
-      const store = createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'all' })
-      expect(store.isCapabilityGloballyEnabled('identity.invite')).toBe(false)
-      expect(store.isCapabilityGloballyEnabled('property.create')).toBe(false)
-      expect(store.isCapabilityGloballyEnabled('review.use')).toBe(false)
-    })
-
-    it('disables exactly the listed capabilities when BETA_CAPABILITIES_OFF is a comma list (BQC-0.4)', () => {
-      const store = createEnvCapabilityPolicyStore({
-        BETA_CAPABILITIES_OFF: 'property.connect_gbp,property.publish_reply',
-      })
-      // Listed: off — this is the Google sync/import/publish stop control.
-      expect(store.isCapabilityGloballyEnabled('property.connect_gbp')).toBe(false)
-      expect(store.isCapabilityGloballyEnabled('property.publish_reply')).toBe(false)
-      // Unlisted: untouched (core still on, non-core still default-off).
-      expect(store.isCapabilityGloballyEnabled('property.create')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('review.use')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('goal.use')).toBe(false)
-    })
-
-    it('keeps a capability kill switch authoritative over an org allowlist', () => {
-      initCapabilityPolicyStore(
-        createEnvCapabilityPolicyStore({
-          BETA_CAPABILITIES_OFF: 'goal.use',
-          BETA_ALLOWLIST_ORGS: 'org-1',
-        }),
+      expect(allowedFor(ORG)).toEqual([])
+      expect(checkScopedCapability({ organizationId: ORG }, 'inbox.use').reason).toBe(
+        'org_suspended',
       )
-
-      expect(checkScopedCapability({ organizationId: 'org-1' }, 'goal.use')).toEqual({
-        allowed: false,
-        reason: 'capability_disabled',
-        capability: 'goal.use',
-      })
+      expect(allowedFor(OTHER_ORG)).toEqual(ON_TODAY)
     })
 
-    it('ignores unknown entries in the kill list', () => {
-      const store = createEnvCapabilityPolicyStore({
-        BETA_CAPABILITIES_OFF: 'not.a.cap, property.create ',
-      })
-      expect(store.isCapabilityGloballyEnabled('property.create')).toBe(false)
-      expect(store.isCapabilityGloballyEnabled('review.use')).toBe(true)
+    it('reports a switched-off capability as switched off before the suspension', () => {
+      install({ BETA_SUSPENDED_ORGS: ORG, BETA_CAPABILITIES_OFF: 'ai' })
+
+      expect(checkScopedCapability({ organizationId: ORG }, 'ai.analyze').reason).toBe(
+        'capability_disabled',
+      )
+      expect(checkScopedCapability({ organizationId: ORG }, 'inbox.use').reason).toBe(
+        'org_suspended',
+      )
     })
 
-    it('keeps blocked capabilities blocked regardless of the kill list', () => {
-      const store = createEnvCapabilityPolicyStore({
-        BETA_CAPABILITIES_OFF: 'portal.write,review.use',
-      })
-      expect(store.isCapabilityGloballyEnabled('portal.write')).toBe(false)
-      expect(store.isOrgAllowlisted('org-1', 'portal.write')).toBe(false)
-    })
+    it('is never decided without an Organization', () => {
+      install({ BETA_SUSPENDED_ORGS: ORG })
 
-    it('allows core capabilities by default', () => {
-      const store = createEnvCapabilityPolicyStore({})
-      expect(store.isCapabilityGloballyEnabled('identity.invite')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('property.create')).toBe(true)
-    })
-
-    it('treats portal.read as non-core (BQR-0 dark portal/guest)', () => {
-      const store = createEnvCapabilityPolicyStore({})
-      expect(store.isCapabilityGloballyEnabled('portal.read')).toBe(false)
-      expect(isCoreCapability('portal.read')).toBe(false)
-    })
-
-    it('does not allowlist non-core capabilities without BETA_ALLOWLIST_ORGS', () => {
-      const store = createEnvCapabilityPolicyStore({})
-      expect(store.isOrgAllowlisted('org-1', 'goal.use')).toBe(false)
-    })
-
-    it('enables listed promotable capabilities but never beta-disabled capabilities via E2E override', () => {
-      const store = createEnvCapabilityPolicyStore({
-        BETA_E2E_GLOBAL_CAPABILITIES: 'goal.use,identity.register',
-      })
-      expect(store.isCapabilityGloballyEnabled('goal.use')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('identity.register')).toBe(false)
-      // Unlisted non-core capabilities stay off.
-      expect(store.isCapabilityGloballyEnabled('portal.read')).toBe(false)
-    })
-
-    it('enables promotable email but never permanent prohibitions via E2E override', () => {
-      const store = createEnvCapabilityPolicyStore({
-        BETA_E2E_GLOBAL_CAPABILITIES: 'notification.send_email,gbp.reply.auto_publish',
-      })
-      expect(store.isCapabilityGloballyEnabled('notification.send_email')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('gbp.reply.auto_publish')).toBe(false)
-    })
-
-    it('allowlists non-core capabilities for listed orgs', () => {
-      const store = createEnvCapabilityPolicyStore({
-        BETA_ALLOWLIST_ORGS: 'org-1,org-2',
-      })
-      expect(store.isOrgAllowlisted('org-1', 'goal.use')).toBe(true)
-      expect(store.isOrgAllowlisted('org-3', 'goal.use')).toBe(false)
-    })
-
-    it('never allowlists blocked capabilities', () => {
-      const store = createEnvCapabilityPolicyStore({
-        BETA_ALLOWLIST_ORGS: 'org-1',
-      })
-      expect(store.isOrgAllowlisted('org-1', 'gbp.reply.auto_publish')).toBe(false)
-      expect(store.isOrgAllowlisted('org-1', 'gbp.ai.cross_property_summary')).toBe(false)
-    })
-
-    it('allowlists AI capabilities for listed orgs (Google conditionally permits)', () => {
-      const store = createEnvCapabilityPolicyStore({
-        BETA_ALLOWLIST_ORGS: 'org-1',
-      })
-      expect(store.isOrgAllowlisted('org-1', 'ai.analyze')).toBe(true)
-      expect(store.isOrgAllowlisted('org-1', 'ai.generate_reply')).toBe(true)
-    })
-
-    it('detects suspended orgs', () => {
-      const store = createEnvCapabilityPolicyStore({
-        BETA_SUSPENDED_ORGS: 'org-bad',
-      })
-      expect(store.isOrgSuspended('org-bad')).toBe(true)
+      expect(checkGlobalCapability('inbox.use').allowed).toBe(true)
     })
   })
 
-  describe('capability metadata', () => {
-    it('publishes the complete catalogue exactly once in sorted order', () => {
-      const capabilities = listAllCapabilities()
+  describe('blocked fates', () => {
+    it('never run, whatever the switches say', () => {
+      install({})
 
-      expect(capabilities).toHaveLength(CAPABILITIES.length)
-      expect(new Set(capabilities).size).toBe(CAPABILITIES.length)
-      expect(capabilities).toEqual([...CAPABILITIES].sort())
-      expect(capabilities).toEqual(expect.arrayContaining([...listCoreCapabilities()]))
-      expect(capabilities).toEqual(expect.arrayContaining([...listBlockedCapabilities()]))
-    })
-
-    it('identifies core capabilities', () => {
-      expect(isCoreCapability('identity.invite')).toBe(true)
-      expect(isCoreCapability('goal.use')).toBe(false)
-      expect(isCoreCapability('portal.read')).toBe(false)
+      for (const capability of listBlockedCapabilities()) {
+        expect(checkGlobalCapability(capability).reason).toBe('capability_blocked')
+        expect(isCapabilityJobEnabled(capability)).toBe(false)
+      }
     })
 
     it('identifies permanent prohibitions and the remaining temporary containment', () => {
@@ -395,54 +281,61 @@ describe('BetaCapabilities', () => {
     })
   })
 
-  describe('isCapabilityJobEnabled / checkGlobalCapability', () => {
-    it('allows core capability jobs', () => {
-      // Default store treats identity.invite as globally enabled in makeStore
-      expect(isCapabilityJobEnabled('identity.invite')).toBe(true)
+  describe('assertBetaCapability', () => {
+    beforeEach(() => {
+      install({ BETA_CAPABILITIES_OFF: 'guest_pages' })
     })
 
-    it('registers promotable capability jobs', () => {
-      expect(isCapabilityJobEnabled('goal.use')).toBe(true)
-      expect(isCapabilityJobEnabled('portal.read')).toBe(true)
+    it('throws BetaCapabilityError when denied', () => {
+      const ctx = buildTestAuthContext()
+      expect(() => assertBetaCapability(ctx, 'portal.public_read')).toThrow(
+        BetaCapabilityError,
+      )
     })
 
-    it('keeps promotable jobs registered while scoped execution remains policy-gated', () => {
-      expect(isCapabilityJobEnabled('notification.send_email')).toBe(true)
-      expect(isCapabilityJobEnabled('goal.use')).toBe(true)
-      expect(isCapabilityJobEnabled('portal.guest_media')).toBe(false)
-      expect(checkGlobalCapability('notification.send_email').allowed).toBe(false)
-    })
-
-    it('registers capability-gated Portal image work now that upload is controlled, and still not Contact Requests', () => {
-      expect(isCapabilityJobEnabled('portal.upload')).toBe(true)
-      expect(isCapabilityJobEnabled('portal.guest_contact')).toBe(false)
+    it('does not throw when allowed', () => {
+      const ctx = buildTestAuthContext()
+      expect(() => assertBetaCapability(ctx, 'portal.write')).not.toThrow()
     })
   })
 
-  describe('restore-isolated mode (BQC-7.8)', () => {
-    afterEach(() => {
-      delete process.env.RESTORE_MODE
+  describe('capability metadata', () => {
+    it('publishes the complete catalogue exactly once in sorted order', () => {
+      const capabilities = listAllCapabilities()
+
+      expect(capabilities).toHaveLength(CAPABILITIES.length)
+      expect(new Set(capabilities).size).toBe(CAPABILITIES.length)
+      expect(capabilities).toEqual([...CAPABILITIES].sort())
+      expect(capabilities).toEqual(expect.arrayContaining([...listBlockedCapabilities()]))
     })
 
-    it('denies a CORE capability even when the installed store allows it', () => {
-      process.env.RESTORE_MODE = 'isolated'
-      const ctx = buildTestAuthContext()
-      const decision = checkBetaCapability(ctx, 'identity.invite')
-      expect(decision.allowed).toBe(false)
-      expect(decision.reason).toBe('capability_disabled')
+    it('keeps jobs registered while their switch is off', () => {
+      install({ BETA_CAPABILITIES_OFF: 'optional_email' })
+
+      expect(isCapabilityJobEnabled('notification.send_email')).toBe(true)
+      expect(isCapabilityJobEnabled('portal.upload')).toBe(true)
+      expect(isCapabilityJobEnabled('portal.guest_media')).toBe(false)
+    })
+  })
+
+  describe('restore-isolated mode', () => {
+    const allowAll: CapabilityPolicyStore = {
+      isCapabilityKilled: () => false,
+      isOrgSuspended: () => false,
+    }
+
+    beforeEach(() => {
+      initCapabilityPolicyStore(allowAll)
     })
 
-    it('denies a NON-CORE capability even when the installed store allowlists the org', () => {
+    it('denies every capability even when the installed store allows it', () => {
       process.env.RESTORE_MODE = 'isolated'
       const ctx = buildTestAuthContext()
-      initCapabilityPolicyStore(
-        makeStore({
-          isCapabilityGloballyEnabled: () => false,
-          isOrgAllowlisted: () => true,
-        }),
+
+      expect(checkBetaCapability(ctx, 'identity.invite').reason).toBe(
+        'capability_disabled',
       )
-      const decision = checkBetaCapability(ctx, 'goal.use')
-      expect(decision.allowed).toBe(false)
+      expect(checkBetaCapability(ctx, 'goal.use').allowed).toBe(false)
     })
 
     it('denies the global check and the job gate (schedules stay dark)', () => {

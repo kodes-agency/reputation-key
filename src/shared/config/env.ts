@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod/v4'
 import { printOriginProblem } from '#/shared/config/print-origin'
+import { capabilitiesOffProblem } from '#/shared/auth/beta-capabilities'
 import { isRailwayPitrDatabaseUrl } from '#/shared/config/restore-mode'
 
 const PORTAL_ADDRESS_KEY_ENTRY = /^([1-9]\d{0,3}):[a-f0-9]{64}$/
@@ -355,18 +356,19 @@ const baseEnvSchema = z.object({
           .string()
           .optional()
           .transform((v) => v === 'true'),
-  // ── BETA-0 safety envelope controls ────────────────────────────────
-  // Capability kill switch (BQC-0.4): '1'/'true'/'all' disables ALL
-  // capabilities; a comma-separated list disables exactly those capabilities
-  // (e.g. property.connect_gbp,property.publish_reply stops Google
-  // sync/import/publish). Empty/absent = none off.
-  BETA_CAPABILITIES_OFF: z.string().optional(),
-  // Organizations admitted to controlled-beta capabilities (ADR 0032):
-  // comma-separated Organization IDs — not slugs — or `*` for every
-  // Organization in this environment. Empty/absent admits NONE: every
-  // controlled-beta capability (Google import, Portals, Goals, AI, email
-  // notifications) refuses. Set it on web AND worker; both evaluate it.
-  BETA_ALLOWLIST_ORGS: z.string().optional(),
+  // ── Switches and controls ─────────────────────────────────────────
+  // '1'/'true'/'all' turns everything off; a comma list of switches turns
+  // those groups off: google (every Google call), ai (every AI call),
+  // guest_pages (guest pages and submissions), optional_email (all but
+  // mandatory notices). Empty/absent = everything on. Any other name refuses
+  // startup. Set it on web AND worker; both evaluate it.
+  BETA_CAPABILITIES_OFF: z
+    .string()
+    .superRefine((value, context) => {
+      const problem = capabilitiesOffProblem(value)
+      if (problem !== null) context.addIssue({ code: 'custom', message: problem })
+    })
+    .optional(),
   // Declared capability posture (ADR 0032, amended 2026-09-29). A fresh
   // database seeds every Google content capability denied and every AI
   // capability killed; the deploy step (scripts/migrate-deploy.ts, web's
@@ -381,33 +383,28 @@ const baseEnvSchema = z.object({
   //     property_trends (records RELEASE_SHA on the activation)
   GOOGLE_CONTENT_CAPABILITIES_ALLOWED: z.string().optional(),
   AI_CAPABILITIES_ENABLED: z.string().optional(),
-  // Comma-separated non-core capabilities forced globally ON (E2E/CI only).
-  // Must never enable blocked capabilities. Example:
-  // goal.use,portal.write,notification.send_email
-  // BQC-0.3: non-empty values refuse process startup unless NODE_ENV=test or
-  // BETA_E2E_EXECUTION_IDENTITY is set (see capability-boot-guard.ts).
-  BETA_E2E_GLOBAL_CAPABILITIES: z.string().optional(),
-  // Explicit test/CI execution identity that authorizes the E2E capability
-  // override above (e.g. 'playwright-e2e'). Meaningless in production — the
-  // boot guard never requires it and production must never set it. A deployed
+  // Explicit test/CI execution identity that authorizes the E2E rate-limit
+  // hatch below (e.g. 'playwright-e2e'). Meaningless in production — the boot
+  // guard never requires it and production must never set it. A deployed
   // process does not honour it: with RAILWAY_PROJECT_ID or
-  // RAILWAY_ENVIRONMENT_ID present, both overrides it authorizes are refused
-  // whatever it says (hasE2EExecutionIdentity in shared/auth/beta-capabilities.ts).
+  // RAILWAY_ENVIRONMENT_ID present, the hatch is refused whatever it says
+  // (hasE2EExecutionIdentity in shared/auth/beta-capabilities.ts).
   BETA_E2E_EXECUTION_IDENTITY: z.string().optional(),
   // Review §5.1 / BQC-6.8 — TEST-ONLY. Stands BOTH auth brute-force layers
   // down: the shared Redis limiter on the /api/auth/* catch-all
   // (routes/api/auth/$.ts) and better-auth's own limiter (shared/auth/auth.ts).
   // '1' is the ONLY accepted value, so a near-miss ('0', 'true', 'yes') refuses
   // boot here instead of silently disabling auth rate limiting; and the bypass
-  // additionally requires the same execution identity as the capability
-  // override above, with startup refused without one (see
+  // additionally requires the execution identity above, with startup refused
+  // without one (see
   // isE2ERateLimitBypassAuthorized / assertE2ERateLimitBypassIdentity in
   // shared/auth/beta-capabilities.ts). The Playwright stack sets E2E=1
   // (compose.local.yml); production must never set it, and a deployed Railway
   // process refuses it even with an execution identity.
   E2E: z.literal('1').optional(),
-  // Organizations suspended from the beta (B0.5 operator controls):
-  // comma-separated Organization IDs — not slugs; a slug matches nothing.
+  // Organizations suspended from the beta: every capability refuses for them
+  // and nobody else. Comma-separated Organization IDs — not slugs; a slug
+  // matches nothing.
   BETA_SUSPENDED_ORGS: z.string().optional(),
   // Deployed request-edge contract. Production defaults to Railway's documented
   // X-Real-IP edge headers; local/test defaults to trusting no forwarding header.

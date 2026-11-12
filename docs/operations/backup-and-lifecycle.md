@@ -262,8 +262,8 @@ with a `portal_media_assets` row; there is no presigned browser upload and no
 issuance table. A guest's browser reads an image through the app, from
 `GET /api/public/portal-media/:assetId`; the bucket is never public (the app
 reads objects and serves two kinds of them, see the avatar and logo notes below).
-`portal.upload` is `controlled_beta` (the owner removed the SAFE-01 ceremony on
-2026-09-30; ADR 0032 and 0063).
+`portal.upload` is on for every Organization (the owner removed the SAFE-01
+ceremony on 2026-09-30; ADR 0032 and 0063).
 
 Portal objects are removed by three paths, none of which depends on the upload
 capability: a takedown (the object goes after the row stops being served, and a

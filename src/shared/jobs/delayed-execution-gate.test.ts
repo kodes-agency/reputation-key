@@ -479,7 +479,7 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
   })
 
   it('capability-killed deny — a stale allow in the queue never overrides a current deny', async () => {
-    installRealPolicy(fixtureEnv('capability killed'))
+    installRealPolicy(fixtureEnv('Google switched off'))
 
     const outcome = await gateJob(
       'sync-property-reviews',

@@ -74,7 +74,7 @@ describe('publish-reply through the delayed execution gate (§6: revocation/susp
   it('property.publish_reply killed after enqueue → deny_terminal (capability_disabled): a stale allow never overrides', async () => {
     // Same kill-switch mechanism as the 'capability killed' fixture, aimed at
     // the publish capability itself.
-    installRealPolicy({ BETA_CAPABILITIES_OFF: 'property.publish_reply' })
+    installRealPolicy({ BETA_CAPABILITIES_OFF: 'google' })
 
     const outcome = await gateJob(
       'publish-reply',

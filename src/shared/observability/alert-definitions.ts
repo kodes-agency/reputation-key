@@ -856,13 +856,11 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     },
   }),
   // Queued email that is not going out. The cry-wolf guard is the point:
-  // rows queue while a scope is dark, so with only some Organizations
-  // admitted a newly admitted one's untouched backlog is EXPECTED and must
-  // stay silent. It fires on untouched rows only when email is open to every
-  // Organization (global, or BETA_ALLOWLIST_ORGS=*), where no scope was ever
-  // dark; and on rows the delivery path already touched and left unsent — a
-  // retry past due or a quiet-hours hold past its end — whatever the posture,
-  // which is how a tenant admitted by name pages.
+  // rows queue while optional email is switched off, and that untouched
+  // backlog is EXPECTED and must stay silent. It fires on untouched rows only
+  // while optional email is on; and on rows the delivery path already touched
+  // and left unsent — a retry past due or a quiet-hours hold past its end —
+  // whatever the posture.
   define({
     name: 'notification.email-stalled',
     severity: 'P2',

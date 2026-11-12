@@ -553,7 +553,7 @@ describe('authorizeGoogleImportCommand', () => {
         // the property-scoped one, denies.
         return calls < 3
           ? allow()
-          : { ...allow(), allowed: false, reason: 'property_not_allowlisted' }
+          : { ...allow(), allowed: false, reason: 'capability_disabled' }
       },
     })
 
@@ -709,7 +709,7 @@ describe('authorizeGoogleImportCommand', () => {
           calls += 1
           return calls < 3
             ? allow()
-            : { ...allow(), allowed: false, reason: 'property_not_allowlisted' }
+            : { ...allow(), allowed: false, reason: 'capability_disabled' }
         },
       })
 

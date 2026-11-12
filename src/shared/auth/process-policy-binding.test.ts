@@ -91,8 +91,7 @@ function bundle(label: string): ProcessPolicyBundle {
     }),
     delayedExecutionPolicy: Object.freeze({ decide: vi.fn(async () => ({}) as never) }),
     capabilityPolicyStore: Object.freeze({
-      isCapabilityGloballyEnabled: vi.fn(() => false),
-      isOrgAllowlisted: vi.fn(() => false),
+      isCapabilityKilled: vi.fn(() => true),
       isOrgSuspended: vi.fn(() => false),
     }),
   }) as unknown as ProcessPolicyBundle
@@ -142,7 +141,7 @@ describe('bindProcessPolicies (ARC-03-T8)', () => {
     expect(getDelayedExecutionPolicy()).toBe(first.delayedExecutionPolicy)
     // The capability store answers from the bound bundle, not the env fallback.
     checkGlobalCapability('review.use')
-    expect(first.capabilityPolicyStore.isCapabilityGloballyEnabled).toHaveBeenCalled()
+    expect(first.capabilityPolicyStore.isCapabilityKilled).toHaveBeenCalled()
     expect(boundProcessPolicies()).toBe(first)
   })
 
@@ -241,7 +240,6 @@ describe('buildCapabilityPolicyHandle returns instead of installing', () => {
       db: dbStub,
       env: {},
       clock,
-      logger: { warn: () => {} },
     })
 
     expect(Object.keys(handle).sort()).toEqual([

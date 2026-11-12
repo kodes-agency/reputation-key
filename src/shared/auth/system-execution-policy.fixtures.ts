@@ -56,8 +56,8 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
     expect: { outcome: 'deny', reason: 'org_suspended', freshRead: true },
   },
   {
-    name: 'deny — capability killed after enqueue (stale allow never overrides)',
-    env: { BETA_CAPABILITIES_OFF: 'property.connect_gbp' },
+    name: 'deny — Google switched off after enqueue (stale allow never overrides)',
+    env: { BETA_CAPABILITIES_OFF: 'google' },
     request: {
       ...BASE,
       principal: { kind: 'system', id: 'worker:default' },
@@ -68,8 +68,8 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
     expect: { outcome: 'deny', reason: 'capability_disabled', freshRead: true },
   },
   {
-    name: 'deny — controlled email is not allowlisted',
-    env: {},
+    name: 'deny — optional email is switched off',
+    env: { BETA_CAPABILITIES_OFF: 'optional_email' },
     request: {
       ...BASE,
       principal: { kind: 'system', id: 'schedule:digest' },
@@ -78,7 +78,7 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
       executionKind: 'schedule',
       policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },
-    expect: { outcome: 'deny', reason: 'org_not_allowlisted', freshRead: true },
+    expect: { outcome: 'deny', reason: 'capability_disabled', freshRead: true },
   },
   {
     name: 'deny — consent required and missing',

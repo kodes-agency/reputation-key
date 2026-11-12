@@ -78,9 +78,7 @@ describe.sequential(
     })
     beforeEach(async () => {
       await clearDeliveries()
-      initCapabilityPolicyStore(
-        createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: ORGANIZATIONS.join(',') }),
-      )
+      initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
       initDelayedExecutionPolicy(
         createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
       )

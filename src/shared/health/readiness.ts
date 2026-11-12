@@ -43,10 +43,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { readyProbe, startupProbe, type ReadyProbe, type StartupProbe } from './probes'
 import { withBudget } from './operations-snapshot'
 import { MIGRATION_COUNT_SQL } from './migration-version'
-import {
-  assertBlockedCapabilitiesContained,
-  createEnvCapabilityPolicyStore,
-} from '#/shared/auth/beta-capabilities'
+import { createEnvCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 
 /** Hard per-probe budget. A probe slower than this reports false. */
 export const READINESS_PROBE_BUDGET_MS = 2000
@@ -75,10 +72,10 @@ export async function isMigrationJournalMatched(): Promise<boolean> {
   }
 }
 
-/** Process-static policy configuration is valid and preserves hard blocks. */
+/** Process-static policy configuration (the switches) can be read. */
 export async function isPolicyConfigurationReady(): Promise<boolean> {
   try {
-    assertBlockedCapabilitiesContained(createEnvCapabilityPolicyStore(process.env))
+    createEnvCapabilityPolicyStore(process.env)
     return true
   } catch (err) {
     getLogger().warn({ err }, '[health] static policy configuration check failed')

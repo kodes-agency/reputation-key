@@ -249,7 +249,7 @@ const STOPPED: ReadonlyArray<Posture> = [
   { name: 'the kill switch is on', env: () => ({ BETA_CAPABILITIES_OFF: 'all' }) },
   {
     name: 'identity.invite is switched off',
-    env: () => ({ BETA_CAPABILITIES_OFF: 'identity.invite' }),
+    env: () => ({ BETA_CAPABILITIES_OFF: 'all' }),
   },
   { name: 'restore mode is isolated', env: () => ({}), restoreIsolated: true },
 ]
@@ -485,7 +485,7 @@ describe.sequential(
 
     it.each([
       ['the kill switch is on', { BETA_CAPABILITIES_OFF: 'all' }],
-      ['identity.invite is switched off', { BETA_CAPABILITIES_OFF: 'identity.invite' }],
+      ['everything is switched off', { BETA_CAPABILITIES_OFF: 'all' }],
     ])('the recovery job accepts nothing while %s', async (_name, env) => {
       const fixture = await seedInvitation()
       await interruptRegistration(fixture)

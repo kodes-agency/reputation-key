@@ -8,10 +8,7 @@ import {
 } from './unavailable'
 
 type Content = ReturnType<typeof unavailablePageContent>
-const expectRecovery = (
-  content: Content,
-  to: '/accept-invitation' | '/properties' | '/properties/$propertyId/settings',
-) => {
+const expectRecovery = (content: Content, to: '/accept-invitation' | '/properties') => {
   expect(content.title.trim()).not.toBe('')
   expect(content.description.trim()).not.toBe('')
   expect(content.link.label.trim()).not.toBe('')
@@ -48,21 +45,9 @@ describe('unavailable route presentation', () => {
   it.each(CAPABILITY_REFUSAL_CATEGORIES)(
     'gives %s its own explanation and the available next step',
     (category) => {
-      const propertyId = '0b9d7c1a-3e5f-4b2a-8c6d-1e2f3a4b5c6d'
-      const content = unavailablePageContent({ feature: 'Goals', category, propertyId })
-      expectRecovery(
-        content,
-        category === 'needs_admin_enablement'
-          ? '/properties/$propertyId/settings'
-          : '/properties',
-      )
-      if (category === 'needs_admin_enablement')
-        expect(content.link).toMatchObject({ params: { propertyId } })
-      else expect(content.link).not.toHaveProperty('params')
-      expectRecovery(
-        unavailablePageContent({ feature: 'Goals', category }),
-        '/properties',
-      )
+      const content = unavailablePageContent({ feature: 'Goals', category })
+      expectRecovery(content, '/properties')
+      expect(content.link).not.toHaveProperty('params')
     },
   )
 
@@ -120,18 +105,13 @@ describe('unavailable route presentation', () => {
   })
 
   // A Property's id is a UUID, and this one becomes the link to its settings.
-  it('reads a property id and drops text that is not one', () => {
-    const propertyId = '0b9d7c1a-3e5f-4b2a-8c6d-1e2f3a4b5c6d'
-
-    expect(
-      unavailableSearch.parse({ category: 'needs_admin_enablement', propertyId }),
-    ).toEqual({ category: 'needs_admin_enablement', propertyId })
+  it('drops a category an old link carries that the page no longer reads', () => {
     expect(
       unavailableSearch.parse({
         category: 'needs_admin_enablement',
-        propertyId: 'property-1',
+        propertyId: '0b9d7c1a-3e5f-4b2a-8c6d-1e2f3a4b5c6d',
       }),
-    ).toEqual({ category: 'needs_admin_enablement' })
+    ).toEqual({ category: undefined })
   })
 
   it('keeps the rest of the address when the feature is dropped', () => {

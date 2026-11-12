@@ -5,12 +5,7 @@ import { ServerFunctionError } from './server-function-error'
 
 describe('isDarkCapabilityDenial', () => {
   it('matches the dark-capability deny reasons', () => {
-    for (const code of [
-      'capability_disabled',
-      'capability_blocked',
-      'org_not_allowlisted',
-      'property_not_allowlisted',
-    ]) {
+    for (const code of ['capability_disabled', 'capability_blocked']) {
       expect(
         isDarkCapabilityDenial(new ServerFunctionError('AuthError', 'denied', code, 403)),
       ).toBe(true)
@@ -18,7 +13,7 @@ describe('isDarkCapabilityDenial', () => {
   })
 
   it('matches the plain serialized shape (client-navigation path)', () => {
-    expect(isDarkCapabilityDenial({ code: 'org_not_allowlisted' })).toBe(true)
+    expect(isDarkCapabilityDenial({ code: 'capability_disabled' })).toBe(true)
   })
 
   it('does NOT match real errors or other codes', () => {
@@ -32,11 +27,11 @@ describe('isDarkCapabilityDenial', () => {
         new ServerFunctionError('AuthError', 'x', 'org_suspended', 403),
       ),
     ).toBe(false)
-    expect(isDarkCapabilityDenial(new Error('org_not_allowlisted'))).toBe(false)
+    expect(isDarkCapabilityDenial(new Error('capability_disabled'))).toBe(false)
     expect(isDarkCapabilityDenial(new TypeError('Failed to fetch'))).toBe(false)
     expect(isDarkCapabilityDenial(null)).toBe(false)
     expect(isDarkCapabilityDenial(undefined)).toBe(false)
-    expect(isDarkCapabilityDenial('org_not_allowlisted')).toBe(false)
+    expect(isDarkCapabilityDenial('capability_disabled')).toBe(false)
     expect(isDarkCapabilityDenial({ code: 42 })).toBe(false)
   })
 })

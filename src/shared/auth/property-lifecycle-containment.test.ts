@@ -13,10 +13,7 @@ describe('LIF-01 Property lifecycle containment', () => {
 
   it('keeps destructive product deletion behind an unpromotable capability', () => {
     const capability = capabilityForPermission('property.delete')
-    const store = createEnvCapabilityPolicyStore({
-      BETA_ALLOWLIST_ORGS: 'org-1',
-      BETA_E2E_GLOBAL_CAPABILITIES: 'property.erase',
-    })
+    const store = createEnvCapabilityPolicyStore({})
     initCapabilityPolicyStore(store)
 
     expect(capability).toBe('property.erase')

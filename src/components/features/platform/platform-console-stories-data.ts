@@ -45,7 +45,6 @@ export const awaitingFirstAdmin: PlatformOrganizationView = {
   memberCount: 0,
   accountAdminCount: 0,
   pendingInvitationCount: 1,
-  controlledBetaEnabled: true,
   pendingAdminInvitations: [invitation()],
 }
 
@@ -58,7 +57,6 @@ export const lapsedInvitation: PlatformOrganizationView = {
   memberCount: 0,
   accountAdminCount: 0,
   pendingInvitationCount: 1,
-  controlledBetaEnabled: true,
   pendingAdminInvitations: [
     invitation({
       id: 'inv-second',
@@ -83,7 +81,6 @@ export const competingInvitations: PlatformOrganizationView = {
   memberCount: 0,
   accountAdminCount: 0,
   pendingInvitationCount: 2,
-  controlledBetaEnabled: true,
   pendingAdminInvitations: [
     invitation({
       id: 'inv-right',
@@ -107,7 +104,6 @@ export const noInvitationOut: PlatformOrganizationView = {
   memberCount: 0,
   accountAdminCount: 0,
   pendingInvitationCount: 0,
-  controlledBetaEnabled: true,
   pendingAdminInvitations: [],
 }
 
@@ -120,7 +116,6 @@ export const administered: PlatformOrganizationView = {
   memberCount: 6,
   accountAdminCount: 2,
   pendingInvitationCount: 3,
-  controlledBetaEnabled: false,
   pendingAdminInvitations: [],
 }
 

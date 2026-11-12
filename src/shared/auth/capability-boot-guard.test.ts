@@ -1,42 +1,20 @@
-// BQC-0.3 / SPEC-P0-03 — test-only capability overrides must not boot outside
-// an explicit test/CI execution identity.
+// The worker's capability boot guard.
 //
 // Invariants proven here:
-//   1. BETA_E2E_GLOBAL_CAPABILITIES refuses process startup unless
-//      NODE_ENV=test or an explicit BETA_E2E_EXECUTION_IDENTITY is present.
-//   2. Every blocked capability fails a production boot assertion, even if a
-//      hostile policy store tries to globally enable it.
-//   3. The startup policy manifest records version + effective posture
+//   1. A BETA_CAPABILITIES_OFF the policy cannot read refuses startup before
+//      anything is installed or logged.
+//   2. The startup policy manifest records version + effective posture
 //      without tenant/content data.
-//   4. The lazy getStore() fallback enforces the same rules in processes the
-//      boot guard cannot reach (vite dev server skips Nitro plugins).
+//   3. The guard installs the store eagerly, and the lazy getStore() fallback
+//      reads the same switches in processes the guard cannot reach (vite dev
+//      server skips Nitro plugins).
 
 import { describe, it, expect, afterEach } from 'vitest'
-import {
-  assertBlockedCapabilitiesContained,
-  assertE2EOverrideIdentity,
-  checkGlobalCapability,
-  listBlockedCapabilities,
-  resetCapabilityPolicyStore,
-  type Capability,
-  type CapabilityPolicyEnv,
-  type CapabilityPolicyStore,
-} from './beta-capabilities'
+import { checkGlobalCapability, resetCapabilityPolicyStore } from './beta-capabilities'
 import {
   buildCapabilityBootManifest,
   runCapabilityBootGuard,
 } from './capability-boot-guard'
-
-function makeStore(
-  overrides: Partial<CapabilityPolicyStore> = {},
-): CapabilityPolicyStore {
-  return {
-    isCapabilityGloballyEnabled: () => false,
-    isOrgAllowlisted: () => false,
-    isOrgSuspended: () => false,
-    ...overrides,
-  }
-}
 
 function makeLogger() {
   const entries: Array<{ obj: unknown; msg: string }> = []
@@ -48,151 +26,39 @@ function makeLogger() {
   }
 }
 
-const OVERRIDE = 'goal.use,identity.register'
-
-describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
+describe('capability boot guard', () => {
   afterEach(() => {
     resetCapabilityPolicyStore()
   })
 
-  describe('test-only override identity', () => {
-    it('refuses startup when the override is set in production', () => {
-      const env: CapabilityPolicyEnv = {
-        NODE_ENV: 'production',
-        BETA_E2E_GLOBAL_CAPABILITIES: OVERRIDE,
-      }
-      expect(() => assertE2EOverrideIdentity(env)).toThrow(
-        /BETA_E2E_GLOBAL_CAPABILITIES.*production|test\/CI/i,
-      )
-    })
-
-    it('refuses startup when the override is set in development', () => {
-      const env: CapabilityPolicyEnv = {
-        NODE_ENV: 'development',
-        BETA_E2E_GLOBAL_CAPABILITIES: OVERRIDE,
-      }
-      expect(() => assertE2EOverrideIdentity(env)).toThrow(
-        /BETA_E2E_GLOBAL_CAPABILITIES/i,
-      )
-    })
-
-    it('refuses startup when NODE_ENV is absent (defaults to non-test)', () => {
-      const env: CapabilityPolicyEnv = {
-        BETA_E2E_GLOBAL_CAPABILITIES: OVERRIDE,
-      }
-      expect(() => assertE2EOverrideIdentity(env)).toThrow(
-        /BETA_E2E_GLOBAL_CAPABILITIES/i,
-      )
-    })
-
-    it('allows startup when the override is set with NODE_ENV=test', () => {
-      const env: CapabilityPolicyEnv = {
-        NODE_ENV: 'test',
-        BETA_E2E_GLOBAL_CAPABILITIES: OVERRIDE,
-      }
-      expect(() => assertE2EOverrideIdentity(env)).not.toThrow()
-    })
-
-    it('allows startup with an explicit execution identity (CI e2e dev server)', () => {
-      // CI e2e runs `pnpm dev`, whose script pins NODE_ENV=development — the
-      // explicit identity var is what authorizes the override there.
-      const env: CapabilityPolicyEnv = {
-        NODE_ENV: 'development',
-        BETA_E2E_GLOBAL_CAPABILITIES: OVERRIDE,
-        BETA_E2E_EXECUTION_IDENTITY: 'playwright-e2e',
-      }
-      expect(() => assertE2EOverrideIdentity(env)).not.toThrow()
-    })
-
-    it('allows startup in production when the override is absent or empty', () => {
-      expect(() => assertE2EOverrideIdentity({ NODE_ENV: 'production' })).not.toThrow()
-      expect(() =>
-        assertE2EOverrideIdentity({
-          NODE_ENV: 'production',
-          BETA_E2E_GLOBAL_CAPABILITIES: '',
-        }),
-      ).not.toThrow()
-    })
-
-    it('treats a whitespace/separator-only override as empty', () => {
-      const env: CapabilityPolicyEnv = {
-        NODE_ENV: 'production',
-        BETA_E2E_GLOBAL_CAPABILITIES: ' , , ',
-      }
-      expect(() => assertE2EOverrideIdentity(env)).not.toThrow()
-    })
-  })
-
-  describe('production boot assertion for blocked capabilities', () => {
-    it('passes for the standard env policy store', () => {
-      expect(() => assertBlockedCapabilitiesContained(makeStore())).not.toThrow()
-    })
-
-    it('fails when any blocked capability is globally enabled', () => {
-      for (const cap of listBlockedCapabilities()) {
-        const hostile = makeStore({
-          isCapabilityGloballyEnabled: (c: Capability) => c === cap,
-        })
-        expect(
-          () => assertBlockedCapabilitiesContained(hostile),
-          `blocked capability ${cap} must fail the boot assertion`,
-        ).toThrow(new RegExp(cap.replace('.', '\\.')))
-      }
-    })
-  })
-
   describe('startup policy manifest', () => {
-    it('records version, nodeEnv, core/blocked posture, and effective overrides', () => {
+    it('records version, nodeEnv, blocked posture and the switches turned off', () => {
       const manifest = buildCapabilityBootManifest({
         NODE_ENV: 'test',
-        BETA_E2E_GLOBAL_CAPABILITIES: OVERRIDE,
+        BETA_CAPABILITIES_OFF: 'optional_email,google',
         BETA_E2E_EXECUTION_IDENTITY: 'playwright-e2e',
       })
       expect(manifest.policyVersion).toBeTruthy()
       expect(manifest.nodeEnv).toBe('test')
-      expect(manifest.coreCapabilities.length).toBeGreaterThan(0)
+      expect(manifest.killSwitchActive).toBe(false)
+      expect(manifest.switchesOff).toEqual(['google', 'optional_email'])
       expect(manifest.blockedCapabilities).toContain('gbp.reply.auto_publish')
       expect(manifest.blockedCapabilities).toContain('gbp.ai.cross_property_summary')
-      expect(manifest.e2eGlobalOverrides).toEqual(['goal.use'])
       expect(manifest.e2eExecutionIdentity).toBe('playwright-e2e')
     })
 
-    it('filters permanent and temporary safety prohibitions but records controlled overrides', () => {
-      const manifest = buildCapabilityBootManifest({
-        NODE_ENV: 'test',
-        BETA_E2E_GLOBAL_CAPABILITIES:
-          'gbp.reply.auto_publish,portal.write,portal.upload,portal.guest_contact,identity.register',
-      })
-      expect(manifest.e2eGlobalOverrides).toEqual(['portal.upload', 'portal.write'])
-    })
-
-    it('records the Organization allowlist shape, so a dark environment shows at boot', () => {
-      // Without this, an environment whose allowlist names no current
-      // Organization looked healthy until someone clicked a gated feature.
-      expect(buildCapabilityBootManifest({ NODE_ENV: 'test' }).orgAllowlist).toEqual({
-        mode: 'none',
-      })
-      expect(
-        buildCapabilityBootManifest({ NODE_ENV: 'test', BETA_ALLOWLIST_ORGS: 'a,b' })
-          .orgAllowlist,
-      ).toEqual({ mode: 'listed', count: 2 })
-      expect(
-        buildCapabilityBootManifest({ NODE_ENV: 'test', BETA_ALLOWLIST_ORGS: '*' })
-          .orgAllowlist,
-      ).toEqual({ mode: 'all' })
+    it('records everything off as such', () => {
+      const manifest = buildCapabilityBootManifest({ BETA_CAPABILITIES_OFF: 'all' })
+      expect(manifest.killSwitchActive).toBe(true)
+      expect(manifest.switchesOff).toEqual([])
     })
 
     it('records no tenant identifiers', () => {
       const manifest = buildCapabilityBootManifest({
         NODE_ENV: 'test',
-        BETA_E2E_GLOBAL_CAPABILITIES: OVERRIDE,
-        BETA_ALLOWLIST_ORGS: 'org-secret-1,org-secret-2',
         BETA_SUSPENDED_ORGS: 'org-secret-3',
       })
-      const serialized = JSON.stringify(manifest)
-      expect(serialized).not.toContain('org-secret-1')
-      expect(serialized).not.toContain('org-secret-2')
-      expect(serialized).not.toContain('org-secret-3')
+      expect(JSON.stringify(manifest)).not.toContain('org-secret-3')
     })
   })
 
@@ -200,85 +66,54 @@ describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
     it('eagerly initializes the policy store and logs the manifest', () => {
       const logger = makeLogger()
       runCapabilityBootGuard(
-        {
-          NODE_ENV: 'test',
-          BETA_E2E_GLOBAL_CAPABILITIES: OVERRIDE,
-        },
+        { NODE_ENV: 'production', BETA_CAPABILITIES_OFF: 'ai' },
         logger,
       )
+
       // Store is live without a lazy first-use fallback.
+      expect(checkGlobalCapability('ai.analyze').allowed).toBe(false)
       expect(checkGlobalCapability('goal.use').allowed).toBe(true)
-      expect(checkGlobalCapability('portal.write').allowed).toBe(false)
-      expect(logger.entries.length).toBeGreaterThan(0)
+      expect(logger.entries).toHaveLength(1)
       expect(JSON.stringify(logger.entries[0].obj)).toContain('policyVersion')
     })
 
-    it('throws before logging when the override identity is invalid', () => {
+    it('throws before logging when BETA_CAPABILITIES_OFF names something that is not a switch', () => {
       const logger = makeLogger()
       expect(() =>
         runCapabilityBootGuard(
-          { NODE_ENV: 'production', BETA_E2E_GLOBAL_CAPABILITIES: OVERRIDE },
+          { NODE_ENV: 'production', BETA_CAPABILITIES_OFF: 'ai.analyze' },
           logger,
         ),
-      ).toThrow(/BETA_E2E_GLOBAL_CAPABILITIES/i)
+      ).toThrow(/BETA_CAPABILITIES_OFF names "ai.analyze"/)
       expect(logger.entries).toHaveLength(0)
     })
   })
 
-  describe('lazy getStore safety net (processes without a boot guard)', () => {
-    const ENV_KEYS = [
-      'NODE_ENV',
-      'BETA_E2E_GLOBAL_CAPABILITIES',
-      'BETA_E2E_EXECUTION_IDENTITY',
-    ] as const
-
-    function withEnv<T>(patch: Record<string, string | undefined>, fn: () => T): T {
-      const saved = new Map<string, string | undefined>(
-        ENV_KEYS.map((k) => [k, process.env[k]]),
-      )
+  describe('lazy getStore fallback (processes without a boot guard)', () => {
+    function withSwitchesOff<T>(value: string | undefined, fn: () => T): T {
+      const saved = process.env.BETA_CAPABILITIES_OFF
       try {
-        for (const [k, v] of Object.entries(patch)) {
-          if (v === undefined) delete process.env[k]
-          else process.env[k] = v
-        }
+        if (value === undefined) delete process.env.BETA_CAPABILITIES_OFF
+        else process.env.BETA_CAPABILITIES_OFF = value
+        resetCapabilityPolicyStore()
         return fn()
       } finally {
-        for (const [k, v] of saved) {
-          if (v === undefined) delete process.env[k]
-          else process.env[k] = v
-        }
+        if (saved === undefined) delete process.env.BETA_CAPABILITIES_OFF
+        else process.env.BETA_CAPABILITIES_OFF = saved
       }
     }
 
-    it('throws on first capability check when the override leaks without identity', () => {
-      withEnv(
-        {
-          NODE_ENV: 'production',
-          BETA_E2E_GLOBAL_CAPABILITIES: OVERRIDE,
-          BETA_E2E_EXECUTION_IDENTITY: undefined,
-        },
-        () => {
-          resetCapabilityPolicyStore()
-          expect(() => checkGlobalCapability('identity.register')).toThrow(
-            /BETA_E2E_GLOBAL_CAPABILITIES/i,
-          )
-        },
-      )
+    it('reads the switches from the process environment', () => {
+      withSwitchesOff('guest_pages', () => {
+        expect(checkGlobalCapability('portal.public_read').allowed).toBe(false)
+        expect(checkGlobalCapability('portal.write').allowed).toBe(true)
+      })
     })
 
-    it('still honors the override through the lazy path under a test identity', () => {
-      withEnv(
-        {
-          NODE_ENV: 'test',
-          BETA_E2E_GLOBAL_CAPABILITIES: OVERRIDE,
-          BETA_E2E_EXECUTION_IDENTITY: undefined,
-        },
-        () => {
-          resetCapabilityPolicyStore()
-          expect(checkGlobalCapability('goal.use').allowed).toBe(true)
-          expect(checkGlobalCapability('portal.write').allowed).toBe(false)
-        },
-      )
+    it('fails closed on a name that is not a switch', () => {
+      withSwitchesOff('portal.public_read', () => {
+        expect(() => checkGlobalCapability('portal.public_read')).toThrow(/not a switch/)
+      })
     })
   })
 })
