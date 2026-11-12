@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { createOutboxRepository } from './infrastructure/outbox-repository'
+import { createOutboxRelay } from './relay'
 
 const db = getDb()
 const ORG = 'org-published-redelivery-test'
@@ -12,6 +13,8 @@ const HOUR = 60 * 60 * 1_000
 const EXPECTED = [{ eventType: EVENT_TYPE, consumerName: CONSUMER }]
 let currentTime = NOW
 const repo = createOutboxRepository(db, () => currentTime)
+const sweep = () =>
+  createOutboxRelay(repo, undefined, { consumerExpectations: EXPECTED }).sweep()
 
 async function clean(): Promise<void> {
   // Admission scans the whole scratch database, including unpublished facts
@@ -47,7 +50,7 @@ describe('published fact delivery through durable work', () => {
     const fresh = await insertPublishedEvent(new Date(NOW.getTime() - HOUR))
     await repo.insertReceipt(receipted, CONSUMER, 'applied')
 
-    const admitted = await repo.delivery.schedulePending(10, EXPECTED)
+    const admitted = await sweep()
     expect(admitted.map(({ subjectId }) => subjectId).sort()).toEqual(
       [stranded, fresh].sort(),
     )
@@ -59,14 +62,14 @@ describe('published fact delivery through durable work', () => {
         subjectId: work.subjectId,
       })
     }
-    expect(await repo.delivery.schedulePending(10, EXPECTED)).toEqual([])
+    expect(await sweep()).toEqual([])
     currentTime = new Date(NOW.getTime() + 8 * HOUR)
-    expect(await repo.delivery.schedulePending(10, EXPECTED)).toEqual([])
+    expect(await sweep()).toEqual([])
   })
 
   it('bounds actual handler claims and preserves the unresolved fact when work is quarantined', async () => {
     const eventId = await insertPublishedEvent(new Date(NOW.getTime() - 3 * HOUR))
-    const [work] = await repo.delivery.schedulePending(10, EXPECTED)
+    const [work] = await sweep()
     if (!work) throw new Error('missing delivery work')
     const initial = await repo.delivery.workItems.inspect(ORG, work.id)
     if (!initial) throw new Error('missing work row')
@@ -85,7 +88,7 @@ describe('published fact delivery through durable work', () => {
       errorCode: 'attempts_exhausted',
     })
     expect(await repo.delivery.workItems.claim(ORG, work.id, 60_000)).toBeUndefined()
-    expect(await repo.delivery.schedulePending(10, EXPECTED)).toEqual([])
+    expect(await sweep()).toEqual([])
     expect(await repo.hasReceipt(eventId, CONSUMER)).toBe(false)
     expect(
       (await db.execute(sql`SELECT id FROM outbox_events WHERE id = ${eventId}::uuid`))

@@ -37,8 +37,11 @@ const PEAK_CLIENTS_PER_JOB = Object.freeze({
   'domain-events': 2,
 })
 
-/** Outbox admission, work reconciliation and scheduler repair may overlap. */
-const RUNTIME_CLIENTS = 3
+/**
+ * Outbox admission, the outbox receipt sweep, work reconciliation and scheduler
+ * repair may overlap.
+ */
+const RUNTIME_CLIENTS = 4
 
 export const WORKER_POOL_CLIENT_BUDGET = Object.freeze({
   defaultQueue: DEFAULT_QUEUE_CONCURRENCY * PEAK_CLIENTS_PER_JOB.default,

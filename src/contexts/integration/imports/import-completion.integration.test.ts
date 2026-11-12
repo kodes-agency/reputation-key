@@ -533,7 +533,7 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       .where(eq(outboxEvents.id, event.eventId))
     const repo = createOutboxRepository(db, () => minuteAfter(NOW))
     // Publication without a queue leaves pending work for the independent sweep.
-    await createOutboxRelay(repo, undefined).poll()
+    await createOutboxRelay(repo, undefined).sweep()
     const redispatches: string[] = []
     await reconcileWorkItems({
       reserveDispatch: (cutoff) => repo.delivery.workItems.reserveDispatch(cutoff),
@@ -754,7 +754,7 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       .set({ publishedAt: NOW, consumerRedeliveryAttempts: 3 })
       .where(eq(outboxEvents.id, event.eventId))
     const repo = createOutboxRepository(db)
-    const due = await repo.delivery.schedulePending(50)
+    const due = await createOutboxRelay(repo, undefined).sweep()
     const delivery = due.find((row) => row.subjectId === event.eventId)
     expect(delivery).toBeDefined()
     expect(await repo.delivery.workItems.inspect(ORG_A, delivery!.id)).toMatchObject({
