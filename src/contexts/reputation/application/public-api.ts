@@ -22,7 +22,6 @@ export {
   supersedeCurrentPublicationAttempt,
   supersedePublicationAttemptById,
   updateAdoptedAiDraft,
-  upsertMirrorReply,
 } from '../replies/row-commands.server'
 
 export {

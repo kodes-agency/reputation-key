@@ -1,10 +1,11 @@
 import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import {
-  loadEd25519PrivateKey,
-  loadEd25519PublicKeyring,
-  loadSafetyIdentifierKey,
-} from './key-material'
+import { loadNamedEd25519PublicKeyring } from '#/shared/ed25519-key-material'
+import { loadEd25519PrivateKey, loadSafetyIdentifierKey } from './key-material'
+
+// The one AI public keyring a process still loads: provenance, one active key.
+const loadProvenancePublicKeyring = (encodedJson: string) =>
+  loadNamedEd25519PublicKeyring(encodedJson, ['provenance-v1'], 1)
 
 function encodedKeyPair() {
   const pair = generateKeyPairSync('ed25519')
@@ -17,13 +18,13 @@ function encodedKeyPair() {
 }
 
 describe('AI gateway key material', () => {
-  it('loads the exact sealed active admission verification key', () => {
+  it('loads the exact sealed active provenance verification key', () => {
     const first = encodedKeyPair()
     expect(loadEd25519PrivateKey(first.privateKey).asymmetricKeyType).toBe('ed25519')
-    const keyring = loadEd25519PublicKeyring(
-      JSON.stringify({ 'admission-v1': first.publicKey }),
+    const keyring = loadProvenancePublicKeyring(
+      JSON.stringify({ 'provenance-v1': first.publicKey }),
     )
-    expect([...keyring.keys()]).toEqual(['admission-v1'])
+    expect([...keyring.keys()]).toEqual(['provenance-v1'])
     expect(
       [...keyring.values()].every((key) => key.asymmetricKeyType === 'ed25519'),
     ).toBe(true)
@@ -34,14 +35,14 @@ describe('AI gateway key material', () => {
     '[]',
     'null',
     JSON.stringify({ Bad: 'not-base64' }),
-    JSON.stringify({ 'admission-v1': 'AQ==' }),
+    JSON.stringify({ 'provenance-v1': 'AQ==' }),
     JSON.stringify({ active: encodedKeyPair().publicKey }),
     JSON.stringify({
-      'admission-v1': encodedKeyPair().publicKey,
+      'provenance-v1': encodedKeyPair().publicKey,
       retiring: encodedKeyPair().publicKey,
     }),
   ])('rejects invalid public keyring %s', (value) => {
-    expect(() => loadEd25519PublicKeyring(value)).toThrow(
+    expect(() => loadProvenancePublicKeyring(value)).toThrow(
       'AI gateway public keyring is invalid',
     )
   })
@@ -49,14 +50,16 @@ describe('AI gateway key material', () => {
   it('rejects duplicate public key IDs before key import', () => {
     const { publicKey } = encodedKeyPair()
     expect(() =>
-      loadEd25519PublicKeyring(
-        `{"admission-v1":${JSON.stringify(publicKey)},"admission-v1":${JSON.stringify(publicKey)}}`,
+      loadProvenancePublicKeyring(
+        `{"provenance-v1":${JSON.stringify(publicKey)},"provenance-v1":${JSON.stringify(publicKey)}}`,
       ),
     ).toThrow('AI gateway public keyring is invalid')
   })
   it('rejects oversized key material before import', () => {
     expect(() =>
-      loadEd25519PublicKeyring(JSON.stringify({ 'admission-v1': 'A'.repeat(16_385) })),
+      loadProvenancePublicKeyring(
+        JSON.stringify({ 'provenance-v1': 'A'.repeat(16_385) }),
+      ),
     ).toThrow('AI gateway key material is invalid')
   })
 

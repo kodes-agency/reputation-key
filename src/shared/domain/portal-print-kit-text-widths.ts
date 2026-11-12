@@ -141,7 +141,7 @@ const TEXT_WIDTHS: WidthTable = {
 
 /**
  * Ysabeau Office 400 and 600 italic, where the wider of the two sets wider than
- * the text table says: the final kit's second-language line, semibold where it
+ * the text table says: the kit's second-language line, semibold where it
  * is reversed under 9 pt. Every other character reads the text table.
  */
 const ITALIC_WIDER: WidthTable = {

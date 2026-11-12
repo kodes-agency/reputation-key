@@ -1,11 +1,9 @@
 import { createHash } from 'node:crypto'
 import {
   aiAdmissionDescriptorSchema,
-  signAiRequestBinding,
   type AiAdmissionDescriptorV1,
 } from '#/shared/ai-internal-transport-contract'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
   OPENAI_PROMPT_VERSIONS,
   type AiGatewayRoute,
@@ -18,8 +16,6 @@ const PREPARED_AI_INVOCATION_BRAND_VALUE = true as const
 const preparedAiInvocationBrand: unique symbol = Symbol('PreparedAiInvocation')
 export type PreparedAiInvocation = Readonly<{
   descriptor: AiAdmissionDescriptorV1
-  requestBindingKeyId: string
-  requestBindingHmac: string
   sdkRequest: ClosedOpenAiRequest
   canonicalProviderBytes: Uint8Array
   [preparedAiInvocationBrand]: true
@@ -92,13 +88,13 @@ export function deriveOpenAiClientRequestId(permitId: string): `rk_ai_${string}`
 }
 
 export type PreparedInvocationTraceStage =
-  'source' | 'provider_payload' | 'prepared_request' | 'descriptor' | 'request_binding'
+  'source' | 'provider_payload' | 'prepared_request' | 'descriptor'
 
 /**
  * The provider-neutral tail of preparing an invocation. A provider supplies the
  * one content field that must equal the canonical payload, its cache-shard fact,
- * and any provider-specific descriptor check; this function owns the digests,
- * limits and request-binding signature shared by every adapter.
+ * and any provider-specific descriptor check; this function owns the digests
+ * and limits shared by every adapter.
  */
 export function finalizePreparedProviderInvocation<Invocation>(
   input: Readonly<{
@@ -110,9 +106,8 @@ export function finalizePreparedProviderInvocation<Invocation>(
     derivePromptCacheShard(): number
     validateDescriptor?(descriptor: AiAdmissionDescriptorV1): void
     createDescriptor: (facts: DerivedDescriptorFacts) => AiAdmissionDescriptorV1
-    requestBindingKeys: VersionedHmacKeyring
     createInvocation(
-      request: ReturnType<typeof signAiRequestBinding>,
+      descriptor: AiAdmissionDescriptorV1,
       canonicalProviderBytes: Uint8Array,
     ): Invocation
     traceStage?: (stage: PreparedInvocationTraceStage) => void
@@ -163,9 +158,7 @@ export function finalizePreparedProviderInvocation<Invocation>(
     }
     input.validateDescriptor?.(descriptor)
     input.traceStage?.('descriptor')
-    const request = signAiRequestBinding(descriptor, input.requestBindingKeys)
-    input.traceStage?.('request_binding')
-    const invocation = input.createInvocation(request, canonicalRequestBytes)
+    const invocation = input.createInvocation(descriptor, canonicalRequestBytes)
     ownershipTransferred = true
     return invocation
   } finally {
@@ -180,7 +173,6 @@ export function createPreparedAiInvocation(
     providerPayload: unknown
     sdkRequest: ClosedOpenAiRequest
     createDescriptor: (facts: DerivedDescriptorFacts) => AiAdmissionDescriptorV1
-    requestBindingKeys: VersionedHmacKeyring
     traceStage?: (stage: PreparedInvocationTraceStage) => void
   }>,
 ): PreparedAiInvocation {
@@ -223,11 +215,9 @@ export function createPreparedAiInvocation(
         throw new TypeError('OpenAI prompt cache key does not match the descriptor')
       }
     },
-    createInvocation: (request, canonicalRequestBytes) =>
+    createInvocation: (descriptor, canonicalRequestBytes) =>
       Object.freeze({
-        descriptor: request.descriptor,
-        requestBindingKeyId: request.requestBindingKeyId,
-        requestBindingHmac: request.requestBindingHmac,
+        descriptor,
         sdkRequest: input.sdkRequest,
         canonicalProviderBytes: canonicalRequestBytes,
         [preparedAiInvocationBrand]: PREPARED_AI_INVOCATION_BRAND_VALUE,

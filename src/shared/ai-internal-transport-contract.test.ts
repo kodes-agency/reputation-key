@@ -1,21 +1,18 @@
-import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
-import { createVersionedHmacKeyring } from './security/versioned-hmac-keyring'
-import { MERCHANT_AI_NOTICE_VERSION } from './merchant-ai-notice-contract'
 import {
   AI_INTERNAL_RESPONSE_MAX_BYTES,
+  aiAdmissionDescriptorSchema,
   aiSettlementRequestSchema,
-  aiSettlementReceiptSchema,
-  parseAiAdmissionRequest,
-  parseAiExecutionGrant,
-  parseAiSettlementReceipt,
-  signAiExecutionGrant,
-  signAiRequestBinding,
-  verifyAiExecutionGrant,
-  verifyAiRequestBinding,
   type AiAdmissionDescriptorV1,
 } from './ai-internal-transport-contract'
+import { aiAdmissionDescriptorDigest } from './ai-provider-control/execution-admission'
+import { descriptorForTest as descriptor } from './ai-provider-control/execution-admission.test-fixtures'
+
+const UUIDS = {
+  operation: '10000000-0000-4000-8000-000000000001',
+  permit: '10000000-0000-4000-8000-000000000002',
+} as const
 import {
   AI_INTERNAL_JSON_MAX_DEPTH,
   AI_INTERNAL_JSON_MAX_NODES,
@@ -23,104 +20,6 @@ import {
   parseAiInternalJsonBytes,
   parseAiProviderJsonBytes,
 } from './ai-json'
-
-const UUIDS = {
-  operation: '10000000-0000-4000-8000-000000000001',
-  permit: '10000000-0000-4000-8000-000000000002',
-  property: '10000000-0000-4000-8000-000000000003',
-  authorization: '10000000-0000-4000-8000-000000000004',
-  lineage: '10000000-0000-4000-8000-000000000005',
-  controlGlobal: '10000000-0000-4000-8000-000000000006',
-  controlProvider: '10000000-0000-4000-8000-000000000007',
-  controlCapability: '10000000-0000-4000-8000-000000000008',
-} as const
-
-const BASE64URL_ALPHABET =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
-function nonCanonicalBase64UrlAlias(value: string): string {
-  const index = BASE64URL_ALPHABET.indexOf(value.at(-1)!)
-  if (index < 0 || index === BASE64URL_ALPHABET.length - 1) {
-    throw new Error('test value cannot be aliased')
-  }
-  return `${value.slice(0, -1)}${BASE64URL_ALPHABET[index + 1]}`
-}
-const SHA = 'a'.repeat(64)
-
-function descriptor(): AiAdmissionDescriptorV1 {
-  return {
-    version: 'ai-admission-descriptor-v1',
-    subjectKind: 'property',
-    route: 'review-analysis',
-    operationId: UUIDS.operation,
-    permitId: UUIDS.permit,
-    attemptNumber: 1,
-    organizationId: 'org_01',
-    propertyId: UUIDS.property,
-    internalSubjectId: 'review_01',
-    actorId: null,
-    binding: {
-      authorizationLineageId: UUIDS.lineage,
-      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-      noticeDigest: SHA,
-      capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
-      sourceEpoch: 1,
-      evaluatedLanguage: 'en-Latn',
-      concreteReplyLanguage: null,
-      languageCatalogueDigest: SHA,
-      replyLanguageVerifierDigest: null,
-      languageScriptConsistencyDigest: null,
-      zhOrthographyVerifierDigest: null,
-      sourceRevision: 1,
-      reviewedAtEpochMillis: 1_780_000_000_000,
-      propertyProfileVersion: 1,
-      routingPolicyVersion: 1,
-      sourcePolicyId: 'google-business-profile-source-policy-v1',
-      sourceCanonicalizerDigest: SHA,
-      redactionProfileVersion: 'gbp-review-global-v1',
-      outputLeakageProfileVersion: null,
-      outputLeakageProfileDigest: null,
-      replyTemplateCatalogueVersion: null,
-      replyTemplateCatalogueDigest: null,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
-      operationProfileVersion: 'review-analysis-v2',
-      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
-      aiSubjectHmacKeyVersion: 'v1',
-      stopFence: {
-        globalControlId: UUIDS.controlGlobal,
-        globalGeneration: 1,
-        providerControlId: UUIDS.controlProvider,
-        providerGeneration: 1,
-        capabilityControlId: UUIDS.controlCapability,
-        capabilityGeneration: 1,
-      },
-    },
-    canaryBinding: null,
-    releaseSha: null,
-    canaryAuthorizationId: null,
-    sourceDigest: SHA,
-    preparedDigest: 'b'.repeat(64),
-    sourceByteCount: 120,
-    preparedByteCount: 400,
-    providerPayloadByteCount: 220,
-    promptCacheShard: 3,
-    limits: {
-      sourceBytes: 16_384,
-      providerPayloadBytes: 32_768,
-      preparedRequestBytes: 65_536,
-      responseBytes: 65_536,
-      outputTokens: 320,
-      costMicros: 10_000,
-    },
-    callerDeadlineEpochMillis: 1_780_000_070_000,
-    observedContentExpiresAtEpochMillis: 1_780_000_600_000,
-    redactionCountry: 'US',
-    redactionProfileVersion: 'gbp-review-global-v1',
-    outputLeakageProfileVersion: null,
-    outputLeakageProfileDigest: null,
-    replyTemplateCatalogueVersion: null,
-    replyTemplateCatalogueDigest: null,
-  }
-}
 
 describe('AI internal raw JSON transport', () => {
   const schema = z
@@ -271,7 +170,6 @@ describe('AI settlement transport', () => {
     operationId: UUIDS.operation,
     permitId: UUIDS.permit,
     attemptNumber: 1,
-    nonce: 'AQIDBA',
     disposition: 'success',
     reportedDisposition: 'success',
     usageKnown: true,
@@ -350,149 +248,23 @@ describe('AI settlement transport', () => {
   })
 })
 
-describe('AI admission signatures', () => {
-  const hmac = createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`)
-  const { privateKey, publicKey } = generateKeyPairSync('ed25519')
-
-  it('authenticates the exact strict descriptor and rejects one-bit mutations', () => {
-    const signed = signAiRequestBinding(descriptor(), hmac)
-    expect(parseAiAdmissionRequest(signed)).toEqual(signed)
-    expect(verifyAiRequestBinding(signed, hmac)).toBe(true)
-    expect(
-      verifyAiRequestBinding(
-        { ...signed, descriptor: { ...signed.descriptor, preparedByteCount: 401 } },
-        hmac,
-      ),
-    ).toBe(false)
-    expect(() => parseAiAdmissionRequest({ ...signed, extra: true })).toThrow(z.ZodError)
-  })
-
-  it('rejects noncanonical base64url aliases for HMACs and Ed25519 signatures', () => {
-    const request = signAiRequestBinding(descriptor(), hmac)
-    expect(() =>
-      parseAiAdmissionRequest({
-        ...request,
-        requestBindingHmac: nonCanonicalBase64UrlAlias(request.requestBindingHmac),
-      }),
-    ).toThrow(z.ZodError)
-
-    const grant = signAiExecutionGrant(
-      {
-        version: 'ai-execution-grant-v1',
-        subjectKind: 'property',
-        grantKid: 'grant-v1',
-        requestBindingKeyId: request.requestBindingKeyId,
-        requestBindingHmac: request.requestBindingHmac,
-        route: 'review-analysis',
-        operationId: UUIDS.operation,
-        permitId: UUIDS.permit,
-        attemptNumber: 1,
-        nonce: 'AQIDBA',
-        limits: request.descriptor.limits,
-        callerDeadlineEpochMillis: request.descriptor.callerDeadlineEpochMillis,
-        issuedAtEpochMillis: 1_780_000_000_000,
-        expiresAtEpochMillis: 1_780_000_070_000,
-        replyTokenExpiresAtEpochMillis: null,
-        replyDraftExpiresAtEpochMillis: null,
-      },
-      privateKey,
+describe('AI admission descriptor', () => {
+  it('accepts the exact strict descriptor and digests every field', () => {
+    const value = descriptor()
+    expect(aiAdmissionDescriptorSchema.parse(value)).toEqual(value)
+    expect(aiAdmissionDescriptorSchema.safeParse({ ...value, extra: true }).success).toBe(
+      false,
     )
-    expect(() =>
-      parseAiExecutionGrant({
-        ...grant,
-        grantSignature: nonCanonicalBase64UrlAlias(grant.grantSignature),
-      }),
-    ).toThrow(z.ZodError)
-  })
-
-  it('signs every grant field with Ed25519 and verifies exact echoes', () => {
-    const request = signAiRequestBinding(descriptor(), hmac)
-    const grant = signAiExecutionGrant(
-      {
-        version: 'ai-execution-grant-v1',
-        subjectKind: 'property',
-        grantKid: 'grant-v1',
-        requestBindingKeyId: request.requestBindingKeyId,
-        requestBindingHmac: request.requestBindingHmac,
-        route: 'review-analysis',
-        operationId: UUIDS.operation,
-        permitId: UUIDS.permit,
-        attemptNumber: 1,
-        nonce: 'AQIDBA',
-        limits: request.descriptor.limits,
-        callerDeadlineEpochMillis: request.descriptor.callerDeadlineEpochMillis,
-        issuedAtEpochMillis: 1_780_000_000_000,
-        expiresAtEpochMillis: 1_780_000_070_000,
-        replyTokenExpiresAtEpochMillis: null,
-        replyDraftExpiresAtEpochMillis: null,
-      },
-      privateKey,
-    )
-    expect(parseAiExecutionGrant(grant)).toEqual(grant)
-    expect(verifyAiExecutionGrant(grant, new Map([['grant-v1', publicKey]]))).toBe(true)
-    expect(
-      verifyAiExecutionGrant(
-        { ...grant, expiresAtEpochMillis: grant.expiresAtEpochMillis - 1 },
-        new Map([['grant-v1', publicKey]]),
-      ),
-    ).toBe(false)
-  })
-
-  it('validates settlement usage and rejects a signed envelope as a typed result', () => {
-    const request = signAiRequestBinding(descriptor(), hmac)
-    const receipt = parseAiSettlementReceipt({
-      version: 'ai-settlement-receipt-v1',
-      grantKid: 'grant-v1',
-      operationId: UUIDS.operation,
-      permitId: UUIDS.permit,
-      attemptNumber: 1,
-      nonce: 'AQIDBA',
-      requestBindingHmac: request.requestBindingHmac,
-      disposition: 'success',
-      reportedDisposition: 'success',
-      usageKnown: true,
-      inputTokens: 100,
-      cachedInputTokens: 20,
-      outputTokens: 20,
-      reasoningTokens: 5,
-      costMicros: 1_000,
-      providerRetryable: false,
-      settledAtEpochMillis: 1_780_000_010_000,
-      settlementState: 'settled',
-    })
-    expect(parseAiSettlementReceipt(receipt)).toEqual(receipt)
-    expect(
-      aiSettlementReceiptSchema.safeParse({
-        ...receipt,
-        reportedDisposition: 'policy_denied',
-      }).success,
-    ).toBe(false)
-    const grant = signAiExecutionGrant(
-      {
-        version: 'ai-execution-grant-v1',
-        subjectKind: 'property',
-        grantKid: 'grant-v1',
-        requestBindingKeyId: request.requestBindingKeyId,
-        requestBindingHmac: request.requestBindingHmac,
-        route: 'review-analysis',
-        operationId: UUIDS.operation,
-        permitId: UUIDS.permit,
-        attemptNumber: 1,
-        nonce: 'AQIDBA',
-        limits: request.descriptor.limits,
-        callerDeadlineEpochMillis: request.descriptor.callerDeadlineEpochMillis,
-        issuedAtEpochMillis: 1_780_000_000_000,
-        expiresAtEpochMillis: 1_780_000_070_000,
-        replyTokenExpiresAtEpochMillis: null,
-        replyDraftExpiresAtEpochMillis: null,
-      },
-      privateKey,
-    )
-    expect(
-      aiSettlementReceiptSchema.safeParse({
-        ...receipt,
-        grantSignature: grant.grantSignature,
-      }).success,
-    ).toBe(false)
+    const digest = aiAdmissionDescriptorDigest(value)
+    expect(digest).toMatch(/^[0-9a-f]{64}$/)
+    expect(aiAdmissionDescriptorDigest(structuredClone(value))).toBe(digest)
+    for (const mutated of [
+      { ...value, attemptNumber: 2 },
+      { ...value, sourceDigest: 'b'.repeat(64) },
+      { ...value, limits: { ...value.limits, costMicros: value.limits.costMicros + 1 } },
+      { ...value, callerDeadlineEpochMillis: value.callerDeadlineEpochMillis + 1 },
+    ] as AiAdmissionDescriptorV1[]) {
+      expect(aiAdmissionDescriptorDigest(mutated)).not.toBe(digest)
+    }
   })
 })

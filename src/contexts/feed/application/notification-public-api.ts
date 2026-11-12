@@ -72,7 +72,7 @@ export type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup
 export type { NotificationListFilter } from './notification-list-filter'
 export { isStillWaiting, type NotificationView } from './notification-view'
 /** Types that stand for work still waiting on their reader, until settled. */
-export { isActionableNotificationType } from '../domain/notification-settlement'
+export { isActionableNotificationType } from '../domain/notification-actionable'
 export type {
   NotificationFeedCursor,
   NotificationFeedHead,

@@ -1,12 +1,8 @@
-import { type KeyObject } from 'node:crypto'
-import type { AiExecutionGrantV1 } from '#/shared/ai-internal-transport-contract'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
   PROVIDER_ZERO_USAGE,
   evaluateProviderDispatchGate,
   providerConnectorOutcome,
   providerNoDispatchOutcome,
-  type GrantNonceRegistry,
   type OneShotProviderFetchState,
   type ProviderBoundaryInvocation,
 } from './connector-boundary'
@@ -16,6 +12,7 @@ import {
   logProviderPreDispatchThrow,
 } from './connector-diagnostics'
 import type { ProviderRefusalBase } from './dispositions'
+import type { AiExecutionAdmission } from './execution-admission'
 import type { AiProviderOutcome, AiProviderUsage } from './provider-contracts'
 
 // What every provider connector decides the same way, whichever provider it is:
@@ -24,36 +21,23 @@ import type { AiProviderOutcome, AiProviderUsage } from './provider-contracts'
 // its error classes are, which usage it can still read from a body).
 
 /**
- * The gate before any byte can leave: the grant, the request binding, the exact
- * bytes and the nonce. A refusal zeroes the canonical bytes and is `no_dispatch`;
- * `null` means the call may go ahead.
+ * The gate before any byte can leave: the admission, the exact bytes and the
+ * admission's single use. A refusal zeroes the canonical bytes and is
+ * `no_dispatch`; `null` means the call may go ahead.
  */
 export function refusalAtProviderDispatchGate(
   input: Readonly<{
     invocation: ProviderBoundaryInvocation
-    grant: AiExecutionGrantV1
-    requestBindingKeys: VersionedHmacKeyring
-    admissionPublicKeys: ReadonlyMap<string, KeyObject>
-    nonceRegistry: GrantNonceRegistry
+    admission: AiExecutionAdmission
     now: () => number
   }>,
 ): AiProviderOutcome<unknown> | null {
-  const { invocation, grant } = input
+  const { invocation, admission } = input
   try {
     const currentTime = input.now()
-    // The gates are evaluated separately so the log can name the one that fired.
-    // Nonce consumption stays last, so a diagnostic never burns a nonce that would
-    // otherwise have dispatched.
-    const gate = evaluateProviderDispatchGate({
-      invocation,
-      grant,
-      requestBindingKeys: input.requestBindingKeys,
-      admissionPublicKeys: input.admissionPublicKeys,
-      nonceRegistry: input.nonceRegistry,
-      currentTime,
-    })
+    const gate = evaluateProviderDispatchGate({ invocation, admission, currentTime })
     if (gate.accepted) return null
-    logProviderGateRefusal(invocation, grant, currentTime, gate.reasons)
+    logProviderGateRefusal(invocation, admission, currentTime, gate.reasons)
   } catch (error) {
     // Swallowing this made an attestation crash look identical to a clean
     // "declined to dispatch". Name it.
@@ -70,7 +54,7 @@ type ThrowOutcomeInput = Readonly<{
   /** True when no pinned outbound was built (an injected fetch, or it threw first). */
   pinnedAbsent: boolean
   invocation: ProviderBoundaryInvocation
-  /** The grant's response bound, which a non-200 body was read under. */
+  /** The admission's response bound, which a non-200 body was read under. */
   responseBytes: number
   signal: AbortSignal
   /** How this provider reads a complete answer other than 200. */

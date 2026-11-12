@@ -97,7 +97,7 @@ export type CreatePortalCommand = Readonly<{
   initialResponsibleManagerIds: ReadonlyArray<UserId>
   event: PortalCreated
   groupMembership?: CreatePortalGroupMembership
-  personalPrintWording?: import('#/shared/domain/portal-print-final-wording').PrintFinalSavedWording
+  personalPrintWording?: import('#/shared/domain/portal-print-wording').PrintSavedWording
   personalSourceFence?: Readonly<{
     portalId: PortalId
     updatedAt: Date
@@ -480,7 +480,7 @@ export type ReplacePersonalPortalContentCommand = Readonly<{
   additionalGuestLocales: ReadonlyArray<GuestLocale>
   linktreeEnabled: boolean
   content: CreatePortalCopiedContent
-  printWording: import('#/shared/domain/portal-print-final-wording').PrintFinalSavedWording
+  printWording: import('#/shared/domain/portal-print-wording').PrintSavedWording
   sourceFence: NonNullable<CreatePortalCommand['personalSourceFence']>
   event: PortalUpdated
 }>

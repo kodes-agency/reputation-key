@@ -1,0 +1,266 @@
+import { describe, expect, it } from 'vitest'
+import type { PrintFace } from './portal-print'
+import { printCodeBlock } from './portal-print-code'
+import { PRINT_MEASURES, inPt, mmPt, ptMm } from './portal-print-measures'
+import { printGapUnitsBefore, type PrintPart } from './portal-print-parts'
+import { planPrintFace, printTextColumn } from './portal-print-plan'
+import { PRINT_SPARE_TOP_SHARE } from './portal-print-planners'
+import { printPhotoBox, printPhotoPixelsFor } from './portal-print-photo'
+import { choosePrintHeadline } from './portal-print-type'
+
+const face = (over: Partial<PrintFace> = {}): PrintFace => ({
+  piece: 'counter',
+  orientation: 'upright',
+  look: 'immersive',
+  region: 'us',
+  ...over,
+})
+const part = (key: PrintPart['key'], widthMm: number, heightMm: number): PrintPart => ({
+  key,
+  widthPt: mmPt(widthMm),
+  heightPt: mmPt(heightMm),
+})
+const SMALL_WORDS = [
+  part('brand', 20, 10),
+  part('kicker', 40, 2),
+  part('headline', 50, 8),
+  part('subline', 40, 3),
+]
+
+function plan(f: PrintFace, parts: readonly PrintPart[] = SMALL_WORDS, cueLines = 1) {
+  const m = PRINT_MEASURES[f.region][f.piece]
+  return planPrintFace({ face: f, parts, code: printCodeBlock(f, m, cueLines) })
+}
+
+describe('the line caps (spec 3)', () => {
+  const words = (headlineLines: number, sublineLines: number): readonly PrintPart[] => [
+    part('brand', 20, 10),
+    part('kicker', 40, 2),
+    { ...part('headline', 50, 8), lines: headlineLines },
+    { ...part('subline', 40, 3), lines: sublineLines },
+  ]
+
+  it('allows a headline on 3 lines and a sub-line on 2', () => {
+    const p = plan(face(), words(3, 2))
+    expect(p.problems).toEqual([])
+    expect(p.fits).toBe(true)
+  })
+
+  it('refuses a 4-line headline even where the gaps would hold', () => {
+    const p = plan(face(), words(4, 1))
+    expect(p.problems).toEqual(['headline_over_cap'])
+    expect(p.fits).toBe(false)
+  })
+
+  it('refuses a 3-line sub-line', () => {
+    const p = plan(face(), words(1, 3))
+    expect(p.problems).toEqual(['subline_over_cap'])
+    expect(p.fits).toBe(false)
+  })
+
+  it('does not hold the second language to the caps, nor parts that carry no line count', () => {
+    const p = plan(face(), [
+      ...words(1, 1),
+      { ...part('headline2', 30, 4), lines: 6 },
+      part('subline2', 40, 3),
+    ])
+    expect(p.problems).not.toContain('headline_over_cap')
+    expect(plan(face()).problems).toEqual([])
+  })
+})
+
+describe('the gaps inside a group', () => {
+  it('are 1u, and 2u on each side of the rule before the second language', () => {
+    expect(printGapUnitsBefore(null, 'brand')).toBe(0)
+    expect(printGapUnitsBefore('kicker', 'headline')).toBe(1)
+    expect(printGapUnitsBefore('subline', 'rule')).toBe(2)
+    expect(printGapUnitsBefore('rule', 'headline2')).toBe(2)
+    expect(printGapUnitsBefore('headline2', 'subline2')).toBe(1)
+  })
+
+  it('stack the message parts by their ink with those gaps', () => {
+    const p = plan(face(), [
+      part('brand', 20, 10),
+      part('headline', 50, 8),
+      part('subline', 40, 3),
+      part('rule', 8, 0.35),
+      part('headline2', 30, 5),
+    ])
+    const [, head, sub, rule, head2] = p.parts
+    const u = p.unitPt
+    expect((sub?.yPt ?? 0) - ((head?.yPt ?? 0) + (head?.heightPt ?? 0))).toBeCloseTo(u, 6)
+    expect((rule?.yPt ?? 0) - ((sub?.yPt ?? 0) + (sub?.heightPt ?? 0))).toBeCloseTo(
+      2 * u,
+      6,
+    )
+    expect((head2?.yPt ?? 0) - ((rule?.yPt ?? 0) + (rule?.heightPt ?? 0))).toBeCloseTo(
+      2 * u,
+      6,
+    )
+  })
+})
+
+describe('the upright stack', () => {
+  it('grows the group gaps to 8u and splits the rest 44 : 56 into the margins', () => {
+    const p = plan(face())
+    expect(p.gapsPt.brandToMessage).toBeCloseTo(8 * p.unitPt, 6)
+    expect(p.gapsPt.messageToCode).toBeCloseTo(8 * p.unitPt, 6)
+    const top = (p.groups.brand?.topPt ?? 0) - p.live.topPt
+    const bottom = p.live.bottomPt - p.code.bottomPt
+    expect(top / (top + bottom)).toBeCloseTo(PRINT_SPARE_TOP_SHARE, 6)
+    expect(p.fits).toBe(true)
+  })
+
+  it('centres every part and the code block on one axis', () => {
+    const p = plan(face())
+    const axis = p.widthPt / 2
+    for (const placed of p.parts)
+      expect(placed.xPt + placed.widthPt / 2).toBeCloseTo(axis, 6)
+    expect((p.code.leftPt + p.code.rightPt) / 2).toBeCloseTo(axis, 6)
+  })
+
+  it('shares less spare equally between the gaps and starts at the top margin', () => {
+    const p = plan(face({ piece: 'tent' }), [
+      part('brand', 12, 11),
+      part('kicker', 30, 3),
+      part('headline', 40, 12),
+      part('subline', 40, 3),
+    ])
+    expect(p.gapsPt.brandToMessage).toBeCloseTo(p.gapsPt.messageToCode, 6)
+    expect(p.gapsPt.messageToCode).toBeLessThan(8 * p.unitPt)
+    expect(p.groups.brand?.topPt).toBeCloseTo(p.live.topPt, 6)
+  })
+
+  it('reports gaps under 4u: long copy then steps the headline down', () => {
+    const p = plan(face({ piece: 'small' }), [
+      part('brand', 12, 7),
+      part('headline', 40, 25),
+      part('subline', 40, 4),
+    ])
+    expect(p.problems).toContain('gap_under_4u')
+    expect(p.fits).toBe(false)
+  })
+})
+
+describe('the wide block', () => {
+  it('puts the code block on the right margin and the words flush left in their column', () => {
+    const f = face({ orientation: 'wide' })
+    const p = plan(f)
+    expect(p.code.rightPt).toBeCloseTo(p.live.rightPt, 6)
+    for (const placed of p.parts) expect(placed.xPt).toBeCloseTo(p.live.leftPt, 6)
+    expect(p.column).toEqual(printTextColumn(f, inPt(1.5)))
+    expect(ptMm(p.column.rightPt)).toBeCloseTo(152.4 - 9.525 - 38.1 - 9.525, 6)
+  })
+
+  it('keeps the brand 4u above the message and centres the block on the code block’s line', () => {
+    const p = plan(face({ orientation: 'wide', look: 'paper' }))
+    expect(p.gapsPt.brandToMessage).toBeCloseTo(4 * p.unitPt, 6)
+    const block = ((p.groups.brand?.topPt ?? 0) + (p.groups.message?.bottomPt ?? 0)) / 2
+    expect(block).toBeCloseTo((p.code.topPt + p.code.bottomPt) / 2, 6)
+    const top = p.code.topPt - p.live.topPt
+    const bottom = p.live.bottomPt - p.code.bottomPt
+    expect(top / (top + bottom)).toBeCloseTo(PRINT_SPARE_TOP_SHARE, 6)
+  })
+
+  it('lifts a tent’s block until the headline’s cap-top sits in the upper 54 %', () => {
+    const p = plan(face({ piece: 'tent', orientation: 'wide' }), [
+      part('brand', 12, 11),
+      part('kicker', 30, 2),
+      part('headline', 40, 6),
+      part('subline', 40, 3),
+    ])
+    const headline = p.parts.find((placed) => placed.key === 'headline')
+    expect((headline?.yPt ?? 0) / p.heightPt).toBeLessThanOrEqual(0.54 + 1e-9)
+  })
+
+  it('reports words taller than the live height', () => {
+    const p = plan(face({ piece: 'small', orientation: 'wide' }), [
+      part('brand', 12, 8),
+      part('headline', 30, 30),
+      part('subline', 30, 4),
+    ])
+    expect(p.problems).toContain('taller_than_live')
+  })
+})
+
+describe('long copy over both orientations', () => {
+  it('steps the headline until the upright and the wide face both keep 4u', () => {
+    const fitsAt = (pt: number) =>
+      (['upright', 'wide'] as const).every(
+        (orientation) =>
+          plan(face({ piece: 'tent', orientation }), [
+            part('brand', 12, 8),
+            part('kicker', 30, 3),
+            part('headline', 40, pt * 0.95),
+            part('subline', 40, 3),
+          ]).fits,
+      )
+    const choice = choosePrintHeadline('tent', fitsAt)
+    expect(choice).toEqual({ headlinePt: 18, overflows: false })
+    expect(fitsAt(19)).toBe(false)
+  })
+})
+
+describe('the photo (spec 6.2)', () => {
+  it('covers its box plus the bleed on each trim edge it touches', () => {
+    const inches = (f: PrintFace) => {
+      const box = printPhotoBox(plan(f))
+      return [
+        Number((box.coverWidthPt / 72).toFixed(3)),
+        Number((box.coverHeightPt / 72).toFixed(3)),
+      ]
+    }
+    expect(inches(face({ orientation: 'wide' }))).toEqual([4.25, 4.25])
+    expect(inches(face({ piece: 'tent', orientation: 'wide' }))).toEqual([2.725, 2.775])
+    expect(inches(face({ piece: 'small', orientation: 'wide' }))).toEqual([2.188, 2.25])
+    const upright = printPhotoBox(plan(face()))
+    expect(upright.coverWidthPt).toBeCloseTo(inPt(4.25), 6)
+    expect(upright.box.bottomPt).toBeCloseTo(plan(face()).code.topPt - inPt(0.12), 6)
+  })
+
+  it('gives a tent photo no top bleed: its top is the fold strip', () => {
+    const p = plan(face({ piece: 'tent' }))
+    const box = printPhotoBox(p)
+    expect(box.box.topPt).toBe(inPt(0.1))
+    expect(box.coverHeightPt).toBeCloseTo(box.box.bottomPt - inPt(0.1), 6)
+  })
+  it('names the least photo that prints sharp in the box', () => {
+    const wide = printPhotoBox(plan(face({ orientation: 'wide' })))
+    expect(printPhotoPixelsFor(wide, 200)).toEqual({ widthPx: 850, heightPx: 850 })
+    expect(printPhotoPixelsFor(wide, 150).heightPx).toBe(638)
+  })
+})
+
+describe('live-area containment', () => {
+  it.each(['upright', 'wide'] as const)(
+    'refuses over-wide ink on a %s face',
+    (orientation) => {
+      const p = plan(face({ orientation }), [part('headline', 500, 8)])
+      expect(p.fits).toBe(false)
+    },
+  )
+
+  it.each(['upright', 'wide'] as const)(
+    'refuses a code box outside a %s face',
+    (orientation) => {
+      const f = face({ orientation })
+      const code = printCodeBlock(f, PRINT_MEASURES.us.counter, 1)
+      for (const dimension of ['widthPt', 'heightPt'] as const) {
+        const p = planPrintFace({
+          face: f,
+          parts: SMALL_WORDS,
+          code: { ...code, [dimension]: mmPt(500) },
+        })
+        expect(p.fits, dimension).toBe(false)
+      }
+    },
+  )
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])(
+    'refuses invalid ink dimensions (%s)',
+    (widthPt) => {
+      const p = plan(face(), [{ ...part('headline', 50, 8), widthPt }])
+      expect(p.fits).toBe(false)
+    },
+  )
+})

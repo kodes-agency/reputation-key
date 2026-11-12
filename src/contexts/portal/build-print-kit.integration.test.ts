@@ -85,14 +85,14 @@ describe('buildPortalPrintKit', () => {
     expect(view.kit).toBe('final')
   })
 
-  it('remembers a final print as the last, and tells the Share tab of it', async () => {
+  it('remembers a print as the last, and tells the Share tab of it', async () => {
     const { portal, useCases } = await wire('US', SHORT_ADDRESS)
     const ctx = world.ctx()
     expect(
       (await useCases.getPortalPrintKit({ portalId: portal.id }, ctx)).lastPrint,
     ).toBe(null)
 
-    await useCases.createPortalPrintFinal(
+    await useCases.createPortalPrint(
       {
         portalId: portal.id,
         piece: 'counter',
@@ -122,7 +122,7 @@ describe('buildPortalPrintKit', () => {
 
   it('draws a real PDF on the Property country’s paper for the live code', async () => {
     const { portal, useCases, reveal } = await wire('CA', SHORT_ADDRESS)
-    const file = await useCases.createPortalPrintFinal(
+    const file = await useCases.createPortalPrint(
       {
         portalId: portal.id,
         piece: 'counter',

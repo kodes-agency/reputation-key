@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { AiExecutionGrantV1 } from '#/shared/ai-internal-transport-contract'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
 import {
-  GrantNonceRegistry,
   type OneShotProviderFetchState,
   type ProviderBoundaryInvocation,
 } from './connector-boundary'
@@ -10,6 +8,7 @@ import {
   outcomeOfProviderThrow,
   refusalAtProviderDispatchGate,
 } from './connector-outcomes'
+import { admitForTest } from './execution-admission.test-fixtures'
 
 const invocation = {
   descriptor: {
@@ -181,14 +180,15 @@ describe('what a provider call that threw came to', () => {
 })
 
 describe('the gate before a provider call', () => {
-  const grant = {
-    nonce: 'n',
-    permitId: '10000000-0000-4000-8000-000000000002',
-    issuedAtEpochMillis: 0,
-    expiresAtEpochMillis: 10_000,
-    limits: {},
-  } as unknown as AiExecutionGrantV1
-  const keys = {} as unknown as VersionedHmacKeyring
+  // A minted admission for an invocation whose request cannot be canonicalized,
+  // so the attestation itself throws.
+  const admission = admitForTest(
+    {
+      ...invocation.descriptor,
+      callerDeadlineEpochMillis: 10_000,
+    } as unknown as AiAdmissionDescriptorV1,
+    { issuedAtEpochMillis: 0 },
+  )
 
   it('refuses, names the crash and zeroes the bytes when the attestation throws', () => {
     const write = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
@@ -196,10 +196,7 @@ describe('the gate before a provider call', () => {
 
     const outcome = refusalAtProviderDispatchGate({
       invocation: { ...invocation, canonicalProviderBytes: bytes },
-      grant,
-      requestBindingKeys: keys,
-      admissionPublicKeys: new Map(),
-      nonceRegistry: new GrantNonceRegistry(),
+      admission,
       now: () => 1_000,
     })
 
@@ -220,10 +217,7 @@ describe('the gate before a provider call', () => {
 
     const outcome = refusalAtProviderDispatchGate({
       invocation: { ...invocation, canonicalProviderBytes: Uint8Array.of(9) },
-      grant,
-      requestBindingKeys: keys,
-      admissionPublicKeys: new Map(),
-      nonceRegistry: new GrantNonceRegistry(),
+      admission,
       now: () => {
         throw new Error('clock unavailable')
       },
