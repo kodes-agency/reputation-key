@@ -11,7 +11,7 @@ import {
   createReviewAnalysisEnrollmentAdapter,
 } from '../../src/contexts/ai/application/public-api'
 import { runCommandEntrypoint } from './command-entrypoint'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:ai-approve-enrollment'
 const USAGE =
@@ -52,7 +52,7 @@ const approvalEvidenceDigest = (
     .digest('hex')
 
 const main = async (): Promise<void> => {
-  const result = await runOperatorCommand(
+  const result = await runDatabaseOperatorCommand(
     {
       name: COMMAND_NAME,
       scope: 'property',
