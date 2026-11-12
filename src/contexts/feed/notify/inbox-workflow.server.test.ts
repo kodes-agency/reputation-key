@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { registerWorkflowNotificationConsumers } from '../infrastructure/inbox-notice-routes'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
@@ -8,16 +9,15 @@ import {
 } from '#/shared/outbox/consumer-registry'
 import {
   handleWorkflowNotificationEvent,
-  registerWorkflowNotificationConsumers,
   WORKFLOW_NOTIFICATION_CONSUMERS,
   type WorkflowNotificationConsumerDeps,
-} from './workflow-outbox-consumers'
+} from './inbox-workflow.server'
 import {
   createNotificationConsumerDeps,
   noticeWriterOver,
   NOTIF_TEST_IDS,
   type FakeNotificationConsumerDeps,
-} from './notification-consumer-test-fixtures'
+} from '../infrastructure/notification-consumer-test-fixtures'
 import { unbrand } from '#/shared/domain/ids'
 import {
   reviewReplyPublishFailed,
@@ -27,7 +27,7 @@ import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
-import type { InsertNotificationJobData } from './jobs/insert-notification.job'
+import type { InsertNotificationJobData } from '../infrastructure/jobs/insert-notification.job'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()

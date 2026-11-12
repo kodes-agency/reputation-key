@@ -26,8 +26,7 @@ const NOTIFICATION_AI_URGENT_OUTBOX =
   'src/contexts/feed/infrastructure/goal-notice-routes.ts'
 const NOTIFICATION_AI_GUEST_VOICE_SUMMARY_OUTBOX =
   'src/contexts/feed/infrastructure/goal-notice-routes.ts'
-const NOTIFICATION_WORKFLOW_OUTBOX =
-  'src/contexts/feed/infrastructure/workflow-outbox-consumers.ts'
+const NOTIFICATION_WORKFLOW_OUTBOX = 'src/contexts/feed/notify/inbox-workflow.server.ts'
 const NOTIFICATION_SETTLEMENT_OUTBOX =
   'src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts'
 
