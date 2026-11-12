@@ -5,6 +5,7 @@
 // aria-labels are unambiguous.
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { InboxList } from './inbox-list'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
@@ -530,14 +531,7 @@ export const UrgentRows: Story = {
   args: urgentArgs,
   decorators: [UrgentPane],
   parameters: URGENT_PANE,
-  play: async ({ canvasElement }) => expectUrgentRows(canvasElement),
-}
-
-export const UrgentRowsLight: Story = {
-  args: urgentArgs,
-  decorators: [UrgentPane],
-  parameters: { ...URGENT_PANE, theme: 'light' },
-  play: async ({ canvasElement }) => expectUrgentRows(canvasElement),
+  play: playInThemes(({ canvasElement }) => expectUrgentRows(canvasElement)),
 }
 
 // Selecting on a phone: a checked urgent row wears the checked fill, and the

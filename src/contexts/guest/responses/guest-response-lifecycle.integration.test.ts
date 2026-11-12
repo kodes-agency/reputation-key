@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest'
-import type { GuestResponse, GuestResponseStatus } from '../domain/guest-response'
-import type { GuestMutationFact } from '../application/ports/guest-response-command-store.port'
-import type {
-  GuestResponseRepository,
-  GuestResponseScope,
-} from '../application/ports/guest-response.repository'
+import { randomUUID } from 'node:crypto'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { sql } from 'drizzle-orm'
+import type { GuestResponseStatus } from '../domain/guest-response'
+import type { GuestResponseScope } from '../application/ports/guest-response.repository'
+import { getDb } from '#/shared/db'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   guestSessionId,
   organizationId,
@@ -22,268 +24,168 @@ import {
   isQualifiedGuestResponse,
   type GuestResponseView,
 } from './contracts'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
+import { createAtomicGuestResponseCommandStore } from './guest-response-command-store.server'
+import { createGuestResponseRepository } from './guest-response.repository.server'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 
-const STAFF_ATTRIBUTION = {
-  staffParticipantId: '10000000-0000-4000-8000-000000000001',
-  staffParticipationId: '10000000-0000-4000-8000-000000000002',
-  portalResponsibilityId: '10000000-0000-4000-8000-000000000003',
-  effectiveFrom: new Date('2026-08-01T00:00:00.000Z'),
-  effectiveTo: null,
-} as const
+const db = getDb()
+const STAFF_EFFECTIVE_FROM = new Date('2026-08-01T00:00:00.000Z')
+const createdOrganizations: string[] = []
 
-const scope: GuestResponseScope = {
-  organizationId: organizationId('org-1'),
-  propertyId: propertyId('00000000-0000-4000-8000-000000000001'),
-  portalId: portalId('00000000-0000-4000-8000-000000000002'),
-}
-
-const experience = (privateFeedbackThreshold = 3) => ({
-  portalPublicationState: 'published' as const,
-  portalPublicationSnapshotId: 'snapshot-1',
-  portalPublicationVersion: 1,
-  portalPublicationDigest: 'b'.repeat(64),
-  portalConfigurationDigest: 'a'.repeat(64),
-  guestLocale: 'en',
-  languagePackVersion: 'guest-ui-en-v1',
-  privateFeedbackThreshold,
+beforeAll(() => {
+  clearEventSchemas()
+  registerAllEventSchemas()
 })
 
-function memoryRepo(): GuestResponseRepository & {
-  responses: GuestResponse[]
-} {
-  const responses: GuestResponse[] = []
-  const sameScope = (candidate: GuestResponseScope, row: GuestResponse) =>
-    candidate.organizationId === row.organizationId &&
-    candidate.propertyId === row.propertyId &&
-    candidate.portalId === row.portalId
+afterAll(async () => {
+  const ids = createdOrganizations
+  if (ids.length > 0) {
+    const list = sql.join(
+      ids.map((id) => sql`${id}`),
+      sql`, `,
+    )
+    await db.execute(sql`DELETE FROM guest_responses WHERE organization_id IN (${list})`)
+    await db.execute(sql`DELETE FROM outbox_events WHERE organization_id IN (${list})`)
+    await db.execute(
+      sql`DELETE FROM portal_responsibilities WHERE organization_id IN (${list})`,
+    )
+    await db.execute(
+      sql`DELETE FROM staff_participations WHERE organization_id IN (${list})`,
+    )
+    await db.execute(
+      sql`DELETE FROM staff_participants WHERE organization_id IN (${list})`,
+    )
+    await db.execute(
+      sql`DELETE FROM portal_publication_snapshots WHERE organization_id IN (${list})`,
+    )
+    await db.execute(sql`DELETE FROM portals WHERE organization_id IN (${list})`)
+    await db.execute(sql`DELETE FROM properties WHERE organization_id IN (${list})`)
+    await deleteTestOrganizations(db, ids)
+  }
+  clearEventSchemas()
+})
+
+const experienceFor =
+  (snapshotId: string) =>
+  (privateFeedbackThreshold = 3) => ({
+    portalPublicationState: 'published' as const,
+    portalPublicationSnapshotId: snapshotId,
+    portalPublicationVersion: 1,
+    portalPublicationDigest: 'b'.repeat(64),
+    portalConfigurationDigest: 'a'.repeat(64),
+    guestLocale: 'en',
+    languagePackVersion: 'guest-ui-en-v1',
+    privateFeedbackThreshold,
+  })
+
+/** A tenant of its own, so harnesses and files never meet in one table row. */
+async function seedTenant(): Promise<{
+  scope: GuestResponseScope
+  staffAttribution: PrimaryStaffAttributionSnapshot
+  experience: ReturnType<typeof experienceFor>
+  snapshot: string
+}> {
+  const org = `org-guest-lifecycle-${randomUUID()}`
+  const property = randomUUID()
+  const portal = randomUUID()
+  const participant = randomUUID()
+  const participation = randomUUID()
+  const responsibility = randomUUID()
+  const snapshot = randomUUID()
+  createdOrganizations.push(org)
+  await db.execute(sql`
+    INSERT INTO organization (id, name, slug, "createdAt")
+    VALUES (${org}, 'Guest Lifecycle', ${org}, now())
+  `)
+  await db.execute(sql`
+    INSERT INTO properties (id, organization_id, name, slug, timezone)
+    VALUES (${property}, ${org}, 'Guest Lifecycle Property', ${property}, 'UTC')
+  `)
+  await db.execute(sql`
+    INSERT INTO portals (
+      id, organization_id, property_id, entity_type, entity_id, name, slug,
+      publication_state
+    ) VALUES (
+      ${portal}, ${org}, ${property}, 'property', ${property},
+      'Guest Lifecycle Portal', ${portal}, 'published'
+    )
+  `)
+  await db.execute(sql`
+    INSERT INTO portal_publication_snapshots (
+      id, organization_id, property_id, portal_id, version, configuration_digest,
+      configuration, guest_locale, language_pack_version, private_feedback_threshold,
+      contact_request_enabled, destination_uri, destination_retrieved_at,
+      destination_source_epoch, destination_profile_version, created_by, created_at
+    ) VALUES (
+      ${snapshot}::uuid, ${org}, ${property}::uuid, ${portal}::uuid, 1, ${'b'.repeat(64)},
+      '{}'::jsonb, 'en', 'guest-ui-en-v1', 3, false, 'https://example.test/review',
+      now(), 0, 1, 'test', now()
+    )
+  `)
+  await db.execute(sql`
+    INSERT INTO staff_participants (
+      id, organization_id, display_name, status, revision, created_by,
+      created_at, updated_at
+    ) VALUES (${participant}::uuid, ${org}, 'Primary', 'active', 1, 'test',
+      ${STAFF_EFFECTIVE_FROM}, ${STAFF_EFFECTIVE_FROM})
+  `)
+  await db.execute(sql`
+    INSERT INTO staff_participations (
+      id, organization_id, property_id, staff_participant_id, display_name,
+      status, started_at, revision, created_by, created_at, updated_at
+    ) VALUES (${participation}::uuid, ${org}, ${property}, ${participant}::uuid,
+      'Primary', 'active', ${STAFF_EFFECTIVE_FROM}, 1, 'test',
+      ${STAFF_EFFECTIVE_FROM}, ${STAFF_EFFECTIVE_FROM})
+  `)
+  await db.execute(sql`
+    INSERT INTO portal_responsibilities (
+      id, organization_id, property_id, portal_id, staff_participation_id,
+      kind, effective_from, created_by
+    ) VALUES (${responsibility}::uuid, ${org}, ${property}, ${portal},
+      ${participation}::uuid, 'primary', ${STAFF_EFFECTIVE_FROM}, 'test')
+  `)
   return {
-    responses,
-    findForSession: async (candidate, sessionId) =>
-      responses.find((row) => sameScope(candidate, row) && row.sessionId === sessionId) ??
-      null,
-    findById: async (candidate, responseId) =>
-      responses.find((row) => sameScope(candidate, row) && row.id === responseId) ?? null,
-    findSnippetForOrg: async (organizationId, responseId) => {
-      const row = responses.find(
-        (candidate) =>
-          candidate.organizationId === organizationId && candidate.id === responseId,
-      )
-      if (!row) return null
-      return {
-        comment: row.textConsent && row.status !== 'moderated' ? row.text : null,
-        ratingValue: row.responseConsent ? row.rating : null,
-      }
+    scope: {
+      organizationId: organizationId(org),
+      propertyId: propertyId(property),
+      portalId: portalId(portal),
     },
-    findSnippetsForOrg: async () => [],
-    findEligibleSnippetIdsForOrg: async () => [],
-    summarizePortalIntegrity: async () => ({
-      accepted: 0,
-      filteredAutomatically: 0,
-      underReview: 0,
-      total: 0,
-    }),
-    summarizePortalRatingLanguages: async () => ({
-      total: 0,
-      languages: [],
-      unrecorded: 0,
-    }),
+    snapshot,
+    experience: experienceFor(snapshot),
+    staffAttribution: {
+      staffParticipantId: participant,
+      staffParticipationId: participation,
+      portalResponsibilityId: responsibility,
+      effectiveFrom: STAFF_EFFECTIVE_FROM,
+      effectiveTo: null,
+    },
   }
 }
 
-function harness(
+async function harness(
   clock: () => Date = () => new Date('2026-08-09T12:00:00Z'),
   operatorAuthority?: OperatorErasureAuthority,
 ) {
-  const repo = memoryRepo()
-  let sequence = 10
-  const outbox = createRecordedOutbox()
-  let resolvedStaffAttribution: PrimaryStaffAttributionSnapshot | null = STAFF_ATTRIBUTION
+  const { scope, staffAttribution, experience, snapshot } = await seedTenant()
+  const repo = createGuestResponseRepository(db, clock)
+  let resolvedStaffAttribution: PrimaryStaffAttributionSnapshot | null = staffAttribution
   let staffAttributionResolutionCount = 0
-  const commandStore = {
-    commitSubmitted: async (
-      response: GuestResponse,
-      facts: Parameters<
-        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitSubmitted']
-      >[1],
-    ) => {
-      if (
-        repo.responses.some(
-          (row) =>
-            row.organizationId === response.organizationId &&
-            row.portalId === response.portalId &&
-            row.sessionId === response.sessionId,
-        )
-      ) {
-        return 'duplicate' as const
+  // The bucket is a provider transport: record what would be written, in order.
+  const journalWrites: string[] = []
+  const journal = operatorAuthority
+    ? {
+        idGen: () => randomUUID(),
+        alert: () => undefined,
+        put: async (key: string) => {
+          journalWrites.push(key)
+        },
       }
-      const ratingFact = facts.find((fact) => fact._tag === 'guest.rating.submitted')
-      const feedbackFact = facts.find((fact) => fact._tag === 'guest.feedback.submitted')
-      repo.responses.push({
-        ...response,
-        ratingSourceEventId: ratingFact?.eventId ?? null,
-        feedbackSourceEventId: feedbackFact?.eventId ?? null,
-      })
-      for (const fact of facts) await outbox.record(fact)
-      return 'applied' as const
-    },
-    commitCorrected: async (
-      previous: GuestResponse,
-      response: GuestResponse,
-      facts: Parameters<
-        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitCorrected']
-      >[2],
-    ) => {
-      const index = repo.responses.findIndex(
-        (row) =>
-          row.id === response.id &&
-          row.status === previous.status &&
-          row.correctionCount === previous.correctionCount &&
-          row.ratingSourceEventId === previous.ratingSourceEventId &&
-          row.feedbackSourceEventId === previous.feedbackSourceEventId,
-      )
-      if (index < 0) return 'conflict' as const
-      const ratingFact = facts.find(
-        (fact) =>
-          fact._tag === 'guest.rating.submitted' ||
-          fact._tag === 'guest.rating.retracted',
-      )
-      const feedbackFact = facts.find(
-        (fact) =>
-          fact._tag === 'guest.feedback.submitted' ||
-          fact._tag === 'guest.feedback.retracted',
-      )
-      repo.responses[index] = {
-        ...response,
-        ratingSourceEventId:
-          ratingFact?._tag === 'guest.rating.submitted'
-            ? ratingFact.eventId
-            : ratingFact?._tag === 'guest.rating.retracted'
-              ? null
-              : response.ratingSourceEventId,
-        feedbackSourceEventId:
-          feedbackFact?._tag === 'guest.feedback.submitted'
-            ? feedbackFact.eventId
-            : feedbackFact?._tag === 'guest.feedback.retracted'
-              ? null
-              : response.feedbackSourceEventId,
-      }
-      for (const fact of facts) await outbox.record(fact)
-      return 'applied' as const
-    },
-    commitIntegrityChanged: async (
-      previous: GuestResponse,
-      response: GuestResponse,
-      _decision: Parameters<
-        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitIntegrityChanged']
-      >[2],
-      facts: Parameters<
-        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitIntegrityChanged']
-      >[3],
-    ) => {
-      const index = repo.responses.findIndex(
-        (row) =>
-          row.id === previous.id &&
-          row.integrityOutcome === previous.integrityOutcome &&
-          row.integrityRevision === previous.integrityRevision &&
-          row.ratingSourceEventId === previous.ratingSourceEventId,
-      )
-      if (index < 0) return 'conflict' as const
-      const ratingFact = facts.find(
-        (fact) =>
-          fact._tag === 'guest.rating.submitted' ||
-          fact._tag === 'guest.rating.retracted',
-      )
-      repo.responses[index] = {
-        ...response,
-        ratingSourceEventId:
-          ratingFact?._tag === 'guest.rating.submitted'
-            ? ratingFact.eventId
-            : ratingFact?._tag === 'guest.rating.retracted'
-              ? null
-              : response.ratingSourceEventId,
-      }
-      for (const fact of facts) await outbox.record(fact)
-      return 'applied' as const
-    },
-    commitFeedbackAdded: async (
-      response: GuestResponse,
-      fact: Parameters<
-        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitFeedbackAdded']
-      >[1],
-    ) => {
-      const index = repo.responses.findIndex(
-        (row) =>
-          row.id === response.id &&
-          row.text === null &&
-          row.feedbackSourceEventId === null,
-      )
-      if (index < 0) return 'conflict' as const
-      repo.responses[index] = {
-        ...response,
-        feedbackSourceEventId: fact.eventId,
-      }
-      await outbox.record(fact)
-      return 'applied' as const
-    },
-    commitFeedbackWithdrawn: async (
-      previous: GuestResponse,
-      response: GuestResponse,
-      fact: Parameters<
-        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitFeedbackWithdrawn']
-      >[2],
-    ) => {
-      const index = repo.responses.findIndex(
-        (row) =>
-          row.id === previous.id &&
-          row.status === previous.status &&
-          row.ratingSourceEventId === previous.ratingSourceEventId &&
-          row.feedbackSourceEventId === previous.feedbackSourceEventId &&
-          row.text === previous.text &&
-          row.feedbackWithdrawnAt === null,
-      )
-      if (index < 0) return 'conflict' as const
-      repo.responses[index] = { ...response, feedbackSourceEventId: null }
-      await outbox.record(fact)
-      return 'applied' as const
-    },
-    commitErased: async (
-      response: GuestResponse,
-      facts: ReadonlyArray<GuestMutationFact>,
-    ) => {
-      const index = repo.responses.findIndex((row) => row.id === response.id)
-      if (index < 0) return 'conflict' as const
-      repo.responses[index] = {
-        ...response,
-        ratingSourceEventId: null,
-        feedbackSourceEventId: null,
-      }
-      for (const fact of facts) await outbox.record(fact)
-      return 'applied' as const
-    },
-    commitWithdrawn: async (
-      response: GuestResponse,
-      facts: Parameters<
-        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitWithdrawn']
-      >[1],
-    ) => {
-      const index = repo.responses.findIndex((row) => row.id === response.id)
-      if (index < 0) return 'conflict' as const
-      repo.responses[index] = {
-        ...response,
-        ratingSourceEventId: null,
-        feedbackSourceEventId: null,
-      }
-      for (const fact of facts) await outbox.record(fact)
-      return 'applied' as const
-    },
-  }
+    : undefined
   const rawLifecycle = guestResponseLifecycle({
     repo,
     clock,
-    idGen: () => `00000000-0000-4000-8000-${String(sequence++).padStart(12, '0')}`,
-    commandStore,
+    idGen: () => randomUUID(),
+    commandStore: createAtomicGuestResponseCommandStore(db, clock, journal),
     operatorAuthority,
     resolvePrimaryStaffAttribution: async () => {
       staffAttributionResolutionCount += 1
@@ -310,11 +212,66 @@ function harness(
         sessionExpiresAt,
       ),
   }
+  const responseIds = async () =>
+    (
+      await db.execute(
+        sql`SELECT id FROM guest_responses WHERE organization_id = ${scope.organizationId}`,
+      )
+    ).rows.map((row) => String(row.id))
+  const READ_AS_OF = new Date('2026-08-09T00:00:00Z')
+  // Read as of a moment before any expiry, so a lapsed binding or note never hides what is stored.
+  const readRepo = createGuestResponseRepository(db, () => READ_AS_OF)
+  /** The tenant's single stored response, read back through the repository. */
+  const stored = async () => {
+    const ids = await responseIds()
+    expect(ids).toHaveLength(1)
+    const bound = await db.execute(
+      sql`SELECT session_id FROM guest_response_session_bindings WHERE response_id = ${ids[0]}::uuid`,
+    )
+    const sessionRow = bound.rows[0]
+    const found = sessionRow
+      ? await readRepo.findForSession(
+          scope,
+          guestSessionId(String(sessionRow.session_id)),
+          READ_AS_OF,
+        )
+      : await readRepo.findById(scope, ids[0]! as never)
+    return found!
+  }
+  /** Keep the guest's session and note alive past the clock the test moves to. */
+  const keepSessionBound = async () => {
+    await db.execute(
+      sql`UPDATE guest_response_session_bindings SET expires_at = '2027-01-01T00:00:00Z' WHERE organization_id = ${scope.organizationId}`,
+    )
+    await db.execute(
+      sql`UPDATE guest_response_private_feedback SET expires_at = '2027-01-01T00:00:00Z' WHERE organization_id = ${scope.organizationId}`,
+    )
+  }
+  /** Facts the commands committed to the outbox, in commit order. */
+  const byTag = async (tag: string) =>
+    (
+      await db.execute(sql`
+        SELECT id, payload FROM outbox_events
+        WHERE organization_id = ${scope.organizationId} AND event_type = ${tag}
+        ORDER BY created_at, id
+      `)
+    ).rows.map((row) => ({
+      ...(row.payload as Record<string, unknown>),
+      eventId: String(row.id),
+    })) as Array<Record<string, unknown> & { eventId: string }>
   return {
-    repo,
-    outbox,
+    scope,
     lifecycle,
     rawLifecycle,
+    repo,
+    stored,
+    keepSessionBound,
+    count: async () => (await responseIds()).length,
+    outbox: { byTag },
+    snapshot,
+    experience,
+    journalWrites,
+    staffAttribution,
     setStaffAttribution: (value: PrimaryStaffAttributionSnapshot | null) => {
       resolvedStaffAttribution = value
     },
@@ -324,10 +281,15 @@ function harness(
 
 describe('guest response lifecycle', () => {
   it('copies initial Staff attribution through later correction facts without re-resolving', async () => {
-    const test = harness()
+    const test = await harness()
     const sessionId = guestSessionId('00000000-0000-4000-8000-000000000099')
 
-    await test.lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true }, 3)
+    await test.lifecycle.submit(
+      test.scope,
+      sessionId,
+      { rating: 5, responseConsent: true },
+      3,
+    )
     test.setStaffAttribution({
       staffParticipantId: '20000000-0000-4000-8000-000000000001',
       staffParticipationId: '20000000-0000-4000-8000-000000000002',
@@ -336,21 +298,22 @@ describe('guest response lifecycle', () => {
       effectiveTo: null,
     })
 
-    await test.lifecycle.correct(scope, sessionId, {
+    await test.lifecycle.correct(test.scope, sessionId, {
       rating: 4,
       responseConsent: true,
     })
 
+    const serializedAttribution = JSON.parse(JSON.stringify(test.staffAttribution))
     expect(test.staffAttributionResolutionCount()).toBe(1)
-    expect(test.repo.responses[0]?.staffAttribution).toEqual(STAFF_ATTRIBUTION)
-    expect(test.outbox.byTag('guest.rating.submitted')).toMatchObject([
-      { staffAttribution: STAFF_ATTRIBUTION },
-      { staffAttribution: STAFF_ATTRIBUTION },
+    expect((await test.stored()).staffAttribution).toEqual(test.staffAttribution)
+    expect(await test.outbox.byTag('guest.rating.submitted')).toMatchObject([
+      { staffAttribution: serializedAttribution },
+      { staffAttribution: serializedAttribution },
     ])
   })
 
   it('pins exact session expiry separately from the 24-month fact deadline', async () => {
-    const { lifecycle, repo } = harness()
+    const { scope, lifecycle, stored, snapshot } = await harness()
     const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     const sessionExpiresAt = new Date('2026-08-10T12:00:00.000Z')
 
@@ -362,13 +325,13 @@ describe('guest response lifecycle', () => {
       sessionExpiresAt,
     )
 
-    expect(repo.responses[0]).toMatchObject({
+    expect(await stored()).toMatchObject({
       sessionId,
       sessionExpiresAt,
       retentionDeadline: new Date('2028-08-09T12:00:00.000Z'),
       experienceSnapshot: {
         portalPublicationState: 'published',
-        portalPublicationSnapshotId: 'snapshot-1',
+        portalPublicationSnapshotId: snapshot,
         portalPublicationVersion: 1,
         portalPublicationDigest: 'b'.repeat(64),
         portalConfigurationDigest: 'a'.repeat(64),
@@ -381,7 +344,7 @@ describe('guest response lifecycle', () => {
   })
 
   it('rejects expired or overlong recovery bindings', async () => {
-    const { lifecycle } = harness()
+    const { scope, lifecycle } = await harness()
     const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     for (const expiresAt of [
       new Date('2026-08-09T12:00:00.000Z'),
@@ -407,7 +370,7 @@ describe('guest response lifecycle', () => {
     { privateFeedbackThreshold: 0 },
     { privateFeedbackThreshold: 6 },
   ])('rejects an invalid server-resolved experience: %o', async (override) => {
-    const { rawLifecycle, repo } = harness()
+    const { scope, experience, rawLifecycle, count } = await harness()
     await expect(
       rawLifecycle.submit(
         scope,
@@ -416,11 +379,11 @@ describe('guest response lifecycle', () => {
         { ...experience(), ...override } as Parameters<typeof rawLifecycle.submit>[3],
       ),
     ).rejects.toMatchObject({ code: 'response_unavailable' })
-    expect(repo.responses).toHaveLength(0)
+    expect(await count()).toBe(0)
   })
 
   it('retains an automatically filtered submission without recording a rating fact', async () => {
-    const { rawLifecycle, repo, outbox } = harness()
+    const { scope, experience, rawLifecycle, stored, outbox } = await harness()
     const receipt = await rawLifecycle.submit(
       scope,
       guestSessionId('00000000-0000-4000-8000-000000000003'),
@@ -437,18 +400,18 @@ describe('guest response lifecycle', () => {
 
     expect(receipt).toMatchObject({ status: 'submitted', rating: 5 })
     expect(receipt).not.toHaveProperty('integrityOutcome')
-    expect(repo.responses[0]).toMatchObject({
+    expect(await stored()).toMatchObject({
       rating: 5,
       integrityOutcome: 'filtered_automatically',
       ratingSourceEventId: null,
     })
-    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(0)
+    expect(await outbox.byTag('guest.rating.submitted')).toHaveLength(0)
   })
 
   it('keeps a rating filtered for network volume: durable, in the normal view, out of the figures', async () => {
     // A venue's guests share one public address, so a rating past the network
     // layer's budget is kept and filtered automatically instead of refused.
-    const { rawLifecycle, repo, outbox } = harness()
+    const { scope, experience, rawLifecycle, stored, outbox } = await harness()
     const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     const receipt = await rawLifecycle.submit(
       scope,
@@ -466,13 +429,13 @@ describe('guest response lifecycle', () => {
 
     expect(receipt).toMatchObject({ status: 'submitted', rating: 4 })
     expect(receipt).not.toHaveProperty('integrityOutcome')
-    expect(repo.responses[0]).toMatchObject({
+    expect(await stored()).toMatchObject({
       rating: 4,
       integrityOutcome: 'filtered_automatically',
       integrityReasonCode: 'network_volume',
       ratingSourceEventId: null,
     })
-    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(0)
+    expect(await outbox.byTag('guest.rating.submitted')).toHaveLength(0)
     // Durable: the guest's session now holds a rating, so the Google step opens.
     expect(isQualifiedGuestResponse(await rawLifecycle.getState(scope, sessionId))).toBe(
       true,
@@ -484,20 +447,20 @@ describe('guest response lifecycle', () => {
     // and a script crossing the budget must learn nothing from the answer.
     const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     const input = { rating: 2, responseConsent: true }
-    const accepted = harness()
-    const filtered = harness()
+    const accepted = await harness()
+    const filtered = await harness()
 
     const acceptedView = await accepted.rawLifecycle.submit(
-      scope,
+      accepted.scope,
       sessionId,
       input,
-      experience(),
+      accepted.experience(),
     )
     const filteredView = await filtered.rawLifecycle.submit(
-      scope,
+      filtered.scope,
       sessionId,
       input,
-      experience(),
+      filtered.experience(),
       undefined,
       {
         outcome: 'filtered_automatically',
@@ -512,21 +475,21 @@ describe('guest response lifecycle', () => {
     // The one correction and the private note both go through; the rating
     // still records no reading, and the note reaches the manager.
     await expect(
-      filtered.rawLifecycle.correct(scope, sessionId, { rating: 1 }),
+      filtered.rawLifecycle.correct(filtered.scope, sessionId, { rating: 1 }),
     ).resolves.toMatchObject({ status: 'corrected', rating: 1 })
     await expect(
-      filtered.rawLifecycle.addPrivateFeedback(scope, sessionId, {
+      filtered.rawLifecycle.addPrivateFeedback(filtered.scope, sessionId, {
         text: 'The lobby Wi-Fi kept dropping.',
         textConsent: true,
       }),
     ).resolves.toMatchObject({ hasPrivateFeedback: true })
-    expect(filtered.outbox.byTag('guest.rating.submitted')).toHaveLength(0)
-    expect(filtered.outbox.byTag('guest.rating.retracted')).toHaveLength(0)
-    expect(filtered.outbox.byTag('guest.feedback.submitted')).toHaveLength(1)
+    expect(await filtered.outbox.byTag('guest.rating.submitted')).toHaveLength(0)
+    expect(await filtered.outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+    expect(await filtered.outbox.byTag('guest.feedback.submitted')).toHaveLength(1)
   })
 
   it('submits, corrects once, and withdraws only for the same session', async () => {
-    const { lifecycle } = harness()
+    const { scope, lifecycle } = await harness()
     const submitted = await lifecycle.submit(
       scope,
       guestSessionId('00000000-0000-4000-8000-000000000003'),
@@ -562,7 +525,7 @@ describe('guest response lifecycle', () => {
 
   it('stops advertising correction at the exact one-hour boundary plus one millisecond', async () => {
     let now = new Date('2026-08-09T12:00:00.000Z')
-    const { lifecycle } = harness(() => now)
+    const { scope, lifecycle } = await harness(() => now)
     const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
 
@@ -578,7 +541,7 @@ describe('guest response lifecycle', () => {
   })
 
   it('rejects another tenant without revealing the response', async () => {
-    const { lifecycle } = harness()
+    const { scope, lifecycle } = await harness()
     const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
     await expect(
@@ -591,11 +554,11 @@ describe('guest response lifecycle', () => {
 
   it('excludes an anomaly from metrics, preserves its rating, and restores the corrected value', async () => {
     let now = new Date('2026-08-09T12:00:00.000Z')
-    const { lifecycle, repo, outbox } = harness(() => now)
+    const { scope, lifecycle, stored, outbox } = await harness(() => now)
     const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     await lifecycle.submit(scope, sessionId, { rating: 2, responseConsent: true })
-    const responseId = repo.responses[0]!.id
-    const original = outbox.byTag('guest.rating.submitted')[0]!
+    const responseId = (await stored()).id
+    const original = (await outbox.byTag('guest.rating.submitted'))[0]!
 
     now = new Date('2026-08-09T12:10:00.000Z')
     await expect(
@@ -610,23 +573,23 @@ describe('guest response lifecycle', () => {
       previousOutcome: 'accepted',
       outcome: 'under_review',
     })
-    expect(repo.responses[0]).toMatchObject({
+    expect(await stored()).toMatchObject({
       rating: 2,
       integrityOutcome: 'under_review',
       ratingSourceEventId: null,
     })
-    expect(outbox.byTag('guest.rating.retracted')).toMatchObject([
+    expect(await outbox.byTag('guest.rating.retracted')).toMatchObject([
       { supersedesSourceEventId: original.eventId },
     ])
 
     now = new Date('2026-08-09T12:20:00.000Z')
     await lifecycle.correct(scope, sessionId, { rating: 4 })
-    expect(repo.responses[0]).toMatchObject({
+    expect(await stored()).toMatchObject({
       rating: 4,
       integrityOutcome: 'under_review',
       ratingSourceEventId: null,
     })
-    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(1)
+    expect(await outbox.byTag('guest.rating.submitted')).toHaveLength(1)
 
     now = new Date('2026-08-09T12:30:00.000Z')
     await lifecycle.changeIntegrity(scope, responseId, {
@@ -635,16 +598,16 @@ describe('guest response lifecycle', () => {
       source: 'reviewer',
       actorId: 'reviewer-1',
     })
-    expect(repo.responses[0]).toMatchObject({
+    expect(await stored()).toMatchObject({
       rating: 4,
       integrityOutcome: 'accepted',
       integrityRevision: 3,
     })
-    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(2)
-    expect(outbox.byTag('guest.rating.submitted')[1]).toMatchObject({
+    expect(await outbox.byTag('guest.rating.submitted')).toHaveLength(2)
+    expect((await outbox.byTag('guest.rating.submitted'))[1]).toMatchObject({
       value: 4,
       supersedesSourceEventId: null,
-      occurredAt: new Date('2026-08-09T12:20:00.000Z'),
+      occurredAt: '2026-08-09T12:20:00.000Z',
     })
   })
 })
@@ -656,7 +619,7 @@ describe('guest response lifecycle — submitted facts', () => {
   const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
 
   it('records rating then feedback facts from the two staged commands', async () => {
-    const { lifecycle, outbox, repo } = harness()
+    const { scope, lifecycle, outbox, stored } = await harness()
 
     await lifecycle.submit(scope, sessionId, {
       rating: 2,
@@ -666,9 +629,9 @@ describe('guest response lifecycle — submitted facts', () => {
       text: 'Please follow up with the property team.',
       textConsent: true,
     })
-    const responseId = repo.responses[0]!.id
+    const responseId = (await stored()).id
 
-    expect(outbox.byTag('guest.rating.submitted')).toMatchObject([
+    expect(await outbox.byTag('guest.rating.submitted')).toMatchObject([
       {
         ratingId: responseId,
         organizationId: scope.organizationId,
@@ -677,7 +640,7 @@ describe('guest response lifecycle — submitted facts', () => {
         value: 2,
       },
     ])
-    expect(outbox.byTag('guest.feedback.submitted')).toMatchObject([
+    expect(await outbox.byTag('guest.feedback.submitted')).toMatchObject([
       { feedbackId: responseId, ratingId: responseId, responseRevision: 1 },
     ])
     expect(withFeedback).toMatchObject({
@@ -688,17 +651,17 @@ describe('guest response lifecycle — submitted facts', () => {
   })
 
   it('records no feedback fact when the guest supplied no free text', async () => {
-    const { lifecycle, outbox } = harness()
+    const { scope, lifecycle, outbox } = await harness()
 
     await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
 
-    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(1)
-    expect(outbox.byTag('guest.feedback.submitted')).toHaveLength(0)
+    expect(await outbox.byTag('guest.rating.submitted')).toHaveLength(1)
+    expect(await outbox.byTag('guest.feedback.submitted')).toHaveLength(0)
   })
 
   it('renews recovery for 24 hours from late feedback without duplicating it', async () => {
     let now = new Date('2026-08-09T12:00:00.000Z')
-    const { lifecycle, outbox, repo } = harness(() => now)
+    const { scope, lifecycle, outbox, stored } = await harness(() => now)
     await lifecycle.submit(scope, sessionId, { rating: 2, responseConsent: true })
     now = new Date('2026-08-10T11:00:00.000Z')
 
@@ -706,7 +669,7 @@ describe('guest response lifecycle — submitted facts', () => {
       text: 'Late but still within the original recovery session.',
       textConsent: true,
     })
-    expect(repo.responses[0]!.sessionExpiresAt).toEqual(
+    expect((await stored()).sessionExpiresAt).toEqual(
       new Date('2026-08-11T11:00:00.000Z'),
     )
     await expect(
@@ -715,14 +678,14 @@ describe('guest response lifecycle — submitted facts', () => {
         textConsent: true,
       }),
     ).resolves.toMatchObject({ hasPrivateFeedback: true })
-    expect(repo.responses[0]!.text).toBe(
+    expect((await stored()).text).toBe(
       'Late but still within the original recovery session.',
     )
-    expect(outbox.byTag('guest.feedback.submitted')).toHaveLength(1)
+    expect(await outbox.byTag('guest.feedback.submitted')).toHaveLength(1)
   })
 
   it('rejects feedback without the required private rating', async () => {
-    const { lifecycle, outbox } = harness()
+    const { scope, lifecycle, outbox } = await harness()
 
     await expect(
       lifecycle.submit(scope, sessionId, {
@@ -731,37 +694,39 @@ describe('guest response lifecycle — submitted facts', () => {
       }),
     ).rejects.toMatchObject({ code: 'rating_required' })
 
-    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(0)
-    expect(outbox.byTag('guest.feedback.submitted')).toHaveLength(0)
+    expect(await outbox.byTag('guest.rating.submitted')).toHaveLength(0)
+    expect(await outbox.byTag('guest.feedback.submitted')).toHaveLength(0)
   })
 
   it('records nothing for a repeated submit of the same session', async () => {
-    const { lifecycle, outbox } = harness()
+    const { scope, lifecycle, outbox } = await harness()
     const input = { rating: 3, responseConsent: true }
 
     await lifecycle.submit(scope, sessionId, input)
     await lifecycle.submit(scope, sessionId, input)
 
-    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(1)
+    expect(await outbox.byTag('guest.rating.submitted')).toHaveLength(1)
   })
 
   it('records a superseding fact for a corrected rating', async () => {
-    const { lifecycle, outbox } = harness()
+    const { scope, lifecycle, outbox } = await harness()
     await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
-    const original = outbox.byTag('guest.rating.submitted')[0]!
+    const original = (await outbox.byTag('guest.rating.submitted'))[0]!
 
     await lifecycle.correct(scope, sessionId, { rating: 1 })
 
-    expect(outbox.byTag('guest.rating.submitted')).toMatchObject([
+    expect(await outbox.byTag('guest.rating.submitted')).toMatchObject([
       { value: 3 },
       { value: 1, supersedesSourceEventId: original.eventId },
     ])
   })
 
   it('fails closed when historical shared content has no recoverable fact lineage', async () => {
-    const { lifecycle, outbox, repo } = harness()
+    const { scope, lifecycle, outbox } = await harness()
     await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
-    repo.responses[0] = { ...repo.responses[0]!, ratingSourceEventId: null }
+    await db.execute(
+      sql`UPDATE guest_responses SET rating_source_event_id = NULL WHERE organization_id = ${scope.organizationId}`,
+    )
 
     await expect(
       lifecycle.correct(scope, sessionId, { rating: 1 }),
@@ -769,24 +734,24 @@ describe('guest response lifecycle — submitted facts', () => {
     await expect(lifecycle.withdraw(scope, sessionId)).rejects.toMatchObject({
       code: 'response_unavailable',
     })
-    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(1)
-    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+    expect(await outbox.byTag('guest.rating.submitted')).toHaveLength(1)
+    expect(await outbox.byTag('guest.rating.retracted')).toHaveLength(0)
   })
 
   it('records a retraction for a withdrawn rating', async () => {
-    const { lifecycle, outbox } = harness()
+    const { scope, lifecycle, outbox } = await harness()
     await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
-    const original = outbox.byTag('guest.rating.submitted')[0]!
+    const original = (await outbox.byTag('guest.rating.submitted'))[0]!
 
     await lifecycle.withdraw(scope, sessionId)
 
-    expect(outbox.byTag('guest.rating.retracted')).toMatchObject([
+    expect(await outbox.byTag('guest.rating.retracted')).toMatchObject([
       { ratingId: original.ratingId, supersedesSourceEventId: original.eventId },
     ])
   })
 
   it('retracts private-feedback count independently during withdrawal', async () => {
-    const { lifecycle, outbox } = harness()
+    const { scope, lifecycle, outbox } = await harness()
     await lifecycle.submit(scope, sessionId, {
       rating: 2,
       responseConsent: true,
@@ -795,17 +760,17 @@ describe('guest response lifecycle — submitted facts', () => {
       text: 'Please follow up.',
       textConsent: true,
     })
-    const original = outbox.byTag('guest.feedback.submitted')[0]!
+    const original = (await outbox.byTag('guest.feedback.submitted'))[0]!
 
     await lifecycle.withdraw(scope, sessionId)
 
-    expect(outbox.byTag('guest.feedback.retracted')).toMatchObject([
+    expect(await outbox.byTag('guest.feedback.retracted')).toMatchObject([
       { feedbackId: original.feedbackId, supersedesSourceEventId: original.eventId },
     ])
   })
 
   it('withdraws private feedback without retracting the rating', async () => {
-    const { lifecycle, outbox, repo } = harness()
+    const { scope, lifecycle, outbox, stored } = await harness()
     await lifecycle.submit(scope, sessionId, {
       rating: 2,
       responseConsent: true,
@@ -814,8 +779,8 @@ describe('guest response lifecycle — submitted facts', () => {
       text: 'Please follow up.',
       textConsent: true,
     })
-    const ratingFact = outbox.byTag('guest.rating.submitted')[0]!
-    const feedbackFact = outbox.byTag('guest.feedback.submitted')[0]!
+    const ratingFact = (await outbox.byTag('guest.rating.submitted'))[0]!
+    const feedbackFact = (await outbox.byTag('guest.feedback.submitted'))[0]!
 
     const receipt = await lifecycle.withdrawPrivateFeedback(scope, sessionId)
 
@@ -827,73 +792,83 @@ describe('guest response lifecycle — submitted facts', () => {
       feedbackSubmittedAt: '2026-08-09T12:00:00.000Z',
       feedbackWithdrawnAt: '2026-08-09T12:00:00.000Z',
     })
-    expect(repo.responses[0]).toMatchObject({
+    expect(await stored()).toMatchObject({
       rating: 2,
       text: null,
       feedbackSourceEventId: null,
     })
-    expect(outbox.byTag('guest.feedback.retracted')).toMatchObject([
+    expect(await outbox.byTag('guest.feedback.retracted')).toMatchObject([
       {
         feedbackId: feedbackFact.feedbackId,
         supersedesSourceEventId: feedbackFact.eventId,
       },
     ])
-    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
-    expect(outbox.byTag('guest.rating.submitted')).toEqual([ratingFact])
+    expect(await outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+    expect(await outbox.byTag('guest.rating.submitted')).toEqual([ratingFact])
 
     await expect(lifecycle.withdrawPrivateFeedback(scope, sessionId)).resolves.toEqual(
       receipt,
     )
-    expect(outbox.byTag('guest.feedback.retracted')).toHaveLength(1)
+    expect(await outbox.byTag('guest.feedback.retracted')).toHaveLength(1)
   })
 
   it('rejects private-feedback withdrawal after 24 hours without changing data', async () => {
     let now = new Date('2026-08-09T12:00:00.000Z')
-    const { lifecycle, outbox, repo } = harness(() => now)
+    const { scope, lifecycle, outbox, stored, keepSessionBound } = await harness(
+      () => now,
+    )
     await lifecycle.submit(scope, sessionId, { rating: 2, responseConsent: true })
     await lifecycle.addPrivateFeedback(scope, sessionId, {
       text: 'Please follow up.',
       textConsent: true,
     })
+    await keepSessionBound()
     now = new Date('2026-08-10T12:00:00.001Z')
 
     await expect(
       lifecycle.withdrawPrivateFeedback(scope, sessionId),
     ).rejects.toMatchObject({ code: 'feedback_withdrawal_expired' })
-    expect(repo.responses[0]).toMatchObject({
+    expect(await stored()).toMatchObject({
       rating: 2,
       text: 'Please follow up.',
       feedbackWithdrawnAt: null,
     })
-    expect(outbox.byTag('guest.feedback.retracted')).toHaveLength(0)
+    expect(await outbox.byTag('guest.feedback.retracted')).toHaveLength(0)
   })
 
   it('rejects whole-response withdrawal after 24 hours without retracting rating', async () => {
     let now = new Date('2026-08-09T12:00:00.000Z')
-    const { lifecycle, outbox, repo } = harness(() => now)
+    const { scope, lifecycle, outbox, stored, keepSessionBound } = await harness(
+      () => now,
+    )
     await lifecycle.submit(scope, sessionId, { rating: 4, responseConsent: true })
+    await keepSessionBound()
     now = new Date('2026-08-10T12:00:00.001Z')
 
     await expect(lifecycle.withdraw(scope, sessionId)).rejects.toMatchObject({
       code: 'response_withdrawal_expired',
     })
-    expect(repo.responses[0]).toMatchObject({ status: 'submitted', rating: 4 })
-    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+    expect(await stored()).toMatchObject({ status: 'submitted', rating: 4 })
+    expect(await outbox.byTag('guest.rating.retracted')).toHaveLength(0)
   })
 
   it('uses the snapshotted inclusive threshold and never returns feedback text', async () => {
-    const eligible = harness()
+    const eligible = await harness()
     const low = await eligible.lifecycle.submit(
-      scope,
+      eligible.scope,
       sessionId,
       { rating: 3, responseConsent: true },
       3,
     )
     expect(low.privateFeedbackEligible).toBe(true)
-    const receipt = await eligible.lifecycle.addPrivateFeedback(scope, sessionId, {
-      text: 'A private note for the manager.',
-      textConsent: true,
-    })
+    const receipt = await eligible.lifecycle.addPrivateFeedback(
+      eligible.scope,
+      sessionId,
+      {
+        text: 'A private note for the manager.',
+        textConsent: true,
+      },
+    )
     expect(receipt).toMatchObject({
       hasPrivateFeedback: true,
       privateFeedbackEligible: false,
@@ -913,16 +888,16 @@ describe('guest response lifecycle — submitted facts', () => {
       expect(receipt).not.toHaveProperty(internalField)
     }
 
-    const ineligible = harness()
+    const ineligible = await harness()
     const high = await ineligible.lifecycle.submit(
-      scope,
+      ineligible.scope,
       sessionId,
       { rating: 4, responseConsent: true },
       3,
     )
     expect(high.privateFeedbackEligible).toBe(false)
     await expect(
-      ineligible.lifecycle.addPrivateFeedback(scope, sessionId, {
+      ineligible.lifecycle.addPrivateFeedback(ineligible.scope, sessionId, {
         text: 'Not eligible',
         textConsent: true,
       }),
@@ -932,7 +907,7 @@ describe('guest response lifecycle — submitted facts', () => {
   it.each([1, 2, 3, 4, 5])(
     'treats %i as inclusive for its captured threshold',
     async (threshold) => {
-      const { lifecycle } = harness()
+      const { scope, lifecycle } = await harness()
       const receipt = await lifecycle.submit(
         scope,
         sessionId,
@@ -944,7 +919,7 @@ describe('guest response lifecycle — submitted facts', () => {
   )
 
   it('unlocks feedback after a high-to-low correction without spending another correction', async () => {
-    const { lifecycle, repo, outbox } = harness()
+    const { scope, lifecycle, stored, outbox } = await harness()
     await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true }, 3)
     const corrected = await lifecycle.correct(scope, sessionId, { rating: 2 })
     expect(corrected.privateFeedbackEligible).toBe(true)
@@ -953,13 +928,13 @@ describe('guest response lifecycle — submitted facts', () => {
       text: 'Now eligible after correction.',
       textConsent: true,
     })
-    expect(repo.responses[0]).toMatchObject({
+    expect(await stored()).toMatchObject({
       correctionCount: 1,
       rating: 2,
       text: 'Now eligible after correction.',
       feedbackSubmissionRevision: 2,
     })
-    expect(outbox.byTag('guest.feedback.submitted')).toMatchObject([
+    expect(await outbox.byTag('guest.feedback.submitted')).toMatchObject([
       { responseRevision: 2 },
     ])
   })
@@ -1072,20 +1047,30 @@ describe('operator erasure', () => {
 
   it('erases after the withdrawal window and retracts the readings', async () => {
     let now = new Date('2026-08-09T12:00:00.000Z')
-    const { lifecycle, rawLifecycle, repo, outbox } = harness(() => now, allow)
+    const {
+      scope,
+      lifecycle,
+      rawLifecycle,
+      stored,
+      outbox,
+      keepSessionBound,
+      journalWrites,
+    } = await harness(() => now, allow)
     await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
-    const original = outbox.byTag('guest.rating.submitted')[0]!
+    const original = (await outbox.byTag('guest.rating.submitted'))[0]!
+    await keepSessionBound()
     now = new Date('2026-08-12T12:00:00.000Z')
     await expect(lifecycle.withdraw(scope, sessionId)).rejects.toMatchObject({
       code: 'response_withdrawal_expired',
     })
 
     await expect(
-      rawLifecycle.eraseAsOperator('operator-1', scope, repo.responses[0]!.id),
+      rawLifecycle.eraseAsOperator('operator-1', scope, (await stored()).id),
     ).resolves.toBe('erased')
 
-    expect(repo.responses[0]).toMatchObject({ status: 'deleted', rating: null })
-    expect(outbox.byTag('guest.rating.retracted')).toMatchObject([
+    expect(await stored()).toMatchObject({ status: 'deleted', rating: null })
+    expect(journalWrites).toHaveLength(1)
+    expect(await outbox.byTag('guest.rating.retracted')).toMatchObject([
       { supersedesSourceEventId: original.eventId },
     ])
   })
@@ -1093,43 +1078,52 @@ describe('operator erasure', () => {
   it.each([undefined, allow])(
     'writes nothing for a denied operator',
     async (authority) => {
-      const { lifecycle, rawLifecycle, repo, outbox } = harness(undefined, authority)
+      const { scope, lifecycle, rawLifecycle, stored, outbox } = await harness(
+        undefined,
+        authority,
+      )
       await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
 
       await expect(
-        rawLifecycle.eraseAsOperator('someone-else', scope, repo.responses[0]!.id),
+        rawLifecycle.eraseAsOperator('someone-else', scope, (await stored()).id),
       ).rejects.toMatchObject({ code: 'operator_not_authorized' })
 
-      expect(repo.responses[0]).toMatchObject({ status: 'submitted', rating: 3 })
-      expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+      expect(await stored()).toMatchObject({ status: 'submitted', rating: 3 })
+      expect(await outbox.byTag('guest.rating.retracted')).toHaveLength(0)
     },
   )
 
   it('writes nothing for a subject outside the tenant scope', async () => {
-    const { lifecycle, rawLifecycle, repo, outbox } = harness(undefined, allow)
+    const { scope, lifecycle, rawLifecycle, stored, outbox } = await harness(
+      undefined,
+      allow,
+    )
     await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
 
     await expect(
       rawLifecycle.eraseAsOperator(
         'operator-1',
         { ...scope, organizationId: organizationId('other-org') },
-        repo.responses[0]!.id,
+        (await stored()).id,
       ),
     ).rejects.toMatchObject({ code: 'response_not_found' })
 
-    expect(repo.responses[0]).toMatchObject({ status: 'submitted' })
-    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+    expect(await stored()).toMatchObject({ status: 'submitted' })
+    expect(await outbox.byTag('guest.rating.retracted')).toHaveLength(0)
   })
 
   it('is idempotent for an already erased response', async () => {
-    const { lifecycle, rawLifecycle, repo, outbox } = harness(undefined, allow)
+    const { scope, lifecycle, rawLifecycle, stored, outbox } = await harness(
+      undefined,
+      allow,
+    )
     await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
-    const id = repo.responses[0]!.id
+    const id = (await stored()).id
     await rawLifecycle.eraseAsOperator('operator-1', scope, id)
 
     await expect(rawLifecycle.eraseAsOperator('operator-1', scope, id)).resolves.toBe(
       'already_erased',
     )
-    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(1)
+    expect(await outbox.byTag('guest.rating.retracted')).toHaveLength(1)
   })
 })
