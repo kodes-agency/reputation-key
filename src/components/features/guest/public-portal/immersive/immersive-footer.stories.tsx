@@ -10,7 +10,11 @@ import { VISIT_NOTICE_ACKNOWLEDGED_KEY } from '../../visit-notice-acknowledgemen
 import { bgCopy } from '../language-packs/bg'
 import { deCopy } from '../language-packs/de'
 import { enCopy } from '../language-packs/en'
-import { ImmersiveFooter, ImmersiveFooterView } from './immersive-footer'
+import {
+  ImmersiveFooter,
+  ImmersiveFooterView,
+  InertImmersiveFooterView,
+} from './immersive-footer'
 import { immersiveFooterCopy } from './immersive-footer-copy'
 import { ImmersiveShell } from './immersive-shell'
 
@@ -213,5 +217,25 @@ export const AcknowledgedGuestIsStillCounted: Story = {
     const canvas = within(canvasElement)
     expect(canvas.queryByRole('region', { name: 'Visit counting' })).toBeNull()
     await waitFor(() => expect(recordVisit).toHaveBeenCalledTimes(1))
+  },
+}
+
+/** The admin preview draws the footer as the guest reads it, but nothing in it can be followed or pressed. */
+export const InertPreview: Story = {
+  render: () => (
+    <ImmersiveShell brand={BRAND} heroAlt={{ value: '' }} lang="en">
+      <InertImmersiveFooterView
+        copy={immersiveFooterCopy(enCopy, NAME)}
+        isNoticeVisible={true}
+      />
+    </ImmersiveShell>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Got it')).toBeVisible()
+    expect(canvas.getByText('Privacy notice')).toBeVisible()
+    expect(canvasElement.querySelector('footer a[href], footer button')).toBeNull()
+    const ack = canvasElement.querySelector<HTMLElement>('.ih-footer__ack--inert')
+    expect(ack && getComputedStyle(ack).cursor).toBe('default')
   },
 }
