@@ -571,6 +571,36 @@ describe('runReviewProviderSnapshot', () => {
     expect(deps.repository.applyDeletionBatch).not.toHaveBeenCalled()
   })
 
+  it('ends with the code the store recorded for a candidate an edit made stale', async () => {
+    const deps = makeDeps({
+      currentRun: run({
+        state: 'confirming',
+        phase: 'confirmation',
+        confirmationDeadline: new Date('2026-08-16T12:00:00.000Z'),
+      }),
+    })
+    vi.mocked(deps.repository.readNextLinkedCandidate).mockResolvedValue({
+      runId,
+      reviewId,
+      expectedState: 'linked',
+      expectedSourceRevision: 1,
+      status: 'pending',
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    })
+    vi.mocked(deps.repository.confirmLinkedCandidateMissing).mockResolvedValue(
+      'edited_run_failed',
+    )
+    vi.mocked(deps.repository.failRun).mockResolvedValue(
+      run({ state: 'failed', phase: 'terminal', failureCode: 'listing_changed' }),
+    )
+
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      { status: 'failed', runId, code: 'listing_changed' },
+    )
+    expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalled()
+    expect(deps.repository.applyDeletionBatch).not.toHaveBeenCalled()
+  })
+
   it('allocates a targeted reply generation only after acquiring the response', async () => {
     const deps = makeDeps({
       currentRun: run({

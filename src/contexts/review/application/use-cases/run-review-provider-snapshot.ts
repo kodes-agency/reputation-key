@@ -760,6 +760,9 @@ const confirmTargetedCandidate = async (
     if (status === 'confirmed') {
       return { status: 'checkpointed', runId: run.id, state: 'confirming' }
     }
+    // An edit stored after the listing made the candidate stale, and the
+    // store already ended the run as a listing that moved; `failRun` reads
+    // that code back. Any other stale candidate stays loud.
     return failAndDiscard(deps, input, run.id, 'review_mutation')
   }
 
