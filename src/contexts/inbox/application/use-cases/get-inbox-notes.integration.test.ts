@@ -19,12 +19,12 @@ import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import { isInboxError } from '../../domain/errors'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
-import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
 import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
-} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
+  seedInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures'
 
 const ORG_ID = organizationId('org-inbox-notes-test')
 const OTHER_ORG_ID = organizationId('org-inbox-notes-other')

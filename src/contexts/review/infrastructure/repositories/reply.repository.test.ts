@@ -34,7 +34,9 @@ import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
 import { getInboxQueueCounts } from '#/contexts/inbox/application/use-cases/get-inbox-queue-counts'
 import { getInboxItems } from '#/contexts/inbox/application/use-cases/get-inbox-items'
-import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
+import { seedInboxItem } from '#/contexts/inbox/infrastructure/inbox-database-fixtures'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 const ORG_A = organizationId('org-rpl-test-aaaa-3333333333333333')
@@ -51,6 +53,10 @@ async function truncateReplies(pool: Pool) {
       ORG_B,
     ])
   }
+  await pool.query('DELETE FROM inbox_items WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
   await pool.query('DELETE FROM replies WHERE organization_id IN ($1, $2)', [
     ORG_A,
     ORG_B,
@@ -106,6 +112,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  await truncateReplies(pool)
   await pool.end()
 })
 
@@ -767,7 +774,26 @@ describe.sequential('replyRepository (integration)', () => {
         findReviewIdsByReplyStage: (orgId, propertyIds) =>
           repo.findReviewIdsByReplyStage(orgId, propertyIds),
       })
-      const inboxRepo = createInMemoryInboxRepo()
+      const inboxRepo = createInboxRepository(
+        db,
+        {
+          reviewLookup: {
+            getReviewSnippetById: async () => ({ status: 'not_found' }),
+            getReviewSnippetsByIds: async () => new Map(),
+            findEligibleReviewIds: async () => [],
+          },
+          feedbackLookup: {
+            getFeedbackSnippetById: async () => null,
+            getFeedbackSnippetsByIds: async () => new Map(),
+            findEligibleFeedbackIds: async () => [],
+          },
+          propertyLookup: {
+            getPropertyNameById: async () => null,
+            getPropertyNamesByIds: async () => new Map(),
+          },
+        },
+        { clock: () => now, logger: createMockLogger() },
+      )
       const inboxItem = (id: string, review: Review): InboxItem => ({
         id: inboxItemId(id),
         organizationId: ORG_A,
@@ -794,10 +820,12 @@ describe.sequential('replyRepository (integration)', () => {
         createdAt: now,
         updatedAt: now,
       })
-      inboxRepo.items.push(
-        inboxItem('4d000000-0000-4000-8000-000000000001', checked),
-        inboxItem('4d000000-0000-4000-8000-000000000002', stopped),
-      )
+      for (const item of [
+        inboxItem(crypto.randomUUID(), checked),
+        inboxItem(crypto.randomUUID(), stopped),
+      ]) {
+        await seedInboxItem(pool, db, item, () => now)
+      }
       const staffPublicApi = {
         getAccessiblePropertyIds: async () => null,
         getAssignedPortals: async () => [],

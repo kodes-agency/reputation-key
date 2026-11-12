@@ -18,14 +18,14 @@ import type { InboxItem, InboxPriority } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
-import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
 import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
   readOutboxFacts,
+  seedInboxOrganization,
   setStoredManagerPriority,
-} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
+} from '../../infrastructure/inbox-database-fixtures'
 
 const NOW = new Date('2026-10-28T12:00:00Z')
 const ORG_ID = organizationId('org-set-inbox-priority-test')
