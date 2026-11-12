@@ -145,20 +145,62 @@ export const HamptonLike: Story = {
     expect(canvas.getByText('Raised once or twice')).toBeVisible()
   },
 }
-export const HamptonLikePhone: Story = { parameters: PHONE }
-export const Dark: Story = { parameters: { theme: 'dark' } }
-export const DarkPhone: Story = { parameters: { ...PHONE, theme: 'dark' } }
-export const Quiet: Story = { args: { read: QUIET_READ } }
-export const Small: Story = { args: { read: CHECK_IN_SMALL } }
-export const SmallPhone: Story = { args: { read: CHECK_IN_SMALL }, parameters: PHONE }
-export const SmallWithConcern: Story = { args: { read: CHECK_IN_SMALL_CONCERN } }
-export const SmallWithConcernPhone: Story = {
-  args: { read: CHECK_IN_SMALL_CONCERN },
-  parameters: PHONE,
+export const Dark: Story = {
+  parameters: { theme: 'dark' },
+  play: async ({ canvas }) => {
+    expect(canvas.getByRole('heading', { name: 'Anything urgent?' })).toBeVisible()
+    expect(canvas.getByText('Yes — two serious concerns')).toBeVisible()
+    expect(canvas.getByText('Yes, it’s getting better')).toBeVisible()
+  },
 }
-export const Provisional: Story = { args: { read: CHECK_IN_PROVISIONAL } }
-export const NoGoal: Story = { args: { goal: false } }
-export const NoGoogleSnapshot: Story = { args: { google: false } }
+export const Quiet: Story = {
+  args: { read: QUIET_READ },
+  play: async ({ canvas }) => {
+    expect(
+      canvas.getByText('No serious concerns reported in the last 12 months'),
+    ).toBeVisible()
+    expect(canvas.queryByText(/Room — musty smell/u)).toBeNull()
+  },
+}
+const NOT_ENOUGH_TO_SPOT_PATTERNS = 'Not enough reviews to spot patterns yet'
+export const Small: Story = {
+  args: { read: CHECK_IN_SMALL },
+  play: async ({ canvas }) => {
+    expect(canvas.getByText(NOT_ENOUGH_TO_SPOT_PATTERNS)).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Invite guests to review' })).toBeVisible()
+    expect(
+      canvas.queryByRole('heading', { name: 'What should we fix first?' }),
+    ).toBeNull()
+  },
+}
+export const SmallWithConcern: Story = {
+  args: { read: CHECK_IN_SMALL_CONCERN },
+  play: async ({ canvas }) => {
+    expect(canvas.getByText('Yes — one serious concern')).toBeVisible()
+    expect(canvas.getByText(NOT_ENOUGH_TO_SPOT_PATTERNS)).toBeVisible()
+  },
+}
+export const Provisional: Story = {
+  args: { read: CHECK_IN_PROVISIONAL },
+  play: async ({ canvas }) => {
+    expect(canvas.getByText(/Some reviews are still being analysed/u)).toBeVisible()
+    expect(canvas.getByText('Not enough reviews to compare yet')).toBeVisible()
+  },
+}
+export const NoGoal: Story = {
+  args: { goal: false },
+  play: async ({ canvas }) => {
+    expect(canvas.getByText(/Google rating 3\.9/u)).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /Your goal/u })).toBeNull()
+  },
+}
+export const NoGoogleSnapshot: Story = {
+  args: { google: false },
+  play: async ({ canvas }) => {
+    expect(canvas.getByRole('link', { name: /Your goal 4\.2/u })).toBeVisible()
+    expect(canvas.queryByText(/Google rating/u)).toBeNull()
+  },
+}
 export const SheetOpen: Story = {
   args: {
     initialTarget: { kind: 'issue', issueId: fixtureId('a', 1), sense: 'complaint' },
@@ -182,23 +224,83 @@ export const SheetOpen: Story = {
     expect(body.queryByRole('dialog')).not.toBeInTheDocument()
   },
 }
-export const SheetPhone: Story = { args: SheetOpen.args, parameters: PHONE }
-export const SheetLoading: Story = { args: { ...SheetOpen.args, detailState: 'pending' } }
-export const SheetError: Story = { args: { ...SheetOpen.args, detailState: 'error' } }
+/** The sheet is a lazy chunk: wait for it before looking for the dialog. */
+const openSheet = async () => {
+  await import('./guest-voice-issue-drawer')
+  return within(await within(document.body).findByRole('dialog'))
+}
+export const SheetLoading: Story = {
+  args: { ...SheetOpen.args, detailState: 'pending' },
+  play: async () => {
+    const sheet = await openSheet()
+    expect(sheet.getByText('Room — musty smell')).toBeVisible()
+    expect(sheet.queryByText('These guests')).toBeNull()
+    expect(sheet.queryByRole('button', { name: 'Try again' })).toBeNull()
+  },
+}
+export const SheetError: Story = {
+  args: { ...SheetOpen.args, detailState: 'error' },
+  play: async () => {
+    const sheet = await openSheet()
+    expect(sheet.getByText('These review details couldn’t be loaded.')).toBeVisible()
+    expect(sheet.getByRole('button', { name: 'Try again' })).toBeVisible()
+  },
+}
 export const TopicUnjudged: Story = {
   args: { initialTarget: { kind: 'topic', topic: 'safety' } },
+  play: async () => {
+    const sheet = await openSheet()
+    expect(
+      sheet.getByText(/Not enough reviews yet · at least six reviews are needed/u),
+    ).toBeVisible()
+    expect(sheet.getByText('None mentioned in this period.')).toBeVisible()
+  },
 }
 export const PraiseSheet: Story = {
   args: { initialTarget: { kind: 'issue', issueId: fixtureId('a', 5), sense: 'praise' } },
+  play: async () => {
+    const sheet = await openSheet()
+    expect(sheet.getByText('Team — friendly and helpful')).toBeVisible()
+    expect(sheet.getByText('In guests’ own words')).toBeVisible()
+    expect(sheet.getByRole('link', { name: 'Open in the Inbox' })).toBeVisible()
+  },
 }
 
-export const Steady: Story = { args: { read: CHECK_IN_STEADY } }
-export const Slipping: Story = { args: { read: CHECK_IN_SLIPPING } }
-export const InsufficientTrend: Story = { args: { read: CHECK_IN_INSUFFICIENT } }
-export const MissingQuote: Story = { args: { ...SheetOpen.args, missingQuote: true } }
+export const Steady: Story = {
+  args: { read: CHECK_IN_STEADY },
+  play: async ({ canvas }) => {
+    expect(canvas.getByText('About the same')).toBeVisible()
+  },
+}
+export const Slipping: Story = {
+  args: { read: CHECK_IN_SLIPPING },
+  play: async ({ canvas }) => {
+    expect(canvas.getByText('It’s slipping')).toBeVisible()
+  },
+}
+export const InsufficientTrend: Story = {
+  args: { read: CHECK_IN_INSUFFICIENT },
+  play: async ({ canvas }) => {
+    expect(canvas.getByText('Not enough reviews to compare yet')).toBeVisible()
+    expect(canvas.queryByText('Yes, it’s getting better')).toBeNull()
+  },
+}
+export const MissingQuote: Story = {
+  args: { ...SheetOpen.args, missingQuote: true },
+  play: async () => {
+    const sheet = await openSheet()
+    expect(sheet.getByText(/None of these reviews can be quoted here/u)).toBeVisible()
+  },
+}
 export const LongManagerRename: Story = {
   args: { read: CHECK_IN_RENAMED, renamed: true },
   parameters: PHONE,
+  play: async ({ canvas }) => {
+    const label = canvas.getAllByText(/a deliberately long manager label/u)[0]!
+    expect(label).toBeVisible()
+    // The long label wraps inside the screen instead of running past its edge.
+    expect(label.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth)
+  },
 }
 
 export const MonthKeyboard: Story = {

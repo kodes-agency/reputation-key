@@ -279,11 +279,6 @@ export const SetRecommendedOnANarrowPhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
-export const SetRecommendedOnAPhone: Story = {
-  ...SetRecommendedOnANarrowPhone,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-}
-
 export const SetRecommendedOnATablet: Story = {
   play: async ({ canvasElement }) => {
     const { sheet, in: inSheet } = await openSheet(canvasElement)
@@ -999,12 +994,6 @@ export const Change320: Story = {
     await expect(inSheet.getByRole('button', { name: 'Cancel' })).toBeVisible()
   },
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-}
-
-/** 390 px: still the full-screen sheet. */
-export const ChangeOnAPhone: Story = {
-  ...Change320,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
 }
 
 /** From 820 px the change opens as a dialog, with both months and the note. */
