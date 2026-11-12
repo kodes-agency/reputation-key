@@ -1,13 +1,11 @@
 import { z } from 'zod/v4'
 import {
   validateBackupErasureLedgerAppend,
+  ERASURE_JOURNAL_CONTEXTS,
   ERASURE_JOURNAL_TARGET_KINDS,
   type BackupErasureLedgerEntry,
 } from './backup-erasure-ledger'
-import {
-  BACKUP_ERASURE_LEDGER_CONTEXTS,
-  BACKUP_ERASURE_SUBJECT_CLASSES,
-} from '../schema/backup-erasure-ledger.schema'
+import { BACKUP_ERASURE_SUBJECT_CLASSES } from '../schema/backup-erasure-ledger.schema'
 
 export const ERASURE_JOURNAL_PREFIX = 'private/erasure-journal/'
 export const ERASURE_JOURNAL_EXPIRY_DAYS = 45
@@ -39,7 +37,7 @@ const entrySchema = z.strictObject({
     .string()
     .regex(/^[a-f0-9]{64}$/u)
     .optional(),
-  context: z.enum(BACKUP_ERASURE_LEDGER_CONTEXTS),
+  context: z.enum(ERASURE_JOURNAL_CONTEXTS),
   closureLineageId: z.uuid(),
   lifecycleRevision: z.number().int().positive(),
   effectiveErasureAt: instant,

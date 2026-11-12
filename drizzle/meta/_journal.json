@@ -1059,20 +1059,6 @@
       "when": 1801901008000,
       "tag": "0150_staff_address_leases",
       "breakpoints": true
-    },
-    {
-      "idx": 151,
-      "version": "7",
-      "when": 1801901009000,
-      "tag": "0151_erasure_ledger_platform_context",
-      "breakpoints": true
-    },
-    {
-      "idx": 152,
-      "version": "7",
-      "when": 1801901010000,
-      "tag": "0152_validate_erasure_ledger_platform_context",
-      "breakpoints": true
     }
   ]
 }

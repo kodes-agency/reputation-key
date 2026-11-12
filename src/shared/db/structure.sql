@@ -4409,7 +4409,7 @@ CREATE TABLE "public"."backup_erasure_ledger" (
     "evidence_ref" character varying(200) NOT NULL,
     "hold_reference" character varying(200),
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "backup_erasure_ledger_context_valid" CHECK ((("context")::"text" = ANY ((ARRAY['activity'::character varying, 'ai'::character varying, 'dashboard'::character varying, 'goal'::character varying, 'guest'::character varying, 'identity'::character varying, 'inbox'::character varying, 'integration'::character varying, 'metric'::character varying, 'notification'::character varying, 'portal'::character varying, 'property'::character varying, 'review'::character varying, 'staff'::character varying, 'platform'::character varying])::"text"[]))),
+    CONSTRAINT "backup_erasure_ledger_context_valid" CHECK ((("context")::"text" = ANY ((ARRAY['activity'::character varying, 'ai'::character varying, 'dashboard'::character varying, 'goal'::character varying, 'guest'::character varying, 'identity'::character varying, 'inbox'::character varying, 'integration'::character varying, 'metric'::character varying, 'notification'::character varying, 'portal'::character varying, 'property'::character varying, 'review'::character varying, 'staff'::character varying])::"text"[]))),
     CONSTRAINT "backup_erasure_ledger_count_nonnegative" CHECK (("erased_row_count" >= 0)),
     CONSTRAINT "backup_erasure_ledger_evidence_valid" CHECK ((("evidence_ref")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text")),
     CONSTRAINT "backup_erasure_ledger_hold_valid" CHECK ((("hold_reference" IS NULL) OR (("hold_reference")::"text" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'::"text"))),

@@ -54,8 +54,7 @@ export type BackupErasureSubjectClass = (typeof BACKUP_ERASURE_SUBJECT_CLASSES)[
 
 /**
  * The 14 lifecycle-owning contexts, in the same order as the shared
- * Organization lifecycle events table, then `platform`: the shared work items
- * a closure erases have no lifecycle context of their own.
+ * Organization lifecycle events table.
  *
  * Kept local so this schema has no dependency on another schema module. The
  * schema test pins the lists together so the duplicate cannot drift.
@@ -75,7 +74,6 @@ export const BACKUP_ERASURE_LEDGER_CONTEXTS = [
   'property',
   'review',
   'staff',
-  'platform',
 ] as const
 
 export type BackupErasureLedgerContext = (typeof BACKUP_ERASURE_LEDGER_CONTEXTS)[number]

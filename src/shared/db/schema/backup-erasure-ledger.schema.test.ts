@@ -72,13 +72,12 @@ describe('backup erasure ledger schema (LIF-01-T15)', () => {
     ])
   })
 
-  it('enumerates the ORGANIZATION_LIFECYCLE_CONTEXTS values, then platform', () => {
+  it('enumerates exactly the 17 ORGANIZATION_LIFECYCLE_CONTEXTS values', () => {
     expect([...BACKUP_ERASURE_LEDGER_CONTEXTS]).toEqual([
       ...ORGANIZATION_LIFECYCLE_CONTEXTS,
-      'platform',
     ])
     const expression = checkExpression('backup_erasure_ledger_context_valid')
-    for (const context of BACKUP_ERASURE_LEDGER_CONTEXTS) {
+    for (const context of ORGANIZATION_LIFECYCLE_CONTEXTS) {
       expect(expression).toContain(`'${context}'`)
     }
   })

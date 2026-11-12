@@ -129,18 +129,9 @@ it('adopts runtime-created auth tables and existing indexes without rebuilding t
     'SELECT is_contract FROM drizzle.__drizzle_migrations ORDER BY created_at',
   )
   expect(applied.rows).toHaveLength(entries.length)
-  // The adopted files expand only, so the previous image stays ready after this
-  // deploy; a file after them is a contract exactly when it says so.
-  const contractTags = entries
-    .slice(ADOPTED_FROM)
-    .map(({ tag }) =>
-      readFileSync(
-        new URL(`../../../drizzle/${tag}.sql`, import.meta.url),
-        'utf8',
-      ).startsWith('-- migrate:contract'),
-    )
-  expect(applied.rows.slice(ADOPTED_FROM).map(({ is_contract }) => is_contract)).toEqual(
-    contractTags,
+  // Expands only: the previous image stays ready after this deploy.
+  expect(applied.rows.slice(ADOPTED_FROM).every(({ is_contract }) => !is_contract)).toBe(
+    true,
   )
   expect(
     await lease.pool.query('SELECT to_regclass(\'public."organizationRole"\') AS role'),

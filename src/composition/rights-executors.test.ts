@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { BACKUP_ERASURE_LEDGER_CONTEXTS } from '#/shared/db/schema/backup-erasure-ledger.schema'
+import { ERASURE_JOURNAL_CONTEXTS } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { createNotificationRightsReplayers } from '#/contexts/feed/rights/replayer.server'
 import {
   createRightsJournal,
@@ -44,13 +44,13 @@ describe('composeRightsExecutors', () => {
     ])
   })
 
-  it('journals every executor under known lifecycle contexts', () => {
+  it('journals every executor under known journal contexts', () => {
     // The participant executor journals each batch with the ids it names.
     for (const executor of composeRightsExecutors(deps, false)) {
       if (executor.name === 'staff-participant') continue
       expect(executor.journalContexts.length).toBeGreaterThan(0)
       for (const context of executor.journalContexts) {
-        expect(BACKUP_ERASURE_LEDGER_CONTEXTS).toContain(context)
+        expect(ERASURE_JOURNAL_CONTEXTS).toContain(context)
       }
     }
   })

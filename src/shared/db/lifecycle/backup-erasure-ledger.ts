@@ -16,18 +16,32 @@ import type { Tx } from '#/shared/outbox/commit'
 
 export type { BackupErasureLedgerContext, BackupErasureSubjectClass }
 
+/**
+ * The contexts an erasure journal entry may name: the lifecycle contexts, then
+ * `platform` for the shared work items an Organization closure erases. Journal
+ * entries live in the private bucket; the ledger table keeps its check on the
+ * lifecycle contexts, and nothing appends a `platform` row to it.
+ */
+export const ERASURE_JOURNAL_CONTEXTS = [
+  ...BACKUP_ERASURE_LEDGER_CONTEXTS,
+  'platform',
+] as const
+export type ErasureJournalContext = (typeof ERASURE_JOURNAL_CONTEXTS)[number]
+
+const LEDGER_TABLE_CONTEXTS: ReadonlySet<string> = new Set(BACKUP_ERASURE_LEDGER_CONTEXTS)
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const CONTENT_FREE_REF = /^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$/u
 const SHA256 = /^[0-9a-f]{64}$/u
 
-/** One irreversible erasure, as it is appended. */
+/** One irreversible erasure, as it is journaled or appended. */
 export type BackupErasureLedgerAppend = Readonly<{
   subjectClass: BackupErasureSubjectClass
   organizationId: string
   propertyId?: string
   /** SHA-256 of the verified subject identifier; privacy erasures only. */
   subjectRef?: string
-  context: BackupErasureLedgerContext
+  context: ErasureJournalContext
   closureLineageId: string
   lifecycleRevision: number
   effectiveErasureAt: Date
@@ -118,8 +132,8 @@ export function validateBackupErasureLedgerAppend(
   if (!BACKUP_ERASURE_SUBJECT_CLASSES.includes(entry.subjectClass)) {
     throw new Error('backup erasure subject class is unknown')
   }
-  if (!BACKUP_ERASURE_LEDGER_CONTEXTS.includes(entry.context)) {
-    throw new Error('backup erasure context is not a lifecycle-owning context')
+  if (!ERASURE_JOURNAL_CONTEXTS.includes(entry.context)) {
+    throw new Error('backup erasure context is not a journaled context')
   }
   if (entry.organizationId.trim() === '' || entry.organizationId.length > 255) {
     throw new Error('backup erasure organization identity is required')
@@ -154,6 +168,9 @@ export async function appendBackupErasureLedgerEntry(
   entry: BackupErasureLedgerAppend,
 ): Promise<string> {
   validateBackupErasureLedgerAppend(entry)
+  if (!LEDGER_TABLE_CONTEXTS.has(entry.context)) {
+    throw new Error('the backup erasure ledger table holds lifecycle contexts only')
+  }
   const inserted = await tx.execute(sql`
     INSERT INTO backup_erasure_ledger (
       subject_class, organization_id, property_id, subject_ref, context,
@@ -335,7 +352,7 @@ export function planBackupErasureReplay(
  * unreplayed entry fails the restore closed rather than being skipped.
  */
 export type BackupErasureReplayer = Readonly<{
-  context: BackupErasureLedgerContext
+  context: ErasureJournalContext
   subjectClass: BackupErasureSubjectClass
   targetKind?: ErasureJournalTargetKind
   /** Re-erase the entry's subject; returns the number of rows removed. */
@@ -380,7 +397,7 @@ export const RESTORE_RESURRECTION_FENCE_UNVERIFIED =
   'restored cell is not verified: backup-erasure ledger entries were not re-applied'
 
 function replayerKey(
-  context: BackupErasureLedgerContext,
+  context: ErasureJournalContext,
   subjectClass: BackupErasureSubjectClass,
   targetKind?: ErasureJournalTargetKind,
 ): string {
