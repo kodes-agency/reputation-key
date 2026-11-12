@@ -19,13 +19,13 @@ import {
   renderMaskedLayoutSvg,
   summarizeMaskedLayout,
 } from '../../src/shared/beta-feedback-layout'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand } from './operator-command'
 
 const COMMAND = 'ops:feedback-layout'
 const USAGE = `pnpm ops feedback-layout <reference> [out.svg] --operator <id>`
 
 async function main(): Promise<void> {
-  const result = await runOperatorCommand(
+  const result = await runDatabaseOperatorCommand(
     {
       name: COMMAND,
       scope: 'global',
