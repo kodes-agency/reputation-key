@@ -25,11 +25,13 @@
 // node) were measured in a real browser against `pnpm storybook`. Every rail
 // story has a 390 px twin (`…Phone`), which sets the story's own width and the
 // `mobileStaff` viewport so `max-md:` applies where Tailwind does compile.
+import { Button } from '#/components/ui/button'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
 import { InboxThread, entryKey } from './inbox-thread'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
 import type { InboxServerFns } from '#/components/inbox/types'
@@ -656,6 +658,7 @@ const meta: Meta<typeof InboxThread> = {
             typeof parameters.paneWidth === 'number'
               ? parameters.paneWidth
               : PANE_WIDTH_PX,
+          maxWidth: '100%',
         }}
       >
         <Story />
@@ -1124,7 +1127,7 @@ export const FoldedHistoryPhone = onPhone(FoldedHistory)
 // back to the top of the page, above them.
 export const ExpandedHistory: Story = {
   args: FoldedHistory.args,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const toggle = await canvas.findByRole('button', { name: 'Show 5 earlier events' })
 
@@ -1152,7 +1155,7 @@ export const ExpandedHistory: Story = {
     await expect(closed).toHaveAttribute('aria-expanded', 'false')
     await expect(foldStatus(closed)).toHaveTextContent('5 earlier events hidden')
     await expect(railReading(canvasElement)).toEqual(FOLDED_READING)
-  },
+  }),
 }
 export const ExpandedHistoryPhone = onPhone(ExpandedHistory)
 
@@ -1281,9 +1284,13 @@ function SelectionHost(props: ComponentProps<typeof InboxThread>): ReactNode {
   const detail = props.detail ? { ...props.detail, item } : null
   return (
     <>
-      <button type="button" onClick={() => setOther((current) => !current)}>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setOther((current) => !current)}
+      >
         Select the other review
-      </button>
+      </Button>
       <InboxThread {...props} item={item} detail={detail} />
     </>
   )
@@ -2181,20 +2188,15 @@ export const FutureEntryKindDoesNotStealTheGuestKey: Story = {
   },
 }
 
-// ─── light theme ─────────────────────────────────────────────────────────────
+// ─── busiest rail ────────────────────────────────────────────────────────────
 
-// BQC-6.8: the light theme runs the same axe pass, on the busiest threads — the
-// full rail with a toned reply disc and amber notes, and a folded history.
-export const WithEventsLight: Story = {
-  parameters: { theme: 'light' },
+// The full rail with a toned reply disc and amber notes, which both themes' axe
+// pass reads; the folded history is `ExpandedHistory`, which also plays in both.
+export const BusiestRail: Story = {
   args: {
     notes: interleavedNotes,
     detail: { ...reviewDetail, reply: REPLIES.liveOnGoogle },
     getInboxItemHistory: historyFn(everyKind),
   },
-}
-
-export const FoldedHistoryLight: Story = {
-  ...ExpandedHistory,
-  parameters: { theme: 'light' },
+  play: playInThemes(),
 }

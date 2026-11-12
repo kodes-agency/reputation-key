@@ -108,7 +108,7 @@ export const ReplySuggestionPreview = (props: Props) => {
           type="button"
           size="sm"
           variant="outline"
-          // 36 px on mobile (the Inbox's compact density), matching the mode
+          // 44 px on mobile (the Button's touch height), matching the mode
           // segment (`composer-mode-row.tsx`), the note submit and
           // `Submit for approval` below.
           disabled={props.disabled}

@@ -124,13 +124,10 @@ export function InboxFilterSheet({
         showCloseButton={false}
         className="max-h-[85dvh] gap-0 rounded-t-xl p-0"
       >
-        <div
-          data-density="compact"
-          className="flex h-11 shrink-0 items-center justify-between border-b px-4"
-        >
+        <div className="flex h-11 shrink-0 items-center justify-between border-b px-4">
           <SheetTitle className="text-base">Sort and filter</SheetTitle>
           <SheetClose asChild>
-            <IconButton variant="ghost" className="-mr-2.5" label="Close" tooltip={false}>
+            <IconButton variant="ghost" className="-mr-3.5" label="Close" tooltip={false}>
               <X />
             </IconButton>
           </SheetClose>

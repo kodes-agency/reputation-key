@@ -91,6 +91,14 @@ const meta: Meta<typeof InboxBulkActions> = {
   component: InboxBulkActions,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
+  // The list header's gutter: on a phone the clear button reaches into it.
+  decorators: [
+    (Story) => (
+      <div className="flex w-full px-3 max-md:px-4">
+        <Story />
+      </div>
+    ),
+  ],
 }
 
 export default meta

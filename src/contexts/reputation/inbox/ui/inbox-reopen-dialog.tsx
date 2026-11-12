@@ -111,7 +111,7 @@ export function InboxReopenDialog({
           keeps the pane's only control whose accessible name is exactly `Close`
           out of the DOM, the name `inbox-triage.spec.ts:85` and `:222` assert a
           count of zero for. Escape and the overlay still dismiss. */}
-      <DialogContent showCloseButton={false} data-density="compact">
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>
             {itemCount === 1 ? 'Reopen work' : `Reopen ${itemCount} items`}
@@ -136,9 +136,8 @@ export function InboxReopenDialog({
               <SelectTrigger
                 id="inbox-reopen-reason"
                 aria-label="Reason for reopening"
-                // No class: the dialog is a compact surface (`data-density`),
-                // so the trigger is 36 px below `md`, the Inbox's control
-                // height. The bulk `Reopen` in the list wraps its toolbar
+                // No class: the trigger is 44 px below `md`, the Button's
+                // touch height. The bulk `Reopen` in the list wraps its toolbar
                 // button in this same dialog (`inbox-bulk-actions.tsx`).
               >
                 <SelectValue placeholder="Choose a reason" />
@@ -175,8 +174,7 @@ export function InboxReopenDialog({
           <FormErrorBanner error={refusal} />
         </div>
         <DialogFooter>
-          {/* No class on either button: the dialog is compact (`data-density`), so
-              both are 36 px below `md`. The same markup is the list's bulk-reopen
+          {/* No class on either button: both are 44 px below `md`. The same markup is the list's bulk-reopen
               dialog (`inbox-bulk-actions.tsx`). */}
           <DialogCancel />
           <Button type="button" onClick={submit} pending={pending} disabled={!canConfirm}>

@@ -97,8 +97,8 @@ function TagWords({ parts }: Readonly<{ parts: ReplyDraftOriginParts }>) {
  * scroller, whose `overflow` clips anything drawn outside it, so an outer ring
  * lost its top and left edges (measured: a 3 px ring at the scrollport edge).
  *
- * Mobile (row 20): the trigger gets `max-md:min-h-9` so the one tappable thing
- * on this line is a 36 px target, and the menu's rows are 44 px like every
+ * Mobile: the trigger gets `max-md:min-h-11` so the one tappable thing
+ * on this line is a 44 px target, and the menu's rows are 44 px like every
  * other assist menu row.
  */
 export function ReplyDraftOriginTag(props: Props) {
@@ -158,7 +158,7 @@ export function ReplyDraftOriginTag(props: Props) {
       <DropdownMenuTrigger
         type="button"
         disabled={props.disabled}
-        className={`${TAG_CLASS} rounded-sm pb-0.5 text-(--accent) hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:opacity-50 max-md:min-h-9`}
+        className={`${TAG_CLASS} rounded-sm pb-0.5 text-(--accent) hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:opacity-50 max-md:min-h-11`}
       >
         <Glyph aria-hidden="true" className="size-3.5 shrink-0" />
         <TagWords parts={parts} />
