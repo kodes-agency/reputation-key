@@ -119,10 +119,10 @@ describe('SegmentedControl', () => {
     const html = render('en')
 
     expect(html).toContain('h-[26px]')
-    expect(html).not.toContain('max-md:min-h-[calc(var(--control-touch)-0.25rem)]')
+    expect(html).not.toContain('max-md:min-h-11')
   })
 
-  it('grows each segment to the touch height below md when asked, the pill included', () => {
+  it('grows each segment to the touch height below md when asked, so the segment is the target', () => {
     const html = renderToStaticMarkup(
       createElement(SegmentedControl, {
         'aria-label': 'Range',
@@ -133,8 +133,8 @@ describe('SegmentedControl', () => {
       }),
     )
 
-    // The pill's 2px inset is paid out of the segment, so the pill is the token tall.
-    expect(html).toContain('max-md:min-h-[calc(var(--control-touch)-0.25rem)]')
+    // The segment, not the pill, is what a thumb hits, so it carries the token.
+    expect(html).toContain('max-md:min-h-11')
     expect(html).toContain('h-[26px]')
   })
 
