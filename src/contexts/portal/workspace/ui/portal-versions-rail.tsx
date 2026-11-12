@@ -9,26 +9,13 @@ import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { cn } from '#/lib/utils'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
+import { countPendingChanges } from './portal-detail-rules'
+import { usePortalHistory } from './portal-history-context'
 import { formatHistoryTime } from './portal-history-time'
 import { PhraseView } from './portal-phrase-view'
 import { summarizeVersion } from './portal-version-summary'
-
-type Props = Readonly<{
-  /** Null while the read is loading or after it failed (see `failed`). */
-  versions: PortalVersions | null
-  failed: boolean
-  /** Reads the versions again after a failure. */
-  onRetry: () => void
-  /** `onRetry` is reading; the failure stays, its button busy. */
-  retrying?: boolean
-  /** How many changes the draft holds, from the same read the header's note uses. */
-  pendingChangeCount: number
-  now: Date
-  timeZone: string
-  /** The version open in a dialog or a confirmation, drawn as the chosen tile. */
-  activeVersion: number | null
-  onSelect: (version: number) => void
-}>
+import { useHistoryPublication, useHistoryVersions } from './use-portal-history-reads'
 
 const changesLine = (count: number): string =>
   count === 0
@@ -40,8 +27,12 @@ function DraftTile({
   pendingChangeCount,
   now,
   timeZone,
-}: Pick<Props, 'pendingChangeCount' | 'now' | 'timeZone'> &
-  Readonly<{ versions: PortalVersions }>) {
+}: Readonly<{
+  versions: PortalVersions
+  pendingChangeCount: number
+  now: Date
+  timeZone: string
+}>) {
   const { draft } = versions
   const edited = draft.lastEdit
     ? formatHistoryTime(draft.lastEdit.at, now, timeZone)
@@ -129,18 +120,93 @@ function VersionTile({
   )
 }
 
-export function PortalVersionsRail(props: Props) {
-  const {
-    versions,
-    failed,
-    now,
-    timeZone,
-    activeVersion,
-    onSelect,
-    onRetry,
-    retrying = false,
-    pendingChangeCount,
-  } = props
+type ReadFailure = Readonly<{
+  message: string
+  retry: () => void
+  retrying: boolean
+}>
+
+function VersionList({
+  versions,
+  pendingChangeCount,
+  now,
+  timeZone,
+  activeVersion,
+  onSelect,
+  failure,
+}: Readonly<{
+  versions: PortalVersions | null
+  pendingChangeCount: number
+  now: Date
+  timeZone: string
+  activeVersion: number | null
+  onSelect: (version: number) => void
+  failure: ReadFailure | null
+}>) {
+  if (versions === null) {
+    return failure ? (
+      <div className="mt-4">
+        <RegionError
+          size="compact"
+          message={failure.message}
+          onRetry={failure.retry}
+          retrying={failure.retrying}
+        />
+      </div>
+    ) : (
+      <div className="mt-4 space-y-3" aria-hidden="true">
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
+      </div>
+    )
+  }
+  return (
+    <ol aria-labelledby="portal-versions-title" className="mt-3 space-y-0.5">
+      <DraftTile
+        versions={versions}
+        pendingChangeCount={pendingChangeCount}
+        now={now}
+        timeZone={timeZone}
+      />
+      {versions.versions.map((item) => (
+        <VersionTile
+          key={item.version}
+          item={item}
+          now={now}
+          timeZone={timeZone}
+          active={item.version === activeVersion}
+          onSelect={() => onSelect(item.version)}
+        />
+      ))}
+    </ol>
+  )
+}
+
+export function PortalVersionsRail() {
+  const { now, timeZone, selection, select } = usePortalHistory()
+  const versionsRead = useHistoryVersions()
+  const publication = useHistoryPublication()
+  // The draft's tile needs both reads, so the rail waits for both.
+  const versions =
+    versionsRead.data !== undefined && publication.data !== undefined
+      ? versionsRead.data
+      : null
+  const pendingChangeCount = publication.data ? countPendingChanges(publication.data) : 0
+  const failedReads = [versionsRead, publication].filter(hasFailed)
+  const failure: ReadFailure | null =
+    failedReads.length === 0
+      ? null
+      : {
+          message: hasFailed(versionsRead)
+            ? 'Versions couldn’t be loaded.'
+            : 'The publication history couldn’t be loaded.',
+          retry: () => {
+            void Promise.all(failedReads.map((read) => read.refetch()))
+          },
+          retrying: isRetrying(versionsRead, publication),
+        }
+  const activeVersion = selection?.version ?? null
+  const onSelect = (version: number) => select({ version, mode: 'view', host: 'dialog' })
   const published = versions?.versions.length ?? 0
   const hasDraft = versions !== null && (pendingChangeCount > 0 || published === 0)
   return (
@@ -162,42 +228,15 @@ export function PortalVersionsRail(props: Props) {
           </span>
         )}
       </div>
-      {versions === null ? (
-        failed ? (
-          <div className="mt-4">
-            <RegionError
-              size="compact"
-              message="Versions couldn’t be loaded."
-              onRetry={onRetry}
-              retrying={retrying}
-            />
-          </div>
-        ) : (
-          <div className="mt-4 space-y-3" aria-hidden="true">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
-        )
-      ) : (
-        <ol aria-labelledby="portal-versions-title" className="mt-3 space-y-0.5">
-          <DraftTile
-            versions={versions}
-            pendingChangeCount={pendingChangeCount}
-            now={now}
-            timeZone={timeZone}
-          />
-          {versions.versions.map((item) => (
-            <VersionTile
-              key={item.version}
-              item={item}
-              now={now}
-              timeZone={timeZone}
-              active={item.version === activeVersion}
-              onSelect={() => onSelect(item.version)}
-            />
-          ))}
-        </ol>
-      )}
+      <VersionList
+        versions={versions}
+        pendingChangeCount={pendingChangeCount}
+        now={now}
+        timeZone={timeZone}
+        activeVersion={activeVersion}
+        onSelect={onSelect}
+        failure={failure}
+      />
       {versions?.truncated ? (
         <p className="mt-2 px-3 text-xs text-muted-foreground">
           Older versions are kept but not listed here.

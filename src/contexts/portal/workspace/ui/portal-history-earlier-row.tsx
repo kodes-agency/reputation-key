@@ -10,17 +10,13 @@ import {
   TimelineIndicator,
   TimelineItem,
 } from '#/components/ui/timeline'
+import { usePortalHistory } from './portal-history-context'
 import { formatHistoryTime } from './portal-history-time'
 
-type Props = Readonly<{
-  versions: readonly PortalVersionItem[]
-  now: Date
-  timeZone: string
-  /** Shows them, and says which version comes first so focus can follow it. */
-  onShow: (firstVersion: number) => void
-}>
-
-export function PortalHistoryEarlierRow({ versions, now, timeZone, onShow }: Props) {
+export function PortalHistoryEarlierRow({
+  versions,
+}: Readonly<{ versions: readonly PortalVersionItem[] }>) {
+  const { now, timeZone, showEarlierVersions } = usePortalHistory()
   const dates = versions.map(
     (version) => formatHistoryTime(version.publishedAt, now, timeZone).label,
   )
@@ -46,7 +42,7 @@ export function PortalHistoryEarlierRow({ versions, now, timeZone, onShow }: Pro
             aria-label={`Show ${versions.length} earlier versions`}
             onClick={() => {
               const first = versions[0]
-              if (first) onShow(first.version)
+              if (first) showEarlierVersions(first.version)
             }}
           >
             Show

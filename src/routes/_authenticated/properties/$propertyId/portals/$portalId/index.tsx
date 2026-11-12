@@ -15,7 +15,10 @@ import { portalResultsFns } from '../-portal-results-fns'
 // (`?tab=`, `?section=`), which also maps the pre-workspace names; the layout
 // owns the once-shown public link and the autosave coordinator.
 import { createFileRoute, notFound } from '@tanstack/react-router'
-import { getPortalHistory } from '#/contexts/portal/server/portals'
+import {
+  getPortalHistory,
+  getPortalPublicationHistory,
+} from '#/contexts/portal/server/portals'
 import {
   getPortalVersion,
   getPortalVersionPreview,
@@ -30,7 +33,6 @@ import {
   usePortalPageReads,
   portalQuery,
   portalShareQueries,
-  portalHistoryQueries,
 } from '../-portal-detail-data'
 import { usePortalGoalLine } from '../-portal-goal-line'
 
@@ -38,6 +40,7 @@ import { usePortalGoalLine } from '../-portal-goal-line'
 const HISTORY_READS = {
   getHistory: getPortalHistory,
   getVersions: getPortalVersions,
+  getPublicationHistory: getPortalPublicationHistory,
   getVersion: getPortalVersion,
   getVersionPreview: getPortalVersionPreview,
 }
@@ -121,13 +124,11 @@ function PortalShareTab({ actions }: PortalTabActions) {
 }
 
 function PortalHistoryTab({ actions }: PortalTabActions) {
-  const { portalId, portal, property } = useWorkspaceResources()
-  const [history] = useQueries({ queries: portalHistoryQueries(portalId) })
+  const { portal, property } = useWorkspaceResources()
   return (
     <PortalHistorySection
       portal={portal}
       timeZone={property.timezone}
-      history={history}
       reads={HISTORY_READS}
       makeLive={actions.makeVersionLive}
     />
