@@ -12,6 +12,7 @@ import { getPool } from '#/shared/db/pool'
 import { aiOperations, aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { replyDynamicDeveloperBytes } from '#/shared/reply-drafting-v2-request'
 import {
   maximumCostMicros,
   OPENAI_PRICE_CATALOGUE_V2,
@@ -25,6 +26,7 @@ import type {
 } from '#/shared/ai-internal-transport-contract'
 import {
   AI_REPLY_OPERATION_PROFILE,
+  AI_REPLY_V2_DEFAULT_BINDING,
   installAiOperationFixture,
   type AiOperationFixture,
 } from '#/shared/db/testing/ai-operation-fixture'
@@ -45,10 +47,22 @@ const PAYLOAD_BYTES = 512
 const ROUTE_KEY = AI_REPLY_OPERATION_PROFILE.routeKey
 
 const profile = AI_OPERATION_PROFILES.find(
-  (candidate) => candidate.sourceRoute === ROUTE_KEY,
+  (candidate) =>
+    candidate.sourceRoute === ROUTE_KEY &&
+    candidate.profileVersion === AI_REPLY_OPERATION_PROFILE.profileVersion,
 )
 if (!profile) throw new Error('reply-suggestion profile is not registered')
-const RESERVED = maximumCostMicros(profile, PAYLOAD_BYTES)
+// A reply v2 request carries a per-request part of its prompt that the profile's
+// static figure does not include; admission prices it in.
+const RESERVED = maximumCostMicros(
+  {
+    ...profile,
+    staticTokenBearingBytes:
+      profile.staticTokenBearingBytes +
+      replyDynamicDeveloperBytes(profile.profileVersion),
+  },
+  PAYLOAD_BYTES,
+)
 
 function descriptor(
   input: { operationId: string; permitId: string },
@@ -105,6 +119,7 @@ function descriptor(
       },
       providerDeploymentProfileVersion:
         AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion,
+      replyDraftingV2: AI_REPLY_V2_DEFAULT_BINDING,
       operationProfileVersion,
       capabilityRuntimeProfileVersion:
         AI_REPLY_OPERATION_PROFILE.capabilityRuntimeProfileVersion,

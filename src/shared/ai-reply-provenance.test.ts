@@ -9,10 +9,8 @@ import {
   type AiReplyProvenancePayloadV2,
   type AiReplyProvenancePayloadV3,
 } from './ai-reply-provenance'
-import {
-  AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
-  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-} from '#/shared/ai-personalized-reply-contract'
+import { AI_PERSONALIZED_REPLY_PROFILE_DIGEST } from '#/shared/ai-personalized-reply-contract'
+import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from './reply-drafting-v2-contract'
 import { REPLY_DRAFTING_V2_VERSIONS } from './reply-drafting-v2-schema'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'

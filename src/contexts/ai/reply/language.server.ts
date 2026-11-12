@@ -11,10 +11,12 @@ import {
   type EvaluatedReviewLanguage,
 } from '#/shared/ai-review-language-catalogue'
 import { resolveAiReplyTemplate } from '#/shared/ai-reply-template-catalogue'
-import {
-  replyUnavailable as unavailable,
-  PERSONALIZED_LANGUAGE_SET,
-} from './requests.server'
+import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply-drafting-v2-schema'
+import { replyUnavailable as unavailable } from './requests.server'
+
+const SERVED_LANGUAGE_SET: ReadonlySet<string> = new Set(
+  REPLY_DRAFTING_V2_SERVED_LANGUAGES,
+)
 
 type FallbackResult = Extract<GenerateReplySuggestionResult, { status: 'fallback' }>
 
@@ -133,7 +135,6 @@ export async function resolveSuggestionLanguage(
   >,
   input: GenerateReplySuggestionInput,
   observation: ReviewObservation,
-  personalizedLanguages: ReadonlySet<string> = PERSONALIZED_LANGUAGE_SET,
 ): Promise<SuggestionLanguage> {
   if (observation.text === null) {
     return settledWith(
@@ -209,7 +210,7 @@ export async function resolveSuggestionLanguage(
       }),
     )
   }
-  if (!personalizedLanguages.has(target.language.templateGroup)) {
+  if (!SERVED_LANGUAGE_SET.has(target.language.templateGroup)) {
     return settledWith(
       localFallback(input, target.language, observation.rating, {
         reason: 'language_not_personalized',

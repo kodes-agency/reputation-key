@@ -5,7 +5,7 @@ import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import {
   REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
-} from '#/shared/review-analysis-v3-profile'
+} from '#/shared/analysis/profile'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,

@@ -10,7 +10,6 @@ import type {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const SHA256 = /^[0-9a-f]{64}$/
-const LOCAL_DATE = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -201,8 +200,8 @@ function allNull(
 
 /**
  * The operation profile and the runtime profile an analysis binding names go
- * together: the two live generations, and v3 beside them (dark until its
- * activation slice selects it, `review-analysis-runtime-v2`).
+ * together. Only v3 runs; v1 and v2 stay readable because operations stored
+ * under them remain as history.
  */
 function analysisProfilePairValid(value: Readonly<Record<string, unknown>>): boolean {
   return (
@@ -277,36 +276,6 @@ function replyBindingValid(
   )
 }
 
-function trendBindingValid(
-  value: Readonly<Record<string, unknown>>,
-  fence: Readonly<Record<string, unknown>>,
-): boolean {
-  return (
-    exactKeys(fence, ['capability', 'reviewAnalysisEpoch', 'propertyTrendsEpoch']) &&
-    isPositiveSafeInteger(fence.reviewAnalysisEpoch) &&
-    isPositiveSafeInteger(fence.propertyTrendsEpoch) &&
-    value.operationProfileVersion === 'property-trend-v1' &&
-    value.capabilityRuntimeProfileVersion === 'property-trends-runtime-v1' &&
-    allNull(value, [
-      'evaluatedLanguage',
-      'concreteReplyLanguage',
-      'languageCatalogueDigest',
-      'replyLanguageVerifierDigest',
-      'languageScriptConsistencyDigest',
-      'zhOrthographyVerifierDigest',
-      'sourceRevision',
-      'reviewedAtEpochMillis',
-      'outputLeakageProfileVersion',
-      'outputLeakageProfileDigest',
-      'replyTemplateCatalogueVersion',
-      'replyTemplateCatalogueDigest',
-      'replyBrandProfileVersion',
-      'replyBrandDisplayNameDigest',
-      'aiSubjectHmacKeyVersion',
-    ])
-  )
-}
-
 export function parseAiExecutionBinding(
   value: unknown,
 ): Result<AiExecutionBinding, AiError> {
@@ -335,17 +304,13 @@ export function parseAiExecutionBinding(
       ? analysisBindingValid(value, value.capabilityFence)
       : capability === 'reply_drafting'
         ? replyBindingValid(value, value.capabilityFence)
-        : capability === 'property_trends'
-          ? trendBindingValid(value, value.capabilityFence)
-          : null
+        : null
   if (valid === null) return invalid('unknown capability fence')
   if (!valid) {
     return invalid(
       capability === 'review_analysis'
         ? 'analysis binding is cross-wired or incomplete'
-        : capability === 'reply_drafting'
-          ? 'reply binding is cross-wired or incomplete'
-          : 'trend binding is cross-wired or incomplete',
+        : 'reply binding is cross-wired or incomplete',
     )
   }
   return ok(value as AiExecutionBinding)
@@ -379,17 +344,6 @@ const OPERATION_KEYS = {
     'reviewedAtEpochMillis',
     'tone',
     'baseReplyStateRevision',
-  ],
-  trend: [
-    'command',
-    'organizationId',
-    'propertyId',
-    'actorId',
-    'systemPrincipal',
-    'sourceEpoch',
-    'dueLocalDate',
-    'terminalAnalysisSequence',
-    'aggregateRevision',
   ],
 } as const
 
@@ -476,36 +430,6 @@ export function createAiOperationIdentity(
       reviewedAtEpochMillis: value.reviewedAtEpochMillis,
       tone: value.tone as 'professional' | 'friendly' | 'casual',
       baseReplyStateRevision: value.baseReplyStateRevision,
-    })
-  }
-
-  if (command === 'trend') {
-    if (
-      !nonEmptyString(value.organizationId) ||
-      !UUID.test(String(value.propertyId)) ||
-      value.actorId !== null ||
-      value.systemPrincipal !== 'property_trend_coordinator' ||
-      // 0-based source epoch (drizzle/0060).
-      !isNonnegativeSafeInteger(value.sourceEpoch) ||
-      typeof value.dueLocalDate !== 'string' ||
-      !LOCAL_DATE.test(value.dueLocalDate) ||
-      !isNonnegativeSafeInteger(value.terminalAnalysisSequence) ||
-      !isNonnegativeSafeInteger(value.aggregateRevision)
-    ) {
-      return invalid('trend identity is invalid')
-    }
-    return ok({
-      subjectKind: 'property',
-      command: 'trend',
-      capability: 'property_trends',
-      organizationId: value.organizationId,
-      propertyId: value.propertyId as string,
-      actorId: null,
-      systemPrincipal: 'property_trend_coordinator',
-      sourceEpoch: value.sourceEpoch,
-      dueLocalDate: value.dueLocalDate,
-      terminalAnalysisSequence: value.terminalAnalysisSequence,
-      aggregateRevision: value.aggregateRevision,
     })
   }
 
