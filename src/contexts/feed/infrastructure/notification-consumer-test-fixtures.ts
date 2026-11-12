@@ -2,7 +2,7 @@
 
 import { vi, type Mock } from 'vitest'
 import type { Queue } from 'bullmq'
-import type { NoticeWriter } from '../notify/consumers.server'
+import type { Notice, NoticeWriter } from '../notify/consumers.server'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -18,6 +18,9 @@ import {
   inboxNoteId,
   userId,
 } from '#/shared/domain/ids'
+
+/** What the fake writer records for each notice: the notice with its source event. */
+export type QueuedNotice = Notice & Readonly<{ eventId: string }>
 
 export type FakeJob = Readonly<{ name: string; data: unknown; opts?: unknown }>
 

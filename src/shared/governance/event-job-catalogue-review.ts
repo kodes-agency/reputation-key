@@ -14,7 +14,7 @@ import {
 
 const ACTIVITY_OUTBOX = 'src/contexts/feed/infrastructure/activity-outbox-consumers.ts'
 const AI_OUTBOX = 'src/contexts/ai/infrastructure/outbox-consumers.ts'
-const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
+const INBOX_OUTBOX = 'src/contexts/reputation/inbox/outbox-consumers.server.ts'
 const REVIEW_OUTBOX = 'src/contexts/review/infrastructure/outbox-consumers.ts'
 const METRIC_CURRENT_GOOGLE_REPUTATION_OUTBOX =
   'src/contexts/reporting/infrastructure/current-google-reputation-outbox-consumers.ts'
@@ -26,8 +26,7 @@ const NOTIFICATION_AI_URGENT_OUTBOX =
   'src/contexts/feed/infrastructure/goal-notice-routes.ts'
 const NOTIFICATION_AI_GUEST_VOICE_SUMMARY_OUTBOX =
   'src/contexts/feed/infrastructure/goal-notice-routes.ts'
-const NOTIFICATION_WORKFLOW_OUTBOX =
-  'src/contexts/feed/infrastructure/workflow-outbox-consumers.ts'
+const NOTIFICATION_WORKFLOW_OUTBOX = 'src/contexts/feed/notify/inbox-workflow.server.ts'
 const NOTIFICATION_SETTLEMENT_OUTBOX =
   'src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts'
 

@@ -6,8 +6,7 @@ import type { ConsumerEvent } from '#/shared/outbox'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
-import { createReviewResponseTargetAuthorityAdapter } from './adapters/review-response-target-authority.adapter'
+import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { createAtomicInboxCommandStore } from './inbox-command-store'
 import { createInboxRepository } from './repositories/inbox.repository'
 import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
@@ -15,7 +14,7 @@ import {
   handleInboxReviewCreated,
   handleInboxReviewUpdated,
   type InboxConsumerDeps,
-} from './outbox-consumers'
+} from '#/contexts/reputation/inbox/outbox-consumers.server'
 
 /**
  * Archive/Restore, a Google relink and disconnect/reconnect advance the source
@@ -169,9 +168,7 @@ function deps(): InboxConsumerDeps {
     ),
     handlingCycleStore: createReviewHandlingCycleStore(database),
     replyObservationAuthority: obsolete,
-    responseTargetAuthority: createReviewResponseTargetAuthorityAdapter(
-      createReviewResponseTargetAuthority(database),
-    ),
+    responseTargetAuthority: createReviewResponseTargetAuthority(database),
     sourceTransitionAuthority: obsolete,
     reviewLookup: lookups.reviewLookup,
     reviewSourceLookup: {

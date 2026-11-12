@@ -13,26 +13,24 @@ import {
   type AnsweredEditRevision,
 } from '#/shared/testing/answered-review-edit-fixtures'
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
-import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
-import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
+import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
+import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { createAtomicInboxCommandStore } from '#/contexts/inbox/infrastructure/inbox-command-store'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import { createReplyObservationAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-observation-authority.adapter'
-import { createReviewResponseTargetAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/review-response-target-authority.adapter'
 import {
   handleInboxReplyObserved,
   handleInboxReviewCreated,
   handleInboxReviewUpdated,
   type InboxConsumerDeps,
-} from '#/contexts/inbox/infrastructure/outbox-consumers'
+} from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { createInboxItemLookupAdapter } from '#/contexts/feed/infrastructure/adapters/inbox-item-lookup.adapter'
 import {
   handleNotificationHandlingCycle,
   type HandlingCycleNotificationConsumerDeps,
-} from '#/contexts/feed/infrastructure/handling-cycle-outbox-consumers'
+} from '#/contexts/feed/notify/inbox-handling-cycle.server'
 import { handleNotificationInboxItemCreated } from '#/contexts/feed/infrastructure/notification-outbox-consumers'
-import type { InsertNotificationJobData } from '#/contexts/feed/infrastructure/jobs/insert-notification.job'
+import type { QueuedNotice } from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
 import { insertNotification } from '#/contexts/feed/application/use-cases/insert-notification'
 import { createNotificationWorkState } from '#/contexts/feed/notify/settle.server'
 import { resolveCategoryPreference } from '#/contexts/feed/domain/notification-preference-resolution'
@@ -82,12 +80,8 @@ function inboxDeps(): InboxConsumerDeps {
       clock,
     ),
     handlingCycleStore: createReviewHandlingCycleStore(db),
-    replyObservationAuthority: createReplyObservationAuthorityAdapter(
-      createReviewReplyObservationAuthority(db),
-    ),
-    responseTargetAuthority: createReviewResponseTargetAuthorityAdapter(
-      createReviewResponseTargetAuthority(db),
-    ),
+    replyObservationAuthority: createReviewReplyObservationAuthority(db),
+    responseTargetAuthority: createReviewResponseTargetAuthority(db),
     sourceTransitionAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
     reviewLookup: lookups.reviewLookup,
     reviewSourceLookup: {
@@ -166,11 +160,11 @@ async function readReply(text: string, revision: AnsweredEditRevision, at: Date)
 }
 
 /** Feed's arrival fan-out from Inbox's committed `inbox.inbox_item.created`. */
-async function fanOutArrival(): Promise<ReadonlyArray<InsertNotificationJobData>> {
+async function fanOutArrival(): Promise<ReadonlyArray<QueuedNotice>> {
   const [created] = await fixtures.outboxEvents('inbox.inbox_item.created')
   const feed = feedDeps()
   await handleNotificationInboxItemCreated(feed.deps, created!)
-  return feed.jobs as InsertNotificationJobData[]
+  return feed.jobs as QueuedNotice[]
 }
 
 const notAskedForAnArrival = async (): Promise<never> => {
@@ -182,7 +176,7 @@ const notAskedForAnArrival = async (): Promise<never> => {
  * real Inbox is asked through the work-state gate whether the review still
  * waits. Returns the notices written.
  */
-async function writeNotices(jobs: ReadonlyArray<InsertNotificationJobData>) {
+async function writeNotices(jobs: ReadonlyArray<QueuedNotice>) {
   const insert = buildFakeInsertNotificationDeps()
   // The manager follows arrivals in the app. They are off by default (ADR 0046,
   // amended 2026-09-30), and a notice nobody asked for would make the two

@@ -125,8 +125,8 @@ test.describe('Critical workflow: content-safe notifications and handling histor
     )
 
     // The new-review notification for the assigned admin — awaited BEFORE the
-    // source-authority close below. The insert-notification job runs after
-    // the item exists, on the shared default queue, and first asks the Inbox
+    // source-authority close below. The notice is written after
+    // the item exists, by the consumer, and first asks the Inbox
     // whether the review still waits: a notice for a review already answered
     // is never written (ADR 0046, amended 2026-09-28). Closing first would
     // race that job and, when the close wins, correctly leave no notice.

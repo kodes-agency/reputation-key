@@ -116,8 +116,7 @@ const INTEGRATION_GBP_PUSH_OUTBOX =
   'src/contexts/integration/infrastructure/google-review-push-outbox-consumers.ts'
 const NOTIFICATION_OUTBOX =
   'src/contexts/feed/infrastructure/notification-outbox-consumers.ts'
-const NOTIFICATION_WORKFLOW_OUTBOX =
-  'src/contexts/feed/infrastructure/workflow-outbox-consumers.ts'
+const NOTIFICATION_WORKFLOW_OUTBOX = 'src/contexts/feed/notify/inbox-workflow.server.ts'
 const NOTIFICATION_PORTAL_OUTBOX =
   'src/contexts/feed/infrastructure/portal-outbox-consumers.ts'
 const NOTIFICATION_PORTAL_DESTINATION_OUTBOX =
@@ -137,7 +136,7 @@ const NOTIFICATION_BULK_ASSIGNMENT_OUTBOX =
 const NOTIFICATION_ESCALATION_RESOLUTION_OUTBOX =
   'src/contexts/feed/infrastructure/inbox-notice-routes.ts'
 const NOTIFICATION_HANDLING_CYCLE_OUTBOX =
-  'src/contexts/feed/infrastructure/handling-cycle-outbox-consumers.ts'
+  'src/contexts/feed/notify/inbox-handling-cycle.server.ts'
 const NOTIFICATION_RESPONSE_TARGET_OUTBOX =
   'src/contexts/feed/infrastructure/inbox-notice-routes.ts'
 
@@ -511,17 +510,6 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       registration: 'enabled',
     },
     { retryAttempts: 5, retryBackoff: 'exponential:30000' },
-  ),
-  job(
-    'insert-notification',
-    'src/contexts/feed/infrastructure/jobs/insert-notification.job.ts',
-    {
-      queue: 'default',
-      capability: 'none',
-      action: 'system:notification.insert',
-      schedule: 'none',
-      registration: 'enabled',
-    },
   ),
   job('urgent-email', 'src/contexts/feed/email/send-emails.server.ts', {
     queue: 'default',

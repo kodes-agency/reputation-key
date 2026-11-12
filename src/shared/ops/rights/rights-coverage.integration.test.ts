@@ -182,7 +182,7 @@ async function seedOrganization(properties: number) {
 }
 
 function executorsFor(scope: 'property' | 'organization'): RightsExecutor[] {
-  const port = createNotificationRightsPort(db, async () => {})
+  const port = createNotificationRightsPort(db, { writeDirect: async () => 'applied' })
   return composeRightsExecutors(
     {
       db,

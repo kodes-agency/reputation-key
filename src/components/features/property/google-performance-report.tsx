@@ -1,3 +1,4 @@
+import { useServedNow } from '#/components/hooks/served-clock'
 import { useEffect, useState } from 'react'
 import type { PropertyGooglePerformanceReportV1 } from '#/shared/google-performance-report-contract'
 import {
@@ -60,7 +61,8 @@ export function formatGoogleFreshness(retrievedAt: string, now = new Date()): st
 }
 
 function useFreshnessClock(): Date {
-  const [now, setNow] = useState(() => new Date())
+  const first = useServedNow()
+  const [now, setNow] = useState(first)
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(new Date()), 60_000)

@@ -12,7 +12,7 @@ import { sameDiscoveryAuthorization } from './google-import-discovery-authorizat
 import type {
   ImportAccountPageDto,
   ImportCandidatePageDto,
-} from './google-import-v2-contract'
+} from './google-import-contract'
 import type {
   GoogleImportReferenceStore,
   ImportDiscoveryAuthorization,

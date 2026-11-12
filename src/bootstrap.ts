@@ -20,12 +20,12 @@ import { createRedisAlertStateStore } from '#/shared/health/alert-state'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
 import { readAllQueueDepths } from '#/shared/health/queue-depth'
 import { isCapabilityJobEnabled, type Capability } from '#/shared/auth/beta-capabilities'
-import { createGoogleImportV2ItemJobHandler } from '#/contexts/integration/infrastructure/jobs/import-gbp-property-item.job'
+import { createGoogleImportItemJobHandler } from '#/contexts/integration/infrastructure/jobs/import-gbp-property-item.job'
 import {
   createRetiredImportItemHandler,
   RETIRED_IMPORT_ITEM_JOB,
 } from '#/contexts/integration/infrastructure/jobs/retired-import-item.job'
-import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from '#/contexts/integration/application/google-import-v2-contract'
+import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from '#/contexts/integration/application/google-import-contract'
 import {
   createGoogleImportClaimReaperHandler,
   JOB_NAME as GOOGLE_IMPORT_CLAIM_REAPER_JOB,
@@ -144,7 +144,7 @@ export async function bootstrap(
   container: Container,
   options: Readonly<{
     runtime: BootstrapRuntimeConfig
-    allowUnavailableGoogleImportV2Processor?: boolean
+    allowUnavailableGoogleImportProcessor?: boolean
   }>,
 ): Promise<void> {
   assertContainerCanBuild()
@@ -252,23 +252,23 @@ export async function bootstrap(
     }),
   )
 
-  const processGoogleImportV2Item = container.integrationWorkerRuntime.processImportItem
-  if (processGoogleImportV2Item) {
-    const importV2Handler = createGoogleImportV2ItemJobHandler(processGoogleImportV2Item)
+  const processGoogleImportItem = container.integrationWorkerRuntime.processImportItem
+  if (processGoogleImportItem) {
+    const importV2Handler = createGoogleImportItemJobHandler(processGoogleImportItem)
     registerCapabilityGatedJob(
       GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
       'property.import_gbp_v2',
       async (job) => {
         await importV2Handler(
           job as import('bullmq').Job<
-            import('#/contexts/integration/application/ports/gbp-queue.port').GoogleImportV2ItemJobData
+            import('#/contexts/integration/application/ports/gbp-queue.port').GoogleImportItemJobData
           >,
         )
       },
     )
   } else if (
     isCapabilityJobEnabled('property.import_gbp_v2') &&
-    !options.allowUnavailableGoogleImportV2Processor
+    !options.allowUnavailableGoogleImportProcessor
   ) {
     throw new Error('Google import v2 processor dependencies are unavailable')
   }
@@ -613,14 +613,6 @@ async function registerNotificationJobs(
       'system:notification.email_mandatory',
     ),
   })
-  const { INSERT_NOTIFICATION_JOB_NAME } =
-    await import('#/contexts/feed/infrastructure/jobs/insert-notification.job')
-  container.jobRegistry.register(INSERT_NOTIFICATION_JOB_NAME, processors.insert)
-  logger.info(
-    { job: INSERT_NOTIFICATION_JOB_NAME },
-    'registered insert-notification job handler',
-  )
-
   // Outbound email is CONTROLLED, not blocked: the handler exists, and the
   // delayed execution gate decides each send against current tenant policy.
   // A family that were blocked would retain no executable handler, so queued

@@ -37,7 +37,6 @@ async function main(): Promise<void> {
     rightsRequestCommandSpec,
     async (ctx, args, io) => {
       const env = getEnv()
-      const queue = ctx.container.jobQueue
       const journal = createRightsJournal(createRightsJournalStore(env))
       return handleRightsRequest(
         {
@@ -75,10 +74,7 @@ async function main(): Promise<void> {
                 runNotification: (run) =>
                   runNotificationRightsRequest(
                     ctx.container.db,
-                    async (job) => {
-                      if (!queue) throw new Error('The job queue is not configured')
-                      await queue.add(job.name, job.data, { jobId: job.jobId })
-                    },
+                    ctx.container.notificationDelivery.noticeWriter,
                     run,
                   ),
               },

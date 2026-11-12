@@ -5,10 +5,7 @@ import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 // different operation. Pure: every value arrives from the calling use case.
 
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
-import {
-  AI_SOURCE_CANONICALIZER_PROFILE_V1,
-  type AiOperationProfile,
-} from '#/shared/ai-operation-profiles'
+import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation-profiles'
 import {
   LANGUAGE_CATALOGUE_DIGEST,
   type ConcreteReplyLanguage,
@@ -43,10 +40,10 @@ type BindingAuthorization = Pick<
   'noticeVersion' | 'noticeDigest' | 'redactionProfileFamily'
 >
 
-type BindingOperationProfile = Pick<
-  AiOperationProfile,
-  'profileVersion' | 'capabilityRuntimeProfileVersion'
->
+type BindingOperationProfile = Readonly<{
+  profileVersion: string
+  capabilityRuntimeProfileVersion: string | null
+}>
 
 /** What a manager's reply-draft request names. */
 type ReplyOperationRequest = Readonly<{

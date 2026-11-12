@@ -20,9 +20,10 @@ export const SEGMENTED_CONTROL_CLASS =
   'inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5'
 
 /**
- * The touch size: below `md` each segment grows until the pill, with its 2px
- * inset either side, is `--control-touch` tall (44px; 36px in a compact
- * workspace), the way a Button's `touch` does. From `md` the segment is the
- * 26px chip again, so every segmented control shares one desktop geometry.
+ * The touch size: below `md` each segment is 44px tall and wide whatever the
+ * workspace density (a compact container shrinks Buttons, not a thumb's target),
+ * so the segment itself is the tap target and the pill grows by its 2px inset
+ * either side. From `md` the segment is the 26px chip again, so every segmented
+ * control shares one desktop geometry.
  */
-export const SEGMENT_TOUCH_CLASS = 'max-md:min-h-[calc(var(--control-touch)-0.25rem)]'
+export const SEGMENT_TOUCH_CLASS = 'max-md:min-h-11 max-md:min-w-11'

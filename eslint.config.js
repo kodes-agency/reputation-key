@@ -98,7 +98,7 @@ const ROUTE_SOURCES = ['src/routes/**/*.{ts,tsx}']
 // raw action in the same file still fails. The guest renderer remains separate.
 const SELECTABLE_BUTTONS = [
   // The radio cards keep their roving focus and card geometry rather than action-button styling.
-  ['src/components/features/beta-feedback/beta-feedback-choice.tsx', 'picker-tile'],
+  ['src/contexts/identity/feedback/ui/beta-feedback-choice.tsx', 'picker-tile'],
   // The selectable account rows keep their multiline identity and active border.
   [
     'src/components/features/integration/google-import-manager/google-import-account-list.tsx',
@@ -489,6 +489,23 @@ export default tseslint.config(
                 },
               },
             },
+            // Review, Inbox and Reputation form one bounded context: Reputation's
+            // feature servers may use Review and Inbox internals.
+            {
+              from: {
+                file: {
+                  categories: 'feature-server',
+                  path: 'src/contexts/reputation/**',
+                },
+              },
+              allow: {
+                to: {
+                  file: {
+                    path: 'src/contexts/{review,inbox}/{domain,application,infrastructure,server,ports}/**',
+                  },
+                },
+              },
+            },
             {
               from: fileCategory('feature-test-fixtures'),
               allow: { to: elementTypes(...CONTEXT, ...SHARED_ALL, 'test-helpers') },
@@ -785,6 +802,24 @@ export default tseslint.config(
                 },
               },
               allow: { to: fileCategory('feature-server') },
+            },
+            {
+              from: {
+                file: {
+                  path: [
+                    'src/contexts/{review,inbox}/{application,infrastructure,server}/**',
+                    'src/contexts/{review,inbox}/build{,-*}.ts',
+                  ],
+                },
+              },
+              allow: {
+                to: {
+                  file: {
+                    categories: 'feature-server',
+                    path: 'src/contexts/reputation/**',
+                  },
+                },
+              },
             },
           ],
         },

@@ -3,6 +3,11 @@ import { seedReviewContent } from '../testing/review-content-fixture'
 // An enrollment cannot catch up while any of its reviews still waits for one.
 // These suites prove that recovery against PostgreSQL, including its limits.
 
+import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+import {
+  REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
+  REVIEW_ANALYSIS_NORMALIZATION_VERSION,
+} from '#/shared/review-analysis-v3-normalizer'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -780,8 +785,8 @@ describe('reopening a review whose operation was claimed before a control stop (
       authorization: authorizationHead(scope),
       authorizationLineageId: scope.lineageId,
       operationProfile: {
-        profileVersion: 'review-analysis-v2',
-        capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
+        profileVersion: 'review-analysis-v3',
+        capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2',
       },
       reviewAnalysisEpoch: 1,
       evaluatedLanguage: 'en',
@@ -810,6 +815,17 @@ describe('reopening a review whose operation was claimed before a control stop (
       idempotencyKey: `analysis:${heldEvent}`,
       requestFingerprint: aiRequestFingerprint(request),
       sourceProvenance: request.provenance,
+      vocabularyHints: resolveReviewPropertyContext('Hotel').hintIdentity,
+      providerLineage: {
+        providerId: 'openai',
+        model: 'synthetic-model-2026-10-01',
+        requestProfileVersion: 'synthetic-request-profile-v1',
+        requestProfileDigest: '1'.repeat(64),
+      },
+      normalization: {
+        version: REVIEW_ANALYSIS_NORMALIZATION_VERSION,
+        digest: REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
+      },
       nowEpochMillis: at.getTime(),
       expiresAtEpochMillis: at.getTime() + 24 * 60 * 60_000,
     })

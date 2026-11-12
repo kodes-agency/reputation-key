@@ -124,6 +124,7 @@ describe('the code a run whose Google total or average moved mid-scan ends with'
       'total_changed',
       'average_changed',
       'duplicate_resource',
+      'review_mutation',
     ] as const
     for (const earlier of kinds) {
       for (const before of kinds) {
@@ -138,6 +139,9 @@ describe('the code a run whose Google total or average moved mid-scan ends with'
         )
         expect(listingChangeFailureCode('page_overlap', [earlier, before])).toBe(
           'duplicate_resource',
+        )
+        expect(listingChangeFailureCode('review_edited', [earlier, before])).toBe(
+          'review_mutation',
         )
       }
     }
@@ -171,12 +175,28 @@ describe('the code a run that read one review on two main-scan pages ends with',
   })
 })
 
+// A head check or a push stores a review's edit after a run has written the
+// older revision but before that page commits, so the run's sighting is behind
+// the stored mapping.
+describe('the code a run that read a review just before it was edited ends with', () => {
+  it('is quiet for the first and second run, then loud as review_mutation', () => {
+    expect(listingChangeFailureCode('review_edited', [])).toBe('listing_changed')
+    expect(listingChangeFailureCode('review_edited', ['listing_changed', null])).toBe(
+      'listing_changed',
+    )
+    expect(
+      listingChangeFailureCode('review_edited', ['listing_changed', 'total_changed']),
+    ).toBe('review_mutation')
+  })
+})
+
 describe('which failures are a listing that moved', () => {
   it.each([
     'confirmation_set_changed',
     'total_changed',
     'average_changed',
     'page_overlap',
+    'review_edited',
   ] as const)('%s is', (request) => {
     expect(isListingMove(request)).toBe(true)
   })
@@ -192,16 +212,18 @@ describe('which failures are a listing that moved', () => {
     'listing_changed',
     'cursor_lost',
     'provider_failure',
+    'review_mutation',
   ] as const)('%s is not', (request) => {
     expect(isListingMove(request)).toBe(false)
   })
 })
 
 describe('the code a request is stored with once nothing makes it quiet', () => {
-  it('is the request itself, except for a page overlap', () => {
+  it('is the request itself, except for a page overlap and an edit', () => {
     expect(storedFailureCode('total_changed')).toBe('total_changed')
     expect(storedFailureCode('confirmation_set_changed')).toBe('confirmation_set_changed')
     expect(storedFailureCode('set_mismatch')).toBe('set_mismatch')
     expect(storedFailureCode('page_overlap')).toBe('duplicate_resource')
+    expect(storedFailureCode('review_edited')).toBe('review_mutation')
   })
 })

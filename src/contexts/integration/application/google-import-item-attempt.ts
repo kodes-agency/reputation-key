@@ -1,4 +1,4 @@
-import { GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS } from './ports/google-import-v2-store.port'
+import { GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS } from './ports/google-import-store.port'
 
 /**
  * Whether an attempt may claim an import item whose highest claimed attempt of

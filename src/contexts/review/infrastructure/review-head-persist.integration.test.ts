@@ -25,8 +25,7 @@ import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/goog
 import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
 import type { InboxItem } from '#/contexts/inbox/domain/types'
 import { createAtomicInboxCommandStore } from '#/contexts/inbox/infrastructure/inbox-command-store'
-import { createReplyObservationAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-observation-authority.adapter'
-import { createReviewReplyObservationAuthority } from './reply-observation-authority'
+import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import type {
   GoogleReviewHeadResult,
   GoogleReviewRead,
@@ -38,6 +37,7 @@ import { createGoogleReplyObservationStore } from './google-reply-observation-st
 import { createAtomicReviewCommandStore } from './review-command-store'
 import { createReviewHeadCheckRepository } from './repositories/review-head-check.repository'
 import { createReviewProviderSnapshotRepository } from './repositories/review-provider-snapshot.repository'
+import { createReviewProviderSubjectSightings } from './repositories/review-provider-subject-link'
 import { createReviewRepository } from './repositories/review.repository'
 import { createReviewSyncActivityRecorder } from './repositories/review-sync-activity.repository'
 
@@ -202,6 +202,7 @@ async function headCheck(
               allocateReplyReadGeneration: async () => options.generation as number,
             },
       subjectKeyService,
+      subjectSightings: createReviewProviderSubjectSightings(db, { warn }),
       propertySourceEpoch: { getSourceEpoch: async () => ({ sourceEpoch: EPOCH }) },
       syncActivity: createReviewSyncActivityRecorder(db),
       newId: () => crypto.randomUUID(),
@@ -533,6 +534,81 @@ describe('a persisting head check (real PostgreSQL)', () => {
     expect(await factRows()).toHaveLength(2)
   })
 
+  it('maps each review it stores to its provider subject, seen by no run, and moves only the revision of a listed one', async () => {
+    const earlier = new Date(Date.now() - 2 * DAY_MS)
+    const listed = providerReview('listed')
+    const stored = await observeEarlier(listed, earlier)
+    const runId = crypto.randomUUID()
+    const deriver = await subjectKeyService.acquireDeriver()
+    const [subject] = deriver.deriveCandidates({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      sourceEpoch: EPOCH,
+      resourceName: listed.reviewName,
+    })
+    await db.execute(sql`
+      INSERT INTO review_provider_snapshot_runs
+        (id, organization_id, property_id, source_epoch, state, phase, started_at,
+         expires_at, terminal_at, record_expires_at)
+      VALUES (${runId}, ${ORG}, ${PROPERTY}, ${EPOCH}, 'completed', 'terminal', ${earlier},
+        ${earlier}, ${earlier}, ${earlier}::timestamptz + interval '30 days')
+    `)
+    await db.execute(sql`
+      INSERT INTO review_provider_subjects
+        (organization_id, property_id, source_epoch, key_version, locator_hmac,
+         verifier_hmac, review_id, last_source_revision, state, last_observed_at,
+         last_seen_snapshot_run_id)
+      VALUES (${ORG}, ${PROPERTY}, ${EPOCH}, ${subject.keyVersion},
+        ${Buffer.from(subject.locatorHmac)}, ${Buffer.from(subject.verifierHmac)},
+        ${stored.reviewId}, ${stored.sourceRevision}, 'linked', ${earlier}, ${runId})
+    `)
+    await insertFact({ count: 1, average: 4 })
+    clockAt = new Date()
+
+    const { result } = await headCheck(
+      [
+        providerReview('head-only'),
+        {
+          ...listed,
+          text: 'Edited on Google',
+          sourceUpdatedAt: new Date(clockAt.getTime() - 60_000),
+        },
+      ],
+      { total: 2, average: 4 },
+    )
+
+    expect(result).toMatchObject({
+      persistence: { outcome: 'stored', storedNew: 1, storedOther: 1, failed: 0 },
+    })
+    const subjects = await db.execute(sql`
+      SELECT c.external_id, s.state, s.last_source_revision,
+             s.last_seen_snapshot_run_id, s.first_missing_snapshot_run_id
+      FROM review_provider_subjects s
+      JOIN review_source_contents c ON c.review_id = s.review_id
+        AND c.organization_id = s.organization_id
+      WHERE s.organization_id = ${ORG}
+      ORDER BY c.external_id
+    `)
+    expect(subjects.rows).toEqual([
+      {
+        external_id: 'head-persist-head-only',
+        state: 'linked',
+        last_source_revision: '1',
+        last_seen_snapshot_run_id: null,
+        first_missing_snapshot_run_id: null,
+      },
+      // The listing's mapping keeps the run that saw it; only its revision
+      // follows the edit, so the removal step still matches the Review.
+      {
+        external_id: 'head-persist-listed',
+        state: 'linked',
+        last_source_revision: String(stored.sourceRevision + 1),
+        last_seen_snapshot_run_id: runId,
+        first_missing_snapshot_run_id: null,
+      },
+    ])
+  })
+
   it('records the row as mode head, with what was stored', async () => {
     await insertFact({ count: 0, average: null })
 
@@ -744,9 +820,7 @@ describe('a reply written on Google, seen by a head check (real PostgreSQL)', ()
     })
 
     // The Inbox consumer's own step, from the event the head check published.
-    const authority = createReplyObservationAuthorityAdapter(
-      createReviewReplyObservationAuthority(db),
-    )
+    const authority = createReviewReplyObservationAuthority(db)
     const expectation = {
       organizationId: ORG,
       reviewId: seen.reviewId,

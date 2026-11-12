@@ -42,7 +42,7 @@ import {
   REVIEW,
   SCHEDULED_FOR,
 } from '#/shared/testing/notification-route-producer-fixtures'
-import type { InsertNotificationJobData } from './jobs/insert-notification.job'
+import type { QueuedNotice } from './notification-consumer-test-fixtures'
 
 beforeAll(registerAllEventSchemas)
 beforeEach(() => {
@@ -56,7 +56,7 @@ afterEach(() => {
   resetCapabilityPolicyStore()
 })
 
-const notificationFor = (job: InsertNotificationJobData) =>
+const notificationFor = (job: QueuedNotice) =>
   createNotification(
     { ...job, id: notificationId('4d1f0c1e-2b7a-4c55-9a51-000000000099') },
     () => OCCURRED_AT,

@@ -239,7 +239,7 @@ export const inboxItemCreatedNotices = async (
 // (publication-cancelled-notifications.ts): its audience also depends on the
 // Property's lifecycle.
 //
-// Split from workflow-outbox-consumers.ts, which parses the facts and routes
+// Split from inbox-workflow.server.ts, which parses the facts and routes
 // them here: the reply routes are one family and change together.
 
 export type ReplyOutcomeNotificationDeps = Readonly<{

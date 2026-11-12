@@ -14,7 +14,7 @@
 // Only that first-cycle provider close is silent. A manager's close, a close
 // of a later cycle, and any close of an item that arrived live are real work
 // for the settle route, so they stay counted. Mirrors the consumers' own rules
-// — `notificationTypeFor` in handling-cycle-outbox-consumers.ts and the arrival
+// — `notificationTypeFor` in notify/inbox-handling-cycle.server.ts and the arrival
 // route's history check — so a change to either belongs here too. Reads
 // identifier-only payload fields (a reason, a source kind, a flag, a bulk id,
 // an item id, a cycle number, an actor kind) and never selects them.

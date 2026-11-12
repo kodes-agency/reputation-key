@@ -36,6 +36,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { feedbackId, userId } from '#/shared/domain/ids'
 import { InboxCaseToolbar } from './inbox-case-toolbar'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
 import { withPermissions } from '../../../../../.storybook/AuthedRouterDecorator'
 import type {
@@ -292,6 +293,7 @@ const meta: Meta<typeof InboxCaseToolbar> = {
             typeof parameters.paneWidth === 'number'
               ? parameters.paneWidth
               : PANE_WIDTH_PX,
+          maxWidth: '100%',
         }}
       >
         <Story />
@@ -535,10 +537,13 @@ export const FeedbackHandlingWithheld: Story = {
  * could not go on the control instead: a visible word its name does not
  * contain fails WCAG 2.5.3. So the word is a fact, the fact is the control's
  * description, and the fact is not inside the button.
+ *
+ * Played in both themes, so axe `color-contrast` sees the negative `Escalated`
+ * fact in each palette it ships in.
  */
 export const Escalated: Story = {
   args: { item: escalatedItem, target: activeTarget, isEscalationActive: true },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     onEscalate.mockClear()
     onResolveEscalation.mockClear()
     const canvas = within(canvasElement)
@@ -556,19 +561,9 @@ export const Escalated: Story = {
     await userEvent.click(resolve)
     await expect(onResolveEscalation).toHaveBeenCalledTimes(1)
     await expect(onEscalate).not.toHaveBeenCalled()
-  },
+  }),
 }
 export const Escalated390: Story = { ...Escalated, parameters: PHONE }
-
-/**
- * Light theme, escalated. Dark is this project's default, so without this the
- * axe `color-contrast` pass would only ever see the negative `Escalated` fact
- * in one of the two palettes it ships in.
- */
-export const EscalatedLight: Story = {
-  ...Escalated,
-  parameters: { theme: 'light' },
-}
 
 /**
  * An escalation that was raised and then resolved. `isEscalated` is still
@@ -604,28 +599,20 @@ export const EscalationResolved390: Story = { ...EscalationResolved, parameters:
 /**
  * Inside the last twelve hours the detail changes tone without changing shape
  * — the words carry the urgency, the tint only reinforces it, and neither is a
- * box.
+ * box. Played in both themes: axe runs over the warning text in each, the one
+ * tone with no token behind it until `--warn`.
  */
 export const DueSoon: Story = {
   args: { target: dueSoonTarget },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Reply due in 6 h')).toBeVisible()
     await expect(canvas.getByRole('button', { name: DETAIL_NAME })).toHaveAccessibleName(
       'Reply due in 6 h. Show timing details',
     )
-  },
+  }),
 }
 export const DueSoon390: Story = { ...DueSoon, parameters: PHONE }
-
-/**
- * Light theme — axe runs over it too, so this is the contrast proof for the
- * warning text, the one tone with no token behind it until PR 3 adds `--warn`.
- */
-export const DueSoonLight: Story = {
-  parameters: { theme: 'light' },
-  args: { target: dueSoonTarget },
-}
 
 /**
  * Past the target — a DETAIL, so it opens. The popover carries the sentence

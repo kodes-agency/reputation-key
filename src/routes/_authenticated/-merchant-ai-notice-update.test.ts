@@ -9,7 +9,7 @@ import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announc
 import type { ProductUpdatesClient } from '#/shared/whats-new/types'
 import { merchantAiNoticeUpdateKey } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-query'
 import type { MerchantAiNoticeUpdateBanner } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-banner'
-import { useLeadingAiUpdate } from '#/components/features/whats-new/use-leading-ai-update'
+import { useLeadingAiUpdate } from '#/contexts/identity/updates/ui/use-leading-ai-update'
 import MerchantAiNoticeUpdateGate from './-merchant-ai-notice-update'
 import { merchantAiNoticeUpdateClient } from './-merchant-ai-notice-update-client'
 import { Route as AuthenticatedRoute } from '../_authenticated'

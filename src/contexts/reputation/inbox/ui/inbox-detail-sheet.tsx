@@ -96,7 +96,6 @@ export function InboxDetailSheet({
           shift the 16 px gutter by 1 px. */}
       <SheetContent
         side="right"
-        data-density="compact"
         showCloseButton={false}
         className="flex w-full flex-col gap-0 overflow-hidden max-sm:border-l-0 sm:max-w-lg"
       >

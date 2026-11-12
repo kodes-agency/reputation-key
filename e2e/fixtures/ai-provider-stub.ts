@@ -6,8 +6,7 @@ import {
 import { createServer as createHttpsServer } from 'node:https'
 
 export const AI_PROVIDER_STUB_PORT = 4102
-export type AiProviderStubOperationKind =
-  'analysis' | 'reply' | 'trend' | 'synthetic_canary'
+export type AiProviderStubOperationKind = 'analysis' | 'reply' | 'synthetic_canary'
 
 type TokenUsage = Readonly<{
   inputTokens: number
@@ -92,13 +91,9 @@ function parseOperationKind(body: unknown): AiProviderStubOperationKind | null {
   if (format === null || typeof format !== 'object' || Array.isArray(format)) return null
   switch ((format as Record<string, unknown>).name) {
     case 'review_analysis_v3':
-    case 'review_analysis_v2':
       return 'analysis'
     case 'reply_draft_v4':
-    case 'reply_draft_v1':
       return 'reply'
-    case 'property_trend_v1':
-      return 'trend'
     case 'synthetic_canary_v1':
       return 'synthetic_canary'
     default:
@@ -163,9 +158,7 @@ function parseScript(value: unknown): AiProviderStubResponse | null {
   )
     return null
   if (
-    !['analysis', 'reply', 'trend', 'synthetic_canary'].includes(
-      String(candidate.operationKind),
-    )
+    !['analysis', 'reply', 'synthetic_canary'].includes(String(candidate.operationKind))
   )
     return null
   if (
@@ -329,12 +322,11 @@ function anthropicError(status: number): Record<string, unknown> {
 /**
  * `AI_PROVIDER_STUB_UNSCRIPTED=respond` (the local inner loop, `pnpm local:up`):
  * an unscripted request gets a synthesized answer instead of 503, so analysis,
- * drafting and trends run end to end without arming the stub first. The
+ * and drafting run end to end without arming the stub first. The
  * answers are derived from the request's own provider payload (`input[1]`,
- * the canonical JSON the route preparer built) because the app's acceptance
- * rules are content-bound: a reply must quote the review and name the
- * property exactly once. The e2e stack keeps the default, `503`, so specs
- * stay deterministic.
+ * the canonical JSON the route preparer built): the analysis follows the
+ * rating and the reply body follows the requested language. The e2e stack
+ * keeps the default, `503`, so specs stay deterministic.
  */
 type UnscriptedMode = '503' | 'respond'
 
@@ -380,7 +372,7 @@ function anthropicProviderPayload(
   }
 }
 
-function synthesizedAnthropicAnalysis(
+function synthesizedAnalysis(
   payload: Record<string, unknown> | null,
 ): Record<string, unknown> {
   const rating = typeof payload?.rating === 'number' ? payload.rating : 5
@@ -388,36 +380,6 @@ function synthesizedAnthropicAnalysis(
     sentiment: rating >= 4 ? 'positive' : rating === 3 ? 'neutral' : 'negative',
     mentions: [],
     urgent: null,
-  }
-}
-
-function synthesizedReply(
-  payload: Record<string, unknown>,
-): Record<string, unknown> | null {
-  const reviewText =
-    typeof payload.reviewText === 'string' ? payload.reviewText.trim() : ''
-  const propertyDisplayName =
-    typeof payload.propertyDisplayName === 'string' ? payload.propertyDisplayName : ''
-  const languageCode =
-    typeof payload.languageCode === 'string' ? payload.languageCode : 'en-Latn'
-  if (reviewText.length < 2 || propertyDisplayName.length === 0) return null
-  // The excerpt must appear verbatim in both texts, must not carry the
-  // property name (the reply may contain it exactly once), and must survive
-  // the app's leakage scanner - so it is the longest run of plain words, never
-  // a fragment with digits, codes or punctuation that reads as an identifier.
-  const excerpt = reviewText
-    .split(/[^\p{L}\s'’-]+/u)
-    .map((fragment) => fragment.trim().replace(/\s+/gu, ' '))
-    .filter((fragment) => fragment.length >= 2 && !fragment.includes(propertyDisplayName))
-    .sort((a, b) => b.length - a.length)[0]
-    ?.slice(0, 80)
-    .trim()
-  if (excerpt === undefined || excerpt.length < 2) return null
-  const replyText = `Thank you for telling us about ${excerpt}. Everyone at ${propertyDisplayName} appreciates you taking the time, and we hope to welcome you again soon.`
-  return {
-    languageCode,
-    replyText,
-    grounding: [{ sourceExcerpt: excerpt, replyExcerpt: excerpt }],
   }
 }
 
@@ -465,40 +427,10 @@ function synthesizedParsed(
   payload: Record<string, unknown> | null,
 ): Record<string, unknown> | null {
   switch (operationKind) {
-    case 'analysis': {
-      const rating = typeof payload?.rating === 'number' ? payload.rating : 5
-      return rating >= 4
-        ? {
-            sentiment: 'positive',
-            sentimentValence: 60,
-            urgencySignals: [],
-            aspects: [{ aspect: 'service', polarity: 'positive', intensity: 60 }],
-            issueLabel: null,
-          }
-        : rating === 3
-          ? {
-              sentiment: 'neutral',
-              sentimentValence: 0,
-              urgencySignals: [],
-              aspects: [{ aspect: 'service', polarity: 'neutral', intensity: 0 }],
-              issueLabel: null,
-            }
-          : {
-              sentiment: 'negative',
-              sentimentValence: -60,
-              urgencySignals: [],
-              aspects: [{ aspect: 'service', polarity: 'negative', intensity: -60 }],
-              issueLabel: 'service recovery',
-            }
-    }
+    case 'analysis':
+      return synthesizedAnalysis(payload)
     case 'reply':
-      return payload === null
-        ? null
-        : payload.replyProfileVersion === 'reply-draft-v4'
-          ? synthesizedReplyV2(payload)
-          : synthesizedReply(payload)
-    case 'trend':
-      return { selectedSignalIds: ['sentiment.positive.up'] }
+      return payload === null ? null : synthesizedReplyV2(payload)
     case 'synthetic_canary':
       return { marker: 'synthetic_canary_ok' }
   }
@@ -576,9 +508,7 @@ async function handler(
     let script = scripts.get(operationKind)?.shift()
     if (script === undefined && unscriptedMode() === 'respond') {
       const parsed = isAnthropic
-        ? synthesizedAnthropicAnalysis(
-            anthropicProviderPayload(body as Record<string, unknown>),
-          )
+        ? synthesizedAnalysis(anthropicProviderPayload(body as Record<string, unknown>))
         : synthesizedParsed(
             operationKind,
             providerPayload(body as Record<string, unknown>),

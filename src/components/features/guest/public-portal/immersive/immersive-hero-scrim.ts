@@ -52,7 +52,7 @@ export const HERO_TEXT_BANDS = {
 } as const
 
 /** The photo's own opacity, by distance up from the hero's bottom edge: it fades into the field. */
-export const HERO_PHOTO_MASK: readonly ScrimStop[] = [
+const HERO_PHOTO_MASK: readonly ScrimStop[] = [
   [0, 0],
   [57, 0.5],
   [113, 1],
@@ -111,6 +111,12 @@ export function scrimGradient(stops: readonly ScrimStop[], fromTop: boolean): st
   const ink = HERO_SCRIM_RGB.join(', ')
   const parts = stops.map(([distance, alpha]) => `rgba(${ink}, ${alpha}) ${distance}px`)
   return `linear-gradient(${fromTop ? '180deg' : '0deg'}, ${parts.join(', ')})`
+}
+
+/** The mask that keeps the title's scrim solid across its column and fades it only beyond. */
+export function titleScrimMaskGradient(): string {
+  const { solid, gone } = HERO_TITLE_SCRIM_HALF_WIDTH
+  return `linear-gradient(90deg, transparent calc(50% - ${gone}px), #000 calc(50% - ${solid}px), #000 calc(50% + ${solid}px), transparent calc(50% + ${gone}px))`
 }
 
 /** The photo's mask as a CSS `linear-gradient`: black is the photo, transparent is the field. */

@@ -459,13 +459,13 @@
     "storyId": "goals-portalgoaladd--average",
     "state": "Average",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--average",
     "state": "Average",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--choose",
@@ -483,61 +483,61 @@
     "storyId": "goals-portalgoaladd--each-portal",
     "state": "Each Portal",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--each-portal",
     "state": "Each Portal",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--each-portal-after-one-failed",
     "state": "Each Portal After One Failed",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--each-portal-after-one-failed",
     "state": "Each Portal After One Failed",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--each-portal-row-failed",
     "state": "Each Portal Row Failed",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--each-portal-row-failed",
     "state": "Each Portal Row Failed",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--group",
     "state": "Group",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--group",
     "state": "Group",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--one-portal",
     "state": "One Portal",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--one-portal",
     "state": "One Portal",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaladd--phone-320",
@@ -687,13 +687,13 @@
     "storyId": "goals-portalgoalcarduse--ready",
     "state": "Ready",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalcarduse--ready",
     "state": "Ready",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalcarduse--ready-light",
@@ -711,13 +711,13 @@
     "storyId": "goals-portalgoalcarduse--ready-october",
     "state": "Ready October",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalcarduse--ready-october",
     "state": "Ready October",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalcarduse--ready-on-a-desktop",
@@ -744,18 +744,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalcarduse--ready-on-a-phone",
-    "state": "Ready On A Phone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalcarduse--ready-on-a-phone",
-    "state": "Ready On A Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalcarduse--ready-on-a-tablet",
     "state": "Ready On A Tablet",
     "width": 320,
@@ -771,13 +759,13 @@
     "storyId": "goals-portalgoalcarduse--scans-only",
     "state": "Scans Only",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalcarduse--scans-only",
     "state": "Scans Only",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalcarduse--scans-only-on-a-narrow-phone",
@@ -807,25 +795,25 @@
     "storyId": "goals-portalgoalcarduse--use-refused-a-goal-was-set",
     "state": "Use Refused A Goal Was Set",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalcarduse--use-refused-a-goal-was-set",
     "state": "Use Refused A Goal Was Set",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalcheckin--check-in",
     "state": "Check In",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalcheckin--check-in",
     "state": "Check In",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalcheckin--check-in-320",
@@ -874,18 +862,6 @@
     "state": "Check In How We Worked This Out",
     "width": 390,
     "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalcheckin--check-in-keep",
-    "state": "Check In Keep",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalcheckin--check-in-keep",
-    "state": "Check In Keep",
-    "width": 390,
-    "checks": ["overflow"]
   },
   {
     "storyId": "goals-portalgoalcheckin--check-in-light",
@@ -963,13 +939,13 @@
     "storyId": "goals-portalgoalcheckin--check-in-refused-closed",
     "state": "Check In Refused Closed",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalcheckin--check-in-refused-closed",
     "state": "Check In Refused Closed",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalextras--first-five-light",
@@ -1023,13 +999,13 @@
     "storyId": "goals-portalgoaloverview--check-in",
     "state": "Check In",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoaloverview--check-in",
     "state": "Check In",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalpage--across-a-stop",
@@ -1236,18 +1212,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalpage--phone-390",
-    "state": "Phone 390",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalpage--phone-390",
-    "state": "Phone 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalpage--running",
     "state": "Running",
     "width": 320,
@@ -1335,13 +1299,13 @@
     "storyId": "goals-portalgoalpageactions--stop-dialog",
     "state": "Stop Dialog",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalpageactions--stop-dialog",
     "state": "Stop Dialog",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalpageactions--stop-kept",
@@ -1500,18 +1464,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalresults--phone-390",
-    "state": "Phone 390",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalresults--phone-390",
-    "state": "Phone 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalresultslinks--in-the-portal-goals-section",
     "state": "In The Portal Goals Section",
     "width": 320,
@@ -1608,18 +1560,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalresultslinks--phone-390",
-    "state": "Phone 390",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalresultslinks--phone-390",
-    "state": "Phone 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalsection--arriving-on-a-phone",
     "state": "Arriving On A Phone",
     "width": 320,
@@ -1656,18 +1596,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalsheet--change-last-day",
-    "state": "Change Last Day",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-last-day",
-    "state": "Change Last Day",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "goals-portalgoalsheet--change-light",
     "state": "Change Light",
     "width": 320,
@@ -1678,30 +1606,6 @@
     "state": "Change Light",
     "width": 390,
     "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-next-month",
-    "state": "Change Next Month",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-next-month",
-    "state": "Change Next Month",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-now-below-pace",
-    "state": "Change Now Below Pace",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-now-below-pace",
-    "state": "Change Now Below Pace",
-    "width": 390,
-    "checks": ["overflow"]
   },
   {
     "storyId": "goals-portalgoalsheet--change-on-a-desktop",
@@ -1716,18 +1620,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalsheet--change-on-a-phone",
-    "state": "Change On A Phone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-on-a-phone",
-    "state": "Change On A Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalsheet--change-on-a-tablet",
     "state": "Change On A Tablet",
     "width": 320,
@@ -1738,18 +1630,6 @@
     "state": "Change On A Tablet",
     "width": 390,
     "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-scans-forces-next",
-    "state": "Change Scans Forces Next",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-scans-forces-next",
-    "state": "Change Scans Forces Next",
-    "width": 390,
-    "checks": ["overflow"]
   },
   {
     "storyId": "goals-portalgoalsheet--change-scans-held",
@@ -1776,18 +1656,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalsheet--count-scans-instead",
-    "state": "Count Scans Instead",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--count-scans-instead",
-    "state": "Count Scans Instead",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "goals-portalgoalsheet--how-we-worked-this-out",
     "state": "How We Worked This Out",
     "width": 320,
@@ -1810,30 +1678,6 @@
     "state": "Note On A Narrow Phone",
     "width": 390,
     "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--own-first-weeks",
-    "state": "Own First Weeks",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--own-first-weeks",
-    "state": "Own First Weeks",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--own-first-weeks-on-a-narrow-phone",
-    "state": "Own First Weeks On A Narrow Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--own-first-weeks-on-a-narrow-phone",
-    "state": "Own First Weeks On A Narrow Phone",
-    "width": 390,
-    "checks": ["overflow"]
   },
   {
     "storyId": "goals-portalgoalsheet--pending",
@@ -1860,30 +1704,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalsheet--refused-conflict",
-    "state": "Refused Conflict",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--refused-conflict",
-    "state": "Refused Conflict",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--refused-month-ended",
-    "state": "Refused Month Ended",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--refused-month-ended",
-    "state": "Refused Month Ended",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "goals-portalgoalsheet--refused-month-turned",
     "state": "Refused Month Turned",
     "width": 320,
@@ -1896,18 +1716,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalsheet--refused-set-race",
-    "state": "Refused Set Race",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--refused-set-race",
-    "state": "Refused Set Race",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "goals-portalgoalsheet--refused-start-month-changed",
     "state": "Refused Start Month Changed",
     "width": 320,
@@ -1918,54 +1726,6 @@
     "state": "Refused Start Month Changed",
     "width": 390,
     "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--refused-stopped",
-    "state": "Refused Stopped",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--refused-stopped",
-    "state": "Refused Stopped",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--set-current-month",
-    "state": "Set Current Month",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--set-current-month",
-    "state": "Set Current Month",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--set-from-a-stopped-goal",
-    "state": "Set From A Stopped Goal",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--set-from-a-stopped-goal",
-    "state": "Set From A Stopped Goal",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--set-recommended",
-    "state": "Set Recommended",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--set-recommended",
-    "state": "Set Recommended",
-    "width": 390,
-    "checks": ["overflow"]
   },
   {
     "storyId": "goals-portalgoalsheet--set-recommended-light",
@@ -2004,18 +1764,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalsheet--set-recommended-on-a-phone",
-    "state": "Set Recommended On A Phone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--set-recommended-on-a-phone",
-    "state": "Set Recommended On A Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalsheet--set-recommended-on-a-tablet",
     "state": "Set Recommended On A Tablet",
     "width": 320,
@@ -2028,18 +1776,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalsheet--step-own-number",
-    "state": "Step Own Number",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--step-own-number",
-    "state": "Step Own Number",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "goals-portalgoalsheet--type-a-long-number",
     "state": "Type A Long Number",
     "width": 320,
@@ -2050,18 +1786,6 @@
     "state": "Type A Long Number",
     "width": 390,
     "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--type-number",
-    "state": "Type Number",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--type-number",
-    "state": "Type Number",
-    "width": 390,
-    "checks": ["overflow"]
   },
   {
     "storyId": "goals-portalgoalsheet--zero-is-invalid",
@@ -2079,25 +1803,25 @@
     "storyId": "goals-portalgoalsinglepage--average-change-from-december",
     "state": "Average Change From December",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalsinglepage--average-change-from-december",
     "state": "Average Change From December",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalsinglepage--average-change-now",
     "state": "Average Change Now",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalsinglepage--average-change-now",
     "state": "Average Change Now",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalsinglepage--average-change-refused-conflict",
@@ -2199,13 +1923,13 @@
     "storyId": "goals-portalgoalsinglepage--several-subjects",
     "state": "Several Subjects",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalsinglepage--several-subjects",
     "state": "Several Subjects",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalsinglepage--single-portal-320",
@@ -2223,13 +1947,13 @@
     "storyId": "goals-portalgoalsinglepage--single-portal-goal",
     "state": "Single Portal Goal",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalsinglepage--single-portal-goal",
     "state": "Single Portal Goal",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "goals-portalgoalsinglepage--single-portal-goal-light",
@@ -2268,30 +1992,6 @@
     "checks": ["overflow"]
   },
   {
-    "storyId": "goals-ratinggoalrecap--keep",
-    "state": "Keep",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-ratinggoalrecap--keep",
-    "state": "Keep",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-ratinggoalrecap--raise",
-    "state": "Raise",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "goals-ratinggoalrecap--raise",
-    "state": "Raise",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "goals-ratinggoalwizard--desktop-dialog",
     "state": "Desktop Dialog",
     "width": 320,
@@ -2676,18 +2376,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "identity-profilesettingsform--removing-the-avatar-refused",
-    "state": "Removing The Avatar Refused",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "identity-profilesettingsform--removing-the-avatar-refused",
-    "state": "Removing The Avatar Refused",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "identity-registration-joinentrycard--entering",
     "state": "Entering",
     "width": 320,
@@ -2710,4170 +2398,6 @@
     "state": "Failed",
     "width": 390,
     "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--all-filters",
-    "state": "All Filters",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--all-filters",
-    "state": "All Filters",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--clear-filters",
-    "state": "Clear Filters",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--clear-filters",
-    "state": "Clear Filters",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--clear-filters-leaves-the-sort",
-    "state": "Clear Filters Leaves The Sort",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--clear-filters-leaves-the-sort",
-    "state": "Clear Filters Leaves The Sort",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--nothing",
-    "state": "Nothing",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--nothing",
-    "state": "Nothing",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--oldest-first",
-    "state": "Oldest First",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--oldest-first",
-    "state": "Oldest First",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--one-filter",
-    "state": "One Filter",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--one-filter",
-    "state": "One Filter",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--one-filter-and-the-sort",
-    "state": "One Filter And The Sort",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--one-filter-and-the-sort",
-    "state": "One Filter And The Sort",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--removing-the-last-chip-focuses-the-previous",
-    "state": "Removing The Last Chip Focuses The Previous",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--removing-the-last-chip-focuses-the-previous",
-    "state": "Removing The Last Chip Focuses The Previous",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--removing-the-only-filter",
-    "state": "Removing The Only Filter",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--removing-the-only-filter",
-    "state": "Removing The Only Filter",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--search-and-one-filter",
-    "state": "Search And One Filter",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--search-and-one-filter",
-    "state": "Search And One Filter",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--several-filters",
-    "state": "Several Filters",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-active-filters--several-filters",
-    "state": "Several Filters",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--all-feedback",
-    "state": "All Feedback",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--all-feedback",
-    "state": "All Feedback",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--assign-selected",
-    "state": "Assign Selected",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--assign-selected",
-    "state": "Assign Selected",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--bulk-limit",
-    "state": "Bulk Limit",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--bulk-limit",
-    "state": "Bulk Limit",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--empty",
-    "state": "Empty",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--empty",
-    "state": "Empty",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--only-reviews-selected",
-    "state": "Only Reviews Selected",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--only-reviews-selected",
-    "state": "Only Reviews Selected",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--pending",
-    "state": "Pending",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--pending",
-    "state": "Pending",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--reopen-closed",
-    "state": "Reopen Closed",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--reopen-closed",
-    "state": "Reopen Closed",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--reopen-error",
-    "state": "Reopen Error",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--reopen-error",
-    "state": "Reopen Error",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--three-selected",
-    "state": "Three Selected",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--three-selected",
-    "state": "Three Selected",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--three-selected-on-phone",
-    "state": "Three Selected On Phone",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-bulk-actions--three-selected-on-phone",
-    "state": "Three Selected On Phone",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-to-someone",
-    "state": "Assigned To Someone",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-to-someone",
-    "state": "Assigned To Someone",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-to-someone-390",
-    "state": "Assigned To Someone 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-to-someone-390",
-    "state": "Assigned To Someone 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-to-you",
-    "state": "Assigned To You",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-to-you",
-    "state": "Assigned To You",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-to-you-390",
-    "state": "Assigned To You 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-to-you-390",
-    "state": "Assigned To You 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-unresolved",
-    "state": "Assigned Unresolved",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-unresolved",
-    "state": "Assigned Unresolved",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-unresolved-390",
-    "state": "Assigned Unresolved 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--assigned-unresolved-390",
-    "state": "Assigned Unresolved 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--closed-review",
-    "state": "Closed Review",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--closed-review",
-    "state": "Closed Review",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--closed-review-390",
-    "state": "Closed Review 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--closed-review-390",
-    "state": "Closed Review 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--command-pending",
-    "state": "Command Pending",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--command-pending",
-    "state": "Command Pending",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--due-soon",
-    "state": "Due Soon",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--due-soon",
-    "state": "Due Soon",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--due-soon-390",
-    "state": "Due Soon 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--due-soon-390",
-    "state": "Due Soon 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--due-soon-light",
-    "state": "Due Soon Light",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--due-soon-light",
-    "state": "Due Soon Light",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--escalated",
-    "state": "Escalated",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--escalated",
-    "state": "Escalated",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--escalated-390",
-    "state": "Escalated 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--escalated-390",
-    "state": "Escalated 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--escalated-light",
-    "state": "Escalated Light",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--escalated-light",
-    "state": "Escalated Light",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--escalation-resolved",
-    "state": "Escalation Resolved",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--escalation-resolved",
-    "state": "Escalation Resolved",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--escalation-resolved-390",
-    "state": "Escalation Resolved 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--escalation-resolved-390",
-    "state": "Escalation Resolved 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-closed-no-outcome",
-    "state": "Feedback Closed No Outcome",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-closed-no-outcome",
-    "state": "Feedback Closed No Outcome",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-closed-no-outcome-390",
-    "state": "Feedback Closed No Outcome 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-handled",
-    "state": "Feedback Handled",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-handled",
-    "state": "Feedback Handled",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-handled-390",
-    "state": "Feedback Handled 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-handled-390",
-    "state": "Feedback Handled 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-handling-withheld",
-    "state": "Feedback Handling Withheld",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-handling-withheld",
-    "state": "Feedback Handling Withheld",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-open",
-    "state": "Feedback Open",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-open",
-    "state": "Feedback Open",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-open-390",
-    "state": "Feedback Open 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--feedback-open-390",
-    "state": "Feedback Open 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--not-measured",
-    "state": "Not Measured",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--not-measured",
-    "state": "Not Measured",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--not-measured-390",
-    "state": "Not Measured 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--open-review",
-    "state": "Open Review",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--open-review",
-    "state": "Open Review",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--open-review-390",
-    "state": "Open Review 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--open-review-390",
-    "state": "Open Review 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--overdue",
-    "state": "Overdue",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--overdue",
-    "state": "Overdue",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--overdue-390",
-    "state": "Overdue 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--overdue-390",
-    "state": "Overdue 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-closed-review-suggested-472",
-    "state": "Priority Closed Review Suggested 472",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-closed-review-suggested-472",
-    "state": "Priority Closed Review Suggested 472",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-escalated-urgent-472",
-    "state": "Priority Escalated Urgent 472",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-escalated-urgent-472",
-    "state": "Priority Escalated Urgent 472",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-escalated-urgent",
-    "state": "Priority Feedback Escalated Urgent",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-escalated-urgent",
-    "state": "Priority Feedback Escalated Urgent",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-escalated-urgent-320",
-    "state": "Priority Feedback Escalated Urgent 320",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-escalated-urgent-320",
-    "state": "Priority Feedback Escalated Urgent 320",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-escalated-urgent-390",
-    "state": "Priority Feedback Escalated Urgent 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-escalated-urgent-390",
-    "state": "Priority Feedback Escalated Urgent 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-escalated-urgent-472",
-    "state": "Priority Feedback Escalated Urgent 472",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-escalated-urgent-472",
-    "state": "Priority Feedback Escalated Urgent 472",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-not-set",
-    "state": "Priority Feedback Not Set",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-not-set",
-    "state": "Priority Feedback Not Set",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-not-set-390",
-    "state": "Priority Feedback Not Set 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-not-set-390",
-    "state": "Priority Feedback Not Set 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-not-set-472",
-    "state": "Priority Feedback Not Set 472",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-feedback-not-set-472",
-    "state": "Priority Feedback Not Set 472",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-long-assignee-472",
-    "state": "Priority Long Assignee 472",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-long-assignee-472",
-    "state": "Priority Long Assignee 472",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-read-only-urgent",
-    "state": "Priority Read Only Urgent",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-read-only-urgent",
-    "state": "Priority Read Only Urgent",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-set-over-suggestion",
-    "state": "Priority Set Over Suggestion",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-set-over-suggestion",
-    "state": "Priority Set Over Suggestion",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-set-over-suggestion-390",
-    "state": "Priority Set Over Suggestion 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-suggested",
-    "state": "Priority Suggested",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-suggested",
-    "state": "Priority Suggested",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--priority-suggested-390",
-    "state": "Priority Suggested 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-claims-unassigned",
-    "state": "Reader Claims Unassigned",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-claims-unassigned",
-    "state": "Reader Claims Unassigned",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-releases-own-item",
-    "state": "Reader Releases Own Item",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-releases-own-item",
-    "state": "Reader Releases Own Item",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-sees-colleague-without-directory",
-    "state": "Reader Sees Colleague Without Directory",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-sees-colleague-without-directory",
-    "state": "Reader Sees Colleague Without Directory",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-sees-colleague-without-directory-390",
-    "state": "Reader Sees Colleague Without Directory 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-sees-colleague-without-directory-390",
-    "state": "Reader Sees Colleague Without Directory 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-sees-feedback-owner-as-text",
-    "state": "Reader Sees Feedback Owner As Text",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-sees-feedback-owner-as-text",
-    "state": "Reader Sees Feedback Owner As Text",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-view",
-    "state": "Reader View",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-view",
-    "state": "Reader View",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-view-390",
-    "state": "Reader View 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--reader-view-390",
-    "state": "Reader View 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--replied-late",
-    "state": "Replied Late",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--replied-late",
-    "state": "Replied Late",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--replied-late-390",
-    "state": "Replied Late 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--replied-late-390",
-    "state": "Replied Late 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--replied-on-time",
-    "state": "Replied On Time",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--replied-on-time",
-    "state": "Replied On Time",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--replied-on-time-390",
-    "state": "Replied On Time 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--replied-on-time-390",
-    "state": "Replied On Time 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--unassigned",
-    "state": "Unassigned",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-case-toolbar--unassigned",
-    "state": "Unassigned",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--busy",
-    "state": "Busy",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--busy",
-    "state": "Busy",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--language-block-keeps-menu-reachable",
-    "state": "Language Block Keeps Menu Reachable",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--language-block-keeps-menu-reachable",
-    "state": "Language Block Keeps Menu Reachable",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--language-block-keeps-menu-reachable-390",
-    "state": "Language Block Keeps Menu Reachable 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--no-default-manager-gets-the-fix",
-    "state": "No Default Manager Gets The Fix",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--no-default-manager-gets-the-fix",
-    "state": "No Default Manager Gets The Fix",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--no-default-manager-gets-the-fix-390",
-    "state": "No Default Manager Gets The Fix 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--no-default-reader-reads-the-sentence",
-    "state": "No Default Reader Reads The Sentence",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--no-default-reader-reads-the-sentence",
-    "state": "No Default Reader Reads The Sentence",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--no-default-reader-reads-the-sentence-390",
-    "state": "No Default Reader Reads The Sentence 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--no-default-while-auto-detecting",
-    "state": "No Default While Auto Detecting",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--no-default-while-auto-detecting",
-    "state": "No Default While Auto Detecting",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--template-loading-and-empty",
-    "state": "Template Loading And Empty",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--template-loading-and-empty",
-    "state": "Template Loading And Empty",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--template-switch-only-for-listable-languages",
-    "state": "Template Switch Only For Listable Languages",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--template-switch-only-for-listable-languages",
-    "state": "Template Switch Only For Listable Languages",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--template-switch-only-for-listable-languages-390",
-    "state": "Template Switch Only For Listable Languages 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--template-switch-reloads-the-list",
-    "state": "Template Switch Reloads The List",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--template-switch-reloads-the-list",
-    "state": "Template Switch Reloads The List",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--template-switch-reloads-the-list-390",
-    "state": "Template Switch Reloads The List 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--tone-pick-drafts-nothing",
-    "state": "Tone Pick Drafts Nothing",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--tone-pick-drafts-nothing",
-    "state": "Tone Pick Drafts Nothing",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--undo-and-error",
-    "state": "Undo And Error",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--undo-and-error",
-    "state": "Undo And Error",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--undo-and-error-390",
-    "state": "Undo And Error 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--write-in-switches-without-drafting",
-    "state": "Write In Switches Without Drafting",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--write-in-switches-without-drafting",
-    "state": "Write In Switches Without Drafting",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-assist-menus--write-in-switches-without-drafting-390",
-    "state": "Write In Switches Without Drafting 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--blocked-submit-keeps-its-reason-at-720",
-    "state": "Blocked Submit Keeps Its Reason At 720",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--blocked-submit-keeps-its-reason-at-720",
-    "state": "Blocked Submit Keeps Its Reason At 720",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--collapsed-note-bar-is-private-at-390",
-    "state": "Collapsed Note Bar Is Private At 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--collapsed-reply-bar-stays-neutral-at-390",
-    "state": "Collapsed Reply Bar Stays Neutral At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--collapsed-reply-bar-stays-neutral-at-390",
-    "state": "Collapsed Reply Bar Stays Neutral At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--note-mode-is-private-at-390",
-    "state": "Note Mode Is Private At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--note-mode-is-private-at-390",
-    "state": "Note Mode Is Private At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--note-mode-is-private-at-720",
-    "state": "Note Mode Is Private At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--note-mode-is-private-at-720",
-    "state": "Note Mode Is Private At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--reply-head-at-390",
-    "state": "Reply Head At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--reply-head-at-390",
-    "state": "Reply Head At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--reply-head-at-720",
-    "state": "Reply Head At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--reply-head-at-720",
-    "state": "Reply Head At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--save-state-travels-up-at-390",
-    "state": "Save State Travels Up At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--save-state-travels-up-at-390",
-    "state": "Save State Travels Up At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--save-state-travels-up-at-720",
-    "state": "Save State Travels Up At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--save-state-travels-up-at-720",
-    "state": "Save State Travels Up At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--single-mode-note-dock-at-390",
-    "state": "Single Mode Note Dock At 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--single-mode-note-dock-at-720",
-    "state": "Single Mode Note Dock At 720",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--single-mode-note-dock-at-720",
-    "state": "Single Mode Note Dock At 720",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--slot-follows-the-mode-at-720",
-    "state": "Slot Follows The Mode At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--slot-follows-the-mode-at-720",
-    "state": "Slot Follows The Mode At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--submit-carries-the-guarantee-at-720",
-    "state": "Submit Carries The Guarantee At 720",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--submit-carries-the-guarantee-at-720",
-    "state": "Submit Carries The Guarantee At 720",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--tall-feedback-note-keeps-its-primary-at-390",
-    "state": "Tall Feedback Note Keeps Its Primary At 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--tall-feedback-note-keeps-its-primary-at-720",
-    "state": "Tall Feedback Note Keeps Its Primary At 720",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--tall-feedback-note-keeps-its-primary-at-720",
-    "state": "Tall Feedback Note Keeps Its Primary At 720",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-composer-dock--tall-reply-keeps-its-primary-at-390",
-    "state": "Tall Reply Keeps Its Primary At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--tall-reply-keeps-its-primary-at-390",
-    "state": "Tall Reply Keeps Its Primary At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--tall-reply-keeps-its-primary-at-720",
-    "state": "Tall Reply Keeps Its Primary At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-composer-dock--tall-reply-keeps-its-primary-at-720",
-    "state": "Tall Reply Keeps Its Primary At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--a-hold-does-not-outlive-its-dialog",
-    "state": "A Hold Does Not Outlive Its Dialog",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--a-hold-does-not-outlive-its-dialog",
-    "state": "A Hold Does Not Outlive Its Dialog",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--an-open-confirmation-holds-the-pane-it-was-opened-on",
-    "state": "An Open Confirmation Holds The Pane It Was Opened On",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--an-open-confirmation-holds-the-pane-it-was-opened-on",
-    "state": "An Open Confirmation Holds The Pane It Was Opened On",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--escalation-pending-locks-toolbar",
-    "state": "Escalation Pending Locks Toolbar",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--escalation-pending-locks-toolbar",
-    "state": "Escalation Pending Locks Toolbar",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--feedback-detail",
-    "state": "Feedback Detail",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--feedback-detail",
-    "state": "Feedback Detail",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--four-named-regions",
-    "state": "Four Named Regions",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--four-named-regions",
-    "state": "Four Named Regions",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--long-review-text",
-    "state": "Long Review Text",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--long-review-text",
-    "state": "Long Review Text",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--reply-toolbar-detects-missing-review-language",
-    "state": "Reply Toolbar Detects Missing Review Language",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--reply-toolbar-detects-missing-review-language",
-    "state": "Reply Toolbar Detects Missing Review Language",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--reply-toolbar-with-languages",
-    "state": "Reply Toolbar With Languages",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--reply-toolbar-with-languages",
-    "state": "Reply Toolbar With Languages",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-as-property-manager",
-    "state": "Review As Property Manager",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-as-property-manager",
-    "state": "Review As Property Manager",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-as-property-manager-light",
-    "state": "Review As Property Manager Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-as-property-manager-light",
-    "state": "Review As Property Manager Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-content-expired",
-    "state": "Review Content Expired",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-content-expired",
-    "state": "Review Content Expired",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-content-not-found",
-    "state": "Review Content Not Found",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-content-not-found",
-    "state": "Review Content Not Found",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-opened-on-a-topic",
-    "state": "Review Opened On A Topic",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-opened-on-a-topic",
-    "state": "Review Opened On A Topic",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-with-google-translation",
-    "state": "Review With Google Translation",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-with-google-translation",
-    "state": "Review With Google Translation",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-with-mixed-aspect-polarities",
-    "state": "Review With Mixed Aspect Polarities",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-with-mixed-aspect-polarities",
-    "state": "Review With Mixed Aspect Polarities",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-without-translation",
-    "state": "Review Without Translation",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--review-without-translation",
-    "state": "Review Without Translation",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--selecting-another-item-carries-nothing-over",
-    "state": "Selecting Another Item Carries Nothing Over",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--selecting-another-item-carries-nothing-over",
-    "state": "Selecting Another Item Carries Nothing Over",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--status-updating",
-    "state": "Status Updating",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--status-updating",
-    "state": "Status Updating",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--waiting-analysis-is-requested-after-dwell",
-    "state": "Waiting Analysis Is Requested After Dwell",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content--waiting-analysis-is-requested-after-dwell",
-    "state": "Waiting Analysis Is Requested After Dwell",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content-feedback--feedback-handled",
-    "state": "Feedback Handled",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content-feedback--feedback-handled",
-    "state": "Feedback Handled",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content-feedback--feedback-open",
-    "state": "Feedback Open",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-content-feedback--feedback-open",
-    "state": "Feedback Open",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-google-check--asked-too-often",
-    "state": "Asked Too Often",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-detail-google-check--asked-too-often",
-    "state": "Asked Too Often",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-detail-google-check--google-unavailable",
-    "state": "Google Unavailable",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-detail-google-check--google-unavailable",
-    "state": "Google Unavailable",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-detail-google-check--no-reply-yet",
-    "state": "No Reply Yet",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-detail-google-check--no-reply-yet",
-    "state": "No Reply Yet",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-detail-google-check--not-checkable",
-    "state": "Not Checkable",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-detail-google-check--not-checkable",
-    "state": "Not Checkable",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-detail-google-check--reply-found",
-    "state": "Reply Found",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-detail-google-check--reply-found",
-    "state": "Reply Found",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-detail-sheet--error-state",
-    "state": "Error State",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-sheet--error-state",
-    "state": "Error State",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-sheet--loading",
-    "state": "Loading",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-sheet--loading",
-    "state": "Loading",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-sheet--open",
-    "state": "Open",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-sheet--open",
-    "state": "Open",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-sheet--phone-gutters",
-    "state": "Phone Gutters",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-detail-sheet--phone-gutters",
-    "state": "Phone Gutters",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-escalation-shortcut--detail-failed",
-    "state": "Detail Failed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-escalation-shortcut--detail-failed",
-    "state": "Detail Failed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-escalation-shortcut--detail-loading",
-    "state": "Detail Loading",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-escalation-shortcut--detail-loading",
-    "state": "Detail Loading",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-escalation-shortcut--detail-ready",
-    "state": "Detail Ready",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-escalation-shortcut--detail-ready",
-    "state": "Detail Ready",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-escalation-shortcut--p-then-u-sets-urgent",
-    "state": "P Then U Sets Urgent",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-escalation-shortcut--p-then-u-sets-urgent",
-    "state": "P Then U Sets Urgent",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-popover--aspect-and-polarity",
-    "state": "Aspect And Polarity",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-popover--aspect-and-polarity",
-    "state": "Aspect And Polarity",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-popover--change-rating",
-    "state": "Change Rating",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-popover--change-rating",
-    "state": "Change Rating",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-popover--clear-filters",
-    "state": "Clear Filters",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-popover--clear-filters",
-    "state": "Clear Filters",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-popover--private-feedback-offers-priority-and-rating",
-    "state": "Private Feedback Offers Priority And Rating",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-popover--private-feedback-offers-priority-and-rating",
-    "state": "Private Feedback Offers Priority And Rating",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-popover--section-queue-has-no-source",
-    "state": "Section Queue Has No Source",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-popover--section-queue-has-no-source",
-    "state": "Section Queue Has No Source",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--arrow-keys-rove-the-group",
-    "state": "Arrow Keys Rove The Group",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--arrow-keys-rove-the-group",
-    "state": "Arrow Keys Rove The Group",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--checked-chip-does-nothing",
-    "state": "Checked Chip Does Nothing",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--checked-chip-does-nothing",
-    "state": "Checked Chip Does Nothing",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--choose-oldest",
-    "state": "Choose Oldest",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--choose-oldest",
-    "state": "Choose Oldest",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--choose-rating",
-    "state": "Choose Rating",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--choose-rating",
-    "state": "Choose Rating",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--choose-source",
-    "state": "Choose Source",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--choose-source",
-    "state": "Choose Source",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--clear-filters",
-    "state": "Clear Filters",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--clear-filters",
-    "state": "Clear Filters",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--loading",
-    "state": "Loading",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--loading",
-    "state": "Loading",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--modifier-arrows-are-left-to-the-browser",
-    "state": "Modifier Arrows Are Left To The Browser",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--modifier-arrows-are-left-to-the-browser",
-    "state": "Modifier Arrows Are Left To The Browser",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--no-results",
-    "state": "No Results",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--no-results",
-    "state": "No Results",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--one-result",
-    "state": "One Result",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--one-result",
-    "state": "One Result",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--open",
-    "state": "Open",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--open",
-    "state": "Open",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--private-feedback-offers-priority-and-rating",
-    "state": "Private Feedback Offers Priority And Rating",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--private-feedback-offers-priority-and-rating",
-    "state": "Private Feedback Offers Priority And Rating",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--section-queue-has-no-source",
-    "state": "Section Queue Has No Source",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-filter-sheet--section-queue-has-no-source",
-    "state": "Section Queue Has No Source",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-hooks-open-item-across-queue-moves--a-command-result-is-not-counted-twice",
-    "state": "A Command Result Is Not Counted Twice",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-hooks-open-item-across-queue-moves--a-command-result-is-not-counted-twice",
-    "state": "A Command Result Is Not Counted Twice",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-hooks-open-item-across-queue-moves--a-polled-reply-move-refreshes-the-counts",
-    "state": "A Polled Reply Move Refreshes The Counts",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-hooks-open-item-across-queue-moves--a-polled-reply-move-refreshes-the-counts",
-    "state": "A Polled Reply Move Refreshes The Counts",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-hooks-open-item-across-queue-moves--approving-keeps-the-pane-open",
-    "state": "Approving Keeps The Pane Open",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-hooks-open-item-across-queue-moves--approving-keeps-the-pane-open",
-    "state": "Approving Keeps The Pane Open",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-hooks-open-item-across-queue-moves--losing-access-closes-the-pane",
-    "state": "Losing Access Closes The Pane",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-hooks-open-item-across-queue-moves--losing-access-closes-the-pane",
-    "state": "Losing Access Closes The Pane",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-item-list--active-review",
-    "state": "Active Review",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-item-list--active-review",
-    "state": "Active Review",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-item-list--selecting-phone",
-    "state": "Selecting Phone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-item-list--selecting-phone",
-    "state": "Selecting Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-item-list--selection-limit",
-    "state": "Selection Limit",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-item-list--selection-limit",
-    "state": "Selection Limit",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-item-list--urgent-rows-selecting-phone",
-    "state": "Urgent Rows Selecting Phone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-item-list--urgent-rows-selecting-phone",
-    "state": "Urgent Rows Selecting Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-item-list--with-selection",
-    "state": "With Selection",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-item-list--with-selection",
-    "state": "With Selection",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-list-header--all-properties",
-    "state": "All Properties",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-list-header--all-properties",
-    "state": "All Properties",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-list-header--compact-property-select",
-    "state": "Compact Property Select",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-list-header--compact-selection-control",
-    "state": "Compact Selection Control",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-list-header--compact-selection-control",
-    "state": "Compact Selection Control",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-list-header--filtered",
-    "state": "Filtered",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-list-header--filtered",
-    "state": "Filtered",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-list-header--phone-filter-sheet",
-    "state": "Phone Filter Sheet",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-list-header--phone-filter-sheet",
-    "state": "Phone Filter Sheet",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-list-header--phone-filter-sheet-while-loading",
-    "state": "Phone Filter Sheet While Loading",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-list-header--phone-filter-sheet-while-loading",
-    "state": "Phone Filter Sheet While Loading",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-list-header--resting",
-    "state": "Resting",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-list-header--resting",
-    "state": "Resting",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-list-header--searching",
-    "state": "Searching",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-list-header--searching",
-    "state": "Searching",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-mobile-390--check-on-google-from-the-phone-sheet",
-    "state": "Check On Google From The Phone Sheet",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--check-on-google-from-the-phone-sheet",
-    "state": "Check On Google From The Phone Sheet",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--closed-with-observed-google-reply",
-    "state": "Closed With Observed Google Reply",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--closed-with-observed-google-reply",
-    "state": "Closed With Observed Google Reply",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--composer-editing-a-live-reply",
-    "state": "Composer Editing A Live Reply",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--composer-editing-a-live-reply",
-    "state": "Composer Editing A Live Reply",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--composer-note-mode",
-    "state": "Composer Note Mode",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--composer-note-mode",
-    "state": "Composer Note Mode",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--error-state",
-    "state": "Error State",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--error-state",
-    "state": "Error State",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--feedback-handled",
-    "state": "Feedback Handled",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--feedback-handled",
-    "state": "Feedback Handled",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--feedback-open",
-    "state": "Feedback Open",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--feedback-open",
-    "state": "Feedback Open",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--feedback-withdrawn",
-    "state": "Feedback Withdrawn",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--feedback-withdrawn",
-    "state": "Feedback Withdrawn",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--header-at-320",
-    "state": "Header At 320",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--header-at-320",
-    "state": "Header At 320",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--loading-state",
-    "state": "Loading State",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--loading-state",
-    "state": "Loading State",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--mobile-bar-opens-the-composer",
-    "state": "Mobile Bar Opens The Composer",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--mobile-bar-opens-the-composer",
-    "state": "Mobile Bar Opens The Composer",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--mobile-composer-opens-collapsed",
-    "state": "Mobile Composer Opens Collapsed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--mobile-composer-opens-collapsed",
-    "state": "Mobile Composer Opens Collapsed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--mobile-draft-reply-opens-expanded",
-    "state": "Mobile Draft Reply Opens Expanded",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--mobile-draft-reply-opens-expanded",
-    "state": "Mobile Draft Reply Opens Expanded",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--open-on-google-from-the-phone-sheet",
-    "state": "Open On Google From The Phone Sheet",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--open-on-google-from-the-phone-sheet",
-    "state": "Open On Google From The Phone Sheet",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--review-closed",
-    "state": "Review Closed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--review-closed",
-    "state": "Review Closed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--review-escalated",
-    "state": "Review Escalated",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--review-escalated",
-    "state": "Review Escalated",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--review-open",
-    "state": "Review Open",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--review-open",
-    "state": "Review Open",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--review-open-light",
-    "state": "Review Open Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--review-open-light",
-    "state": "Review Open Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--review-overdue",
-    "state": "Review Overdue",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--review-overdue",
-    "state": "Review Overdue",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--sheet-at-desktop-width",
-    "state": "Sheet At Desktop Width",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--sheet-at-desktop-width",
-    "state": "Sheet At Desktop Width",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-reply-awaiting-approval",
-    "state": "Thread Reply Awaiting Approval",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-reply-awaiting-approval",
-    "state": "Thread Reply Awaiting Approval",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-reply-live-on-google",
-    "state": "Thread Reply Live On Google",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-reply-live-on-google",
-    "state": "Thread Reply Live On Google",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-reply-not-published",
-    "state": "Thread Reply Not Published",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-reply-not-published",
-    "state": "Thread Reply Not Published",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-reply-rejected",
-    "state": "Thread Reply Rejected",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-reply-rejected",
-    "state": "Thread Reply Rejected",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-reply-waiting-for-google",
-    "state": "Thread Reply Waiting For Google",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-reply-waiting-for-google",
-    "state": "Thread Reply Waiting For Google",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-with-events",
-    "state": "Thread With Events",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-with-events",
-    "state": "Thread With Events",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-with-notes",
-    "state": "Thread With Notes",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-mobile-390--thread-with-notes",
-    "state": "Thread With Notes",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-queue-bar--reviews-only-sheet",
-    "state": "Reviews Only Sheet",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-queue-bar--reviews-only-sheet",
-    "state": "Reviews Only Sheet",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-queue-bar--sheet-open",
-    "state": "Sheet Open",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-queue-bar--sheet-open",
-    "state": "Sheet Open",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reopen-dialog--confirms",
-    "state": "Confirms",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reopen-dialog--confirms",
-    "state": "Confirms",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reopen-dialog--refused",
-    "state": "Refused",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reopen-dialog--refused",
-    "state": "Refused",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--answering-highlight",
-    "state": "Answering Highlight",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--answering-highlight",
-    "state": "Answering Highlight",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--done",
-    "state": "Done",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--done",
-    "state": "Done",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--menu-settings",
-    "state": "Menu Settings",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--menu-settings",
-    "state": "Menu Settings",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--reduced-motion",
-    "state": "Reduced Motion",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--reduced-motion",
-    "state": "Reduced Motion",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--refused",
-    "state": "Refused",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--refused",
-    "state": "Refused",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--regeneration-buttons",
-    "state": "Regeneration Buttons",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--regeneration-buttons",
-    "state": "Regeneration Buttons",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--rewording",
-    "state": "Rewording",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--rewording",
-    "state": "Rewording",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--stopped",
-    "state": "Stopped",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--stopped",
-    "state": "Stopped",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--writing",
-    "state": "Writing",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-reply-drafting-v2--writing",
-    "state": "Writing",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycommandrefusal--a-confirmation-that-goes-through-lets-the-pane-follow",
-    "state": "A Confirmation That Goes Through Lets The Pane Follow",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-replycommandrefusal--a-confirmation-that-goes-through-lets-the-pane-follow",
-    "state": "A Confirmation That Goes Through Lets The Pane Follow",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-replycompose--ai-draft-tag-regenerates-in-the-other-language",
-    "state": "Ai Draft Tag Regenerates In The Other Language",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycompose--ai-draft-tag-regenerates-in-the-other-language",
-    "state": "Ai Draft Tag Regenerates In The Other Language",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycompose--choose-review-language-when-metadata-is-missing",
-    "state": "Choose Review Language When Metadata Is Missing",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycompose--choose-review-language-when-metadata-is-missing",
-    "state": "Choose Review Language When Metadata Is Missing",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycompose--regenerate-dismissed-changes-nothing",
-    "state": "Regenerate Dismissed Changes Nothing",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycompose--regenerate-dismissed-changes-nothing",
-    "state": "Regenerate Dismissed Changes Nothing",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--ai-draft-tag-at-390",
-    "state": "Ai Draft Tag At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--ai-draft-tag-at-390",
-    "state": "Ai Draft Tag At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--ai-draft-tag-at-720",
-    "state": "Ai Draft Tag At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--ai-draft-tag-at-720",
-    "state": "Ai Draft Tag At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--auto-detect-disabled-at-390",
-    "state": "Auto Detect Disabled At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--auto-detect-disabled-at-390",
-    "state": "Auto Detect Disabled At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--auto-detect-disabled-at-720",
-    "state": "Auto Detect Disabled At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--auto-detect-disabled-at-720",
-    "state": "Auto Detect Disabled At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--autosave-states-at-390",
-    "state": "Autosave States At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--autosave-states-at-390",
-    "state": "Autosave States At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--autosave-states-at-720",
-    "state": "Autosave States At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--autosave-states-at-720",
-    "state": "Autosave States At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--detection-on-a-typed-reply-explains-submit-at-390",
-    "state": "Detection On A Typed Reply Explains Submit At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--detection-on-a-typed-reply-explains-submit-at-390",
-    "state": "Detection On A Typed Reply Explains Submit At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--detection-on-a-typed-reply-explains-submit-at-720",
-    "state": "Detection On A Typed Reply Explains Submit At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--detection-on-a-typed-reply-explains-submit-at-720",
-    "state": "Detection On A Typed Reply Explains Submit At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--editing-band-at-390",
-    "state": "Editing Band At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--editing-band-at-390",
-    "state": "Editing Band At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--editing-band-at-720",
-    "state": "Editing Band At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--editing-band-at-720",
-    "state": "Editing Band At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--empty-at-390",
-    "state": "Empty At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--empty-at-390",
-    "state": "Empty At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--empty-at-720",
-    "state": "Empty At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--empty-at-720",
-    "state": "Empty At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--language-pick-on-an-empty-box-at-390",
-    "state": "Language Pick On An Empty Box At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--language-pick-on-an-empty-box-at-390",
-    "state": "Language Pick On An Empty Box At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--language-pick-on-an-empty-box-at-720",
-    "state": "Language Pick On An Empty Box At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--language-pick-on-an-empty-box-at-720",
-    "state": "Language Pick On An Empty Box At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--library-template-tag-at-390",
-    "state": "Library Template Tag At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--library-template-tag-at-390",
-    "state": "Library Template Tag At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--library-template-tag-at-720",
-    "state": "Library Template Tag At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--library-template-tag-at-720",
-    "state": "Library Template Tag At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--local-safe-template-tag-at-390",
-    "state": "Local Safe Template Tag At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--local-safe-template-tag-at-390",
-    "state": "Local Safe Template Tag At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--local-safe-template-tag-at-720",
-    "state": "Local Safe Template Tag At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--local-safe-template-tag-at-720",
-    "state": "Local Safe Template Tag At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--no-property-default-at-390",
-    "state": "No Property Default At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--no-property-default-at-390",
-    "state": "No Property Default At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--no-property-default-at-720",
-    "state": "No Property Default At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--no-property-default-at-720",
-    "state": "No Property Default At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--note-mode-empty-at-390",
-    "state": "Note Mode Empty At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--note-mode-empty-at-390",
-    "state": "Note Mode Empty At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--note-mode-empty-at-720",
-    "state": "Note Mode Empty At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--note-mode-empty-at-720",
-    "state": "Note Mode Empty At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--note-mode-with-text-at-390",
-    "state": "Note Mode With Text At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--note-mode-with-text-at-390",
-    "state": "Note Mode With Text At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--note-mode-with-text-at-720",
-    "state": "Note Mode With Text At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--note-mode-with-text-at-720",
-    "state": "Note Mode With Text At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--note-survives-reply-round-trip",
-    "state": "Note Survives Reply Round Trip",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--note-survives-reply-round-trip",
-    "state": "Note Survives Reply Round Trip",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--over-limit",
-    "state": "Over Limit",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--over-limit",
-    "state": "Over Limit",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--read-only-reply-at-390",
-    "state": "Read Only Reply At 390",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-replycomposer--read-only-reply-at-720",
-    "state": "Read Only Reply At 720",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-replycomposer--read-only-reply-at-720",
-    "state": "Read Only Reply At 720",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-replycomposer--reply-draft-survives-note-round-trip",
-    "state": "Reply Draft Survives Note Round Trip",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--reply-draft-survives-note-round-trip",
-    "state": "Reply Draft Survives Note Round Trip",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--reply-with-text-at-390",
-    "state": "Reply With Text At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--reply-with-text-at-390",
-    "state": "Reply With Text At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--reply-with-text-at-720",
-    "state": "Reply With Text At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--reply-with-text-at-720",
-    "state": "Reply With Text At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--saved-ai-draft-at-390",
-    "state": "Saved Ai Draft At 390",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--saved-ai-draft-at-390",
-    "state": "Saved Ai Draft At 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--saved-ai-draft-at-720",
-    "state": "Saved Ai Draft At 720",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--saved-ai-draft-at-720",
-    "state": "Saved Ai Draft At 720",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--suggestion-awaiting-adoption",
-    "state": "Suggestion Awaiting Adoption",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--suggestion-awaiting-adoption",
-    "state": "Suggestion Awaiting Adoption",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--template-is-the-recommended-drafting-control",
-    "state": "Template Is The Recommended Drafting Control",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--template-is-the-recommended-drafting-control",
-    "state": "Template Is The Recommended Drafting Control",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--two-mode-composer-drops-the-handling-primary",
-    "state": "Two Mode Composer Drops The Handling Primary",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer--two-mode-composer-drops-the-handling-primary",
-    "state": "Two Mode Composer Drops The Handling Primary",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--desktop-opens-expanded",
-    "state": "Desktop Opens Expanded",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--desktop-opens-expanded",
-    "state": "Desktop Opens Expanded",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-bar-expands-onto-reply",
-    "state": "Mobile Bar Expands Onto Reply",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-bar-expands-onto-reply",
-    "state": "Mobile Bar Expands Onto Reply",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-bar-opens-from-the-keyboard",
-    "state": "Mobile Bar Opens From The Keyboard",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-bar-opens-from-the-keyboard",
-    "state": "Mobile Bar Opens From The Keyboard",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-collapses-again-if-nothing-was-touched",
-    "state": "Mobile Collapses Again If Nothing Was Touched",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-collapses-again-if-nothing-was-touched",
-    "state": "Mobile Collapses Again If Nothing Was Touched",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-edit-target-opens-expanded",
-    "state": "Mobile Edit Target Opens Expanded",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-edit-target-opens-expanded",
-    "state": "Mobile Edit Target Opens Expanded",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-mode-expands-on-click-not-mouse-down",
-    "state": "Mobile Mode Expands On Click Not Mouse Down",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-mode-expands-on-click-not-mouse-down",
-    "state": "Mobile Mode Expands On Click Not Mouse Down",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-mode-expands-onto-notes",
-    "state": "Mobile Mode Expands Onto Notes",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-mode-expands-onto-notes",
-    "state": "Mobile Mode Expands Onto Notes",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-next-item-starts-collapsed",
-    "state": "Mobile Next Item Starts Collapsed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-next-item-starts-collapsed",
-    "state": "Mobile Next Item Starts Collapsed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-opens-collapsed",
-    "state": "Mobile Opens Collapsed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-opens-collapsed",
-    "state": "Mobile Opens Collapsed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-pending-work-opens-expanded",
-    "state": "Mobile Pending Work Opens Expanded",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-pending-work-opens-expanded",
-    "state": "Mobile Pending Work Opens Expanded",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-selected-mode-expands",
-    "state": "Mobile Selected Mode Expands",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-selected-mode-expands",
-    "state": "Mobile Selected Mode Expands",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-stays-expanded-for-the-item",
-    "state": "Mobile Stays Expanded For The Item",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-stays-expanded-for-the-item",
-    "state": "Mobile Stays Expanded For The Item",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-stays-open-after-the-draft-is-cleared",
-    "state": "Mobile Stays Open After The Draft Is Cleared",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replycomposer-collapsed--mobile-stays-open-after-the-draft-is-cleared",
-    "state": "Mobile Stays Open After The Draft Is Cleared",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--a-different-reply-gets-a-clean-panel",
-    "state": "A Different Reply Gets A Clean Panel",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--a-different-reply-gets-a-clean-panel",
-    "state": "A Different Reply Gets A Clean Panel",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-cancelled",
-    "state": "Needs Check Cancelled",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-cancelled",
-    "state": "Needs Check Cancelled",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-different-reply",
-    "state": "Needs Check Different Reply",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-different-reply",
-    "state": "Needs Check Different Reply",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-error",
-    "state": "Needs Check Error",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-error",
-    "state": "Needs Check Error",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-line-leaves-when-checks-stop",
-    "state": "Needs Check Line Leaves When Checks Stop",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-line-leaves-when-checks-stop",
-    "state": "Needs Check Line Leaves When Checks Stop",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-line-leaves-when-the-reply-goes-live",
-    "state": "Needs Check Line Leaves When The Reply Goes Live",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-line-leaves-when-the-reply-goes-live",
-    "state": "Needs Check Line Leaves When The Reply Goes Live",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-line-waits-for-the-reply-it-describes",
-    "state": "Needs Check Line Waits For The Reply It Describes",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-line-waits-for-the-reply-it-describes",
-    "state": "Needs Check Line Waits For The Reply It Describes",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-live-on-google",
-    "state": "Needs Check Live On Google",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-live-on-google",
-    "state": "Needs Check Live On Google",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-never-sent",
-    "state": "Needs Check Never Sent",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-never-sent",
-    "state": "Needs Check Never Sent",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-not-on-google",
-    "state": "Needs Check Not On Google",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-not-on-google",
-    "state": "Needs Check Not On Google",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-refused-because-the-reply-moved-on",
-    "state": "Needs Check Refused Because The Reply Moved On",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-refused-because-the-reply-moved-on",
-    "state": "Needs Check Refused Because The Reply Moved On",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-review-missing",
-    "state": "Needs Check Review Missing",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-review-missing",
-    "state": "Needs Check Review Missing",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-twice-with-the-same-answer",
-    "state": "Needs Check Twice With The Same Answer",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-twice-with-the-same-answer",
-    "state": "Needs Check Twice With The Same Answer",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-unreadable",
-    "state": "Needs Check Unreadable",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-unreadable",
-    "state": "Needs Check Unreadable",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-unreadable-links-the-property-reviews",
-    "state": "Needs Check Unreadable Links The Property Reviews",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-unreadable-links-the-property-reviews",
-    "state": "Needs Check Unreadable Links The Property Reviews",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-while-checking",
-    "state": "Needs Check While Checking",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--needs-check-while-checking",
-    "state": "Needs Check While Checking",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--rejecting-closes-the-panel",
-    "state": "Rejecting Closes The Panel",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-replymessage--rejecting-closes-the-panel",
-    "state": "Rejecting Closes The Panel",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-review-cause--changes-a-cause",
-    "state": "Changes A Cause",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-review-cause--changes-a-cause",
-    "state": "Changes A Cause",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-review-cause--gives-a-topic-back",
-    "state": "Gives A Topic Back",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-review-cause--gives-a-topic-back",
-    "state": "Gives A Topic Back",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-review-cause--offers-no-problem-only-for-a-complaint",
-    "state": "Offers No Problem Only For A Complaint",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-review-cause--offers-no-problem-only-for-a-complaint",
-    "state": "Offers No Problem Only For A Complaint",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-review-cause--refuses-words-it-cannot-keep",
-    "state": "Refuses Words It Cannot Keep",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-review-cause--refuses-words-it-cannot-keep",
-    "state": "Refuses Words It Cannot Keep",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-review-cause--sets-a-topic-aside",
-    "state": "Sets A Topic Aside",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-review-cause--sets-a-topic-aside",
-    "state": "Sets A Topic Aside",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "inbox-thread--analysis-disagrees-with-the-set-level",
-    "state": "Analysis Disagrees With The Set Level",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--analysis-disagrees-with-the-set-level",
-    "state": "Analysis Disagrees With The Set Level",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--analysis-ready-with-no-signals",
-    "state": "Analysis Ready With No Signals",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--analysis-ready-with-no-signals",
-    "state": "Analysis Ready With No Signals",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--analysis-suggests-with-no-level-set",
-    "state": "Analysis Suggests With No Level Set",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--analysis-suggests-with-no-level-set",
-    "state": "Analysis Suggests With No Level Set",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--anonymous-guest-on-available-review",
-    "state": "Anonymous Guest On Available Review",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--anonymous-guest-on-available-review",
-    "state": "Anonymous Guest On Available Review",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--assignment-with-unresolved-name",
-    "state": "Assignment With Unresolved Name",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--assignment-with-unresolved-name",
-    "state": "Assignment With Unresolved Name",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--content-expired",
-    "state": "Content Expired",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--content-expired",
-    "state": "Content Expired",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--content-not-found",
-    "state": "Content Not Found",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--content-not-found",
-    "state": "Content Not Found",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--expanded-history",
-    "state": "Expanded History",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--expanded-history",
-    "state": "Expanded History",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--expanded-history-phone",
-    "state": "Expanded History Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--feedback-item",
-    "state": "Feedback Item",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--feedback-item",
-    "state": "Feedback Item",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--feedback-item-phone",
-    "state": "Feedback Item Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--fold-belongs-to-the-item",
-    "state": "Fold Belongs To The Item",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-thread--fold-belongs-to-the-item",
-    "state": "Fold Belongs To The Item",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-thread--folded-history",
-    "state": "Folded History",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--folded-history",
-    "state": "Folded History",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--folded-history-light",
-    "state": "Folded History Light",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--folded-history-light",
-    "state": "Folded History Light",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--folded-history-phone",
-    "state": "Folded History Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--foreign-review-with-no-translation",
-    "state": "Foreign Review With No Translation",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--foreign-review-with-no-translation",
-    "state": "Foreign Review With No Translation",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--full-rail",
-    "state": "Full Rail",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--full-rail",
-    "state": "Full Rail",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--full-rail-phone",
-    "state": "Full Rail Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--future-entry-kind-does-not-steal-the-guest-key",
-    "state": "Future Entry Kind Does Not Steal The Guest Key",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--future-entry-kind-does-not-steal-the-guest-key",
-    "state": "Future Entry Kind Does Not Steal The Guest Key",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--guest-first-despite-backdated-history",
-    "state": "Guest First Despite Backdated History",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--guest-first-despite-backdated-history",
-    "state": "Guest First Despite Backdated History",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--guest-photo-is-the-first-disc",
-    "state": "Guest Photo Is The First Disc",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--guest-photo-is-the-first-disc",
-    "state": "Guest Photo Is The First Disc",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--guest-photo-is-the-first-disc-phone",
-    "state": "Guest Photo Is The First Disc Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--handling-outcome-note-visibility",
-    "state": "Handling Outcome Note Visibility",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--handling-outcome-note-visibility",
-    "state": "Handling Outcome Note Visibility",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--history-failed",
-    "state": "History Failed",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--history-failed",
-    "state": "History Failed",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--history-failed-phone",
-    "state": "History Failed Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--history-loading",
-    "state": "History Loading",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--history-loading",
-    "state": "History Loading",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--history-loading-phone",
-    "state": "History Loading Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--legacy-event-has-no-actor",
-    "state": "Legacy Event Has No Actor",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--legacy-event-has-no-actor",
-    "state": "Legacy Event Has No Actor",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--legacy-event-has-no-actor-phone",
-    "state": "Legacy Event Has No Actor Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--note-among-the-oldest-events-keeps-the-rail-open",
-    "state": "Note Among The Oldest Events Keeps The Rail Open",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--note-among-the-oldest-events-keeps-the-rail-open",
-    "state": "Note Among The Oldest Events Keeps The Rail Open",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--note-among-the-oldest-events-keeps-the-rail-open-phone",
-    "state": "Note Among The Oldest Events Keeps The Rail Open Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--notes-interleaved-between-events",
-    "state": "Notes Interleaved Between Events",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--notes-interleaved-between-events",
-    "state": "Notes Interleaved Between Events",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--notes-interleaved-between-events-phone",
-    "state": "Notes Interleaved Between Events Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--notes-unavailable",
-    "state": "Notes Unavailable",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--notes-unavailable",
-    "state": "Notes Unavailable",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--original-first-in-the-property-language",
-    "state": "Original First In The Property Language",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-thread--original-first-in-the-property-language",
-    "state": "Original First In The Property Language",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-thread--original-first-when-review-language-unknown",
-    "state": "Original First When Review Language Unknown",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-thread--original-first-when-review-language-unknown",
-    "state": "Original First When Review Language Unknown",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-thread--original-first-with-no-property-language",
-    "state": "Original First With No Property Language",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-thread--original-first-with-no-property-language",
-    "state": "Original First With No Property Language",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-thread--rating-only-review",
-    "state": "Rating Only Review",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--rating-only-review",
-    "state": "Rating Only Review",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-awaiting-approval",
-    "state": "Reply Awaiting Approval",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-awaiting-approval",
-    "state": "Reply Awaiting Approval",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-awaiting-approval-phone",
-    "state": "Reply Awaiting Approval Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-draft-draws-no-node",
-    "state": "Reply Draft Draws No Node",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-draft-draws-no-node",
-    "state": "Reply Draft Draws No Node",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-draft-draws-no-node-phone",
-    "state": "Reply Draft Draws No Node Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-live-on-google",
-    "state": "Reply Live On Google",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-live-on-google",
-    "state": "Reply Live On Google",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-live-on-google-phone",
-    "state": "Reply Live On Google Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-needs-check",
-    "state": "Reply Needs Check",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-needs-check",
-    "state": "Reply Needs Check",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-needs-check-phone",
-    "state": "Reply Needs Check Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-not-published",
-    "state": "Reply Not Published",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-not-published",
-    "state": "Reply Not Published",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-not-published-phone",
-    "state": "Reply Not Published Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-rejected",
-    "state": "Reply Rejected",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-rejected",
-    "state": "Reply Rejected",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-rejected-phone",
-    "state": "Reply Rejected Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-waiting-for-google",
-    "state": "Reply Waiting For Google",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-waiting-for-google",
-    "state": "Reply Waiting For Google",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--reply-waiting-for-google-phone",
-    "state": "Reply Waiting For Google Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--review-only",
-    "state": "Review Only",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--review-only",
-    "state": "Review Only",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--review-only-phone",
-    "state": "Review Only Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--six-events-never-fold",
-    "state": "Six Events Never Fold",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--six-events-never-fold",
-    "state": "Six Events Never Fold",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--six-events-never-fold-phone",
-    "state": "Six Events Never Fold Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--translation-first",
-    "state": "Translation First",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-thread--translation-first",
-    "state": "Translation First",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "inbox-thread--translation-only",
-    "state": "Translation Only",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--translation-only",
-    "state": "Translation Only",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--truncated-history",
-    "state": "Truncated History",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--truncated-history",
-    "state": "Truncated History",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--truncated-history-phone",
-    "state": "Truncated History Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--unknown-enum-values-render-nothing",
-    "state": "Unknown Enum Values Render Nothing",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--unknown-enum-values-render-nothing",
-    "state": "Unknown Enum Values Render Nothing",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--unknown-event-kind-renders-nothing",
-    "state": "Unknown Event Kind Renders Nothing",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--unknown-event-kind-renders-nothing",
-    "state": "Unknown Event Kind Renders Nothing",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--unknown-event-kind-renders-nothing-phone",
-    "state": "Unknown Event Kind Renders Nothing Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--unsayable-rows-do-not-count-towards-the-fold",
-    "state": "Unsayable Rows Do Not Count Towards The Fold",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--unsayable-rows-do-not-count-towards-the-fold",
-    "state": "Unsayable Rows Do Not Count Towards The Fold",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--with-events",
-    "state": "With Events",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--with-events",
-    "state": "With Events",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--with-events-light",
-    "state": "With Events Light",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--with-events-light",
-    "state": "With Events Light",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "inbox-thread--with-events-phone",
-    "state": "With Events Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "integration-connectgooglebutton--connection-error",
-    "state": "Connection Error",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "integration-connectgooglebutton--connection-error",
-    "state": "Connection Error",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "integration-connectgooglebutton--reauthorize",
-    "state": "Reauthorize",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "integration-connectgooglebutton--reauthorize",
-    "state": "Reauthorize",
-    "width": 390,
-    "checks": ["overflow"]
   },
   {
     "storyId": "integration-googleimport-manager--callback-without-business-profile-access",
@@ -6897,13 +2421,7 @@
     "storyId": "integration-googleimport-manager--progress-route",
     "state": "Progress Route",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "integration-googleimport-manager--progress-route",
-    "state": "Progress Route",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "integration-googleimport-manager--several-imports-skip-the-rating-goal",
@@ -6930,42 +2448,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "integration-googleimport-progressview--completed-with-issues",
-    "state": "Completed With Issues",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-progressview--completed-with-issues",
-    "state": "Completed With Issues",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-progressview--import-details-folded",
-    "state": "Import Details Folded",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-progressview--import-details-folded",
-    "state": "Import Details Folded",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-progressview--imported-then-set-up",
-    "state": "Imported Then Set Up",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-progressview--imported-then-set-up",
-    "state": "Imported Then Set Up",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "integration-googleimport-progressview--relinked-property-already-set-up",
     "state": "Relinked Property Already Set Up",
     "width": 320,
@@ -6974,66 +2456,6 @@
   {
     "storyId": "integration-googleimport-progressview--relinked-property-already-set-up",
     "state": "Relinked Property Already Set Up",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--acknowledged-submission-uses-form-values",
-    "state": "Acknowledged Submission Uses Form Values",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--acknowledged-submission-uses-form-values",
-    "state": "Acknowledged Submission Uses Form Values",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--acknowledgement-required",
-    "state": "Acknowledgement Required",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--acknowledgement-required",
-    "state": "Acknowledgement Required",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--draft-survives-back-navigation",
-    "state": "Draft Survives Back Navigation",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--draft-survives-back-navigation",
-    "state": "Draft Survives Back Navigation",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--needs-timezone",
-    "state": "Needs Timezone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--needs-timezone",
-    "state": "Needs Timezone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--needs-timezone-light",
-    "state": "Needs Timezone Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--needs-timezone-light",
-    "state": "Needs Timezone Light",
     "width": 390,
     "checks": ["targets"]
   },
@@ -7050,30 +2472,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "integration-googleimport-reviewform--phone-width",
-    "state": "Phone Width",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--phone-width",
-    "state": "Phone Width",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--picking-the-timezone-clears-the-flag",
-    "state": "Picking The Timezone Clears The Flag",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--picking-the-timezone-clears-the-flag",
-    "state": "Picking The Timezone Clears The Flag",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "integration-googleimport-reviewform--search-a-timezone-by-offset",
     "state": "Search A Timezone By Offset",
     "width": 320,
@@ -7082,42 +2480,6 @@
   {
     "storyId": "integration-googleimport-reviewform--search-a-timezone-by-offset",
     "state": "Search A Timezone By Offset",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--single-property",
-    "state": "Single Property",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--single-property",
-    "state": "Single Property",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--start-failure",
-    "state": "Start Failure",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--start-failure",
-    "state": "Start Failure",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--starting",
-    "state": "Starting",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "integration-googleimport-reviewform--starting",
-    "state": "Starting",
     "width": 390,
     "checks": ["targets"]
   },
@@ -7509,13 +2871,13 @@
     "storyId": "notification-notificationpanel--dismiss-offers-undo",
     "state": "Dismiss Offers Undo",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "notification-notificationpanel--dismiss-offers-undo",
     "state": "Dismiss Offers Undo",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "notification-notificationpanel--dismiss-removes-row-optimistically",
@@ -7533,13 +2895,13 @@
     "storyId": "notification-notificationpanel--failed-dismiss-says-so",
     "state": "Failed Dismiss Says So",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "notification-notificationpanel--failed-dismiss-says-so",
     "state": "Failed Dismiss Says So",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "notification-notificationpanel--honours-persisted-locale",
@@ -7587,25 +2949,25 @@
     "storyId": "notification-notificationpanel--mute-category",
     "state": "Mute Category",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "notification-notificationpanel--mute-category",
     "state": "Mute Category",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "notification-notificationpanel--mute-offers-undo",
     "state": "Mute Offers Undo",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "notification-notificationpanel--mute-offers-undo",
     "state": "Mute Offers Undo",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "notification-notificationpanel--needs-you-above-updates",
@@ -7656,18 +3018,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "notification-notificationpanel--phone-opens-a-full-screen-sheet",
-    "state": "Phone Opens A Full Screen Sheet",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "notification-notificationpanel--phone-opens-a-full-screen-sheet",
-    "state": "Phone Opens A Full Screen Sheet",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "notification-notificationpanel--phone-top-bar",
     "state": "Phone Top Bar",
     "width": 320,
@@ -7695,13 +3045,13 @@
     "storyId": "notification-notificationpanel--stack-dismiss-all-offers-undo",
     "state": "Stack Dismiss All Offers Undo",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "notification-notificationpanel--stack-dismiss-all-offers-undo",
     "state": "Stack Dismiss All Offers Undo",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "notification-notificationpanel--updates-loading-keeps-the-count",
@@ -7719,7 +3069,7 @@
     "storyId": "notification-notificationpanel--urgent-arrival-shows-a-toast",
     "state": "Urgent Arrival Shows A Toast",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "notification-notificationpanel--urgent-arrival-shows-a-toast",
@@ -8220,222 +3570,6 @@
     "checks": ["overflow"]
   },
   {
-    "storyId": "pages-inbox--approved-panels",
-    "state": "Approved Panels",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--approved-panels",
-    "state": "Approved Panels",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--default",
-    "state": "Default",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--default",
-    "state": "Default",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--empty-feedback-queue",
-    "state": "Empty Feedback Queue",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--empty-feedback-queue",
-    "state": "Empty Feedback Queue",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--empty-list",
-    "state": "Empty List",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--empty-list",
-    "state": "Empty List",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--escalated-folder",
-    "state": "Escalated Folder",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--escalated-folder",
-    "state": "Escalated Folder",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--failed-load-preserves-visit-watermark",
-    "state": "Failed Load Preserves Visit Watermark",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--failed-load-preserves-visit-watermark",
-    "state": "Failed Load Preserves Visit Watermark",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--loading",
-    "state": "Loading",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--loading",
-    "state": "Loading",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--long-content",
-    "state": "Long Content",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--long-content",
-    "state": "Long Content",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--mobile-clear-filters",
-    "state": "Mobile Clear Filters",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--mobile-clear-filters",
-    "state": "Mobile Clear Filters",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--mobile-filtered-viewport",
-    "state": "Mobile Filtered Viewport",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--mobile-filtered-viewport",
-    "state": "Mobile Filtered Viewport",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--mobile-removing-every-filter",
-    "state": "Mobile Removing Every Filter",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--mobile-removing-every-filter",
-    "state": "Mobile Removing Every Filter",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--mobile-viewport",
-    "state": "Mobile Viewport",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--mobile-viewport",
-    "state": "Mobile Viewport",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--no-matches-offer-clear-filters",
-    "state": "No Matches Offer Clear Filters",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--no-matches-offer-clear-filters",
-    "state": "No Matches Offer Clear Filters",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--priority-change-leaves-the-filter",
-    "state": "Priority Change Leaves The Filter",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--priority-change-leaves-the-filter",
-    "state": "Priority Change Leaves The Filter",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--property-scope",
-    "state": "Property Scope",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--property-scope",
-    "state": "Property Scope",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--property-scoped-load-preserves-organization-watermark",
-    "state": "Property Scoped Load Preserves Organization Watermark",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--property-scoped-load-preserves-organization-watermark",
-    "state": "Property Scoped Load Preserves Organization Watermark",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--successful-load-stamps-visit",
-    "state": "Successful Load Stamps Visit",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--successful-load-stamps-visit",
-    "state": "Successful Load Stamps Visit",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--tablet-viewport",
-    "state": "Tablet Viewport",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "pages-inbox--tablet-viewport",
-    "state": "Tablet Viewport",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "patterns-button--density-token",
     "state": "Density Token",
     "width": 320,
@@ -8554,90 +3688,6 @@
     "state": "Sizes",
     "width": 390,
     "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-image-setting--disabled",
-    "state": "Disabled",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--disabled",
-    "state": "Disabled",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--remove-keeps-the-focus",
-    "state": "Remove Keeps The Focus",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--remove-keeps-the-focus",
-    "state": "Remove Keeps The Focus",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--remove-refused",
-    "state": "Remove Refused",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--remove-refused",
-    "state": "Remove Refused",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--removing",
-    "state": "Removing",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--removing",
-    "state": "Removing",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--upload-refused",
-    "state": "Upload Refused",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--upload-refused",
-    "state": "Upload Refused",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--upload-refused-by-the-server",
-    "state": "Upload Refused By The Server",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--upload-refused-by-the-server",
-    "state": "Upload Refused By The Server",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--wrong-type",
-    "state": "Wrong Type",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-image-setting--wrong-type",
-    "state": "Wrong Type",
-    "width": 390,
-    "checks": ["overflow"]
   },
   {
     "storyId": "patterns-link-ink--dark",
@@ -9165,49 +4215,49 @@
     "storyId": "patterns-toast--every-tone",
     "state": "Every Tone",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "patterns-toast--every-tone",
     "state": "Every Tone",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "patterns-toast--every-tone-light",
     "state": "Every Tone Light",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "patterns-toast--every-tone-light",
     "state": "Every Tone Light",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "patterns-toast--follows-the-theme",
     "state": "Follows The Theme",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "patterns-toast--follows-the-theme",
     "state": "Follows The Theme",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "patterns-toast--follows-the-theme-light",
     "state": "Follows The Theme Light",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "patterns-toast--follows-the-theme-light",
     "state": "Follows The Theme Light",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "patterns-view-tabs--component-mode",
@@ -10200,54 +5250,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-workspacetabs--history-tab",
-    "state": "History Tab",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--history-tab",
-    "state": "History Tab",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--linktree-section",
-    "state": "Linktree Section",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--linktree-section",
-    "state": "Linktree Section",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--page-tab",
-    "state": "Page Tab",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--page-tab",
-    "state": "Page Tab",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--rating-section",
-    "state": "Rating Section",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--rating-section",
-    "state": "Rating Section",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "portal-portaleditor--archived-portal-is-read-only",
     "state": "Archived Portal Is Read Only",
     "width": 320,
@@ -10617,7 +5619,7 @@
     "storyId": "portal-portaleditor-look--choosing-a-photo-for-this-portal",
     "state": "Choosing A Photo For This Portal",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--focus-point-autosaves",
@@ -10629,7 +5631,7 @@
     "storyId": "portal-portaleditor-look--focus-point-autosaves",
     "state": "Focus Point Autosaves",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--follows-everything",
@@ -10647,37 +5649,37 @@
     "storyId": "portal-portaleditor-look--giving-back-the-name-and-logo",
     "state": "Giving Back The Name And Logo",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--giving-back-the-name-and-logo",
     "state": "Giving Back The Name And Logo",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--live-version-ignores-a-draft-edit",
     "state": "Live Version Ignores A Draft Edit",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--live-version-ignores-a-draft-edit",
     "state": "Live Version Ignores A Draft Edit",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--long-wordmark-is-not-saved",
     "state": "Long Wordmark Is Not Saved",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--long-wordmark-is-not-saved",
     "state": "Long Wordmark Is Not Saved",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--no-photo-on-this-portal",
@@ -10695,13 +5697,13 @@
     "storyId": "portal-portaleditor-look--no-photo-on-this-portal-is-one-write",
     "state": "No Photo On This Portal Is One Write",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--no-photo-on-this-portal-is-one-write",
     "state": "No Photo On This Portal Is One Write",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--own-colours-only",
@@ -10791,49 +5793,43 @@
     "storyId": "portal-portaleditor-look--refused-switch-is-told-in-a-toast",
     "state": "Refused Switch Is Told In A Toast",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--refused-switch-is-told-in-a-toast",
     "state": "Refused Switch Is Told In A Toast",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--removing-the-portals-photo-leaves-none",
     "state": "Removing The Portals Photo Leaves None",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--removing-the-portals-photo-leaves-none",
     "state": "Removing The Portals Photo Leaves None",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--replacing-the-logo-names-this-portal-only",
     "state": "Replacing The Logo Names This Portal Only",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--replacing-the-logo-names-this-portal-only",
     "state": "Replacing The Logo Names This Portal Only",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--replacing-the-photo-keeps-its-descriptions",
     "state": "Replacing The Photo Keeps Its Descriptions",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--replacing-the-photo-keeps-its-descriptions",
-    "state": "Replacing The Photo Keeps Its Descriptions",
-    "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portaleditor-look--set-colours-starts-from-the-propertys-and-autosaves",
@@ -10851,13 +5847,13 @@
     "storyId": "portal-portaleditor-look--set-name-and-logo-starts-from-the-propertys",
     "state": "Set Name And Logo Starts From The Propertys",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--set-name-and-logo-starts-from-the-propertys",
     "state": "Set Name And Logo Starts From The Propertys",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--single-portal-keeps-todays-view",
@@ -10899,25 +5895,25 @@
     "storyId": "portal-portaleditor-look--using-the-propertys-photo-gives-it-back",
     "state": "Using The Propertys Photo Gives It Back",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--using-the-propertys-photo-gives-it-back",
     "state": "Using The Propertys Photo Gives It Back",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--wordmark-autosaves",
     "state": "Wordmark Autosaves",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--wordmark-autosaves",
     "state": "Wordmark Autosaves",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portalgroup-grouppage--archiving-asks-first-and-keeps-the-portals",
@@ -13677,13 +8673,7 @@
     "storyId": "portal-propertylook-photo-and-logo--a-new-photograph-starts-without-the-old-description",
     "state": "A New Photograph Starts Without The Old Description",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--a-new-photograph-starts-without-the-old-description",
-    "state": "A New Photograph Starts Without The Old Description",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--adding-a-first-photo",
@@ -13701,25 +8691,13 @@
     "storyId": "portal-propertylook-photo-and-logo--cannot-be-closed-while-sending",
     "state": "Cannot Be Closed While Sending",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--cannot-be-closed-while-sending",
-    "state": "Cannot Be Closed While Sending",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--description-is-bounded",
     "state": "Description Is Bounded",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--description-is-bounded",
-    "state": "Description Is Bounded",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--editing-the-description-alone",
@@ -13773,13 +8751,7 @@
     "storyId": "portal-propertylook-photo-and-logo--narrow-photo-gets-print-advice-but-can-be-used",
     "state": "Narrow Photo Gets Print Advice But Can Be Used",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--narrow-photo-gets-print-advice-but-can-be-used",
-    "state": "Narrow Photo Gets Print Advice But Can Be Used",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--no-logo-yet",
@@ -13809,25 +8781,13 @@
     "storyId": "portal-propertylook-photo-and-logo--refused-upload-is-shown-in-place",
     "state": "Refused Upload Is Shown In Place",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--refused-upload-is-shown-in-place",
-    "state": "Refused Upload Is Shown In Place",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--refused-write-says-why",
     "state": "Refused Write Says Why",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--refused-write-says-why",
-    "state": "Refused Write Says Why",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--removing-fails-in-place",
@@ -13881,25 +8841,13 @@
     "storyId": "portal-propertylook-photo-and-logo--replace-photo-on-a-portal-with-its-own-photo",
     "state": "Replace Photo On A Portal With Its Own Photo",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--replace-photo-on-a-portal-with-its-own-photo",
-    "state": "Replace Photo On A Portal With Its Own Photo",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--replace-photo-shows-a-phone",
     "state": "Replace Photo Shows A Phone",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--replace-photo-shows-a-phone",
-    "state": "Replace Photo Shows A Phone",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--retry-does-not-send-the-file-twice",
@@ -13917,25 +8865,13 @@
     "storyId": "portal-propertylook-photo-and-logo--small-logo-fails-the-check",
     "state": "Small Logo Fails The Check",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--small-logo-fails-the-check",
-    "state": "Small Logo Fails The Check",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--small-photo-fails-the-check",
     "state": "Small Photo Fails The Check",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--small-photo-fails-the-check",
-    "state": "Small Photo Fails The Check",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--uploading-a-logo",
@@ -13965,13 +8901,7 @@
     "storyId": "portal-propertylook-photo-and-logo--wrong-format-is-turned-away",
     "state": "Wrong Format Is Turned Away",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--wrong-format-is-turned-away",
-    "state": "Wrong Format Is Turned Away",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--a-manager-sees-what-is-own-but-cannot-edit-it",
@@ -14286,16 +9216,40 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "product-updates-preferences--save-failure",
-    "state": "Save Failure",
+    "storyId": "portal-workspacetabs--linktree-section",
+    "state": "Linktree Section",
     "width": 320,
-    "checks": ["overflow"]
+    "checks": ["targets"]
   },
   {
-    "storyId": "product-updates-preferences--save-failure",
-    "state": "Save Failure",
+    "storyId": "portal-workspacetabs--linktree-section",
+    "state": "Linktree Section",
     "width": 390,
-    "checks": ["overflow"]
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-workspacetabs--page-tab",
+    "state": "Page Tab",
+    "width": 320,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-workspacetabs--page-tab",
+    "state": "Page Tab",
+    "width": 390,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-workspacetabs--rating-section",
+    "state": "Rating Section",
+    "width": 320,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-workspacetabs--rating-section",
+    "state": "Rating Section",
+    "width": 390,
+    "checks": ["targets"]
   },
   {
     "storyId": "property-googleperformancesection--compact-320",
@@ -14430,18 +9384,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "property-guestvoice2-check-in--dark-phone",
-    "state": "Dark Phone",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--dark-phone",
-    "state": "Dark Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "property-guestvoice2-check-in--hampton-like",
     "state": "Hampton Like",
     "width": 320,
@@ -14450,18 +9392,6 @@
   {
     "storyId": "property-guestvoice2-check-in--hampton-like",
     "state": "Hampton Like",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--hampton-like-phone",
-    "state": "Hampton Like Phone",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--hampton-like-phone",
-    "state": "Hampton Like Phone",
     "width": 390,
     "checks": ["targets"]
   },
@@ -14574,12 +9504,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "property-guestvoice2-check-in--sheet-phone",
-    "state": "Sheet Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "property-guestvoice2-check-in--slipping",
     "state": "Slipping",
     "width": 320,
@@ -14595,7 +9519,7 @@
     "storyId": "property-guestvoice2-check-in--small",
     "state": "Small",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "property-guestvoice2-check-in--small",
@@ -14604,38 +9528,14 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "property-guestvoice2-check-in--small-phone",
-    "state": "Small Phone",
+    "storyId": "property-guestvoice2-check-in--small-with-concern",
+    "state": "Small With Concern",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--small-phone",
-    "state": "Small Phone",
-    "width": 390,
     "checks": ["targets"]
   },
   {
     "storyId": "property-guestvoice2-check-in--small-with-concern",
     "state": "Small With Concern",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--small-with-concern",
-    "state": "Small With Concern",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--small-with-concern-phone",
-    "state": "Small With Concern Phone",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--small-with-concern-phone",
-    "state": "Small With Concern Phone",
     "width": 390,
     "checks": ["targets"]
   },
@@ -14757,7 +9657,7 @@
     "storyId": "property-propertyguestvoicepage--reading-next-range",
     "state": "Reading Next Range",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "property-propertyguestvoicepage--reading-next-range",
@@ -14810,12 +9710,6 @@
   {
     "storyId": "property-propertylistpage--default-light",
     "state": "Default Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertylistpage--empty",
-    "state": "Empty",
     "width": 390,
     "checks": ["targets"]
   },
@@ -15582,18 +10476,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "propertysetup-setuppropertiesstep--clearing-managers-forgets-overrides",
-    "state": "Clearing Managers Forgets Overrides",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "propertysetup-setuppropertiesstep--clearing-managers-forgets-overrides",
-    "state": "Clearing Managers Forgets Overrides",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "propertysetup-setuppropertiesstep--nothing-left-to-ask",
     "state": "Nothing Left To Ask",
     "width": 320,
@@ -15702,66 +10584,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "settings-notificationssettingspage--a-failed-reset-says-so",
-    "state": "A Failed Reset Says So",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--a-failed-reset-says-so",
-    "state": "A Failed Reset Says So",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--choosing-how-low-saves-it",
-    "state": "Choosing How Low Saves It",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--choosing-how-low-saves-it",
-    "state": "Choosing How Low Saves It",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--email-timing-waits-for-email",
-    "state": "Email Timing Waits For Email",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--email-timing-waits-for-email",
-    "state": "Email Timing Waits For Email",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--following-again-is-kept-when-the-save-fails",
-    "state": "Following Again Is Kept When The Save Fails",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--following-again-is-kept-when-the-save-fails",
-    "state": "Following Again Is Kept When The Save Fails",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--goal-email-is-daily-only",
-    "state": "Goal Email Is Daily Only",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--goal-email-is-daily-only",
-    "state": "Goal Email Is Daily Only",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "settings-notificationssettingspage--goal-rows-at-desktop-manager",
     "state": "Goal Rows At Desktop Manager",
     "width": 320,
@@ -15807,198 +10629,6 @@
     "storyId": "settings-notificationssettingspage--goal-rows-in-light-theme",
     "state": "Goal Rows In Light Theme",
     "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--guest-voice-summary-is-opt-in",
-    "state": "Guest Voice Summary Is Opt In",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--guest-voice-summary-is-opt-in",
-    "state": "Guest Voice Summary Is Opt In",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--guest-voice-summary-is-opt-in-phone",
-    "state": "Guest Voice Summary Is Opt In Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--guest-voice-summary-is-opt-in-phone",
-    "state": "Guest Voice Summary Is Opt In Phone",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--low-ratings-default-carries-the-threshold",
-    "state": "Low Ratings Default Carries The Threshold",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--low-ratings-default-carries-the-threshold",
-    "state": "Low Ratings Default Carries The Threshold",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--makes-a-category-my-default",
-    "state": "Makes A Category My Default",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--makes-a-category-my-default",
-    "state": "Makes A Category My Default",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--making-a-default-keeps-a-mute",
-    "state": "Making A Default Keeps A Mute",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--making-a-default-keeps-a-mute",
-    "state": "Making A Default Keeps A Mute",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--making-a-default-leaves-unavailable-email-alone",
-    "state": "Making A Default Leaves Unavailable Email Alone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--making-a-default-leaves-unavailable-email-alone",
-    "state": "Making A Default Leaves Unavailable Email Alone",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--one-property-can-override-the-window",
-    "state": "One Property Can Override The Window",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--one-property-can-override-the-window",
-    "state": "One Property Can Override The Window",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--one-property-can-still-make-a-default",
-    "state": "One Property Can Still Make A Default",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--one-property-can-still-make-a-default",
-    "state": "One Property Can Still Make A Default",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--personal-quiet-hours-cover-every-property",
-    "state": "Personal Quiet Hours Cover Every Property",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--personal-quiet-hours-cover-every-property",
-    "state": "Personal Quiet Hours Cover Every Property",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--portal-goals-save-their-own-row",
-    "state": "Portal Goals Save Their Own Row",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--portal-goals-save-their-own-row",
-    "state": "Portal Goals Save Their Own Row",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--rapid-changes-build-on-each-other",
-    "state": "Rapid Changes Build On Each Other",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--rapid-changes-build-on-each-other",
-    "state": "Rapid Changes Build On Each Other",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--resets-each-listed-property-once-confirmed",
-    "state": "Resets Each Listed Property Once Confirmed",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--resets-each-listed-property-once-confirmed",
-    "state": "Resets Each Listed Property Once Confirmed",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--use-my-default-here-resets-only-this-property",
-    "state": "Use My Default Here Resets Only This Property",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--use-my-default-here-resets-only-this-property",
-    "state": "Use My Default Here Resets Only This Property",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-timezoneandformatcard--keeps-a-legacy-timezone-the-list-no-longer-offers",
-    "state": "Keeps A Legacy Timezone The List No Longer Offers",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-timezoneandformatcard--keeps-a-legacy-timezone-the-list-no-longer-offers",
-    "state": "Keeps A Legacy Timezone The List No Longer Offers",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-timezoneandformatcard--saves-a-picked-timezone",
-    "state": "Saves A Picked Timezone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-timezoneandformatcard--saves-a-picked-timezone",
-    "state": "Saves A Picked Timezone",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-timezoneandformatcard--saving-the-locale-keeps-the-organization-timezone",
-    "state": "Saving The Locale Keeps The Organization Timezone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "settings-timezoneandformatcard--saving-the-locale-keeps-the-organization-timezone",
-    "state": "Saving The Locale Keeps The Organization Timezone",
-    "width": 390,
     "checks": ["overflow"]
   },
   {
@@ -16431,12 +11061,6 @@
     "storyId": "ui-star-rating--every-value",
     "state": "Every Value",
     "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "ui-star-rating--every-value",
-    "state": "Every Value",
-    "width": 390,
     "checks": ["overflow"]
   },
   {

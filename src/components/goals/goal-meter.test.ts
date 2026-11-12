@@ -21,7 +21,7 @@ const meter = (props: Partial<Parameters<typeof GoalMeter>[0]> = {}) =>
   )
 
 describe('GoalMeter', () => {
-  it('draws at every width, in the column the card gives it', () => {
+  it('stacks its parts in one flex column', () => {
     expect(meter()).toContain('class="flex flex-col gap-1.5"')
   })
 

@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
 import { createImportReviewDraft } from './google-import-review-model'
 import {
+  createGoogleImportDiscoveryState,
+  reduceGoogleImportDiscoveryState,
   isConfirmingDetails,
   selectAllEligibleCandidates,
   filterLoadedCandidates,
@@ -99,6 +101,44 @@ describe('Google import loaded-row selection', () => {
     expect(filterLoadedCandidates(loaded, 'bakery')).toEqual([loaded[0]])
     expect(filterLoadedCandidates(loaded, 'oak')).toEqual([loaded[0]])
     expect(filterLoadedCandidates(loaded, 'secret-reference')).toEqual([])
+  })
+})
+
+describe('Google import discovery reducer', () => {
+  const start = () => createGoogleImportDiscoveryState('conn', false, false)
+
+  it('selects, deselects and clears the selection when the account changes', () => {
+    let state = reduceGoogleImportDiscoveryState(start(), {
+      type: 'set_selection',
+      selectedIds: new Set(['a', 'b']),
+    })
+    expect([...state.selectedIds]).toEqual(['a', 'b'])
+
+    state = reduceGoogleImportDiscoveryState(state, {
+      type: 'set_selection',
+      selectedIds: new Set(['b']),
+    })
+    expect([...state.selectedIds]).toEqual(['b'])
+
+    state = reduceGoogleImportDiscoveryState(state, {
+      type: 'select_account',
+      accountRef: 'other',
+    })
+    expect(state.selectedIds.size).toBe(0)
+  })
+
+  it('keeps the selection and holds only the draft when review starts', () => {
+    const draft = createImportReviewDraft([candidate('a')])
+    const selected = reduceGoogleImportDiscoveryState(start(), {
+      type: 'set_selection',
+      selectedIds: new Set(['a']),
+    })
+    const state = reduceGoogleImportDiscoveryState(selected, { type: 'review', draft })
+
+    expect(state.step).toBe('review')
+    expect(state.reviewDraft).toBe(draft)
+    expect([...state.selectedIds]).toEqual(['a'])
+    expect('reviewCandidates' in state).toBe(false)
   })
 })
 

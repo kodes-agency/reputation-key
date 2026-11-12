@@ -138,7 +138,7 @@ describe('durable work through PostgreSQL', () => {
     expect((await store.inspect(org, row.id))?.attempts).toBe(0)
   })
 
-  it.each(['insert-notification', 'sync-property-reviews'])(
+  it.each(['sync-property-reviews'])(
     'completes %s from IDs-only reconciliation through the real policy gate',
     async (kind) => {
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))

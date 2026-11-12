@@ -1,10 +1,9 @@
-import { createHash } from 'node:crypto'
+import { digestOf } from './ai-digest'
 import {
   getCountries,
   parsePhoneNumberFromString,
   type CountryCode,
 } from 'libphonenumber-js/max'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import { AI_UNICODE_CASE_FOLDING_V17 } from './generated/ai-unicode-case-folding-v17'
 import { ADDRESS_MARKER_PROFILE, findAddressMarkers } from './ai-address-markers'
 import {
@@ -24,8 +23,8 @@ import {
 
 export const AI_STRUCTURED_MARKER_DETECTORS_VERSION =
   'structured-marker-detectors-v1' as const
-export const MAX_AI_STRUCTURED_MARKER_CANDIDATES_V1 = 64
-export const MAX_AI_STRUCTURED_MARKER_INPUT_SCALARS_V1 = 65_536
+const MAX_AI_STRUCTURED_MARKER_CANDIDATES_V1 = 64
+const MAX_AI_STRUCTURED_MARKER_INPUT_SCALARS_V1 = 65_536
 
 export const AI_CLOSED_PLACEHOLDERS = Object.freeze([
   '[PERSON]',
@@ -212,10 +211,10 @@ const DETECTOR_MANIFEST = Object.freeze({
   ]),
 })
 
-export const AI_STRUCTURED_MARKER_DETECTORS_DIGEST = createHash('sha256')
-  .update('repkey-structured-marker-detectors-profile-v1\0', 'utf8')
-  .update(canonicalizeRfc8785(DETECTOR_MANIFEST), 'utf8')
-  .digest('hex')
+export const AI_STRUCTURED_MARKER_DETECTORS_DIGEST = digestOf(
+  'repkey-structured-marker-detectors-profile-v1\0',
+  DETECTOR_MANIFEST,
+)
 
 type Candidate = Readonly<{
   start: number

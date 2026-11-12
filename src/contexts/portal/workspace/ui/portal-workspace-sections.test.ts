@@ -1,4 +1,5 @@
-// The Share, History and Results sections own what they read. A section that is
+// The Share section owns what it reads, and the History section hands its tab the
+// reads to make (`portal-history-parts.test.ts` covers the tab's parts). A section that is
 // still reading says so itself, one that cannot read says so and offers to try
 // again, and neither holds up the rest of the workspace. Once its reads answer
 // it forwards what the route loaded to its screen; the screens are correct on
@@ -11,13 +12,12 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PortalPublicationState } from '#/components/features/portal/shared/types'
-import type { PortalPublicationHistory } from '#/contexts/portal/application/portal-management-contracts'
 import type {
   PortalDetailPortal,
   PortalResponsibleManagerState,
 } from './portal-detail-types'
 import { PortalHistorySection } from './portal-history-section'
-import type { PortalHistoryReads } from './portal-history-tab'
+import type { PortalHistoryReads } from './portal-history-context'
 import type { SectionRead } from './portal-read-state'
 import { PortalShareSection, type PortalShareCommands } from './portal-share-section'
 
@@ -74,19 +74,13 @@ const MANAGERS: PortalResponsibleManagerState = {
   responsibilityNeededSince: null,
 }
 
-const HISTORY: PortalPublicationHistory = {
-  current: null,
-  priorActivations: [],
-  hasPendingChanges: true,
-  nextCursor: null,
-}
-
 /** A server function the sections only pass along, never call. */
 const serverFn = <T>() => vi.fn() as unknown as T
 
 const HISTORY_READS: PortalHistoryReads = {
   getHistory: serverFn(),
   getVersions: serverFn(),
+  getPublicationHistory: serverFn(),
   getVersion: serverFn(),
   getVersionPreview: serverFn(),
 }
@@ -164,15 +158,11 @@ function renderShare(
   )
 }
 
-function renderHistory(
-  state: ReadState,
-  publicationState: PortalPublicationState = 'published',
-): string {
+function renderHistory(publicationState: PortalPublicationState = 'published'): string {
   return renderToStaticMarkup(
     createElement(PortalHistorySection, {
       portal: portalIn(publicationState),
       timeZone: 'Europe/Sofia',
-      history: read(HISTORY, state),
       reads: HISTORY_READS,
       makeLive: action(),
     }),
@@ -253,47 +243,40 @@ describe('the Share section', () => {
 })
 
 describe('the History section', () => {
-  it('says it is loading while the publication history is read', () => {
-    expect(renderHistory('loading')).toContain('Loading publication history')
-    expect(histories).toHaveLength(0)
+  it('draws the tab at once: the tab’s parts read for themselves', () => {
+    renderHistory()
+
+    expect(histories).toHaveLength(1)
   })
 
-  it('says the history could not be loaded, and offers to try again', () => {
-    const markup = renderHistory('failed')
-
-    expect(markup).toContain('The publication history couldn’t be loaded.')
-    expect(markup).toContain('Try again')
-    expect(histories).toHaveLength(0)
-  })
-
-  it('tells the tab how many changes the draft holds and whether the page is live', () => {
-    renderHistory('ready')
+  it('tells the tab whether the page is live and who may switch the live version', () => {
+    renderHistory()
 
     expect(histories[0]).toMatchObject({
       portalId: 'portal-1',
       timeZone: 'Europe/Sofia',
-      pendingChangeCount: 1,
       pageIsLive: true,
       mayMakeLive: true,
+      reads: HISTORY_READS,
     })
   })
 
   it('does not let a viewer without portal.update switch the live version', () => {
     permissions.canUpdate = false
-    renderHistory('ready')
+    renderHistory()
 
     expect(histories[0]).toMatchObject({ mayMakeLive: false })
   })
 
   it('does not let anyone switch the live version while portal writes are off', () => {
     permissions.hasWrite = false
-    renderHistory('ready')
+    renderHistory()
 
     expect(histories[0]).toMatchObject({ mayMakeLive: false })
   })
 
   it('knows a page that is not published is not live', () => {
-    renderHistory('ready', 'draft')
+    renderHistory('draft')
 
     expect(histories[0]).toMatchObject({ pageIsLive: false })
   })

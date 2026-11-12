@@ -126,16 +126,6 @@ export const ReadyOnANarrowPhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
-export const ReadyOnAPhone: Story = {
-  ...ReadyOnANarrowPhone,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-}
-
-export const ReadyOnATablet: Story = {
-  ...ReadyOnANarrowPhone,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-}
-
 export const ReadyOnADesktop: Story = {
   ...ReadyOnANarrowPhone,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
@@ -337,4 +327,9 @@ export const ScheduledOnANarrowPhone: Story = {
 export const ScheduledOnADesktop: Story = {
   ...Scheduled,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
+}
+
+export const ReadyOnATablet: Story = {
+  ...ReadyOnANarrowPhone,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }

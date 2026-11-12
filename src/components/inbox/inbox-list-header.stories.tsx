@@ -22,7 +22,7 @@ const TWO_FILTERS: InboxListFilterValues = {
 // Phone stories fill the window like the real panel does; the fixed 400px
 // frame is the tablet-and-up list column.
 const PHONE_FRAME = 'w-full'
-const COLUMN_FRAME = 'w-[400px] border-x'
+const COLUMN_FRAME = 'w-[400px] max-w-full border-x'
 
 function HeaderStory({
   filtered = false,
@@ -110,7 +110,7 @@ export const AllProperties: Story = {
     onClearFilters: () => undefined,
   },
   render: (args) => (
-    <div className="w-[400px] border-x">
+    <div className="w-[400px] max-w-full border-x">
       <InboxListHeader {...args} />
     </div>
   ),
@@ -133,7 +133,7 @@ export const CompactSelectionControl: Story = {
     isCompactLayout: true,
   },
   render: (args) => (
-    <div className="w-[820px] border-x">
+    <div className="w-[820px] max-w-full border-x">
       <InboxListHeader {...args} />
     </div>
   ),
@@ -157,7 +157,7 @@ function PropertySelectStory({ phone = false }: { phone?: boolean }) {
   const scopeLabel =
     scopeHotels.find((hotel) => hotel.id === activePropertyId)?.name ?? 'All properties'
   return (
-    <div className={phone ? PHONE_FRAME : 'w-[390px] border-x'}>
+    <div className={phone ? PHONE_FRAME : 'w-[390px] max-w-full border-x'}>
       <InboxListHeader
         queue="reply"
         queueLabel="Needs reply"

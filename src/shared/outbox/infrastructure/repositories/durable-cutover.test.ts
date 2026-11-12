@@ -64,9 +64,9 @@ import { reviewCreated } from '#/contexts/review/domain/events'
 import type { Review } from '#/contexts/review/domain/types'
 import { createAtomicReviewCommandStore } from '#/contexts/review/infrastructure/review-command-store'
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
-import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
-import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
-import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
+import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
+import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
+import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
@@ -77,11 +77,8 @@ import {
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
-import { registerInboxConsumers } from '#/contexts/inbox/infrastructure/outbox-consumers'
-import { createReplyObservationAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-observation-authority.adapter'
-import { createSourceTransitionAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/source-transition-authority.adapter'
-import { createReviewResponseTargetAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/review-response-target-authority.adapter'
-import { rebuildInboxProjection } from '#/contexts/inbox/application/use-cases/rebuild-inbox-projection'
+import { registerInboxConsumers } from '#/contexts/reputation/inbox/outbox-consumers.server'
+import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import { createInboxItem as buildInboxItem } from '#/contexts/inbox/domain/constructors'
 import type {
   ReviewLookupPort,
@@ -441,15 +438,9 @@ beforeAll(async () => {
       () => consumerNow,
     ),
     handlingCycleStore: createReviewHandlingCycleStore(db),
-    replyObservationAuthority: createReplyObservationAuthorityAdapter(
-      createReviewReplyObservationAuthority(db),
-    ),
-    responseTargetAuthority: createReviewResponseTargetAuthorityAdapter(
-      createReviewResponseTargetAuthority(db),
-    ),
-    sourceTransitionAuthority: createSourceTransitionAuthorityAdapter(
-      createReviewSourceTransitionAuthority(db),
-    ),
+    replyObservationAuthority: createReviewReplyObservationAuthority(db),
+    responseTargetAuthority: createReviewResponseTargetAuthority(db),
+    sourceTransitionAuthority: createReviewSourceTransitionAuthority(db),
     reviewLookup: makeReviewLookup(),
     reviewSourceLookup: makeReviewSourceLookup(),
     inboxRepo: createInboxRepository(db, stubEnrichmentPorts, {
@@ -716,9 +707,7 @@ describe.sequential('outbox delivery end-to-end proof', () => {
       ),
       reviewSourceLookup: makeReviewSourceLookup(),
       replyLookup: makeReplyLookup(),
-      replyObservationAuthority: createReplyObservationAuthorityAdapter(
-        createReviewReplyObservationAuthority(db),
-      ),
+      replyObservationAuthority: createReviewReplyObservationAuthority(db),
       idGen,
       clock: () => REBUILD_AT,
       logger: noopLogger,

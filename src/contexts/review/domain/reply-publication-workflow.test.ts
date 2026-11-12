@@ -115,37 +115,11 @@ describe('reply publication helpers', () => {
       expect(classifyPublicationFailure(err)).toBe('ambiguous')
     })
 
-    it.each(['auth_failed', 'permission_denied'])(
-      'gateway GbpApiError %s → terminal_rejection',
-      (kind) => {
-        const err = Object.assign(new Error(`GBP reply failed (${kind})`), {
-          _tag: 'GbpApiError',
-          kind,
-        })
-        expect(classifyPublicationFailure(err)).toBe('terminal_rejection')
-      },
-    )
-
-    it('gateway GbpApiError rate_limited → retryable', () => {
-      const err = Object.assign(new Error('GBP reply failed (rate_limited)'), {
-        _tag: 'GbpApiError',
-        kind: 'rate_limited',
-      })
-      expect(classifyPublicationFailure(err)).toBe('retryable')
-    })
-
-    it('gateway GbpApiError upstream_error → ambiguous', () => {
+    it('a provider failure that is not a Review error reads as ambiguous', () => {
       const err = Object.assign(new Error('GBP reply failed (upstream_error)'), {
         _tag: 'GbpApiError',
         kind: 'upstream_error',
-      })
-      expect(classifyPublicationFailure(err)).toBe('ambiguous')
-    })
-
-    it('gateway GbpApiError parse_error → ambiguous', () => {
-      const err = Object.assign(new Error('GBP reply response could not be parsed'), {
-        _tag: 'GbpApiError',
-        kind: 'parse_error',
+        dispatch: 'not_sent',
       })
       expect(classifyPublicationFailure(err)).toBe('ambiguous')
     })
@@ -354,6 +328,14 @@ describe('reply publication helpers', () => {
       expect(classifyPublicationFailure(err)).toBe(expected)
     })
 
+    const providerError = (code: string, failure?: Record<string, unknown>) =>
+      Object.assign(new Error('Google review API request failed'), {
+        _tag: 'GoogleReviewApiError',
+        code,
+        recoverable: true,
+        ...(failure === undefined ? {} : { failure }),
+      })
+
     it.each([
       [
         'not_sent + malformed_request',
@@ -362,11 +344,7 @@ describe('reply publication helpers', () => {
       ],
       [
         'not_sent + admission coordination outage',
-        {
-          dispatch: 'not_sent',
-          executionCode: 'admission_denied',
-          executionAdmissionCode: 'coordination_unavailable',
-        },
+        { dispatch: 'not_sent', executionCode: 'coordination_unavailable' },
         'retryable',
       ],
       [
@@ -374,36 +352,30 @@ describe('reply publication helpers', () => {
         { dispatch: 'answered', providerStatus: 404 },
         'terminal_rejection',
       ],
+      ['answered 429', { dispatch: 'answered', providerStatus: 429 }, 'retryable'],
       ['answered 503', { dispatch: 'answered', providerStatus: 503 }, 'ambiguous'],
       [
-        'unknown dispatch keeps the kind rule',
+        'unknown dispatch keeps the code rule',
         { dispatch: 'unknown', executionCode: 'transport_error' },
         'ambiguous',
       ],
-      ['no dispatch field keeps the kind rule', {}, 'ambiguous'],
-    ])('gateway GbpApiError upstream_error with %s', (_label, fields, expected) => {
-      const err = Object.assign(
-        new Error('GBP API reviews.reply failed (upstream_error)'),
-        {
-          _tag: 'GbpApiError',
-          kind: 'upstream_error',
-          ...fields,
-        },
-      )
-      expect(classifyPublicationFailure(err)).toBe(expected)
+    ])('provider_unavailable with %s', (_label, failure, expected) => {
+      expect(
+        classifyPublicationFailure(providerError('provider_unavailable', failure)),
+      ).toBe(expected)
     })
 
-    it('a GbpApiError refusal stays terminal even when it was refused before dispatch', () => {
-      const err = Object.assign(
-        new Error('GBP API reviews.reply failed (permission_denied)'),
-        {
-          _tag: 'GbpApiError',
-          kind: 'permission_denied',
-          dispatch: 'not_sent',
-          executionCode: 'admission_denied',
-          executionAdmissionCode: 'authorization_denied',
-        },
+    it('provider_rate_limited without evidence → retryable', () => {
+      expect(classifyPublicationFailure(providerError('provider_rate_limited'))).toBe(
+        'retryable',
       )
+    })
+
+    it('an authorization refusal stays terminal even when it was refused before dispatch', () => {
+      const err = providerError('authorization_changed', {
+        dispatch: 'not_sent',
+        executionCode: 'authorization_denied',
+      })
       expect(classifyPublicationFailure(err)).toBe('terminal_rejection')
     })
   })
@@ -475,22 +447,17 @@ describe('reply publication helpers', () => {
       })
     })
 
-    it('reads the most specific code from a gateway GbpApiError', () => {
-      const err = Object.assign(
-        new Error('GBP API reviews.reply failed (upstream_error)'),
-        {
-          _tag: 'GbpApiError',
-          kind: 'upstream_error',
-          dispatch: 'answered',
-          executionCode: 'admission_denied',
-          executionAdmissionCode: 'coordination_unavailable',
-          providerStatus: 502,
-        },
-      )
-      expect(publicationFailureEvidence(err)).toEqual({
-        executionCode: 'coordination_unavailable',
+    it('reads nothing from a provider failure that is not a Review error', () => {
+      const err = Object.assign(new Error('GBP API reviews.reply failed'), {
+        _tag: 'GbpApiError',
+        kind: 'upstream_error',
         dispatch: 'answered',
         providerStatus: 502,
+      })
+      expect(publicationFailureEvidence(err)).toEqual({
+        executionCode: null,
+        dispatch: 'unknown',
+        providerStatus: null,
       })
     })
 

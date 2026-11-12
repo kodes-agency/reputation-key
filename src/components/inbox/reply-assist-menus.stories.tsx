@@ -125,6 +125,7 @@ const meta: Meta<typeof Harness> = {
             typeof parameters.paneWidth === 'number'
               ? parameters.paneWidth
               : PANE_WIDTH_PX,
+          maxWidth: '100%',
         }}
       >
         <Story />

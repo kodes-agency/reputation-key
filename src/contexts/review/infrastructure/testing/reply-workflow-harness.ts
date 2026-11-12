@@ -180,8 +180,7 @@ function providerError(
   })
 }
 
-const isSimulated = (error: unknown): boolean =>
-  typeof error === 'object' && error !== null && SIMULATED in error
+const isSimulated = (error: unknown) => error instanceof Error && SIMULATED in error
 
 function seedReview(locationName: string): Omit<Review, 'createdAt' | 'updatedAt'> {
   const expiresAt = new Date(STARTED_AT.getTime() + CONTENT_TTL_MS)
@@ -549,6 +548,7 @@ export async function createReplyWorkflowHarness(
     replyRepo,
     reviewRepo,
     googleReviewApi,
+    googleConnectionStatus: { findStatus: async () => null },
     googleReplyObservationStore: observationStore,
     readBeforePublish: createReplyPreReadForTests({
       db,

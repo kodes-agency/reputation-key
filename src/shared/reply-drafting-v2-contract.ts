@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from './canonical-json'
+import { digestOf } from './ai-digest'
 import { parseCanonicalReplyLanguageTag } from './ai-review-language-catalogue'
 import {
   hasProhibitedReplyCommitment,
@@ -39,36 +38,34 @@ export function hasSpanishReplyCommitment(text: string): boolean {
   return SPANISH_COMMITMENTS.test(folded) || SPANISH_FREE.test(folded)
 }
 
-export const REPLY_DRAFTING_V2_PROFILE_DIGEST = createHash('sha256')
-  .update('repkey-personalized-reply-v4\0')
-  .update(
-    canonicalizeRfc8785({
-      version: REPLY_DRAFTING_V2_VERSIONS.profile,
-      languages: REPLY_DRAFTING_V2_LANGUAGES,
-      bodyNormalization: 'nfkc;collapse-whitespace;prose-semicolon-to-full-stop',
-      historicalCommitmentAuthority: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
-      spanish: [SPANISH_COMMITMENTS, SPANISH_FREE].map((p) => p.toString()),
-      schema: {
-        cases: [
-          'praise',
-          'praise_with_issue',
-          'mixed',
-          'complaint',
-          'serious',
-          'money',
-          'unclear',
-        ],
-        mainPoint: [1, 2],
-        avoidTerms: [0, 8, 2, 40],
-        replyText: [24, 1200],
-      },
-      sentenceReferences: 'all-present',
-      avoidance: 'accent-case-fold;word-edge-through-four;word-start-plus-four-above',
-      lint: REPLY_BODY_LINT_DIGEST,
-      leakage: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
-    }),
-  )
-  .digest('hex')
+export const REPLY_DRAFTING_V2_PROFILE_DIGEST = digestOf(
+  'repkey-personalized-reply-v4\0',
+  {
+    version: REPLY_DRAFTING_V2_VERSIONS.profile,
+    languages: REPLY_DRAFTING_V2_LANGUAGES,
+    bodyNormalization: 'nfkc;collapse-whitespace;prose-semicolon-to-full-stop',
+    historicalCommitmentAuthority: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+    spanish: [SPANISH_COMMITMENTS, SPANISH_FREE].map((p) => p.toString()),
+    schema: {
+      cases: [
+        'praise',
+        'praise_with_issue',
+        'mixed',
+        'complaint',
+        'serious',
+        'money',
+        'unclear',
+      ],
+      mainPoint: [1, 2],
+      avoidTerms: [0, 8, 2, 40],
+      replyText: [24, 1200],
+    },
+    sentenceReferences: 'all-present',
+    avoidance: 'accent-case-fold;word-edge-through-four;word-start-plus-four-above',
+    lint: REPLY_BODY_LINT_DIGEST,
+    leakage: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
+  },
+)
 
 export type ReplyDraftingV2Acceptance =
   | Readonly<{
@@ -93,7 +90,7 @@ function languageOf(tag: string): Language | null {
  * Only prose changes: a semicolon glued between two tokens is not punctuation, so
  * it stays and is refused.
  */
-export function normalizeReplyDraftingV2Body(text: string): string {
+function normalizeReplyDraftingV2Body(text: string): string {
   return text
     .normalize('NFKC')
     .replace(/\s+/gu, ' ')

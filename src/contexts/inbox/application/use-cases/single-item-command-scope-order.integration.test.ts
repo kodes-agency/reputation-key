@@ -37,7 +37,7 @@ import { escalateInboxItem } from './escalate-inbox-item'
 import { markFeedbackHandled } from './mark-feedback-handled'
 import { resolveEscalation } from './resolve-escalation'
 import { setInboxItemPriority } from './set-inbox-item-priority'
-import { updateInboxStatus } from './update-inbox-status'
+import { updateInboxStatus } from '#/contexts/reputation/inbox/update-inbox-status.server'
 
 const NOW = new Date('2026-10-13T09:00:00.000Z')
 const ORG_ID = organizationId('org-scope-order-test')

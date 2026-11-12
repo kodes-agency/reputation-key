@@ -13,21 +13,21 @@ import { NotificationPanel } from '#/components/features/notification/notificati
 import type { NotificationServerFns } from '#/components/features/notification/types'
 import { useThemeMode } from '#/components/hooks/use-theme-mode'
 import { ThemeModeMenuControl } from '#/components/layout/theme-mode-menu-control'
-import { BetaFeedbackLauncher } from '#/components/features/beta-feedback/beta-feedback-launcher'
+import { BetaFeedbackLauncher } from '#/contexts/identity/feedback/ui/beta-feedback-launcher'
 import type {
   ListMyBetaFeedback,
   SubmitBetaFeedback,
-} from '#/components/features/beta-feedback/beta-feedback-form-context'
+} from '#/contexts/identity/feedback/ui/beta-feedback-form-context'
 import { IconButton } from '#/components/ui/icon-button'
 import { lazy, Suspense, useEffect, useId, useState } from 'react'
 import type { ProductUpdatesClientGetter } from '#/shared/whats-new/types'
 import {
   AccountButtonUpdatesDot,
   WhatsNewMenuItem,
-} from '#/components/features/whats-new/whats-new-menu-item'
+} from '#/contexts/identity/updates/ui/whats-new-menu-item'
 
 const ProductUpdatesIdle = lazy(
-  () => import('#/components/features/whats-new/product-updates-idle'),
+  () => import('#/contexts/identity/updates/ui/product-updates-idle'),
 )
 
 type Props = Readonly<{

@@ -118,6 +118,8 @@ export function composeRightsExecutors(
       operator: deps.operator,
     }),
     createReportingRightsExecutor(deps.db, now),
+    // Staff rows reference Portals, and Guest and Reporting rows reference Staff;
+    // restore replay repeats this order.
     createStaffRightsExecutor(deps.db),
     createPortalRightsExecutor({
       db: deps.db,

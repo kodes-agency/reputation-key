@@ -6,6 +6,7 @@ import {
   createRightsJournal,
   rightsJournalEntry,
 } from '#/shared/ops/rights/rights-journal'
+import { RIGHTS_REQUEST_SCOPES } from '#/shared/ops/rights/rights-request-command'
 import { composeRightsExecutors, composeRightsReplayers } from './rights-executors'
 
 const NOTIFICATION_REPLAYERS = createNotificationRightsReplayers()
@@ -51,6 +52,16 @@ describe('composeRightsExecutors', () => {
       for (const context of executor.journalContexts) {
         expect(BACKUP_ERASURE_LEDGER_CONTEXTS).toContain(context)
       }
+    }
+  })
+
+  it('journals each context once per scope, so every entry has one place in the apply order', () => {
+    const executors = composeRightsExecutors(deps, false)
+    for (const scope of RIGHTS_REQUEST_SCOPES) {
+      const contexts = executors
+        .filter(({ scopes }) => scopes.includes(scope))
+        .flatMap(({ journalContexts }) => journalContexts)
+      expect(new Set(contexts).size, scope).toBe(contexts.length)
     }
   })
 

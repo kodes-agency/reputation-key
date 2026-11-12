@@ -27,6 +27,7 @@ import {
   CARD_DAY_8,
 } from './portal-goal-check-in.stories.fixtures'
 import type { PortalGoalCommands } from './portal-goal-card-ready'
+import { MIN_TARGET_PX } from '#/shared/testing/phone-width'
 import { PortalGoalSection } from './portal-goal-section'
 import { SEAVIEW } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
 import {
@@ -188,7 +189,10 @@ export const CheckIn: Story = {
   },
 }
 
-/** At 320 px the buttons wrap, and each can be tapped. */
+/**
+ * At 320 px every button of the card is there and carries the wrap and touch-size
+ * classes; this runner compiles no Tailwind, so it measures neither.
+ */
 export const CheckIn320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   play: async ({ canvasElement }) => {
@@ -197,8 +201,18 @@ export const CheckIn320: Story = {
     const region = regionOf(canvas)
     for (const name of ['Use 45', 'Keep 40', 'Other number']) {
       const button = region.getByRole('button', { name })
-      await expect(button.className).toContain('max-md:min-h-(--control-touch)')
-      await expect(button.parentElement?.className).toContain('flex-wrap')
+      const box = button.getBoundingClientRect()
+      await expect(box.height).toBeGreaterThanOrEqual(MIN_TARGET_PX)
+      // The touch size itself, not a height the button happens to reach.
+      const view = canvasElement.ownerDocument.defaultView!
+      await expect(
+        parseFloat(view.getComputedStyle(button).minHeight),
+      ).toBeGreaterThanOrEqual(MIN_TARGET_PX)
+      await expect(view.getComputedStyle(button.parentElement!).flexWrap).toBe('wrap')
+      // Wrapped onto the line below, not pushed past the screen's edge.
+      await expect(box.right).toBeLessThanOrEqual(
+        canvasElement.ownerDocument.documentElement.clientWidth,
+      )
     }
   },
 }
@@ -206,11 +220,6 @@ export const CheckIn320: Story = {
 export const CheckInOnAPhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => expectCheckIn(within(canvasElement)),
-}
-
-export const CheckInOnATablet: Story = {
-  ...CheckInOnAPhone,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
 }
 
 export const CheckInOnADesktop: Story = {
@@ -466,4 +475,9 @@ export const Day8Hidden: Story = {
       }),
     ).toBeVisible()
   },
+}
+
+export const CheckInOnATablet: Story = {
+  ...CheckInOnAPhone,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }

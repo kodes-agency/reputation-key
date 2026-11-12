@@ -9,7 +9,7 @@
 // Rating and Reviews are Google's own number and count (decision 16). The
 // Google goal column (decision 13) shows where the reader may read goals and
 // Goals are on; it reads the stored goal, never a live evaluation.
-import { useState } from 'react'
+import { useServedNow } from '#/components/hooks/served-clock'
 import {
   DataTable,
   DataTableBody,
@@ -71,7 +71,7 @@ function SortHead({
 }
 
 export function PropertyListTable({ rows, view, fleet, setup, onSort }: Props) {
-  const [now] = useState(() => new Date())
+  const now = useServedNow()
   const { can } = usePermissions()
   const { has } = useCapabilities()
   const figures = fleet !== 'unavailable'

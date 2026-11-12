@@ -18,8 +18,7 @@
 //
 // A control's geometry for the owner and escalation members is the Button's
 // `iconBelow="md"`: 32 px from `md` up, a glyph square below it, as wide as the
-// Button is tall there (the compact density's 36 px: row 20 — WCAG 2.5.8 AA asks
-// for 24 px, and 44 px on every strip control is what inflated v1's row). The
+// Button is tall there (the 44 px touch height). The
 // priority member is the same square, but by the TOOLBAR's width and not the
 // window's (`iconBelow="@lg"`): the detail pane is as narrow as 424 px of toolbar
 // on a 1280 px laptop (`inbox-priority-control.tsx`). The status control is

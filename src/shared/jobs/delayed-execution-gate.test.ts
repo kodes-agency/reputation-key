@@ -150,10 +150,10 @@ describe('gateJob — request building (stubbed policy)', () => {
   it('leaves organizationId empty for org-scoped rows without a payload org (missing_scope)', async () => {
     installStub()
     decideMock.mockResolvedValue(
-      decision({ reason: 'missing_scope', action: 'system:notification.insert' }),
+      decision({ reason: 'missing_scope', action: 'system:notification.email_urgent' }),
     )
 
-    const outcome = await gateJob('insert-notification', {}, 'worker:default', 'worker')
+    const outcome = await gateJob('urgent-email', {}, 'worker:default', 'worker')
 
     expect(lastRequest().organizationId).toBe('')
     expect(outcome.kind).toBe('deny_terminal')
@@ -547,27 +547,5 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
 
     expect(outcome.kind).toBe('allow')
     expect(outcome.decision.action).toBe('system:goal.maintain')
-  })
-
-  it('an Organization-scoped insert-notification job allows without a Property', async () => {
-    installRealPolicy({})
-
-    const outcome = await gateJob(
-      'insert-notification',
-      {
-        userId: 'user-1',
-        organizationId: 'org-fixture',
-        propertyId: null,
-        type: 'account.organization_access_removed',
-        resourceType: 'organization',
-        resourceId: 'org-fixture',
-        eventId: 'evt-11',
-      },
-      'worker:default',
-      'worker',
-    )
-
-    expect(outcome.kind).toBe('allow')
-    expect(outcome.decision.action).toBe('system:notification.insert')
   })
 })

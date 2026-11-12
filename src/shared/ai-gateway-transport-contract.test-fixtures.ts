@@ -10,7 +10,6 @@
 // and the production-artifact walkers already exclude it from production trees.
 
 import {
-  type PropertyTrendGatewayRequestV1,
   type ReplySuggestionGatewayRequestV1,
   type ReviewAnalysisGatewayRequestV1,
 } from './ai-gateway-transport-contract'
@@ -18,11 +17,22 @@ import {
   canonicalizeRawAiReviewSentences,
   canonicalizeRawAiReviewSource,
 } from './ai-review-source-contract'
+import { LANGUAGE_CATALOGUE_DIGEST } from './ai-review-language-catalogue'
+import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from './ai-reply-language-verifier'
+import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from './ai-language-script-consistency'
+import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from './ai-zh-orthography-verifier'
+import { AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST } from './ai-reply-output-leakage'
+import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from './ai-reply-template-catalogue'
+import { resolveReplyDraftingV2Options } from './reply-drafting-v2-request'
+import type { ReviewAnalysisV3GatewayResult } from './review-analysis-v3-request'
+import {
+  REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
+  REVIEW_ANALYSIS_NORMALIZATION_VERSION,
+} from './review-analysis-v3-normalizer'
 import { OPENAI_PROVIDER_ATTESTATION_V1 } from './ai-openai-provider-attestation'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 as AI_PROVIDER_DEPLOYMENT_PROFILE } from './ai-provider-deployment-profile'
 import { providerRequestProfileOf } from './ai-provider-attestations'
 import { resolveReviewPropertyContext } from './review-vocabulary-hints'
-import { computeDeterministicTrendCandidates } from './ai-property-trend-contract'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -42,7 +52,7 @@ const SHA = 'a'.repeat(64)
 
 /**
  * The v2-form review-analysis request, with the binding the live catalogue serves for
- * the routes that did not change at the switch-on. Reply and trend requests are built
+ * the routes that did not change at the switch-on. Reply requests are built
  * on its binding (the deployment profile, the notice) and overwrite what is theirs;
  * review analysis itself is no longer served in this form (`analysisRequest` is), so
  * the live transport refuses it as cross-wired: it is the retired form.
@@ -170,13 +180,13 @@ export function analysisRequest(): ReviewAnalysisGatewayRequestV1 {
   return analysisV3Request()
 }
 
-export function replyRequest(): ReplySuggestionGatewayRequestV1 {
+function replyBaseRequest(): ReplySuggestionGatewayRequestV1 {
   const analysis = v2FormAnalysisRequest()
   return {
     ...analysis,
     route: 'reply-suggestion',
     actorId: 'better-auth-user_01',
-    replyProfileVersion: 'reply-draft-v3',
+    replyProfileVersion: 'reply-draft-v4',
     brandProfile: { displayName: 'Example Hotel' },
     tone: 'professional',
     binding: {
@@ -204,65 +214,101 @@ export function replyRequest(): ReplySuggestionGatewayRequestV1 {
   }
 }
 
-const baselineWindow = {
-  reviewCount: 20,
-  sentimentCounts: { positive: 4, neutral: 8, negative: 6, mixed: 2 },
-  attentionCounts: { urgent: 2, high: 4, medium: 6, low: 8 },
-  aspectCounts: [
-    { aspect: 'service', polarity: 'positive', count: 2 },
-    { aspect: 'staff', polarity: 'neutral', count: 4 },
-    { aspect: 'other', polarity: 'negative', count: 8 },
-  ],
-} as const
-const currentWindow = {
-  reviewCount: 20,
-  sentimentCounts: { positive: 14, neutral: 2, negative: 2, mixed: 2 },
-  attentionCounts: { urgent: 0, high: 2, medium: 4, low: 14 },
-  aspectCounts: [
-    { aspect: 'service', polarity: 'positive', count: 10 },
-    { aspect: 'staff', polarity: 'neutral', count: 2 },
-    { aspect: 'other', polarity: 'negative', count: 2 },
-  ],
-} as const
-
-export function trendRequest(): PropertyTrendGatewayRequestV1 {
-  const analysis = v2FormAnalysisRequest()
-  const candidates = computeDeterministicTrendCandidates({
-    currentWindow,
-    baselineWindow,
-  })
+/** The reply request the live catalogue serves: numbered source, options and frame. */
+export function replyRequest(
+  text = 'We waited a long time. The room was quiet.',
+  languageCode = 'en-Latn',
+): ReplySuggestionGatewayRequestV1 {
+  const base = replyBaseRequest()
+  const raw = {
+    text,
+    languageCode,
+    rating: 2 as const,
+    reviewedAtEpochMillis: base.source.reviewedAtEpochMillis,
+    reviewerDisplayName: null,
+  }
   return {
-    route: 'property-trend',
-    operationId: analysis.operationId,
-    permitId: analysis.permitId,
-    attemptNumber: analysis.attemptNumber,
-    organizationId: analysis.organizationId,
-    propertyId: analysis.propertyId,
-    internalSubjectId: 'property_trend_subject_01',
-    actorId: null,
+    ...base,
+    replyProfileVersion: 'reply-draft-v4',
     binding: {
-      ...analysis.binding,
-      capabilityFence: {
-        capability: 'property_trends',
-        reviewAnalysisEpoch: 1,
-        propertyTrendsEpoch: 1,
+      ...base.binding,
+      languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
+      operationProfileVersion: 'reply-suggestion-v2',
+      providerDeploymentProfileVersion: 'private-beta-global-v3',
+      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v2',
+      evaluatedLanguage: languageCode,
+      concreteReplyLanguage: { tag: languageCode, templateGroup: languageCode },
+      replyLanguageVerifierDigest: AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
+      languageScriptConsistencyDigest: AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST,
+      zhOrthographyVerifierDigest: AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST,
+      outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
+      replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
+      replyDraftingV2: {
+        options: resolveReplyDraftingV2Options({ languageCode, variation: 1 }),
+        voiceDigest: 'a'.repeat(64),
+        generationSeed: 'b'.repeat(64),
+        parentOperationId: null,
+        rewriteOrdinal: 0,
+        rewriteIssues: [],
       },
-      evaluatedLanguage: null,
-      languageCatalogueDigest: null,
-      sourceRevision: null,
-      reviewedAtEpochMillis: null,
-      operationProfileVersion: 'property-trend-v1',
-      capabilityRuntimeProfileVersion: 'property-trends-runtime-v1',
-      aiSubjectHmacKeyVersion: null,
     },
-    deadlineEpochMillis: 1_780_000_100_000,
     source: {
-      languageCode: 'en',
-      currentWindow,
-      baselineWindow,
-      candidates,
+      ...base.source,
+      text: canonicalizeRawAiReviewSource(raw).text,
+      rating: raw.rating,
+      languageCode: raw.languageCode,
+      kind: 'review',
+      sentences: [...canonicalizeRawAiReviewSentences(raw)],
+    },
+    replyV2Frame: {
+      voiceDigest: 'a'.repeat(64),
+      reviewerDisplayName: 'Jane',
+      businessName: 'Example Hotel',
+      contact: 'private@example.test',
+      signerName: 'Manager',
+      signerTitle: 'Owner',
+      candidates: [
+        {
+          prefix: '',
+          suffix: '',
+          thanks: false,
+          choices: {
+            closing: -1,
+            signOff: 0,
+            contactSentence: 0,
+            emoji: 0,
+            includeContact: true,
+          },
+        },
+      ],
     },
   }
+}
+
+/** What the gateway answers a v3 request with: one normalized mention and what normalizing it did. */
+export const analysisV3Result: ReviewAnalysisV3GatewayResult = {
+  contract: 'review-analysis-v3',
+  answer: {
+    sentiment: 'negative',
+    mentions: [
+      {
+        topic: 'speed_waiting',
+        polarity: 'negative',
+        strength: 'clear',
+        thing: 'check-in',
+        issue: 'slow',
+        sentences: [2],
+        names_person: null,
+      },
+    ],
+    urgent: null,
+  },
+  normalization: {
+    version: REVIEW_ANALYSIS_NORMALIZATION_VERSION,
+    digest: REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
+    flags: ['sentence_refs_repaired'],
+    droppedMentionCount: 1,
+  },
 }
 
 export const receipt = {

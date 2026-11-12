@@ -67,7 +67,7 @@ const noOutcomeSentence = (closeReason: FeedbackHandlingState['closeReason']): s
  * with no action below leaves `Add note` primary for the plainer reason that
  * there is nothing else for the accent to be.
  *
- * Below `md` it is 36 px, the Inbox's compact density, so it matches the note
+ * Below `md` it is 44 px, the Button's touch height, so it matches the note
  * form's `Add note` directly above it (`inbox-notes-thread.tsx`) and the reply
  * footer's controls (`reply-composer-footer.tsx`): region 4's column of controls
  * keeps one height.

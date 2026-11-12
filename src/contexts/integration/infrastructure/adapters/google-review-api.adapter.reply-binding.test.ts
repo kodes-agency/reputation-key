@@ -175,9 +175,9 @@ describe('a Google reply write and the permit that authorizes it', () => {
       const { api, execute, authorizeReplyPublicationProviderCall } = adapterGiven(permit)
 
       await expect(api.replyToReview({ ...REQUEST })).rejects.toMatchObject({
-        _tag: 'GoogleReviewApiError',
-        code: 'authorization_changed',
-        recoverable: false,
+        _tag: 'GbpApiError',
+        code: 'permission_denied',
+        dispatch: 'not_sent',
       })
       // The refusal is the adapter's own: the authorizer answered.
       expect(authorizeReplyPublicationProviderCall).toHaveBeenCalledTimes(1)

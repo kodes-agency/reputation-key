@@ -151,10 +151,10 @@ reply authorization proof) are listed with their reason in
   preferences, delivery windows and unsubscribe scopes. On `organization` it
   deletes the Organization's rows in every notification table. Work runs in
   bounded batches and a stopped run resumes by running again.
-- **apply** on `organization final-warning` runs only this executor and queues the final warning instead
-  of deleting: one per current account admin and one per former member, with no
-  Property. Like the automatic warning, it names the Organization. Send it
-  before the purge; the job ids repeat safely for one
-  `verification` reference.
+- **apply** on `organization final-warning` runs only this executor and writes the final warning instead
+  of deleting: one notice per current account admin and one per former member,
+  with no Property, all on one transaction. Like the automatic warning, it names the Organization. Send it
+  before the purge; a repeat for one `verification` reference folds into the
+  waiting notice without a second email.
 
 Closing an Organization erases every Property in it: export first.

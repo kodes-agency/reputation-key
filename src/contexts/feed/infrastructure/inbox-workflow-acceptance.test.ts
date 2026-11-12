@@ -34,8 +34,8 @@ import {
 } from '#/shared/testing/notification-route-producer-fixtures'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
-import { handleWorkflowNotificationEvent } from './workflow-outbox-consumers'
-import type { InsertNotificationJobData } from './jobs/insert-notification.job'
+import { handleWorkflowNotificationEvent } from '../notify/inbox-workflow.server'
+import type { QueuedNotice } from './notification-consumer-test-fixtures'
 
 beforeAll(registerAllEventSchemas)
 beforeEach(() => {
@@ -228,7 +228,7 @@ describe('Inbox workflow facts through their producers and dispatcher', () => {
       }))
       expect(retried.slice(0, attempted.length)).toEqual(attempted)
       for (const { data, options } of retried) {
-        const job = data as InsertNotificationJobData
+        const job = data as QueuedNotice
         expect(options).toEqual({ jobId: `${event.eventId}-${job.userId}` })
       }
       expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(

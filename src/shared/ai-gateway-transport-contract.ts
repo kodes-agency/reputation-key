@@ -11,32 +11,14 @@ import {
   type AiExecutionBindingV1,
   type AiSettlementReceiptV1,
 } from './ai-internal-transport-contract'
-import {
-  computeDeterministicTrendCandidates,
-  validateDeterministicAggregateWindow,
-  type DeterministicAggregateWindow,
-  type DeterministicTrendCandidate,
-} from './ai-property-trend-contract'
-import {
-  REPLY_TEMPLATE_LANGUAGE_GROUPS,
-  parseCanonicalReplyLanguageTag,
-} from './ai-review-language-catalogue'
+import { parseCanonicalReplyLanguageTag } from './ai-review-language-catalogue'
 import {
   AI_RUNTIME_CAPABILITIES_V1,
   isExecutionCompatibleWithConsent,
 } from './ai-runtime-capability-contract'
-import type {
-  AiAnalysisV2Output,
-  AiTrendSelectionOutput,
-} from './ai-route-output-schemas'
-import {
-  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-  type PersonalizedReplyDraft,
-} from './ai-personalized-reply-profile'
 import { AI_PROVIDER_IDS } from './ai-provider-ids'
 import { MAX_AI_REVIEW_SENTENCES_V1 } from './ai-review-source-contract'
 import {
-  REVIEW_ANALYSIS_V3_OPERATION_PROFILE,
   reviewSentencesAreNumberedFromOne,
   type ReviewAnalysisV3GatewayResult,
   reviewSentencesMatchText,
@@ -142,121 +124,6 @@ const replyBrandProfileSchema = z
   })
   .strict()
 
-const replyLocalFrameSchema = z
-  .object({
-    prefix: z.string().max(2_000),
-    suffix: z.string().max(4_096),
-    voiceDigest: z.string().regex(/^[0-9a-f]{64}$/),
-    reviewerDisplayName: z.string().max(200).nullable(),
-    contact: z.string().max(200).nullable(),
-    signerName: z.string().max(120).nullable(),
-    signerTitle: z.string().max(120).nullable(),
-    businessName: z.string().max(120),
-  })
-  .strict()
-
-type PropertyTrendProviderInputV1 = Readonly<{
-  languageCode: 'en'
-  currentWindow: DeterministicAggregateWindow
-  baselineWindow: DeterministicAggregateWindow
-  candidates: readonly DeterministicTrendCandidate[]
-}>
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function hasExactKeys(
-  value: Record<string, unknown>,
-  expected: readonly string[],
-): boolean {
-  const actual = Object.keys(value).sort()
-  const sortedExpected = [...expected].sort()
-  return (
-    actual.length === sortedExpected.length &&
-    actual.every((key, index) => key === sortedExpected[index])
-  )
-}
-
-function candidatesEqual(
-  actual: unknown,
-  expected: readonly DeterministicTrendCandidate[],
-): actual is readonly DeterministicTrendCandidate[] {
-  if (
-    !Array.isArray(actual) ||
-    actual.length !== expected.length ||
-    actual.length === 0
-  ) {
-    return false
-  }
-  return actual.every((value, index) => {
-    if (
-      !isPlainRecord(value) ||
-      !hasExactKeys(value, [
-        'id',
-        'baselineNumerator',
-        'baselineDenominator',
-        'currentNumerator',
-        'currentDenominator',
-      ])
-    ) {
-      return false
-    }
-    const canonical = expected[index]!
-    return (
-      value.id === canonical.id &&
-      value.baselineNumerator === canonical.baselineNumerator &&
-      value.baselineDenominator === canonical.baselineDenominator &&
-      value.currentNumerator === canonical.currentNumerator &&
-      value.currentDenominator === canonical.currentDenominator
-    )
-  })
-}
-
-function parsePropertyTrendProviderInput(value: unknown): PropertyTrendProviderInputV1 {
-  if (
-    !isPlainRecord(value) ||
-    !hasExactKeys(value, [
-      'languageCode',
-      'currentWindow',
-      'baselineWindow',
-      'candidates',
-    ]) ||
-    value.languageCode !== 'en'
-  ) {
-    throw new TypeError('property trend provider input is invalid')
-  }
-  const currentWindow = validateDeterministicAggregateWindow(value.currentWindow)
-  const baselineWindow = validateDeterministicAggregateWindow(value.baselineWindow)
-  const candidates = computeDeterministicTrendCandidates({
-    currentWindow,
-    baselineWindow,
-  })
-  if (!candidatesEqual(value.candidates, candidates)) {
-    throw new TypeError(
-      'property trend candidates do not match the deterministic snapshot',
-    )
-  }
-  return {
-    languageCode: 'en',
-    currentWindow,
-    baselineWindow,
-    candidates,
-  }
-}
-
-const propertyTrendProviderInputSchema = z.unknown().transform((value, context) => {
-  try {
-    return parsePropertyTrendProviderInput(value)
-  } catch {
-    context.addIssue({
-      code: 'custom',
-      message: 'property trend provider input is invalid',
-    })
-    return value as never
-  }
-})
-
 const commonShape = {
   operationId: canonicalUuid,
   permitId: canonicalUuid,
@@ -290,52 +157,26 @@ const replySuggestionGatewayRequestSchema = z
     actorId: actorIdSchema,
     redactionCountry: z.string().regex(/^[A-Z]{2}$/),
     observedContentExpiresAtEpochMillis: positiveSafeInteger,
-    replyProfileVersion: z.enum([
-      AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-      REPLY_DRAFTING_V2_VERSIONS.profile,
-    ]),
+    replyProfileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.profile),
     brandProfile: replyBrandProfileSchema,
-    /** Local framing context. It is deliberately excluded from providerPayload. */
-    replyLocalFrame: replyLocalFrameSchema.nullable().optional(),
     replyV2Frame: replyDraftingV2FrameSchema.optional(),
     tone: z.enum(['professional', 'friendly', 'casual']),
     source: reviewAnalysisSourceSchema,
   })
   .strict()
 
-const propertyTrendGatewayRequestSchema = z
-  .object({
-    ...commonShape,
-    route: z.literal('property-trend'),
-    actorId: z.null(),
-    source: propertyTrendProviderInputSchema,
-  })
-  .strict()
-
 /**
  * A review-analysis request carries numbered sentences, a property context and the
- * provider it was claimed under exactly when it names the v3 operation profile, and
- * then the sentences must describe the text it carries: v2 has no use for any of
- * them and v3 cannot run without them.
+ * provider it was claimed under, and the sentences must describe the text it carries.
  */
 function reviewEvidenceIssue(
   request: Readonly<{
-    binding: Readonly<{ operationProfileVersion: string }>
     source: z.infer<typeof reviewAnalysisSourceSchema>
     propertyContext?: z.infer<typeof reviewPropertyContextSchema> | undefined
     provider?: z.infer<typeof providerSelectionSchema> | undefined
   }>,
 ): string | null {
   const { sentences, text } = request.source
-  const v3 =
-    request.binding.operationProfileVersion === REVIEW_ANALYSIS_V3_OPERATION_PROFILE
-  if (!v3) {
-    return sentences !== undefined ||
-      request.propertyContext !== undefined ||
-      request.provider !== undefined
-      ? 'analysis v2 route forbids an evidence request'
-      : null
-  }
   if (
     sentences === undefined ||
     request.propertyContext === undefined ||
@@ -358,7 +199,6 @@ function reviewEvidenceIssue(
 type GatewayRouteValue =
   | z.infer<typeof reviewAnalysisGatewayRequestSchema>
   | z.infer<typeof replySuggestionGatewayRequestSchema>
-  | z.infer<typeof propertyTrendGatewayRequestSchema>
 
 /** A review-analysis request must carry the evidence its operation profile asks for. */
 function addReviewEvidenceIssue(
@@ -374,18 +214,6 @@ function addReplyV2Issue(
   value: z.infer<typeof replySuggestionGatewayRequestSchema>,
   context: z.RefinementCtx,
 ): void {
-  const v2 =
-    value.binding.operationProfileVersion === REPLY_DRAFTING_V2_VERSIONS.operation
-  if (!v2) {
-    if (
-      value.binding.replyDraftingV2 !== undefined ||
-      value.replyV2Frame !== undefined ||
-      value.source.sentences !== undefined ||
-      value.replyProfileVersion !== AI_PERSONALIZED_REPLY_PROFILE_VERSION
-    )
-      context.addIssue({ code: 'custom', message: 'V1 forbids V2 fields' })
-    return
-  }
   if (
     !value.binding.replyDraftingV2 ||
     !value.replyV2Frame ||
@@ -399,7 +227,6 @@ function addReplyV2Issue(
     return
   }
   if (
-    value.replyLocalFrame != null ||
     value.replyV2Frame.voiceDigest !== value.binding.replyDraftingV2.voiceDigest ||
     !reviewSentencesAreNumberedFromOne(value.source.sentences) ||
     !reviewSentencesMatchText(value.source.text ?? '', value.source.sentences)
@@ -407,11 +234,10 @@ function addReplyV2Issue(
     context.addIssue({ code: 'custom', message: 'V2 request binding mismatch' })
 }
 
-export const aiGatewayRouteRequestSchema = z
+const aiGatewayRouteRequestSchema = z
   .discriminatedUnion('route', [
     reviewAnalysisGatewayRequestSchema,
     replySuggestionGatewayRequestSchema,
-    propertyTrendGatewayRequestSchema,
   ])
   // fallow-ignore-next-line complexity -- complexity unchanged from main; the finding moved with earlier code (ADR 0074 refactor)
   .superRefine((value, context) => {
@@ -438,18 +264,6 @@ export const aiGatewayRouteRequestSchema = z
       })
     ) {
       context.addIssue({ code: 'custom', message: 'route binding is cross-wired' })
-    }
-    if (value.route === 'property-trend') {
-      if (
-        value.binding.sourceRevision !== null ||
-        value.binding.reviewedAtEpochMillis !== null
-      ) {
-        context.addIssue({
-          code: 'custom',
-          message: 'trend route forbids review source binding',
-        })
-      }
-      return
     }
     if (
       value.binding.sourceRevision === null ||
@@ -512,13 +326,8 @@ export type ReviewAnalysisGatewayRequestV1 = z.infer<
 export type ReplySuggestionGatewayRequestV1 = z.infer<
   typeof replySuggestionGatewayRequestSchema
 >
-export type PropertyTrendGatewayRequestV1 = z.infer<
-  typeof propertyTrendGatewayRequestSchema
->
 export type ReviewAiSourcePayload = z.infer<typeof reviewSourceSchema>
 export type ReviewAnalysisSourcePayload = z.infer<typeof reviewAnalysisSourceSchema>
-export type { DeterministicAggregateWindow, DeterministicTrendCandidate }
-export type PropertyTrendProviderInput = PropertyTrendProviderInputV1
 
 export type AiGatewayErrorCode =
   | 'forbidden'
@@ -558,18 +367,7 @@ export type AiGatewayErrorCode =
 // already accepted and a receipt the settlement authority issued, so a response
 // is a type rather than a schema parsed a second time.
 
-type AnalysisPayload = AiAnalysisV2Output | ReviewAnalysisV3GatewayResult
-
-type ReplyV1Payload = Omit<PersonalizedReplyDraft, 'languageCode' | 'grounding'> &
-  Readonly<{
-    profileVersion: typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION
-    concreteLanguageTag: string
-    replyText: string
-    provenanceToken: string
-    expiresAtEpochMillis: number
-    baseReplyStateRevision: number
-    templateGroup: (typeof REPLY_TEMPLATE_LANGUAGE_GROUPS)[number]
-  }>
+type AnalysisPayload = ReviewAnalysisV3GatewayResult
 
 type ReplyV2Payload = Readonly<{
   profileVersion: typeof REPLY_DRAFTING_V2_VERSIONS.profile
@@ -589,7 +387,6 @@ type GatewaySuccess<Route extends string, Payload> = Readonly<{
   result: Payload
   settlementReceipt: AiSettlementReceiptV1
 }>
-
 type GatewayError<Route extends string> = Readonly<{
   route: Route
   status: 'error'
@@ -603,14 +400,9 @@ type ReplyGatewayError = GatewayError<'reply-suggestion'> &
 export type AnalysisResult =
   GatewaySuccess<'review-analysis', AnalysisPayload> | GatewayError<'review-analysis'>
 export type ReplySuggestionResult =
-  GatewaySuccess<'reply-suggestion', ReplyV1Payload | ReplyV2Payload> | ReplyGatewayError
-export type TrendResult =
-  | GatewaySuccess<'property-trend', AiTrendSelectionOutput>
-  | GatewayError<'property-trend'>
-export type AiGatewayRouteResponseV1 =
-  AnalysisResult | ReplySuggestionResult | TrendResult
-export type AiGatewayFailure =
-  GatewayError<'review-analysis'> | ReplyGatewayError | GatewayError<'property-trend'>
+  GatewaySuccess<'reply-suggestion', ReplyV2Payload> | ReplyGatewayError
+export type AiGatewayRouteResponseV1 = AnalysisResult | ReplySuggestionResult
+export type AiGatewayFailure = GatewayError<'review-analysis'> | ReplyGatewayError
 
 /**
  * Which process may invoke which route.

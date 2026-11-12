@@ -61,7 +61,7 @@ export {
 } from './dto/inbox.dto'
 export type { GetInboxItemHistoryResult } from './use-cases/get-inbox-item-history'
 export type { Cursor, InboxSort } from './ports/inbox.repository'
-export { INBOX_QUEUES, replyQueueStage, type InboxQueue } from './inbox-queues'
+export { replyQueueStage, type InboxQueue } from './inbox-queues'
 export type { InboxQueueCounts } from './use-cases/get-inbox-queue-counts'
 export type { InboxPropertyCounts } from './use-cases/get-inbox-property-counts'
 export type {
@@ -75,8 +75,8 @@ export type {
 
 /** Request-facing Inbox capabilities. Persistence and construction stay private. */
 export type InboxPublicApi = Readonly<{
-  updateInboxStatus: import('./use-cases/update-inbox-status').UpdateInboxStatus
-  bulkUpdateInboxStatus: import('./use-cases/bulk-update-inbox-status').BulkUpdateInboxStatus
+  updateInboxStatus: import('./inbox-status-commands').UpdateInboxStatus
+  bulkUpdateInboxStatus: import('./inbox-status-commands').BulkUpdateInboxStatus
   bulkAssignInboxItems: import('./use-cases/bulk-assign-inbox-items').BulkAssignInboxItems
   escalateInboxItem: import('./use-cases/escalate-inbox-item').EscalateInboxItem
   resolveEscalation: import('./use-cases/resolve-escalation').ResolveEscalation

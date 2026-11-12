@@ -103,7 +103,7 @@ const CATALOGUE_CONSUMER_MODULES: ReadonlySet<string> = new Set(
 
 /**
  * The catalogue module namespaces each context registers its consumers under.
- * Most contexts use their own name; Feed owns notifications and Recent
+ * Most contexts use their own name; Reputation holds the Inbox consumers; Feed owns notifications and Recent
  * Activity, and Reporting owns metrics and goals (root CONTEXT.md, "Bounded
  * contexts").
  */
@@ -116,6 +116,7 @@ const CONTEXT_MODULE_NAMESPACES: Readonly<Record<string, ReadonlyArray<string>>>
   portal: ['portal'],
   property: ['property'],
   reporting: ['goal', 'metric'],
+  reputation: ['inbox'],
   review: ['review'],
 }
 
@@ -160,7 +161,7 @@ describe('BQR-2.2: outbox consumer registration', () => {
 
   it('inbox outbox-consumers registers review and Guest feedback projections', () => {
     const src = readFileSync(
-      join(ROOT, 'src/contexts/inbox/infrastructure/outbox-consumers.ts'),
+      join(ROOT, 'src/contexts/reputation/inbox/outbox-consumers.server.ts'),
       'utf-8',
     )
     const guestSrc = readFileSync(
@@ -223,7 +224,7 @@ describe('BQR-2.2: outbox consumer registration', () => {
 
   it('BQR-2.4 / BQC-3.4: consumers perform real projection work via applyOnce', () => {
     const src = readFileSync(
-      join(ROOT, 'src/contexts/inbox/infrastructure/outbox-consumers.ts'),
+      join(ROOT, 'src/contexts/reputation/inbox/outbox-consumers.server.ts'),
       'utf-8',
     )
     const guestSrc = readFileSync(

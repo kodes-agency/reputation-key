@@ -10,8 +10,7 @@ import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/doma
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
-import { createReviewResponseTargetAuthorityAdapter } from './adapters/review-response-target-authority.adapter'
+import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
@@ -22,7 +21,7 @@ import {
   handleInboxReviewCreated,
   handleInboxReviewUpdated,
   type InboxConsumerDeps,
-} from './outbox-consumers'
+} from '#/contexts/reputation/inbox/outbox-consumers.server'
 import type { ReviewLookupPort } from '../application/ports/review-lookup.port'
 import type { ReviewSourceLookupPort } from '../application/ports/review-source-lookup.port'
 import type { FeedbackLookupPort } from '../application/ports/feedback-lookup.port'
@@ -254,9 +253,7 @@ function deps(): InboxConsumerDeps {
     replyObservationAuthority: {
       withExactCurrent: async () => ({ status: 'obsolete' }),
     },
-    responseTargetAuthority: createReviewResponseTargetAuthorityAdapter(
-      createReviewResponseTargetAuthority(database),
-    ),
+    responseTargetAuthority: createReviewResponseTargetAuthority(database),
     sourceTransitionAuthority: {
       withExactCurrent: async () => ({ status: 'obsolete' }),
     },

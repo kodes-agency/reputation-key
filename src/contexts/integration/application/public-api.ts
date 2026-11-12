@@ -43,7 +43,7 @@ export {
   IMPORT_OUTCOME_CODES,
   IMPORT_PARENT_STATUSES,
   IMPORT_PROFILE_FIELDS,
-} from './google-import-v2-contract'
+} from './google-import-contract'
 export type {
   GbpImportItemStatus,
   ImportAccountDto,
@@ -56,4 +56,4 @@ export type {
   ImportProgressDto,
   ImportProgressItemDto,
   StartPropertyImportItemInput,
-} from './google-import-v2-contract'
+} from './google-import-contract'

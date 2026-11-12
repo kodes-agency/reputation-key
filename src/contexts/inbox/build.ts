@@ -40,7 +40,7 @@ import type {
 } from './application/ports/lookup-sources.port'
 import type { InboxPublicApi } from './application/public-api'
 import type { GetInboxResponseTarget } from './application/use-cases/get-response-targets'
-import type { RebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
+import type { RebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import type { ReleaseDueResponseTargetReminders } from './application/use-cases/release-response-target-reminders'
 import { createInboxRepository } from './infrastructure/repositories/inbox.repository'
 import { createInboxNoteRepository } from './infrastructure/repositories/inbox-note.repository'
@@ -55,16 +55,13 @@ import { createFeedbackHandlingStore } from './infrastructure/feedback-handling.
 import { createResponseTargetStore } from './infrastructure/response-target.store'
 import { createRestatedRevisionTargetExclusionStore } from './infrastructure/restated-revision-target-exclusion.store'
 import { createResponseTargetPolicyStore } from './infrastructure/response-target-policy.store'
-import { registerInboxConsumers } from './infrastructure/outbox-consumers'
+import { registerInboxConsumers } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { registerInboxPropertyLifecycleConsumers } from './infrastructure/property-lifecycle-outbox-consumers'
 import { registerGuestFeedbackConsumer } from './infrastructure/guest-feedback-outbox-consumers'
 import { createFeedbackLookupAdapter } from './infrastructure/adapters/feedback-lookup.adapter'
 import { createPropertyLookupAdapter } from './infrastructure/adapters/property-lookup.adapter'
 import { createReplyLookupAdapter } from './infrastructure/adapters/reply-lookup.adapter'
 import { createReviewSourceLookupAdapter } from './infrastructure/adapters/review-source-lookup.adapter'
-import { createReplyObservationAuthorityAdapter } from './infrastructure/adapters/reply-observation-authority.adapter'
-import { createSourceTransitionAuthorityAdapter } from './infrastructure/adapters/source-transition-authority.adapter'
-import { createReviewResponseTargetAuthorityAdapter } from './infrastructure/adapters/review-response-target-authority.adapter'
 import type {
   ReviewGoogleReviewCheck,
   ReviewResponseTargetAuthority,
@@ -155,15 +152,11 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   const propertyLookup = createPropertyLookupAdapter(input.sources.property)
   const replyLookup = createReplyLookupAdapter(input.sources.reply)
   const reviewSourceLookup = createReviewSourceLookupAdapter(input.sources.review)
-  const replyObservationAuthority = createReplyObservationAuthorityAdapter(
-    input.sources.replyObservationAuthority,
-  )
-  const responseTargetAuthority = createReviewResponseTargetAuthorityAdapter(
-    input.sources.responseTargetAuthority,
-  )
-  const sourceTransitionAuthority = createSourceTransitionAuthorityAdapter(
-    input.sources.sourceTransitionAuthority,
-  )
+  const {
+    replyObservationAuthority,
+    responseTargetAuthority,
+    sourceTransitionAuthority,
+  } = input.sources
   const googleReviewCheck = createGoogleReviewCheckAdapter(
     input.sources.googleReviewCheck,
   )

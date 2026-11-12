@@ -46,6 +46,13 @@ export const ERASURE_JOURNAL_TARGET_KINDS = [
 ] as const
 export type ErasureJournalTargetKind = (typeof ERASURE_JOURNAL_TARGET_KINDS)[number]
 
+/**
+ * Where an entry sat in the erasure that wrote it. One erasure spans several
+ * contexts whose rows reference each other, and it deleted them in executor
+ * order; replaying them in any other order can hit a blocking foreign key.
+ */
+export type ErasureApplyOrder = Readonly<{ planId: string; position: number }>
+
 /** A ledger entry as the fence reads it, with its hold state resolved. */
 export type BackupErasureLedgerEntry = BackupErasureLedgerAppend &
   Readonly<{
@@ -53,6 +60,8 @@ export type BackupErasureLedgerEntry = BackupErasureLedgerAppend &
     /** Bucket intent precedes commit, so restore must replay it regardless of timestamp. */
     recordedBeforeErasure?: true
     journalTargets?: Readonly<{ kind: ErasureJournalTargetKind; ids: readonly string[] }>
+    /** Absent on entries from single-context erasures, which replay independently. */
+    applyOrder?: ErasureApplyOrder
     /** Set once a counsel-authorised release has been appended. */
     holdReleasedAt?: Date
   }>
@@ -260,8 +269,36 @@ export type BackupErasureReplayPlanItem = Readonly<{
   disposition: BackupErasureReplayDisposition
 }>
 
+function compareText(a: string, b: string): number {
+  if (a === b) return 0
+  return a < b ? -1 : 1
+}
+
+function compareReplayOrder(
+  a: BackupErasureLedgerEntry,
+  b: BackupErasureLedgerEntry,
+): number {
+  return (
+    a.effectiveErasureAt.getTime() - b.effectiveErasureAt.getTime() ||
+    compareText(a.applyOrder?.planId ?? a.id, b.applyOrder?.planId ?? b.id) ||
+    (a.applyOrder?.position ?? 0) - (b.applyOrder?.position ?? 0) ||
+    compareText(a.id, b.id)
+  )
+}
+
 /**
- * Decide, per entry, what a restore to `restorePointAt` did to it.
+ * The order replay runs in, whatever order the entries arrived in: oldest
+ * erasure first, and the entries of one erasure in the order it applied them.
+ */
+export function orderForReplay(
+  entries: readonly BackupErasureLedgerEntry[],
+): readonly BackupErasureLedgerEntry[] {
+  return [...entries].sort(compareReplayOrder)
+}
+
+/**
+ * Decide, per entry, what a restore to `restorePointAt` did to it, in replay
+ * order.
  *
  * PURE and convergent. An erasure that took effect at or before the restore
  * point is already baked into the restored bytes, so replaying it would be
@@ -276,7 +313,7 @@ export function planBackupErasureReplay(
     throw new Error('restore point must be a valid instant')
   }
   const restorePoint = restorePointAt.getTime()
-  return entries.map((entry) => {
+  return orderForReplay(entries).map((entry) => {
     if (
       !entry.recordedBeforeErasure &&
       entry.effectiveErasureAt.getTime() <= restorePoint

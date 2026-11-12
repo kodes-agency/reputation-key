@@ -14,7 +14,7 @@ import { createInMemoryProviderEphemeralStore } from '#/shared/provider-ephemera
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import type { GoogleAuthorizedProviderExecutor } from '#/contexts/integration/application/ports/google-authorized-provider-executor.port'
-import { startPropertyImportInputSchema } from '#/contexts/integration/application/dto/google-import-v2.dto'
+import { startPropertyImportInputSchema } from '#/contexts/integration/application/dto/google-import.dto'
 
 export const IMPORT_TEST_NOW = new Date('2026-11-07T10:00:00.000Z')
 export const IMPORT_TEST_DAY_MS = 86_400_000

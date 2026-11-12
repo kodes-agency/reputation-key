@@ -56,11 +56,7 @@ type Props = Omit<ReplyAiMenuProps & ReplyTemplateMenuProps, 'isPrimary'> &
  * line with its fix target. Language remains inside the two assist menus; it
  * is not repeated as a separate control beside them.
  *
- * Mobile (row 20): 36 px, not v1's 44. WCAG 2.5.8 AA asks for 24 px, and 44 on
- * every half of two split buttons is what turned the phone's composer into a
- * block of large buttons (plan finding 6). The Inbox is a compact workspace
- * (`data-density="compact"`), so every Button here takes the 36 px touch height
- * from the primitive; the link-styled fix buttons are `size="xs"`, which wrap
+ * Mobile: every Button here takes the 44 px touch height from the primitive; the link-styled fix buttons are `size="xs"`, which wrap
  * rather than sit on one line, so they reach it by `min-height` on the same
  * token. Menu ITEMS inside the two menus are 44 px on a phone: stacked edge to
  * edge with no gap, they are a different target class.

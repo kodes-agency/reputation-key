@@ -12,7 +12,7 @@ import { eraseReviewSourceContent } from '#/contexts/reputation/application/publ
 import { createReviewObservationRepository } from './repositories/review-observation.repository'
 import { readObservationHistory } from './testing/review-observation-history'
 import { createReviewRepository } from './repositories/review.repository'
-import { createReviewResponseTargetAuthority } from './response-target-authority'
+import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { createGoogleReplyObservationStore } from './google-reply-observation-store'
 
 const ORG = organizationId('review-reobserve-org-a')

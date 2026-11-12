@@ -1,10 +1,6 @@
 import { createElement } from 'react'
 import { renderToString } from 'react-dom/server'
-import {
-  InfiniteQueryObserver,
-  QueryClient,
-  QueryClientProvider,
-} from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   createMemoryHistory,
   createRootRouteWithContext,
@@ -19,10 +15,12 @@ import { createKeys } from '#/shared/queries/query-keys'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useNotifications } from './notification-queries'
 import * as notificationMutations from './notification-mutations'
+import { readHeadKeepingOlderTrue } from './notification-feed-head'
 import {
-  fetchHeadKeepingHistoryContiguous,
-  notificationHistoryQueryOptions,
-} from './notification-feed-pagination'
+  loadOlderNotifications,
+  type FetchNotificationPage,
+  type OlderNotifications,
+} from './notification-feed-older'
 import {
   makeNotification,
   makeStatefulNotificationFns,
@@ -106,7 +104,7 @@ it.each(['/privacy', '/accept-invitation'])(
   },
 )
 
-it('dismisses loaded notification history from the manager bell on /my-code and keeps it dismissed after returning and polling', async () => {
+it('dismisses loaded older notifications from the manager bell on /my-code and keeps it dismissed after returning and polling', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const rows = Array.from({ length: 4 }, (_, index) =>
     makeNotification({
@@ -133,31 +131,24 @@ it('dismisses loaded notification history from the manager bell on /my-code and 
   }
   const managerContext = { user, activeOrganization: { id: 'org' } }
   const headKey = notificationKeys.head('org', 2, 'all')
-  const historyKey = notificationKeys.list('org', 2, 'all')
-  const fetchPage = (
-    before: Parameters<typeof fns.getList>[0]['data']['before'] | null,
-  ) => fns.getList({ data: { limit: 2, filter: 'all', ...(before ? { before } : {}) } })
-  const fetchHead = fetchHeadKeepingHistoryContiguous(
+  const olderKey = notificationKeys.list('org', 2, 'all')
+  const fetchPage: FetchNotificationPage = (before, limit) =>
+    fns.getList({ data: { limit, filter: 'all', before } })
+  const fetchHead = readHeadKeepingOlderTrue(
     client,
-    headKey,
-    historyKey,
+    olderKey,
     () => fns.getFeedHead({ data: { limit: 2, filter: 'all' } }),
     fetchPage,
+    2,
   )
-  const head = await client.fetchQuery({ queryKey: headKey, queryFn: fetchHead })
-  const history = new InfiniteQueryObserver(
-    client,
-    notificationHistoryQueryOptions(historyKey, fetchPage, head.page.nextCursor),
-  )
-  const unsubscribe = history.subscribe(() => {})
+  await client.fetchQuery({ queryKey: headKey, queryFn: fetchHead })
   try {
-    await history.fetchNextPage()
+    await loadOlderNotifications(client, olderKey, headKey, fetchPage, 2)
     expect(
-      history.getCurrentResult().data?.pages[0]?.notifications.map((row) => row.id),
+      client.getQueryData<OlderNotifications>(olderKey)?.rows.map((row) => row.id),
     ).toContain(target.id)
     await page(client, '/notifications', managerContext, createElement(Notifications))
     expect(visible.map((row) => row.id)).toContain(target.id)
-    unsubscribe()
 
     let actions: notificationMutations.NotificationFeedMutations | undefined
     const useRealMutations = notificationMutations.useNotificationMutations
@@ -182,21 +173,11 @@ it('dismisses loaded notification history from the manager bell on /my-code and 
     actions!.onDismiss(target.id)
     await vi.waitFor(() => expect(client.isMutating()).toBe(0))
 
-    // Returning mounts the disabled history observer again; only the head polls.
-    const stop = history.subscribe(() => {})
-    try {
-      await client.fetchQuery({ queryKey: headKey, queryFn: fetchHead })
-      await page(client, '/notifications', managerContext, createElement(Notifications))
-      expect(visible.map((row) => row.id)).toEqual([
-        rows[0]!.id,
-        rows[1]!.id,
-        rows[3]!.id,
-      ])
-    } finally {
-      stop()
-    }
+    // Returning shows the older rows again; only the head polls.
+    await client.fetchQuery({ queryKey: headKey, queryFn: fetchHead })
+    await page(client, '/notifications', managerContext, createElement(Notifications))
+    expect(visible.map((row) => row.id)).toEqual([rows[0]!.id, rows[1]!.id, rows[3]!.id])
   } finally {
-    unsubscribe()
     client.clear()
   }
 })

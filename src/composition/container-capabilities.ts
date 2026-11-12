@@ -194,9 +194,11 @@ export function buildContainerCapabilities({
     policyAdmin: identity.policy.admin,
     portalPublicApi: portal.publicApi,
     handleResendEvent: notification.delivery.handleResendEvent,
-    // The worker's insert, email and digest processors.
+    // The worker's email and digest processors, and the writer that sends a
+    // notice no outbox event announced.
     notificationDelivery: Object.freeze({
       createProcessors: notification.delivery.createProcessors,
+      noticeWriter: notification.delivery.noticeWriter,
     }),
     // BQC-2.2: version-gated strong read of persisted policy state.
     // Workers await this before starting; side-effect paths use it for

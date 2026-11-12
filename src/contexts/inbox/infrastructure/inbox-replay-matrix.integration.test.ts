@@ -37,12 +37,9 @@ import {
   type InboxReplayStateKey,
   type InboxReplayWithdrawalDelivery,
 } from '#/shared/testing/inbox-replay-fixtures'
-import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
-import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
-import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
-import { createReviewResponseTargetAuthorityAdapter } from './adapters/review-response-target-authority.adapter'
-import { createReplyObservationAuthorityAdapter } from './adapters/reply-observation-authority.adapter'
-import { createSourceTransitionAuthorityAdapter } from './adapters/source-transition-authority.adapter'
+import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
+import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
+import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
@@ -57,7 +54,7 @@ import {
   handleInboxReviewSourceTransitioned,
   handleInboxReviewUpdated,
   type InboxConsumerDeps,
-} from './outbox-consumers'
+} from '#/contexts/reputation/inbox/outbox-consumers.server'
 import {
   handleInboxGuestFeedbackRetracted,
   handleInboxGuestFeedbackSubmitted,
@@ -520,15 +517,9 @@ function reviewDeps(): InboxConsumerDeps {
       () => AT.consumerClock,
     ),
     handlingCycleStore: createReviewHandlingCycleStore(database),
-    replyObservationAuthority: createReplyObservationAuthorityAdapter(
-      createReviewReplyObservationAuthority(database),
-    ),
-    responseTargetAuthority: createReviewResponseTargetAuthorityAdapter(
-      createReviewResponseTargetAuthority(database),
-    ),
-    sourceTransitionAuthority: createSourceTransitionAuthorityAdapter(
-      createReviewSourceTransitionAuthority(database),
-    ),
+    replyObservationAuthority: createReviewReplyObservationAuthority(database),
+    responseTargetAuthority: createReviewResponseTargetAuthority(database),
+    sourceTransitionAuthority: createReviewSourceTransitionAuthority(database),
     reviewLookup,
     reviewSourceLookup,
     inboxRepo: createInboxRepository(

@@ -8,13 +8,13 @@ import { unbrand } from '#/shared/domain/ids'
 import type {
   WORKFLOW_NOTIFICATION_CONSUMERS,
   WorkflowNotificationConsumerDeps,
-} from './workflow-outbox-consumers'
+} from '../notify/inbox-workflow.server'
 import {
   createNotificationConsumerDeps,
   NOTIF_TEST_IDS,
   type FakeNotificationConsumerDeps,
 } from './notification-consumer-test-fixtures'
-import type { InsertNotificationJobData } from './jobs/insert-notification.job'
+import type { QueuedNotice } from './notification-consumer-test-fixtures'
 
 export type WorkflowTestDeps = WorkflowNotificationConsumerDeps & {
   receipts: FakeNotificationConsumerDeps['receipts']
@@ -66,7 +66,5 @@ export const workflowEvent = (
   ...overrides,
 })
 
-export const queuedJobs = (
-  deps: WorkflowTestDeps,
-): readonly InsertNotificationJobData[] =>
-  deps.fakes.jobs.map((job) => job.data as InsertNotificationJobData)
+export const queuedJobs = (deps: WorkflowTestDeps): readonly QueuedNotice[] =>
+  deps.fakes.jobs.map((job) => job.data as QueuedNotice)

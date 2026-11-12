@@ -39,6 +39,15 @@ Replayers must be idempotent, tenant-scoped and registered for the exact subject
 class and context. An unknown replayer fails verification closed; documented
 holds retain their existing explicit deferral behavior.
 
+Journal ids are hashes, so an export lists entries in no meaningful order. A
+rights request that erases several contexts records `applyOrder` on each entry:
+one plan id for the request and the entry's position in the order the
+executors ran. Contexts reference each other through blocking foreign keys
+(Guest and Reporting rows name Staff, Staff rows name Portals), so replay sorts
+entries by erasure time, then keeps each request's entries together in that
+position order. Entries without `applyOrder` come from single-context erasures
+and replay on their own.
+
 ## Operator commands
 
 Run outside the isolated verifier, using the operator's own credentials for the

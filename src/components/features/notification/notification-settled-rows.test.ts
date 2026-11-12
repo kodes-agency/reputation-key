@@ -1,7 +1,7 @@
 // A settled row (its work closed upstream) keeps status 'unread' until opened,
 // but the server stops counting it: it leaves the badge and the Unread tab
 // (repository `stillWaiting`). The client's reading of "unread" must agree,
-// or every poll judges loaded history stale, the bell lists "Done" rows under
+// or every poll judges loaded older rows stale, the bell lists "Done" rows under
 // "New", and optimistic writes move the badge for rows it never counted.
 
 import { describe, expect, it } from 'vitest'
@@ -10,10 +10,8 @@ import {
   makeNotification,
   notificationPageFixture,
 } from './notification.stories.fixtures'
-import {
-  fetchHeadKeepingHistoryContiguous,
-  type NotificationHistoryPages,
-} from './notification-feed-pagination'
+import { readHeadKeepingOlderTrue } from './notification-feed-head'
+import type { OlderNotifications } from './notification-feed-older'
 import { matchesNotificationFilter } from './notification-filters'
 import { unreadDeltaWithin } from './notification-feed-counts'
 
@@ -29,32 +27,40 @@ const older = makeNotification({
 })
 
 describe('a settled-but-unread row', () => {
-  it('does not make the head poll throw away loaded history', async () => {
+  it('does not make the head poll re-read the loaded older rows', async () => {
     const qc = new QueryClient()
-    const headKey = ['head']
-    const historyKey = ['history']
+    const olderKey = ['older']
     const headPage = notificationPageFixture([waiting, settled], true)
-    const history: NotificationHistoryPages = {
-      pages: [notificationPageFixture([older])],
-      pageParams: [headPage.nextCursor],
+    const loaded: OlderNotifications = {
+      from: headPage.nextCursor!,
+      rows: [older],
+      nextCursor: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      staleWrites: 0,
     }
-    qc.setQueryData(historyKey, history)
+    qc.setQueryData(olderKey, loaded)
+    const pageReads: unknown[] = []
 
-    const fetchHead = fetchHeadKeepingHistoryContiguous(
+    const fetchHead = readHeadKeepingOlderTrue(
       qc,
-      headKey,
-      historyKey,
+      olderKey,
       async () => ({
         page: headPage,
         unreadCount: 1,
         filterUnreadCount: 1,
         watermark: 'w',
       }),
-      async () => notificationPageFixture(),
+      async (before) => {
+        pageReads.push(before)
+        return notificationPageFixture()
+      },
+      20,
     )
     await fetchHead()
 
-    expect(qc.getQueryData(historyKey)).toEqual(history)
+    expect(pageReads).toEqual([])
+    expect(qc.getQueryData(olderKey)).toEqual(loaded)
   })
 
   it('is not on the Unread tab', () => {

@@ -1,22 +1,19 @@
 // Notification MUTATIONS — optimistic, targeted, and self-announcing.
 //
-// Three defects this file exists to fix:
+// A write shows at once: while in flight it is applied over every surface's
+// rows and counts (notification-feed-writes.ts), and it stops applying once
+// the feed has been read again after it settles. Nothing is snapshotted or
+// restored, so writes made together (a stack's rows, a bulk action) cannot
+// undo one another when one of them fails.
 //
-//  1. Every handler used to `await` the server and then invalidate the whole
-//     `forOrganization(org)` subtree. With `staleTime: 0` that made the row
-//     visibly lag; and the subtree included the settings page's 60s-cached
-//     preferences, so merely OPENING the bell evicted them. Invalidation is now
-//     `feed(org)` only, declared per mutation via `invalidateKeys`.
-//  2. Nothing was announced. Rows vanished silently.
-//  3. `mutateAsync` was called without a catch, so a failed dismiss produced an
-//     unhandled rejection. Every action here resolves, never rejects.
-//
-// A failure is a visible toast, not only an announcement: the optimistic
-// change is undone, and a row that reappears with no word of why looks like
-// the UI undoing itself. A dismissal and a mute are confirmed by a toast with
-// Undo: a dismissed row has nowhere else to be found again, and nothing else
-// on screen says what a mute covered. Sonner's live region reads the toast, so
-// neither is announced a second time.
+// Every handler resolves, never rejects. A failure is a visible toast, not
+// only an announcement: the row comes back as the server has it, and a row
+// that reappears with no word of why looks like the UI undoing itself. A
+// dismissal and a mute are confirmed by a toast with Undo: a dismissed row
+// has nowhere else to be found again, and nothing else on screen says what a
+// mute covered. Sonner's live region reads the toast, so neither is announced
+// a second time. Feed writes read only the feed again, never the settings
+// page's cached preferences (a mute and its Undo also change those).
 
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -31,18 +28,9 @@ import type {
   NotificationListFilter,
   NotificationView,
 } from '#/contexts/feed/application/public-api'
-import { patchNotificationFeedCache } from './notification-feed-cache'
-import {
-  matchesNotificationFilter,
-  notificationFilterScope,
-} from './notification-filters'
+import { notificationFilterScope } from './notification-filters'
+import { feedWriteOptions, type FeedWriteKind } from './notification-feed-writes'
 import type { NotificationServerFns } from './types'
-
-const readNow = (row: NotificationView): NotificationView => ({
-  ...row,
-  status: 'read',
-  readAt: new Date(),
-})
 
 /**
  * Names what a mute switched off: this Property's in-app notices of one
@@ -55,10 +43,6 @@ function muteConfirmation(notification: NotificationView): string {
   const property = notification.payload.propertyName ?? 'this property'
   return `In-app ${category} notices muted for ${property}, including earlier ones.`
 }
-
-/** Whether a row is inside the page's Property filter; no filter holds every row. */
-const inProperty = (row: NotificationView, propertyId: string | undefined) =>
-  propertyId === undefined || row.propertyId === propertyId
 
 /** How long a toast offering Undo stays: long enough to notice it and act. */
 const UNDO_TOAST_MS = 6_000
@@ -90,89 +74,44 @@ export function useNotificationMutations(
 ): NotificationFeedMutations {
   const { notificationKeys } = createKeys(scope)
   const qc = useQueryClient()
-  const invalidateKeys = [notificationKeys.feed(organizationId)]
-  const patchFeed = (
-    patch: Parameters<typeof patchNotificationFeedCache>[3],
-    options?: Parameters<typeof patchNotificationFeedCache>[4],
-  ) => patchNotificationFeedCache(qc, scope, organizationId, patch, options)
+  /** A feed write: shown while in flight, then the feed is read again however it ended. */
+  const feedWrite = (kind: FeedWriteKind, what: string) => ({
+    ...feedWriteOptions(qc, scope, organizationId, kind),
+    errorMessage: failed(what),
+  })
+  const preferences = [notificationKeys.preferences(organizationId)]
 
-  const markRead = useActionMutation(fns.markRead, {
-    invalidateKeys,
-    errorMessage: failed("Couldn't mark that notification as read."),
-    optimistic: (input) =>
-      patchFeed((row) => (row.id === input.data.notificationId ? readNow(row) : row)),
-  })
-  const markUnread = useActionMutation(fns.markUnread, {
-    invalidateKeys,
-    errorMessage: failed("Couldn't mark that notification as unread."),
-    optimistic: (input) =>
-      patchFeed((row) =>
-        row.id === input.data.notificationId
-          ? { ...row, status: 'unread', readAt: null }
-          : row,
-      ),
-  })
-  const dismiss = useActionMutation(fns.dismiss, {
-    invalidateKeys,
-    errorMessage: failed("Couldn't dismiss that notification."),
-    optimistic: (input) =>
-      patchFeed((row) => (row.id === input.data.notificationId ? null : row)),
-  })
-  const markAllRead = useActionMutation(fns.markAllRead, {
-    invalidateKeys,
-    errorMessage: failed("Couldn't mark those notifications as read."),
-    optimistic: (input) => {
-      const filter = input?.data?.filter ?? 'all'
-      const propertyId = input?.data?.propertyId
-      return patchFeed(
-        (row) =>
-          row.status === 'unread' &&
-          matchesNotificationFilter(row, filter) &&
-          inProperty(row, propertyId)
-            ? readNow(row)
-            : row,
-        // One Property's share is not the filter's: the loaded rows say what
-        // moved, and the invalidation reads the rest.
-        propertyId ? {} : { clearsUnreadOf: filter },
-      )
-    },
-  })
-  const dismissAll = useActionMutation(fns.dismissAll, {
-    invalidateKeys,
-    errorMessage: failed("Couldn't dismiss all notifications."),
-    optimistic: (input) => {
-      const propertyId = input?.data?.propertyId
-      if (propertyId)
-        return patchFeed((row) => (inProperty(row, propertyId) ? null : row))
-      return patchFeed(() => null, {
-        clearContinuation: true,
-        clearsUnreadOf: 'all',
-      })
-    },
-  })
-  // An Undo brings rows back through the next read, not optimistically: the
-  // server decides whether a restored row is unread (another row may have
-  // taken its place meanwhile).
-  const restore = useActionMutation(fns.restore, {
-    invalidateKeys,
-    errorMessage: failed("Couldn't bring that notification back."),
-  })
+  const markRead = useActionMutation(
+    fns.markRead,
+    feedWrite('markRead', "Couldn't mark that notification as read."),
+  )
+  const markUnread = useActionMutation(
+    fns.markUnread,
+    feedWrite('markUnread', "Couldn't mark that notification as unread."),
+  )
+  const dismiss = useActionMutation(
+    fns.dismiss,
+    feedWrite('dismiss', "Couldn't dismiss that notification."),
+  )
+  const markAllRead = useActionMutation(
+    fns.markAllRead,
+    feedWrite('markAllRead', "Couldn't mark those notifications as read."),
+  )
+  const dismissAll = useActionMutation(
+    fns.dismissAll,
+    feedWrite('dismissAll', "Couldn't dismiss all notifications."),
+  )
+  const restore = useActionMutation(
+    fns.restore,
+    feedWrite('restore', "Couldn't bring that notification back."),
+  )
   const undoMute = useActionMutation(fns.undoMuteCategory, {
-    invalidateKeys: [...invalidateKeys, notificationKeys.preferences(organizationId)],
-    errorMessage: failed("Couldn't undo that mute."),
+    ...feedWrite('undoMuteCategory', "Couldn't undo that mute."),
+    invalidateKeys: preferences,
   })
-  // The server hides every row of the muted category for that Property, read
-  // or unread, from the next read on; the list says so at once, and the feed
-  // is read again so the badge and loaded history agree.
   const muteCategory = useActionMutation(fns.muteCategory, {
-    invalidateKeys: [...invalidateKeys, notificationKeys.preferences(organizationId)],
-    errorMessage: failed("Couldn't mute those notifications."),
-    optimistic: (input) =>
-      patchFeed((row) =>
-        row.propertyId === input.data.propertyId && row.category === input.data.category
-          ? null
-          : row,
-      ),
+    ...feedWrite('muteCategory', "Couldn't mute those notifications."),
+    invalidateKeys: preferences,
   })
 
   /** Awaits a mutation and reports success; its failure is the mutation's toast. Never rejects. */

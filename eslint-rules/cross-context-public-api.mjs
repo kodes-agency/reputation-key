@@ -16,6 +16,9 @@ import path from 'node:path'
 const IMPORTER_RE = /\/src\/contexts\/([^/]+)\//
 const ADAPTERS_RE = /\/src\/contexts\/[^/]+\/infrastructure\/adapters\//
 const TARGET_RE = /^src\/contexts\/([^/]+)\//
+// Review, Inbox and Reputation are one bounded context.
+const MERGED_CONTEXTS = new Set(['reputation', 'review', 'inbox'])
+
 const EXTENSION_RE = /\.(d\.ts|tsx?|jsx?|m[ct]s)$/
 
 const stripExtension = (p) => p.replace(EXTENSION_RE, '')
@@ -60,6 +63,13 @@ export default {
       if (!targetMatch) return
       const targetContext = targetMatch[1]
       if (targetContext === importerContext) return
+      if (
+        MERGED_CONTEXTS.has(targetContext) &&
+        MERGED_CONTEXTS.has(importerContext) &&
+        (targetContext === 'reputation' || importerContext === 'reputation')
+      ) {
+        return
+      }
       const stripped = stripExtension(resolved)
       if (stripped === `src/contexts/${targetContext}/application/public-api`) return
       if (
