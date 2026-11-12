@@ -7,8 +7,10 @@
 import type { UserId } from '#/shared/domain/ids'
 import type { ReviewReplyPublicationCancelled } from '#/contexts/review/application/public-api'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
-import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
-import type { ActivePropertyLookup } from '../application/ports/active-property.port'
+import type {
+  ReplyApprovalAuthorityPort,
+  ActivePropertyLookup,
+} from '../application/ports/cross-context-lookups.port'
 import type { NotificationAudience } from '../application/notification-audience'
 import { resolveReplyApprovalRecipients } from '../application/reply-approval-recipients'
 import type { Notice } from '../notify/consumers.server'

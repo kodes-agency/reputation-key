@@ -60,7 +60,7 @@ describe('notification feed-head server contract', () => {
 
   it('has no separate unread-count endpoint or active UI surface', () => {
     const routes = readFileSync('src/routes/-notification-fns.ts', 'utf8')
-    const bundle = readFileSync('src/components/features/notification/types.ts', 'utf8')
+    const bundle = readFileSync('src/contexts/feed/feed/ui/types.ts', 'utf8')
     const server = readFileSync('src/contexts/feed/server/notifications.ts', 'utf8')
 
     expect(routes).not.toContain('getUnreadNotificationCountFn')

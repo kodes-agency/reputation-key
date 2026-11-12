@@ -9,8 +9,8 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { useSignOut } from '#/components/hooks/use-sign-out'
-import { NotificationPanel } from '#/components/features/notification/notification-panel'
-import type { NotificationServerFns } from '#/components/features/notification/types'
+import { NotificationPanel } from '#/contexts/feed/feed/ui/notification-panel'
+import type { NotificationServerFns } from '#/contexts/feed/feed/ui/types'
 import { useThemeMode } from '#/components/hooks/use-theme-mode'
 import { ThemeModeMenuControl } from '#/components/layout/theme-mode-menu-control'
 import { BetaFeedbackLauncher } from '#/contexts/identity/feedback/ui/beta-feedback-launcher'

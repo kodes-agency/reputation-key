@@ -22,7 +22,7 @@ import type { EffectiveNotificationSettings } from '#/contexts/feed/application/
 import {
   NotificationFormattingForm,
   type NotificationSettingsUpdate,
-} from './notification-formatting-form'
+} from '#/contexts/feed/preferences/ui/notification-formatting-form'
 
 type Props = Readonly<{
   /**

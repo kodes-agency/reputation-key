@@ -11,7 +11,7 @@ import {
   restoreNotificationFn,
   undoNotificationCategoryMuteFn,
 } from '#/contexts/feed/server/notifications'
-import type { NotificationServerFns } from '#/components/features/notification/types'
+import type { NotificationServerFns } from '#/contexts/feed/feed/ui/types'
 
 export const notificationFns: NotificationServerFns = {
   getFeedHead: getNotificationFeedHeadFn,

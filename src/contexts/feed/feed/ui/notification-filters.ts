@@ -15,7 +15,7 @@ import {
   type NotificationView,
   type NotificationListFilter,
 } from '#/contexts/feed/application/public-api'
-import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
+import { CATEGORY_COPY } from '#/contexts/feed/preferences/ui/notifications-type-rows'
 
 /**
  * `'urgent'` is the PRIORITY flag (any category); `'urgent_operational'` is the

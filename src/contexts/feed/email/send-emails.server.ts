@@ -62,7 +62,7 @@ import {
   notificationReplyTo,
   renderNotification,
 } from '../domain/notification-templates'
-import { renderNotificationEmail } from '../infrastructure/email/render'
+import { renderNotificationEmail } from './render.server'
 import { emailCorrelationId } from '../infrastructure/delivery-correlation'
 import {
   assertPreferencesLink,

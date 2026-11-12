@@ -9,7 +9,7 @@ import {
   resolveResponsibleRecipients,
   type ResponsibleRecipientDeps,
 } from './responsible-recipients'
-import type { ReplyApprovalAuthorityPort } from './ports/reply-approval-authority.port'
+import type { ReplyApprovalAuthorityPort } from './ports/cross-context-lookups.port'
 
 /** Everything a standing check may have to ask about, resolved at send time. */
 export type NotificationRecipientStandingDeps = ResponsibleRecipientDeps &

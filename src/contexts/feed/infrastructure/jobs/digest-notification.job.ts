@@ -30,7 +30,7 @@ import type { NotificationPropertyScopeResolver } from '../repositories/notifica
 import { DUE_RECIPIENT_SWEEP_CAP } from '../repositories/notification-due-recipients.query'
 import type { NotificationEmail } from '../../domain/notification-types'
 import { isDailyDigestWindow } from '../../domain/notification-delivery-policy'
-import { renderDigestEmail } from '../email/render'
+import { renderDigestEmail } from '../../email/render.server'
 import {
   digestBatchIdempotencyKey,
   digestMemberSet,

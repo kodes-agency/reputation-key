@@ -5,7 +5,7 @@ import type { NotificationDeliveryOutcome } from '../../domain/notification-deli
  *
  * `text` is REQUIRED, not optional: an HTML-only operational email is a
  * deliverability defect (spam scoring) and unreadable in a plain-text client,
- * and every renderer in `infrastructure/email/render.ts` already produces a
+ * and every renderer in `email/render.server.ts` already produces a
  * hand-composed plain-text twin. Making it required means the type system,
  * not a reviewer, catches an HTML-only send.
  *

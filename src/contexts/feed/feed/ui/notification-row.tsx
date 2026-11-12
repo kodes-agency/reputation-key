@@ -25,7 +25,7 @@ import {
   notificationLink,
   type NotificationView,
 } from '#/contexts/feed/application/public-api'
-import { categoryInSentence } from '#/components/features/settings/notifications-type-rows'
+import { categoryInSentence } from '#/contexts/feed/preferences/ui/notifications-type-rows'
 import {
   DEFAULT_NOTIFICATION_FORMAT,
   formatAbsoluteTime,

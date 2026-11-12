@@ -14,7 +14,7 @@ import { reviewId, unbrand } from '#/shared/domain/ids'
 import type {
   ReviewRatingForRouting,
   ReviewRatingLookupPort,
-} from '../../application/ports/review-rating-lookup.port'
+} from '../../application/ports/cross-context-lookups.port'
 
 export const createReviewRatingForRouting =
   (db: Database, reviewRatings: ReviewRatingLookupPort): ReviewRatingForRouting =>
