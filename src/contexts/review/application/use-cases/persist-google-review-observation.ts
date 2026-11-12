@@ -3,11 +3,14 @@ import type { ReviewFirstSeenVia } from '#/shared/domain/push-health'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import type { GoogleReviewRead } from '../ports/google-review-api.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
+import type { ReviewProviderSubjectSightings } from '../ports/review-provider-subject-sightings.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 
 export type PersistGoogleReviewObservationDeps = Readonly<{
   observationWriter: ReviewProviderObservationWriter
   subjectKeyService: ReviewProviderSubjectKeyService
+  /** Maps the stored review if no listing has mapped it yet. */
+  subjectSightings: ReviewProviderSubjectSightings
 }>
 
 export type PersistGoogleReviewObservationInput = Readonly<{
@@ -34,7 +37,9 @@ export type PersistGoogleReviewObservationInput = Readonly<{
  * reply is published cannot drift apart.
  *
  * The read generation is allocated after the response, so concurrent reads are
- * ordered by the truth they actually received, not by when they started.
+ * ordered by the truth they actually received, not by when they started. A
+ * stored review no listing has mapped yet gets its provider subject mapping,
+ * so it is removed like a listed one once Google's deletion is confirmed.
  */
 export async function persistGoogleReviewObservation(
   deps: PersistGoogleReviewObservationDeps,
@@ -55,7 +60,7 @@ export async function persistGoogleReviewObservation(
     resourceName: input.review.reviewName,
   })
   const replyReadGeneration = await deps.observationWriter.allocateReplyReadGeneration()
-  return deps.observationWriter.persist({
+  const persisted = await deps.observationWriter.persist({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
     connectionId: input.connectionId,
@@ -70,4 +75,13 @@ export async function persistGoogleReviewObservation(
     review: input.review,
     subjects,
   })
+  await deps.subjectSightings.record({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    sourceEpoch: input.sourceEpoch,
+    reviewId: persisted.reviewId,
+    sourceRevision: persisted.sourceRevision,
+    subjects,
+  })
+  return persisted
 }
