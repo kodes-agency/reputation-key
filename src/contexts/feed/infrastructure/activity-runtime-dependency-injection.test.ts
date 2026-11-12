@@ -14,10 +14,12 @@ describe('Activity runtime dependency injection', () => {
 
   it('requires composition-owned Operational Action History identifiers', () => {
     const build = read('build.ts')
+    const activityBuild = read('build-activity.ts')
     expect(build).not.toMatch(/(?:crypto\.)?randomUUID/u)
-    expect(build).toContain(
+    expect(activityBuild).not.toMatch(/(?:crypto\.)?randomUUID/u)
+    expect(activityBuild).toContain(
       'operationalHistoryIdGen: () => OperationalActionHistoryRecordId',
     )
-    expect(build).toContain('operationalHistoryHoldIdGen: () => string')
+    expect(activityBuild).toContain('operationalHistoryHoldIdGen: () => string')
   })
 })

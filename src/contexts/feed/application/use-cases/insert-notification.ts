@@ -29,7 +29,7 @@ import { isLowFor, RATED_NOTIFICATION_TYPES } from '../../domain/notification-lo
 import { getDefaultMaxRating } from '../../domain/notification-policy'
 import { parseNotificationPayload } from '../../domain/notification-payload'
 import type { CategoryPreferenceValues } from '../../domain/notification-preference-resolution'
-import type { ReviewRatingForRouting } from '../ports/review-rating-lookup.port'
+import type { ReviewRatingForRouting } from '../ports/cross-context-lookups.port'
 
 // ── Input ───────────────────────────────────────────────────────────
 

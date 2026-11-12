@@ -32,7 +32,7 @@ import type {
 import type {
   ReplyWorkStateLookupPort,
   ReplyWorkStatus,
-} from '../application/ports/reply-work-state.port'
+} from '../application/ports/cross-context-lookups.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
 import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'

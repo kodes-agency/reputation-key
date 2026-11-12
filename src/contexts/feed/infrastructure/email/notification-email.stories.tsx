@@ -11,7 +11,7 @@ import { renderNotification } from '../../domain/notification-templates'
 import type { NotificationPayload } from '../../domain/notification-payload'
 import type { NotificationType } from '../../domain/notification-types'
 import { splitFacts } from './notification-facts'
-import { renderDigestEmail, renderNotificationEmail } from './render'
+import { renderDigestEmail, renderNotificationEmail } from '../../email/render.server'
 
 const ACTION_URL = 'https://app.reputationkey.app/inbox?itemId=itm-2f9c'
 const PREFERENCES_URL = 'https://app.reputationkey.app/settings/notifications'

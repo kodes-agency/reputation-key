@@ -19,7 +19,7 @@
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
-import type { DisplayNameLookupPort } from '../application/ports/notification-display-name-lookup.port'
+import type { DisplayNameLookupPort } from '../application/ports/cross-context-lookups.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type {
   NotificationPayload,

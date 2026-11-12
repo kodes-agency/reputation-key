@@ -12,7 +12,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { SidebarProvider, SidebarInset, useSidebar } from '#/components/ui/sidebar'
-import type { NotificationServerFns } from '#/components/features/notification/types'
+import type { NotificationServerFns } from '#/contexts/feed/feed/ui/types'
 import { PRODUCT_UPDATES } from '#/shared/whats-new/entries'
 import {
   productUpdatesStoryClient,

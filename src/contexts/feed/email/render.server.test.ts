@@ -4,11 +4,11 @@
 // `{ subject, html, text }` twin) and the one thing governance depends on: that
 // nothing beyond a `RenderedNotification` can reach the wire.
 import { describe, expect, it } from 'vitest'
-import { renderNotification } from '../../domain/notification-templates'
-import type { RenderedNotification } from '../../domain/notification-templates'
-import { splitFacts, toPlainFacts } from './notification-facts'
-import { renderDigestEmail, renderNotificationEmail } from './render'
-import type { DigestEmailGroup } from './digest-email'
+import { renderNotification } from '../domain/notification-templates'
+import type { RenderedNotification } from '../domain/notification-templates'
+import { splitFacts, toPlainFacts } from '../infrastructure/email/notification-facts'
+import { renderDigestEmail, renderNotificationEmail } from './render.server'
+import type { DigestEmailGroup } from '../infrastructure/email/digest-email'
 
 const ACTION_URL = 'https://app.test/inbox?itemId=itm-1'
 const PREFERENCES_URL = 'https://app.test/settings/notifications'

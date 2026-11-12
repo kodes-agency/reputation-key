@@ -12,7 +12,7 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { unbrand } from '#/shared/domain/ids'
-import type { ActivePropertyLookup } from '../../application/ports/active-property.port'
+import type { ActivePropertyLookup } from '../../application/ports/cross-context-lookups.port'
 
 /**
  * The active-Property predicate over a `properties` row, as SQL text for raw

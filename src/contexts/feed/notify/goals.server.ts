@@ -15,7 +15,7 @@ import {
   type UserId,
 } from '#/shared/domain/ids'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
-import type { ActivePropertyLookup } from '../application/ports/active-property.port'
+import type { ActivePropertyLookup } from '../application/ports/cross-context-lookups.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationAudience } from '../application/notification-audience'
 import {

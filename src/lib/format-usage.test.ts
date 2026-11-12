@@ -17,11 +17,11 @@ const HAND_FORMATTER =
   /\bIntl\.(?:DateTimeFormat|NumberFormat)\b|\.toLocale(?:Date|Time)?String\(/u
 
 const ALLOWED: Readonly<Record<string, string>> = {
-  'src/components/features/notification/notification-utils.ts':
+  'src/contexts/feed/feed/ui/notification-utils.ts':
     'times in the person’s own locale and zone preference',
-  'src/components/features/notification/notification-filters.ts':
+  'src/contexts/feed/feed/ui/notification-filters.ts':
     'the notification bell’s day grouping; it is in the first-paint closure, where the format module is not',
-  'src/components/features/settings/notification-formatting-form.tsx':
+  'src/contexts/feed/preferences/ui/notification-formatting-form.tsx':
     'previews the person’s own locale and zone choice',
   'src/components/features/guest/public-portal/guest-deadline-format.ts':
     'the guest renderer, in the guest’s language',
