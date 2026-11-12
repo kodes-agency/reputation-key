@@ -190,4 +190,13 @@ describe('who may mint an admission', () => {
       .map((path) => relative(process.cwd(), path))
     expect(new Set(minters)).toEqual(MINTERS)
   })
+
+  it('is never reachable from production code through a test-fixtures module', () => {
+    const importers = productionSources(SOURCE_ROOT)
+      .filter((path) =>
+        /(?:from|import\()\s*'[^']*\.test-fixtures'/.test(readFileSync(path, 'utf8')),
+      )
+      .map((path) => relative(process.cwd(), path))
+    expect(importers).toEqual([])
+  })
 })

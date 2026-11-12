@@ -5,7 +5,7 @@
 // under still stand, and only while the operation holds no open or charged
 // reservation. A settlement is priced from usage once.
 
-import { randomBytes, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
@@ -41,19 +41,10 @@ const NOW = new Date(Date.now() - 60_000)
 const ORGANIZATION_ID = organizationId('ai-admission-test-org')
 const PROPERTY_ID = propertyId('76000000-0000-4000-8000-000000000001')
 const SCOPE: Scope = { organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID }
-/** What the previous release wrote beside its reservation. */
-const PREVIOUS_RELEASE_GRANT_KID = 'grant-v1'
 
 const SOURCE_DIGEST = 'd'.repeat(64)
 const SOURCE_BYTES = 40
 const PAYLOAD_BYTES = 512
-const PREVIOUS_RELEASE_BINDING = { keyId: 'binding-v1', hmac: 'A'.repeat(43) } as const
-const NO_HANDSHAKE_COLUMNS = {
-  admissionNonce: null,
-  requestBindingKeyId: null,
-  requestBindingHmac: null,
-  grantKid: null,
-} as const
 
 const replyProfile = AI_OPERATION_PROFILES.find(
   (candidate) => candidate.profileVersion === AI_REPLY_OPERATION_PROFILE.profileVersion,
@@ -219,10 +210,6 @@ async function operationRow(operationId: string) {
   const [row] = await db
     .select({
       reviewId: aiOperations.reviewId,
-      admissionNonce: aiOperations.admissionNonce,
-      requestBindingKeyId: aiOperations.requestBindingKeyId,
-      requestBindingHmac: aiOperations.requestBindingHmac,
-      grantKid: aiOperations.grantKid,
       costWindowId: aiOperations.costWindowId,
       reservedMicros: aiOperations.reservedMicros,
       budgetSettledAt: aiOperations.budgetSettledAt,
@@ -257,7 +244,6 @@ function deferred() {
 /** A refused admission sent nothing: no reservation on the row or the window. */
 async function expectNothingReserved(operationId: string, windowBefore: object) {
   await expect(operationRow(operationId)).resolves.toMatchObject({
-    admissionNonce: null,
     costWindowId: null,
     reservedMicros: 0,
   })
@@ -293,7 +279,7 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
     return { operationId, permitId }
   }
 
-  it('admits the executing attempt once, writing none of the handshake columns; a repeat is refused, not replayed', async () => {
+  it('admits the executing attempt once; a repeat is refused, not replayed', async () => {
     const subject = await executingOperation()
 
     const granted = await authority.authorize(descriptor(subject))
@@ -321,7 +307,6 @@ describe.sequential('AI execution admission (real PostgreSQL)', () => {
       authority.authorize({ ...descriptor(subject), permitId: randomUUID() }),
     ).resolves.toEqual({ status: 'denied', code: 'subject_mismatch' })
     await expect(operationRow(subject.operationId)).resolves.toMatchObject({
-      ...NO_HANDSHAKE_COLUMNS,
       reservedMicros: RESERVED,
     })
     await expect(costWindow()).resolves.toEqual(admittedWindow)
@@ -626,9 +611,7 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
       settlementState: 'settled',
     })
     const settled = await window()
-    // The receipt names the attempt; the handshake columns stay empty.
     await expect(operationRow(subject.operationId)).resolves.toMatchObject({
-      ...NO_HANDSHAKE_COLUMNS,
       actualMicros: cost,
     })
     // The reservation is closed: neither the same nor another cost settles again.
@@ -811,7 +794,6 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
     expect(regranted.admission).not.toBe(granted.admission)
     expect(regranted.admission.attemptNumber).toBe(2)
     await expect(operationRow(first.operationId)).resolves.toMatchObject({
-      ...NO_HANDSHAKE_COLUMNS,
       reservedMicros: RESERVED,
       budgetSettledAt: null,
       actualMicros: null,
@@ -905,14 +887,12 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
     })
   })
 
-  // While the previous release still runs beside this one, it admits rows the
-  // same way: a reservation in the budget ledger and the four admission columns,
-  // in one transaction. Such a row behaves here by its reservation alone.
+  // While the previous release still runs beside this one, it admits rows with
+  // a reservation in the budget ledger. Such a row behaves by it alone.
   describe('a row admitted by the previous release', () => {
     const budget = createAiBudgetControl({ idGen: randomUUID, now: () => NOW })
     const admittedByPreviousRelease = async () => {
       const subject = await executingOperation()
-      const nonce = randomBytes(18).toString('base64url')
       await db.transaction(async (tx) => {
         const reserved = await budget.admitAiOperation(tx, {
           organizationId: ORGANIZATION,
@@ -923,17 +903,8 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
           providerPayloadBytes: PAYLOAD_BYTES,
         })
         if (!reserved.ok) throw new Error(`not reserved: ${reserved.code}`)
-        await tx
-          .update(aiOperations)
-          .set({
-            admissionNonce: nonce,
-            requestBindingKeyId: PREVIOUS_RELEASE_BINDING.keyId,
-            requestBindingHmac: PREVIOUS_RELEASE_BINDING.hmac,
-            grantKid: PREVIOUS_RELEASE_GRANT_KID,
-          })
-          .where(eq(aiOperations.id, subject.operationId))
       })
-      return { ...subject, nonce }
+      return subject
     }
 
     it('is refused while open, even for the binding that admitted it', async () => {
@@ -953,11 +924,7 @@ describe.sequential('AI execution admission settlement (real PostgreSQL)', () =>
       await expect(
         authorizeNext(await claimNextAttempt(released.operationId, 2)),
       ).resolves.toMatchObject({ status: 'admitted' })
-      // This release writes none of the four columns: the earlier attempt's
-      // values stay as history, and nothing reads them to admit or settle.
       await expect(operationRow(released.operationId)).resolves.toMatchObject({
-        admissionNonce: released.nonce,
-        requestBindingHmac: PREVIOUS_RELEASE_BINDING.hmac,
         reservedMicros: RESERVED,
         budgetSettledAt: null,
       })

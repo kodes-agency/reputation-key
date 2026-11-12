@@ -1195,7 +1195,7 @@ describe('official OpenAI SDK connector integration', () => {
     )
   })
 
-  it('makes zero requests for an admission of another permit and one after retryable transport failure', async () => {
+  it('makes zero requests for an admission of another permit, one after a transport failure, and none when the same admission is used again', async () => {
     const deniedOutbound = vi.fn(async () => providerResponse())
     const denied = createConnectorHarness(deniedOutbound)
     const mutated = admitForTest(
@@ -1225,6 +1225,15 @@ describe('official OpenAI SDK connector integration', () => {
       new AbortController().signal,
     )
     expect(ambiguousOutcome.disposition).toBe('transport_ambiguous')
+    expect(ambiguousOutbound).toHaveBeenCalledTimes(1)
+
+    const reused = await ambiguous.connector.invoke(
+      ambiguous.invocation,
+      ambiguous.admission,
+      connectorOutputSchema,
+      new AbortController().signal,
+    )
+    expect(reused.disposition).toBe('no_dispatch')
     expect(ambiguousOutbound).toHaveBeenCalledTimes(1)
   })
 })

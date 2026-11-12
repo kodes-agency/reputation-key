@@ -88,7 +88,6 @@ const SOURCE_EPOCH = 2
 const PROVIDER_PROFILE = 'private-beta-global-v2'
 const RELEASE_SHA = 'a'.repeat(40)
 const SUGGESTION = 'Thank you for sharing your experience.'
-const REQUEST_BINDING_HMAC = 'A'.repeat(43)
 const MINUTE_MS = 60_000
 const DAY_MS = 24 * 60 * MINUTE_MS
 
@@ -299,7 +298,7 @@ async function seedOperation(
   property: PropertyId,
   review: ReviewId,
   lineage: string,
-): Promise<string> {
+): Promise<Readonly<{ operationId: string; permitId: string }>> {
   const operationId = nextId(4)
   const permitId = nextId(5)
   const now = new Date()
@@ -370,10 +369,6 @@ async function seedOperation(
     capabilityControlGeneration: capability.generation,
     routeKey: 'reply-suggestion',
     executionPermitId: permitId,
-    admissionNonce: `nonce-${operationId}`,
-    requestBindingKeyId: 'binding-v1',
-    requestBindingHmac: REQUEST_BINDING_HMAC,
-    grantKid: 'grant-v1',
     costWindowId: permitId,
     reservedMicros: 50_000,
     actualMicros: 42,
@@ -386,7 +381,7 @@ async function seedOperation(
     expiresAt: new Date(now.getTime() + 60 * MINUTE_MS),
     deliveredAt: now,
   })
-  return operationId
+  return { operationId, permitId }
 }
 
 async function authorizationLineage(property: PropertyId): Promise<string> {
@@ -434,7 +429,7 @@ function submitForApproval(
 async function seedAiReply(stage: Stage, inProperty?: PropertyId): Promise<SeededReply> {
   const property = inProperty ?? (await seedProperty())
   const review = await seedReview(property)
-  const operationId = await seedOperation(
+  const { operationId, permitId } = await seedOperation(
     property,
     review.id,
     await authorizationLineage(property),
@@ -455,7 +450,8 @@ async function seedAiReply(stage: Stage, inProperty?: PropertyId): Promise<Seede
         organizationId: ORG,
         propertyId: property,
         reviewId: review.id,
-        requestBindingHmac: REQUEST_BINDING_HMAC,
+        executionPermitId: permitId,
+        executionAttempt: 1,
         sourceEpoch: SOURCE_EPOCH,
         sourceRevision: 1,
         baseReplyStateRevision: 0,

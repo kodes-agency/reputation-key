@@ -103,8 +103,6 @@ paths = [
   '''^(src/shared/config/production-secrets\.ts|\.railway/railway\.ts|services/ai-egress-gateway/runtime-secrets\.ts|services/ai-execution-admission/environment\.ts)$''',
 ]
 regexes = [
-  '''^AI_ADMISSION_ED25519_KID$''',
-  '''^AI_ADMISSION_ED25519_PRIVATE_KEY_B64$''',
   '''^AI_INTERNAL_MTLS_CA_B64$''',
 ]
 

@@ -5,7 +5,6 @@
  * scrub is opt-in per file rather than a global setup step.
  */
 export const TEST_CONTAINER_ENV_KEYS: readonly string[] = [
-  'AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON',
   'AI_KEY_INVENTORY_PROFILE',
   'AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON',
   'AI_SUBJECT_HMAC_KEYS',
