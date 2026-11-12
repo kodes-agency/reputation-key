@@ -27,7 +27,7 @@ const PREFIX = 'pseudonym:'
 const KEY_PURPOSE = 'audit-pseudonym:v1:'
 const BATCH = 500
 
-/** The operator console writes these audit log actions; their user id is the operator's. */
+/** The operator console writes these `audit_logs` actions; their user id is the operator's. */
 const OPERATOR_LOG_ACTION_PREFIX = 'platform.'
 
 /** Resource types whose id is a person's user id. */
