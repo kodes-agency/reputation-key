@@ -414,6 +414,7 @@ describe('health checker content safety (BQC-4.3)', () => {
           overdueCount: 0,
           oldestAgeMs: null,
         },
+        headCoverage: { active: false, uncoveredCount: 0, oldestUncoveredAgeMs: null },
       },
       workers: {
         defaultQueueName: 'default',
@@ -442,6 +443,27 @@ describe('health checker content safety (BQC-4.3)', () => {
     }).signals.syncPush()
 
     expect(health.reconciliation.overdueAfterMs).toBe(26 * 3_600_000)
+    expect(health.headCoverage.active).toBe(false)
+  })
+
+  it('reads head cover only when the window is wider than a day', async () => {
+    const daily = fakeDb([])
+    await createHealthChecker(daily, undefined, {
+      reviewReconcileWithinHours: 24,
+    }).signals.syncPush()
+    const weekly = fakeDb([[], [{ uncovered: 3, oldestAgeMs: 30 * 3_600_000.2 }]])
+    const health = await createHealthChecker(weekly, undefined, {
+      reviewReconcileWithinHours: 168,
+    }).signals.syncPush()
+
+    expect(daily.select).toHaveBeenCalledTimes(1)
+    expect(weekly.select).toHaveBeenCalledTimes(2)
+    expect(health.reconciliation.overdueAfterMs).toBe(170 * 3_600_000)
+    expect(health.headCoverage).toEqual({
+      active: true,
+      uncoveredCount: 3,
+      oldestUncoveredAgeMs: 108_000_006,
+    })
   })
 
   it('surfaces the GBP push readiness fact from the composition root', async () => {

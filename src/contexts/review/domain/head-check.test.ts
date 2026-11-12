@@ -4,6 +4,7 @@ import {
   headReviewsToPersist,
   HEAD_LEASE_REFRESH_AFTER_MS,
   headCheckJobId,
+  headPageOverflowed,
   type HeadComparisonInput,
   type HeadGoogleReview,
   type HeadStoredCopy,
@@ -312,6 +313,7 @@ describe('compareHead: what a head page would persist', () => {
       changedCount: 1,
       replyChangedCount: 1,
       leaseRefreshCount: 1,
+      contentChangedCount: 3,
       wouldPersist: 4,
     })
   })
@@ -325,6 +327,7 @@ describe('compareHead: what a head page would persist', () => {
       changedCount: 0,
       replyChangedCount: 0,
       leaseRefreshCount: 0,
+      contentChangedCount: 0,
       wouldPersist: 0,
       googleTotal: 0,
       storedLiveCount: 0,
@@ -494,5 +497,58 @@ describe('headReviewsToPersist: the reviews a persisting check stores', () => {
     expect(headReviewsToPersist(input({ reviews, copies })).length).toBe(
       compare({ reviews, copies }).wouldPersist,
     )
+  })
+})
+
+describe('headPageOverflowed: a whole page changed with more behind it', () => {
+  const page = (count: number, make: (id: string) => HeadGoogleReview) =>
+    Array.from({ length: count }, (_, index) => make(`review-${index}`))
+  const copiesOf = (count: number, over: Partial<HeadStoredCopy> = {}) =>
+    Array.from({ length: count }, (_, index) =>
+      stored({ externalId: `review-${index}`, ...over }),
+    )
+
+  it('is true when all fifty reviews are new, edited or replied to and more pages follow', () => {
+    const reviews = [
+      ...page(20, (externalId) => google({ externalId: `${externalId}-new` })),
+      ...page(30, (externalId) => google({ externalId, sourceUpdatedAt: ago(10) })),
+    ]
+    const comparison = compare({ reviews, copies: copiesOf(30), hasMore: true })
+
+    expect(comparison.contentChangedCount).toBe(50)
+    expect(headPageOverflowed(comparison)).toBe(true)
+  })
+
+  it('is false when Google has no further page', () => {
+    const reviews = page(50, (externalId) => google({ externalId }))
+    expect(headPageOverflowed(compare({ reviews, hasMore: false }))).toBe(false)
+  })
+
+  it('is false when one review on the page is unchanged', () => {
+    const reviews = page(50, (externalId) =>
+      google({ externalId, sourceUpdatedAt: ago(10) }),
+    )
+    const copies = [
+      ...copiesOf(49),
+      stored({ externalId: 'review-49', sourceUpdatedAt: ago(10) }),
+    ]
+    expect(headPageOverflowed(compare({ reviews, copies, hasMore: true }))).toBe(false)
+  })
+
+  it('does not count the routine five-day content-clock refresh as a change', () => {
+    const reviews = page(50, (externalId) => google({ externalId }))
+    const comparison = compare({
+      reviews,
+      copies: copiesOf(50, { lastFetchedAt: ago(HEAD_LEASE_REFRESH_AFTER_MS) }),
+      hasMore: true,
+    })
+
+    expect(comparison).toMatchObject({ leaseRefreshCount: 50, wouldPersist: 50 })
+    expect(comparison.contentChangedCount).toBe(0)
+    expect(headPageOverflowed(comparison)).toBe(false)
+  })
+
+  it('is false for an empty page', () => {
+    expect(headPageOverflowed(compare({ reviews: [], hasMore: true }))).toBe(false)
   })
 })

@@ -968,6 +968,54 @@ describe('sync.reconciliation-age', () => {
   )
 })
 
+describe('sync.head-coverage', () => {
+  const uncovered = (active: boolean, count: number, oldest: number | null) => {
+    const s = healthy()
+    s.syncPush = {
+      ...s.syncPush,
+      headCoverage: { active, uncoveredCount: count, oldestUncoveredAgeMs: oldest },
+    }
+    return s
+  }
+  const DAY_MS = 24 * 3_600_000
+
+  it('fires when a window over a day is set and a Property went a day without head cover', () => {
+    expect(
+      evaluateOne('sync.head-coverage', uncovered(true, 3, DAY_MS + 60_000)),
+    ).toMatchObject({
+      name: 'sync.head-coverage',
+      severity: 'P2',
+      runbook: 'runbooks.md §13',
+      value: DAY_MS + 60_000,
+      threshold: DAY_MS,
+      windowMs: DAY_MS,
+      facts: { count: 3 },
+    })
+  })
+
+  it('stays silent when every Property is covered', () => {
+    expect(evaluateOne('sync.head-coverage', uncovered(true, 0, null))).toBeNull()
+  })
+
+  it('stays silent at a window of a day or less, whatever the cover', () => {
+    expect(evaluateOne('sync.head-coverage', uncovered(false, 5, 3 * DAY_MS))).toBeNull()
+    expect(evaluateOne('sync.head-coverage', healthy())).toBeNull()
+  })
+
+  it.each(['health.sync', 'health.syncPush'] as const)(
+    'is held while %s is degraded',
+    (section) => {
+      const s = uncovered(true, 1, DAY_MS + 1)
+      s.degraded = [section]
+
+      const result = evaluateAlerts(s, AUX, new Set(), new Set())
+
+      expect(result.held).toContain('sync.head-coverage')
+      expect(result.firing).not.toContain('sync.head-coverage')
+    },
+  )
+})
+
 // ── notification delivery ─────────────────────────────────────────
 
 describe('notification.in-app-delivery-lag', () => {

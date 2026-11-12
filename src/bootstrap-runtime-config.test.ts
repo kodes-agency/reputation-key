@@ -71,4 +71,13 @@ describe('createBootstrapRuntimeConfig: reconciliation window', () => {
       configFor({ REVIEW_RECONCILE_WITHIN_HOURS: '24' }).reviewReconcileWithinMs,
     ).toBe(24 * 60 * 60 * 1_000)
   })
+
+  it('accepts fourteen days and refuses one hour more', () => {
+    expect(
+      configFor({ REVIEW_RECONCILE_WITHIN_HOURS: '336' }).reviewReconcileWithinMs,
+    ).toBe(336 * 60 * 60 * 1_000)
+    expect(() => configFor({ REVIEW_RECONCILE_WITHIN_HOURS: '337' })).toThrow(
+      'REVIEW_RECONCILE_WITHIN_HOURS',
+    )
+  })
 })

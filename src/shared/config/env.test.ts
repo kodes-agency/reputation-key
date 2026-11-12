@@ -245,14 +245,17 @@ describe('REVIEW_RECONCILE_WITHIN_HOURS', () => {
     expect(parse()).toBe(6)
   })
 
-  it('accepts a whole number of hours from six to twenty-four', () => {
+  it('accepts a whole number of hours from six to fourteen days', () => {
     expect(parse('6')).toBe(6)
     expect(parse('12')).toBe(12)
     expect(parse('24')).toBe(24)
+    expect(parse('25')).toBe(25)
+    expect(parse('168')).toBe(168)
+    expect(parse('336')).toBe(336)
   })
 
-  it.each(['5', '0', '-6', '25', '48', '6.5', 'six', ''])(
-    'refuses %j at boot: below six the sweep guarantee breaks, above twenty-four a Property goes a day unlisted',
+  it.each(['5', '0', '-6', '337', '720', '6.5', 'six', ''])(
+    'refuses %j at boot: below six the sweep guarantee breaks, past fourteen days stored text outlives its refresh',
     (value) => {
       expect(() => parse(value)).toThrow('REVIEW_RECONCILE_WITHIN_HOURS')
     },

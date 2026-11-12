@@ -6,7 +6,9 @@
 // be queried for the history's 30-day retention. In persist mode (ADR 0055,
 // note of 2026-10-21 (d)) it also stores the reviews that differ, through the
 // ordinary observation writer, and Google's own count and average as a fact
-// that is not a completed listing (`recordHeadFact`).
+// that is not a completed listing (`recordHeadFact`), and it keeps the
+// Property's head cover or asks for a full read (`recordHeadCoverage`,
+// `requestFullRead`).
 //
 // Content-free: counts, timestamps and closed codes. The Property is named only
 // to key the history row.
@@ -132,4 +134,20 @@ export type ReviewHeadCheckRepository = Readonly<{
   recordHeadFact(input: ReviewHeadFactInput): Promise<void>
   /** One row in the bounded sync-run history, `head_dark` or `head`. */
   recordRun(run: ReviewHeadRunRecord): Promise<void>
+  /**
+   * Persist mode: the check stored all of Google's newest page, so the Property
+   * is covered from `coveredAt` (`review_sync_state.head_covered_at`, never
+   * moved backwards). Writes nothing for a Property the sweep has never looked at.
+   */
+  recordHeadCoverage(
+    input: Readonly<{ propertyId: string; coveredAt: Date }>,
+  ): Promise<void>
+  /**
+   * Persist mode: the whole page changed and more pages follow it, so ask the
+   * discovery sweep for a full read (`review_sync_state.full_read_requested_at`,
+   * never moved backwards). The sweep spaces the reads it runs for requests.
+   */
+  requestFullRead(
+    input: Readonly<{ propertyId: string; requestedAt: Date }>,
+  ): Promise<void>
 }>

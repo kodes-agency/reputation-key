@@ -121,6 +121,8 @@ function setup(
     recordRun: vi.fn(async () => {
       if (options.recordRun) throw options.recordRun
     }),
+    recordHeadCoverage: vi.fn(async () => undefined),
+    requestFullRead: vi.fn(async () => undefined),
   } satisfies ReviewHeadCheckRepository
   const logger = { info: vi.fn(), warn: vi.fn() }
   const ticks = [...(options.clockTicks ?? [T0, new Date(T0.getTime() + 1_250)])]
@@ -223,6 +225,7 @@ describe('runReviewHeadCheck: a dark head check', () => {
         changed: 0,
         replyChanged: 0,
         leaseRefresh: 0,
+        contentChanged: 1,
         wouldPersist: 1,
         totalDifference: 1,
         averageDifference: 0,

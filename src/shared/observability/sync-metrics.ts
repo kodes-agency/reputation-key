@@ -163,7 +163,7 @@ export const SYNC_METRIC_DEFINITIONS = [
     snapshotPath: ['syncPush.reconciliation.overdueAfterMs'],
     emitted: true,
     description:
-      'Configured reconciliation window plus two hours of slack, used by the health read and its overdue alert.',
+      'Configured reconciliation window plus two hours of slack, used by the health read and its overdue alert. Above a 24-hour window it is the limit of a Property a head check covers; an uncovered one is overdue after a day plus two hours.',
   },
   {
     name: 'sync.reconciliation_overdue',
@@ -173,7 +173,7 @@ export const SYNC_METRIC_DEFINITIONS = [
     snapshotPath: ['syncPush.reconciliation.overdueCount'],
     emitted: true,
     description:
-      'Syncable Properties whose newest completed reconciliation of the current source epoch is older than the configured reconciliation window plus two hours (no reconciliation: since the Property qualified). Includes Properties with a coded failure.',
+      'Syncable Properties whose newest completed reconciliation of the current source epoch is older than their window plus two hours (no reconciliation: since the Property qualified). The window is the configured one, or a day for a Property no head check covers when the configured one is longer. Includes Properties with a coded failure.',
   },
   {
     name: 'sync.oldest_reconciliation_age_ms',
@@ -184,5 +184,35 @@ export const SYNC_METRIC_DEFINITIONS = [
     emitted: true,
     description:
       'Age of the oldest overdue reconciliation. Null/absent when none is overdue.',
+  },
+  {
+    name: 'sync.head_coverage_active',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['syncPush.headCoverage.active'],
+    emitted: true,
+    description:
+      '1 when REVIEW_RECONCILE_WITHIN_HOURS is over 24, so skipping a full listing depends on head cover and the head-coverage counts are read. 0 = every Property keeps the configured window whatever its cover.',
+  },
+  {
+    name: 'sync.head_coverage_uncovered',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['syncPush.headCoverage.uncoveredCount'],
+    emitted: true,
+    description:
+      'Syncable Properties no persisting head check covered in the last day (the later of the last cover and the day the Property qualified). Read only while REVIEW_RECONCILE_WITHIN_HOURS is over 24; zero otherwise.',
+  },
+  {
+    name: 'sync.head_coverage_oldest_uncovered_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['syncPush.headCoverage.oldestUncoveredAgeMs'],
+    emitted: true,
+    description:
+      'How long the longest-uncovered Property has gone without head cover. Null/absent when none is uncovered or the window is a day or less.',
   },
 ] as const

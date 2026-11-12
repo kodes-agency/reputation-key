@@ -46,6 +46,10 @@ export type FakeDiscoveryPropertyRow = {
    * fake cannot model epochs; the DB test proves the epoch filter.
    */
   lastReconciledAt: Date | null
+  /** review_sync_state.head_covered_at (migration 0151). */
+  headCoveredAt: Date | null
+  /** review_sync_state.full_read_requested_at (migration 0151). */
+  fullReadRequestedAt: Date | null
   /** True while a queued/processing GBP import item targets this property. */
   importInFlight: boolean
 }
@@ -79,6 +83,8 @@ const toCandidate = (row: FakeDiscoveryPropertyRow): ReviewDiscoveryCandidate =>
   },
   lastReconciledAt: row.lastReconciledAt,
   hasOutstandingFailure: row.errorClass !== null,
+  headCoveredAt: row.headCoveredAt,
+  fullReadRequestedAt: row.fullReadRequestedAt,
 })
 
 export const createFakeReviewDiscoveryRepository = (
@@ -155,8 +161,10 @@ export const createFakeReviewDiscoveryRepository = (
           row.errorRetryAt.getTime() > now.getTime()
         ) {
           skippedBackoff++
-        } else if (row.nextDueAt !== null && row.nextDueAt.getTime() > now.getTime()) {
-          row.nextDueAt = now
+        } else if (row.nextDueAt !== null) {
+          // A never-polled Property (no state row) is left alone: its first look is full.
+          if (row.nextDueAt.getTime() > now.getTime()) row.nextDueAt = now
+          row.fullReadRequestedAt = now
           pulledForward++
         }
       }
@@ -189,6 +197,8 @@ export const fakeDiscoveryProperty = (
   lastNotificationAt: null,
   observedSince: null,
   lastReconciledAt: null,
+  headCoveredAt: null,
+  fullReadRequestedAt: null,
   importInFlight: false,
   ...overrides,
 })

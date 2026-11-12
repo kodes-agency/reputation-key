@@ -35,8 +35,14 @@ import {
   quarantineTotals,
   unreadyJobFacts,
 } from './alert-snapshot-facts'
-import { readPushMissed, readPushSilent, readReconciliationAge } from './alert-sync-push'
 import {
+  readHeadCoverage,
+  readPushMissed,
+  readPushSilent,
+  readReconciliationAge,
+} from './alert-sync-push'
+import {
+  HEAD_COVERAGE_ALERT_AFTER_MS,
   PUSH_ALERT_WINDOW_MS,
   RECONCILIATION_OVERDUE_AFTER_MS,
 } from '#/shared/domain/push-health'
@@ -691,6 +697,18 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     threshold: RECONCILIATION_OVERDUE_AFTER_MS,
     blindedBy: ['health.syncPush', 'health.sync'],
     read: readReconciliationAge,
+  }),
+  // Above a one-day window, skipping the full listing rests on head checks
+  // storing each Property's newest page; this counts the ones they left
+  // uncovered for a day. Inactive at a day or less.
+  define({
+    name: 'sync.head-coverage',
+    severity: 'P2',
+    runbook: 'runbooks.md §13',
+    windowMs: HEAD_COVERAGE_ALERT_AFTER_MS,
+    threshold: HEAD_COVERAGE_ALERT_AFTER_MS,
+    blindedBy: ['health.syncPush', 'health.sync'],
+    read: readHeadCoverage,
   }),
 
   // ── Review Analysis coverage and first-enablement backfill ──

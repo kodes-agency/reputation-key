@@ -41,17 +41,51 @@ export const PUSH_HEALTH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 /** The window the alerts count over. */
 export const PUSH_ALERT_WINDOW_MS = 24 * 60 * 60 * 1000
 
+/** Slack on top of a Property's window before its reconciliation is overdue. */
+export const RECONCILIATION_OVERDUE_SLACK_MS = 2 * 60 * 60 * 1000
+
 /**
  * A syncable Property is reconciliation-overdue past this age. The discovery
  * window is REVIEW_RECONCILE_WITHIN_HOURS; two hours of slack on top keeps one
  * slow sweep and its snapshot from paging (ADR 0055).
  */
 export function reconciliationOverdueAfterMs(reconcileWithinHours: number): number {
-  return (reconcileWithinHours + 2) * 60 * 60 * 1000
+  return reconcileWithinHours * 60 * 60 * 1000 + RECONCILIATION_OVERDUE_SLACK_MS
 }
 
 /** Default limit while the reconciliation window remains six hours. */
 export const RECONCILIATION_OVERDUE_AFTER_MS = reconciliationOverdueAfterMs(6)
+
+/**
+ * The widest REVIEW_RECONCILE_WITHIN_HOURS accepts: fourteen days. Google allows
+ * stored review text only while it is refreshed within 30 days.
+ */
+export const RECONCILE_WITHIN_HOURS_MAX = 14 * 24
+
+/**
+ * Above this window a Property skips the full listing only while a persisting
+ * head check covers its newest page; without that cover it is listed in full
+ * once its last listing is this old.
+ */
+export const UNCOVERED_RECONCILE_WITHIN_MS = 24 * 60 * 60 * 1000
+
+/**
+ * A persisting head check that stored all of Google's newest page covers the
+ * Property for this long: the longest gap between two discovery looks (six
+ * hours, the ladder's cold rung) plus an hour for the start spread and the
+ * queue.
+ */
+export const HEAD_COVERAGE_FRESH_MS = 7 * 60 * 60 * 1000
+
+/**
+ * The longest gap between two discovery looks (the ladder's cold rung). The
+ * look that first finds a Property's cover lapsed comes at most this long after
+ * the lapse; the reconciliation-age read allows for it.
+ */
+export const DISCOVERY_LOOK_MAX_GAP_MS = 6 * 60 * 60 * 1000
+
+/** The head-coverage alert counts Properties left without cover this long. */
+export const HEAD_COVERAGE_ALERT_AFTER_MS = 24 * 60 * 60 * 1000
 
 /** A location is suspect after this many missed pushes in the health window. */
 const LOCATION_SUSPECT_MISSED = 1

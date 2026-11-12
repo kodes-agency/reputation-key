@@ -48,9 +48,13 @@
 //     property with an outstanding failure, no reconciliation yet, or no push
 //     configured (the sweep is then the only path for new reviews) runs full.
 //     The window is six hours unless REVIEW_RECONCILE_WITHIN_HOURS widens it.
-//     The content refresh (refresh-expiring-reviews) enqueues nothing: it only
-//     moves a property's next look up to now, and only when its last
-//     reconciliation is over a day old, so that look is full too.
+//     Above a day, a property skips only while a persisting head check has
+//     stored its newest page recently (review_sync_state.head_covered_at);
+//     without that cover it is listed in full once its listing is a day old.
+//     The content refresh (refresh-expiring-reviews) enqueues nothing: it
+//     requests a full read and moves a property's next look up to now, and
+//     only when its last reconciliation is over a day old, so that look is
+//     full too. A request runs once, when the last listing is six hours old.
 //   - a failed look is not retried at the base interval every time: the wait
 //     grows with consecutive failures (domain/snapshot-failure-backoff.ts),
 //     and next_incremental_at carries it, so this sweep reaches the property
@@ -142,6 +146,7 @@ type DiscoverHandlerDeps = Readonly<{
   /**
    * How recent a completed reconciliation must be for a look to skip, in
    * milliseconds (`REVIEW_RECONCILE_WITHIN_HOURS`). Defaults to six hours.
+   * Above a day it holds only for a property a head check covers.
    */
   reconcileWithinMs?: number
 }>
@@ -281,6 +286,8 @@ async function lookAtCandidate(
   const look = discoveryLookFor({
     lastReconciledAt: candidate.lastReconciledAt,
     hasOutstandingFailure: candidate.hasOutstandingFailure,
+    headCoveredAt: candidate.headCoveredAt,
+    fullReadRequestedAt: candidate.fullReadRequestedAt,
     skipEnabled,
     headChecks: headEnabled,
     ...(deps.reconcileWithinMs === undefined
@@ -424,6 +431,8 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
           failure_retry: 0,
           no_reconciliation: 0,
           due: 0,
+          requested: 0,
+          uncovered: 0,
         },
         headChecksEnqueued: 0,
         headChecksFailed: 0,
@@ -457,7 +466,7 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
             enqueuedCold: state.enqueuedByTier.cold,
             // Looks that found a completed reconciliation inside the window
             // and enqueued nothing, by rung, then why every other look ran in
-            // full. `skipped` + the four full counts = candidatesSeen unless
+            // full. `skipped` + the six full counts = candidatesSeen unless
             // an enqueue failure ended the run.
             skipped: skippedTotal(state),
             skippedHot: state.skippedByTier.hot,
@@ -467,6 +476,10 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
             fullFailureRetry: state.fullByReason.failure_retry,
             fullNoReconciliation: state.fullByReason.no_reconciliation,
             fullDue: state.fullByReason.due,
+            // A requested full read, and a look over a day old with no head
+            // cover (only when the window is wider than a day).
+            fullRequested: state.fullByReason.requested,
+            fullUncovered: state.fullByReason.uncovered,
             // Head jobs the skipped looks handed to the queue (dark mode).
             headChecksEnqueued: state.headChecksEnqueued,
             headChecksFailed: state.headChecksFailed,

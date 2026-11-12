@@ -77,6 +77,11 @@ export type HeadComparison = Readonly<{
   changedCount: number
   replyChangedCount: number
   leaseRefreshCount: number
+  /**
+   * Distinct reviews that are new, edited or carry a changed reply: what
+   * changed on Google, leaving out the routine five-day content-clock refresh.
+   */
+  contentChangedCount: number
   /** Distinct reviews a persisting check would store. */
   wouldPersist: number
   googleTotal: number
@@ -182,6 +187,9 @@ export const compareHead = (input: HeadComparisonInput): HeadComparison => {
     changedCount: countOf(classes, 'changed'),
     replyChangedCount: countOf(classes, 'reply_changed'),
     leaseRefreshCount: countOf(classes, 'lease_refresh'),
+    contentChangedCount: classes.filter((found) =>
+      found.some((kind) => kind !== 'lease_refresh'),
+    ).length,
     wouldPersist: classes.filter((found) => found.length > 0).length,
     googleTotal: input.googleTotal,
     storedLiveCount: input.storedLiveCount,
@@ -195,6 +203,17 @@ export const compareHead = (input: HeadComparisonInput): HeadComparison => {
     hasMore: input.hasMore,
   }
 }
+
+/**
+ * Every review on the page changed on Google and more pages follow it, so
+ * changes may lie past the one page a head check reads. Reviews refreshed only
+ * because their content clock is five days old do not count: that refresh is
+ * routine and says nothing about Google.
+ */
+export const headPageOverflowed = (comparison: HeadComparison): boolean =>
+  comparison.hasMore &&
+  comparison.listed > 0 &&
+  comparison.contentChangedCount === comparison.listed
 
 /**
  * One head job per Property and time bucket, so two looks of one bucket never

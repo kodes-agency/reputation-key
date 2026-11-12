@@ -32,6 +32,7 @@ const COMPARED = {
     changedCount: 0,
     replyChangedCount: 0,
     leaseRefreshCount: 0,
+    contentChangedCount: 0,
     wouldPersist: 0,
     googleTotal: 1,
     storedLiveCount: 1,

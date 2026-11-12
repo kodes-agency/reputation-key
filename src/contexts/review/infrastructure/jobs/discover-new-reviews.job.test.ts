@@ -889,6 +889,59 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
     expect(standard.headCalls).toHaveLength(0)
   })
 
+  it('passes each Property’s head cover and request to the rule at a weekly window, and logs why looks ran full', async () => {
+    const WEEK = 7 * 24 * HOUR
+    const deps = makeHeadDeps(
+      [
+        // Covered a minute ago, listed two days ago: a head check, no listing.
+        prop(1, { ...HOT, lastReconciledAt: ago(48 * HOUR), headCoveredAt: ago(MINUTE) }),
+        // No cover: listed in full once the listing is a day old.
+        prop(2, {
+          ...HOT,
+          lastReconciledAt: ago(48 * HOUR),
+          headCoveredAt: ago(8 * HOUR),
+        }),
+        // Covered, but the content refresh asked for a full read after the listing.
+        prop(3, {
+          ...HOT,
+          lastReconciledAt: ago(48 * HOUR),
+          headCoveredAt: ago(MINUTE),
+          fullReadRequestedAt: ago(HOUR),
+        }),
+      ],
+      { headChecks: 'persist', reconcileWithinMs: WEEK },
+    )
+
+    await deps.handler({} as never)
+
+    expect(deps.syncJobs.map((job) => job.propertyId)).toEqual([
+      'aa000000-0000-4000-8000-000000000002',
+      'aa000000-0000-4000-8000-000000000003',
+    ])
+    expect(deps.headCalls.map((call) => call.data.propertyId)).toEqual([
+      'aa000000-0000-4000-8000-000000000001',
+    ])
+    expect(finishedLog(deps)).toMatchObject({
+      skipped: 1,
+      fullDue: 0,
+      fullRequested: 1,
+      fullUncovered: 1,
+    })
+  })
+
+  it('ignores head cover at a daily window', async () => {
+    const deps = makeHeadDeps(
+      [prop(1, { ...HOT, lastReconciledAt: ago(10 * HOUR), headCoveredAt: null })],
+      { headChecks: 'persist', reconcileWithinMs: 24 * HOUR },
+    )
+
+    await deps.handler({} as never)
+
+    expect(deps.syncJobs).toHaveLength(0)
+    expect(deps.headCalls).toHaveLength(1)
+    expect(finishedLog(deps)).toMatchObject({ fullRequested: 0, fullUncovered: 0 })
+  })
+
   it('treats a missing head queue as off rather than waking the Property early for nothing', async () => {
     const reconciled = ago(HOUR)
     const deps = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })], {

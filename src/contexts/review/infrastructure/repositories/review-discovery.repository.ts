@@ -79,6 +79,8 @@ type CandidateRow = Readonly<{
   lastNotificationAt: Date | null
   lastReconciledAt: Date | null
   errorClass: string | null
+  headCoveredAt: Date | null
+  fullReadRequestedAt: Date | null
 }>
 
 /**
@@ -103,6 +105,8 @@ const toCandidate = (row: CandidateRow): ReviewDiscoveryCandidate[] =>
           },
           lastReconciledAt: row.lastReconciledAt,
           hasOutstandingFailure: row.errorClass !== null,
+          headCoveredAt: row.headCoveredAt,
+          fullReadRequestedAt: row.fullReadRequestedAt,
         },
       ]
 
@@ -165,6 +169,8 @@ export const createReviewDiscoveryRepository = (
           lastNotificationAt: reviewSyncState.lastNotificationAt,
           lastReconciledAt: lastReconciled.evaluatedAt,
           errorClass: reviewSyncState.errorClass,
+          headCoveredAt: reviewSyncState.headCoveredAt,
+          fullReadRequestedAt: reviewSyncState.fullReadRequestedAt,
         })
         .from(properties)
         .innerJoin(
@@ -320,18 +326,23 @@ export const createReviewDiscoveryRepository = (
       // One statement decides and writes: a failure keeps its backoff, so the
       // update skips a Property whose `error_retry_at` is still ahead. Reading
       // that first and updating after would let a deferral that commits in
-      // between be pulled forward anyway. A look already due, or a Property with
-      // no row (never polled), needs no move. Only the due time (and
-      // `updated_at`) change: nothing was synced, so the success stamp and any
-      // failure state stay as they were.
+      // between be pulled forward anyway. The request is what makes the look
+      // full when the window is wider than the listing's age, so a look already
+      // due gets it too and keeps its earlier due time. A Property with no row
+      // (never polled) needs nothing: its first look is full. Only the due
+      // time, the request and `updated_at` change: nothing was synced, so the
+      // success stamp and any failure state stay as they were.
       const moved = await db
         .update(reviewSyncState)
-        .set({ nextIncrementalAt: now, updatedAt: now })
+        .set({
+          nextIncrementalAt: sql`LEAST(${reviewSyncState.nextIncrementalAt}, ${now})`,
+          fullReadRequestedAt: now,
+          updatedAt: now,
+        })
         .where(
           and(
             inArray(reviewSyncState.propertyId, stale),
             eq(reviewSyncState.source, DISCOVERY_SOURCE),
-            gt(reviewSyncState.nextIncrementalAt, now),
             or(
               isNull(reviewSyncState.errorRetryAt),
               lte(reviewSyncState.errorRetryAt, now),
