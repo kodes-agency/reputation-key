@@ -15,6 +15,7 @@ import {
   createEnvCapabilityPolicyStore,
   isBlockedCapability,
   isCapabilityJobEnabled,
+  isCapabilityOpenToEveryOrganization,
   listAllCapabilities,
   listBlockedCapabilities,
   checkGlobalCapability,
@@ -22,7 +23,11 @@ import {
   type Capability,
   type CapabilityPolicyStore,
 } from './beta-capabilities'
-import { listCapabilitiesBySwitch } from '#/shared/governance/capability-fate'
+import {
+  CAPABILITY_FATE,
+  listCapabilitiesBySwitch,
+  listCapabilitiesNeedingOrganization,
+} from '#/shared/governance/capability-fate'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 
 const ORG = 'org-00000000-0000-0000-0000-000000000001'
@@ -38,36 +43,19 @@ function allowedFor(organizationId: string): Capability[] {
   )
 }
 
-/** Every capability the beta ran before the switches, read from its fates. */
-const ON_TODAY: ReadonlyArray<Capability> = [
-  'activity.use',
-  'ai.analyze',
-  'ai.generate_reply',
-  'dashboard.use',
-  'feedback.beta_report',
-  'goal.use',
-  'identity.invite',
-  'inbox.use',
-  'integration.use',
-  'metric.internal',
-  'notification.in_app',
-  'notification.send_email',
-  'notification.send_mandatory_email',
-  'portal.guest_response',
-  'portal.guest_text',
-  'portal.public_read',
-  'portal.read',
-  'portal.upload',
-  'portal.write',
-  'property.connect_gbp',
-  'property.create',
-  'property.import_gbp_v2',
-  'property.publish_reply',
-  'property.read_gbp_performance',
-  'review.use',
-  'staff.accounts',
-  'staff.use',
-]
+/**
+ * Every capability the beta ran before the switches: the catalogue's
+ * capabilities whose fate lets them run. Admission let every Organization in
+ * (`BETA_ALLOWLIST_ORGS=*`), so its old core and controlled-beta fates both
+ * ran; the rest were blocked.
+ */
+const ON_TODAY: ReadonlyArray<Capability> = CAPABILITIES.filter(
+  (capability) => CAPABILITY_FATE[capability].fate === 'core',
+).sort()
+
+// What the policy reads on the beta today: nothing switched off, nobody
+// suspended.
+const BETA_ENV = { NODE_ENV: 'production' }
 
 describe('BetaCapabilities', () => {
   afterEach(() => {
@@ -76,14 +64,10 @@ describe('BetaCapabilities', () => {
   })
 
   describe('the beta environment', () => {
-    // What web and worker carry on the beta today: every Organization admitted
-    // (`*`), nothing switched off, nobody suspended. The allowlist variable is
-    // no longer read; the outcome must not move.
-    const BETA_ENV = { NODE_ENV: 'production', BETA_ALLOWLIST_ORGS: '*' }
-
     it('runs exactly what it ran before, for every Organization', () => {
       install(BETA_ENV)
 
+      expect(ON_TODAY).toHaveLength(27)
       expect(allowedFor(ORG)).toEqual(ON_TODAY)
       expect(allowedFor(OTHER_ORG)).toEqual(ON_TODAY)
     })
@@ -94,18 +78,13 @@ describe('BetaCapabilities', () => {
       const refused = listAllCapabilities().filter(
         (capability) => !ON_TODAY.includes(capability),
       )
+      expect(refused).toHaveLength(10)
       expect(refused).toEqual([...listBlockedCapabilities()])
       for (const capability of refused) {
         expect(checkScopedCapability({ organizationId: ORG }, capability).reason).toBe(
           'capability_blocked',
         )
       }
-    })
-
-    it('reads the same with the retired admission list unset', () => {
-      install({ NODE_ENV: 'production' })
-
-      expect(allowedFor(ORG)).toEqual(ON_TODAY)
     })
   })
 
@@ -167,6 +146,7 @@ describe('BetaCapabilities', () => {
           'capability_disabled',
         )
         expect(checkGlobalCapability(capability).reason).toBe('capability_disabled')
+        expect(isCapabilityOpenToEveryOrganization(capability)).toBe(false)
       }
     })
 
@@ -182,7 +162,7 @@ describe('BetaCapabilities', () => {
       expect(checkGlobalCapability('notification.send_mandatory_email').allowed).toBe(
         true,
       )
-      expect(checkGlobalCapability('notification.send_email').allowed).toBe(false)
+      expect(isCapabilityOpenToEveryOrganization('notification.send_email')).toBe(false)
     })
 
     it('turns several switches off together', () => {
@@ -192,10 +172,12 @@ describe('BetaCapabilities', () => {
         'google',
         'ai',
       ])
-      expect(checkGlobalCapability('property.publish_reply').allowed).toBe(false)
-      expect(checkGlobalCapability('ai.generate_reply').allowed).toBe(false)
-      expect(checkGlobalCapability('portal.public_read').allowed).toBe(true)
-      expect(checkGlobalCapability('notification.send_email').allowed).toBe(true)
+      const scoped = (capability: Capability) =>
+        checkScopedCapability({ organizationId: ORG }, capability).allowed
+      expect(scoped('property.publish_reply')).toBe(false)
+      expect(scoped('ai.generate_reply')).toBe(false)
+      expect(scoped('portal.public_read')).toBe(true)
+      expect(scoped('notification.send_email')).toBe(true)
     })
 
     it('refuses a name that is not a switch rather than ignore it', () => {
@@ -254,6 +236,48 @@ describe('BetaCapabilities', () => {
       install({ BETA_SUSPENDED_ORGS: ORG })
 
       expect(checkGlobalCapability('inbox.use').allowed).toBe(true)
+    })
+  })
+
+  describe('a call that names no Organization', () => {
+    // These ran only for an admitted Organization, so a call naming none was
+    // refused; it still is, or an org-less caller would reach tenant work.
+    it('is refused every capability that needs an Organization', () => {
+      install(BETA_ENV)
+
+      const needing = listCapabilitiesNeedingOrganization()
+      expect(needing).toHaveLength(13)
+      for (const capability of needing) {
+        expect(checkGlobalCapability(capability)).toEqual({
+          allowed: false,
+          reason: 'capability_disabled',
+          capability,
+        })
+        expect(checkScopedCapability({ organizationId: ORG }, capability).allowed).toBe(
+          true,
+        )
+      }
+    })
+
+    it('still runs the rest, as before', () => {
+      install(BETA_ENV)
+
+      const needing = listCapabilitiesNeedingOrganization()
+      const globallyAllowed = listAllCapabilities().filter(
+        (capability) => checkGlobalCapability(capability).allowed,
+      )
+      expect(globallyAllowed).toEqual(
+        ON_TODAY.filter((capability) => !needing.includes(capability)),
+      )
+    })
+
+    it('reads a capability as open to every Organization unless it is switched off', () => {
+      install(BETA_ENV)
+
+      expect(isCapabilityOpenToEveryOrganization('notification.send_email')).toBe(true)
+      expect(isCapabilityOpenToEveryOrganization('identity.register')).toBe(false)
+      install({ BETA_CAPABILITIES_OFF: 'all' })
+      expect(isCapabilityOpenToEveryOrganization('notification.send_email')).toBe(false)
     })
   })
 

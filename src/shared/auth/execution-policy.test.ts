@@ -26,6 +26,7 @@ import {
   resetCapabilityPolicyStore,
 } from './beta-capabilities'
 import { organizationId, userId, propertyId } from '#/shared/domain/ids'
+import { listCapabilitiesNeedingOrganization } from '#/shared/governance/capability-fate'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { runWithContext } from '#/shared/observability/request-context'
@@ -303,6 +304,22 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     )
     expect(allowCore.allowed).toBe(true)
   })
+  it('public principal: a capability that needs an Organization is refused without one', async () => {
+    const policy = createExecutionPolicy(deps())
+    for (const capability of listCapabilitiesNeedingOrganization()) {
+      const decision = await policy.decide(
+        request({
+          principal: { kind: 'public' },
+          action: 'public:portal.read',
+          capability,
+          organizationId: undefined,
+          executionKind: 'public',
+        }),
+      )
+      expect(decision).toMatchObject({ allowed: false, reason: 'capability_disabled' })
+    }
+  })
+
   it('public Portal decisions use resolved property scope and explicit consent assertions', async () => {
     initCapabilityPolicyStore(
       createEnvCapabilityPolicyStore({ BETA_SUSPENDED_ORGS: 'org-suspended' }),
@@ -463,6 +480,16 @@ describe('operator principal (BQC-7.5)', () => {
       operatorRequest({ organizationId: undefined, capability: 'review.use' }),
     )
     expect(allow.allowed).toBe(true)
+  })
+
+  it('refuses a capability that needs an Organization when none is named', async () => {
+    const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
+    for (const capability of listCapabilitiesNeedingOrganization()) {
+      const decision = await policy.decide(
+        operatorRequest({ organizationId: undefined, capability }),
+      )
+      expect(decision).toMatchObject({ allowed: false, reason: 'capability_disabled' })
+    }
   })
 
   it('an operator reason does not override a typed deny', async () => {

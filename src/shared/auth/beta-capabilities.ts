@@ -26,6 +26,7 @@ import {
   CAPABILITY_FATE,
   FEATURE_SWITCHES,
   listCapabilitiesByFate,
+  listCapabilitiesNeedingOrganization,
   type Capability,
   type FeatureSwitch,
 } from '#/shared/governance/capability-fate'
@@ -46,6 +47,10 @@ const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set([
   ...listCapabilitiesByFate('safety_blocked'),
   ...listCapabilitiesByFate('permanently_denied'),
 ])
+
+const ORGANIZATION_CAPABILITIES: ReadonlySet<Capability> = new Set(
+  listCapabilitiesNeedingOrganization(),
+)
 
 // ── Decision types ──────────────────────────────────────────────────
 
@@ -369,9 +374,10 @@ export function assertBetaCapability(
 }
 
 /**
- * Check a capability with no Organization in scope: blocked fates and the
- * switches decide, suspension cannot. Use in unauthenticated endpoints
- * (registration, public APIs) and for environment-wide readings.
+ * Check a capability for a call that names no Organization: blocked fates and
+ * the switches decide, suspension cannot. A capability that runs only for a
+ * named Organization fails closed here, so an org-less caller cannot reach
+ * tenant work. Use in unauthenticated endpoints (registration, public APIs).
  */
 export function checkGlobalCapability(capability: Capability): CapabilityDecision {
   if (BLOCKED_CAPABILITIES.has(capability)) {
@@ -380,7 +386,22 @@ export function checkGlobalCapability(capability: Capability): CapabilityDecisio
   if (getStore().isCapabilityKilled(capability)) {
     return { allowed: false, reason: 'capability_disabled', capability }
   }
+  if (ORGANIZATION_CAPABILITIES.has(capability)) {
+    return { allowed: false, reason: 'capability_disabled', capability }
+  }
   return { allowed: true, reason: 'allowed', capability }
+}
+
+/**
+ * Whether a capability runs for every Organization here, read with no tenant
+ * to look up: not blocked and not switched off. An environment-wide reading
+ * (operations health), never an authorization. Suspension stays a per-scope
+ * decision.
+ */
+export function isCapabilityOpenToEveryOrganization(capability: Capability): boolean {
+  return (
+    !BLOCKED_CAPABILITIES.has(capability) && !getStore().isCapabilityKilled(capability)
+  )
 }
 
 /**

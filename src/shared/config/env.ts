@@ -359,8 +359,10 @@ const baseEnvSchema = z.object({
   // ── Switches and controls ─────────────────────────────────────────
   // '1'/'true'/'all' turns everything off; a comma list of switches turns
   // those groups off: google (every Google call), ai (every AI call),
-  // guest_pages (guest pages and submissions), optional_email (all but
-  // mandatory notices). Empty/absent = everything on. Any other name refuses
+  // guest_pages (guest pages and submissions), optional_email (notification
+  // emails: urgent alerts and daily digests; mandatory notices and account
+  // emails such as invitations and password reset still go out).
+  // Empty/absent = everything on. Any other name refuses
   // startup. Set it on web AND worker; both evaluate it.
   BETA_CAPABILITIES_OFF: z
     .string()

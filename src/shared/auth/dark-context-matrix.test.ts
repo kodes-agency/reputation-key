@@ -127,6 +127,7 @@ describe('switched-off feature containment matrix', () => {
   describe('public handlers: the guest surface refuses while guest pages are off', () => {
     it('assertGlobalCapability throws for every guest capability and nothing else', () => {
       install({ BETA_CAPABILITIES_OFF: 'guest_pages' })
+      const scope = { organizationId: 'org-dark-matrix' }
       for (const capability of [
         'portal.public_read',
         'portal.guest_response',
@@ -135,9 +136,12 @@ describe('switched-off feature containment matrix', () => {
         expect(() => assertGlobalCapability(capability), capability).toThrow(
           BetaCapabilityError,
         )
+        expect(checkScopedCapability(scope, capability).reason, capability).toBe(
+          'capability_disabled',
+        )
       }
-      expect(() => assertGlobalCapability('portal.write')).not.toThrow()
-      expect(() => assertGlobalCapability('portal.upload')).not.toThrow()
+      expect(checkScopedCapability(scope, 'portal.write').allowed).toBe(true)
+      expect(checkScopedCapability(scope, 'portal.upload').allowed).toBe(true)
     })
   })
 
@@ -166,17 +170,19 @@ describe('switched-off feature containment matrix', () => {
   describe('AI capabilities', () => {
     it('deny at the global gate while AI is off; Property Trends stays retired', () => {
       install({ BETA_CAPABILITIES_OFF: 'ai' })
+      const scope = { organizationId: 'org-dark-matrix' }
       for (const cap of [
         'ai.analyze',
         'ai.generate_reply',
         'ai.detect_trends',
       ] as const) {
         expect(() => assertGlobalCapability(cap), cap).toThrow(BetaCapabilityError)
+        expect(checkScopedCapability(scope, cap).allowed, cap).toBe(false)
       }
       install({})
-      expect(() => assertGlobalCapability('ai.generate_reply')).not.toThrow()
-      expect(() => assertGlobalCapability('ai.detect_trends')).toThrow(
-        BetaCapabilityError,
+      expect(checkScopedCapability(scope, 'ai.generate_reply').allowed).toBe(true)
+      expect(checkScopedCapability(scope, 'ai.detect_trends').reason).toBe(
+        'capability_blocked',
       )
     })
   })

@@ -62,6 +62,11 @@ export type CapabilityFateRecord = Readonly<{
   fate: CapabilityFate
   /** The switch that turns this capability off; null when only the controls do. */
   featureSwitch: FeatureSwitch | null
+  /**
+   * Runs only for a named Organization: a call that names none is refused
+   * rather than allowed for the whole environment.
+   */
+  needsOrganization: boolean
   authority: string
   activation: string
 }>
@@ -71,10 +76,15 @@ const fate = (
   authority: string,
   activation: string,
   featureSwitch: FeatureSwitch | null = null,
+  needsOrganization = false,
 ): CapabilityFateRecord =>
-  Object.freeze({ fate: value, featureSwitch, authority, activation })
+  Object.freeze({ fate: value, featureSwitch, needsOrganization, authority, activation })
 
-const CORE = (authority: string, featureSwitch: FeatureSwitch | null = null) =>
+const CORE = (
+  authority: string,
+  featureSwitch: FeatureSwitch | null = null,
+  needsOrganization = false,
+) =>
   fate(
     'core',
     authority,
@@ -82,7 +92,14 @@ const CORE = (authority: string, featureSwitch: FeatureSwitch | null = null) =>
       ? 'Enabled by default; everything off and Organization suspension still win.'
       : `Enabled by default; the ${featureSwitch} switch, everything off and Organization suspension still win.`,
     featureSwitch,
+    needsOrganization,
   )
+
+/** Core work that only runs for a named Organization. */
+const CORE_IN_ORGANIZATION = (
+  authority: string,
+  featureSwitch: FeatureSwitch | null = null,
+) => CORE(authority, featureSwitch, true)
 
 const DISABLED = (authority: string, featureSwitch: FeatureSwitch | null = null) =>
   fate(
@@ -115,11 +132,11 @@ export const CAPABILITY_FATE = Object.freeze({
     'Google connection is part of the core manager journey.',
     'google',
   ),
-  'property.import_gbp_v2': CORE(
+  'property.import_gbp_v2': CORE_IN_ORGANIZATION(
     'Google discovery/import is active only through the governed import saga.',
     'google',
   ),
-  'property.read_gbp_performance': CORE(
+  'property.read_gbp_performance': CORE_IN_ORGANIZATION(
     'Google performance reads are provider-readiness gated.',
     'google',
   ),
@@ -127,7 +144,7 @@ export const CAPABILITY_FATE = Object.freeze({
     'Human-confirmed reply publication is core; automated publication remains denied.',
     'google',
   ),
-  'notification.send_email': CORE(
+  'notification.send_email': CORE_IN_ORGANIZATION(
     'Optional email delivery follows notification class and recipient preference; mandatory classes go through notification.send_mandatory_email and survive this switch.',
     'optional_email',
   ),
@@ -135,22 +152,22 @@ export const CAPABILITY_FATE = Object.freeze({
     'Mandatory account/security notices are Organization policy, not optional mail: the last warning before an irreversible deletion must still go out while optional email is switched off.',
   ),
   'notification.in_app': CORE('In-app notification delivery is a beta core function.'),
-  'portal.read': CORE('Portal manager reads are beta core.'),
-  'portal.write': CORE(
+  'portal.read': CORE_IN_ORGANIZATION('Portal manager reads are beta core.'),
+  'portal.write': CORE_IN_ORGANIZATION(
     'Portal management and publication are beta core, subject to lifecycle readiness.',
   ),
-  'portal.upload': CORE(
+  'portal.upload': CORE_IN_ORGANIZATION(
     'Portal image upload is beta core. The owner removed the SAFE-01 completion ceremony on 2026-09-30; the technical safeguards stay in the build (server-side re-encoding, metadata stripping, size and type limits, same-origin serving) - ADR 0063.',
   ),
-  'portal.public_read': CORE(
+  'portal.public_read': CORE_IN_ORGANIZATION(
     'The public review gateway is active only for published Portal resources.',
     'guest_pages',
   ),
-  'portal.guest_response': CORE(
+  'portal.guest_response': CORE_IN_ORGANIZATION(
     'Private rating-first Guest Responses are beta core.',
     'guest_pages',
   ),
-  'portal.guest_text': CORE(
+  'portal.guest_text': CORE_IN_ORGANIZATION(
     'Private feedback text is beta core with separate retention and access rules.',
     'guest_pages',
   ),
@@ -164,14 +181,14 @@ export const CAPABILITY_FATE = Object.freeze({
     'Guest media is excluded from the first beta cohort and has no public issuance surface.',
     'guest_pages',
   ),
-  'goal.use': CORE(
+  'goal.use': CORE_IN_ORGANIZATION(
     'Property, Portal Group, and individual Portal Goals over scans, rating count, and rating average are beta core.',
   ),
-  'ai.analyze': CORE(
+  'ai.analyze': CORE_IN_ORGANIZATION(
     'Per-Property Review Analysis requires independent merchant authorization and readiness.',
     'ai',
   ),
-  'ai.generate_reply': CORE(
+  'ai.generate_reply': CORE_IN_ORGANIZATION(
     'Per-Property genuine EN/BG drafting requires independent authorization and explicit human adoption.',
     'ai',
   ),
@@ -203,7 +220,7 @@ export const CAPABILITY_FATE = Object.freeze({
   'staff.use': CORE(
     'Staff Participants/participation/attribution are core; this does not activate Member login.',
   ),
-  'staff.accounts': CORE(
+  'staff.accounts': CORE_IN_ORGANIZATION(
     'ADR 0076 and owner decision D18 (2026-11-01): personal Portals and staff self reads are beta core; scan targets have the separate STAFF_SCAN_TARGETS_ENABLED switch.',
   ),
   'integration.use': CORE('Google integration lifecycle is beta core.'),
@@ -221,6 +238,14 @@ export const CAPABILITY_FATE = Object.freeze({
 export function listCapabilitiesByFate(target: CapabilityFate): readonly Capability[] {
   return (Object.entries(CAPABILITY_FATE) as Array<[Capability, CapabilityFateRecord]>)
     .filter(([, record]) => record.fate === target)
+    .map(([capability]) => capability)
+    .sort()
+}
+
+/** The capabilities a call naming no Organization cannot run. */
+export function listCapabilitiesNeedingOrganization(): readonly Capability[] {
+  return (Object.entries(CAPABILITY_FATE) as Array<[Capability, CapabilityFateRecord]>)
+    .filter(([, record]) => record.needsOrganization)
     .map(([capability]) => capability)
     .sort()
 }

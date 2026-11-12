@@ -72,7 +72,7 @@ describe('capability boot guard', () => {
 
       // Store is live without a lazy first-use fallback.
       expect(checkGlobalCapability('ai.analyze').allowed).toBe(false)
-      expect(checkGlobalCapability('goal.use').allowed).toBe(true)
+      expect(checkGlobalCapability('inbox.use').allowed).toBe(true)
       expect(logger.entries).toHaveLength(1)
       expect(JSON.stringify(logger.entries[0].obj)).toContain('policyVersion')
     })
@@ -106,7 +106,7 @@ describe('capability boot guard', () => {
     it('reads the switches from the process environment', () => {
       withSwitchesOff('guest_pages', () => {
         expect(checkGlobalCapability('portal.public_read').allowed).toBe(false)
-        expect(checkGlobalCapability('portal.write').allowed).toBe(true)
+        expect(checkGlobalCapability('review.use').allowed).toBe(true)
       })
     })
 

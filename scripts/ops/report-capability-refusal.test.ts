@@ -10,6 +10,7 @@ const REPORT: CapabilityRefusalReport = {
   fate: {
     fate: 'core',
     featureSwitch: 'google',
+    needsOrganization: true,
     authority: 'Google discovery/import is active only through the governed import saga.',
     activation:
       'Enabled by default; the google switch, everything off and Organization suspension still win.',

@@ -47,7 +47,7 @@ import {
   getTenantCacheStats,
   type TenantCacheStats,
 } from '#/shared/auth/tenant-cache-stats'
-import { checkGlobalCapability } from '#/shared/auth/beta-capabilities'
+import { isCapabilityOpenToEveryOrganization } from '#/shared/auth/beta-capabilities'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import type { JobRuntimeReport } from '#/shared/jobs/runtime-observations'
 import { getLogger } from '#/shared/observability/logger'
@@ -502,8 +502,9 @@ export function createOperationsSnapshot(
     // about it. A suspended Organization is not globally enumerable, so this
     // flag cannot see it; notifications.attemptedStuckCount covers that case
     // (a row the delivery path actually touched and left unsent), judged per
-    // scope.
-    emailDeliveryEnabled: checkGlobalCapability('notification.send_email').allowed,
+    // scope. Not the global check: that refuses email because no Organization
+    // is named, while email is live for every Organization.
+    emailDeliveryEnabled: isCapabilityOpenToEveryOrganization('notification.send_email'),
     isEmailDeliveryAllowed: deps.isEmailDeliveryAllowed,
     readNotificationDeliveryLag: deps.readNotificationDeliveryLag,
   })
