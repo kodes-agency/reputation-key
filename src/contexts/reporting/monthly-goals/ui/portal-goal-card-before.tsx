@@ -2,7 +2,7 @@
 // Portal is live, allow a manager's own number.
 
 import { Link } from '@tanstack/react-router'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import { Button } from '#/components/ui/button'
 import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { PortalGoalReadiness } from './portal-goal-readiness'

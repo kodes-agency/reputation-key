@@ -8,7 +8,7 @@ import type {
   PortalGoalCardView,
   PortalGoalOfCard,
   PortalGoalSheetFacts,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { PORTAL_GOAL_TITLE_ID } from './portal-goal-card'
 import type { PortalGoalSheetCommands } from './portal-goal-sheet'
 import type { PortalGoalSheetIntent } from './portal-goal-sheet-view'

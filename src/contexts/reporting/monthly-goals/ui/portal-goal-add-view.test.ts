@@ -17,7 +17,7 @@ import {
 import type {
   PortalGoalAddOffer,
   PortalGoalAddOptions,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import {
   eachDraftOf,
   eachModel,

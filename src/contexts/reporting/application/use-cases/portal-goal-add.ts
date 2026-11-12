@@ -12,7 +12,7 @@ import type {
   AddPortalGoalsResult,
   PortalGoalAddOptions,
   PortalGoalAddSubject,
-} from '../dto/monthly-portal-goal-add.types'
+} from '../../monthly-goals/contracts'
 import { goalMetricLabel } from '../goal-metric-label'
 import { isPortalGoalMeasure } from '../monthly-portal-goal-identity'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'

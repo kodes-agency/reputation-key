@@ -5,7 +5,7 @@ import type {
   AddPortalGoalRequest,
   PortalGoalAddOffer,
   PortalGoalAddOptions,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { goalMetricLabel } from '../../../../components/goals/goal-metric-label'
 import { countsFromWords } from './portal-goal-offer-words'
 import {

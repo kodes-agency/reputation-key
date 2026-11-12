@@ -6,18 +6,15 @@ import { currentAssignments } from './subject-assignments.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
 import { addLocalDays, localDateOf } from '../domain/local-days'
-import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
+import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalPageExtras,
   PortalGoalPageRows,
   PortalGoalPageTiles,
   PortalGoalPageView,
   PortalGoalQuietFact,
-} from '../application/dto/monthly-portal-goal-page.types'
-import type {
-  PortalGoalOfCard,
-  PortalGoalRunningMonth,
-} from '../application/dto/monthly-portal-goal.types'
+} from './contracts'
+import type { PortalGoalOfCard, PortalGoalRunningMonth } from './contracts'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import type { GoalSubjectNameReader } from '../application/use-cases/goal-bulk-create'
 import { inParallel, listProgressOf } from '../application/use-cases/goal-list-progress'

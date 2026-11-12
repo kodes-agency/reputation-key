@@ -1,4 +1,4 @@
-import type { PortalGoalPortalCount } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalPortalCount } from '#/contexts/reporting/monthly-goals/contracts'
 export function staffPortalCounts(
   rows: readonly PortalGoalPortalCount[],
 ): readonly PortalGoalPortalCount[] {

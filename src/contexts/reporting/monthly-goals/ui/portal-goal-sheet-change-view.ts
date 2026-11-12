@@ -3,12 +3,12 @@
 // owns month and revision keys; only below-pace feedback is derived locally through
 // goalPace. Invalid input must not throw.
 
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalChangeFacts,
   PortalGoalOfCard,
   PortalGoalSheetFacts,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { goalPace } from '#/contexts/reporting/application/goal-pace'
 import { formatNumber } from '#/lib/format'
 import {

@@ -9,7 +9,7 @@ import type {
   PortalGoalOfCard,
   PortalGoalRows,
   PortalGoalRunningMonth,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import {
   CHANGE_DECEMBER,
   CHANGE_NOVEMBER,
