@@ -15,6 +15,7 @@ import {
   DEFAULT_MAX_BATCHES_PER_RUN,
 } from '#/shared/db/retention/execute-retention-rule'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createRetentionSweepHandler, RETENTION_RULES } from './retention-sweep.job'
 
 const db = getDb()
@@ -100,9 +101,9 @@ function tickingClock(): () => Date {
 
 /** Admits unsettled facts after retention and returns what could be replayed. */
 async function factsRedelivered(): Promise<ReadonlyArray<string>> {
-  const work = await repo.delivery.schedulePending(100, [
-    { eventType: EVENT_TYPE, consumerName: CONSUMER },
-  ])
+  const work = await createOutboxRelay(repo, undefined, {
+    consumerExpectations: [{ eventType: EVENT_TYPE, consumerName: CONSUMER }],
+  }).sweep()
   return work.map(({ subjectId }) => subjectId)
 }
 

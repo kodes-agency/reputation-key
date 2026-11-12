@@ -325,7 +325,7 @@ describe('durable outbox delivery through PostgreSQL', () => {
   it('alerts on a worker killed in its final attempt without re-executing consumers or losing the fact', async () => {
     const eventId = await fact({ publishedAt: new Date(now.getTime() - 40 * DAY) })
     const queue = transport()
-    await createOutboxRelay(repository(), queue.queue).poll()
+    await createOutboxRelay(repository(), queue.queue).sweep()
     const work = await workFor(eventId)
     await db().execute(
       sql`UPDATE work_items SET max_attempts = 1 WHERE id = ${work.id}::uuid`,
@@ -412,11 +412,14 @@ describe('durable outbox delivery through PostgreSQL', () => {
     const queue = transport()
     const relay = createOutboxRelay(repository(), queue.queue)
     await relay.poll()
+    expect(queue.accepted).toEqual([])
+    await relay.sweep()
 
     const work = await workFor(stranded)
     expect(work.attempts).toBe(0)
     expect(queue.accepted.map(({ data }) => data)).toEqual([{ workId: work.id }])
     await relay.poll()
+    await relay.sweep()
     expect(queue.accepted).toHaveLength(1)
     const { dispatch } = dispatcher()
     await dispatch(job(queue.accepted[0]!))
@@ -464,7 +467,7 @@ describe('durable outbox delivery through PostgreSQL', () => {
   it('quarantines actual failing executions and retains the fact and successful consumer receipt', async () => {
     const eventId = await fact({ publishedAt: new Date(now.getTime() - 40 * DAY) })
     const queue = transport()
-    await createOutboxRelay(repository(), queue.queue).poll()
+    await createOutboxRelay(repository(), queue.queue).sweep()
     const work = await workFor(eventId)
     await db().execute(
       sql`UPDATE work_items SET max_attempts = 2 WHERE id = ${work.id}::uuid`,
@@ -514,7 +517,7 @@ describe('durable outbox delivery through PostgreSQL', () => {
     await db().execute(sql`UPDATE outbox_events SET payload = '{"resourceId":123}'::jsonb
       WHERE id = ${eventId}::uuid`)
     const queue = transport()
-    await createOutboxRelay(repository(), queue.queue).poll()
+    await createOutboxRelay(repository(), queue.queue).sweep()
     const { dispatch, handled } = dispatcher()
 
     await expect(dispatch(job(queue.accepted[0]!))).rejects.toMatchObject({

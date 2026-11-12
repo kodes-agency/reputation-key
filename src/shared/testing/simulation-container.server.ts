@@ -63,8 +63,9 @@ export type SimulationHandle = Readonly<{
   /** Advance the simulation clock and trigger time-dependent jobs. */
   advanceClock: (ms: number) => void
   /**
-   * Relay every unpublished outbox row through the dispatcher to this
-   * container's durable consumers, inline, until a poll claims nothing.
+   * Relay every unpublished outbox row, and every published row still owed a
+   * receipt, through the dispatcher to this container's durable consumers,
+   * inline, until a pass dispatches nothing.
    * Returns the number of envelopes dispatched.
    */
   drainOutbox: () => Promise<number>
@@ -190,6 +191,7 @@ export async function createSimulationContainer(
         for (let polls = 0; polls < 100; polls++) {
           const seen = dispatched
           await relay.poll()
+          await relay.sweep()
           await reconcileWorkItems({
             clock: () => currentTime,
             reserveDispatch: outboxRepo.delivery.workItems.reserveDispatch,

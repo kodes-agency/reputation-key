@@ -17,6 +17,7 @@ import {
   type ConsumerEvent,
 } from '#/shared/outbox/consumer-registry'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { createOutboxRelay } from '#/shared/outbox/relay'
 import type { ReconcileMetricCorrection } from '../application/use-cases/reconcile-metric-correction'
 import {
   GOAL_METRIC_CORRECTION_CONSUMER,
@@ -30,8 +31,8 @@ const DELIVERED = '6c000000-0000-4000-8000-0000000000e1'
 const PENDING = '6c000000-0000-4000-8000-0000000000e2'
 const REDELIVERED = '6c000000-0000-4000-8000-0000000000e3'
 const EVENT_IDS = [DELIVERED, PENDING, REDELIVERED] as const
-// Older than any other row a shared database can hold, so the sweep's oldest-
-// first batch always reaches these fixtures.
+// The receipt sweep reads the whole published backlog; these fixtures were
+// published a day before it runs.
 const PUBLISHED_AT = new Date('2020-01-01T00:00:00.000Z')
 const SWEEP_AT = new Date('2020-01-02T00:00:00.000Z')
 
@@ -104,7 +105,9 @@ async function receiptsOf(eventId: string) {
 
 /** Answers which fixture facts need durable delivery after consumer execution. */
 async function sweepRedeliveries(): Promise<readonly string[]> {
-  const admitted = await outbox.delivery.schedulePending(100, EXPECTED_CONSUMERS)
+  const admitted = await createOutboxRelay(outbox, undefined, {
+    consumerExpectations: EXPECTED_CONSUMERS,
+  }).sweep()
   return admitted
     .map(({ subjectId }) => subjectId)
     .filter((eventId) => EVENT_IDS.some((id) => id === eventId))

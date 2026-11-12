@@ -135,16 +135,127 @@ describe('outbox delivery admission', () => {
     expect(queue.add).not.toHaveBeenCalled()
   })
 
-  it('passes the bounded batch and consumer expectations to admission', async () => {
+  it('passes the bounded batch to admission', async () => {
     const { repo, schedulePending } = makeRepo([])
+
+    await createOutboxRelay(repo, undefined, { batchSize: 7 }).poll()
+
+    expect(schedulePending).toHaveBeenCalledWith(7)
+  })
+})
+
+type Cursor = Readonly<{ publishedAt: Date; id: string }>
+type Page = Readonly<{ scheduled: Delivery[]; next: Cursor | null }>
+
+function makeSweepRepo(pages: Page[]) {
+  const scheduleAwaitingReceipts = vi.fn(
+    async (_after: Cursor | null, _pageSize: number, _expectations?: unknown) =>
+      pages.shift() ?? { scheduled: [], next: null },
+  )
+  const repo = { delivery: { scheduleAwaitingReceipts } } as unknown as OutboxRepository
+  return { repo, scheduleAwaitingReceipts }
+}
+
+const cursor = (id: string): Cursor => ({ publishedAt: new Date(0), id })
+
+describe('outbox receipt sweep', () => {
+  it('pages from the oldest published fact to the end and enqueues what it admits', async () => {
+    const { repo, scheduleAwaitingReceipts } = makeSweepRepo([
+      { scheduled: [delivery('a')], next: cursor('page-1') },
+      { scheduled: [], next: cursor('page-2') },
+      { scheduled: [delivery('b')], next: null },
+    ])
+    const { queue, added } = makeQueue()
     const expectations = [{ eventType: 'test.fact', consumerName: 'test.consumer' }]
 
-    await createOutboxRelay(repo, undefined, {
-      batchSize: 7,
+    const admitted = await createOutboxRelay(repo, queue, {
+      sweepPageSize: 3,
       consumerExpectations: expectations,
-    }).poll()
+    }).sweep()
 
-    expect(schedulePending).toHaveBeenCalledWith(7, expectations)
+    expect(admitted.map(({ subjectId }) => subjectId)).toEqual(['a', 'b'])
+    expect(added.map(({ data }) => data)).toEqual([
+      { workId: 'work-a' },
+      { workId: 'work-b' },
+    ])
+    expect(scheduleAwaitingReceipts.mock.calls).toEqual([
+      [null, 3, expectations],
+      [cursor('page-1'), 3, expectations],
+      [cursor('page-2'), 3, expectations],
+    ])
+  })
+
+  it('starts every pass at the beginning of the backlog', async () => {
+    const { repo, scheduleAwaitingReceipts } = makeSweepRepo([
+      { scheduled: [], next: cursor('page-1') },
+      { scheduled: [], next: null },
+    ])
+    const relay = createOutboxRelay(repo, undefined)
+
+    await relay.sweep()
+    await relay.sweep()
+
+    expect(scheduleAwaitingReceipts.mock.calls.map(([after]) => after)).toEqual([
+      null,
+      cursor('page-1'),
+      null,
+    ])
+  })
+
+  it('keeps the ledger pending when transport refuses admitted work', async () => {
+    const { repo } = makeSweepRepo([{ scheduled: [delivery('a')], next: null }])
+    const { queue } = makeQueue()
+    vi.mocked(queue.add).mockRejectedValueOnce(new Error('redis unavailable'))
+
+    const admitted = await createOutboxRelay(repo, queue).sweep()
+
+    expect(admitted.map(({ subjectId }) => subjectId)).toEqual(['a'])
+  })
+
+  it('sweeps at start and then once per interval, one pass at a time', async () => {
+    vi.useFakeTimers()
+    const gate = Promise.withResolvers<Page>()
+    const { repo, scheduleAwaitingReceipts } = makeSweepRepo([])
+    scheduleAwaitingReceipts.mockReturnValueOnce(gate.promise)
+    const stop = createOutboxRelay(repo, undefined).startSweep(600_000)
+
+    expect(scheduleAwaitingReceipts).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(1_200_000)
+    expect(scheduleAwaitingReceipts).toHaveBeenCalledOnce()
+    gate.resolve({ scheduled: [], next: null })
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(scheduleAwaitingReceipts).toHaveBeenCalledTimes(2)
+    await stop()
+  })
+
+  it('runs the next interval after a failed pass', async () => {
+    vi.useFakeTimers()
+    const { repo, scheduleAwaitingReceipts } = makeSweepRepo([])
+    scheduleAwaitingReceipts.mockRejectedValueOnce(new Error('database unavailable'))
+    const stop = createOutboxRelay(repo, undefined).startSweep(600_000)
+
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(scheduleAwaitingReceipts).toHaveBeenCalledTimes(2)
+    await stop()
+  })
+
+  it('stops after the active page once stopped', async () => {
+    vi.useFakeTimers()
+    const gate = Promise.withResolvers<Page>()
+    const { repo, scheduleAwaitingReceipts } = makeSweepRepo([])
+    scheduleAwaitingReceipts.mockReturnValueOnce(gate.promise)
+    const stop = createOutboxRelay(repo, undefined).startSweep(600_000)
+
+    let stopped = false
+    const stopping = stop().then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+    gate.resolve({ scheduled: [], next: cursor('more') })
+    await stopping
+    await vi.advanceTimersByTimeAsync(1_200_000)
+    expect(scheduleAwaitingReceipts).toHaveBeenCalledOnce()
   })
 })
 
