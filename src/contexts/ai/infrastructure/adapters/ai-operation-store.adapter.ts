@@ -148,6 +148,8 @@ function parseIdentity(row: OperationRow): AiOperationIdentity {
         'baseReplyStateRevision',
       ),
     }
+  } else if (row.command === 'trend') {
+    failCorrupt('command is retired')
   } else {
     failCorrupt('command is unknown')
   }

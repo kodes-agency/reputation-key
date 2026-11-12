@@ -439,8 +439,8 @@ attestation digest). OpenAI is the first adapter (`openai-provider-adapter.ts`);
 is the request building the route preparer used to do inline and its `invoke` is the
 connector, both unchanged. `openai-v2-parity.test.ts` pins, as literals taken before the seam
 existed, every v2 profile digest, the deployment profile and, for each route, the descriptor,
-the request binding and the SHA-256 of the exact body sent to OpenAI; it passes unchanged at
-the commit before the seam and after it.
+the digest of the descriptor admission reads and the SHA-256 of the exact body sent to
+OpenAI.
 
 Switching providers is an operator's act and nothing else (decision 7,
 `provider-selection.ts`). The operator names a provider per capability
@@ -519,7 +519,7 @@ the e2e provider stub (`e2e/fixtures/ai-provider-stub.ts`) are Messages-shaped f
   normalizer) stays the single acceptance point (contract 1.3).
 - The transport is the OpenAI connector's boundary made provider-neutral
   (`connector-boundary.ts`, used by both connectors; the OpenAI path is behaviour-identical and
-  `openai-v2-parity.test.ts` still passes unchanged): the grant and nonce gate, an exact header
+  `openai-v2-parity.test.ts` pins its bytes): the single-use admission gate, an exact header
   allowlist for the SDK's own request, byte equality with the attested RFC 8785 bytes, pinned
   name resolution to `api.anthropic.com`, HTTP/1.1 with one request per dispatcher, no redirects,
   bounded reads, no SDK retries. The SDK sends `Authorization: Bearer`; the boundary sends five

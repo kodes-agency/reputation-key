@@ -1,4 +1,3 @@
-import { generateKeyPairSync } from 'node:crypto'
 import { createServer } from 'node:http'
 import { connect as connectTcp } from 'node:net'
 import { describe, expect, it, vi } from 'vitest'
@@ -10,12 +9,8 @@ import {
   REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA,
   REVIEW_ANALYSIS_V3_STORED_SCHEMA,
 } from '#/shared/review-analysis-v3'
-import {
-  signAiExecutionGrant,
-  type AiAdmissionDescriptorV1,
-  type AiExecutionGrantV1,
-} from '#/shared/ai-internal-transport-contract'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
+import { admitForTest } from './execution-admission.test-fixtures'
 import {
   buildClosedOpenAiRequest,
   createPreparedAiInvocation,
@@ -602,9 +597,6 @@ const connectorOutputSchema = z.object({ ok: z.boolean() }).strict()
 const connectorFormat = JSON.parse(
   JSON.stringify(zodTextFormat(connectorOutputSchema, 'canary_result')),
 ) as ClosedJsonSchemaFormat
-const connectorKeyring = createVersionedHmacKeyring(`request-v1:${'11'.repeat(32)}`)
-const connectorSigningKeys = generateKeyPairSync('ed25519')
-let connectorNonce = 0
 
 function connectorDescriptor(
   derived: Parameters<
@@ -692,41 +684,19 @@ function createConnectorHarness(
     providerPayload: { canary: true },
     sdkRequest,
     createDescriptor: connectorDescriptor,
-    requestBindingKeys: connectorKeyring,
   })
-  connectorNonce += 1
-  const grant = signAiExecutionGrant(
-    {
-      version: 'ai-execution-grant-v1',
-      subjectKind: 'synthetic_canary',
-      grantKid: 'grant-v1',
-      requestBindingKeyId: invocation.requestBindingKeyId,
-      requestBindingHmac: invocation.requestBindingHmac,
-      route: 'synthetic-canary',
-      operationId: invocation.descriptor.operationId,
-      permitId: invocation.descriptor.permitId,
-      attemptNumber: 1,
-      nonce: Buffer.alloc(32, connectorNonce).toString('base64url'),
-      limits: invocation.descriptor.limits,
-      callerDeadlineEpochMillis: invocation.descriptor.callerDeadlineEpochMillis,
-      issuedAtEpochMillis: 1_780_000_000_000,
-      expiresAtEpochMillis: invocation.descriptor.callerDeadlineEpochMillis,
-      replyTokenExpiresAtEpochMillis: null,
-      replyDraftExpiresAtEpochMillis: null,
-    },
-    connectorSigningKeys.privateKey,
-  )
+  const admission = admitForTest(invocation.descriptor, {
+    issuedAtEpochMillis: 1_780_000_000_000,
+  })
   const connector = createOpenAiConnector({
     apiKey: 'test-key',
-    requestBindingKeys: connectorKeyring,
-    admissionPublicKeys: new Map([['grant-v1', connectorSigningKeys.publicKey]]),
     outboundFetch,
     now: () => 1_780_000_001_000,
   })
   return {
     connector,
     invocation,
-    grant,
+    admission,
     canonicalBody: Buffer.from(canonicalizeRfc8785(sdkRequest), 'utf8'),
   }
 }
@@ -824,7 +794,7 @@ describe('official OpenAI SDK connector integration', () => {
     expectedBody = harness.canonicalBody
     const outcome = await harness.connector.invoke(
       harness.invocation,
-      harness.grant,
+      harness.admission,
       connectorOutputSchema,
       new AbortController().signal,
     )
@@ -863,7 +833,7 @@ describe('official OpenAI SDK connector integration', () => {
       const harness = createConnectorHarness(async () => responseValue)
       const outcome = await harness.connector.invoke(
         harness.invocation,
-        harness.grant,
+        harness.admission,
         connectorOutputSchema,
         new AbortController().signal,
       )
@@ -880,7 +850,7 @@ describe('official OpenAI SDK connector integration', () => {
     const harness = createConnectorHarness(async () => providerResponse({ parsed: null }))
     const outcome = await harness.connector.invoke(
       harness.invocation,
-      harness.grant,
+      harness.admission,
       connectorOutputSchema,
       new AbortController().signal,
     )
@@ -937,7 +907,7 @@ describe('official OpenAI SDK connector integration', () => {
       )
       return harness.connector.invoke(
         harness.invocation,
-        harness.grant,
+        harness.admission,
         schema,
         new AbortController().signal,
       )
@@ -970,7 +940,7 @@ describe('official OpenAI SDK connector integration', () => {
     )
     const outcome = await harness.connector.invoke(
       harness.invocation,
-      harness.grant,
+      harness.admission,
       connectorOutputSchema,
       new AbortController().signal,
     )
@@ -989,7 +959,7 @@ describe('official OpenAI SDK connector integration', () => {
       )
       const outcome = await harness.connector.invoke(
         harness.invocation,
-        harness.grant,
+        harness.admission,
         connectorOutputSchema,
         new AbortController().signal,
       )
@@ -1013,7 +983,7 @@ describe('official OpenAI SDK connector integration', () => {
     )
     const outcome = await harness.connector.invoke(
       harness.invocation,
-      harness.grant,
+      harness.admission,
       connectorOutputSchema,
       new AbortController().signal,
     )
@@ -1032,7 +1002,7 @@ describe('official OpenAI SDK connector integration', () => {
     )
     const outcome = await harness.connector.invoke(
       harness.invocation,
-      harness.grant,
+      harness.admission,
       connectorOutputSchema,
       new AbortController().signal,
     )
@@ -1063,7 +1033,7 @@ describe('official OpenAI SDK connector integration', () => {
         harness.invocation.descriptor.providerPayloadByteCount
       const outcome = await harness.connector.invoke(
         harness.invocation,
-        harness.grant,
+        harness.admission,
         connectorOutputSchema,
         new AbortController().signal,
       )
@@ -1094,7 +1064,7 @@ describe('official OpenAI SDK connector integration', () => {
       const harness = createConnectorHarness(outbound)
       const outcome = await harness.connector.invoke(
         harness.invocation,
-        harness.grant,
+        harness.admission,
         connectorOutputSchema,
         new AbortController().signal,
       )
@@ -1137,7 +1107,7 @@ describe('official OpenAI SDK connector integration', () => {
       const harness = createConnectorHarness(outbound)
       const outcome = await harness.connector.invoke(
         harness.invocation,
-        harness.grant,
+        harness.admission,
         connectorOutputSchema,
         new AbortController().signal,
       )
@@ -1167,7 +1137,7 @@ describe('official OpenAI SDK connector integration', () => {
     const harness = createConnectorHarness(outbound)
     const outcome = await harness.connector.invoke(
       harness.invocation,
-      harness.grant,
+      harness.admission,
       connectorOutputSchema,
       new AbortController().signal,
     )
@@ -1180,33 +1150,29 @@ describe('official OpenAI SDK connector integration', () => {
 
   it.each([
     [
-      'malformed grant',
+      'copy of an admission the authority minted',
       (harness: ReturnType<typeof createConnectorHarness>) => ({
-        ...harness.grant,
-        grantSignature: '*'.repeat(86),
+        ...harness.admission,
       }),
     ],
     [
-      'wrong signed expiry',
-      (harness: ReturnType<typeof createConnectorHarness>) => {
-        const { grantSignature: _discarded, ...unsigned } = harness.grant
-        void _discarded
-        return signAiExecutionGrant(
+      'admission for another deadline',
+      (harness: ReturnType<typeof createConnectorHarness>) =>
+        admitForTest(
           {
-            ...unsigned,
-            callerDeadlineEpochMillis: unsigned.callerDeadlineEpochMillis - 1,
-            expiresAtEpochMillis: unsigned.expiresAtEpochMillis - 1,
+            ...harness.invocation.descriptor,
+            callerDeadlineEpochMillis:
+              harness.invocation.descriptor.callerDeadlineEpochMillis - 1,
           },
-          connectorSigningKeys.privateKey,
-        )
-      },
+          { issuedAtEpochMillis: 1_780_000_000_000 },
+        ),
     ],
-  ])('returns no-dispatch and zeroes bytes for a %s', async (_label, mutateGrant) => {
+  ])('returns no-dispatch and zeroes bytes for a %s', async (_label, mutateAdmission) => {
     const outbound = vi.fn(async () => providerResponse())
     const harness = createConnectorHarness(outbound)
     const outcome = await harness.connector.invoke(
       harness.invocation,
-      mutateGrant(harness) as AiExecutionGrantV1,
+      mutateAdmission(harness),
       connectorOutputSchema,
       new AbortController().signal,
     )
@@ -1227,7 +1193,7 @@ describe('official OpenAI SDK connector integration', () => {
     harness.invocation.canonicalProviderBytes[sentinelOffset] = 'f'.charCodeAt(0)
     const outcome = await harness.connector.invoke(
       harness.invocation,
-      harness.grant,
+      harness.admission,
       connectorOutputSchema,
       new AbortController().signal,
     )
@@ -1238,10 +1204,16 @@ describe('official OpenAI SDK connector integration', () => {
     )
   })
 
-  it('makes zero requests after binding mutation and one after retryable transport failure', async () => {
+  it('makes zero requests for an admission of another permit and one after retryable transport failure', async () => {
     const deniedOutbound = vi.fn(async () => providerResponse())
     const denied = createConnectorHarness(deniedOutbound)
-    const mutated = { ...denied.grant, requestBindingHmac: `${'A'.repeat(42)}B` }
+    const mutated = admitForTest(
+      {
+        ...denied.invocation.descriptor,
+        permitId: '10000000-0000-4000-8000-0000000000ff',
+      },
+      { issuedAtEpochMillis: 1_780_000_000_000 },
+    )
     const deniedOutcome = await denied.connector.invoke(
       denied.invocation,
       mutated,
@@ -1257,7 +1229,7 @@ describe('official OpenAI SDK connector integration', () => {
     const ambiguous = createConnectorHarness(ambiguousOutbound)
     const ambiguousOutcome = await ambiguous.connector.invoke(
       ambiguous.invocation,
-      ambiguous.grant,
+      ambiguous.admission,
       connectorOutputSchema,
       new AbortController().signal,
     )

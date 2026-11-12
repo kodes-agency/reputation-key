@@ -1,5 +1,4 @@
 import { createHash, createPublicKey, type KeyObject } from 'node:crypto'
-import type { VersionedHmacKeyring } from './security/versioned-hmac-keyring'
 
 const ADMISSION_V1_PUBLIC_KEY_SPKI_SHA256 =
   'a57e62482c9eb0e88df509cd9dddbd5f520ae85f77214d919878e3cdb531de5f'
@@ -120,50 +119,6 @@ export function ed25519PublicKeyDigest(key: KeyObject): string {
     .digest('hex')
 }
 
-export function assertAiRequestBindingKeyringInventory(
-  keyring: Pick<VersionedHmacKeyring, 'activeVersion' | 'retainedVersions'>,
-  inventory: AiGatewayKeyInventory = AI_GATEWAY_KEY_INVENTORY_V1,
-): void {
-  const expected = inventory.requestBinding
-  if (
-    keyring.activeVersion !== expected.activeVersion ||
-    keyring.retainedVersions.length > expected.maximumConfiguredKeys - 1 ||
-    keyring.retainedVersions.length !== expected.retainedVersions.length ||
-    keyring.retainedVersions.some(
-      (version, index) => version !== expected.retainedVersions[index],
-    )
-  ) {
-    throw new Error('AI request-binding keyring inventory is invalid')
-  }
-}
-
-export function assertAiAdmissionPublicKeyringInventory(
-  keys: ReadonlyMap<string, KeyObject>,
-  keyInventory: AiGatewayKeyInventory = AI_GATEWAY_KEY_INVENTORY_V1,
-): void {
-  const inventory = keyInventory.admissionSigning
-  const expectedKids = [inventory.activeKid, ...inventory.retainedKids].sort()
-  if (
-    keys.size !== expectedKids.length ||
-    keys.size > inventory.maximumConfiguredKeys ||
-    [...keys.keys()].sort().some((kid, index) => kid !== expectedKids[index])
-  ) {
-    throw new Error('AI admission public keyring inventory is invalid')
-  }
-  for (const kid of expectedKids) {
-    const key = keys.get(kid)
-    const expectedDigest =
-      inventory.publicKeyDigests[kid as keyof typeof inventory.publicKeyDigests]
-    if (
-      !key ||
-      expectedDigest === undefined ||
-      ed25519PublicKeyDigest(key) !== expectedDigest
-    ) {
-      throw new Error('AI admission public keyring inventory is invalid')
-    }
-  }
-}
-
 export function assertAiProvenancePublicKeyringInventory(
   keys: ReadonlyMap<string, KeyObject>,
   keyInventory: AiGatewayKeyInventory = AI_GATEWAY_KEY_INVENTORY_V1,
@@ -176,29 +131,6 @@ export function assertAiProvenancePublicKeyringInventory(
     ed25519PublicKeyDigest(key) !== inventory.publicKeyDigest
   ) {
     throw new Error('AI provenance public keyring inventory is invalid')
-  }
-}
-
-export function assertAiAdmissionPrivateKeyInventory(
-  input: Readonly<{
-    kid: string
-    privateKey: KeyObject
-  }>,
-  keyInventory: AiGatewayKeyInventory = AI_GATEWAY_KEY_INVENTORY_V1,
-): void {
-  const inventory = keyInventory.admissionSigning
-  if (input.kid !== inventory.activeKid) {
-    throw new Error('AI admission active signing kid is invalid')
-  }
-  let publicKey: KeyObject
-  try {
-    publicKey = createPublicKey(input.privateKey)
-  } catch {
-    throw new Error('AI admission private signing key is invalid')
-  }
-  const expectedDigest = inventory.publicKeyDigests[inventory.activeKid]
-  if (ed25519PublicKeyDigest(publicKey) !== expectedDigest) {
-    throw new Error('AI admission private signing key is invalid')
   }
 }
 

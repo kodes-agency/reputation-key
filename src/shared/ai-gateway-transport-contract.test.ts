@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod/v4'
 import {
   parseAiGatewayRouteRequest,
-  parseAiGatewayRouteResponse,
+  type AnalysisResult,
+  type ReplySuggestionResult,
 } from './ai-gateway-transport-contract'
+import { reviewAnalysisV3GatewayResultSchema } from './review-analysis-v3-request'
 import { aiInternalSafeIdSchema } from './ai-internal-transport-contract'
 import {
   analysisRequest,
@@ -131,7 +133,7 @@ describe('AI gateway caller-wire contract', () => {
       }),
     ).toThrow(ZodError)
 
-    const response = {
+    const response: ReplySuggestionResult = {
       route: 'reply-suggestion',
       status: 'success',
       result: {
@@ -147,13 +149,25 @@ describe('AI gateway caller-wire contract', () => {
       },
       settlementReceipt: receipt,
     }
-    expect(parseAiGatewayRouteResponse(response)).toEqual(response)
-    expect(() =>
-      parseAiGatewayRouteResponse({
-        ...response,
-        result: { ...response.result, templateId: 'appreciation_positive' },
-      }),
-    ).toThrow(ZodError)
+    const withTemplate: ReplySuggestionResult = {
+      route: 'reply-suggestion',
+      status: 'success',
+      result: {
+        profileVersion: 'reply-draft-v4',
+        replyText: 'Thank you for sharing that the room was quiet during your stay.',
+        provenanceToken: 'signed-personalized-provenance',
+        expiresAtEpochMillis: 1_780_000_010_000,
+        baseReplyStateRevision: 0,
+        concreteLanguageTag: 'en-Latn',
+        templateGroup: 'en-Latn',
+        case: 'praise',
+        mainPoint: [1],
+        // @ts-expect-error a reply response names no template
+        templateId: 'appreciation_positive',
+      },
+      settlementReceipt: receipt,
+    }
+    expect(withTemplate.route).toBe(response.route)
   })
 
   it.each([
@@ -233,37 +247,35 @@ describe('AI gateway caller-wire contract', () => {
     }
   })
 
-  it('accepts only strict route-matched success and error responses', () => {
-    const success = {
+  it('types only strict route-matched success and error responses', () => {
+    const success: AnalysisResult = {
       route: 'review-analysis',
       status: 'success',
       result: analysisV3Result,
       settlementReceipt: receipt,
     }
-    expect(parseAiGatewayRouteResponse(success)).toEqual(success)
-    expect(
-      parseAiGatewayRouteResponse({
-        route: 'review-analysis',
-        status: 'error',
-        code: 'provider_rate_limited',
-        retryAfterEpochMillis: 1_780_000_010_000,
-      }),
-    ).toMatchObject({ status: 'error', code: 'provider_rate_limited' })
-    for (const field of [
-      'providerRequestId',
-      'providerResponseId',
-      'requestId',
-      'safetyIdentifier',
-    ]) {
-      expect(() =>
-        parseAiGatewayRouteResponse({ ...success, [field]: 'forbidden' }),
-      ).toThrow(ZodError)
+    const failure: AnalysisResult = {
+      route: 'review-analysis',
+      status: 'error',
+      code: 'provider_rate_limited',
+      retryAfterEpochMillis: 1_780_000_010_000,
     }
-    expect(() =>
-      parseAiGatewayRouteResponse({
-        ...success,
-        result: { ...success.result, reasoning: 'forbidden' },
-      }),
-    ).toThrow(ZodError)
+    const leaked: AnalysisResult = {
+      ...success,
+      // @ts-expect-error a response carries no provider request id
+      providerRequestId: 'forbidden',
+    }
+    expect([failure.status, leaked.status]).toEqual(['error', 'success'])
+    // The answer itself is the route's accepted output, which admits no extra field.
+    if (success.status !== 'success') throw new Error('expected success')
+    expect(reviewAnalysisV3GatewayResultSchema.safeParse(success.result).success).toBe(
+      true,
+    )
+    expect(
+      reviewAnalysisV3GatewayResultSchema.safeParse({
+        ...success.result,
+        reasoning: 'forbidden',
+      }).success,
+    ).toBe(false)
   })
 })

@@ -1,6 +1,5 @@
 // The link check: the manager entry point for the governed
-// `portal.content_review.completed`, `portal.configuration_completeness` and
-// `portal.approved_destination_ratio` facts. The server records them against
+// `portal.content_review.completed` fact. The server records them against
 // the published page, so the card names that page (the live version) and says
 // that changes still waiting to go live are not covered. It is not called a
 // "review": Review & publish and the Google review already use the word.

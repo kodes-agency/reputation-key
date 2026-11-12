@@ -236,7 +236,7 @@ function decodeCanonicalBase64Url(value: string): Buffer {
  * `src/contexts/review/infrastructure/ai-suggested-draft-store.ts`), which turn
  * a genuinely stale suggestion into `stale`, not `expired`. The window is
  * therefore free to be generous, and is bounded by the operation row's own
- * 15-minute `expires_at` where the grant is issued.
+ * 15-minute `expires_at` where the attempt is admitted.
  */
 export const AI_REPLY_ADOPTION_WINDOW_MILLIS = 10 * 60 * 1_000
 

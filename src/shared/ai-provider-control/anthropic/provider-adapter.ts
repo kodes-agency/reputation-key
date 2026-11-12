@@ -35,7 +35,6 @@ function prepareAnthropicInvocation(
     providerPayload: input.providerPayload,
     sdkRequest,
     createDescriptor: input.createDescriptor,
-    requestBindingKeys: input.requestBindingKeys,
   })
 }
 

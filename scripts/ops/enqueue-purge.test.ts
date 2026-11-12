@@ -35,7 +35,7 @@ vi.mock('../../src/shared/jobs/queue', () => ({
 }))
 vi.mock('../../src/shared/jobs/job-policy', () => ({ jobEnqueueOptions: () => ({}) }))
 vi.mock('./operator-command', () => ({
-  runOperatorCommand: async (
+  runDatabaseOperatorCommand: async (
     _spec: unknown,
     action: (ctx: unknown, args: string[], io: unknown) => Promise<number | void>,
   ) => ({

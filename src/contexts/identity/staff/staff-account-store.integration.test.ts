@@ -72,11 +72,11 @@ async function setup(fault?: StaffOnboardingStep) {
       })
     }
   }
-  const base = createStaffAccountStore(db, () => NOW, lease.pool)
+  const base = createStaffAccountStore(db, () => NOW, randomUUID)
   const decorate = (store: typeof base): typeof base => ({
     ...store,
-    withAddressLock: (org, email, run) =>
-      store.withAddressLock(org, email, (locked) => run(decorate(locked))),
+    withAddressLock: (email, run) =>
+      store.withAddressLock(email, (locked) => run(decorate(locked))),
     createPerson: async (operation) => {
       await store.createPerson(operation)
       fail('person')

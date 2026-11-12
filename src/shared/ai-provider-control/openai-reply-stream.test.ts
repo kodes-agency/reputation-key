@@ -9,11 +9,8 @@ import { createAiEgressGatewayService } from './service'
 import { createOpenAiConnector } from './openai-connector'
 import { createAiGatewayRoutePreparer } from './route-preparer'
 import { createSensitiveSourceLease } from './source-lease'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import {
-  signAiExecutionGrant,
-  parseAiSettlementReceipt,
-} from '#/shared/ai-internal-transport-contract'
+import type { AiAdmissionClient } from './contracts'
+import { admitForTest } from './execution-admission.test-fixtures'
 import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
 import { boundedProviderEventStream } from './bounded-event-stream'
 import {
@@ -25,7 +22,6 @@ import type { ReplyDraftingProgress } from '#/shared/reply-drafting-progress'
 
 const NOW = 1_780_000_000_000
 const KEYS = generateKeyPairSync('ed25519')
-const REQUEST_KEYS = createVersionedHmacKeyring(`request-v1:${'07'.repeat(32)}`)
 const OUTPUT = {
   languageCode: 'en-Latn',
   case: 'complaint',
@@ -103,7 +99,6 @@ function events(mode: Mode) {
 function harness(mode: Mode) {
   const request = replyRequest()
   const preparer = createAiGatewayRoutePreparer({
-    requestBindingKeys: REQUEST_KEYS,
     safetyIdentifierKey: Buffer.alloc(32, 8),
     provenanceKid: 'reply-v1',
     provenancePrivateKey: KEYS.privateKey,
@@ -113,37 +108,18 @@ function harness(mode: Mode) {
     now: () => NOW,
   })
   const prepared = preparer.prepare(request)
-  const grant = signAiExecutionGrant(
-    {
-      version: 'ai-execution-grant-v1',
-      subjectKind: 'property',
-      grantKid: 'grant-v1',
-      requestBindingKeyId: prepared.invocation.requestBindingKeyId,
-      requestBindingHmac: prepared.invocation.requestBindingHmac,
-      route: 'reply-suggestion',
-      operationId: request.operationId,
-      permitId: request.permitId,
-      attemptNumber: 1,
-      nonce: Buffer.alloc(32, 1).toString('base64url'),
-      limits: prepared.invocation.descriptor.limits,
-      callerDeadlineEpochMillis: NOW + 70_000,
-      issuedAtEpochMillis: NOW,
-      expiresAtEpochMillis: NOW + 70_000,
-      replyTokenExpiresAtEpochMillis: NOW + 60_000,
-      replyDraftExpiresAtEpochMillis: NOW + 60_000,
-    },
-    KEYS.privateKey,
-  )
-  const settle = vi.fn(async (permit, outcome) => ({
+  const admission = admitForTest(prepared.invocation.descriptor, {
+    issuedAtEpochMillis: NOW,
+    replyTokenExpiresAtEpochMillis: NOW + 60_000,
+    replyDraftExpiresAtEpochMillis: NOW + 60_000,
+  })
+  const settle = vi.fn<AiAdmissionClient['settle']>(async (admitted, outcome) => ({
     status: 'settled' as const,
-    receipt: parseAiSettlementReceipt({
+    receipt: {
       version: 'ai-settlement-receipt-v1',
-      grantKid: 'grant-v1',
-      operationId: permit.operationId,
-      permitId: permit.permitId,
+      operationId: admitted.operationId,
+      permitId: admitted.permitId,
       attemptNumber: 1,
-      nonce: permit.nonce,
-      requestBindingHmac: prepared.invocation.requestBindingHmac,
       disposition: outcome.disposition,
       reportedDisposition: outcome.reportedDisposition,
       providerRetryable: false,
@@ -154,10 +130,10 @@ function harness(mode: Mode) {
       reasoningTokens: outcome.reasoningTokens,
       costMicros: outcome.usageKnown
         ? Number(settledCostMicros(outcome))
-        : grant.limits.costMicros,
+        : admitted.limits.costMicros,
       settledAtEpochMillis: NOW + 1000,
       settlementState: 'settled',
-    }),
+    },
   }))
   const outboundFetch = vi.fn<typeof fetch>(async (_url, init) => {
     const wire = JSON.parse(Buffer.from(init!.body as Uint8Array).toString('utf8'))
@@ -169,23 +145,20 @@ function harness(mode: Mode) {
   const service = createAiEgressGatewayService({
     now: () => NOW,
     preparer: { prepare: () => prepared },
-    admissionPublicKeys: new Map([['grant-v1', KEYS.publicKey]]),
     admission: {
       readiness: async () => true,
-      authorize: async () => ({ status: 'authorized', grant }),
+      authorize: async () => ({ status: 'authorized', admission }),
       settle,
     },
     connector: createOpenAiConnector({
       apiKey: 'test-key',
-      requestBindingKeys: REQUEST_KEYS,
-      admissionPublicKeys: new Map([['grant-v1', KEYS.publicKey]]),
       outboundFetch,
       now: () => NOW,
     }),
   })
   const lease = createSensitiveSourceLease<typeof request>()
   lease.attachSource(structuredClone(request), (value) => value.source)
-  return { service, lease, settle, outboundFetch, prepared, grant }
+  return { service, lease, settle, outboundFetch, prepared, admission }
 }
 
 describe('reply v2 streamed provider call through settlement', () => {
@@ -220,7 +193,7 @@ describe('reply v2 streamed provider call through settlement', () => {
       expect(result.status).toBe('success')
       const receipt = (await h.settle.mock.results[0]!.value).receipt
       expect(result).toEqual(
-        h.prepared.acceptProviderResult(OUTPUT)!.buildResponse(receipt, h.grant),
+        h.prepared.acceptProviderResult(OUTPUT)!.buildResponse(receipt, h.admission),
       )
     } else {
       // A stream that ends without its terminal event leaves usage unknown: the

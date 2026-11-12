@@ -27,10 +27,8 @@ import {
 } from '#/shared/domain/ids'
 import type { Reply, Review } from '../../domain/types'
 import {
-  reviewExpired,
   reviewReplyApproved,
   reviewReplyPublicationRequested,
-  reviewReplyPublished,
   reviewReplySubmitted,
 } from '../../domain/events'
 import { createReviewRepository } from './review.repository'
@@ -558,68 +556,6 @@ describe.sequential('replyCommandStore (integration)', () => {
     expect(outbox.rows).toHaveLength(0)
   })
 
-  it('rolls back a mirror upsert when its outbox insert fails (reply row absent)', async () => {
-    const db = getDb()
-    const reviewRepo = createReviewRepository(
-      db,
-      () => new Date(),
-      undefined,
-      replyScopeEffects,
-    )
-    const store = createAtomicReplyCommandStore(
-      db,
-      () => new Date(),
-      undefined,
-      undefined,
-      replyScopeEffects,
-    )
-
-    await reviewRepo.upsert(makeReview())
-
-    const mirrored = makeReply({
-      status: 'published',
-      source: 'google_sync',
-      createdBy: null,
-      publishedAt: NOW,
-    })
-    const { createdAt: _c, updatedAt: _u, ...replyInput } = mirrored
-
-    const event = unregisteredEvent(
-      reviewReplyPublished({
-        source: 'import',
-        authorId: null,
-        userId: null,
-        replyId: REPLY_A,
-        reviewId: REVIEW_A,
-        organizationId: ORG_A,
-        propertyId: PROP_A,
-        occurredAt: NOW,
-      }),
-    )
-
-    await expect(
-      store.mirrorSyncedReply({
-        reply: replyInput,
-        reviewId: REVIEW_A,
-        organizationId: ORG_A,
-        event: event as never,
-        now: NOW,
-      }),
-    ).rejects.toThrow(
-      /Event type review\.reply\.ghost:v1 is not registered for the outbox/,
-    )
-
-    const rows = await pool.query('SELECT id FROM replies WHERE organization_id = $1', [
-      ORG_A,
-    ])
-    expect(rows.rows).toHaveLength(0)
-    const outbox = await pool.query(
-      'SELECT id FROM outbox_events WHERE organization_id = $1',
-      [ORG_A],
-    )
-    expect(outbox.rows).toHaveLength(0)
-  })
-
   it('commits state row and outbox row with identical eventId (happy path)', async () => {
     const db = getDb()
     const reviewRepo = createReviewRepository(
@@ -679,46 +615,5 @@ describe.sequential('replyCommandStore (integration)', () => {
       'source',
       'userId',
     ])
-  })
-
-  it('quarantines purgeExpiredReview without erasing the review, reply, or recording a false expiry fact', async () => {
-    const db = getDb()
-    const reviewRepo = createReviewRepository(
-      db,
-      () => new Date(),
-      undefined,
-      replyScopeEffects,
-    )
-    const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(
-      db,
-      () => new Date(),
-      undefined,
-      undefined,
-      replyScopeEffects,
-    )
-
-    await reviewRepo.upsert(makeReview())
-    await replyRepo.upsert(makeReply())
-
-    const event = reviewExpired({
-      reviewId: REVIEW_A,
-      propertyId: PROP_A,
-      organizationId: ORG_A,
-      occurredAt: NOW,
-    })
-
-    await expect(store.purgeExpiredReview(REVIEW_A, event)).rejects.toThrow(
-      'Review destructive lifecycle is quarantined',
-    )
-
-    const found = await reviewRepo.findById(REVIEW_A, ORG_A)
-    expect(found?.id).toBe(REVIEW_A)
-    expect((await replyRepo.findById(REPLY_A, ORG_A))?.id).toBe(REPLY_A)
-    const outbox = await pool.query(
-      `SELECT id, event_type FROM outbox_events WHERE organization_id = $1`,
-      [ORG_A],
-    )
-    expect(outbox.rows).toHaveLength(0)
   })
 })

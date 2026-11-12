@@ -30,7 +30,6 @@ import type {
   AiAdmissionDescriptorV1,
   AiSettlementReceiptV1,
 } from '#/shared/ai-internal-transport-contract'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type {
   AiGatewayRouteRequestV1,
   AiGatewayRouteResponseV1,
@@ -286,7 +285,6 @@ export type { AiReplyOutputRefusal } from './reply-output-refusal'
 
 export function createAiGatewayRoutePreparer(
   dependencies: Readonly<{
-    requestBindingKeys: VersionedHmacKeyring
     safetyIdentifierKey: Uint8Array
     replyLanguageDetector: ReplyLanguageDetector
     provenanceKid: string
@@ -372,7 +370,6 @@ export function createAiGatewayRoutePreparer(
               facts,
               reservationMicros(profile, provider, facts.providerPayloadByteCount),
             ),
-          requestBindingKeys: dependencies.requestBindingKeys,
         })
       } finally {
         sourceBytes.fill(0)

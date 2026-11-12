@@ -41,11 +41,9 @@ type PropertyDescriptor = Extract<AiAdmissionDescriptorV1, { subjectKind: 'prope
 const NOW = new Date(Date.now() - 60_000)
 const ORGANIZATION_ID = organizationId('ai-admission-provider-test-org')
 const PROPERTY_ID = propertyId('77000000-0000-4000-8000-000000000001')
-const SIGNING_KID = 'grant-v1'
 const SOURCE_DIGEST = 'd'.repeat(64)
 const SOURCE_BYTES = 40
 const PAYLOAD_BYTES = 512
-const BINDING = { keyId: 'binding-v1', hmac: 'A'.repeat(43) } as const
 const ROUTE_KEY = AI_REPLY_OPERATION_PROFILE.routeKey
 
 const profile = AI_OPERATION_PROFILES.find(
@@ -155,7 +153,7 @@ function descriptor(
 }
 
 function settlement(
-  input: { operationId: string; permitId: string; nonce: string },
+  input: { operationId: string; permitId: string },
   disposition: 'success' | 'no_dispatch',
   usage: { inputTokens: number; cachedInputTokens: number; outputTokens: number },
 ): AiSettlementRequestV1 {
@@ -163,7 +161,6 @@ function settlement(
     operationId: input.operationId,
     permitId: input.permitId,
     attemptNumber: 1,
-    nonce: input.nonce,
     disposition,
     reportedDisposition: disposition,
     providerRetryable: false,
@@ -195,17 +192,20 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
   const budget = createAiBudgetControl({ idGen: randomUUID, now: () => NOW })
   const authority = createAiExecutionAdmissionAdapter({
     pool: getPool(),
-    signingKid: SIGNING_KID,
     budgetControl: budget,
     now: () => NOW,
   })
 
-  async function settle(request: AiSettlementRequestV1, grantKid: string) {
-    const { operationId, permitId, attemptNumber, nonce, ...outcome } = request
-    return authority.settle(
-      { operationId, permitId, attemptNumber, nonce, grantKid },
+  /** The settlement, with its receipt's fields beside the status. */
+  async function settle(request: AiSettlementRequestV1) {
+    const { operationId, permitId, attemptNumber, ...outcome } = request
+    const result = await authority.settle(
+      { operationId, permitId, attemptNumber },
       outcome,
     )
+    return result.status === 'settled'
+      ? { status: result.status, ...result.receipt }
+      : result
   }
 
   const admission = (
@@ -326,13 +326,10 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
         sourceDigest: SOURCE_DIGEST,
         sourceByteCount: SOURCE_BYTES,
       })
-      const admitted = await authority.authorizeProperty(
-        descriptor({ operationId, permitId }),
-        BINDING,
-      )
+      const admitted = await authority.authorize(descriptor({ operationId, permitId }))
       if (admitted.status !== 'admitted')
         throw new Error(`not admitted: ${admitted.code}`)
-      return { operationId, permitId, nonce: admitted.nonce }
+      return { operationId, permitId }
     }
     const usage = { inputTokens: 1_000, cachedInputTokens: 200, outputTokens: 300 }
 
@@ -341,15 +338,11 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
       const openAi = await granted()
       await record(openAi.operationId, OPENAI)
 
-      await expect(
-        settle(settlement(none, 'success', usage), SIGNING_KID),
-      ).resolves.toMatchObject({
+      await expect(settle(settlement(none, 'success', usage))).resolves.toMatchObject({
         status: 'settled',
         costMicros: Number(settledCostMicros(usage)),
       })
-      await expect(
-        settle(settlement(openAi, 'success', usage), SIGNING_KID),
-      ).resolves.toMatchObject({
+      await expect(settle(settlement(openAi, 'success', usage))).resolves.toMatchObject({
         status: 'settled',
         costMicros: Number(settledCostMicros(usage)),
       })
@@ -363,9 +356,7 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
       await record(priced.operationId, ANTHROPIC)
       await record(withheld.operationId, ANTHROPIC)
 
-      await expect(
-        settle(settlement(priced, 'success', usage), SIGNING_KID),
-      ).resolves.toMatchObject({
+      await expect(settle(settlement(priced, 'success', usage))).resolves.toMatchObject({
         status: 'settled',
         costMicros: Number(settledCostMicrosWith(anthropicList, usage)),
       })
@@ -374,7 +365,7 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
       // the gateway's acceptance of the authority's cost is tested separately.
       expect(anthropicList.catalogueId).not.toBe(OPENAI_PRICE_CATALOGUE_V2.catalogueId)
       await expect(
-        settle(settlement(withheld, 'no_dispatch', usage), SIGNING_KID),
+        settle(settlement(withheld, 'no_dispatch', usage)),
       ).resolves.toMatchObject({
         status: 'settled',
         costMicros: 0,
@@ -393,10 +384,7 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
       })
 
       await expect(
-        authority.authorizeProperty(
-          descriptor({ operationId, permitId }, 'reply-suggestion-v9'),
-          BINDING,
-        ),
+        authority.authorize(descriptor({ operationId, permitId }, 'reply-suggestion-v9')),
       ).resolves.toEqual({ status: 'denied', code: 'authorization_changed' })
     })
   })

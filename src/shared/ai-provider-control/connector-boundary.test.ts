@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  GrantNonceRegistry,
   createRestrictedProviderLookup,
   isForbiddenProviderAddress,
   readBoundedProviderResponse,
@@ -81,12 +80,5 @@ describe('provider connector boundary', () => {
     expect(cursor).toBe(1_025)
     expect(cancel).toHaveBeenCalledTimes(1)
     expect(chunks.every((chunk) => chunk[0] === 0)).toBe(true)
-  })
-
-  it('consumes a live nonce once and forgets it after expiry', () => {
-    const registry = new GrantNonceRegistry()
-    expect(registry.consume('nonce', 20, 10)).toBe(true)
-    expect(registry.consume('nonce', 20, 10)).toBe(false)
-    expect(registry.consume('nonce', 30, 20)).toBe(true)
   })
 })

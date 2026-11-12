@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { digestOf } from '#/shared/ai-digest'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 import { AI_REVIEW_SOURCE_CONTRACT_VERSION } from '#/shared/ai-review-source-contract'
 import {
@@ -12,10 +12,7 @@ import type { AiOperationRecord } from './ports/ai-operation-store.port'
 import type { AiExecutionBinding, AiExecutionStopFence } from '../domain/types'
 
 export function aiRequestFingerprint(value: unknown): string {
-  return createHash('sha256')
-    .update('repkey-ai-product-request-v1\0', 'utf8')
-    .update(canonicalizeRfc8785(value), 'utf8')
-    .digest('hex')
+  return digestOf('repkey-ai-product-request-v1\0', value)
 }
 
 export function aiReviewSourceProvenance(

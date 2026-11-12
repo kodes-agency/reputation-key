@@ -313,12 +313,9 @@ export const analysisV3Result: ReviewAnalysisV3GatewayResult = {
 
 export const receipt = {
   version: 'ai-settlement-receipt-v1',
-  grantKid: 'grant_v1',
   operationId: UUIDS.operation,
   permitId: UUIDS.permit,
   attemptNumber: 1,
-  nonce: 'AQIDBA',
-  requestBindingHmac: 'A'.repeat(43),
   disposition: 'success',
   reportedDisposition: 'success',
   providerRetryable: false,

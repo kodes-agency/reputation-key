@@ -183,13 +183,9 @@ async function harness(
         gatewayAnswer({ sentiment: 'mixed', mentions: [SLOW_CHECK_IN], urgent: null }),
       settlementReceipt: {
         version: 'ai-settlement-receipt-v1' as const,
-
-        grantKid: 'grant_v1',
         operationId: request.operationId,
         permitId: request.permitId,
         attemptNumber: request.attemptNumber,
-        nonce: 'AQIDBA',
-        requestBindingHmac: 'A'.repeat(43),
         disposition: 'success' as const,
         reportedDisposition: 'success' as const,
         providerRetryable: false,

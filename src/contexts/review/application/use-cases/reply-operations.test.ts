@@ -250,12 +250,6 @@ function makeReplyCommandStoreFake(
       if (saved) await outbox.record(command.publicationIntent)
       return saved
     },
-    mirrorSyncedReply: vi.fn(async () => {
-      throw new Error('mirrorSyncedReply is not used by reply-operations')
-    }),
-    purgeExpiredReview: vi.fn(async () => {
-      throw new Error('purgeExpiredReview is not used by reply-operations')
-    }),
   }
 }
 

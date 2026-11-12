@@ -10,13 +10,12 @@ export type StaffAddressFacts = Readonly<{
   alreadyInvited: boolean
 }>
 export type StaffAccountStore = Readonly<{
+  /** Serialize staff commands on these addresses, across Organizations. */
   withAddressLocks<T>(
-    organizationId: string,
     emails: readonly string[],
     run: (store: StaffAccountStore) => Promise<T>,
   ): Promise<T>
   withAddressLock<T>(
-    organizationId: string,
     email: string,
     run: (store: StaffAccountStore) => Promise<T>,
   ): Promise<T>

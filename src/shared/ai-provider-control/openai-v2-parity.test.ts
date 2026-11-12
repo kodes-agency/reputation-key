@@ -59,7 +59,7 @@ import {
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import { aiAdmissionDescriptorDigest } from './execution-admission'
 import { createAiGatewayRoutePreparer } from './route-preparer'
 import { preparableV3Request } from './review-evidence.test-fixtures'
 
@@ -141,8 +141,7 @@ const PINNED_ROUTES = {
       outputTokens: 4096,
       costMicros: 3797,
     },
-    requestBindingKeyId: 'request-v1',
-    requestBindingHmac: 'f_P7JXjgZNBOi4ouCCpzZEAdGcB1As30gLf1f2t1-dM',
+    descriptorDigest: '6e11a41aef4253fb06e6faa4b684c2f937273ab488e3de9a9d3a96bfbd159ba0',
     canonicalProviderBytesSha256:
       'b6f063d3da8527243da1bb8ade4597edb704afb8031fb7d162f207ae558c6dc4',
     canonicalProviderByteLength: 18090,
@@ -169,7 +168,6 @@ const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest(
 
 function preparer() {
   return createAiGatewayRoutePreparer({
-    requestBindingKeys: createVersionedHmacKeyring(`request-v1:${'11'.repeat(32)}`),
     safetyIdentifierKey: Buffer.alloc(32, 7),
     replyLanguageDetector: {
       detect: (text: string) => ({
@@ -234,11 +232,12 @@ describe('OpenAI and the live profiles, as pinned at the switch-on', () => {
       () => underServedNotice(liveAnalysis()),
       {
         ...PINNED_ROUTES.analysis,
-        requestBindingHmac: '9YRKMfqP3-xz3wd4YJsTDzBjejuJphQ-jpaI3fI9bR8',
+        descriptorDigest:
+          'f1ec50baca3f9ced754d23b3523d3d20402fb6982d2b2d3fd39874a26312084e',
       },
     ],
   ] as const)(
-    'sends OpenAI byte for byte the %s body, under the same descriptor, limits and request binding',
+    'sends OpenAI byte for byte the %s body, under the same descriptor and limits',
     (_route, request, pinned) => {
       const { invocation } = preparer().prepare(request())
       const descriptor = invocation.descriptor
@@ -251,8 +250,7 @@ describe('OpenAI and the live profiles, as pinned at the switch-on', () => {
         providerPayloadByteCount: descriptor.providerPayloadByteCount,
         promptCacheShard: descriptor.promptCacheShard,
         limits: descriptor.limits,
-        requestBindingKeyId: invocation.requestBindingKeyId,
-        requestBindingHmac: invocation.requestBindingHmac,
+        descriptorDigest: aiAdmissionDescriptorDigest(descriptor),
         canonicalProviderBytesSha256: sha256(invocation.canonicalProviderBytes),
         canonicalProviderByteLength: invocation.canonicalProviderBytes.byteLength,
       }).toEqual(pinned)

@@ -1,14 +1,21 @@
-import { takeStaffAddressSlot } from './staff-address-slots.server'
+import { takeStaffOnboardingSlot } from './staff-address-slots.server'
+import {
+  assertStaffAddressLease,
+  holdStaffAddresses,
+  lockStaffAddresses,
+  type StaffAddressLease,
+} from './staff-address-lease.server'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db/index'
-import type { PoolClient } from 'pg'
-import { drizzle } from 'drizzle-orm/node-postgres'
 import { organizationId, userId, invitationId } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { identityMemberInvited } from '../domain/events'
 import { staffAccountError, type StaffOnboarding } from '../domain/staff-account'
-import type { StaffAccountStore } from './staff-account-store.port.server'
+import type {
+  StaffAccountStore,
+  StaffAddressFacts,
+} from './staff-account-store.port.server'
 import { linkStaffInvitation } from './staff-invitation-link.server'
 import { createGrantAccessLookup } from '../infrastructure/adapters/grant-access-lookup.adapter'
 
@@ -22,37 +29,34 @@ const operation = (rows: unknown[]): StaffOnboarding => {
   return rows[0] as StaffOnboarding
 }
 
-/** All checkpoint writes commit independently, including a failed step. */
+/**
+ * All checkpoint writes commit independently, including a failed step. Inside
+ * withAddressLocks the store carries the command's address lease, and each
+ * write first checks the lease is still held.
+ */
 export function createStaffAccountStore(
   db: Omit<Database, '$client'>,
   clock: () => Date,
-  pool: Readonly<{ connect: () => Promise<PoolClient> }>,
+  idGen: () => string,
+  lease?: StaffAddressLease,
 ): StaffAccountStore {
+  const holdsLease = async (tx: Pick<Database, 'execute'>) => {
+    if (lease) await assertStaffAddressLease(tx, lease, clock())
+  }
+  const leaseFence = () =>
+    lease
+      ? sql`AND EXISTS (SELECT 1 FROM staff_address_leases WHERE holder = ${lease.holder}::uuid AND expires_at > ${clock()})`
+      : sql``
   const store: StaffAccountStore = {
-    withAddressLock: (organizationId, email, run) =>
-      store.withAddressLocks(organizationId, [email], run),
-    withAddressLocks: async (organizationId, emails, run) => {
-      const releaseAddressSlot = await takeStaffAddressSlot(organizationId)
-      const client = await pool.connect().catch((error: unknown) => {
-        releaseAddressSlot()
-        throw error
-      })
-      const keys = [...new Set(emails)]
-        .sort()
-        .map((email) => `beta-invitation-email:${email}`)
-      const held: string[] = []
+    withAddressLock: (email, run) => store.withAddressLocks([email], run),
+    withAddressLocks: async (emails, run) => {
+      const releaseSlot = await takeStaffOnboardingSlot()
       try {
-        for (const key of keys) {
-          await client.query('SELECT pg_advisory_lock(hashtextextended($1, 0))', [key])
-          held.push(key)
-        }
-        return await run(createStaffAccountStore(drizzle(client), clock, pool))
+        return await holdStaffAddresses(db, clock, idGen, emails, (held) =>
+          run(createStaffAccountStore(db, clock, idGen, held)),
+        )
       } finally {
-        try {
-          await releaseAddressLocks(client, held)
-        } finally {
-          releaseAddressSlot()
-        }
+        releaseSlot()
       }
     },
     markDeliveryProblem: async (org, participation, failed) => {
@@ -78,48 +82,8 @@ export function createStaffAccountStore(
       ctx.role === 'AccountAdmin'
         ? null
         : createGrantAccessLookup(db, clock)(ctx.organizationId, ctx.userId),
-    addressFacts: async (org, property, email) => {
-      const users = await db.execute(
-        sql`SELECT id FROM "user" WHERE lower(email) = ${email}`,
-      )
-      const accountId = users.rows[0]?.id as string | undefined
-      const memberships = accountId
-        ? await db.execute(
-            sql`SELECT "organizationId" AS id FROM member WHERE "userId" = ${accountId}`,
-          )
-        : { rows: [] }
-      const links = accountId
-        ? await db.execute(
-            sql`SELECT l.staff_participant_id AS id, person.display_name AS "staffDisplayName" FROM staff_user_links l JOIN staff_participants person ON person.organization_id = l.organization_id AND person.id = l.staff_participant_id WHERE l.organization_id = ${org} AND l.user_id = ${accountId} AND l.effective_from <= ${clock()} AND l.effective_to IS NULL`,
-          )
-        : { rows: [] }
-      const participantId = links.rows[0]?.id as string | undefined
-      const active = await db.execute(sql`
-        SELECT id FROM staff_participations WHERE organization_id = ${org} AND property_id = ${property}::uuid AND status = 'active'
-        AND (staff_participant_id = ${participantId ?? null}::uuid OR id::text IN (SELECT "staffParticipationId" FROM invitation WHERE "organizationId" = ${org} AND lower(email) = ${email} AND status IN ('pending', 'expired', 'accepted')))
-      `)
-      const unfinished = await db.execute(
-        sql`SELECT id FROM staff_onboardings WHERE organization_id = ${org} AND property_id = ${property}::uuid AND email = ${email} AND status IN ('running', 'failed') LIMIT 1`,
-      )
-      const invited = await db.execute(
-        sql`SELECT id FROM invitation WHERE "organizationId" = ${org} AND lower(email) = ${email} AND status = 'pending' AND "expiresAt" > ${clock()} LIMIT 1`,
-      )
-      const competing = await db.execute(
-        sql`SELECT "organizationId" AS id FROM invitation WHERE lower(email) = ${email} AND "organizationId" <> ${org} AND status = 'pending' AND "expiresAt" > ${clock()}`,
-      )
-      return {
-        userId: accountId ?? null,
-        organizationIds: [...memberships.rows, ...competing.rows].map((row) =>
-          String(row.id),
-        ),
-        staffParticipantId: participantId ?? null,
-        ...(typeof links.rows[0]?.staffDisplayName === 'string'
-          ? { staffDisplayName: links.rows[0].staffDisplayName }
-          : {}),
-        alreadyInvited: invited.rows.length > 0,
-        alreadyStaffHere: active.rows.length > 0 || unfinished.rows.length > 0,
-      }
-    },
+    addressFacts: (org, property, email) =>
+      readAddressFacts(db, clock, org, property, email),
     findOperation: async (org, id) => {
       const result = await db.execute(
         sql`SELECT ${columns} FROM staff_onboardings WHERE organization_id = ${org} AND id = ${id}::uuid`,
@@ -154,12 +118,13 @@ export function createStaffAccountStore(
       UPDATE staff_onboardings SET step = ${step}, status = ${status}, failure_code = ${code}, updated_at = ${clock()},
         email = CASE WHEN ${status} IN ('done', 'cancelled') THEN NULL ELSE email END,
         display_name = CASE WHEN ${status} IN ('done', 'cancelled') THEN NULL ELSE display_name END
-      WHERE id = ${id}::uuid AND status NOT IN ('done', 'cancelled') RETURNING ${columns}
+      WHERE id = ${id}::uuid AND status NOT IN ('done', 'cancelled') ${leaseFence()} RETURNING ${columns}
     `)
         ).rows,
       ),
     createPerson: async (row) => {
       await db.transaction(async (tx) => {
+        await holdsLease(tx)
         await tx.execute(
           sql`INSERT INTO staff_participants (id, organization_id, display_name, created_by) VALUES (${row.staffParticipantId}::uuid, ${row.organizationId}, ${row.displayName}, ${row.requestedBy}) ON CONFLICT (id) DO NOTHING`,
         )
@@ -174,6 +139,7 @@ export function createStaffAccountStore(
     },
     assignPortal: async (row, writePortalName) => {
       await db.transaction(async (tx) => {
+        await holdsLease(tx)
         const name = await currentPersonName(tx, row)
         await tx.execute(
           sql`SELECT id FROM staff_participations WHERE id = ${row.staffParticipationId}::uuid AND organization_id = ${row.organizationId} FOR UPDATE`,
@@ -192,7 +158,12 @@ export function createStaffAccountStore(
     },
     grantAccess: async (row, spendInvitationBudget) =>
       db.transaction(async (tx) => {
-        const facts = await store.addressFacts(
+        // Serializes with manager invitations, which take the same lock.
+        await lockStaffAddresses(tx, [row.email!])
+        await holdsLease(tx)
+        const facts = await readAddressFacts(
+          tx,
+          clock,
           row.organizationId,
           row.propertyId,
           row.email!,
@@ -262,13 +233,50 @@ async function currentPersonName(
   return name
 }
 
-async function releaseAddressLocks(client: PoolClient, held: readonly string[]) {
-  try {
-    for (const key of [...held].reverse())
-      await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [key])
-    client.release()
-  } catch (error) {
-    client.release(true)
-    throw error
+/** Read inside an address-locked transaction when the answer decides a write. */
+export async function readAddressFacts(
+  db: Pick<Database, 'execute'>,
+  clock: () => Date,
+  org: string,
+  property: string,
+  email: string,
+): Promise<StaffAddressFacts> {
+  const users = await db.execute(sql`SELECT id FROM "user" WHERE lower(email) = ${email}`)
+  const accountId = users.rows[0]?.id as string | undefined
+  const memberships = accountId
+    ? await db.execute(
+        sql`SELECT "organizationId" AS id FROM member WHERE "userId" = ${accountId}`,
+      )
+    : { rows: [] }
+  const links = accountId
+    ? await db.execute(
+        sql`SELECT l.staff_participant_id AS id, person.display_name AS "staffDisplayName" FROM staff_user_links l JOIN staff_participants person ON person.organization_id = l.organization_id AND person.id = l.staff_participant_id WHERE l.organization_id = ${org} AND l.user_id = ${accountId} AND l.effective_from <= ${clock()} AND l.effective_to IS NULL`,
+      )
+    : { rows: [] }
+  const participantId = links.rows[0]?.id as string | undefined
+  const active = await db.execute(sql`
+    SELECT id FROM staff_participations WHERE organization_id = ${org} AND property_id = ${property}::uuid AND status = 'active'
+    AND (staff_participant_id = ${participantId ?? null}::uuid OR id::text IN (SELECT "staffParticipationId" FROM invitation WHERE "organizationId" = ${org} AND lower(email) = ${email} AND status IN ('pending', 'expired', 'accepted')))
+  `)
+  const unfinished = await db.execute(
+    sql`SELECT id FROM staff_onboardings WHERE organization_id = ${org} AND property_id = ${property}::uuid AND email = ${email} AND status IN ('running', 'failed') LIMIT 1`,
+  )
+  const invited = await db.execute(
+    sql`SELECT id FROM invitation WHERE "organizationId" = ${org} AND lower(email) = ${email} AND status = 'pending' AND "expiresAt" > ${clock()} LIMIT 1`,
+  )
+  const competing = await db.execute(
+    sql`SELECT "organizationId" AS id FROM invitation WHERE lower(email) = ${email} AND "organizationId" <> ${org} AND status = 'pending' AND "expiresAt" > ${clock()}`,
+  )
+  return {
+    userId: accountId ?? null,
+    organizationIds: [...memberships.rows, ...competing.rows].map((row) =>
+      String(row.id),
+    ),
+    staffParticipantId: participantId ?? null,
+    ...(typeof links.rows[0]?.staffDisplayName === 'string'
+      ? { staffDisplayName: links.rows[0].staffDisplayName }
+      : {}),
+    alreadyInvited: invited.rows.length > 0,
+    alreadyStaffHere: active.rows.length > 0 || unfinished.rows.length > 0,
   }
 }

@@ -1,5 +1,5 @@
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
-import { randomBytes, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { Pool } from 'pg'
 import { createDatabase, type Database } from '#/shared/db'
@@ -13,11 +13,12 @@ import {
   type AiAdmissionDescriptorV1,
   type AiSettlementRequestV1,
 } from '#/shared/ai-internal-transport-contract'
-import type {
-  AiAdmissionDatabaseAuthority,
-  AiAdmissionDenialCode,
-  AiSettlementDenialCode,
-} from '#/shared/ai-provider-control/admission-service'
+import {
+  mintAiExecutionAdmission,
+  type AiAdmissionDenialCode,
+  type AiExecutionAdmissionAuthority,
+  type AiSettlementDenialCode,
+} from '#/shared/ai-provider-control/execution-admission'
 import { createAiBudgetControl, type AiBudgetControl } from '#/shared/db/ai/ai-budget'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 import {
@@ -29,19 +30,15 @@ import { readCurrentReviewSource, sourceHoldsOperation } from './ai-review-sourc
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 type PropertyDescriptor = Extract<AiAdmissionDescriptorV1, { subjectKind: 'property' }>
 
-const KEY_ID = /^[a-z][a-z0-9_-]{0,31}$/
-
 type PropertyDenial = Exclude<
   AiAdmissionDenialCode,
-  'malformed_request' | 'request_binding_invalid' | 'canary_not_eligible'
+  'malformed_request' | 'canary_not_eligible'
 >
 
 type Dependencies = Readonly<{
   pool: Pool
-  signingKid: string
   budgetControl?: AiBudgetControl
   now?: () => Date
-  nonce?: () => string
 }>
 
 /** The profile a descriptor names: its route and its operation profile version. */
@@ -95,8 +92,7 @@ function settledCost(
 }
 
 /**
- * Where the operation's one reservation stands. The ledger, not the admission
- * nonce, decides: a process that admitted and then died leaves an open
+ * Where the operation's one reservation stands. The ledger decides: a process that admitted and then died leaves an open
  * reservation, and another process must not admit beside it. Only a reservation
  * settled at zero (dispatch withheld, or known zero usage) lets the next attempt
  * reserve afresh; a charged or open one would put a second provider call
@@ -114,12 +110,8 @@ function reservationState(
   return operation.actualMicros === 0 ? 'released' : 'charged'
 }
 
-/** Clears a released admission so the next attempt is admitted afresh. */
-const RELEASED_ADMISSION_CLEARED = Object.freeze({
-  admissionNonce: null,
-  requestBindingKeyId: null,
-  requestBindingHmac: null,
-  grantKid: null,
+/** Clears a released reservation so the next attempt reserves afresh. */
+const RELEASED_RESERVATION_CLEARED = Object.freeze({
   costWindowId: null,
   reservedMicros: 0,
   budgetReservedAt: null,
@@ -293,119 +285,109 @@ async function reviewSourceHolds(
 
 export function createAiExecutionAdmissionAdapter(
   input: Dependencies,
-): AiAdmissionDatabaseAuthority {
-  if (!KEY_ID.test(input.signingKid)) {
-    throw new Error('AI admission database signing key ID is invalid')
-  }
+): AiExecutionAdmissionAuthority {
   const db = createDatabase(input.pool)
   const now = input.now ?? (() => new Date())
   const budget = input.budgetControl ?? createAiBudgetControl({ idGen: randomUUID, now })
-  const nonce = input.nonce ?? (() => randomBytes(18).toString('base64url'))
 
-  return Object.freeze({
-    authorizeProperty: async (descriptor, requestBinding) =>
-      db.transaction(async (tx) => {
-        const profile = profileFor(
-          descriptor.route,
-          descriptor.binding.operationProfileVersion,
-        )
-        if (
-          !profile?.capability ||
-          descriptor.binding.providerDeploymentProfileVersion !==
-            profile.providerDeploymentProfileVersion ||
-          descriptor.binding.capabilityRuntimeProfileVersion !==
-            profile.capabilityRuntimeProfileVersion
-        ) {
-          return { status: 'denied' as const, code: 'authorization_changed' as const }
-        }
-        const operation = await lockAdmissionOperation(tx, descriptor)
-        if (!isExecutingAttempt(operation, descriptor)) {
-          return { status: 'denied' as const, code: 'subject_mismatch' as const }
-        }
-        const issuedAt = now()
-        const issuedAtEpochMillis = issuedAt.getTime()
-        if (descriptor.callerDeadlineEpochMillis <= issuedAtEpochMillis) {
-          return { status: 'denied' as const, code: 'permit_expired' as const }
-        }
-        const reservation = reservationState(operation)
-        if (reservation === 'open' || reservation === 'charged') {
-          return { status: 'denied' as const, code: 'already_consumed' as const }
-        }
-        const authorizationDenial = await authorizedEffectDenial(
-          tx,
-          operation,
-          profile.capability,
-        )
-        if (authorizationDenial !== null) {
-          return { status: 'denied' as const, code: authorizationDenial }
-        }
-        if (!(await reviewSourceHolds(tx, operation, profile.capability, issuedAt))) {
-          return { status: 'denied' as const, code: 'source_mismatch' as const }
-        }
-        if (reservation === 'released') {
-          await tx
-            .update(aiOperations)
-            .set(RELEASED_ADMISSION_CLEARED)
-            .where(
-              and(
-                eq(aiOperations.id, descriptor.operationId),
-                eq(aiOperations.organizationId, descriptor.organizationId),
-              ),
-            )
-        }
-
-        const admitted = await budget.admitAiOperation(tx, {
-          organizationId: descriptor.organizationId,
-          propertyId: descriptor.propertyId,
-          operationKey: descriptor.operationId,
-          routeKey: descriptor.route,
-          operationProfileVersion: descriptor.binding.operationProfileVersion,
-          providerPayloadBytes: descriptor.providerPayloadByteCount,
-        })
-        if (!admitted.ok) {
-          return { status: 'denied' as const, code: budgetDenial(admitted.code) }
-        }
-        // The adoption window outlives the provider request deadline on
-        // purpose: it is the operator's reading time, not the call's. It can
-        // never outlive the operation row, whose `expires_at` the accepting
-        // transaction also checks.
-        const adoptionWindowEnd =
-          descriptor.route === 'reply-suggestion'
-            ? Math.min(
-                issuedAtEpochMillis + AI_REPLY_ADOPTION_WINDOW_MILLIS,
-                operation.expiresAt.getTime(),
-              )
-            : null
-        const admissionNonce = nonce()
+  const authorizeProperty = (descriptor: PropertyDescriptor) =>
+    db.transaction(async (tx) => {
+      const profile = profileFor(
+        descriptor.route,
+        descriptor.binding.operationProfileVersion,
+      )
+      if (
+        !profile?.capability ||
+        descriptor.binding.providerDeploymentProfileVersion !==
+          profile.providerDeploymentProfileVersion ||
+        descriptor.binding.capabilityRuntimeProfileVersion !==
+          profile.capabilityRuntimeProfileVersion
+      ) {
+        return { status: 'denied' as const, code: 'authorization_changed' as const }
+      }
+      const operation = await lockAdmissionOperation(tx, descriptor)
+      if (!isExecutingAttempt(operation, descriptor)) {
+        return { status: 'denied' as const, code: 'subject_mismatch' as const }
+      }
+      const issuedAt = now()
+      const issuedAtEpochMillis = issuedAt.getTime()
+      if (descriptor.callerDeadlineEpochMillis <= issuedAtEpochMillis) {
+        return { status: 'denied' as const, code: 'permit_expired' as const }
+      }
+      const reservation = reservationState(operation)
+      if (reservation === 'open' || reservation === 'charged') {
+        return { status: 'denied' as const, code: 'already_consumed' as const }
+      }
+      const authorizationDenial = await authorizedEffectDenial(
+        tx,
+        operation,
+        profile.capability,
+      )
+      if (authorizationDenial !== null) {
+        return { status: 'denied' as const, code: authorizationDenial }
+      }
+      if (!(await reviewSourceHolds(tx, operation, profile.capability, issuedAt))) {
+        return { status: 'denied' as const, code: 'source_mismatch' as const }
+      }
+      if (reservation === 'released') {
         await tx
           .update(aiOperations)
-          .set({
-            admissionNonce,
-            requestBindingKeyId: requestBinding.keyId,
-            requestBindingHmac: requestBinding.hmac,
-            grantKid: input.signingKid,
-            updatedAt: issuedAt,
-          })
+          .set(RELEASED_RESERVATION_CLEARED)
           .where(
             and(
               eq(aiOperations.id, descriptor.operationId),
               eq(aiOperations.organizationId, descriptor.organizationId),
             ),
           )
-        return {
-          status: 'admitted' as const,
-          nonce: admissionNonce,
+      }
+
+      const admitted = await budget.admitAiOperation(tx, {
+        organizationId: descriptor.organizationId,
+        propertyId: descriptor.propertyId,
+        operationKey: descriptor.operationId,
+        routeKey: descriptor.route,
+        operationProfileVersion: descriptor.binding.operationProfileVersion,
+        providerPayloadBytes: descriptor.providerPayloadByteCount,
+      })
+      if (!admitted.ok) {
+        return { status: 'denied' as const, code: budgetDenial(admitted.code) }
+      }
+      // The adoption window outlives the provider request deadline on
+      // purpose: it is the operator's reading time, not the call's. It can
+      // never outlive the operation row, whose `expires_at` the accepting
+      // transaction also checks.
+      const adoptionWindowEnd =
+        descriptor.route === 'reply-suggestion'
+          ? Math.min(
+              issuedAtEpochMillis + AI_REPLY_ADOPTION_WINDOW_MILLIS,
+              operation.expiresAt.getTime(),
+            )
+          : null
+      await tx
+        .update(aiOperations)
+        .set({ updatedAt: issuedAt })
+        .where(
+          and(
+            eq(aiOperations.id, descriptor.operationId),
+            eq(aiOperations.organizationId, descriptor.organizationId),
+          ),
+        )
+      return {
+        status: 'admitted' as const,
+        admission: mintAiExecutionAdmission(descriptor, {
           issuedAtEpochMillis,
-          expiresAtEpochMillis: descriptor.callerDeadlineEpochMillis,
           replyTokenExpiresAtEpochMillis: adoptionWindowEnd,
           replyDraftExpiresAtEpochMillis: adoptionWindowEnd,
-        }
-      }),
+        }),
+      }
+    })
 
-    authorizeCanary: async () => ({
-      status: 'denied' as const,
-      code: 'canary_not_eligible' as const,
-    }),
+  return Object.freeze({
+    authorize: async (descriptor) =>
+      // The synthetic canary has no operation row to admit against.
+      descriptor.subjectKind === 'property'
+        ? authorizeProperty(descriptor)
+        : { status: 'denied' as const, code: 'canary_not_eligible' as const },
 
     settle: async (permit, outcome) => {
       if (
@@ -420,10 +402,8 @@ export function createAiExecutionAdmissionAdapter(
             state: aiOperations.state,
             executionAttempt: aiOperations.executionAttempt,
             executionPermitId: aiOperations.executionPermitId,
-            admissionNonce: aiOperations.admissionNonce,
-            requestBindingHmac: aiOperations.requestBindingHmac,
-            grantKid: aiOperations.grantKid,
             providerId: aiOperations.providerId,
+            costWindowId: aiOperations.costWindowId,
             reservedMicros: aiOperations.reservedMicros,
             actualMicros: aiOperations.actualMicros,
             budgetSettledAt: aiOperations.budgetSettledAt,
@@ -440,20 +420,25 @@ export function createAiExecutionAdmissionAdapter(
         }
         if (
           operation.executionPermitId !== permit.permitId ||
-          operation.executionAttempt !== permit.attemptNumber ||
-          operation.admissionNonce !== permit.nonce ||
-          operation.grantKid !== permit.grantKid ||
-          permit.grantKid !== input.signingKid ||
-          operation.requestBindingHmac === null
+          operation.executionAttempt !== permit.attemptNumber
         ) {
           return { status: 'denied' as const, code: 'permit_mismatch' as const }
+        }
+        // One admission holds one open reservation, and settling closes it. A
+        // reservation never opened has nothing to settle; one already closed
+        // (settled here, or charged by the reaper) is not settled twice.
+        const reservation = reservationState(operation)
+        if (reservation === 'none') {
+          return { status: 'denied' as const, code: 'permit_not_consumed' as const }
+        }
+        if (reservation !== 'open') {
+          return { status: 'denied' as const, code: 'settlement_conflict' as const }
         }
         const parsed = aiSettlementRequestSchema.safeParse({
           ...outcome,
           operationId: permit.operationId,
           permitId: permit.permitId,
           attemptNumber: permit.attemptNumber,
-          nonce: permit.nonce,
         })
         if (!parsed.success) {
           return { status: 'denied' as const, code: 'settlement_conflict' as const }
@@ -469,32 +454,27 @@ export function createAiExecutionAdmissionAdapter(
         if (!Number.isSafeInteger(cost) || cost > operation.reservedMicros) {
           return { status: 'denied' as const, code: 'settlement_conflict' as const }
         }
-        if (operation.budgetSettledAt === null) {
-          await budget.settleAiOperation(tx, request.operationId, cost)
-        } else if (operation.actualMicros !== cost) {
-          return { status: 'denied' as const, code: 'settlement_conflict' as const }
-        }
+        await budget.settleAiOperation(tx, request.operationId, cost)
         const settledAtEpochMillis = now().getTime()
         return {
           status: 'settled' as const,
-          version: 'ai-settlement-receipt-v1' as const,
-          grantKid: operation.grantKid,
-          operationId: request.operationId,
-          permitId: request.permitId,
-          attemptNumber: request.attemptNumber,
-          nonce: request.nonce,
-          requestBindingHmac: operation.requestBindingHmac,
-          disposition: request.disposition,
-          reportedDisposition: request.reportedDisposition,
-          usageKnown: request.usageKnown,
-          providerRetryable: request.providerRetryable,
-          inputTokens: request.inputTokens,
-          cachedInputTokens: request.cachedInputTokens,
-          outputTokens: request.outputTokens,
-          reasoningTokens: request.reasoningTokens,
-          costMicros: cost,
-          settledAtEpochMillis,
-          settlementState: settlementState(request.disposition),
+          receipt: {
+            version: 'ai-settlement-receipt-v1' as const,
+            operationId: request.operationId,
+            permitId: request.permitId,
+            attemptNumber: request.attemptNumber,
+            disposition: request.disposition,
+            reportedDisposition: request.reportedDisposition,
+            usageKnown: request.usageKnown,
+            providerRetryable: request.providerRetryable,
+            inputTokens: request.inputTokens,
+            cachedInputTokens: request.cachedInputTokens,
+            outputTokens: request.outputTokens,
+            reasoningTokens: request.reasoningTokens,
+            costMicros: cost,
+            settledAtEpochMillis,
+            settlementState: settlementState(request.disposition),
+          },
         }
       })
     },

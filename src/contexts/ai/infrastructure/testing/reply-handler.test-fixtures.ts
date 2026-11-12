@@ -224,13 +224,9 @@ async function createHarness(
           },
           settlementReceipt: {
             version: 'ai-settlement-receipt-v1' as const,
-
-            grantKid: 'grant-v1',
             operationId: request.operationId,
             permitId: request.permitId,
             attemptNumber: request.attemptNumber,
-            nonce: 'AQIDBA',
-            requestBindingHmac: 'A'.repeat(43),
             disposition: 'success' as const,
             reportedDisposition: 'success' as const,
             providerRetryable: false,

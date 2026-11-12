@@ -243,13 +243,9 @@ async function createHarness(
           result: options.analysisResult ?? VALID_V3_ANSWER,
           settlementReceipt: {
             version: 'ai-settlement-receipt-v1' as const,
-
-            grantKid: 'grant_v1',
             operationId: request.operationId,
             permitId: request.permitId,
             attemptNumber: request.attemptNumber,
-            nonce: 'AQIDBA',
-            requestBindingHmac: 'A'.repeat(43),
             disposition: 'success' as const,
             reportedDisposition: 'success' as const,
             providerRetryable: false,

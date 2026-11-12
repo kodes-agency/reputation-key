@@ -2,16 +2,15 @@ import { replyRequest } from '#/shared/ai-gateway-transport-contract.test-fixtur
 import * as leakage from '#/shared/ai-reply-output-leakage'
 import { createAiEgressGatewayService } from './service'
 import { createSensitiveSourceLease } from './source-lease'
-import { parseAiSettlementReceipt } from '#/shared/ai-internal-transport-contract'
 import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
 import type { AiAdmissionClient } from './contracts'
 import { createHash, generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import { admitForTest } from './execution-admission.test-fixtures'
+import { aiAdmissionDescriptorDigest, settlementPermitOf } from './execution-admission'
 import { createAiGatewayRoutePreparer } from './route-preparer'
 import { openAiRequestOf } from './review-evidence.test-fixtures'
 import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
-import { signAiExecutionGrant } from '#/shared/ai-internal-transport-contract'
 import {
   verifyAiReplyProvenance,
   digestRenderedReply,
@@ -37,7 +36,6 @@ function preparer(
   onOutputRefused?: Parameters<typeof createAiGatewayRoutePreparer>[0]['onOutputRefused'],
 ) {
   return createAiGatewayRoutePreparer({
-    requestBindingKeys: createVersionedHmacKeyring(`request-v1:${'07'.repeat(32)}`),
     safetyIdentifierKey: Buffer.alloc(32, 8),
     onOutputRefused,
     provenanceKid: 'reply-v1',
@@ -221,28 +219,12 @@ describe('reply v2 provider preparation and acceptance', () => {
       replyText: 'Sentimos que la espera fuera tan larga. Su tiempo merece más atención.',
     })!
     expect(accepted).not.toBeNull()
-    const grant = signAiExecutionGrant(
-      {
-        version: 'ai-execution-grant-v1',
-        subjectKind: 'property',
-        grantKid: 'grant-v1',
-        requestBindingKeyId: 'request-v1',
-        requestBindingHmac: 'A'.repeat(43),
-        route: 'reply-suggestion',
-        operationId: request.operationId,
-        permitId: request.permitId,
-        attemptNumber: 1,
-        nonce: Buffer.alloc(32, 1).toString('base64url'),
-        limits: prepared.invocation.descriptor.limits,
-        callerDeadlineEpochMillis: NOW + 70_000,
-        issuedAtEpochMillis: NOW,
-        expiresAtEpochMillis: NOW + 70_000,
-        replyTokenExpiresAtEpochMillis: NOW + 60_000,
-        replyDraftExpiresAtEpochMillis: NOW + 60_000,
-      },
-      KEYS.privateKey,
-    )
-    const response = accepted.buildResponse({} as never, grant)
+    const admission = admitForTest(prepared.invocation.descriptor, {
+      issuedAtEpochMillis: NOW,
+      replyTokenExpiresAtEpochMillis: NOW + 60_000,
+      replyDraftExpiresAtEpochMillis: NOW + 60_000,
+    })
+    const response = accepted.buildResponse({} as never, admission)
     expect(response.status).toBe('success')
     if (response.status !== 'success' || response.route !== 'reply-suggestion')
       throw new Error('Expected reply')
@@ -252,6 +234,8 @@ describe('reply v2 provider preparation and acceptance', () => {
     )
     expect(token).toMatchObject({
       version: 'ai-reply-provenance-v4',
+      executionPermitId: request.permitId,
+      executionAttempt: 1,
       templateGroup: 'es-Latn',
       renderedSuggestionDigest: digestRenderedReply(response.result.replyText),
       voiceChoices: { closing: -1 },
@@ -259,14 +243,14 @@ describe('reply v2 provider preparation and acceptance', () => {
     expect(response.result).not.toHaveProperty('avoidTerms')
     expect(JSON.stringify(token)).not.toContain('avoidTerms')
   })
-  it('binds every option and voice identity in the descriptor HMAC', () => {
+  it('binds every option and voice identity in the admitted descriptor', () => {
     const original = preparer().prepare(replyRequest())
     const changed = replyRequest()
     changed.binding.replyDraftingV2!.options.maxWords = 18
     changed.binding.replyDraftingV2!.options.length = 'short'
     const next = preparer().prepare(changed)
-    expect(next.invocation.requestBindingHmac).not.toBe(
-      original.invocation.requestBindingHmac,
+    expect(aiAdmissionDescriptorDigest(next.invocation.descriptor)).not.toBe(
+      aiAdmissionDescriptorDigest(original.invocation.descriptor),
     )
     expect(
       createHash('sha256').update(next.invocation.canonicalProviderBytes).digest('hex'),
@@ -280,16 +264,11 @@ describe('reply v2 provider preparation and acceptance', () => {
     const request = replyRequest()
     const prepared = preparer().prepare(request)
     const rejected = 'We are sorry. Call us about the cockroaches, please.'
-    const charge = vi.fn<AiAdmissionClient['settle']>(async (permit, outcome) => ({
+    const charge = vi.fn<AiAdmissionClient['settle']>(async (admission, outcome) => ({
       status: 'settled',
-      receipt: parseAiSettlementReceipt({
+      receipt: {
+        ...settlementPermitOf(admission),
         version: 'ai-settlement-receipt-v1',
-        grantKid: 'grant-v1',
-        operationId: permit.operationId,
-        permitId: permit.permitId,
-        attemptNumber: permit.attemptNumber,
-        nonce: permit.nonce,
-        requestBindingHmac: prepared.invocation.requestBindingHmac,
         disposition: outcome.disposition,
         reportedDisposition: outcome.reportedDisposition,
         providerRetryable: outcome.providerRetryable,
@@ -301,38 +280,21 @@ describe('reply v2 provider preparation and acceptance', () => {
         costMicros: Number(settledCostMicros(outcome)),
         settledAtEpochMillis: NOW + 1_000,
         settlementState: 'settled',
-      }),
+      },
     }))
     const service = createAiEgressGatewayService({
       now: () => NOW,
       preparer: { prepare: () => prepared },
-      admissionPublicKeys: new Map([['grant-v1', KEYS.publicKey]]),
       admission: {
         readiness: async () => true,
         settle: charge,
         authorize: async () => ({
           status: 'authorized',
-          grant: signAiExecutionGrant(
-            {
-              version: 'ai-execution-grant-v1',
-              subjectKind: 'property',
-              grantKid: 'grant-v1',
-              requestBindingKeyId: prepared.invocation.requestBindingKeyId,
-              requestBindingHmac: prepared.invocation.requestBindingHmac,
-              route: 'reply-suggestion',
-              operationId: request.operationId,
-              permitId: request.permitId,
-              attemptNumber: 1,
-              nonce: Buffer.alloc(32, 1).toString('base64url'),
-              limits: prepared.invocation.descriptor.limits,
-              callerDeadlineEpochMillis: NOW + 70_000,
-              issuedAtEpochMillis: NOW,
-              expiresAtEpochMillis: NOW + 70_000,
-              replyTokenExpiresAtEpochMillis: NOW + 60_000,
-              replyDraftExpiresAtEpochMillis: NOW + 60_000,
-            },
-            KEYS.privateKey,
-          ),
+          admission: admitForTest(prepared.invocation.descriptor, {
+            issuedAtEpochMillis: NOW,
+            replyTokenExpiresAtEpochMillis: NOW + 60_000,
+            replyDraftExpiresAtEpochMillis: NOW + 60_000,
+          }),
         }),
       },
       connector: {

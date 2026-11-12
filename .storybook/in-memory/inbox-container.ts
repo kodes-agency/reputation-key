@@ -146,10 +146,6 @@ const noopResponseTargetAuthority: ReviewResponseTargetAuthorityPort = {
 
 const emptyHandlingCycleStore: ReviewHandlingCycleStore = {
   findHead: async () => null,
-  listCycles: async () => [],
-  startNext: async () => {
-    throw new Error('Handling Cycles are not seeded in this Storybook container')
-  },
 }
 
 const emptyFeedbackHandlingStore: FeedbackHandlingStore = {

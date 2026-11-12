@@ -10,7 +10,7 @@ import { createAiControlAdapter } from '../../src/contexts/ai/infrastructure/ada
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runCommandEntrypoint } from './command-entrypoint'
 import { exitIfHelp } from './command-help'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:ai-control'
 const USAGE =
@@ -119,7 +119,7 @@ async function main(): Promise<void> {
   const command = parseAiControlArgs(argv)
   if (!command) return failUsage()
   const mutation = command.action !== 'inspect'
-  const result = await runOperatorCommand(
+  const result = await runDatabaseOperatorCommand(
     {
       name: COMMAND_NAME,
       scope: 'global',
