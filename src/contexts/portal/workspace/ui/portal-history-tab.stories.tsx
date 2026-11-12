@@ -7,7 +7,10 @@
 
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { getPortalHistory } from '#/contexts/portal/server/portals'
+import type {
+  getPortalHistory,
+  getPortalPublicationHistory,
+} from '#/contexts/portal/server/portals'
 import type {
   getPortalVersion,
   getPortalVersionPreview,
@@ -22,9 +25,11 @@ import {
   STORY_VERSIONS,
   STORY_VERSION_DETAILS,
   storyHistoryFor,
+  storyPublicationHistory,
 } from './__fixtures__/portal-history-stories-data'
 import { storyVersionPreview } from './__fixtures__/portal-version-preview-stories-data'
-import { PortalHistoryTab, type MakeVersionLiveAction } from './portal-history-tab'
+import type { MakeVersionLiveAction } from './portal-history-context'
+import { PortalHistoryTab } from './portal-history-tab'
 
 const getHistorySpy = fn(async (input: { data: { filter?: string } }) => ({
   entries: storyHistoryFor(input.data.filter ?? 'all'),
@@ -41,6 +46,9 @@ const reads = {
   getVersions: mockServerFn(
     async (_input: unknown) => STORY_VERSIONS,
   ) as unknown as typeof getPortalVersions,
+  getPublicationHistory: mockServerFn(async (_input: unknown) =>
+    storyPublicationHistory(STORY_PENDING_CHANGES),
+  ) as unknown as typeof getPortalPublicationHistory,
   getVersion: mockServerFn(
     async (input: { data: { version: number } }) =>
       STORY_VERSION_DETAILS[input.data.version],
@@ -70,7 +78,6 @@ const meta: Meta<typeof PortalHistoryTab> = {
     portalId: 'portal-1',
     portalName: STORY_PORTAL_NAME,
     timeZone: STORY_TIME_ZONE,
-    pendingChangeCount: STORY_PENDING_CHANGES,
     mayMakeLive: true,
     pageIsLive: true,
     reads,

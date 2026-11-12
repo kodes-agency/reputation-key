@@ -9,11 +9,13 @@ import {
   TimelineItem,
 } from '#/components/ui/timeline'
 import { cn } from '#/lib/utils'
+import { usePortalHistory } from './portal-history-context'
 import { HistoryGlyphDisc } from './portal-history-glyph'
 import { describeHistoryEntry } from './portal-history-line'
 import { plain, type Phrase } from './portal-history-phrase'
 import { formatHistoryTime } from './portal-history-time'
 import type { HistoryEntryRow } from './portal-history-rows'
+import { PortalHistoryRowRestore } from './portal-history-restore'
 import { PhraseView } from './portal-phrase-view'
 import { summarizeVersion } from './portal-version-summary'
 
@@ -48,39 +50,18 @@ function withPublishedIn(
   return detail === null ? [where] : [...detail, plain(' · '), where]
 }
 
-type Props = Readonly<{
-  row: HistoryEntryRow
-  portalName: string
-  now: Date
-  timeZone: string
-  /** The viewer may make a version live again, and the page is on. */
-  canMakeLive: boolean
-  /** This line's inline confirmation is open. */
-  restoreOpen: boolean
-  /** Move focus to View when the line appears (it was just revealed). */
-  focusView: boolean
-  /** The confirmation just closed because this version was made live. */
-  restored: boolean
-  onView: (version: number) => void
-  onAskRestore: (version: number) => void
-  /** The confirmation, when open on this line. */
-  restorePanel: ReactNode
-}>
-
 // fallow-ignore-next-line complexity
-export function PortalHistoryRow({
-  row,
-  portalName,
-  now,
-  timeZone,
-  canMakeLive,
-  restoreOpen,
-  focusView,
-  restored,
-  onView,
-  onAskRestore,
-  restorePanel,
-}: Props) {
+export function PortalHistoryRow({ row }: Readonly<{ row: HistoryEntryRow }>) {
+  const {
+    portalName,
+    now,
+    timeZone,
+    canMakeLive,
+    selection,
+    revealedVersion,
+    restoredVersion,
+    select,
+  } = usePortalHistory()
   const { version } = row
   const line = describeHistoryEntry(row.entry, {
     portalName,
@@ -92,6 +73,15 @@ export function PortalHistoryRow({
     now,
   })
   const detail = withPublishedIn(line.detail, row.draft)
+  // The confirmation is open on this line; the version just revealed takes
+  // focus; the version just made live again hands focus back to its View.
+  const restoreOpen =
+    version !== null &&
+    selection?.mode === 'restore' &&
+    selection.host === 'row' &&
+    selection.version === version.version
+  const focusView = version !== null && version.version === revealedVersion
+  const restored = version !== null && version.version === restoredVersion
   const time = formatHistoryTime(row.entry.occurredAt, now, timeZone)
   const restoreButton = useRef<HTMLButtonElement>(null)
   const viewButton = useRef<HTMLButtonElement>(null)
@@ -169,7 +159,9 @@ export function PortalHistoryRow({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => onView(version.version)}
+                onClick={() =>
+                  select({ version: version.version, mode: 'view', host: 'dialog' })
+                }
                 aria-label={`View version ${version.version}`}
               >
                 View
@@ -183,7 +175,9 @@ export function PortalHistoryRow({
                   aria-label={`Make live again… version ${version.version}`}
                   aria-expanded={restoreOpen}
                   aria-controls={`restore-v${version.version}`}
-                  onClick={() => onAskRestore(version.version)}
+                  onClick={() =>
+                    select({ version: version.version, mode: 'restore', host: 'row' })
+                  }
                 >
                   Make live again…
                 </Button>
@@ -191,7 +185,9 @@ export function PortalHistoryRow({
             </span>
           )}
         </div>
-        {restorePanel}
+        {restoreOpen && version !== null ? (
+          <PortalHistoryRowRestore version={version.version} />
+        ) : null}
       </TimelineContent>
     </TimelineItem>
   )
