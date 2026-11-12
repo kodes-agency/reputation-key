@@ -10,8 +10,8 @@ import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixture
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createPortalReadsWorld } from '../../infrastructure/testing/portal-reads-world'
 import { portalMediaAssetId, propertyId, type PropertyId } from '#/shared/domain/ids'
-import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-last'
-import type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
+import type { PrintLastSettings } from '#/shared/domain/portal-print-last'
+import type { PrintSavedWording } from '#/shared/domain/portal-print-wording'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { immersiveConfiguration } from '../../domain/__fixtures__/immersive-configuration'
 import { publicationSource } from '../../domain/__fixtures__/publication-source'
@@ -41,7 +41,7 @@ const staffApi = (accessible: readonly PropertyId[] | null): StaffPublicApi => (
   getAssignedPortals: async () => [],
 })
 
-const LAST_SETTINGS: PrintFinalLastSettings = {
+const LAST_SETTINGS: PrintLastSettings = {
   piece: 'tent',
   orientation: 'wide',
   look: 'immersive',
@@ -80,12 +80,12 @@ async function setup(
     heroUploadedAt?: Date
     /** What the Portal's last print was made with: nothing remembered unless told otherwise. */
     last?: Readonly<{
-      settings?: Partial<PrintFinalLastSettings>
+      settings?: Partial<PrintLastSettings>
       photoAssetId?: string | null
       printedAt?: Date
     }>
     /** The wording the Portal saved for Share to open on: none unless told otherwise. */
-    saved?: PrintFinalSavedWording
+    saved?: PrintSavedWording
   }> = {},
 ) {
   const portal = world.portal({ name: 'Harbor lobby' })
@@ -249,7 +249,7 @@ describe('getPortalPrintKit', () => {
   })
 
   describe('the saved wording', () => {
-    const SAVED: PrintFinalSavedWording = {
+    const SAVED: PrintSavedWording = {
       callToAction: 'how_was_stay',
       customWords: { en: { headline: 'Thanks for staying', subline: 'Tell us more' } },
     }

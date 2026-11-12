@@ -206,7 +206,7 @@ export function drawLine(
   drawRuns(doc, fonts, text, style, at.x, { y: at.middleY, baseline: 'middle' })
 }
 
-/** A line starting at `x`, sitting on `baselineY`: the final kit places its words by their ink, from the baseline. */
+/** A line starting at `x`, sitting on `baselineY`: the kit places its words by their ink, from the baseline. */
 export function drawLineOnBaseline(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
@@ -217,7 +217,7 @@ export function drawLineOnBaseline(
   drawRuns(doc, fonts, text, style, at.x, { y: at.baselineY, baseline: 'alphabetic' })
 }
 
-/** A line centred on `centreX`, sitting on `baselineY`: the final kit's cue is centred in its bar by its ink. */
+/** A line centred on `centreX`, sitting on `baselineY`: the kit's cue is centred in its bar by its ink. */
 export function drawCentredLineOnBaseline(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,

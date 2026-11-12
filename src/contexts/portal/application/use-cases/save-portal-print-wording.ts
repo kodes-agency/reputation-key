@@ -1,4 +1,4 @@
-// Portal context — saves the wording of the final print kit (2026-10-27).
+// Portal context — saves the wording of the print kit (2026-10-27).
 //
 // "Save wording" in Share: the call to action the manager picked and the words
 // they wrote, kept per Portal so Share opens on them next time. It needs the same
@@ -12,12 +12,12 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
 import { portalId } from '#/shared/domain/ids'
-import { printFinalWordsOffer } from '#/shared/domain/portal-print-final-warnings'
+import { printWordsOffer } from '#/shared/domain/portal-print-warnings'
 import {
-  printFinalWordingToSave,
-  type PrintFinalSavedWording,
-} from '#/shared/domain/portal-print-final-wording'
-import { PRINT_FINAL_REFUSAL_COPY } from '#/shared/domain/portal-print-final-refusals'
+  printWordingToSave,
+  type PrintSavedWording,
+} from '#/shared/domain/portal-print-wording'
+import { PRINT_REFUSAL_COPY } from '#/shared/domain/portal-print-refusals'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalError } from '../../domain/errors'
@@ -38,7 +38,7 @@ export const savePortalPrintWording =
   async (
     input: SavePortalPrintWordingInput,
     ctx: AuthContext,
-  ): Promise<PrintFinalSavedWording> => {
+  ): Promise<PrintSavedWording> => {
     const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
       permission: 'portal.update',
       forbiddenMessage: 'Insufficient permissions to save the print wording',
@@ -47,17 +47,13 @@ export const savePortalPrintWording =
     assertPersonalPortalPublicText(portal, input.customWords)
     // Judged in the languages the words are written in: the save names no print.
     const languages = Object.keys(input.customWords ?? {}) as GuestLocale[]
-    if (printFinalWordsOffer(words, languages)) {
-      throw portalError(
-        'print_format_not_offered',
-        PRINT_FINAL_REFUSAL_COPY.remove_offer,
-        {
-          cause: 'remove_offer',
-        },
-      )
+    if (printWordsOffer(words, languages)) {
+      throw portalError('print_format_not_offered', PRINT_REFUSAL_COPY.remove_offer, {
+        cause: 'remove_offer',
+      })
     }
     // Own words only where they differ from the wording's copy: fields left as prefilled are the wording.
-    const wording = printFinalWordingToSave(words, languages)
+    const wording = printWordingToSave(words, languages)
     await deps.wordingRepo.save({
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,

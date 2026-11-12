@@ -1,0 +1,128 @@
+import { describe, expect, it } from 'vitest'
+import { GUEST_LOCALES } from './guest-locale'
+import { PRINT_CALLS_TO_ACTION, PRINT_COPY } from './portal-print-copy'
+import { PRINT_WARNING_WORDS } from './portal-print-warning-words'
+import {
+  printTextWarning,
+  printWordsOffer,
+  printWordsWarning,
+} from './portal-print-warnings'
+
+const say = (text: string, locale: Parameters<typeof printTextWarning>[1] = 'en') => {
+  const warning = printTextWarning(text, locale)
+  return warning === null ? null : `${warning.kind} ${warning.topic} ${warning.word}`
+}
+
+describe('the warning list (spec 5.8)', () => {
+  it('blocks only clear offers', () => {
+    expect(say('Get 10% off')).toBe('block offer 10 % off')
+    expect(say('Free dessert with your review')).toBe('block offer Free dessert')
+    expect(say('Review us for a coupon')).toBe('block offer coupon')
+    expect(say('A chance to win a night')).toBe('block offer chance to win')
+    expect(say('Opina y llévate un postre gratis', 'es')).toBe(
+      'block offer postre gratis',
+    )
+    expect(say('20 % de remise', 'fr')).toBe('block offer 20 % de remise')
+  })
+
+  it.each(GUEST_LOCALES)('checks later free-word occurrences in %s', (locale) => {
+    const { free, things } = PRINT_WARNING_WORDS[locale]
+    for (const word of free) {
+      for (const thing of things) {
+        for (const offer of [`${word} ${thing}`, `${thing} ${word}`]) {
+          expect(
+            printTextWarning(`${word} · hello again · ${offer}`, locale),
+          ).toMatchObject({ kind: 'block', topic: 'offer' })
+        }
+      }
+    }
+  })
+
+  it('only asks about a lone "free", "gift" or "win", and lets the print go', () => {
+    expect(say('Feel free to say how we did')).toBe('warn offer_word free')
+    expect(say('It was a win-win')).toBe('warn offer_word win')
+  })
+
+  it('warns on mood, pressure and privacy words, and notes a time', () => {
+    expect(say('Loved your stay? Review us!')).toBe('warn mood Loved')
+    expect(say('Before you leave, how did we do?')).toBe('warn pressure Before you leave')
+    expect(say('Tell us privately how we did')).toBe('warn privacy privately')
+    expect(say('Wie war es? Bewerten Sie uns vertraulich', 'de')).toBe(
+      'warn privacy vertraulich',
+    )
+    expect(say('Takes 20 seconds')).toBe('time time 20 seconds')
+  })
+
+  it('folds case and accents, and reads apostrophes either way', () => {
+    expect(say('N’oubliez pas de noter', 'fr')).toBe("warn pressure N'oubliez pas")
+    expect(say('Una reseña anónima', 'es')).toBe('warn privacy anónima')
+  })
+
+  it('finds every phrase of every list as it is written, in every language', () => {
+    // The lists are folded as the typed text is (Bulgarian й is и with a breve), so none can be missed.
+    for (const locale of GUEST_LOCALES) {
+      const lists = PRINT_WARNING_WORDS[locale]
+      for (const phrase of [
+        ...lists.offers,
+        ...lists.offerWords,
+        ...lists.mood,
+        ...lists.pressure,
+        ...lists.privacy,
+      ]) {
+        expect(printTextWarning(phrase, locale), `${locale} ${phrase}`).not.toBeNull()
+      }
+      for (const word of lists.time) {
+        expect(printTextWarning(`5 ${word}`, locale), `${locale} ${word}`).not.toBeNull()
+      }
+    }
+    expect(say('Не забравяйте да оцените', 'bg')).toBe('warn pressure Не забравяйте')
+    expect(say('Попитайте за Мария', 'bg')).toBe('warn pressure Попитайте за')
+  })
+
+  it('finds no offer, mood, pressure or privacy word in any wording or sub-line, in any language', () => {
+    for (const locale of GUEST_LOCALES) {
+      for (const preset of PRINT_CALLS_TO_ACTION) {
+        const { headline, subline } = PRINT_COPY[locale][preset]
+        // Only the time the wordings promise is noted, and a wording as it stands raises nothing (below).
+        for (const text of [headline, subline]) {
+          expect(
+            printTextWarning(text, locale)?.kind ?? 'time',
+            `${locale} ${text}`,
+          ).toBe('time')
+        }
+      }
+    }
+  })
+})
+
+describe('printWordsWarning', () => {
+  it('says nothing about fields still holding the wording, the time note included', () => {
+    expect(
+      printWordsWarning(
+        {
+          preset: 'how_did_we_do',
+          custom: { en: { headline: 'How did we do?', subline: 'About 30 seconds' } },
+        },
+        'en',
+      ),
+    ).toBeNull()
+    expect(
+      printWordsWarning(
+        {
+          preset: 'how_did_we_do',
+          custom: { en: { headline: 'How was today?', subline: 'About 30 seconds' } },
+        },
+        'en',
+      ),
+    ).toBeNull()
+  })
+
+  it('blocks a print whose own words offer something, in any of its languages', () => {
+    const words = {
+      preset: 'how_did_we_do' as const,
+      custom: { es: { headline: '¿Qué tal?', subline: 'Un 10 % de descuento' } },
+    }
+    expect(printWordsOffer(words, ['en', 'es'])).toBe(true)
+    expect(printWordsOffer({ preset: 'how_did_we_do' }, ['en', 'es'])).toBe(false)
+  })
+})
