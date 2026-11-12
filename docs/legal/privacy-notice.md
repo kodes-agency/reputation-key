@@ -3,14 +3,14 @@ status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
 corrected_on: 2026-10-13
-amended_on: 2026-11-11
+amended_on: 2026-11-12
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-11
-**Version:** 3.7
+**Effective date:** 2026-11-12
+**Version:** 3.8
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -98,16 +98,16 @@ Property/location metadata and review source content, including reviewer
 information, per-review rating, review text and language, review time, Google
 identifiers, and current reply content/state. The Service also stores
 manager-authored reply workflow and reconciliation evidence. Per-review Google
-ratings remain part of the short-lived review source. Reporting can retain legacy per-review star values with no enforced expiry.
-These copies await removal.
+ratings remain part of the short-lived review source. The Service no longer records separate per-review star values in Reporting.
+Existing copies remain with no enforced expiry and are being removed.
 
 Google-controlled source content is kept separately from longer-lived
 application records. Its intended limit is 30 calendar days from the last
 successful fetch; a new successful fetch restarts that period. Expired content
 is withheld from ordinary reads and external processing, but automatic deletion
 of the stored current source content is not active yet. Disconnecting Google or letting the
-connection lapse does not erase it early or restart the period. Reporting can retain legacy per-review star values with no enforced expiry.
-These copies await removal.
+connection lapse does not erase it early or restart the period. The Service no longer records separate per-review star values in Reporting.
+Existing copies remain with no enforced expiry and are being removed.
 
 See the separate [Google Business Profile Access Disclosure](/privacy/google-access-disclosure).
 
@@ -339,6 +339,8 @@ training on submitted Google content have no activation path.
 
 The 24-month retention for Reporting's readings of Guest facts is not enforced by code yet.
 
+Portal “All Time” totals are calculated from the retained Guest metric readings. Those readings have a 24-month retention limit. Once older readings start to expire, the totals cover the last 24 months and will be labelled “last 24 months”, rather than “All Time”.
+
 The following accepted horizons are implemented or represented in the
 repository:
 
@@ -398,9 +400,14 @@ The accepted rules for the remaining information classes are:
 - there is no quarantine retention class because no quarantine tables remain.
 
 Database backups are deleted on a fixed schedule within 30 days: daily copies after six days and weekly copies after 27 days. Database
-backups and point-in-time recovery are enabled. Automatic recording and
-re-application of erasures after a restore is not active. Restoring an older
-backup can therefore bring back information erased after that backup was made.
+backups and point-in-time recovery are enabled. Before a guest withdrawal, an approved erasure
+request or a one-off purge deletes information, the Service saves a separate
+record containing only the identifiers needed to repeat that erasure after a
+restore. These records are kept in separate object storage for 45 days. If
+saving the record fails, the erasure waits and Reputation Key is alerted. After
+a restore, the records are used to repeat those erasures before the restored
+Service returns to use. Routine deletion of information that has reached its age
+limit runs again after a restore and needs no separate erasure record.
 
 ## 7. Choices, corrections, and withdrawal
 
@@ -432,8 +439,8 @@ the owner through the operator script, not through self-service account
 controls. Write to [denev@kodes.agency](mailto:denev@kodes.agency) using the
 identity checks above. We answer within 30 days and provide an export on request
 within seven days from verified identity. Exports are delivered as a 24-hour download link to a file in the private bucket, deleted after download and after seven days at the latest, never as an email attachment. Permanent Property erasure must be requested by an AccountAdmin. Organization
-closure includes suspension, mandatory warnings, an export on request and
-confirmed erasure.
+closure includes suspension, mandatory warnings, an export on request, and
+confirmed erasure with a record that allows it to be repeated after a restore.
 
 ## 8. Security and deployment posture
 
@@ -447,7 +454,7 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-11-11 and is version 3.7. It replaces version 3.6, effective 2026-11-07, which replaced version 3.5, effective 2026-11-06, which replaced version 3.4, effective 2026-11-03, which replaced version 3.3, effective 2026-11-02, which replaced version 3.2, effective 2026-11-02, which replaced version 3.1, effective 2026-11-01, which replaced version
+This notice takes effect on 2026-11-12 and is version 3.8. It replaces version 3.7, effective 2026-11-11, which replaced version 3.6, effective 2026-11-07, which replaced version 3.5, effective 2026-11-06, which replaced version 3.4, effective 2026-11-03, which replaced version 3.3, effective 2026-11-02, which replaced version 3.2, effective 2026-11-02, which replaced version 3.1, effective 2026-11-01, which replaced version
 3.0, which took effect on 2026-10-30 and had replaced version
 2.5, which took effect on 2026-10-16 and had replaced version 2.4, which took
 effect on 2026-10-16 and had replaced version 2.3, which took
@@ -579,3 +586,5 @@ controls. Existing users are not asked to accept again.
 Version 3.6 (2026-11-07) explains that unusually busy periods or abuse can prevent a private response from being stored while leaving thank-you and Google Review available. Correction and withdrawal apply to stored responses. The submitted rating for an unstored response remains only in the signed session cookie for no more than 24 hours; admission records contain no rating or text and follow the existing seven-day network-pressure retention. This notice takes effect on 2026-11-07 and is version 3.6. This revision takes effect with the response-admission release, without a waiting period under the accountable owner's closed-beta waiver of 2026-11-07.
 
 Version 3.7 (2026-11-11) states that Property Trends has ended, so Review Analysis and Reply Drafting are the two Property AI choices, and that the stored business category is removed when Google is disconnected and when AI results are purged. It replaces the Organization Export object retention row and the closure workflow wording with the manual procedure: exports, closure, permanent Property erasure and privacy requests are handled by the owner through the operator script, with an export provided within seven days from verified identity as a 24-hour download link that is deleted after download and after seven days at the latest, never as an email attachment. It takes effect on publication without a waiting period, on the accountable owner's decision for the two closed-beta Organizations the owner controls. Existing users are not asked to accept again.
+
+Version 3.8 (2026-11-12) states that erasures made through the manual procedure and one-off purges are recorded before they delete anything, in separate object storage for 45 days, and repeated after a restore, and that guest withdrawals are recorded in the same way. It explains how Portal “All Time” totals are calculated, and states that the Service no longer records separate per-review star values in Reporting while existing copies are being removed. It takes effect on publication without a waiting period, on the accountable owner's decision for the two closed-beta Organizations the owner controls. Existing users are not asked to accept again.
