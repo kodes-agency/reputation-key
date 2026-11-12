@@ -1,11 +1,9 @@
-import { AI_JSON_MAX_BYTES } from './ai-json'
 import { sign, verify, type KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import type { VersionedHmacKeyring } from './security/versioned-hmac-keyring'
 
 export const AI_REVIEW_ROUTE_MAX_BYTES = 65_536 as const
-export const AI_TREND_ROUTE_MAX_BYTES = AI_JSON_MAX_BYTES
 export const AI_INTERNAL_RESPONSE_MAX_BYTES = 65_536 as const
 
 const REQUEST_BINDING_AUDIENCE = 'ai-request-binding-v1'
@@ -98,13 +96,6 @@ const capabilityFenceSchema = z.discriminatedUnion('capability', [
       baseReplyStateRevision: nonnegative,
     })
     .strict(),
-  z
-    .object({
-      capability: z.literal('property_trends'),
-      reviewAnalysisEpoch: positive,
-      propertyTrendsEpoch: positive,
-    })
-    .strict(),
 ])
 
 const concreteLanguageSchema = z.object({ tag: safeId, templateGroup: safeId }).strict()
@@ -149,7 +140,7 @@ export const aiExecutionBindingSchema = z
 
 const canaryStopFenceEntrySchema = z
   .object({
-    capability: z.enum(['review_analysis', 'reply_drafting', 'property_trends']),
+    capability: z.enum(['review_analysis', 'reply_drafting']),
     capabilityControlId: canonicalUuid,
     capabilityGeneration: positive,
   })
@@ -176,9 +167,6 @@ const canaryBindingSchema = z
             }),
             canaryStopFenceEntrySchema.extend({
               capability: z.literal('reply_drafting'),
-            }),
-            canaryStopFenceEntrySchema.extend({
-              capability: z.literal('property_trends'),
             }),
           ])
           .readonly(),
@@ -236,15 +224,6 @@ const replySuggestionDescriptorSchema = z
     redactionCountry: z.string().regex(/^[A-Z]{2}$/),
   })
   .strict()
-const propertyTrendDescriptorSchema = z
-  .object({
-    ...propertyDescriptorShape,
-    route: z.literal('property-trend'),
-    actorId: z.null(),
-    observedContentExpiresAtEpochMillis: z.null(),
-    redactionCountry: z.null(),
-  })
-  .strict()
 const canaryDescriptorSchema = z
   .object({
     ...descriptorBaseShape,
@@ -271,7 +250,6 @@ const canaryDescriptorSchema = z
 const admissionDescriptorSchema = z.discriminatedUnion('route', [
   reviewAnalysisDescriptorSchema,
   replySuggestionDescriptorSchema,
-  propertyTrendDescriptorSchema,
   canaryDescriptorSchema,
 ])
 
@@ -335,7 +313,6 @@ function validatePropertyDescriptor(
   const capabilities = {
     'review-analysis': 'review_analysis',
     'reply-suggestion': 'reply_drafting',
-    'property-trend': 'property_trends',
   } as const
   if (capabilities[value.route] !== value.binding.capabilityFence.capability) {
     context.addIssue({
@@ -396,12 +373,7 @@ const grantBaseSchema = z
     grantKid: keyId,
     requestBindingKeyId: keyId,
     requestBindingHmac: hmac,
-    route: z.enum([
-      'review-analysis',
-      'reply-suggestion',
-      'property-trend',
-      'synthetic-canary',
-    ]),
+    route: z.enum(['review-analysis', 'reply-suggestion', 'synthetic-canary']),
     operationId: canonicalUuid,
     permitId: canonicalUuid,
     attemptNumber: z.number().int().min(1).max(4),

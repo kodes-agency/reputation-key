@@ -6,10 +6,7 @@ import {
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
-import {
-  trendRequest,
-  v2FormAnalysisRequest,
-} from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import { v2FormAnalysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import { canonicalizeRawAiReviewSource } from '#/shared/ai-review-source-contract'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
@@ -538,10 +535,4 @@ describe('review-analysis v3 request preparation', () => {
       expect(Object.isFrozen(request.propertyContext?.vocabularyHints)).toBe(false)
     })
   })
-})
-
-it('refuses retired trend execution before preparing a provider request', () => {
-  expect(refusal(() => evidencePreparer().prepare(trendRequest()))).toBe(
-    'policy_unavailable',
-  )
 })

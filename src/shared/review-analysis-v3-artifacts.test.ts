@@ -64,11 +64,13 @@ describe('review analysis v3 logical artifacts', () => {
   })
 
   it('uses the live operation-profile output-schema digest scheme', () => {
-    expect(AI_OPERATION_PROFILES[0]?.profileVersion).toBe('review-analysis-v2')
-    expect(AI_OPERATION_PROFILES[0]?.outputSchemaDigest).toBe(
+    const profile = AI_OPERATION_PROFILES.find(
+      (candidate) => candidate.profileVersion === 'review-analysis-v3',
+    )
+    expect(profile?.outputSchemaDigest).toBe(
       digest(
         'repkey-ai-output-schema-v1\0',
-        AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v2'],
+        AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v3'],
       ),
     )
   })

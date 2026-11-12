@@ -1,3 +1,4 @@
+import { replyRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import OpenAI from 'openai'
 import { readOpenAiReplyStream } from './openai-stream-response'
 import { openAiRequestOf } from './review-evidence.test-fixtures'
@@ -8,7 +9,6 @@ import { createAiEgressGatewayService } from './service'
 import { createOpenAiConnector } from './openai-connector'
 import { createAiGatewayRoutePreparer } from './route-preparer'
 import { createSensitiveSourceLease } from './source-lease'
-import { replyV2Request } from './reply-drafting-v2.test-fixtures'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
   signAiExecutionGrant,
@@ -101,7 +101,7 @@ function events(mode: Mode) {
 }
 
 function harness(mode: Mode) {
-  const request = replyV2Request()
+  const request = replyRequest()
   const preparer = createAiGatewayRoutePreparer({
     requestBindingKeys: REQUEST_KEYS,
     safetyIdentifierKey: Buffer.alloc(32, 8),

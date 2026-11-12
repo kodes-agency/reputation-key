@@ -7,8 +7,7 @@ export type {
   ReplyBodyFinding,
   ReplyBodyIssueCode,
 } from './domain/reply-body-lint-policy'
-import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from './canonical-json'
+import { digestOf } from './ai-digest'
 
 // Code checks for an AI reply body (Phase 0). `hard` problems trigger the one automatic retry;
 // `soft` ones are only counted. Matching ignores case and accents; short terms match whole words,
@@ -583,36 +582,30 @@ export function hasReplyAvoidanceTerm(body: string, terms: readonly string[]): b
 
 export const REPLY_BODY_LINT_VERSION = 'reply-body-lint-v1' as const
 // Include the dictionaries AND the matchers. No source/rejected text enters this digest.
-export const REPLY_BODY_LINT_DIGEST = createHash('sha256')
-  .update('repkey-reply-body-lint-v1\0')
-  .update(
-    canonicalizeRfc8785({
-      version: REPLY_BODY_LINT_VERSION,
-      rules: REPLY_BODY_RULES,
-      damaging: DAMAGING,
-      singular: FIRST_PERSON_SINGULAR,
-      invitations: INVITATIONS,
-      stock: STOCK,
-      analyst: ANALYST,
-      confusion: CONFUSION,
-      lecture: LECTURE,
-      praise: PRAISE_WORDS,
-      bands: LENGTH_BANDS,
-      apologies: Object.values(APOLOGY).map((p) => p.toString()),
-      greetings: Object.values(GREETING).map((p) => p.toString()),
-      signOffs: Object.values(SIGN_OFF).map((p) => p.toString()),
-      matching: {
-        version: 'phase0-final-v1',
-        normalization: 'NFD-strip-M-lower-apostrophes',
-        terms:
-          'Unicode-letter-number-edges;whole-through-four;stem-above;provider-terms-stem-plus-four;dictionary-dollar-forces-whole;avoidance-literals;skip-normalized-under-two',
-        namePolicy:
-          'capitalized-noninitial-word-normalized-hyphenless-substring-in-source',
-        guestAdjectives: 'es-bg-phase0-final',
-        politePronouns: 'es-bg-phase0-final',
-        unicodeDigits: true,
-        maxWords: 'whitespace-words',
-      },
-    }),
-  )
-  .digest('hex')
+export const REPLY_BODY_LINT_DIGEST = digestOf('repkey-reply-body-lint-v1\0', {
+  version: REPLY_BODY_LINT_VERSION,
+  rules: REPLY_BODY_RULES,
+  damaging: DAMAGING,
+  singular: FIRST_PERSON_SINGULAR,
+  invitations: INVITATIONS,
+  stock: STOCK,
+  analyst: ANALYST,
+  confusion: CONFUSION,
+  lecture: LECTURE,
+  praise: PRAISE_WORDS,
+  bands: LENGTH_BANDS,
+  apologies: Object.values(APOLOGY).map((p) => p.toString()),
+  greetings: Object.values(GREETING).map((p) => p.toString()),
+  signOffs: Object.values(SIGN_OFF).map((p) => p.toString()),
+  matching: {
+    version: 'phase0-final-v1',
+    normalization: 'NFD-strip-M-lower-apostrophes',
+    terms:
+      'Unicode-letter-number-edges;whole-through-four;stem-above;provider-terms-stem-plus-four;dictionary-dollar-forces-whole;avoidance-literals;skip-normalized-under-two',
+    namePolicy: 'capitalized-noninitial-word-normalized-hyphenless-substring-in-source',
+    guestAdjectives: 'es-bg-phase0-final',
+    politePronouns: 'es-bg-phase0-final',
+    unicodeDigits: true,
+    maxWords: 'whitespace-words',
+  },
+})

@@ -13,7 +13,10 @@ import {
   parseAiGatewayRouteRequest,
   type AiGatewayRouteRequestV1,
 } from '#/shared/ai-gateway-transport-contract'
-import { analysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import {
+  analysisRequest,
+  analysisV3Result,
+} from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import type {
   AiAdmissionClient,
   AiGatewayRoutePreparer,
@@ -102,13 +105,7 @@ function preparedExecution(
         buildResponse: (receipt) => ({
           route: 'review-analysis',
           status: 'success',
-          result: {
-            sentiment: 'positive',
-            sentimentValence: 80,
-            urgencySignals: [],
-            aspects: [{ aspect: 'service', polarity: 'positive', intensity: 80 }],
-            issueLabel: null,
-          },
+          result: analysisV3Result,
           settlementReceipt: receipt,
         }),
       }
@@ -200,8 +197,6 @@ function settledReceipt(request: AiSettlementRequestV1, grant: AiExecutionGrantV
 
 function sourceLease(request: AiGatewayRouteRequestV1) {
   const lease = createSensitiveSourceLease<AiGatewayRouteRequestV1>()
-  if (request.route === 'property-trend')
-    throw new Error('Expected source-bearing request')
   lease.attachSource(request, (root) => root.source)
   return lease
 }
@@ -292,7 +287,7 @@ describe('AI gateway execution orchestration', () => {
     expect(response).toMatchObject({
       route: 'review-analysis',
       status: 'success',
-      result: { sentiment: 'positive' },
+      result: { contract: 'review-analysis-v3', answer: { sentiment: 'negative' } },
     })
     expect(value.authorize).toHaveBeenCalledTimes(1)
     expect(value.invoke).toHaveBeenCalledTimes(1)

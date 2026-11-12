@@ -112,7 +112,6 @@ describe('ai-source-v1 text revision 2: text the gateway can carry', () => {
       analysisV3Request({ rawText: 'Lovely stay\u{1ffff}, would return' }),
     )
     expect(parsed.route).toBe('review-analysis')
-    if (parsed.route === 'property-trend') throw new Error('expected a source')
     expect(parsed.source.text).toContain('\uFFFD')
   })
 })

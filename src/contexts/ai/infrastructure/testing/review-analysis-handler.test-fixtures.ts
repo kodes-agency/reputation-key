@@ -319,7 +319,6 @@ async function createHarness(
     inference: {
       analyzeReview,
       generateReply: vi.fn(),
-      generateTrend: vi.fn(),
     },
     operations: persistence.operations,
     outputs: {
@@ -404,7 +403,6 @@ export {
   PROPERTY_ID,
   REVIEW_ID,
   SHA,
-  VALID_V3_ANSWER,
   withDriftedLanguageRuntime,
   withPinnedLanguageRuntime,
 }

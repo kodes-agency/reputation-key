@@ -10,7 +10,7 @@ import {
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
-import { REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING } from '#/shared/review-analysis-v3-profile'
+import { REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING } from '#/shared/analysis/profile'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
   evidencePreparer,

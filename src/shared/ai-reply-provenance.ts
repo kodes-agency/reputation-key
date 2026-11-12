@@ -14,7 +14,7 @@ import {
 import {
   AI_PERSONALIZED_REPLY_LANGUAGES,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-} from './ai-personalized-reply-contract'
+} from './ai-personalized-reply-profile'
 
 const DOMAINS = Object.freeze({
   'ai-reply-provenance-v1': 'repkey-ai-reply-provenance-v1\0',

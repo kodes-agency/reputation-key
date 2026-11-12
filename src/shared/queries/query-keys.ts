@@ -106,8 +106,6 @@ export const dashboardKeys = {
 }
 export const aiKeys = {
   all: ['ai'] as const,
-  propertyTrend: (propertyId: string) =>
-    [...aiKeys.all, 'property-trend', propertyId] as const,
   /** Every window of the Guest voice 2.0 read for one Property: what a correction refreshes. */
   guestVoiceV2Property: (propertyId: string) =>
     [...aiKeys.all, 'guest-voice-v2', propertyId] as const,

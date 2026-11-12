@@ -68,11 +68,6 @@ function descriptor(): AiAdmissionDescriptorV1 {
             capabilityControlId: '10000000-0000-4000-8000-000000000007',
             capabilityGeneration: 1,
           },
-          {
-            capability: 'property_trends',
-            capabilityControlId: '10000000-0000-4000-8000-000000000008',
-            capabilityGeneration: 1,
-          },
         ],
       },
     },

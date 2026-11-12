@@ -17,6 +17,7 @@ import type {
 } from '#/shared/ai-internal-transport-contract'
 import {
   AI_REPLY_OPERATION_PROFILE,
+  AI_REPLY_V2_DEFAULT_BINDING,
   installAiOperationFixture,
   type AiOperationFixture,
 } from '#/shared/db/testing/ai-operation-fixture'
@@ -93,6 +94,7 @@ function descriptor(input: {
       },
       providerDeploymentProfileVersion:
         AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion,
+      replyDraftingV2: AI_REPLY_V2_DEFAULT_BINDING,
       operationProfileVersion: AI_REPLY_OPERATION_PROFILE.profileVersion,
       capabilityRuntimeProfileVersion:
         AI_REPLY_OPERATION_PROFILE.capabilityRuntimeProfileVersion,

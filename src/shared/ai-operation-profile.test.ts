@@ -7,18 +7,49 @@ import {
   defineLogicalOperationProfile,
   type LogicalOperationProfile,
   type LogicalOperationProfileSource,
-} from './ai-logical-operation-profile'
+} from './ai-operation-profile'
 import {
   OPENAI_PROVIDER_ATTESTATION_V1,
   openAiPairingOf,
   openAiAttestationOf,
 } from './ai-openai-provider-attestation'
 import {
-  logicalOperationProfileOf,
   operationProfileForCatalogue,
-} from './ai-operation-profile-views'
+  type AiOperationProfile,
+} from './ai-operation-profile'
 import { AI_OPERATION_PROFILES } from './ai-operation-profiles'
 import { defineProviderAttestation } from './ai-provider-attestations'
+
+/** A catalogue entry seen without its provider: its artifacts minus the `sdk` entry, and its limits. */
+function logicalOperationProfileOf(profile: AiOperationProfile): LogicalOperationProfile {
+  const { sdk: _sdk, ...logicalArtifacts } = profile.artifactAttestations
+  return defineLogicalOperationProfile({
+    profileVersion: profile.profileVersion,
+    command: profile.command,
+    capability: profile.capability,
+    purpose: profile.purpose,
+    sourceRoute: profile.sourceRoute,
+    gatewayPath: profile.gatewayPath,
+    callerRole: profile.callerRole,
+    capabilityRuntimeProfileVersion: profile.capabilityRuntimeProfileVersion,
+    providerDeploymentProfileVersion: profile.providerDeploymentProfileVersion,
+    outputSchemaName: profile.outputSchemaName,
+    outputSchema: profile.outputSchema,
+    developerPrompt: profile.developerPrompt,
+    logicalArtifacts,
+    limits: {
+      sourceByteLimit: profile.sourceByteLimit,
+      providerPayloadByteLimit: profile.providerPayloadByteLimit,
+      preparedRequestByteLimit: profile.preparedRequestByteLimit,
+      responseByteLimit: profile.responseByteLimit,
+      maxOutputTokens: profile.maxOutputTokens,
+      reasoningEffort: profile.reasoningEffort,
+      providerDeadlineMs: profile.providerDeadlineMs,
+      requestDeadlineMs: profile.requestDeadlineMs,
+      executionLeaseMs: profile.executionLeaseMs,
+    },
+  })
+}
 
 const [, ...OTHER_PROFILES] = AI_OPERATION_PROFILES
 const ALL_PROFILES = AI_OPERATION_PROFILES
@@ -113,7 +144,9 @@ describe('what moves which digest', () => {
           maxOutputTokens: logical.limits.maxOutputTokens + 1,
         },
       }),
-      redefine({ capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2' }),
+      redefine({
+        capabilityRuntimeProfileVersion: `${logical.capabilityRuntimeProfileVersion}-moved`,
+      }),
     ]
 
     for (const profile of moved)

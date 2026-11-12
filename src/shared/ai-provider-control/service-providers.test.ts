@@ -19,7 +19,10 @@ import {
   parseAiGatewayRouteRequest,
   type AiGatewayRouteRequestV1,
 } from '#/shared/ai-gateway-transport-contract'
-import { analysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import {
+  analysisRequest,
+  analysisV3Result,
+} from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
 import {
   settledCostMicrosWith,
@@ -120,13 +123,7 @@ function preparedExecution(
             buildResponse: (receipt) => ({
               route: 'review-analysis',
               status: 'success',
-              result: {
-                sentiment: 'positive',
-                sentimentValence: 80,
-                urgencySignals: [],
-                aspects: [{ aspect: 'service', polarity: 'positive', intensity: 80 }],
-                issueLabel: null,
-              },
+              result: analysisV3Result,
               settlementReceipt: receipt,
             }),
           }
@@ -234,8 +231,6 @@ function receiptFor(
 
 function lease(request: AiGatewayRouteRequestV1) {
   const value = createSensitiveSourceLease<AiGatewayRouteRequestV1>()
-  if (request.route === 'property-trend')
-    throw new Error('Expected source-bearing request')
   value.attachSource(request, (root) => root.source)
   return value
 }

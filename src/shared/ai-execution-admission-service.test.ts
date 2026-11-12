@@ -21,7 +21,6 @@ const UUIDS = {
   provider: '20000000-0000-4000-8000-000000000005',
   analysis: '20000000-0000-4000-8000-000000000006',
   reply: '20000000-0000-4000-8000-000000000007',
-  trend: '20000000-0000-4000-8000-000000000008',
 } as const
 const SHA256 = 'a'.repeat(64)
 const RELEASE_SHA = 'b'.repeat(40)
@@ -61,11 +60,6 @@ function canaryDescriptor(): AiAdmissionDescriptorV1 {
           {
             capability: 'reply_drafting',
             capabilityControlId: UUIDS.reply,
-            capabilityGeneration: 1,
-          },
-          {
-            capability: 'property_trends',
-            capabilityControlId: UUIDS.trend,
             capabilityGeneration: 1,
           },
         ],

@@ -1,11 +1,3 @@
-// Historical v1 remains readable; these contract regressions deliberately pin its old execution.
-vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('#/shared/ai-runtime-capability-contract')>()
-  const { historicalReplyRuntime } =
-    await import('#/shared/testing/historical-reply-runtime')
-  return historicalReplyRuntime(actual)
-})
 // What OpenAI is sent, and what pins the profiles that send it, for every route in
 // the live catalogue.
 //
@@ -22,7 +14,7 @@ vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
 //   - review analysis is served as v3: the `analysis` route below is a v3 request, and
 //     the catalogue carries the retired v2 profile (unchanged except for the shape
 //     digest) and the v3 profile.
-// For reply and trend the body differs from the earlier one by the model name alone
+// For reply the body differs from the earlier one by the model name alone
 // (two bytes shorter); their sources, payloads, shards and limits other than the price
 // are the earlier ones. A change that moves any of these is a change to a live contract
 // and must say so by editing this file in the same commit, with its reason.
@@ -63,91 +55,30 @@ import {
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import {
-  replyRequest,
-  trendRequest,
-} from '#/shared/ai-gateway-transport-contract.test-fixtures'
-import { LANGUAGE_CATALOGUE_DIGEST } from '#/shared/ai-review-language-catalogue'
-import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
-import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from '#/shared/ai-reply-language-verifier'
-import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '#/shared/ai-language-script-consistency'
-import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from '#/shared/ai-zh-orthography-verifier'
-import {
-  AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-  AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
-} from '#/shared/ai-reply-template-catalogue'
-import {
-  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
-  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
-} from '#/shared/ai-reply-output-leakage'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { createAiGatewayRoutePreparer } from './route-preparer'
-import { GatewayPreparationError } from './contracts'
 import { preparableV3Request } from './review-evidence.test-fixtures'
 
 const PINNED_PROFILES = [
   {
-    profileVersion: 'review-analysis-v2',
-    profileDigest: '265eb3f5d2f46a125929bbe330da1bf2af48d39e027134e37833516e8a14c1f4',
+    profileVersion: 'review-analysis-v3',
+    profileDigest: 'd25c3e071e309060f7d7fafa7b65d95c54d1e0cf98841b8dc9449f5e3414b943',
     outputSchemaDigest:
-      '02ad42ae83c2f271c8456e7e64169a5df965234b039bbc0174e0a54f9e6997ff',
-    promptDigest: 'bccf973cb60cdda3cc69ed747f841fe2a51b8f33b0c454f606a701ae6bbcb129',
+      '8c72e79976c6b784c679f671b798c41b71e78795542c7d80571e48cebde40154',
+    promptDigest: 'c912005966c45c7533a7fc9ba37f5b0fc70e7399a0555da360ce9fadab0cd1f3',
     artifactAttestationsDigest:
-      '924105f5fd34aacd165d9673b6a8869ffa11088adece38fe30b55900c72333a7',
+      '4b381099fb1bfc3b3b743b8f8f664b3fd42aed6b2aa404e1f1625c64499e9a22',
     sdkRequestShapeDigest:
       '0bf52569683db47a551f212b33a8e19dfdd768f0a70047740b5f57a72c11ce37',
-    staticTokenBearingBytes: 2193,
+    staticTokenBearingBytes: 15920,
     staticTokenBearingDigest:
-      '71ba0a028c787002b209b8119df3daa473dd9376a1d3e6e63684dfdcb2fc98d5',
+      'ddff7f36f771ef47aa3388620ba8bf6ffa96a81619749e11db62f38b01c00afc',
   },
-  {
-    profileVersion: 'reply-suggestion-v1',
-    profileDigest: '24006247626e9472176bddeff8600dec87363c7ab73ddf3d74fdd1300046ede2',
-    outputSchemaDigest:
-      'e8c29f4e2fd80391fbb483390e671dd0c4c5b639b1d1ec85e9d018ab90c33d35',
-    promptDigest: '8e6c3e5f88d43c83098763e29cb0d159a0d23fd520fa9e7105e7e6adbc527b0d',
-    artifactAttestationsDigest:
-      'c41bd21974589faea4a4c9a349b19bd8058eb6c141623659df6186ce13468899',
-    sdkRequestShapeDigest:
-      '0bf52569683db47a551f212b33a8e19dfdd768f0a70047740b5f57a72c11ce37',
-    // ADR 0073: the reply prompt asks for the body only and no longer carries the
-    // business name, so its prompt, profile and request pins moved on purpose.
-    staticTokenBearingBytes: 1890,
-    staticTokenBearingDigest:
-      '6200bdab5c207fdd30999ba9d74a5faaf59db358d86a74e78c09f8148abea8ac',
-  },
-  {
-    profileVersion: 'property-trend-v1',
-    profileDigest: 'e6c9ed466112ea06466c422dd8c2b9167cb515f15cf6690a3d204be1fcbd3d45',
-    outputSchemaDigest:
-      '1e2b94e0c463c7605fe395e076b7783d25aa61202bd319372bee6d1b70dbb667',
-    promptDigest: '30916252f5dd6860f4ce6f2bf50aba6345af4f39684ccb19aee728aa9fee7f64',
-    artifactAttestationsDigest:
-      'c3d828df3ab959cd3f15b3422b7067d101b362aa756d3e75f7978385aaf807f1',
-    sdkRequestShapeDigest:
-      '0bf52569683db47a551f212b33a8e19dfdd768f0a70047740b5f57a72c11ce37',
-    staticTokenBearingBytes: 966,
-    staticTokenBearingDigest:
-      'ceaac2bb20b14aab430b566e7fc76b7a1c439b68605d59aed57e5b227b16ead9',
-  },
-  {
-    profileVersion: 'synthetic-canary-v1',
-    profileDigest: '6f986a1fe771b2d92d7e16acc09e39cc63aaba4a4f6a9203ad61a0412189f9f5',
-    outputSchemaDigest:
-      '9e4530ad830cf3635b0ee2b636141193524cf7db1a9de0d5d4f1530c16fe9bc7',
-    promptDigest: '28f90dbd3fe4ed23ae32379e62fc9f6fdbfd25489a4eed63164e734ee94a3d8a',
-    artifactAttestationsDigest:
-      'fe233ac561fdb30ef1cd5babe3b10e70b9759eaacd28f6b42da4ba7266d2ce24',
-    sdkRequestShapeDigest:
-      '0bf52569683db47a551f212b33a8e19dfdd768f0a70047740b5f57a72c11ce37',
-    staticTokenBearingBytes: 419,
-    staticTokenBearingDigest:
-      '11c7e44c309c144fa7ef7904710350bfeea1c829e36fa0b51ae736b9bdf02cf4',
-  },
-  // B2: dark v2 alone now attests streaming and deployment v3. Historical pins stay unchanged.
+  // Reply v2 attests streaming and deployment v3.
   {
     profileVersion: 'reply-suggestion-v2',
     profileDigest: '96cc3926f0e9d0110b15e05be0233ff50270699ccee833caac0b4480c9b27642',
@@ -163,18 +94,18 @@ const PINNED_PROFILES = [
       'bcfb513a7965dd991081ed779eef7fd5ebfb7b9df65aea277f39f282b61ca1ab',
   },
   {
-    profileVersion: 'review-analysis-v3',
-    profileDigest: 'd25c3e071e309060f7d7fafa7b65d95c54d1e0cf98841b8dc9449f5e3414b943',
+    profileVersion: 'synthetic-canary-v1',
+    profileDigest: '6f986a1fe771b2d92d7e16acc09e39cc63aaba4a4f6a9203ad61a0412189f9f5',
     outputSchemaDigest:
-      '8c72e79976c6b784c679f671b798c41b71e78795542c7d80571e48cebde40154',
-    promptDigest: 'c912005966c45c7533a7fc9ba37f5b0fc70e7399a0555da360ce9fadab0cd1f3',
+      '9e4530ad830cf3635b0ee2b636141193524cf7db1a9de0d5d4f1530c16fe9bc7',
+    promptDigest: '28f90dbd3fe4ed23ae32379e62fc9f6fdbfd25489a4eed63164e734ee94a3d8a',
     artifactAttestationsDigest:
-      '4b381099fb1bfc3b3b743b8f8f664b3fd42aed6b2aa404e1f1625c64499e9a22',
+      'fe233ac561fdb30ef1cd5babe3b10e70b9759eaacd28f6b42da4ba7266d2ce24',
     sdkRequestShapeDigest:
       '0bf52569683db47a551f212b33a8e19dfdd768f0a70047740b5f57a72c11ce37',
-    staticTokenBearingBytes: 15920,
+    staticTokenBearingBytes: 419,
     staticTokenBearingDigest:
-      'ddff7f36f771ef47aa3388620ba8bf6ffa96a81619749e11db62f38b01c00afc',
+      '11c7e44c309c144fa7ef7904710350bfeea1c829e36fa0b51ae736b9bdf02cf4',
   },
 ] as const
 
@@ -215,27 +146,6 @@ const PINNED_ROUTES = {
     canonicalProviderBytesSha256:
       'b6f063d3da8527243da1bb8ade4597edb704afb8031fb7d162f207ae558c6dc4',
     canonicalProviderByteLength: 18090,
-  },
-  reply: {
-    sourceDigest: '916622962728c9a3a2ad6c2e44fc2e47e777d9420a0b13c66c8ae576a596d14d',
-    preparedDigest: 'b6971bb9e6cf5bee98523441f17b00a3198a713ba11a910aeafbb7d059faa5d5',
-    sourceByteCount: 86,
-    preparedByteCount: 2441,
-    providerPayloadByteCount: 178,
-    promptCacheShard: 15,
-    limits: {
-      sourceBytes: 16384,
-      providerPayloadBytes: 16384,
-      preparedRequestBytes: 65536,
-      responseBytes: 131072,
-      outputTokens: 1024,
-      costMicros: 719,
-    },
-    requestBindingKeyId: 'request-v1',
-    requestBindingHmac: 'xOOocrvSIPFPmegpMvtClHgO4o6zS_-gvVU7-jxdVCE',
-    canonicalProviderBytesSha256:
-      'b4cb8a3a87ff7777837bcb997c816e1d3849f32f3c867af03b042f0d290f2d23',
-    canonicalProviderByteLength: 2441,
   },
 } as const
 
@@ -281,32 +191,6 @@ function liveAnalysis() {
   })
 }
 
-function liveReply() {
-  const base = replyRequest()
-  return parseAiGatewayRouteRequest({
-    ...base,
-    binding: {
-      ...base.binding,
-      ...PINNED_NOTICE,
-      evaluatedLanguage: 'tr-Latn',
-      languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
-      concreteReplyLanguage: { tag: 'bg-Cyrl-BG', templateGroup: 'bg-Cyrl' },
-      replyLanguageVerifierDigest: AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
-      languageScriptConsistencyDigest: AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST,
-      zhOrthographyVerifierDigest: AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST,
-      outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
-      outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
-      replyTemplateCatalogueVersion: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
-      replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-    },
-    source: {
-      ...base.source,
-      text: 'Konaklamamız boyunca personel çok ilgili ve yardımseverdi.',
-      languageCode: 'tr-TR',
-    },
-  })
-}
-
 function underServedNotice(request: AiGatewayRouteRequestV1) {
   return parseAiGatewayRouteRequest({
     ...request,
@@ -345,21 +229,12 @@ describe('OpenAI and the live profiles, as pinned at the switch-on', () => {
 
   it.each([
     ['analysis', liveAnalysis, PINNED_ROUTES.analysis],
-    ['reply', liveReply, PINNED_ROUTES.reply],
     [
       'analysis under the served notice',
       () => underServedNotice(liveAnalysis()),
       {
         ...PINNED_ROUTES.analysis,
         requestBindingHmac: '9YRKMfqP3-xz3wd4YJsTDzBjejuJphQ-jpaI3fI9bR8',
-      },
-    ],
-    [
-      'reply under the served notice',
-      () => underServedNotice(liveReply()),
-      {
-        ...PINNED_ROUTES.reply,
-        requestBindingHmac: 'HWTcL1iINdw7LW7UFT39cUTE4WrN51CJg9z1557vRfo',
       },
     ],
   ] as const)(
@@ -383,10 +258,4 @@ describe('OpenAI and the live profiles, as pinned at the switch-on', () => {
       }).toEqual(pinned)
     },
   )
-
-  it('refuses retired Trends preparation even with its recorded operation profile', () => {
-    expect(() => preparer().prepare(trendRequest())).toThrow(
-      new GatewayPreparationError('policy_unavailable'),
-    )
-  })
 })

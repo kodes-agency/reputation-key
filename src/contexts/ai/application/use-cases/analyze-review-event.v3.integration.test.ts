@@ -239,7 +239,7 @@ async function harness(
     }),
     authorization: persistence.authorization,
     control: persistence.control,
-    inference: { analyzeReview, generateReply: vi.fn(), generateTrend: vi.fn() },
+    inference: { analyzeReview, generateReply: vi.fn() },
     operations: persistence.operations,
     outputs: { storeAnalysisV3 },
     aggregates: { applyReviewAnalysis, advanceWithoutAnalysis, readWindow: vi.fn() },

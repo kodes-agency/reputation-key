@@ -12,6 +12,7 @@ import { aiOperations, aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
+import { replyDynamicDeveloperBytes } from '#/shared/reply-drafting-v2-request'
 import { createAiOperationExecutionReaperHandler } from '#/shared/jobs/ai-operation-execution-reaper.job'
 import {
   AI_REPLY_OPERATION_PROFILE,
@@ -32,10 +33,22 @@ const ROUTE_KEY = AI_REPLY_OPERATION_PROFILE.routeKey
 const PAYLOAD_BYTES = 512
 
 const profile = AI_OPERATION_PROFILES.find(
-  (candidate) => candidate.sourceRoute === ROUTE_KEY,
+  (candidate) =>
+    candidate.sourceRoute === ROUTE_KEY &&
+    candidate.profileVersion === AI_REPLY_OPERATION_PROFILE.profileVersion,
 )
 if (!profile) throw new Error('reply-suggestion profile is not registered')
-const RESERVED = maximumCostMicros(profile, PAYLOAD_BYTES)
+// A reply v2 request carries a per-request part of its prompt that the profile's
+// static figure does not include; admission prices it in.
+const RESERVED = maximumCostMicros(
+  {
+    ...profile,
+    staticTokenBearingBytes:
+      profile.staticTokenBearingBytes +
+      replyDynamicDeveloperBytes(profile.profileVersion),
+  },
+  PAYLOAD_BYTES,
+)
 
 describe.sequential('AI budget ledger (real PostgreSQL)', () => {
   const db = getDb()

@@ -1,3 +1,4 @@
+import { replyRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -13,7 +14,6 @@ import {
   type AiOperationFixture,
 } from '#/shared/db/testing/ai-operation-fixture'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
-import { replyV2Request } from '#/shared/ai-provider-control/reply-drafting-v2.test-fixtures'
 import { createPostgresAiAdmissionAuthority } from '#/shared/db/ai/postgres-admission-authority'
 import type {
   AiAdmissionDescriptorV1,
@@ -57,7 +57,7 @@ beforeAll(async () => {
   })
   const heads = await db.select().from(aiExecutionControlHeads)
   const head = (key: string) => heads.find((h) => h.scopeKey === key)!
-  const base = replyV2Request().binding
+  const base = replyRequest().binding
   const binding = {
     ...base,
     sourceEpoch: 1,

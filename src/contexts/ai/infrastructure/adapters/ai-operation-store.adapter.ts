@@ -11,7 +11,6 @@ import {
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES, AI_ROUTING_POLICY } from '#/shared/ai-operation-profiles'
 import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
-import { RECORDED_RUNTIME_PROFILE_VERSIONS } from '#/shared/domain/merchant-ai-capability'
 import { AI_PROVIDER_IDS, type AiProviderId } from '#/shared/ai-provider-ids'
 import {
   REVIEW_VOCABULARY_HINTS_VERSION,
@@ -149,21 +148,6 @@ function parseIdentity(row: OperationRow): AiOperationIdentity {
         'baseReplyStateRevision',
       ),
     }
-  } else if (row.command === 'trend') {
-    source = {
-      command: 'trend',
-      organizationId: requireValue(row.organizationId, 'organizationId'),
-      propertyId: requireValue(row.propertyId, 'propertyId'),
-      actorId: null,
-      systemPrincipal: row.systemPrincipal,
-      sourceEpoch: requireValue(row.sourceEpoch, 'sourceEpoch'),
-      dueLocalDate: requireValue(row.dueLocalDate, 'dueLocalDate'),
-      terminalAnalysisSequence: requireValue(
-        row.terminalAnalysisSequence,
-        'terminalAnalysisSequence',
-      ),
-      aggregateRevision: requireValue(row.aggregateRevision, 'aggregateRevision'),
-    }
   } else {
     failCorrupt('command is unknown')
   }
@@ -230,9 +214,7 @@ function parseBinding(
     operationProfileVersion: row.operationProfileVersion,
     capabilityRuntimeProfileVersion:
       row.capabilityRuntimeProfileVersion ??
-      (identity.capability === 'property_trends'
-        ? RECORDED_RUNTIME_PROFILE_VERSIONS.property_trends[0]!
-        : getAiRuntimeCapability(identity.capability).runtimeProfileVersion),
+      getAiRuntimeCapability(identity.capability).runtimeProfileVersion,
     aiSubjectHmacKeyVersion: row.subjectHmacKeyVersion,
     stopFence: {
       globalControlId: row.globalControlId,
@@ -525,7 +507,6 @@ function insertionValues(input: ClaimInput, idGen: () => string) {
   const createdAt = new Date(input.nowEpochMillis)
   const isAnalysis = identity.command === 'analysis'
   const isReply = identity.command === 'reply'
-  const isTrend = identity.command === 'trend'
   const profile = operationProfile(identity.command, binding.operationProfileVersion)
   return {
     id: idGen(),
@@ -550,9 +531,6 @@ function insertionValues(input: ClaimInput, idGen: () => string) {
     analysisSequence: isAnalysis ? identity.analysisSequence : null,
     tone: isReply ? identity.tone : null,
     baseReplyStateRevision: isReply ? identity.baseReplyStateRevision : null,
-    dueLocalDate: isTrend ? identity.dueLocalDate : null,
-    terminalAnalysisSequence: isTrend ? identity.terminalAnalysisSequence : null,
-    aggregateRevision: isTrend ? identity.aggregateRevision : null,
     authorizationLineageId: binding.authorizationLineageId,
     noticeVersion: binding.noticeVersion,
     noticeDigest: binding.noticeDigest,

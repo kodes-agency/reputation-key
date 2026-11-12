@@ -1,30 +1,30 @@
 import { describe, expect, it } from 'vitest'
-import { OPENAI_PROVIDER_ATTESTATION_V1 } from './ai-openai-provider-attestation'
-import { renderOpenAiStaticTokenBearingMaterial } from './ai-openai-request-contract'
-import { operationProfileForCatalogue } from './ai-operation-profile-views'
-import { AI_OPERATION_PROFILES } from './ai-operation-profiles'
-import { operationProviderPairing } from './ai-operation-provider-pairings'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from './ai-route-output-schemas'
-import { AI_RUNTIME_CAPABILITIES_V1 } from './ai-runtime-capability-contract'
+import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-openai-provider-attestation'
+import { renderOpenAiStaticTokenBearingMaterial } from '#/shared/ai-openai-request-contract'
+import { operationProfileForCatalogue } from '#/shared/ai-operation-profile'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { operationProviderPairing } from '#/shared/ai-operation-provider-pairings'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
+import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/ai-runtime-capability-contract'
 import {
   REVIEW_ANALYSIS_V3_VERSIONS,
   REVIEW_URGENT_REASONS_V3,
   REVIEW_STRENGTHS_V3,
-} from './review-analysis-v3'
-import { REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS } from './review-analysis-v3-artifacts'
-import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from './review-analysis-v3-prompt'
-import { REVIEW_GENERIC_THING_WORDS } from './review-generic-things'
+} from '#/shared/review-analysis-v3'
+import { REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS } from '#/shared/review-analysis-v3-artifacts'
+import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/review-analysis-v3-prompt'
+import { REVIEW_GENERIC_THING_WORDS } from '#/shared/review-generic-things'
 import {
   REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
   REVIEW_ANALYSIS_V3_OPENAI_PAIRING,
-} from './review-analysis-v3-profile'
+} from './profile'
 import {
   REVIEW_VOCABULARY_HINTS_CATALOGUE_DIGEST,
   VOCABULARY_HINT_SETS,
   vocabularyHintSetDigest,
-} from './review-vocabulary-hints'
-import { REVIEW_TOPICS_V3, REVIEW_TOPIC_LABELS_V3 } from './review-topic-taxonomy'
+} from '#/shared/review-vocabulary-hints'
+import { REVIEW_TOPICS_V3, REVIEW_TOPIC_LABELS_V3 } from '#/shared/review-topic-taxonomy'
 
 const profile = REVIEW_ANALYSIS_V3_LOGICAL_PROFILE
 

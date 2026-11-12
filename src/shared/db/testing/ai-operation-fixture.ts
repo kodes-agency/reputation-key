@@ -1,4 +1,5 @@
 import type { ReplyDraftingV2Binding } from '#/shared/domain/reply-drafting-v2'
+import { resolveReplyDraftingV2Options } from '#/shared/reply-drafting-v2-request'
 // A real-PostgreSQL fixture for tests that drive the AI reservation ledger:
 // one organization, one property, the reply-drafting capability control
 // opened for the run, and pending `ai_operations` rows on demand.
@@ -19,10 +20,20 @@ import { deleteTestOrganizationsWithExecutor } from './test-organization-cleanup
 export const AI_REPLY_OPERATION_PROFILE = Object.freeze({
   command: 'reply',
   capability: 'reply_drafting',
-  profileVersion: 'reply-suggestion-v1',
-  providerDeploymentProfileVersion: 'private-beta-global-v2',
-  capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
+  profileVersion: 'reply-suggestion-v2',
+  providerDeploymentProfileVersion: 'private-beta-global-v3',
+  capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v2',
   routeKey: 'reply-suggestion',
+})
+
+/** What a reply v2 row carries when a test does not say: one root draft, no rewrite. */
+export const AI_REPLY_V2_DEFAULT_BINDING: ReplyDraftingV2Binding = Object.freeze({
+  options: resolveReplyDraftingV2Options({ languageCode: 'en-Latn', variation: 0 }),
+  voiceDigest: 'a'.repeat(64),
+  generationSeed: 'b'.repeat(64),
+  parentOperationId: null,
+  rewriteOrdinal: 0,
+  rewriteIssues: [],
 })
 
 export type AiOperationFixtureInput = Readonly<{
@@ -193,6 +204,7 @@ export async function installAiOperationFixture(
   return Object.freeze({
     async seedOperation(seed: AiOperationSeed = {}) {
       const id = seed.id ?? randomUUID()
+      const replyDraftingV2 = seed.replyDraftingV2 ?? AI_REPLY_V2_DEFAULT_BINDING
       await db.insert(aiOperations).values({
         id,
         idempotencyScope: `reply:${id}`,
@@ -215,14 +227,11 @@ export async function installAiOperationFixture(
         propertyProfileVersion: 1,
         providerDeploymentProfileVersion:
           AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion,
-        operationProfileVersion: seed.replyDraftingV2
-          ? 'reply-suggestion-v2'
-          : AI_REPLY_OPERATION_PROFILE.profileVersion,
-        replyDraftingV2: seed.replyDraftingV2 ?? null,
-        rewriteParentOperationId: seed.replyDraftingV2?.parentOperationId ?? null,
-        capabilityRuntimeProfileVersion: seed.replyDraftingV2
-          ? 'reply-drafting-runtime-v2'
-          : AI_REPLY_OPERATION_PROFILE.capabilityRuntimeProfileVersion,
+        operationProfileVersion: AI_REPLY_OPERATION_PROFILE.profileVersion,
+        replyDraftingV2,
+        rewriteParentOperationId: replyDraftingV2.parentOperationId,
+        capabilityRuntimeProfileVersion:
+          AI_REPLY_OPERATION_PROFILE.capabilityRuntimeProfileVersion,
         globalControlId: global.controlId,
         globalControlGeneration: global.generation,
         providerControlId: provider.controlId,
