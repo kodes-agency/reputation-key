@@ -108,6 +108,10 @@ const rowMessages: Partial<Record<StaffRowCode, string>> = {
     "This address already has an open invitation. Add them here once they've accepted.",
 }
 
+/** A write refused the address because another Organization holds it. */
+export const refusedAddress = (error: unknown): boolean =>
+  failureCodeOf(error) === 'other_organization'
+
 export function staffAddressRefusal(
   ctx: AuthContext,
   report?: StaffAccountDeps['reportAddressRefusal'],
@@ -243,7 +247,7 @@ export const addStaffMember =
     await deps.authorizeProperty(ctx, input.propertyId, 'staff.invite')
     const email = input.email.trim().toLowerCase()
     await deps.spendAddressCheckBudget(ctx, 1)
-    return deps.store.withAddressLock(ctx.organizationId, email, async (store) => {
+    return deps.store.withAddressLock(email, async (store) => {
       const previous = await store.findOperation(ctx.organizationId, input.operationId)
       if (previous) return resumeStaffOperation(deps, store, previous, input, ctx, email)
       const facts = await store.addressFacts(ctx.organizationId, input.propertyId, email)

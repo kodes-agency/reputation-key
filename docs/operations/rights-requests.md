@@ -29,6 +29,8 @@ Scopes: `access`, `guest-response`, `participant`, `property`, `organization`.
   the command writes one IDs-only journal object per context to the private
   bucket first, and when that write fails nothing is deleted and an alert
   fires. Only the final warning, which deletes nothing, needs no journal.
+  Guest self-service withdrawals use the same journal, so a response a guest
+  withdrew after the restore point is replayed too.
   Work runs in bounded batches and a stopped run resumes by running the same
   command again. Each run, whatever its outcome, records one audit event
   naming the operator, the scope, the Organization and Property and the
@@ -68,6 +70,19 @@ private bucket by hand and delete the local copy.
     rollback restores it. Property, guest-response and participant scopes have no
     Reporting executor.
 
+- **ai** (`property`, `organization`): on closure it retires and deletes the
+  retained AI derivatives (analyses, mentions, aggregates, issue groups,
+  operations, draft measurements, cost windows); the merchant consent evidence
+  stays. Apply refuses while an AI authorization is enabled, an enrollment is
+  active or an AI operation is in flight. `organization` with `out=<dir>` writes
+  two files under `<dir>/ai/`: `review-analysis-mentions.json` (topic, polarity,
+  strength, cause phrases and the sentence numbers that state each) and
+  `review-analysis-mention-corrections.json` (the manager corrections). Only
+  allowlisted columns leave, never review text. Only the analysis the product
+  still serves is exported: retired, revoked or expired generations are left
+  out. `access` does not run this executor: an access request covers the
+  requester's own records, and this analysis is the Organization's derived
+  data.
 - **review** (`access`, `organization`): exports manager-authored replies with
   their template and AI provenance, publication authorizations and attempts,
   and the layered reply library (voices, templates, revisions, wordings,

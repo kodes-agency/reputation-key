@@ -14,7 +14,7 @@ import {
 import {
   AI_PERSONALIZED_REPLY_LANGUAGES,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-} from './ai-personalized-reply-contract'
+} from './ai-personalized-reply-profile'
 
 const DOMAINS = Object.freeze({
   'ai-reply-provenance-v1': 'repkey-ai-reply-provenance-v1\0',
@@ -60,7 +60,6 @@ const commonPayloadShape = {
   organizationId: safeId,
   propertyId: canonicalUuid,
   reviewId: safeId,
-  requestBindingHmac: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   // 0-based source epoch (drizzle/0060); the versions below stay 1-based.
   sourceEpoch: nonnegative,
   sourceRevision: positive,
@@ -81,6 +80,24 @@ const commonPayloadShape = {
   tokenExpiresAtEpochMillis: positive,
   draftExpiresAtEpochMillis: positive,
 } as const
+
+// A token names exactly one execution binding: the request binding HMAC its
+// grant carried, or the execution permit and attempt that delivered it.
+// Strict objects make a token with both or neither match no shape.
+const requestBindingShape = {
+  requestBindingHmac: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+} as const
+const executionPermitBindingShape = {
+  executionPermitId: canonicalUuid,
+  executionAttempt: positive,
+} as const
+
+function withExecutionBinding<Shape extends z.ZodRawShape>(shape: Shape) {
+  return z.union([
+    z.object({ ...shape, ...requestBindingShape }).strict(),
+    z.object({ ...shape, ...executionPermitBindingShape }).strict(),
+  ])
+}
 
 const expiryRefinement = (
   value: Readonly<{
@@ -118,74 +135,62 @@ const personalizedRefinement = (
   }
 }
 
-const legacyPayloadSchema = z
-  .object({
-    version: z.literal('ai-reply-provenance-v1'),
-    ...commonPayloadShape,
-    replyTemplateCatalogueVersion: safeId,
-    replyTemplateCatalogueDigest: digest,
-    templateId: z.enum([
-      'appreciation_positive',
-      'appreciation_neutral',
-      'recovery_service',
-      'acknowledge_concern',
-    ]),
-  })
-  .strict()
-  .superRefine(expiryRefinement)
+const legacyPayloadSchema = withExecutionBinding({
+  version: z.literal('ai-reply-provenance-v1'),
+  ...commonPayloadShape,
+  replyTemplateCatalogueVersion: safeId,
+  replyTemplateCatalogueDigest: digest,
+  templateId: z.enum([
+    'appreciation_positive',
+    'appreciation_neutral',
+    'recovery_service',
+    'acknowledge_concern',
+  ]),
+}).superRefine(expiryRefinement)
 
-const personalizedPayloadSchema = z
-  .object({
-    version: z.literal('ai-reply-provenance-v2'),
-    ...commonPayloadShape,
-    replyProfileVersion: z.literal(LEGACY_PERSONALIZED_REPLY_PROFILE_VERSION),
-    replyProfileDigest: z.literal(LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST),
-  })
-  .strict()
-  .superRefine(personalizedRefinement)
+const personalizedPayloadSchema = withExecutionBinding({
+  version: z.literal('ai-reply-provenance-v2'),
+  ...commonPayloadShape,
+  replyProfileVersion: z.literal(LEGACY_PERSONALIZED_REPLY_PROFILE_VERSION),
+  replyProfileDigest: z.literal(LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST),
+}).superRefine(personalizedRefinement)
 
-const groundedPersonalizedPayloadSchema = z
-  .object({
-    version: z.literal('ai-reply-provenance-v3'),
-    ...commonPayloadShape,
-    replyProfileVersion: z.literal(AI_PERSONALIZED_REPLY_PROFILE_VERSION),
-    replyProfileDigest: z.enum(SUPPORTED_GROUNDED_REPLY_PROFILE_DIGESTS),
-    replyBrandProfileVersion: positive,
-    replyBrandDisplayNameDigest: digest,
-    /** Present for v3 suggestions produced after reply-voice framing shipped. */
-    replyVoiceDigest: digest.nullable().optional(),
-  })
-  .strict()
-  .superRefine(personalizedRefinement)
+const groundedPersonalizedPayloadSchema = withExecutionBinding({
+  version: z.literal('ai-reply-provenance-v3'),
+  ...commonPayloadShape,
+  replyProfileVersion: z.literal(AI_PERSONALIZED_REPLY_PROFILE_VERSION),
+  replyProfileDigest: z.enum(SUPPORTED_GROUNDED_REPLY_PROFILE_DIGESTS),
+  replyBrandProfileVersion: positive,
+  replyBrandDisplayNameDigest: digest,
+  /** Present for v3 suggestions produced after reply-voice framing shipped. */
+  replyVoiceDigest: digest.nullable().optional(),
+}).superRefine(personalizedRefinement)
 
-const sentencePersonalizedPayloadSchema = z
-  .object({
-    version: z.literal(REPLY_DRAFTING_V2_VERSIONS.provenance),
-    ...commonPayloadShape,
-    operationProfileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.operation),
-    promptVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.prompt),
-    replyProfileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.profile),
-    replyProfileDigest: z.enum(SUPPORTED_SENTENCE_REPLY_PROFILE_DIGESTS),
-    replyBrandProfileVersion: positive,
-    replyBrandDisplayNameDigest: digest,
-    replyVoiceDigest: digest,
-    voiceChoices: replyVoiceChoicesSchema,
-    parentOperationId: canonicalUuid.nullable(),
-    rewriteOrdinal: z.union([z.literal(0), z.literal(1)]),
-  })
-  .strict()
-  .superRefine((value, context) => {
-    expiryRefinement(value, context)
-    const group = REPLY_DRAFTING_V2_LANGUAGES.find((tag) => tag === value.templateGroup)
-    if (
-      !group ||
-      (value.concreteLanguageTag !== group &&
-        !value.concreteLanguageTag.startsWith(`${group}-`))
-    )
-      context.addIssue({ code: 'custom', message: 'Unapproved v2 reply language' })
-    if ((value.parentOperationId === null) !== (value.rewriteOrdinal === 0))
-      context.addIssue({ code: 'custom', message: 'Invalid rewrite lineage' })
-  })
+const sentencePersonalizedPayloadSchema = withExecutionBinding({
+  version: z.literal(REPLY_DRAFTING_V2_VERSIONS.provenance),
+  ...commonPayloadShape,
+  operationProfileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.operation),
+  promptVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.prompt),
+  replyProfileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.profile),
+  replyProfileDigest: z.enum(SUPPORTED_SENTENCE_REPLY_PROFILE_DIGESTS),
+  replyBrandProfileVersion: positive,
+  replyBrandDisplayNameDigest: digest,
+  replyVoiceDigest: digest,
+  voiceChoices: replyVoiceChoicesSchema,
+  parentOperationId: canonicalUuid.nullable(),
+  rewriteOrdinal: z.union([z.literal(0), z.literal(1)]),
+}).superRefine((value, context) => {
+  expiryRefinement(value, context)
+  const group = REPLY_DRAFTING_V2_LANGUAGES.find((tag) => tag === value.templateGroup)
+  if (
+    !group ||
+    (value.concreteLanguageTag !== group &&
+      !value.concreteLanguageTag.startsWith(`${group}-`))
+  )
+    context.addIssue({ code: 'custom', message: 'Unapproved v2 reply language' })
+  if ((value.parentOperationId === null) !== (value.rewriteOrdinal === 0))
+    context.addIssue({ code: 'custom', message: 'Invalid rewrite lineage' })
+})
 
 const payloadSchema = z.union([
   legacyPayloadSchema,
@@ -231,7 +236,7 @@ function decodeCanonicalBase64Url(value: string): Buffer {
  * `src/contexts/review/infrastructure/ai-suggested-draft-store.ts`), which turn
  * a genuinely stale suggestion into `stale`, not `expired`. The window is
  * therefore free to be generous, and is bounded by the operation row's own
- * 15-minute `expires_at` where the grant is issued.
+ * 15-minute `expires_at` where the attempt is admitted.
  */
 export const AI_REPLY_ADOPTION_WINDOW_MILLIS = 10 * 60 * 1_000
 

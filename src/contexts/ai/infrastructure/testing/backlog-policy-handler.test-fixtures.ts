@@ -26,6 +26,10 @@ const handlerDatabase = useAiHandlerDatabase()
 // kinds of stop: platform policy, and the AI execution controls an operator
 // kills and restores.
 
+import {
+  TEST_REVIEW_SENTENCES,
+  createTestReviewAnalysisContract,
+} from '#/contexts/ai/infrastructure/testing/review-analysis-contract.test-fixtures'
 import type {
   AiReviewAnalysisBacklogEntry,
   AiReviewAnalysisBacklogOrigin,
@@ -272,6 +276,7 @@ async function analysisWithOpenGates(
   }
   const persistence = fixtures[0]!
   const dependencies = {
+    contract: createTestReviewAnalysisContract({ storeAnalysisV3: async () => true }),
     authorization: persistence.authorization,
     control: persistence.control,
     inference: { analyzeReview },
@@ -316,6 +321,7 @@ async function analysisWithOpenGates(
           organizationId: request.organizationId,
           propertyId: request.propertyId,
           text: 'The kitchen made several guests sick.',
+          sentences: TEST_REVIEW_SENTENCES,
           rating: 1,
           languageCode: 'en-US',
           reviewedAtEpochMillis: NOW - 1_000,

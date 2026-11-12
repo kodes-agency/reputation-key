@@ -282,7 +282,9 @@ state.
    as the bulk commands do, so a conflict (which names the item's current
    revision and status) is never returned for an item the caller may not act on.
 4. Bulk Close is unavailable. Bulk Reopen accepts at most 100 distinct item/revision pairs, preauthorizes the complete candidate set once, applies compare-and-swap writes in stable Inbox-item-ID order, and reconstructs privacy-safe results in caller order. It commits one identifier-only `inbox.inbox_items.bulk_reopen_completed` fact naming each cycle it opened and stamps its per-item `inbox.handling_cycle.reopened` facts with the bulkId, so notification follows the one command rather than each item, as for bulk assignment.
-5. An offboarding or eligibility release clears a member's assignments, records
+5. An offboarding or eligibility release clears a member's assignments (a
+   removed member's from `identity.member.removed`, through
+   `inbox.on-member-removed`, re-proving each requirement), records
    one identifier-only `inbox.inbox_item.unassigned` fact per item, and commits
    one grouped `inbox.inbox_items.assignments_released` close fact in the same
    transaction. That fact counts and anchors only the OPEN items released, and

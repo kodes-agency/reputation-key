@@ -19,10 +19,9 @@ export type ReadAiInsightsDependencies = Readonly<{
   /**
    * The analysis profile a read echoes in its currentness: the one this build
    * runs (`review-analysis-runtime.ts`). The stored row decides what is
-   * returned; this only names the profile the answer is current under. Absent
-   * means v2.
+   * returned; this only names the profile the answer is current under.
    */
-  reviewAnalysisProfileVersion?: string
+  reviewAnalysisProfileVersion: string
 }>
 
 export function createReadReviewAnalysis(dependencies: ReadAiInsightsDependencies): (
@@ -62,8 +61,7 @@ export function createReadReviewAnalysis(dependencies: ReadAiInsightsDependencie
         authorizationLineageId: gate.authorization.authorizationLineageId,
         reviewAnalysisEpoch: gate.authorization.capabilityEpochs.review_analysis.epoch,
         propertyProfileVersion: gate.profile.profileVersion,
-        analysisProfileVersion:
-          dependencies.reviewAnalysisProfileVersion ?? 'review-analysis-v2',
+        analysisProfileVersion: dependencies.reviewAnalysisProfileVersion,
         nowEpochMillis: dependencies.nowEpochMillis(),
       },
       async (result) => result,

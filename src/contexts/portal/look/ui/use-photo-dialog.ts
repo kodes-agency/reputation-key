@@ -19,6 +19,7 @@ import { CENTRE_FOCAL, type FocalPoint } from './focal-point'
 import {
   canUsePhoto,
   changedDescriptions,
+  replacementLocales,
   descriptionProblem,
   overlongDescriptionLocales,
   focalMoved,
@@ -42,6 +43,11 @@ export type PhotoDialogInput = Readonly<{
   onBusyChange: (isBusy: boolean) => void
   onClose: () => void
   upload?: PortalImageUploader
+  /**
+   * Takes the photograph the look has now down, so no page serves it. Left out,
+   * the dialog offers no takedown (the viewer may not, or the page cannot).
+   */
+  onTakeDown?: (assetId: string) => Promise<unknown>
 }>
 
 export function usePhotoDialog({
@@ -72,7 +78,11 @@ export function usePhotoDialog({
   const isFileUsable = chosen !== null && allImageChecksPass(picker.checks)
   const problem = descriptionProblem(descriptions)
   const overlong = overlongDescriptionLocales(descriptions)
-  const changes = changedDescriptions(locales, descriptions, saved)
+  const changes = changedDescriptions(
+    chosen ? replacementLocales(locales, saved) : locales,
+    descriptions,
+    saved,
+  )
 
   const canSubmit = canUsePhoto({
     hasPhoto: hero !== null,

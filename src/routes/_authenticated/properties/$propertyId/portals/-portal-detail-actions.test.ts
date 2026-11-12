@@ -269,7 +269,7 @@ describe('Portal detail actions', () => {
         },
       },
       run: (a: Actions) =>
-        a.downloadPrintFinal({
+        a.downloadPrint({
           data: {
             portalId: PORTAL_ID,
             piece: 'counter',

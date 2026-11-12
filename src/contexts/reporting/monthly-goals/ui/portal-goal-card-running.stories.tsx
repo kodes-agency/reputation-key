@@ -12,7 +12,7 @@
 // nothing scrolls sideways.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import { PortalGoalSection } from './portal-goal-section'
 import { SEAVIEW } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
 import {
@@ -37,6 +37,7 @@ import {
   headlineOf,
   portalRows,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.play'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const read = (data: PortalGoalCardView) => ({
   data,
@@ -127,12 +128,9 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
 
 /** Nov 22: 23 of 40, 9 days left, below pace, and each Portal in name order. */
 export const Running: Story = {
-  play: async ({ canvasElement }) => expectRunning(within(canvasElement), canvasElement),
-}
-
-export const RunningPhone: Story = {
-  ...Running,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  play: playInThemes(async ({ canvasElement }) =>
+    expectRunning(within(canvasElement), canvasElement),
+  ),
 }
 
 export const Running320: Story = {
@@ -140,19 +138,9 @@ export const Running320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
-export const RunningOnATablet: Story = {
-  ...Running,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-}
-
 export const RunningOnADesktop: Story = {
   ...Running,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const RunningLight: Story = {
-  ...Running,
-  parameters: { theme: 'light' },
 }
 
 /** Nov 22: 30 of 40, on the way: the pill says On pace, and the month stands past the steady stop. */
@@ -409,16 +397,11 @@ export const LastMonthUpdatingOnANarrowPhone: Story = {
 /** Dec 3: November was met, with a check. */
 export const LastMonthMet: Story = {
   args: { card: read(CARD_LAST_MONTH_MET) },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const line = within(canvasElement).getByText('November met: 41 of 40')
     await expect(line).toBeVisible()
     await expect(line.parentElement?.querySelector('svg')).not.toBeNull()
-  },
-}
-
-export const LastMonthMetLight: Story = {
-  ...LastMonthMet,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** Dec 3: November was not met, said in neutral words and with no mark. */
@@ -429,4 +412,9 @@ export const LastMonthNotMet: Story = {
     await expect(line).toBeVisible()
     await expect(line.parentElement?.querySelector('svg')).toBeNull()
   },
+}
+
+export const RunningOnATablet: Story = {
+  ...Running,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }

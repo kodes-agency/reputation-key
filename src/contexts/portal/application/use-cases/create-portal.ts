@@ -13,7 +13,7 @@ import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
 import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
-import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import type { PortalCommandStore } from '../../publication/portal-command-store-port.server'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
@@ -21,7 +21,7 @@ import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalLookRepository } from '../ports/portal-look.repository'
 import { resolveNewPortalLocales } from '../../domain/portal-new-locales'
 import type { PortalCopySource } from '../portal-content-copy'
-import type { CreatePortalCommand } from '../ports/portal-command-store.port'
+import type { CreatePortalCommand } from '../../publication/portal-command-store-port.server'
 import { buildCreatePortalCommand, type NewPortalPlan } from '../create-portal-commit'
 import {
   allocateSlug,
@@ -36,7 +36,7 @@ const isSlugTaken = (error: unknown): boolean =>
 
 export type CreatePortalDeps = Readonly<{
   personalPortal?: Readonly<{
-    printWording?: import('#/shared/domain/portal-print-final-wording').PrintFinalSavedWording
+    printWording?: import('#/shared/domain/portal-print-wording').PrintSavedWording
     publicName: string
     copySource?: PortalCopySource
     sourceFence?: CreatePortalCommand['personalSourceFence']

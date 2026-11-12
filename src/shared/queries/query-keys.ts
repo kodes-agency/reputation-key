@@ -106,14 +106,12 @@ export const dashboardKeys = {
 }
 export const aiKeys = {
   all: ['ai'] as const,
-  propertyTrend: (propertyId: string) =>
-    [...aiKeys.all, 'property-trend', propertyId] as const,
   /** Every window of the Guest voice 2.0 read for one Property: what a correction refreshes. */
   guestVoiceV2Property: (propertyId: string) =>
     [...aiKeys.all, 'guest-voice-v2', propertyId] as const,
   guestVoiceV2: (propertyId: string, ...scope: readonly string[]) =>
     [...aiKeys.guestVoiceV2Property(propertyId), ...scope] as const,
-  /** Paced Review Analysis counts for one property (ADR 0058). */
+  /** Paced Review Analysis counts for one property. */
   reviewAnalysisProgress: (propertyId: string) =>
     [...aiKeys.all, 'review-analysis-progress', propertyId] as const,
   /** The organization's AI spend this month; amounts only. */
@@ -325,7 +323,7 @@ export const guestKeys = {
     [...guestKeys.all, 'public-portal', args] as const,
 }
 
-// ── Platform operator console (ADR 0065) ─────────────────────────────────
+// ── Platform operator console ─────────────────────────────────
 // Cross-tenant: the operator holds no role in the Organizations it lists, so
 // nothing here carries an Organization id and nothing belongs to `identityKeys`.
 export const platformKeys = {

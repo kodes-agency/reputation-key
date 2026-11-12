@@ -1,7 +1,7 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
+import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq, inArray, sql } from 'drizzle-orm'
@@ -15,9 +15,9 @@ import { workItems } from '#/shared/db/schema/work-items.schema'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import type { GoogleImportV2ItemJobData } from '../application/ports/gbp-queue.port'
-import type { GoogleImportV2Intent } from '../application/ports/google-import-v2-store.port'
-import { createGoogleImportV2ClaimReaper } from '../application/google-import-v2-claim-reaper'
+import type { GoogleImportItemJobData } from '../application/ports/gbp-queue.port'
+import type { GoogleImportIntent } from '../application/ports/google-import-store.port'
+import { createGoogleImportClaimReaper } from '../application/google-import-claim-reaper'
 import { createImportStore } from './import-store.server'
 
 const NOW = new Date('2026-10-20T10:00:00.000Z')
@@ -29,7 +29,7 @@ const CONNECTION_B = randomUUID()
 const ORGS = [ORG_A, ORG_B]
 const minuteAfter = (at: Date) => new Date(at.getTime() + 60_000)
 
-function intent(organizationId = ORG_A, count = 1, now = NOW): GoogleImportV2Intent {
+function intent(organizationId = ORG_A, count = 1, now = NOW): GoogleImportIntent {
   const requestId = randomUUID()
   const connectionId = organizationId === ORG_A ? CONNECTION_A : CONNECTION_B
   return {
@@ -113,8 +113,8 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
     return item
   }
 
-  function recovery(clock: () => Date, deliveries: GoogleImportV2ItemJobData[]) {
-    return createGoogleImportV2ClaimReaper({
+  function recovery(clock: () => Date, deliveries: GoogleImportItemJobData[]) {
+    return createGoogleImportClaimReaper({
       store,
       clock,
       processItem: vi.fn(async () => undefined),
@@ -307,7 +307,7 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
   it('recovers an empty queue and keeps an earlier delivery valid over several sweeps', async () => {
     const work = await commit()
     const item = work.items[0]!
-    const deliveries: GoogleImportV2ItemJobData[] = []
+    const deliveries: GoogleImportItemJobData[] = []
     let now = NOW
     const sweep = recovery(() => now, deliveries)
     for (let index = 0; index < 4; index++) {
@@ -429,11 +429,11 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
         nextDispatchAt: NOW,
       })
       .where(eq(googleImportItems.organizationId, ORG_A))
-    const deliveries: GoogleImportV2ItemJobData[] = []
+    const deliveries: GoogleImportItemJobData[] = []
     const processItem = vi.fn(async () => {
       throw new Error('receipt unavailable')
     })
-    const sweep = createGoogleImportV2ClaimReaper({
+    const sweep = createGoogleImportClaimReaper({
       store,
       clock: () => minuteAfter(NOW),
       processItem,

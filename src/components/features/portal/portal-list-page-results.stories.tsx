@@ -9,6 +9,7 @@ import {
   indexOverviewResults,
   type PortalOverviewResultsState,
 } from './portal-overview/portal-overview-results'
+import { MIN_TARGET_PX } from '#/shared/testing/phone-width'
 import { avelaResults } from './portal-overview/portal-overview-results-fixtures'
 import { AuthedRouterDecorator } from '../../../../.storybook/AuthedRouterDecorator'
 
@@ -42,7 +43,16 @@ const rowOf = (canvas: ReturnType<typeof within>, name: string) => {
   return within(row)
 }
 
-export const Default: Story = { args: withResults }
+export const Default: Story = {
+  args: withResults,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('region', { name: 'Results' })).toBeVisible()
+    await expect(
+      canvas.getByRole('table', { name: /portals at avela resort/i }),
+    ).toBeVisible()
+  },
+}
 
 /**
  * An archived portal is finished: its row says View, not Edit, and has no Share.
@@ -253,6 +263,7 @@ export const ScansNobodyCountedAreADashNotAZero: Story = {
 /** The Private notes cell's follow-up: the notes still waiting in the Inbox, filtered by the Property. */
 export const InboxWaitingLinksToTheInbox: Story = {
   args: { ...withResults, inboxWaiting: 5 },
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {
     const strip = within(within(canvasElement).getByRole('region', { name: 'Results' }))
     const link = strip.getByRole('link', { name: '5 waiting in Inbox' })
@@ -264,8 +275,10 @@ export const InboxWaitingLinksToTheInbox: Story = {
     await expect(href.pathname).toBe('/inbox')
     await expect(href.searchParams.get('propertyId')).toBe('prop-1')
     await expect(href.searchParams.get('queue')).toBe('feedback')
-    // A tap target on a phone, by the Button's own minimum.
-    await expect(link.className).toContain('max-md:min-h-(--control-touch)')
+    // A tap target on a phone, measured.
+    await expect(link.getBoundingClientRect().height).toBeGreaterThanOrEqual(
+      MIN_TARGET_PX,
+    )
     // There is no "Open results": the strip is already the results.
     await expect(strip.queryByRole('link', { name: /open results/i })).toBeNull()
   },
@@ -321,8 +334,7 @@ export const NotOfferedToThisReader: Story = {
 
 // Both lines are in the document whatever the width: the Vitest story runner compiles no
 // Tailwind, so this story proves the summary line's words, not that it is the one shown at
-// 390 px. Which of the two layouts shows at which width is held in
-// `e2e/storybook-metrics/portal-overview.metrics.ts`, where Tailwind is compiled.
+// 390 px.
 export const Phone: Story = {
   args: withResults,
   decorators: [

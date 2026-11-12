@@ -1,3 +1,4 @@
+import { translatedGoogleReviewApi } from '../google-review-api-error'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { sha256Hex } from '#/shared/domain/sha256'
@@ -192,7 +193,7 @@ const run = async (
 
   let found
   try {
-    found = await deps.googleReviewApi.getReview({
+    found = await translatedGoogleReviewApi(deps.googleReviewApi).getReview({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       connectionId,

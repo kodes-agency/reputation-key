@@ -22,10 +22,10 @@ import {
   planAiReopenAnalyses,
   runAiReopenAnalyses,
 } from '../../src/shared/ops/ai-reopen-analyses-command'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand } from './operator-command'
 
 async function main(): Promise<void> {
-  const result = await runOperatorCommand(
+  const result = await runDatabaseOperatorCommand(
     aiReopenAnalysesCommandSpec,
     async (ctx, args, io) => {
       const plan = planAiReopenAnalyses(args)

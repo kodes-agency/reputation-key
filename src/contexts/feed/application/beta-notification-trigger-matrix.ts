@@ -4,7 +4,7 @@ import {
   type NotificationType,
 } from '../domain/notification-types'
 import { classifyNotification } from '../domain/notification-delivery-policy'
-import { isSettleableNotificationType } from '../domain/notification-settlement'
+import { isSettleableNotificationType } from '../notify/settle.server'
 import type { NotificationAudience } from './notification-audience'
 
 export type RegisteredNotificationConsumer = Readonly<{
@@ -104,17 +104,6 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['beta_feedback.outcome'],
     ['affected_organization_user'],
   ),
-  {
-    ...route(
-      'identity.organization_lifecycle.changed',
-      'notification.on-identity-organization-purge-pending',
-      ['account.organization_purge_pending'],
-      ['account_admin'],
-    ),
-    // LIF-01 program bullet 5. The lifecycle fact is recorded on every
-    // transition; only Purge Pending produces the mandatory final notice.
-    eventCondition: 'state === purge_pending',
-  },
   {
     ...route(
       'inbox.inbox_item.created',
@@ -462,15 +451,6 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'inbox.assigned',
     'inbox.bulk_assigned',
   ]),
-  {
-    ...settles(
-      'identity.organization_lifecycle.changed',
-      'notification.settle-on-organization-purge-cancelled',
-      ['account.organization_purge_pending'],
-    ),
-    // A purge called off before the irreversible step takes its warning back.
-    eventCondition: 'state === active',
-  },
   settles(
     'integration.google_account.connected',
     'notification.settle-on-google-account-connected',
@@ -484,8 +464,10 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
   ),
 ] as const satisfies ReadonlyArray<BetaNotificationTriggerMatrixRow>
 
-export const BETA_DARK_NOTIFICATION_TYPES =
-  [] as const satisfies ReadonlyArray<NotificationType>
+/** Defined and rendered, but no fact triggers it: notices already stored still read. */
+export const BETA_DARK_NOTIFICATION_TYPES = [
+  'account.organization_purge_pending',
+] as const satisfies ReadonlyArray<NotificationType>
 
 const DARK_BETA_TYPES: ReadonlySet<NotificationType> = new Set(
   BETA_DARK_NOTIFICATION_TYPES,

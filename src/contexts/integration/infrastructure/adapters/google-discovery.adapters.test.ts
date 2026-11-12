@@ -3,7 +3,7 @@ import {
   GOOGLE_PROVIDER_FIXTURES_V1,
 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
-import { isGbpApiError } from '../../domain/gbp-api-error'
+import { isGoogleCallError } from '../../domain/google-call-error'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
 import { createGoogleAccountManagementAdapter } from './google-account-management.adapter'
 import { createGoogleBusinessInformationAdapter } from './google-business-information.adapter'
@@ -110,7 +110,7 @@ describe('Google Account Management adapter', () => {
     await expect(
       malformedName.listAccounts({ accessToken: 'token', authorization }),
     ).rejects.toSatisfy(
-      (error: unknown) => isGbpApiError(error) && error.kind === 'parse_error',
+      (error: unknown) => isGoogleCallError(error) && error.kind === 'parse_error',
     )
 
     const malformedJsonExecutor: GoogleAuthorizedProviderExecutor = {
@@ -133,7 +133,7 @@ describe('Google Account Management adapter', () => {
         authorization,
       }),
     ).rejects.toSatisfy(
-      (error: unknown) => isGbpApiError(error) && error.kind === 'parse_error',
+      (error: unknown) => isGoogleCallError(error) && error.kind === 'parse_error',
     )
   })
 
@@ -224,7 +224,7 @@ describe('Google Account Management adapter', () => {
         authorization,
       }),
     ).rejects.toSatisfy(
-      (error: unknown) => isGbpApiError(error) && error.kind === 'auth_failed',
+      (error: unknown) => isGoogleCallError(error) && error.kind === 'auth_failed',
     )
     expect(execute).toHaveBeenCalledTimes(2)
   })
@@ -423,7 +423,7 @@ describe('Google Account Management adapter', () => {
         authorization,
       })
       const rejection = expect(result).rejects.toSatisfy(
-        (error: unknown) => isGbpApiError(error) && error.kind === 'upstream_error',
+        (error: unknown) => isGoogleCallError(error) && error.kind === 'upstream_error',
       )
 
       await vi.advanceTimersByTimeAsync(15_000)
@@ -576,7 +576,7 @@ describe('Google Business Information adapter', () => {
         accountDisplayName: 'Acme Group',
       }),
     ).rejects.toSatisfy(
-      (error: unknown) => isGbpApiError(error) && error.kind === 'parse_error',
+      (error: unknown) => isGoogleCallError(error) && error.kind === 'parse_error',
     )
   })
 
@@ -593,7 +593,7 @@ describe('Google Business Information adapter', () => {
           accountDisplayName: 'Account',
         }),
       ).rejects.toSatisfy(
-        (error: unknown) => isGbpApiError(error) && error.kind === 'parse_error',
+        (error: unknown) => isGoogleCallError(error) && error.kind === 'parse_error',
       )
       expect(executor.execute).not.toHaveBeenCalled()
     },
@@ -612,7 +612,7 @@ describe('Google Business Information adapter', () => {
       }),
     ).rejects.toSatisfy(
       (error: unknown) =>
-        isGbpApiError(error) &&
+        isGoogleCallError(error) &&
         error.kind === 'auth_failed' &&
         !JSON.stringify(error).includes('secret-provider-content'),
     )
@@ -636,7 +636,7 @@ describe('Google Business Information adapter', () => {
       }),
     ).rejects.toSatisfy(
       (error: unknown) =>
-        isGbpApiError(error) &&
+        isGoogleCallError(error) &&
         error.kind === 'rate_limited' &&
         error.retryAfterMs === 9_000,
     )
@@ -659,7 +659,7 @@ describe('Google Business Information adapter', () => {
         accountDisplayName: 'Account',
       }),
     ).rejects.toSatisfy(
-      (error: unknown) => isGbpApiError(error) && error.kind === 'upstream_error',
+      (error: unknown) => isGoogleCallError(error) && error.kind === 'upstream_error',
     )
   })
 })

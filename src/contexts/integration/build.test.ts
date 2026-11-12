@@ -122,17 +122,14 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
       ctx.internal.useCases.googleImportDiscovery,
     )
     expect(ctx.maintenance.imports.inspectBacklog).toBe(
-      ctx.internal.useCases.inspectGoogleImportV2Lifecycle,
-    )
-    expect(ctx.lifecycle.prepareConnectorDeparture).toBe(
-      ctx.internal.useCases.prepareGoogleConnectorDeparture,
+      ctx.internal.useCases.inspectGoogleImportLifecycle,
     )
     expect(ctx.webhook.handleNotification).toBe(ctx.internal.gbpNotificationHandler)
     expect(ctx.worker.processImportItem).toBe(
-      ctx.internal.useCases.processGoogleImportV2Item,
+      ctx.internal.useCases.processGoogleImportItem,
     )
     expect(ctx.worker.sweepImportLifecycle).toBe(
-      ctx.internal.useCases.sweepGoogleImportV2Lifecycle,
+      ctx.internal.useCases.sweepGoogleImportLifecycle,
     )
     expect(Object.keys(ctx.worker).sort()).toEqual([
       'completeImportsForRestore',
@@ -186,15 +183,14 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
 
   it('routes notification account lookup and desired-state writes through the governed executor', () => {
     const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
-    const start = source.indexOf('const googleNotificationProviderExecutor =')
-    const end = source.indexOf('const googleImportRuntime =', start)
-    expect(start).toBeGreaterThanOrEqual(0)
-    expect(end).toBeGreaterThan(start)
-    const notificationWiring = source.slice(start, end)
-    expect(notificationWiring).toContain('createSingle401RefreshExecutor')
+    const notificationWiring = readFileSync(
+      new URL('./connections/notifications-runtime.server.ts', import.meta.url),
+      'utf8',
+    )
+    expect(notificationWiring).toContain('withSingle401Refresh')
     expect(notificationWiring).toContain('createMyBusinessNotificationsAdapter')
     expect(notificationWiring).toContain('authorization_unavailable')
-    expect(notificationWiring).toContain('notifications: notificationsPort')
+    expect(notificationWiring).toContain('notifications,')
     expect(notificationWiring).not.toContain('createGoogleAccountManagementAdapter')
     const runtime = readFileSync(
       new URL('./infrastructure/google-notification-runtime.ts', import.meta.url),
@@ -260,8 +256,8 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     expect(transportless.internal.useCases.googleImportDiscovery).toBeNull()
     expect(complete.internal.useCases.googleImportTransaction).not.toBeNull()
     expect(transportless.internal.useCases.googleImportTransaction).toBeNull()
-    expect(complete.internal.useCases.processGoogleImportV2Item).not.toBeNull()
-    expect(transportless.internal.useCases.processGoogleImportV2Item).not.toBeNull()
+    expect(complete.internal.useCases.processGoogleImportItem).not.toBeNull()
+    expect(transportless.internal.useCases.processGoogleImportItem).not.toBeNull()
   })
 
   it('constructs live Performance only with every protected dependency', () => {

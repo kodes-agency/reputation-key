@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { focalObjectPosition } from '#/components/features/guest/public-portal/immersive/guest-hero'
-import { usePreviewFinalLogo } from '#/components/features/portal/portal-share/use-print-final-pictures'
+import { usePreviewLogo } from '#/components/features/portal/portal-share/use-print-pictures'
 import { staffHeaderIsDark, staffLogoPlate } from './staff-look'
 import type { StaffParticipation } from './types'
 
@@ -15,7 +15,7 @@ function PassBrand({
   onDark,
 }: Readonly<{ look: Look; name: string; onDark: boolean }>) {
   const logo = look.logo
-  const read = usePreviewFinalLogo(logo?.url ?? null)
+  const read = usePreviewLogo(logo?.url ?? null)
   if (!logo)
     return (
       <p className="staff-pass__name" data-long={name.length > LONG_NAME}>

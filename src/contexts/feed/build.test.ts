@@ -122,7 +122,6 @@ describe('buildFeedContext', () => {
     }
     const { publicApi } = buildWith(db as unknown as Database).notification
 
-    await publicApi.readMissingNotificationCount()
     await publicApi.readNotificationDeliveryLag()
 
     const timeouts = statements
@@ -130,8 +129,7 @@ describe('buildFeedContext', () => {
       .filter(({ sql }) => sql.includes("set_config('statement_timeout'"))
     expect(timeouts.map(({ params }) => params)).toEqual([
       [String(NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS)],
-      [String(NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS)],
     ])
-    expect(configs).toEqual([{ accessMode: 'read only' }, { accessMode: 'read only' }])
+    expect(configs).toEqual([{ accessMode: 'read only' }])
   })
 })

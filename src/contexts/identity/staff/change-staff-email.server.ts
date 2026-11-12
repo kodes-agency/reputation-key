@@ -5,6 +5,7 @@ import {
   staffRowProblem,
   staffRowCodeForActor,
   staffAddressRefusal,
+  refusedAddress,
 } from './add-staff-member.server'
 import { staffAccountError } from '../domain/staff-account'
 
@@ -31,7 +32,7 @@ export const changeStaffInvitationEmail =
     await deps.spendAddressCheckBudget(ctx, 1)
     // Removal and Add take the same address lock. Stable order also serializes two corrections.
     const addresses = [email, found.email.toLowerCase()].sort()
-    return deps.store.withAddressLocks(ctx.organizationId, addresses, async (store) => {
+    return deps.store.withAddressLocks(addresses, async (store) => {
       const actor = await store.currentActor(ctx)
       if (!actor)
         throw staffAccountError(
@@ -73,17 +74,23 @@ export const changeStaffInvitationEmail =
           'cannot_add',
           'This email already has an account here. Use another email address.',
         )
-      const row = await deps.management.replaceInvitation(
-        {
-          organizationId: ctx.organizationId,
-          participationId: input.participationId,
-          oldEmail: found.email!,
-          email,
-          invitationId: deps.idGen(),
-          actorId: ctx.userId,
-        },
-        () => deps.spendInvitationBudget(actor),
-      )
+      const row = await deps.management
+        .replaceInvitation(
+          {
+            organizationId: ctx.organizationId,
+            participationId: input.participationId,
+            oldEmail: found.email!,
+            email,
+            invitationId: deps.idGen(),
+            actorId: ctx.userId,
+          },
+          () => deps.spendInvitationBudget(actor),
+        )
+        .catch((error: unknown) => {
+          throw refusedAddress(error)
+            ? staffAddressRefusal(actor, deps.reportAddressRefusal)
+            : error
+        })
       try {
         await deps.deliverAccess(row, { invited: true, userId: null })
         await store.markDeliveryProblem(ctx.organizationId, input.participationId, false)

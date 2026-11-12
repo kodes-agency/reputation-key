@@ -16,7 +16,6 @@ import type { AiAdmissionPort } from './application/ports/ai-admission.port'
 import type { AiSubjectHmacPort } from './application/ports/ai-subject-hmac.port'
 import type { AiProviderChoicePort } from './application/ports/ai-provider-choice.port'
 import { createReviewAnalysisContractV3 } from './application/review-analysis-contract-v3'
-import { selectedReviewAnalysisContractVersion } from './application/review-analysis-runtime'
 import { createAnalyzeReviewEvent } from './application/use-cases/analyze-review-event'
 import { createAiOperationExecutionReaper } from './application/ai-operation-execution-reaper'
 import { createAdvanceReviewAnalysisEnrollments } from './replay/advance-enrollments.server'
@@ -77,12 +76,6 @@ const unavailableInference: AiInferencePort = Object.freeze({
   }),
   generateReply: async () => ({
     route: 'reply-suggestion' as const,
-    status: 'error' as const,
-    code: 'provider_unavailable' as const,
-    retryAfterEpochMillis: null,
-  }),
-  generateTrend: async () => ({
-    route: 'property-trend' as const,
     status: 'error' as const,
     code: 'provider_unavailable' as const,
     retryAfterEpochMillis: null,
@@ -168,18 +161,13 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     (input.redis
       ? createRedisAiLaneAdmissionAdapter(input.redis, input.idGen)
       : unavailableAdmission)
-  // v2 is the default contract of the use case. v3 is built only when the live
-  // runtime catalogue selects it (`review-analysis-runtime.ts`).
-  const reviewAnalysisContract =
-    selectedReviewAnalysisContractVersion() === 'v3'
-      ? createReviewAnalysisContractV3({
-          outputs,
-          vocabularyContext: createPropertyVocabularyContextAdapter(input.db),
-          providerChoice: input.providerChoice ?? createOperatorProviderChoice(),
-        })
-      : undefined
+  const reviewAnalysisContract = createReviewAnalysisContractV3({
+    outputs,
+    vocabularyContext: createPropertyVocabularyContextAdapter(input.db),
+    providerChoice: input.providerChoice ?? createOperatorProviderChoice(),
+  })
   const analyzeReviewEvent = createAnalyzeReviewEvent({
-    ...(reviewAnalysisContract === undefined ? {} : { contract: reviewAnalysisContract }),
+    contract: reviewAnalysisContract,
     authorization,
     control,
     inference,
@@ -266,12 +254,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     outputs,
     processingProfiles,
     nowEpochMillis,
-    ...(reviewAnalysisContract === undefined
-      ? {}
-      : {
-          reviewAnalysisProfileVersion:
-            reviewAnalysisContract.operationProfile.profileVersion,
-        }),
+    reviewAnalysisProfileVersion: reviewAnalysisContract.operationProfile.profileVersion,
   }
   let replyLanguageDetector:
     Awaited<ReturnType<typeof createCld3ReplyLanguageDetector>> | undefined

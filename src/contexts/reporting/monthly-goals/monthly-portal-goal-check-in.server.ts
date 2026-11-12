@@ -4,12 +4,12 @@
 
 import { monthKeyOf } from '../domain/goal-start'
 import { monthlyCheckIn } from '../domain/portal-goal-check-in'
-import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
+import type { PortalGoalRecommendation } from './contracts'
 import type {
   PortalGoalChangeFacts,
   PortalGoalCheckIn,
   PortalGoalRunningMonth,
-} from '../application/dto/monthly-portal-goal.types'
+} from './contracts'
 import type { PropertyCountGoal } from '../application/monthly-portal-goal-identity'
 import { checkInOfferOf } from './monthly-portal-goal-offer.server'
 

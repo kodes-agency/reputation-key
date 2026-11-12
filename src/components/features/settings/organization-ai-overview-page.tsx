@@ -1,4 +1,4 @@
-import { MerchantAiNoticeUpdateLine } from './merchant-ai-notice-update-line'
+import { MerchantAiNoticeUpdateLine } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-line'
 import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, BrainCircuit } from 'lucide-react'

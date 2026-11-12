@@ -4,7 +4,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import type { Database } from '#/shared/db'
 import type { BackupErasureLedgerEntry } from '#/shared/db/lifecycle/backup-erasure-ledger'
@@ -16,15 +16,20 @@ import {
   portalId as toPortalId,
   propertyId as toPropertyId,
 } from '#/shared/domain/ids'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { Tx } from '#/shared/outbox/commit'
 import type { GuestResponse } from '../../domain/guest-response'
-import { createAtomicGuestResponseCommandStore } from '../guest-response-command-store'
+import { createAtomicGuestResponseCommandStore } from '../../responses/guest-response-command-store.server'
 import {
   createGuestFeedbackErasureReplayer,
   createGuestResponseErasureReplayer,
 } from './guest-response-erasure-replayer.adapter'
 
 const db = getDb()
+
+beforeAll(() => {
+  registerAllEventSchemas()
+})
 const ROLLBACK = new Error('rollback guest response erasure replay proof')
 const ERASED_AT = new Date('2026-11-08T12:00:00.000Z')
 const PRIVATE_TEXT = 'NEVER_SURVIVE_REPLAY_FEEDBACK_BODY'

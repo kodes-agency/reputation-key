@@ -105,6 +105,7 @@ describe('buildInboxContext', () => {
       ['guest.feedback.submitted', 'inbox.on-guest-feedback-submitted'],
       ['guest.feedback.retracted', 'inbox.on-guest-feedback-retracted'],
       ['property.archived', 'inbox.on-property-archived'],
+      ['identity.member.removed', 'inbox.on-member-removed'],
     ])
   })
 })

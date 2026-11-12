@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { openNextReviewCycleForTest } from './review-cycle-reopen.test-fixtures'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
@@ -988,14 +989,9 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     const cycleStore = createReviewHandlingCycleStore(db)
     const head = await cycleStore.findHead(REVIEW_ITEM, ORG)
     if (!head) throw new Error('seeded Review Handling Cycle is missing')
-    await cycleStore.startNext({
+    await openNextReviewCycleForTest(getDb(), {
       inboxItemId: REVIEW_ITEM,
       organizationId: ORG,
-      expected: {
-        cycleNumber: head.currentCycleNumber,
-        materialReviewRevision: head.currentMaterialReviewRevision,
-        stateRevision: head.stateRevision,
-      },
       materialReviewRevision: 2,
       openedReason: 'material_revision_changed',
       openedBy: null,
@@ -1169,14 +1165,9 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     const head = await cycleStore.findHead(HISTORICAL_ITEM, ORG)
     if (!head) throw new Error('historical Review Handling Cycle is missing')
     const reopenedAt = new Date('2026-08-28T11:00:00.000Z')
-    await cycleStore.startNext({
+    await openNextReviewCycleForTest(getDb(), {
       inboxItemId: HISTORICAL_ITEM,
       organizationId: ORG,
-      expected: {
-        cycleNumber: head.currentCycleNumber,
-        materialReviewRevision: head.currentMaterialReviewRevision,
-        stateRevision: head.stateRevision,
-      },
       materialReviewRevision: 1,
       openedReason: 'manual_reopen',
       manualReopenReason: 'new_information',

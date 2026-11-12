@@ -5,7 +5,7 @@
 import type {
   PortalGoalAverageOfPage,
   PortalGoalSingleSubject,
-} from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import { daysLeftWords } from '../../../../components/goals/goal-live-view'
 import { goalMetricLabel } from '../../../../components/goals/goal-metric-label'
 import { goalFigure } from '../../../../components/goals/goal-so-far'

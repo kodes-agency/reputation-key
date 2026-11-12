@@ -93,7 +93,7 @@ export function FocalPointPicker({
           data-slot="picker-handle"
           type="button"
           aria-label={`Focal point: ${describeFocal(focal)}. Drag, or use the arrow keys, to move it.`}
-          className="absolute grid size-7 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none place-items-center rounded-full border-2 border-white bg-black/20 shadow-md outline-none active:cursor-grabbing focus-visible:ring-[3px] focus-visible:ring-ring"
+          className="absolute grid size-7 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none place-items-center rounded-full border-2 border-white bg-black/20 shadow-md outline-none active:cursor-grabbing focus-visible:ring-[3px] focus-visible:ring-ring after:absolute after:top-1/2 after:left-1/2 after:size-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-['']"
           style={{ left: `${focal.x * 100}%`, top: `${focal.y * 100}%` }}
           onPointerDown={(event) => {
             isDragging.current = true

@@ -1,15 +1,11 @@
 import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { parseAiGatewayRouteResponse } from '#/shared/ai-gateway-transport-contract'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
-import {
-  trendRequest,
-  v2FormAnalysisRequest,
-} from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import { v2FormAnalysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import { canonicalizeRawAiReviewSource } from '#/shared/ai-review-source-contract'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
@@ -20,11 +16,12 @@ import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
 import { GatewayPreparationError } from './contracts'
 import {
   evidencePreparer,
-  fakeGrant,
+  fakeAdmission,
   fakeSettlementReceipt,
   openAiRequestOf,
   preparableV3Request,
   v3TestProfile,
+  checkedAnalysisResponse,
 } from './review-evidence.test-fixtures'
 import { prepareReviewEvidence } from './review-evidence-request'
 import { createSensitiveSourceLease } from './source-lease'
@@ -363,8 +360,8 @@ describe('review-analysis v3 request preparation', () => {
 
     it('accepts an answer and returns it normalized, with what normalizing did', () => {
       const accepted = accept(answer([mention()]))
-      const response = parseAiGatewayRouteResponse(
-        accepted?.buildResponse(fakeSettlementReceipt(), fakeGrant()),
+      const response = checkedAnalysisResponse(
+        accepted?.buildResponse(fakeSettlementReceipt(), fakeAdmission()),
       )
 
       expect(response).toMatchObject({
@@ -396,8 +393,8 @@ describe('review-analysis v3 request preparation', () => {
           }),
         ]),
       )
-      const response = parseAiGatewayRouteResponse(
-        accepted?.buildResponse(fakeSettlementReceipt(), fakeGrant()),
+      const response = checkedAnalysisResponse(
+        accepted?.buildResponse(fakeSettlementReceipt(), fakeAdmission()),
       )
 
       expect(response).toMatchObject({
@@ -421,8 +418,8 @@ describe('review-analysis v3 request preparation', () => {
     it('numbers the pointers it stores by the sentences the provider read', () => {
       // Sentence 3 is the last the provider read; 4 does not exist for it.
       const accepted = accept(answer([mention({ sentences: [3, 4] })]))
-      const response = parseAiGatewayRouteResponse(
-        accepted?.buildResponse(fakeSettlementReceipt(), fakeGrant()),
+      const response = checkedAnalysisResponse(
+        accepted?.buildResponse(fakeSettlementReceipt(), fakeAdmission()),
       )
 
       expect(response).toMatchObject({
@@ -447,8 +444,8 @@ describe('review-analysis v3 request preparation', () => {
         ]),
         request,
       )
-      const response = parseAiGatewayRouteResponse(
-        accepted?.buildResponse(fakeSettlementReceipt(), fakeGrant()),
+      const response = checkedAnalysisResponse(
+        accepted?.buildResponse(fakeSettlementReceipt(), fakeAdmission()),
       )
 
       expect(response).toMatchObject({
@@ -475,8 +472,8 @@ describe('review-analysis v3 request preparation', () => {
 
     it('stores an Urgent reason only when the provider reported one of the four', () => {
       const accepted = accept(answer([], { reason: 'Safety' }))
-      const response = parseAiGatewayRouteResponse(
-        accepted?.buildResponse(fakeSettlementReceipt(), fakeGrant()),
+      const response = checkedAnalysisResponse(
+        accepted?.buildResponse(fakeSettlementReceipt(), fakeAdmission()),
       )
       expect(response).toMatchObject({
         result: {
@@ -487,8 +484,8 @@ describe('review-analysis v3 request preparation', () => {
 
       const unknown = accept(answer([], { reason: 'rudeness' }))
       expect(
-        parseAiGatewayRouteResponse(
-          unknown?.buildResponse(fakeSettlementReceipt(), fakeGrant()),
+        checkedAnalysisResponse(
+          unknown?.buildResponse(fakeSettlementReceipt(), fakeAdmission()),
         ),
       ).toMatchObject({
         result: {
@@ -523,8 +520,8 @@ describe('review-analysis v3 request preparation', () => {
       )
       expect(accepted).not.toBeNull()
       expect(
-        parseAiGatewayRouteResponse(
-          accepted?.buildResponse(fakeSettlementReceipt(), fakeGrant()),
+        checkedAnalysisResponse(
+          accepted?.buildResponse(fakeSettlementReceipt(), fakeAdmission()),
         ),
       ).toMatchObject({ status: 'success' })
     })
@@ -538,10 +535,4 @@ describe('review-analysis v3 request preparation', () => {
       expect(Object.isFrozen(request.propertyContext?.vocabularyHints)).toBe(false)
     })
   })
-})
-
-it('refuses retired trend execution before preparing a provider request', () => {
-  expect(refusal(() => evidencePreparer().prepare(trendRequest()))).toBe(
-    'policy_unavailable',
-  )
 })

@@ -31,10 +31,16 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-it('ships with guest journaling inactive and does not construct a bucket writer', () => {
-  const put = vi.spyOn(ErasureJournalBucket.prototype, 'put')
-  expect(createGuestWithdrawalJournal(deps())).toBeUndefined()
-  expect(put).not.toHaveBeenCalled()
+it('ships with guest journaling active and writes through the bucket adapter', async () => {
+  const put = vi.spyOn(ErasureJournalBucket.prototype, 'put').mockResolvedValue()
+  const journal = createGuestWithdrawalJournal(deps())
+  expect(journal).toBeDefined()
+  await journal!.put('private/erasure-journal/default', 'IDs-only evidence')
+  expect(put).toHaveBeenCalledWith('private/erasure-journal/default', 'IDs-only evidence')
+})
+
+it('builds no journal when explicitly switched off', () => {
+  expect(createGuestWithdrawalJournal(deps(), false)).toBeUndefined()
 })
 
 it('uses the existing journal bucket adapter when activated', async () => {
@@ -76,5 +82,22 @@ it('reports journal failure to monitoring without any subject identifiers', () =
       source: 'alert-dispatcher',
       alert: { name: 'guest.erasure_journal_write_failed', severity: 'P2' },
     },
+  )
+})
+
+it('logs only the error name and S3 code of a failed bucket write', async () => {
+  const failure = Object.assign(new Error('key private/erasure-journal/abc'), {
+    name: 'NoSuchBucket',
+    Code: 'NoSuchBucket',
+  })
+  vi.spyOn(ErasureJournalBucket.prototype, 'put').mockRejectedValue(failure)
+  const dependency = deps()
+  const errorLog = vi.spyOn(dependency.logger, 'error')
+  const journal = createGuestWithdrawalJournal(dependency, true)!
+  await expect(journal.put('private/erasure-journal/abc', 'bytes')).rejects.toBe(failure)
+  journal.alert({ journalId: 'id', context: 'guest' })
+  expect(errorLog).toHaveBeenCalledWith(
+    { errorName: 'NoSuchBucket', s3Code: 'NoSuchBucket' },
+    'guest.erasure_journal_write_failed',
   )
 })

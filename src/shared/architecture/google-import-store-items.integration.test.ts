@@ -16,11 +16,11 @@ import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.sch
 import { properties } from '#/shared/db/schema/property.schema'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
-import type { GoogleImportV2Intent } from '#/contexts/integration/application/ports/google-import-v2-store.port'
-import { createGoogleImportV2Processor } from '#/contexts/integration/application/google-import-v2-processor'
-import { createGoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'
-import { createGoogleImportV2Lifecycle } from '#/contexts/integration/application/google-import-v2-lifecycle'
+import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
+import type { GoogleImportIntent } from '#/contexts/integration/application/ports/google-import-store.port'
+import { createGoogleImportProcessor } from '#/contexts/integration/application/google-import-processor'
+import { createGoogleImportClaimReaper } from '#/contexts/integration/application/google-import-claim-reaper'
+import { createGoogleImportLifecycle } from '#/contexts/integration/application/google-import-lifecycle'
 import { createImportStore } from '#/contexts/integration/imports/import-store.server'
 
 const NOW = new Date('2026-08-12T10:00:00.000Z')
@@ -43,7 +43,7 @@ const matchesDigest =
   (stored: Readonly<{ keyVersion: string; digest: string }>) =>
     stored.keyVersion === expected.keyVersion && stored.digest === expected.digest
 
-function intent(now = NOW, googlePrimaryCategory?: string | null): GoogleImportV2Intent {
+function intent(now = NOW, googlePrimaryCategory?: string | null): GoogleImportIntent {
   return {
     id: REQUEST_ID,
     organizationId: ORG_ID,
@@ -138,7 +138,7 @@ describe('Google import item behaviour on the import store (real PostgreSQL)', (
   }
   const reapAt = (now: Date) => {
     const logger = createMockLogger()
-    const processor = createGoogleImportV2Processor({
+    const processor = createGoogleImportProcessor({
       store,
       propertyBindingApi: binding,
       authorizeGoogleImportCommand: async () => ({
@@ -150,7 +150,7 @@ describe('Google import item behaviour on the import store (real PostgreSQL)', (
       newClaimFence: randomUUID,
       logger,
     })
-    return createGoogleImportV2ClaimReaper({
+    return createGoogleImportClaimReaper({
       store,
       processItem: processor.process,
       queue: { addImportItemJobs: vi.fn(async () => undefined) },
@@ -1134,7 +1134,7 @@ describe('Google import item behaviour on the import store (real PostgreSQL)', (
 
     it('offers fresh confirmation for an item that outlived its deadline', async () => {
       await resetIntent()
-      const lifecycle = createGoogleImportV2Lifecycle({
+      const lifecycle = createGoogleImportLifecycle({
         store,
         propertyBindingApi: {
           sweepReleasedExpired: async () => 0,

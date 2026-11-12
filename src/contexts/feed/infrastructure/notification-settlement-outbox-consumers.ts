@@ -30,18 +30,15 @@ import { isRecordPayload, requiredString } from './outbox-payload-fields'
 import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
 import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
-import type { NotificationWorkState } from '../application/notification-work-state'
-import { isActionablePortalHealthReason } from '../application/portal-health-notification'
 import {
   settleGroupedReopens,
   type GroupedReopenSettlementDeps,
-} from './grouped-reopen-settlement'
-import {
-  PURGE_CANCELLED_EMAIL_REASON,
-  SETTLED_EMAIL_REASON,
   settledNotificationTypes,
   type SettlingFact,
-} from '../domain/notification-settlement'
+} from '../notify/settle.server'
+import { SETTLED_EMAIL_REASON } from '../domain/notification-actionable'
+import { type NotificationWorkState } from '../application/ports/notification-work-state.port'
+import { isActionablePortalHealthReason } from '../application/portal-health-notification'
 
 /**
  * What the settled notices point at. Reply and Inbox notices are filed against
@@ -59,7 +56,6 @@ type SettledResourceKind =
   | 'portal'
   | 'portal_destination'
   | 'google_connection'
-  | 'organization'
   | 'property_wide'
 
 /**
@@ -67,12 +63,10 @@ type SettledResourceKind =
  * says what the scope is LEFT with, so only one that leaves somebody
  * responsible closes a gap. A Health change finishes the notice only when the
  * new interval needs nobody: recovered, or a state such as a draft that no
- * manager has to fix. A lifecycle change takes the deletion warning back only
- * when the Organization is active again: the purge was called off. A change of
+ * manager has to fix. A change of
  * a site's approval finishes the request unless the site is waiting again.
  */
-type SettlingCondition =
-  'staffed' | 'health_needs_nobody' | 'lifecycle_active' | 'destination_decided'
+type SettlingCondition = 'staffed' | 'health_needs_nobody' | 'destination_decided'
 
 /** Which settling fact each subscribed event carries, and under what name. */
 export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
@@ -153,14 +147,6 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     resource: 'property_wide',
   },
   {
-    eventType: 'identity.organization_lifecycle.changed',
-    consumerName: 'notification.settle-on-organization-purge-cancelled',
-    fact: 'organization.purge_cancelled',
-    resource: 'organization',
-    onlyWhen: 'lifecycle_active',
-    emailReason: PURGE_CANCELLED_EMAIL_REASON,
-  },
-  {
     eventType: 'integration.google_account.connected',
     consumerName: 'notification.settle-on-google-account-connected',
     fact: 'google_connection.reconnected',
@@ -179,8 +165,6 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     fact: SettlingFact
     resource: SettledResourceKind
     onlyWhen?: SettlingCondition
-    /** Why the queued mail is cancelled, when it is not finished work. */
-    emailReason?: string
     /** Also settle the Property's grouped reopens with nothing left open. */
     settlesGroupedReopens?: boolean
   }>
@@ -254,8 +238,6 @@ const finishesWork = (
       return (
         payload.status === 'healthy' || !isActionablePortalHealthReason(payload.reason)
       )
-    case 'lifecycle_active':
-      return payload.state === 'active'
     case 'destination_decided':
       return payload.approvalState !== 'pending'
   }
@@ -288,8 +270,6 @@ async function resolveResource(
       return field(payload, 'approvedDestinationId')
     case 'google_connection':
       return googleConnectionId(field(payload, 'connectionId'))
-    case 'organization':
-      return orgId
   }
 }
 
@@ -333,7 +313,7 @@ async function settleResource(
   const cancelled = await deps.emails.cancelQueuedForNotifications(
     settled,
     orgId,
-    'emailReason' in route ? route.emailReason : SETTLED_EMAIL_REASON,
+    SETTLED_EMAIL_REASON,
     resolvedAt,
   )
   return { settled: settled.length, cancelled }
@@ -462,12 +442,6 @@ export function registerNotificationSettlementConsumers(
   registerConsumer({
     eventType: 'property.archived',
     consumerName: 'notification.settle-on-property-archived',
-    module: 'notification.settlement-outbox-consumers',
-    handler,
-  })
-  registerConsumer({
-    eventType: 'identity.organization_lifecycle.changed',
-    consumerName: 'notification.settle-on-organization-purge-cancelled',
     module: 'notification.settlement-outbox-consumers',
     handler,
   })

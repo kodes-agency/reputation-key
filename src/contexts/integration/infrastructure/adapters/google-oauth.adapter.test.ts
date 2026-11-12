@@ -648,6 +648,227 @@ describe('createGoogleOAuthAdapter', () => {
 // `invalid_grant`. Every such answer used to read as a generic, retryable
 // `token_refresh_failed`, so a connection nobody could use again stayed
 // "Connected" and nobody was asked to reconnect it.
+describe('Google ID token age and JWKS key cache', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+  const NOW = new Date('2030-06-01T12:00:00.000Z')
+  const NOW_SECONDS = NOW.getTime() / 1_000
+  const MINUTE_MS = 60_000
+  const exchangeInput = {
+    authorization,
+    contractVersion: 'v2' as const,
+    code: 'authorization-code',
+    redirectUri: 'https://app.example.test/api/auth/google/callback',
+    codeVerifier: 'pkce-verifier',
+    oidcNonce: 'oidc-nonce',
+  }
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  async function signingKey() {
+    const { publicKey, privateKey } = await generateKeyPair('RS256')
+    const jwk = await exportJWK(publicKey)
+    const sign = (issuedAtSeconds: number) =>
+      new SignJWT({ nonce: exchangeInput.oidcNonce })
+        .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
+        .setIssuer('https://accounts.google.com')
+        .setAudience(CONFIG.clientId)
+        .setSubject('signed-google-subject')
+        .setIssuedAt(issuedAtSeconds)
+        .setExpirationTime(issuedAtSeconds + 15 * 60)
+        .sign(privateKey)
+    return { sign, jwks: { keys: [{ ...jwk, kid: 'test-key', alg: 'RS256' }] } }
+  }
+
+  const requestUrl = (input: Parameters<typeof fetch>[0]) =>
+    typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+
+  const serveGoogle = (
+    token: () => Promise<string>,
+    jwksResponse: () => Response | Promise<Response>,
+  ) => {
+    const jwksFetches = vi.fn()
+    fetchMock.mockImplementation(async (input) => {
+      if (requestUrl(input) === CONFIG.jwksUrl) {
+        jwksFetches()
+        return jwksResponse()
+      }
+      return jsonResponse({
+        access_token: 'access-token',
+        refresh_token: 'refresh-token',
+        expires_in: 3600,
+        scope: `openid ${BUSINESS_MANAGE_SCOPE}`,
+        id_token: await token(),
+      })
+    })
+    return jwksFetches
+  }
+
+  describe('ID token age', () => {
+    const exchangeWithAge = async (ageSeconds: number) => {
+      const { sign, jwks } = await signingKey()
+      serveGoogle(
+        () => sign(NOW_SECONDS - ageSeconds),
+        () => jsonResponse(jwks),
+      )
+      return createGoogleOAuthAdapter({ ...CONFIG, clock: () => NOW }).exchangeCode(
+        exchangeInput,
+      )
+    }
+
+    it('accepts a token issued exactly ten minutes ago', async () => {
+      await expect(exchangeWithAge(600)).resolves.toMatchObject({
+        identity: { kind: 'oidc', googleSubject: 'signed-google-subject' },
+      })
+    })
+
+    it('refuses a token issued one second over ten minutes ago, though it has not expired', async () => {
+      await expect(exchangeWithAge(601)).rejects.toMatchObject({
+        code: 'oauth_failed',
+      })
+    })
+
+    it('refuses a token issued long ago', async () => {
+      await expect(exchangeWithAge(3_000)).rejects.toMatchObject({
+        code: 'oauth_failed',
+      })
+    })
+  })
+
+  describe('key cache deadline', () => {
+    let now: Date
+    const advance = (ms: number) => {
+      now = new Date(now.getTime() + ms)
+    }
+
+    const setup = async (cacheControl: string | undefined) => {
+      now = NOW
+      const { sign, jwks } = await signingKey()
+      let jwksOutcome: () => Response = () =>
+        jsonResponse(
+          jwks,
+          cacheControl === undefined
+            ? {}
+            : { headers: { 'Cache-Control': cacheControl } },
+        )
+      // Issued at the adapter's current time, so the age limit never interferes.
+      const jwksFetches = serveGoogle(
+        () => sign(Math.floor(now.getTime() / 1_000)),
+        () => jwksOutcome(),
+      )
+      const adapter = createGoogleOAuthAdapter({ ...CONFIG, clock: () => now })
+      return {
+        adapter,
+        jwksFetches,
+        failKeys: () => {
+          jwksOutcome = () => new Response(null, { status: 503 })
+        },
+      }
+    }
+
+    it('reads the keys again only after the default five minutes when no max-age is sent', async () => {
+      const { adapter, jwksFetches } = await setup(undefined)
+
+      await adapter.exchangeCode(exchangeInput)
+      advance(5 * MINUTE_MS - 1)
+      await adapter.exchangeCode(exchangeInput)
+      expect(jwksFetches).toHaveBeenCalledTimes(1)
+
+      advance(1)
+      await adapter.exchangeCode(exchangeInput)
+      expect(jwksFetches).toHaveBeenCalledTimes(2)
+    })
+
+    it.each(['max-age=0', 'max-age=abc', 'public'])(
+      'falls back to the five-minute default for Cache-Control "%s"',
+      async (cacheControl) => {
+        const { adapter, jwksFetches } = await setup(cacheControl)
+
+        await adapter.exchangeCode(exchangeInput)
+        advance(5 * MINUTE_MS - 1)
+        await adapter.exchangeCode(exchangeInput)
+        expect(jwksFetches).toHaveBeenCalledTimes(1)
+
+        advance(1)
+        await adapter.exchangeCode(exchangeInput)
+        expect(jwksFetches).toHaveBeenCalledTimes(2)
+      },
+    )
+
+    it('honours a max-age between the floor and the ceiling to the millisecond', async () => {
+      const { adapter, jwksFetches } = await setup('public, max-age=1800')
+
+      await adapter.exchangeCode(exchangeInput)
+      advance(30 * MINUTE_MS - 1)
+      await adapter.exchangeCode(exchangeInput)
+      expect(jwksFetches).toHaveBeenCalledTimes(1)
+
+      advance(1)
+      await adapter.exchangeCode(exchangeInput)
+      expect(jwksFetches).toHaveBeenCalledTimes(2)
+    })
+
+    it('caps a long max-age at one hour', async () => {
+      const { adapter, jwksFetches } = await setup('max-age=86400')
+
+      await adapter.exchangeCode(exchangeInput)
+      advance(60 * MINUTE_MS - 1)
+      await adapter.exchangeCode(exchangeInput)
+      expect(jwksFetches).toHaveBeenCalledTimes(1)
+
+      advance(1)
+      await adapter.exchangeCode(exchangeInput)
+      expect(jwksFetches).toHaveBeenCalledTimes(2)
+    })
+
+    it('serves expired keys through a provider failure until ten minutes past the deadline', async () => {
+      const { adapter, jwksFetches, failKeys } = await setup('max-age=60')
+      await adapter.exchangeCode(exchangeInput)
+      failKeys()
+
+      advance(60_000 + 10 * MINUTE_MS - 1)
+      await expect(adapter.exchangeCode(exchangeInput)).resolves.toMatchObject({
+        identity: { googleSubject: 'signed-google-subject' },
+      })
+      expect(jwksFetches).toHaveBeenCalledTimes(2)
+    })
+
+    it('refuses the exchange once a failing provider outlasts the stale window', async () => {
+      const { adapter, failKeys } = await setup('max-age=60')
+      await adapter.exchangeCode(exchangeInput)
+      failKeys()
+
+      advance(60_000 + 10 * MINUTE_MS)
+      await expect(adapter.exchangeCode(exchangeInput)).rejects.toMatchObject({
+        code: 'oauth_failed',
+      })
+    })
+
+    it('serves expired keys when the keys cannot be reached at all', async () => {
+      const { adapter, jwksFetches } = await setup('max-age=60')
+      await adapter.exchangeCode(exchangeInput)
+      const respond = fetchMock.getMockImplementation()!
+      fetchMock.mockImplementation(async (input, init) => {
+        if (requestUrl(input) === CONFIG.jwksUrl) throw new TypeError('network down')
+        return respond(input, init)
+      })
+
+      advance(2 * MINUTE_MS)
+      await expect(adapter.exchangeCode(exchangeInput)).resolves.toMatchObject({
+        identity: { googleSubject: 'signed-google-subject' },
+      })
+      expect(jwksFetches).toHaveBeenCalledTimes(1)
+    })
+  })
+})
+
 describe('Google OAuth refresh refusals', () => {
   const fetchMock = vi.fn<typeof fetch>()
 

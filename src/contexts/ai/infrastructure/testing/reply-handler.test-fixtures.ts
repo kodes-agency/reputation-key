@@ -105,6 +105,8 @@ async function createHarness(
       | 'output_truncated'
       | 'completed_without_delivery'
       | 'operation_ambiguous'
+      | 'source_revision_changed'
+      | 'capability_epoch_changed'
     /** The notice the Property's consent was recorded under. Defaults to the served one. */
     consentNotice?: Readonly<{ noticeVersion: string; noticeDigest: string }>
     /**
@@ -150,11 +152,10 @@ async function createHarness(
     options.brandProfileAfterSettlement === undefined
       ? brandProfileAfterProvider
       : options.brandProfileAfterSettlement
-  let brandProfileReadCount = 0
   let settlementAttempted = false
+  let providerCalled = false
   const readCurrentAiReplyBrandProfile = vi.fn(async () => {
-    brandProfileReadCount += 1
-    return brandProfileReadCount === 1
+    return !providerCalled
       ? initialBrandProfile
       : settlementAttempted
         ? brandProfileAfterSettlement
@@ -192,6 +193,7 @@ async function createHarness(
       })
   const { claim, claimExecution, markDelivered } = persistence.operations
   const generateReply = vi.fn(async (request: ReplySuggestionSourceInput) => {
+    providerCalled = true
     const admission = await persistence.settleProviderOperation(request.operationId)
     if (!admission.ok)
       return {
@@ -222,13 +224,9 @@ async function createHarness(
           },
           settlementReceipt: {
             version: 'ai-settlement-receipt-v1' as const,
-
-            grantKid: 'grant-v1',
             operationId: request.operationId,
             permitId: request.permitId,
             attemptNumber: request.attemptNumber,
-            nonce: 'AQIDBA',
-            requestBindingHmac: 'A'.repeat(43),
             disposition: 'success' as const,
             reportedDisposition: 'success' as const,
             providerRetryable: false,
@@ -261,17 +259,29 @@ async function createHarness(
   const release = vi.fn(async () => {})
   const readReplyStateRevision = vi.fn(async () => currentReplyStateRevision)
 
+  const localFrame =
+    options.replyLocalFrame === undefined
+      ? {
+          prefix: '',
+          suffix: '',
+          voiceDigest: SHA,
+          reviewerDisplayName: null,
+          contact: null,
+          signerName: null,
+          signerTitle: null,
+          businessName: 'Example Hotel',
+        }
+      : options.replyLocalFrame
   const dependencies = {
     authorization: persistence.authorization,
     control: persistence.control,
     inference: {
       analyzeReview: vi.fn(),
       generateReply,
-      generateTrend: vi.fn(),
     },
     operations: persistence.operations,
     outputs: {
-      storeAnalysis: vi.fn(),
+      storeAnalysisV3: vi.fn(),
       settleEphemeralReply,
       findCurrentReviewIdsByAttention: vi.fn(),
       readAnalysisForDelivery: vi.fn(),
@@ -318,6 +328,7 @@ async function createHarness(
           sourceEpoch: 2,
           sourceRevision: 5,
           analysisSequence: 1,
+          sentences: [{ number: 1, text: options.reviewText ?? 'A thoughtful review.' }],
         },
       })),
       hasCurrentReply: vi.fn(async () => false),
@@ -347,13 +358,31 @@ async function createHarness(
       readDefaultReplyLanguage: vi.fn(async () => options.propertyReplyLanguage ?? null),
     },
     replyBrandProfiles: { readCurrentAiReplyBrandProfile },
-    ...(options.replyLocalFrame === undefined
-      ? {}
-      : {
-          replyVoices: {
-            resolveLocalFrame: vi.fn(async () => options.replyLocalFrame ?? null),
+    replyVoices: {
+      resolveLocalFrame: vi.fn(async () => localFrame),
+      resolveV2Frame: vi.fn(async () => ({
+        voiceDigest: localFrame?.voiceDigest ?? SHA,
+        reviewerDisplayName: localFrame?.reviewerDisplayName ?? null,
+        contact: localFrame?.contact ?? null,
+        signerName: localFrame?.signerName ?? null,
+        signerTitle: localFrame?.signerTitle ?? null,
+        businessName: localFrame?.businessName ?? 'Example Hotel',
+        candidates: [
+          {
+            prefix: '',
+            suffix: '',
+            thanks: false,
+            choices: {
+              closing: -1,
+              signOff: 0,
+              contactSentence: 0,
+              emoji: 0,
+              includeContact: true,
+            },
           },
-        }),
+        ],
+      })),
+    },
     resolveReplyLanguage: vi.fn(
       async () =>
         options.replyLanguage ?? {

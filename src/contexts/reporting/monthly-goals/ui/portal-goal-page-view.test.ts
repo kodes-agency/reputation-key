@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalPageMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
+import type { PortalGoalPageMonth } from '#/contexts/reporting/monthly-goals/contracts'
 import {
   HOW_IT_COUNTS_TITLE,
   TILES_LABEL,

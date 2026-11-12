@@ -3,7 +3,7 @@
 // reads "the time has ended" and not a row that quietly disappears.
 
 import { describe, expect, it } from 'vitest'
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import { PACKS } from './__fixtures__/immersive-response-fixtures'
 import { advanceServedAt } from './guest-clock'
 import { responseSectionRows } from './immersive-response-rows'

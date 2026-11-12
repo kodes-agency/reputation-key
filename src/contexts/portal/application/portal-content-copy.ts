@@ -38,7 +38,7 @@ import type {
   CopiedPortalLook,
   CopiedPortalOverride,
   CreatePortalCopiedContent,
-} from './ports/portal-command-store.port'
+} from '../publication/portal-command-store-port.server'
 import type { PortalLocalizedOverride } from './ports/portal-experience.repository'
 
 /** Everything read from the Portal being copied. */

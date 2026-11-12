@@ -51,6 +51,8 @@ import type { JobRegistry } from './registry'
 import type { WorkItems } from './work-items.server'
 import { executionKindOf } from './schedule-firing'
 import { runJobWithDeadline } from './job-deadline.server'
+import { withTenantScope, type TenantScopeEntry } from '#/shared/db/tenant-scope.server'
+import { withSystemScope } from '#/shared/db/system-scope.server'
 
 /**
  * Sentinel organization for tenant_cross/none-scope work that has no org at
@@ -375,6 +377,43 @@ export async function gateDispatcherConsumer(
   return toOutcome(decision)
 }
 
+// ── Dispatch scope ───────────────────────────────────────────────────
+
+/**
+ * Organization- and Property-scoped work runs under its Organization's
+ * database scope; tenant-cross and unscoped work is named system work.
+ */
+function withDispatchScope<T>(
+  entry: Extract<TenantScopeEntry, 'job' | 'consumer'>,
+  name: string,
+  row: EntryPointRow | undefined,
+  organizationId: string | null | undefined,
+  work: () => Promise<T>,
+): Promise<T> {
+  const tenantScoped =
+    row?.resourceScope === 'organization' || row?.resourceScope === 'property'
+  if (tenantScoped && organizationId && organizationId !== TENANT_CROSS_ORG) {
+    return withTenantScope({ organizationId, entry, name }, work)
+  }
+  return withSystemScope(`${entry}:${name}`, work)
+}
+
+/** Run an authorized outbox consumer under the scope its catalogue row declares. */
+export function withConsumerScope<T>(
+  consumerName: string,
+  module: string,
+  envelope: ConsumerEvent,
+  work: () => Promise<T>,
+): Promise<T> {
+  return withDispatchScope(
+    'consumer',
+    consumerName,
+    CONSUMER_ROW_BY_NAME.get(module),
+    envelope.organizationId,
+    work,
+  )
+}
+
 // ── Gated worker dispatch ────────────────────────────────────────────
 
 /**
@@ -460,8 +499,17 @@ export function createGatedJobHandler(
       resolveScope,
     )
     if (outcome.kind === 'allow') {
-      return runJobWithDeadline(job.name, timeoutForJob(job.name), (signal) =>
-        handler(job, signal),
+      const payload = isRecord(policyData) ? policyData : {}
+      const row = rowForJob(job.name, executionKind)
+      return withDispatchScope(
+        'job',
+        job.name,
+        row,
+        resolveOrganizationId(payload, row),
+        () =>
+          runJobWithDeadline(job.name, timeoutForJob(job.name), (signal) =>
+            handler(job, signal),
+          ),
       )
     }
     if (outcome.kind === 'deny_terminal') {

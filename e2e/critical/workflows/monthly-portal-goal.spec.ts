@@ -100,12 +100,15 @@ import {
 import {
   MONTHLY_PORTAL_GOALS,
   PORTAL_NAMES,
+  addPortalGoalFor,
   closePortalGoalMonth,
   localToday,
   nextMonthKey,
+  readStoredGoal,
   runMonthlyGoalSinceLastMonth,
   seedPortalGoalProperty,
   seedPortalHistory,
+  stopPortalGoal,
   tearDownPortalGoalProperties,
 } from '../../helpers/portal-goal-fixtures'
 import { requireE2eSeedState } from '../../helpers/seed-state'
@@ -903,43 +906,29 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     seeded.push(propertyId)
     const [reception, , spa] = portals
     if (!reception || !spa) throw new Error('E2E Portals are not seeded')
-    const GOAL_PROGRAMS = 'src/contexts/reporting/server/goal-programs.ts'
     const startMonth = await nextMonthKey(propertyId)
-    const create = (data: Readonly<Record<string, unknown>>) =>
-      callServerFn<{ program: { id: string } }>(page, {
-        file: GOAL_PROGRAMS,
-        exportName: 'createGoalProgram',
-        data: { propertyId, description: null, startMonth, ...data },
+    const create = (
+      portalId: string,
+      metric: 'portal_rating_count' | 'qualified_scans',
+      targetValue: number,
+    ) =>
+      addPortalGoalFor(page, {
+        propertyId,
+        subject: { kind: 'portal', portalId },
+        metric,
+        targetValue,
+        startMonth,
       })
     // Reception's goal, with a month that has closed: 12 of 20, not met.
-    const counted = await create({
-      name: 'Reception ratings',
-      metric: 'portal_rating_count',
-      targetValue: 20,
-      subjects: [{ kind: 'portal', portalId: reception.id }],
-    })
+    const counted = await create(reception.id, 'portal_rating_count', 20)
     const closed = await closePortalGoalMonth({
       propertyId,
-      programId: counted.program.id,
+      programId: counted,
       value: 12,
     })
     // Spa's goal, ended today.
-    const stopped = await create({
-      name: 'Spa scans',
-      metric: 'qualified_scans',
-      targetValue: 30,
-      subjects: [{ kind: 'portal', portalId: spa.id }],
-    })
-    await callServerFn(page, {
-      file: GOAL_PROGRAMS,
-      exportName: 'changeGoalProgramStatus',
-      data: {
-        propertyId,
-        programId: stopped.program.id,
-        status: 'ended',
-        reason: 'E2E an ended portal goal.',
-      },
-    })
+    const stopped = await create(spa.id, 'qualified_scans', 30)
+    await stopPortalGoal(page, propertyId, stopped)
     const endedOn = `Ended on ${formatLocalDate(await localToday(propertyId), { year: false })}`
 
     await page.goto(`/properties/${propertyId}/goals`)
@@ -960,12 +949,12 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     // The goal is a card titled by its name and whom it counted. The month that has
     // closed is one row of it, in plain words (a month the maintenance job opens since
     // is a row of its own).
-    const goal = page
-      .locator('[data-slot="portal-goal-results-goal"]')
-      .filter({ has: page.getByRole('heading', { level: 2, name: 'Reception ratings' }) })
+    const goal = page.locator('[data-slot="portal-goal-results-goal"]').filter({
+      has: page.getByRole('heading', { level: 2, name: 'Reception · Private ratings' }),
+    })
     await expect(goal).toHaveCount(1)
     const month = goal
-      .getByRole('list', { name: 'Each month of Reception ratings' })
+      .getByRole('list', { name: 'Each month of Reception · Private ratings' })
       .getByRole('listitem')
       .filter({ hasText: '12 of 20' })
     await expect(month).toHaveCount(1)
@@ -982,7 +971,7 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       .getByRole('list', { name: 'Ended portal goals' })
       .getByRole('listitem')
     await expect(ended).toHaveCount(1)
-    await expect(ended.getByRole('link', { name: 'Spa scans' })).toBeVisible()
+    await expect(ended.getByRole('link', { name: 'Spa · Scans' })).toBeVisible()
     await expect(ended).toContainText('Scans · target 30 · Spa')
     await expect(ended).toContainText(endedOn)
 
@@ -1018,65 +1007,31 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     seeded.push(propertyId)
     const [reception, restaurant, spa] = portals
     if (!reception || !restaurant || !spa) throw new Error('E2E Portals are not seeded')
-    const GOAL_PROGRAMS = 'src/contexts/reporting/server/goal-programs.ts'
     const startMonth = await nextMonthKey(propertyId)
-    const create = (data: Readonly<Record<string, unknown>>) =>
-      callServerFn<{ program: { id: string } }>(page, {
-        file: GOAL_PROGRAMS,
-        exportName: 'createGoalProgram',
-        data: { propertyId, description: null, startMonth, ...data },
+    const create = (
+      portalId: string,
+      metric: 'portal_rating_count' | 'qualified_scans',
+      targetValue: number,
+    ) =>
+      addPortalGoalFor(page, {
+        propertyId,
+        subject: { kind: 'portal', portalId },
+        metric,
+        targetValue,
+        startMonth,
       })
     // A Portal goal that has not ended, and one that has.
-    await create({
-      name: 'Reception ratings',
-      metric: 'portal_rating_count',
-      targetValue: 20,
-      subjects: [{ kind: 'portal', portalId: reception.id }],
-    })
-    const stopped = await create({
-      name: 'Spa scans',
-      metric: 'qualified_scans',
-      targetValue: 30,
-      subjects: [{ kind: 'portal', portalId: spa.id }],
-    })
-    await callServerFn(page, {
-      file: GOAL_PROGRAMS,
-      exportName: 'changeGoalProgramStatus',
-      data: {
-        propertyId,
-        programId: stopped.program.id,
-        status: 'ended',
-        reason: 'E2E an ended portal goal.',
-      },
-    })
+    await create(reception.id, 'portal_rating_count', 20)
+    const stopped = await create(spa.id, 'qualified_scans', 30)
+    await stopPortalGoal(page, propertyId, stopped)
     // Five more that have not ended, so six in all: the Goals page lists the
     // first five by the Program's name (the Average, Reception's two,
     // Restaurant's two), then the way to see them all; Spa's ratings goal is the
     // sixth, behind it. Both tabs must show exactly that.
-    await create({
-      name: 'Reception scans',
-      metric: 'qualified_scans',
-      targetValue: 30,
-      subjects: [{ kind: 'portal', portalId: reception.id }],
-    })
-    await create({
-      name: 'Restaurant ratings',
-      metric: 'portal_rating_count',
-      targetValue: 20,
-      subjects: [{ kind: 'portal', portalId: restaurant.id }],
-    })
-    await create({
-      name: 'Restaurant scans',
-      metric: 'qualified_scans',
-      targetValue: 30,
-      subjects: [{ kind: 'portal', portalId: restaurant.id }],
-    })
-    await create({
-      name: 'Spa ratings',
-      metric: 'portal_rating_count',
-      targetValue: 20,
-      subjects: [{ kind: 'portal', portalId: spa.id }],
-    })
+    await create(reception.id, 'qualified_scans', 30)
+    await create(restaurant.id, 'portal_rating_count', 20)
+    await create(restaurant.id, 'qualified_scans', 30)
+    await create(spa.id, 'portal_rating_count', 20)
     await callServerFn(page, {
       file: MONTHLY_PORTAL_GOALS,
       exportName: 'addPortalGoal',
@@ -1688,18 +1643,7 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       new RegExp(`[Ss]et ${changed} a month from ${nextName}$`, 'u'),
     )
     // Still Reception's goal: the change kept its one subject.
-    const stored = await callServerFnGet<{
-      version: { targetValue: number }
-      assignments: ReadonlyArray<{
-        programVersionId: string
-        subject: { kind: string; portalId?: string }
-      }>
-      versions: ReadonlyArray<{ id: string; version: number }>
-    }>(page, {
-      file: 'src/contexts/reporting/server/goal-programs.ts',
-      exportName: 'getGoalProgram',
-      data: { propertyId, programId },
-    })
+    const stored = await readStoredGoal(propertyId, programId)
     expect(stored.version.targetValue).toBe(changed)
     const head = stored.versions.reduce((latest, version) =>
       version.version > latest.version ? version : latest,

@@ -246,19 +246,9 @@ export const Running: Story = {
   play: async ({ canvasElement }) => expectRunning(within(canvasElement), canvasElement),
 }
 
-export const Phone390: Story = {
-  ...Running,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-}
-
 export const Phone320: Story = {
   ...Running,
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-}
-
-export const OnATablet: Story = {
-  ...Running,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
 }
 
 export const OnADesktop: Story = {
@@ -702,4 +692,9 @@ export const NothingMoreToAdd: Story = {
       ),
     ).toBeNull()
   },
+}
+
+export const OnATablet: Story = {
+  ...Running,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }

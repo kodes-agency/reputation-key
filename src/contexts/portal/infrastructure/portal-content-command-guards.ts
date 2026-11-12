@@ -14,7 +14,7 @@ import type {
   SavePortalLinktreeSettingsCommand,
   UpdatePortalCommand,
   UpdatePortalLinkCommand,
-} from '../application/ports/portal-command-store.port'
+} from '../publication/portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { sameInstant } from './portal-command-guards'
 import { recordPortalContentChange, type PortalPageEditEntry } from './portal-page-edits'

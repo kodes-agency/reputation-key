@@ -19,6 +19,7 @@
 // two readings that share a local date but straddle UTC midnight, and one
 // reading ingested a month after it happened.
 
+import { metricRegistry } from '../readings/contracts'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -38,7 +39,6 @@ import {
 import { METRIC_VERSION_IDS } from '../application/public-api'
 import { createPortalAnalyticsRepository } from './portal-analytics.repository.server'
 import { createAtomicMetricCommandStore } from '../readings/metric-command-store.server'
-import { createMetricRegistryRepository } from '../infrastructure/repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from '../infrastructure/repositories/property-local-date'
 import { recordMetrics } from '../application/use-cases/record-metric'
 import { onQualifiedScanRecordedDurably } from '../readings/record-portal-metric.server'
@@ -381,7 +381,7 @@ describe('governed Portal analytics repository (integration)', () => {
   it('marks qualified-scan evidence ready after one atomic consumer delivery', async () => {
     const project = recordMetrics({
       commandStore: createAtomicMetricCommandStore(db, randomUUID),
-      registry: createMetricRegistryRepository(),
+      registry: metricRegistry,
       clock: () => ATOMIC_COMPUTED_AT,
       idGen: () => metricReadingId(randomUUID()),
       resolvePropertyLocalDate: createPropertyLocalDateResolver(db),

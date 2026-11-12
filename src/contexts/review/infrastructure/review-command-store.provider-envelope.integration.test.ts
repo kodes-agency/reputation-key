@@ -12,6 +12,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createReviewObservationRepository } from './repositories/review-observation.repository'
+import { readObservationHistory } from './testing/review-observation-history'
 
 // On 2026-10-23 Google started sending translated reviews original-first. The
 // parser of the day stored the whole envelope as the guest's text, which read as
@@ -169,7 +170,7 @@ describe('a review stored with a provider envelope glued to its text', () => {
     expect(repaired.sourceRevision).toBe(2)
     expect(reread.sourceRevision).toBe(2)
     const history = createReviewObservationRepository(getDb())
-    const observations = await history.findObservations(REVIEW, ORG)
+    const observations = await readObservationHistory(getDb(), REVIEW, ORG)
     expect(
       observations.map((entry) => [
         entry.observationSequence,
@@ -230,7 +231,7 @@ describe('a review whose glued text Google never updated', () => {
     expect(repaired.sourceRevision).toBe(1)
     const history = createReviewObservationRepository(getDb())
     expect(
-      (await history.findObservations(REVIEW, ORG)).map((entry) => [
+      (await readObservationHistory(getDb(), REVIEW, ORG)).map((entry) => [
         entry.materialRevision,
         entry.comparison,
       ]),

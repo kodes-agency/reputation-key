@@ -3,14 +3,14 @@ status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
 corrected_on: 2026-10-13
-amended_on: 2026-11-07
+amended_on: 2026-11-11
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-07
-**Version:** 3.6
+**Effective date:** 2026-11-11
+**Version:** 3.7
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -296,9 +296,8 @@ where the provider is certified, the EU-U.S. Data Privacy Framework.
 
 ## 5. Independently controlled AI features
 
-Review Analysis, Reply Drafting, and Property Trends are independent
-Property-level controlled capabilities. Property Trends depends on Review
-Analysis. None becomes available merely because code exists.
+Review Analysis and Reply Drafting are independent Property-level controlled
+capabilities. Neither becomes available merely because code exists.
 
 Two providers, OpenAI and Anthropic, can run Review Analysis and Reply Drafting.
 Reputation Key chooses which handles each kind of work and changes the choice
@@ -326,7 +325,7 @@ Review Analysis keeps topics, how strongly a guest felt, a short cause, the
 numbers of the sentences each result comes from, a flag for whether those
 sentences name a team member or someone else (never the name), an Urgent
 reason, and the business category Google lists for the Property. The category
-is used as AI context and to pick example words, and is shown during Google import.
+is used as AI context and to pick example words, is shown during Google import, and is removed when Google is disconnected.
 Review Analysis does not copy the review text. Guest voice
 reads guests' words from the review text the Service holds when a manager opens
 the page. It does not store them or send them by email.
@@ -343,22 +342,22 @@ The 24-month retention for Reporting's readings of Guest facts is not enforced b
 The following accepted horizons are implemented or represented in the
 repository:
 
-| Information class                                                                      | Current repository horizon or trigger                                                                                                                                                      |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guest response session                                                                 | No more than 24 hours, counted as explained below this table                                                                                                                               |
-| Guest visit and destination-selection receipts                                         | 30 days; they hold the Guest session identifier, as explained below this table                                                                                                             |
-| Guest private-feedback text                                                            | No more than 90 days; same signed session may withdraw for 24 hours                                                                                                                        |
-| Canonical de-identified Guest response fact/tombstone                                  | 24 calendar months from the initial rating                                                                                                                                                 |
-| Guest session diagnostic pseudonym                                                     | Redacted after 24 hours                                                                                                                                                                    |
-| Guest network-pressure record                                                          | Deleted at exact seven-day expiry                                                                                                                                                          |
-| Published outbox facts, consumer receipts, sync/refresh runs, inbound webhook receipts | 30 days                                                                                                                                                                                    |
-| Terminal notifications/email/digest evidence                                           | 90 days; open retry work is retained                                                                                                                                                       |
-| Recent Activity                                                                        | 90 days                                                                                                                                                                                    |
-| Operational Action History                                                             | Operational Action History has no active deletion rule                                                                                                                                     |
-| Google-controlled source content                                                       | Per-row source-policy expiry; intended maximum 30 days from latest fetch                                                                                                                   |
-| Optional masked Bug layout                                                             | Application expiry no later than 30 days after the report is submitted, then deleted by a daily clean-up; kept in the Service's own database and not sent to the error-monitoring provider |
-| Screenshot attached to a beta feedback report                                          | Not kept by the Service; sent to the error-monitoring provider with the report and kept by the provider with it                                                                            |
-| Organization Export object                                                             | At most seven days; single-use retrieval authority at most 24 hours                                                                                                                        |
+| Information class                                                                      | Current repository horizon or trigger                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guest response session                                                                 | No more than 24 hours, counted as explained below this table                                                                                                                                                |
+| Guest visit and destination-selection receipts                                         | 30 days; they hold the Guest session identifier, as explained below this table                                                                                                                              |
+| Guest private-feedback text                                                            | No more than 90 days; same signed session may withdraw for 24 hours                                                                                                                                         |
+| Canonical de-identified Guest response fact/tombstone                                  | 24 calendar months from the initial rating                                                                                                                                                                  |
+| Guest session diagnostic pseudonym                                                     | Redacted after 24 hours                                                                                                                                                                                     |
+| Guest network-pressure record                                                          | Deleted at exact seven-day expiry                                                                                                                                                                           |
+| Published outbox facts, consumer receipts, sync/refresh runs, inbound webhook receipts | 30 days                                                                                                                                                                                                     |
+| Terminal notifications/email/digest evidence                                           | 90 days; open retry work is retained                                                                                                                                                                        |
+| Recent Activity                                                                        | 90 days                                                                                                                                                                                                     |
+| Operational Action History                                                             | Operational Action History has no active deletion rule                                                                                                                                                      |
+| Google-controlled source content                                                       | Per-row source-policy expiry; intended maximum 30 days from latest fetch                                                                                                                                    |
+| Optional masked Bug layout                                                             | Application expiry no later than 30 days after the report is submitted, then deleted by a daily clean-up; kept in the Service's own database and not sent to the error-monitoring provider                  |
+| Screenshot attached to a beta feedback report                                          | Not kept by the Service; sent to the error-monitoring provider with the report and kept by the provider with it                                                                                             |
+| Organization exports prepared through the manual procedure                             | Provided on request within seven days from verified identity; a 24-hour download link to a file in the private bucket, deleted after download and after seven days at the latest, never an email attachment |
 
 A Guest response session has a random session identifier. It contains no name,
 contact detail, or network address. The session ends no more than 24 hours
@@ -387,18 +386,16 @@ The accepted rules for the remaining information classes are:
   months;
 - there are no legacy Guest rows: the beta database started empty on
   2026-09-05;
-- account and member data is kept for the life of the membership and purged by
-  the Organization closure workflow;
+- account and member data is kept for the life of the membership and purged
+  through Reputation Key’s manual Organization closure procedure;
 - manager-authored replies and notes, Portal configuration, and publication
   history are kept for the life of the Organization and purged at closure;
 - Contact Requests are disabled;
 - provider reply content follows the 30-day source-content policy;
-- de-identified AI derivatives are used and shown for no more than 24 months and are withheld immediately when authorization is withdrawn. The results listed in section 5, except the stored business category, expire after 730 days and are deleted by daily cleanup. A group of similar causes expires with its newest result and is deleted by daily cleanup once no retained contribution refers to it. Withdrawal immediately denies access; background processing then purges stored AI results;
+- de-identified AI derivatives are used and shown for no more than 24 months and are withheld immediately when authorization is withdrawn. The results listed in section 5, except the stored business category, expire after 730 days and are deleted by daily cleanup. A group of similar causes expires with its newest result and is deleted by daily cleanup once no retained contribution refers to it. Withdrawal immediately denies access; background processing then purges stored AI results. The stored business category is cleared when Google is disconnected and when AI results are purged; no automatic retention rule removes it by age;
 - application logs are content-minimized and held by the hosting provider for
   no more than 30 days;
-- there is no quarantine retention class because no quarantine tables remain;
-- Organization Export objects are kept for no more than seven days, and their
-  retrieval links for no more than 24 hours.
+- there is no quarantine retention class because no quarantine tables remain.
 
 Database backups are deleted on a fixed schedule within 30 days: daily copies after six days and weekly copies after 27 days. Database
 backups and point-in-time recovery are enabled. Automatic recording and
@@ -430,7 +427,13 @@ within 30 days.
 To escalate a request, write to the same address and mark the message
 “escalation.” A Participant or Guest may also contact the competent supervisory
 authority. The backup rules in section 6 apply to erasure requests. Organization
-Export is not available as a self-service workflow during the beta.
+exports, closure, permanent Property erasure and privacy requests are handled by
+the owner through the operator script, not through self-service account
+controls. Write to [denev@kodes.agency](mailto:denev@kodes.agency) using the
+identity checks above. We answer within 30 days and provide an export on request
+within seven days from verified identity. Exports are delivered as a 24-hour download link to a file in the private bucket, deleted after download and after seven days at the latest, never as an email attachment. Permanent Property erasure must be requested by an AccountAdmin. Organization
+closure includes suspension, mandatory warnings, an export on request and
+confirmed erasure.
 
 ## 8. Security and deployment posture
 
@@ -444,7 +447,7 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-11-07 and is version 3.6. It replaces version 3.5, effective 2026-11-06, which replaced version 3.4, effective 2026-11-03, which replaced version 3.3, effective 2026-11-02, which replaced version 3.2, effective 2026-11-02, which replaced version 3.1, effective 2026-11-01, which replaced version
+This notice takes effect on 2026-11-11 and is version 3.7. It replaces version 3.6, effective 2026-11-07, which replaced version 3.5, effective 2026-11-06, which replaced version 3.4, effective 2026-11-03, which replaced version 3.3, effective 2026-11-02, which replaced version 3.2, effective 2026-11-02, which replaced version 3.1, effective 2026-11-01, which replaced version
 3.0, which took effect on 2026-10-30 and had replaced version
 2.5, which took effect on 2026-10-16 and had replaced version 2.4, which took
 effect on 2026-10-16 and had replaced version 2.3, which took
@@ -574,3 +577,5 @@ accountable owner's decision for the two closed-beta Organizations the owner
 controls. Existing users are not asked to accept again.
 
 Version 3.6 (2026-11-07) explains that unusually busy periods or abuse can prevent a private response from being stored while leaving thank-you and Google Review available. Correction and withdrawal apply to stored responses. The submitted rating for an unstored response remains only in the signed session cookie for no more than 24 hours; admission records contain no rating or text and follow the existing seven-day network-pressure retention. This notice takes effect on 2026-11-07 and is version 3.6. This revision takes effect with the response-admission release, without a waiting period under the accountable owner's closed-beta waiver of 2026-11-07.
+
+Version 3.7 (2026-11-11) states that Property Trends has ended, so Review Analysis and Reply Drafting are the two Property AI choices, and that the stored business category is removed when Google is disconnected and when AI results are purged. It replaces the Organization Export object retention row and the closure workflow wording with the manual procedure: exports, closure, permanent Property erasure and privacy requests are handled by the owner through the operator script, with an export provided within seven days from verified identity as a 24-hour download link that is deleted after download and after seven days at the latest, never as an email attachment. It takes effect on publication without a waiting period, on the accountable owner's decision for the two closed-beta Organizations the owner controls. Existing users are not asked to accept again.

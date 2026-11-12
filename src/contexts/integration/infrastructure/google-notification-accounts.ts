@@ -5,7 +5,7 @@ import type { Clock } from '#/shared/domain/clock'
 import { withReservedPoolClients } from '#/shared/db/pool-client-reservation'
 import { googleNotificationAccounts } from '#/shared/db/schema/google-notification-account.schema'
 import type { GoogleNotificationAccounts } from '../application/ports/google-notification-accounts.port'
-import { createGbpApiError } from '../domain/gbp-api-error'
+import { createGoogleCallError } from '../domain/google-call-error'
 
 const key = (accountId: string) => createHash('sha256').update(accountId).digest('hex')
 
@@ -36,7 +36,7 @@ export function createGoogleNotificationAccounts(
           )
           acquired = result.rows[0]?.acquired === true
           if (!acquired)
-            throw createGbpApiError('subscribe', 'upstream_error', {
+            throw createGoogleCallError('subscribe', 'upstream_error', {
               executionAdmissionCode: 'coordination_unavailable',
               dispatch: 'not_sent',
             })

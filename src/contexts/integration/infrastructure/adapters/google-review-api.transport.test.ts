@@ -16,6 +16,7 @@ import type {
   GoogleAuthorizedProviderExecutor,
   GoogleProviderExecutionResult,
 } from '../../application/ports/google-authorized-provider-executor.port'
+import { translatedGoogleReviewApi } from '#/contexts/review/application/public-api'
 import { createGoogleReviewApiAdapter } from './google-review-api.adapter'
 
 const NOW = new Date('2026-08-12T12:00:00Z')
@@ -70,7 +71,7 @@ function createAdapter(execute: GoogleAuthorizedProviderExecutor['execute']) {
     accessToken: 'synthetic-access-token',
     authorization: AUTHORIZATION,
   }))
-  const api = createGoogleReviewApiAdapter({
+  const raw = createGoogleReviewApiAdapter({
     connectionRepo,
     logger: createMockLogger(),
     cursorStore: {
@@ -84,7 +85,7 @@ function createAdapter(execute: GoogleAuthorizedProviderExecutor['execute']) {
     authorizeReviewSyncProviderCall: authorize,
     nowMs: () => NOW.getTime(),
   })
-  return { api, authorize }
+  return { api: translatedGoogleReviewApi(raw), raw, authorize }
 }
 
 function response(status: number, body: Uint8Array): GoogleProviderExecutionResult {
@@ -159,6 +160,23 @@ describe('single-review provider transport', () => {
     })
     expect(body.every((byte) => byte === 0)).toBe(true)
     expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws the provider failure itself for the use case to translate', async () => {
+    const body = new TextEncoder().encode(
+      JSON.stringify({ error: { status: 'PERMISSION_DENIED', message: 'synthetic' } }),
+    )
+    const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(async () =>
+      response(403, body),
+    )
+    const { raw } = createAdapter(execute)
+    await expect(raw.getReview(REQUEST)).rejects.toMatchObject({
+      _tag: 'GbpApiError',
+      code: 'permission_denied',
+      dispatch: 'answered',
+      providerStatus: 403,
+      providerErrorStatus: 'PERMISSION_DENIED',
+    })
   })
 
   it.each([

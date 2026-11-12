@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { expect, spyOn, userEvent, waitFor, within } from 'storybook/test'
 import { withRole } from '../../../../../.storybook/AuthedRouterDecorator'
-import { merchantAiNoticeUpdateQuery } from '#/components/features/settings/merchant-ai-notice-update-query'
+import { merchantAiNoticeUpdateQuery } from '#/contexts/identity/consent/ui/merchant-ai-notice-update-query'
 import { PRODUCT_UPDATES } from '#/shared/whats-new/entries'
 import {
   aiNoticeStoryState,

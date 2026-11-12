@@ -109,10 +109,7 @@ const SELECTABLE_BUTTONS = [
   // The disclosure occupies only the tile’s text, beside its separate move and menu controls.
   ['src/contexts/portal/editor/ui/link-tree/linktree-tile.tsx', 'picker-tile'],
   // The selectable version rows keep their multiline publication evidence.
-  [
-    'src/components/features/portal/portal-history/portal-versions-rail.tsx',
-    'picker-tile',
-  ],
+  ['src/contexts/portal/workspace/ui/portal-versions-rail.tsx', 'picker-tile'],
   // The language choices keep their selected border and inline fallback marker.
   [
     'src/components/features/portal/portal-new/portal-new-languages-field.tsx',

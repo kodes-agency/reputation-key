@@ -46,6 +46,7 @@ import {
   notificationEmailAddressKeys,
 } from './composition/read-and-notify-contexts'
 import { buildOperationalReadout } from './composition/operational-readout'
+import { declareRequestProcess } from '#/shared/db/tenant-scope.server'
 import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
 import {
   createDeferredMemberAuthorityLifecycle,
@@ -93,7 +94,6 @@ function buildContainer(
     memberAuthorityLifecycle,
     () => property,
     () => portal,
-    () => integration,
   )
 
   // ARC-03-T10: operators refuse Google; application processes require its substrate.
@@ -134,7 +134,6 @@ function buildContainer(
       propertyResponsibility: property.responsibility,
       portalResponsibility: portal.responsibility,
       inboxAssignments: inbox.assignments,
-      propertyAccess: identity.authority,
       eligibility: {
         listActiveManagers: identity.publicApi.managerFacts.listActiveManagers,
         getAccessiblePropertyIds: identity.publicApi.people.getAccessiblePropertyIds,
@@ -191,7 +190,6 @@ function buildContainer(
       policyStoreVersion: identity.policy.currentVersion,
     },
     notification: {
-      readMissingNotificationCount: notification.publicApi.readMissingNotificationCount,
       readNotificationDeliveryLag: notification.publicApi.readNotificationDeliveryLag,
     },
     guestObservationLoss: guest.observationLoss,
@@ -279,6 +277,7 @@ export function getContainer(): Container {
   if (store[CONTAINER_KEY]) return store[CONTAINER_KEY]
   assertContainerCanBuild()
   claimProcessContainer('web')
+  declareRequestProcess()
   try {
     const container = (store[CONTAINER_KEY] = createContainer())
     markContainerReady()

@@ -2,8 +2,8 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { durableConsumersFor } from '#/shared/governance/event-job-catalogue'
-import { createGoogleImportV2Processor } from '../application/google-import-v2-processor'
-import { createGoogleImportV2ClaimReaper } from '../application/google-import-v2-claim-reaper'
+import { createGoogleImportProcessor } from '../application/google-import-processor'
+import { createGoogleImportClaimReaper } from '../application/google-import-claim-reaper'
 import type { Job } from 'bullmq'
 import { properties } from '#/shared/db/schema/property.schema'
 import { portalPageEdits } from '#/shared/db/schema/portal-publication.schema'
@@ -42,7 +42,7 @@ import {
 import { completeImportsForRestore } from './import-completion.server'
 import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
+import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -54,8 +54,8 @@ import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.sch
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import type { GoogleImportV2Intent } from '../application/ports/google-import-v2-store.port'
-import { createGoogleImportV2Lifecycle } from '../application/google-import-v2-lifecycle'
+import type { GoogleImportIntent } from '../application/ports/google-import-store.port'
+import { createGoogleImportLifecycle } from '../application/google-import-lifecycle'
 import { createImportStore } from './import-store.server'
 
 const NOW = new Date('2026-10-20T10:00:00.000Z')
@@ -67,7 +67,7 @@ const CONNECTION_B = randomUUID()
 const ORGS = [ORG_A, ORG_B]
 const minuteAfter = (at: Date) => new Date(at.getTime() + 60_000)
 
-function intent(organizationId = ORG_A, count = 1, now = NOW): GoogleImportV2Intent {
+function intent(organizationId = ORG_A, count = 1, now = NOW): GoogleImportIntent {
   const requestId = randomUUID()
   const connectionId = organizationId === ORG_A ? CONNECTION_A : CONNECTION_B
   return {
@@ -227,7 +227,7 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       return binding ? { sourceEpoch: binding.sourceEpoch } : null
     },
   }
-  async function createProperty(work: GoogleImportV2Intent) {
+  async function createProperty(work: GoogleImportIntent) {
     const item = work.items[0]!
     return propertyApi().createBoundProperty({
       organizationId: organizationId(work.organizationId),
@@ -250,13 +250,13 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
     })
   }
   const lifecycle = (now: Date) =>
-    createGoogleImportV2Lifecycle({
+    createGoogleImportLifecycle({
       store,
       propertyBindingApi: propertyApi(),
       clock: () => now,
       newEventId: randomUUID,
     })
-  async function bindingEvent(work: GoogleImportV2Intent): Promise<ConsumerEvent> {
+  async function bindingEvent(work: GoogleImportIntent): Promise<ConsumerEvent> {
     const [row] = await db
       .select()
       .from(outboxEvents)
@@ -485,7 +485,7 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       consumer: IMPORT_DISPLAY_NAME_CONSUMER,
     })
     const recoveryAt = new Date(work.items[0]!.effectDeadlineAt.getTime() + 1)
-    const processor = createGoogleImportV2Processor({
+    const processor = createGoogleImportProcessor({
       store,
       propertyBindingApi: {
         ...propertyApi(),
@@ -503,7 +503,7 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       newClaimFence: randomUUID,
       logger: createMockLogger(),
     })
-    const recover = createGoogleImportV2ClaimReaper({
+    const recover = createGoogleImportClaimReaper({
       store,
       processItem: processor.process,
       queue: {

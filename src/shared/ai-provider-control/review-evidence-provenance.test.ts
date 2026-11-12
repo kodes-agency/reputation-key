@@ -6,7 +6,6 @@
 // numbers the provider cited, and the display splits the raw text again.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { parseAiGatewayRouteResponse } from '#/shared/ai-gateway-transport-contract'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
@@ -21,11 +20,12 @@ import { locateReviewSentences } from '#/shared/review-sentences'
 import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from '#/shared/review-analysis-v3'
 import {
   evidencePreparer,
-  fakeGrant,
+  fakeAdmission,
   fakeSettlementReceipt,
   openAiRequestOf,
   preparableV3Request,
   v3TestProfile,
+  checkedAnalysisResponse,
 } from './review-evidence.test-fixtures'
 
 beforeEach(() => {
@@ -76,8 +76,8 @@ function runThroughTheGateway(
     mentions,
     urgent: null,
   })
-  const response = parseAiGatewayRouteResponse(
-    accepted?.buildResponse(fakeSettlementReceipt(), fakeGrant()),
+  const response = checkedAnalysisResponse(
+    accepted?.buildResponse(fakeSettlementReceipt(), fakeAdmission()),
   )
   if (response.status !== 'success' || !('answer' in response.result)) {
     throw new Error('expected a v3 answer')
@@ -227,8 +227,8 @@ describe('review evidence provenance', () => {
       ],
       urgent: null,
     })
-    const response = parseAiGatewayRouteResponse(
-      accepted?.buildResponse(fakeSettlementReceipt(), fakeGrant()),
+    const response = checkedAnalysisResponse(
+      accepted?.buildResponse(fakeSettlementReceipt(), fakeAdmission()),
     )
 
     expect(response).toMatchObject({

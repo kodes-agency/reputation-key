@@ -13,18 +13,17 @@
 // it names is only where the admin is sent to decide it.
 
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
-import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   organizationId,
   portalApprovedDestinationId,
   propertyId,
-  unbrand,
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import type { ConsumerResult } from '#/shared/outbox/consumer-registry'
+import { deliverNotices, type NoticeDeliveryDeps } from '../notify/consumers.server'
 import {
   buildPropertyPayload,
   type PropertyPayloadDeps,
@@ -34,13 +33,12 @@ export const ON_PORTAL_DESTINATION_PENDING_CONSUMER =
   'notification.on-portal-destination-pending' as const
 
 export type PortalDestinationNotificationConsumerDeps = PropertyPayloadDeps &
+  NoticeDeliveryDeps &
   Readonly<{
-    queue: NotificationJobEnqueuePort
     userLookup: Pick<UserLookupPort, 'findByRole'>
     /** Portal-owned: the site's current state, host and the Portal to open. */
     destinations: Pick<PortalPublicApi, 'findDestinationApprovalNotificationFacts'>
     logger: LoggerPort
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
   }>
 
 type Payload = Readonly<{
@@ -74,7 +72,7 @@ function parse(event: ConsumerEvent): Payload {
 export async function handleNotificationPortalDestinationPending(
   deps: PortalDestinationNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<ConsumerResult> {
   const payload = parse(event)
   const organization = organizationId(payload.organizationId)
   const property = propertyId(payload.propertyId)
@@ -91,12 +89,9 @@ export async function handleNotificationPortalDestinationPending(
     site.approvalState !== 'pending' ||
     site.portal === null
   ) {
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      ON_PORTAL_DESTINATION_PENDING_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
+    return deliverNotices(deps, event, ON_PORTAL_DESTINATION_PENDING_CONSUMER, [], {
+      status: 'obsolete',
+    })
   }
 
   const admins = await deps.userLookup.findByRole(organization, 'AccountAdmin')
@@ -118,34 +113,23 @@ export async function handleNotificationPortalDestinationPending(
     ...(site.otherPortalCount > 0 ? { otherPortalCount: site.otherPortalCount } : {}),
   }
 
-  await Promise.all(
-    recipients.map((recipient) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipient,
-          organizationId: organization,
-          propertyId: property,
-          type: 'portal.link_approval' as const,
-          resourceType: 'portal_destination' as const,
-          resourceId: payload.approvedDestinationId,
-          eventId: event.eventId,
-          payload: notice,
-          // Decided by the role alone, rechecked at delivery: whoever is no
-          // longer an account admin by then hears nothing.
-          audience: { kind: 'account_admin' as const },
-        },
-        { jobId: `${event.eventId}-${unbrand(recipient)}` },
-      ),
-    ),
-  )
-
-  await deps.receipts.insertReceipt(
-    event.eventId,
+  return deliverNotices(
+    deps,
+    event,
     ON_PORTAL_DESTINATION_PENDING_CONSUMER,
-    'applied',
+    recipients.map((recipient) => ({
+      userId: recipient,
+      organizationId: organization,
+      propertyId: property,
+      type: 'portal.link_approval' as const,
+      resourceType: 'portal_destination' as const,
+      resourceId: payload.approvedDestinationId,
+      payload: notice,
+      // Decided by the role alone, rechecked at delivery: whoever is no
+      // longer an account admin by then hears nothing.
+      audience: { kind: 'account_admin' as const },
+    })),
   )
-  return { status: 'applied' }
 }
 
 export function registerPortalDestinationNotificationConsumer(

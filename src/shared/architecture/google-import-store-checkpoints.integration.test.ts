@@ -28,11 +28,11 @@ import {
   IMPORT_TEST_DAY_MS,
   IMPORT_TEST_ENCRYPTION_KEY,
 } from '#/shared/testing/google-import-acceptance.test-fixtures'
-import { PROPERTY_IMPORT_RETENTION_RELEASED_EVENT } from '#/contexts/integration/application/google-import-v2-contract'
+import { PROPERTY_IMPORT_RETENTION_RELEASED_EVENT } from '#/contexts/integration/application/google-import-contract'
 
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
-import type { GoogleImportV2Store } from '#/contexts/integration/application/ports/google-import-v2-store.port'
-import * as bindingModule from '#/contexts/property/infrastructure/property-google-binding-store'
+import type { GoogleImportStore } from '#/contexts/integration/application/ports/google-import-store.port'
+import * as bindingModule from '#/contexts/property/profile/google-binding-store.server'
 import * as importStoreModule from '#/contexts/integration/imports/import-store.server'
 import { createTokenEncryptionAdapter } from '#/contexts/integration/infrastructure/adapters/token-encryption.adapter'
 import {
@@ -189,7 +189,7 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
 
     const originalBindingFactory = bindingModule.createPropertyGoogleBindingStore
     let binding: ReturnType<typeof originalBindingFactory> | undefined
-    let store: GoogleImportV2Store | undefined
+    let store: GoogleImportStore | undefined
     const beforeWrite = vi.fn(async () => undefined)
     const afterWrite = vi.fn(async () => undefined)
     const createBoundProperty = vi.fn<

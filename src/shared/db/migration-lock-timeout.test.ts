@@ -21,7 +21,7 @@ function recordingSession() {
 }
 
 describe('boundMigrationLockWait', () => {
-  // The Better Auth track's pool calls this for each connection it opens and
+  // The Better Auth runner's pool calls this for each connection it opens and
   // never lifts it: those sessions only manage schema.
   it('sets the bound on the session and leaves it there', async () => {
     const { session, statements } = recordingSession()
@@ -42,8 +42,8 @@ describe('withMigrationLockTimeout', () => {
     })
 
     expect(applied).toBe('applied')
-    // The concurrent-index sidecar runs next on this session and may wait for
-    // an old transaction far longer than a migration may wait for a lock.
+    // Later deploy steps run on this session and may wait for an old
+    // transaction far longer than a migration may wait for a lock.
     expect(statements).toEqual([
       'SET lock_timeout = 5000',
       'apply journal',

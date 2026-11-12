@@ -4,7 +4,7 @@
 // over every pack.
 
 import { describe, expect, it } from 'vitest'
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import { DEADLINE_WORDING, PACKS } from './__fixtures__/immersive-response-fixtures'
 import { responseSectionRows, type ResponseClock } from './immersive-response-rows'
 
@@ -117,6 +117,20 @@ describe.each(PACKS)('the rows of "Your response" [$locale]', (pack) => {
     expect(note?.detail).toBe(pack.copy.windowEndedNote)
     expect(all?.detail).toBe(pack.copy.windowEndedAll)
     expect(all?.note).toBe('')
+  })
+
+  it('says the time has ended when the deadline has passed even if the window still reads available', () => {
+    const [change, note, all] = rowsFor(pack, {
+      correctionDeadline: PAST,
+      feedbackWithdrawalDeadline: PAST,
+      responseWithdrawalDeadline: PAST,
+    })
+    expect([change?.actionable, note?.actionable, all?.actionable]).toEqual([
+      false,
+      false,
+      false,
+    ])
+    expect(change?.detail).toBe(pack.copy.windowEndedChange)
   })
 
   it('also says the time has ended when the server sent no deadline at all', () => {

@@ -1,21 +1,12 @@
 // A notice whose work was finished before it landed, or before its mail left.
 //
 // Settlement retires the rows that exist when the settling fact is handled.
-// The insert-notification job runs on a slower, rate-limited queue, so an
-// escalation resolved (or a reply approved) seconds after it was raised can
-// be settled before its notice exists — and the late row then asked for work
-// nobody was waiting on, urgent email included (N02, N06, N30, N47).
+// An escalation resolved (or a reply approved) after its notice was written
+// can leave a row, or a queued mail, that asks for work nobody is waiting on.
 
 import { describe, expect, it, vi } from 'vitest'
-import type { Job } from 'bullmq'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { buildFakeInsertNotificationDeps } from '../../application/use-cases/test-fixtures'
-import type { NotificationWorkState } from '../../application/notification-work-state'
-import { withOutboxNotificationDelivery } from '../outbox-notification-delivery'
-import {
-  createInsertNotificationHandler,
-  type InsertNotificationJobData,
-} from './insert-notification.job'
+import { type NotificationWorkState } from '../../application/ports/notification-work-state.port'
 import {
   createSendEmailsHandler,
   type SendEmailJobData,
@@ -39,79 +30,10 @@ const workState = (
   answer: Awaited<ReturnType<NotificationWorkState['isWaiting']>>,
 ): NotificationWorkState => ({
   isWaiting: vi.fn(async () => answer),
+  isWaitingMany: vi.fn(async (subjects: ReadonlyArray<unknown>) =>
+    subjects.map(() => answer),
+  ),
   finished: vi.fn(async ({ types }) => types),
-})
-
-const escalated: InsertNotificationJobData = {
-  userId: userId('user-1'),
-  organizationId: ORG,
-  propertyId: PROPERTY,
-  type: 'inbox.escalated',
-  resourceType: 'inbox_item',
-  resourceId: 'item-1',
-  eventId: 'event-1',
-  payload: { propertyName: 'Riverside Hotel', platform: 'google' },
-  audience: {
-    kind: 'responsible_scope',
-    scope: { kind: 'property', propertyId: PROPERTY as string },
-  },
-}
-
-async function durable(data: InsertNotificationJobData) {
-  let captured: unknown
-  await withOutboxNotificationDelivery(
-    { add: vi.fn(async (_name, queued) => void (captured = queued)) },
-    { insertReceipt: vi.fn(async () => {}) },
-    {
-      eventType: 'inbox.inbox_item.escalated',
-      consumerName: 'notification.on-inbox-inbox_item-escalated',
-    },
-  ).add('insert-notification', data)
-  return captured as InsertNotificationJobData
-}
-
-describe('a notice materialized after its work was done', () => {
-  const deliverySettlement = () => ({
-    settleAuthorized: vi.fn(async () => 'applied' as const),
-    settleObsolete: vi.fn(async () => {}),
-  })
-
-  it('is settled as obsolete: no row and no email', async () => {
-    const settlement = deliverySettlement()
-    const work = workState(false)
-    const handler = createInsertNotificationHandler({
-      ...buildFakeInsertNotificationDeps(),
-      authorizeAudience: vi.fn(async () => true),
-      deliverySettlement: settlement,
-      workState: work,
-    })
-
-    await handler({ data: await durable(escalated) } as Job<InsertNotificationJobData>)
-
-    expect(work.isWaiting).toHaveBeenCalledWith({
-      organizationId: ORG,
-      type: 'inbox.escalated',
-      resourceId: 'item-1',
-      audience: escalated.audience,
-      recipient: { userId: escalated.userId, propertyId: escalated.propertyId },
-    })
-    expect(settlement.settleObsolete).toHaveBeenCalled()
-    expect(settlement.settleAuthorized).not.toHaveBeenCalled()
-  })
-
-  it('is written while the work still waits', async () => {
-    const settlement = deliverySettlement()
-    const handler = createInsertNotificationHandler({
-      ...buildFakeInsertNotificationDeps(),
-      authorizeAudience: vi.fn(async () => true),
-      deliverySettlement: settlement,
-      workState: workState(true),
-    })
-
-    await handler({ data: await durable(escalated) } as Job<InsertNotificationJobData>)
-
-    expect(settlement.settleAuthorized).toHaveBeenCalled()
-  })
 })
 
 describe('an immediate email whose work was done after its row was written', () => {

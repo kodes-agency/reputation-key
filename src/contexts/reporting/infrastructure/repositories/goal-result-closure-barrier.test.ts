@@ -25,10 +25,13 @@ import {
 } from '../../monthly-goals/goal-programs.server'
 import { queryGoalMetric } from '../../application/use-cases/query-goal-metric'
 import type { GoalMetricReadPort } from '../../application/use-cases/goal-program-shared'
-import { findMetricVersionById, METRIC_VERSION_IDS } from '../../readings/contracts'
+import {
+  findMetricVersionById,
+  METRIC_VERSION_IDS,
+  metricRegistry,
+} from '../../readings/contracts'
 import { createGoalMetricSnapshotReader } from './goal-metric-snapshot'
 import { createGoalProgramRepository } from './goal-program.repository'
-import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createAtomicMetricCommandStore } from '../../readings/metric-command-store.server'
 import { createReading } from '../../domain/metric-reading'
 
@@ -81,7 +84,7 @@ describe.sequential('Goal result closure barriers (integration)', () => {
     const metrics: GoalMetricReadPort = {
       getApprovedGoalVersion: async (id) => findMetricVersionById(id),
       queryGoalMetric: queryGoalMetric({
-        registry: createMetricRegistryRepository(),
+        registry: metricRegistry,
         validateSubject: async () => true,
         clock: () => clock,
         readSnapshot: async (...args) => {

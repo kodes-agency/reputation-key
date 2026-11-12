@@ -88,6 +88,14 @@ export {
   GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
   googleReviewApiNotConfigured,
 } from './ports/google-review-api.port'
+// The one translation from a provider failure into the Review product error.
+export {
+  executorErrorToReviewApiError,
+  isGoogleReviewApiError,
+  isProviderCallFailure,
+  reviewApiError,
+  translatedGoogleReviewApi,
+} from './google-review-api-error'
 export { collectReviewSourceContentLifecycleReport } from './use-cases/collect-source-content-lifecycle-report'
 export { REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE } from './use-cases/run-source-content-lifecycle'
 // BQC-1.7: lifecycle purge port consumed by integration + property use cases.

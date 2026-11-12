@@ -121,7 +121,7 @@ export const MediumLight: Story = sizeStory('md', 'light')
  * Whatever the content, the dialog is the viewport less a rem on each side, in
  * `dvh` so a phone's address bar does not hide the footer, and scrolls inside it.
  * The footer is pinned to the bottom of that box, so Cancel and the primary action
- * are on screen while the body scrolls under them. (`dialog.metrics.ts` measures it.)
+ * are on screen while the body scrolls under them.
  */
 export const TallContentScrolls: Story = {
   render: () => <Demo tall />,

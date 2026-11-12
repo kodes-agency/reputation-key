@@ -7,6 +7,11 @@ import {
 } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
 
+import {
+  ServedClockContext,
+  servedAtProps,
+  useServedAt,
+} from '#/components/hooks/served-clock'
 import { Footer } from '#/components/layout/footer'
 import { Header } from '#/components/layout/header'
 import { useSignOut } from '#/components/hooks/use-sign-out'
@@ -59,6 +64,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const signOut = useSignOut()
   const cspNonce = router.options.ssr?.nonce
+  // One reading for the request: the server prints text from it and the browser
+  // hydrates from the same one (`useServedNow`).
+  const servedAt = useServedAt()
 
   const showChrome = useRouterState({
     select: (s) => {
@@ -73,8 +81,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     select: (s) => documentLanguageOfMatches(s.matches),
   })
 
-  // Which web fonts this page loads. `styles.css` used to @import the app fonts
-  // for every page; now the root links exactly one set, chosen from the route
+  // Which web fonts this page loads. `styles.css` imports no fonts: the root
+  // links exactly one set, chosen from the route
   // loaders (`/p/$token` declares 'guest' for the Immersive Hub). Read from the
   // router state rather than this route's `head`, so a client-side navigation
   // between an app page and a guest page swaps the set even though the root
@@ -84,7 +92,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   })
 
   return (
-    <html lang={documentLanguage} suppressHydrationWarning>
+    <html lang={documentLanguage} {...servedAtProps(servedAt)} suppressHydrationWarning>
       <head>
         {/* The CSP nonce only exists on the server, and browsers scrub the `nonce`
             content attribute from the DOM once the document is parsed (HTML spec
@@ -101,20 +109,22 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-primary/25">
-        {showChrome ? (
-          <>
-            <Header
-              onSignOut={() => {
-                void signOut().catch(() => undefined)
-              }}
-              notificationFns={notificationFns}
-            />
-            <main>{children}</main>
-            <Footer />
-          </>
-        ) : (
-          children
-        )}
+        <ServedClockContext.Provider value={servedAt}>
+          {showChrome ? (
+            <>
+              <Header
+                onSignOut={() => {
+                  void signOut().catch(() => undefined)
+                }}
+                notificationFns={notificationFns}
+              />
+              <main>{children}</main>
+              <Footer />
+            </>
+          ) : (
+            children
+          )}
+        </ServedClockContext.Provider>
         <Toaster position="top-right" closeButton />
         <Scripts />
       </body>

@@ -9,7 +9,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalCardView } from '#/contexts/reporting/monthly-goals/contracts'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { withPermissions } from '../../../../../.storybook/AuthedRouterDecorator'
 import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
@@ -124,16 +124,6 @@ export const Ready: Story = {
 export const ReadyOnANarrowPhone: Story = {
   play: async ({ canvasElement }) => expectReadyNovember(within(canvasElement)),
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-}
-
-export const ReadyOnAPhone: Story = {
-  ...ReadyOnANarrowPhone,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-}
-
-export const ReadyOnATablet: Story = {
-  ...ReadyOnANarrowPhone,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
 }
 
 export const ReadyOnADesktop: Story = {
@@ -337,4 +327,9 @@ export const ScheduledOnANarrowPhone: Story = {
 export const ScheduledOnADesktop: Story = {
   ...Scheduled,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
+}
+
+export const ReadyOnATablet: Story = {
+  ...ReadyOnANarrowPhone,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }

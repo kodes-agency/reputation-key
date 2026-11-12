@@ -63,9 +63,13 @@ describe('getPortalAnalyticsDto', () => {
   it('requires portalId', () => {
     expect(() =>
       getPortalAnalyticsDto.parse({
-        propertyId: 'a0000000-0000-0000-0000-000000000001',
+        propertyId: 'a0000000-0000-4000-8000-000000000001',
       }),
     ).toThrow(ZodError)
+    const refusal = getPortalAnalyticsDto.safeParse({
+      propertyId: 'a0000000-0000-4000-8000-000000000001',
+    })
+    expect(refusal.error?.issues.map((issue) => issue.path)).toEqual([['portalId']])
   })
 
   it('defaults timeRange to 30d', () => {

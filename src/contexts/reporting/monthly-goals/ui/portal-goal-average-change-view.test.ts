@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalChangeFacts } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalChangeFacts } from '#/contexts/reporting/monthly-goals/contracts'
 import {
   changedAverageDraft,
   openingAverageDraft,
@@ -114,6 +114,9 @@ describe('the average goal’s change sheet', () => {
       lower: { label: 'Lower to 4.6', to: 4.6 },
       raise: { label: 'Raise to 4.8', to: 4.8 },
     })
+    for (const text of ['1', '1.0', '5']) {
+      expect(typed(text).number).toMatchObject({ invalid: false })
+    }
     for (const text of ['4.75', '5.5', '0.9', 'four']) {
       expect(typed(text)).toMatchObject({
         number: { value: null, invalid: true },

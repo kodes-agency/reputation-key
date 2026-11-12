@@ -14,7 +14,7 @@
 // browser.
 
 import { describe, expect, it } from 'vitest'
-import type { ImportCandidateEligibility } from '../application/google-import-v2-contract'
+import type { ImportCandidateEligibility } from '../application/google-import-contract'
 import { durableCandidatePayloadSchema } from './durable-import-reference-codec'
 
 const ELIGIBILITY_SAMPLES: Readonly<

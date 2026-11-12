@@ -20,8 +20,7 @@ import {
   type RecordMetricInput,
 } from '../application/use-cases/record-metric'
 import { createAtomicMetricCommandStore } from '../readings/metric-command-store.server'
-import { METRIC_VERSION_IDS } from '../readings/contracts'
-import { createMetricRegistryRepository } from '../infrastructure/repositories/metric-registry.repository'
+import { METRIC_VERSION_IDS, metricRegistry } from '../readings/contracts'
 import { createPropertyLocalDateResolver } from '../infrastructure/repositories/property-local-date'
 import { createPortalAnalyticsRepository } from './portal-analytics.repository.server'
 import { getPortalAnalytics } from './get-portal-analytics.server'
@@ -40,7 +39,7 @@ const LINK = 'e7300000-0000-4000-8000-000000000001'
 const store = createAtomicMetricCommandStore(db, randomUUID)
 const write = recordMetric({
   commandStore: store,
-  registry: createMetricRegistryRepository(),
+  registry: metricRegistry,
   clock: () => NOW,
   idGen: () => metricReadingId(randomUUID()),
   resolvePropertyLocalDate: createPropertyLocalDateResolver(db),

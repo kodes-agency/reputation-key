@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/dashboard-errors'
 import {
@@ -106,6 +107,22 @@ describe('requirePropertyOverviewAccess', () => {
 
     expect(refusal).toMatchObject({ _tag: 'DashboardError', code: 'forbidden' })
     expect(isDashboardError(refusal)).toBe(true)
+  })
+
+  it('refuses a reader who holds dashboard.read but not dashboard.fleet_read', async () => {
+    const readOnly = createScopedAuthContext({
+      organizationId: ORG_ID,
+      userId: userId('reader-1'),
+      permissions: [['dashboard.read', 'assigned-properties']],
+    })
+    const grants = granting(GRANTED_PROPERTY)
+
+    await expect(
+      requireDashboardPropertyAccess(grants, readOnly, on(GRANTED_PROPERTY)),
+    ).resolves.toBeUndefined()
+    await expect(
+      requirePropertyOverviewAccess(grants, readOnly, on(GRANTED_PROPERTY)),
+    ).rejects.toMatchObject({ _tag: 'DashboardError', code: 'forbidden' })
   })
 
   it('admits a PropertyManager to a granted Property on one grant lookup', async () => {

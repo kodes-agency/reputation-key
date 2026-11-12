@@ -42,8 +42,11 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
 import { handleInvitationAcceptedInviterNotice } from '#/contexts/feed/infrastructure/invitation-accepted-inviter-notice'
 import { createImmediateEmailEnqueue } from '#/contexts/feed/email/send-emails.server'
-import { createNotificationConsumerDeps } from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
-import { createGoogleImportV2Queue } from '#/contexts/integration/infrastructure/google-import-v2-queue'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
+import { createGoogleImportQueue } from '#/contexts/integration/infrastructure/google-import-queue'
 import { buildReviewContext } from '#/contexts/review/build'
 
 vi.mock('#/shared/observability/logger', () => ({
@@ -122,7 +125,7 @@ const receipts = { insertReceipt: async () => undefined } as unknown as OutboxRe
 
 const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
   'import-gbp-property-item': producer(async (queue) => {
-    await createGoogleImportV2Queue(queue).addImportItemJobs([
+    await createGoogleImportQueue(queue).addImportItemJobs([
       {
         jobId: `google-import-item-${ID(2)}`,
         organizationId: ORGANIZATION,
@@ -187,7 +190,11 @@ const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
   'insert-notification': producer(async (queue) => {
     const fakes = createNotificationConsumerDeps()
     await handleInvitationAcceptedInviterNotice(
-      { queue, receipts, displayNames: fakes.displayNames, logger: fakes.logger },
+      {
+        noticeWriter: noticeWriterOver(queue, receipts),
+        displayNames: fakes.displayNames,
+        logger: fakes.logger,
+      },
       {
         eventId: ID(9),
         eventType: 'identity.invitation.accepted',

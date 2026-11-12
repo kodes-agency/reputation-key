@@ -1,4 +1,4 @@
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import { guestLocaleFormatTag } from '#/shared/domain/guest-locale'
 import { formatGuestDeadline } from '../guest-deadline-format'
 import type { GuestPortalCopy } from '../language-packs/guest-copy'
@@ -47,9 +47,13 @@ type Window = Readonly<{
  * ended would be false, and there is nothing to offer, so the row is left out.
  */
 function windowState(clock: ResponseClock, window: Window): 'open' | 'ended' | 'closed' {
+  const timeLeft =
+    window.deadline === null ? null : Date.parse(window.deadline) > Date.parse(clock.now)
+  // The stored deadline and the clock decide whether time has run out; the
+  // server still refuses a late request, so `available` only ever narrows.
+  if (timeLeft === false) return 'ended'
   if (window.available) return 'open'
-  if (window.deadline === null) return 'ended'
-  return Date.parse(window.deadline) > Date.parse(clock.now) ? 'closed' : 'ended'
+  return timeLeft === null ? 'ended' : 'closed'
 }
 
 function deadlineText(

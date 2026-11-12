@@ -11,7 +11,7 @@ import type {
   PortalGoalLastMonth,
   PortalGoalOfCard,
   PortalGoalOffer,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import {
   CARD_LAST_MONTH_MET,
   CARD_LAST_MONTH_NOT_MET,

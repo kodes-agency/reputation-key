@@ -115,7 +115,7 @@ export function MemberAccessContainer({
       invalidateKeys: [identityKeys.members()],
       onSuccess: async (result, input) => {
         // The member may be the reader, whose Property access the shell remembers
-        // for 30 seconds (ADR 0072).
+        // for 30 seconds.
         invalidateShellContext(queryClient)
         const touched = new Set([
           ...result.grantedPropertyIds,

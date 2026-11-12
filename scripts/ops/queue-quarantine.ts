@@ -19,7 +19,7 @@ import {
 } from '../../src/shared/jobs/queue-quarantine'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { exitIfHelp } from './command-help'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand } from './operator-command'
 
 const USAGE = `pnpm ops queue <status|pause|resume> <${QUARANTINE_QUEUE_NAMES.join('|')}> --operator <id> [--reason <text> --apply]`
 
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
   if (!action || !name || !['status', 'pause', 'resume'].includes(action)) usage()
   const mutation = action !== 'status'
 
-  const result = await runOperatorCommand(
+  const result = await runDatabaseOperatorCommand(
     {
       name: 'ops:queue',
       scope: 'global',

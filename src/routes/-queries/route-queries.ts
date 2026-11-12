@@ -9,7 +9,7 @@ import { type TenantScope } from '#/shared/queries/tenant-scope'
 // they are hoisted here only because the parent-layout data is consumed across
 // many sibling routes (DRY).
 //
-// BQC-5.1: lives under routes/-queries (route-layer plumbing) because it imports
+// Lives under routes/-queries (route-layer plumbing) because it imports
 // context server functions — shared/ must not depend on context implementations.
 
 import { getReviewAnalysisProgressFn } from '#/contexts/ai/server/review-analysis'
@@ -36,7 +36,7 @@ export const propertiesQuery = queryOptions({
 })
 
 // A person's timezone, date format and quiet hours in one Organization: read
-// by Profile, which edits the first two (D6), and by the notification
+// by Profile, which edits the first two, and by the notification
 // settings, which edit quiet hours and show times on that clock.
 export const notificationUserSettingsQuery = (scope: TenantScope) =>
   queryOptions({

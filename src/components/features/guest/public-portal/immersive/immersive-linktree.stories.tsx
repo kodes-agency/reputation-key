@@ -91,6 +91,14 @@ export const BeforeARating: Story = {
       expect(box.height).toBeGreaterThanOrEqual(96)
       expect(box.width).toBeGreaterThanOrEqual(44)
     }
+    // The photo tile's text block sits wholly inside the tile, on its own scrim.
+    const photoTile = canvasElement.querySelector<HTMLElement>('.ih-tile--photo')
+    const text = photoTile?.querySelector<HTMLElement>('.ih-tile__text')
+    expect(text && getComputedStyle(text).backgroundImage).toContain('linear-gradient')
+    const tileBox = photoTile?.getBoundingClientRect()
+    const textBox = text?.getBoundingClientRect()
+    expect(textBox?.top).toBeGreaterThanOrEqual(tileBox?.top ?? Infinity)
+    expect(textBox?.bottom).toBeLessThanOrEqual(tileBox?.bottom ?? 0)
   },
 }
 

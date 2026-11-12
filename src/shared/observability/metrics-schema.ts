@@ -69,7 +69,6 @@ export const SNAPSHOT_SECTIONS = [
   'health.syncPush',
   'health.replyPublication',
   'health.notificationEmail',
-  'health.notificationGap',
   'health.notificationDeliveryLag',
   'queues',
   'workers.heartbeat',
@@ -543,16 +542,6 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     emitted: true,
     description:
       '1 when immediate notification email acceptance evidence exceeded the bounded scan cap and full-window p99 is unavailable.',
-  }),
-  def({
-    name: 'notification.missing_for_inbox_item',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['notifications.missingForInboxItemCount'],
-    emitted: true,
-    description:
-      'Inbox items past the grace edge with NO notification row for anybody and a delivery not yet decided — "a review arrived and nobody was told". Items whose recipients all muted them, or no longer qualify, are decided and never count. Above zero means the Feed consumer has not taken the item\'s fact, or a delivery Redis accepted has not settled and reconcile-missing-notifications has not repaired it yet. Saturates at its scan cap (1000); the alert fires on above-zero, so the cap is immaterial.',
   }),
   def({
     name: 'notification.delivery.source_receipt_pending',

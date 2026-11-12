@@ -1,25 +1,18 @@
-// Historical v1 remains readable; these contract regressions deliberately pin its old execution.
-vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('#/shared/ai-runtime-capability-contract')>()
-  const { historicalReplyRuntime } =
-    await import('#/shared/testing/historical-reply-runtime')
-  return historicalReplyRuntime(actual)
-})
-import { vi } from 'vitest'
 import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod/v4'
 import {
   parseAiGatewayRouteRequest,
-  parseAiGatewayRouteResponse,
+  type AnalysisResult,
+  type ReplySuggestionResult,
 } from './ai-gateway-transport-contract'
+import { reviewAnalysisV3GatewayResultSchema } from './review-analysis-v3-request'
 import { aiInternalSafeIdSchema } from './ai-internal-transport-contract'
 import {
   analysisRequest,
   analysisV3Request,
+  analysisV3Result,
   receipt,
   replyRequest,
-  trendRequest,
 } from './ai-gateway-transport-contract.test-fixtures'
 
 describe('AI gateway caller-wire contract', () => {
@@ -99,8 +92,6 @@ describe('AI gateway caller-wire contract', () => {
     const parsed = parseAiGatewayRouteRequest(
       analysisV3Request({ rawText: 'valid 😀 source' }),
     )
-    if (parsed.route === 'property-trend')
-      throw new Error('expected source-bearing request')
     expect(parsed.source.text).toBe('valid 😀 source')
   })
 
@@ -123,7 +114,7 @@ describe('AI gateway caller-wire contract', () => {
   it('carries only the distinct personalized profile on the reply route', () => {
     expect(parseAiGatewayRouteRequest(replyRequest())).toMatchObject({
       route: 'reply-suggestion',
-      replyProfileVersion: 'reply-draft-v3',
+      replyProfileVersion: 'reply-draft-v4',
       brandProfile: { displayName: 'Example Hotel' },
     })
     expect(() =>
@@ -142,64 +133,41 @@ describe('AI gateway caller-wire contract', () => {
       }),
     ).toThrow(ZodError)
 
-    const response = {
+    const response: ReplySuggestionResult = {
       route: 'reply-suggestion',
       status: 'success',
       result: {
-        profileVersion: 'reply-draft-v3',
+        profileVersion: 'reply-draft-v4',
         replyText: 'Thank you for sharing that the room was quiet during your stay.',
         provenanceToken: 'signed-personalized-provenance',
         expiresAtEpochMillis: 1_780_000_010_000,
         baseReplyStateRevision: 0,
         concreteLanguageTag: 'en-Latn',
         templateGroup: 'en-Latn',
+        case: 'praise',
+        mainPoint: [1],
       },
       settlementReceipt: receipt,
     }
-    expect(parseAiGatewayRouteResponse(response)).toEqual(response)
-    expect(() =>
-      parseAiGatewayRouteResponse({
-        ...response,
-        result: { ...response.result, templateId: 'appreciation_positive' },
-      }),
-    ).toThrow(ZodError)
-  })
-
-  it('refuses the retired trend route even with canonical candidates', () => {
-    const request = trendRequest()
-    expect(() => parseAiGatewayRouteRequest(request)).toThrow(
-      /route binding is cross-wired/,
-    )
-    expect(request.source.candidates.length).toBeGreaterThan(3)
-
-    const reversed = [...request.source.candidates].reverse()
-    const wrongCount = request.source.candidates.slice(1)
-    const [first, ...rest] = request.source.candidates
-    const wrongDirection = [
-      {
-        ...first!,
-        id: first!.id.endsWith('.up')
-          ? first!.id.replace(/\.up$/, '.down')
-          : first!.id.replace(/\.down$/, '.up'),
+    const withTemplate: ReplySuggestionResult = {
+      route: 'reply-suggestion',
+      status: 'success',
+      result: {
+        profileVersion: 'reply-draft-v4',
+        replyText: 'Thank you for sharing that the room was quiet during your stay.',
+        provenanceToken: 'signed-personalized-provenance',
+        expiresAtEpochMillis: 1_780_000_010_000,
+        baseReplyStateRevision: 0,
+        concreteLanguageTag: 'en-Latn',
+        templateGroup: 'en-Latn',
+        case: 'praise',
+        mainPoint: [1],
+        // @ts-expect-error a reply response names no template
+        templateId: 'appreciation_positive',
       },
-      ...rest,
-    ]
-    const belowThreshold = [
-      {
-        ...first!,
-        currentNumerator: first!.baselineNumerator,
-      },
-      ...rest,
-    ]
-
-    for (const candidates of [reversed, wrongCount, wrongDirection, belowThreshold]) {
-      expect(() =>
-        parseAiGatewayRouteRequest({
-          ...request,
-          source: { ...request.source, candidates },
-        }),
-      ).toThrow(ZodError)
+      settlementReceipt: receipt,
     }
+    expect(withTemplate.route).toBe(response.route)
   })
 
   it.each([
@@ -279,43 +247,35 @@ describe('AI gateway caller-wire contract', () => {
     }
   })
 
-  it('accepts only strict route-matched success and error responses', () => {
-    const success = {
+  it('types only strict route-matched success and error responses', () => {
+    const success: AnalysisResult = {
       route: 'review-analysis',
       status: 'success',
-      result: {
-        sentiment: 'positive',
-        sentimentValence: 80,
-        urgencySignals: [],
-        aspects: [{ aspect: 'service', polarity: 'positive', intensity: 80 }],
-        issueLabel: null,
-      },
+      result: analysisV3Result,
       settlementReceipt: receipt,
     }
-    expect(parseAiGatewayRouteResponse(success)).toEqual(success)
-    expect(
-      parseAiGatewayRouteResponse({
-        route: 'review-analysis',
-        status: 'error',
-        code: 'provider_rate_limited',
-        retryAfterEpochMillis: 1_780_000_010_000,
-      }),
-    ).toMatchObject({ status: 'error', code: 'provider_rate_limited' })
-    for (const field of [
-      'providerRequestId',
-      'providerResponseId',
-      'requestId',
-      'safetyIdentifier',
-    ]) {
-      expect(() =>
-        parseAiGatewayRouteResponse({ ...success, [field]: 'forbidden' }),
-      ).toThrow(ZodError)
+    const failure: AnalysisResult = {
+      route: 'review-analysis',
+      status: 'error',
+      code: 'provider_rate_limited',
+      retryAfterEpochMillis: 1_780_000_010_000,
     }
-    expect(() =>
-      parseAiGatewayRouteResponse({
-        ...success,
-        result: { ...success.result, reasoning: 'forbidden' },
-      }),
-    ).toThrow(ZodError)
+    const leaked: AnalysisResult = {
+      ...success,
+      // @ts-expect-error a response carries no provider request id
+      providerRequestId: 'forbidden',
+    }
+    expect([failure.status, leaked.status]).toEqual(['error', 'success'])
+    // The answer itself is the route's accepted output, which admits no extra field.
+    if (success.status !== 'success') throw new Error('expected success')
+    expect(reviewAnalysisV3GatewayResultSchema.safeParse(success.result).success).toBe(
+      true,
+    )
+    expect(
+      reviewAnalysisV3GatewayResultSchema.safeParse({
+        ...success.result,
+        reasoning: 'forbidden',
+      }).success,
+    ).toBe(false)
   })
 })

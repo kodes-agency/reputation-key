@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { noticeWriterOver } from './notification-consumer-test-fixtures'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
   createConsumerRegistry,
@@ -11,11 +12,11 @@ import type {
   InboxItemFacts,
   ResponseTargetReminderNotificationFacts,
 } from '../application/ports/notification-inbox-item-lookup.port'
+import { registerResponseTargetNotificationConsumer } from './inbox-notice-routes'
 import {
   handleNotificationResponseTargetReminder,
   ON_INBOX_RESPONSE_TARGET_REMINDER_DUE_CONSUMER,
-  registerResponseTargetNotificationConsumer,
-} from './response-target-outbox-consumers'
+} from '../notify/inbox.server'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -85,14 +86,17 @@ const currentFacts = (): ResponseTargetReminderNotificationFacts => ({
 })
 
 const makeDeps = () => {
+  const queue = {
+    add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
+      jobs.push({ name, data, opts })
+    }),
+  }
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   const jobs: Array<{ name: string; data: unknown; opts?: unknown }> = []
   const facts = currentFacts()
   return {
-    queue: {
-      add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
-        jobs.push({ name, data, opts })
-      }),
-    },
+    queue,
+    noticeWriter: noticeWriterOver(queue, receipts),
     userLookup: {
       findByRole: vi.fn(async () => [ADMIN]),
       getEmail: vi.fn(async () => null),
@@ -126,7 +130,7 @@ const makeDeps = () => {
       debug: vi.fn(),
       child: vi.fn().mockReturnThis(),
     },
-    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    receipts,
     jobs,
   }
 }

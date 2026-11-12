@@ -93,7 +93,6 @@ describe('Reply scope effects at each entry point', () => {
         { port: {} } as never,
         (() => ({})) as never,
         (() => ({})) as never,
-        (() => ({})) as never,
       )
     } catch {
       // Wiring after the context build needs more than this test supplies.

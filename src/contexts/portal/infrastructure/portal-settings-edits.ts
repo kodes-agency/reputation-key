@@ -10,7 +10,7 @@ import { and, eq } from 'drizzle-orm'
 import { portals } from '#/shared/db/schema'
 import { unbrand } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
-import type { UpdatePortalCommand } from '../application/ports/portal-command-store.port'
+import type { UpdatePortalCommand } from '../publication/portal-command-store-port.server'
 import {
   portalPageEditKey,
   portalSettingField,

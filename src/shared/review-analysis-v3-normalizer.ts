@@ -1,8 +1,7 @@
 import '@tanstack/react-start/server-only'
-import { createHash } from 'node:crypto'
+import { digestOf } from './ai-digest'
 import { z } from 'zod/v4'
 import commonWordSource from './review-cause-common-words-v1.json'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import {
   REVIEW_ANALYSIS_V3_MAX_MENTIONS,
   REVIEW_ANALYSIS_V3_MAX_SENTENCE_NUMBER,
@@ -137,10 +136,10 @@ export const REVIEW_ANALYSIS_NORMALIZATION_MANIFEST = Object.freeze({
   commonWords: COMMON_WORDS,
 })
 
-export const REVIEW_ANALYSIS_NORMALIZATION_DIGEST = createHash('sha256')
-  .update('repkey-review-analysis-normalization-v1\0', 'utf8')
-  .update(canonicalizeRfc8785(REVIEW_ANALYSIS_NORMALIZATION_MANIFEST), 'utf8')
-  .digest('hex')
+export const REVIEW_ANALYSIS_NORMALIZATION_DIGEST = digestOf(
+  'repkey-review-analysis-normalization-v1\0',
+  REVIEW_ANALYSIS_NORMALIZATION_MANIFEST,
+)
 
 /**
  * What the normalizer needs besides the provider's answer. `sentences` are exactly

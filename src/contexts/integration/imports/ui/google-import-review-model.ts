@@ -12,7 +12,7 @@ import {
   googleImportReviewDraftSchema,
   googleImportReviewItemSchema,
   type GoogleImportReviewDraftInput,
-} from '#/contexts/integration/application/dto/google-import-v2.dto'
+} from '#/contexts/integration/application/dto/google-import.dto'
 const whitespace = /\s+/gu
 
 function normalizeText(value: string): string {

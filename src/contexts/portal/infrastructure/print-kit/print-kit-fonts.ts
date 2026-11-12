@@ -2,7 +2,7 @@
 //
 // They are the faces and subsets guest pages serve from `public/fonts/guest/`
 // (Cormorant Garamond 600 for display, Ysabeau Office 400 and 600 for text, and
-// Ysabeau Office 400 and 600 italic for the final kit's second-language line),
+// Ysabeau Office 400 and 600 italic for the kit's second-language line),
 // as TrueType in `./fonts/`. The woff2 files cannot be embedded: fontkit, which
 // PDFKit embeds fonts with, mis-reads the transformed `glyf` table of a woff2
 // font. Ysabeau fails to subset at all (an accented letter, a quotation mark
@@ -105,11 +105,3 @@ export function printKitFontBytes(face: PrintKitFontFace, subset: FontSubset): B
   decoded.set(key, bytes)
   return bytes
 }
-
-export const PRINT_KIT_FONT_FACES: readonly PrintKitFontFace[] = [
-  'display',
-  'body',
-  'bodyStrong',
-  'bodyItalic',
-  'bodyStrongItalic',
-]

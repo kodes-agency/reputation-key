@@ -195,9 +195,8 @@ export const Open: Story = {
 
 // The phone grid's 16 px gutter on every surface of the sheet, a 44 px header
 // bar, and no 1 px border-l at x=0 (the sheet is full width below `sm`).
-// Tailwind is not compiled in this runner, so the geometry is the Playwright
-// metrics gate's; this pins the classes that produce it, on the real tree. The
-// real check is `inbox-phone-chrome.metrics.ts` ("detail sheet").
+// Tailwind is not compiled in this runner, so this pins the classes that
+// produce the geometry, on the real tree.
 export const PhoneGutters: Story = {
   ...Open,
   play: async () => {

@@ -1,12 +1,7 @@
 import { createHash } from 'node:crypto'
 import { OPENAI_MODEL_SNAPSHOT } from '#/shared/ai-openai-request-contract'
 import { describe, expect, it, vi } from 'vitest'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import {
-  verifyAiRequestBinding,
-  type AiAdmissionDescriptorV1,
-} from '#/shared/ai-internal-transport-contract'
+import type { AiAdmissionDescriptorV1 } from '#/shared/ai-internal-transport-contract'
 import {
   buildClosedOpenAiRequest,
   computePromptCacheShard,
@@ -57,11 +52,6 @@ function descriptor(
           {
             capability: 'reply_drafting',
             capabilityControlId: '10000000-0000-4000-8000-000000000007',
-            capabilityGeneration: 1,
-          },
-          {
-            capability: 'property_trends',
-            capabilityControlId: '10000000-0000-4000-8000-000000000008',
             capabilityGeneration: 1,
           },
         ],
@@ -125,7 +115,7 @@ describe('prepared AI invocation', () => {
     expect(expected).toHaveLength(49)
   })
 
-  it('constructs source -> request -> descriptor -> HMAC without key-dependent prepared bytes', () => {
+  it('constructs source -> request -> descriptor with the same prepared bytes every time', () => {
     const sdkRequest = buildClosedOpenAiRequest({
       route: 'synthetic-canary',
       promptVersion: 'synthetic-canary-prompt-v1',
@@ -138,13 +128,11 @@ describe('prepared AI invocation', () => {
       safetyIdentifier: `rk1_${'A'.repeat(43)}`,
     })
     const stages: string[] = []
-    const firstKeys = createVersionedHmacKeyring(`request-v1:${'11'.repeat(32)}`)
     const first = createPreparedAiInvocation({
       sourceBytes: Uint8Array.of(1, 2, 3),
       providerPayload: { canary: true },
       sdkRequest,
       createDescriptor: descriptor,
-      requestBindingKeys: firstKeys,
       traceStage: (stage) => stages.push(stage),
     })
     const second = createPreparedAiInvocation({
@@ -152,28 +140,15 @@ describe('prepared AI invocation', () => {
       providerPayload: { canary: true },
       sdkRequest,
       createDescriptor: descriptor,
-      requestBindingKeys: createVersionedHmacKeyring(`request-v2:${'22'.repeat(32)}`),
     })
     expect(stages).toEqual([
       'source',
       'provider_payload',
       'prepared_request',
       'descriptor',
-      'request_binding',
     ])
-    expect(first.descriptor.preparedDigest).toBe(second.descriptor.preparedDigest)
+    expect(first.descriptor).toEqual(second.descriptor)
     expect(first.canonicalProviderBytes).toEqual(second.canonicalProviderBytes)
-    expect(first.requestBindingHmac).not.toBe(second.requestBindingHmac)
-    expect(
-      verifyAiRequestBinding(
-        {
-          descriptor: first.descriptor,
-          requestBindingKeyId: first.requestBindingKeyId,
-          requestBindingHmac: first.requestBindingHmac,
-        },
-        firstKeys,
-      ),
-    ).toBe(true)
   })
 
   it('rejects accessors, undefined, and a descriptor mutation after preparation', () => {
@@ -198,7 +173,6 @@ describe('prepared AI invocation', () => {
         },
         sdkRequest,
         createDescriptor: descriptor,
-        requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
     ).toThrow(new TypeError('Prepared AI value has an unsafe property: "unsafe"'))
     expect(() =>
@@ -207,7 +181,6 @@ describe('prepared AI invocation', () => {
         providerPayload: { unsafe: undefined },
         sdkRequest,
         createDescriptor: descriptor,
-        requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
     ).toThrow(new TypeError('Prepared AI value has an unsupported property: "unsafe"'))
     expect(() =>
@@ -216,7 +189,6 @@ describe('prepared AI invocation', () => {
         providerPayload: {},
         sdkRequest,
         createDescriptor: (facts) => descriptor({ ...facts, preparedDigest: SHA }),
-        requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
     ).toThrow(
       new TypeError('Prepared AI descriptor changed derived field: preparedDigest'),
@@ -227,7 +199,6 @@ describe('prepared AI invocation', () => {
         providerPayload: { different: true },
         sdkRequest,
         createDescriptor: descriptor,
-        requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
     ).toThrow(/not derived/)
   })
@@ -252,7 +223,6 @@ describe('prepared AI invocation', () => {
         providerPayload: { values: sparse },
         sdkRequest,
         createDescriptor: descriptor,
-        requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
     ).toThrow(/array/)
     const extra = [1] as number[] & { extra?: string }
@@ -263,7 +233,6 @@ describe('prepared AI invocation', () => {
         providerPayload: { values: extra },
         sdkRequest,
         createDescriptor: descriptor,
-        requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
     ).toThrow(/array/)
   })
@@ -302,7 +271,6 @@ describe('prepared AI invocation', () => {
         providerPayload: { values: hostile },
         sdkRequest,
         createDescriptor: descriptor,
-        requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
     ).toThrow(/prototype/)
     expect(invoked).toBe(false)
@@ -318,15 +286,17 @@ describe('prepared AI invocation', () => {
         providerPayload: { values: ownIterator },
         sdkRequest,
         createDescriptor: descriptor,
-        requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
     ).toThrow(/symbol/)
     expect(invoked).toBe(false)
   })
 
-  it.each(['descriptor', 'signing'] as const)(
-    'zeroes allocated canonical request bytes when %s fails',
-    (failure) => {
+  it.each([
+    ['descriptor', /descriptor failed/],
+    ['limit', /route profile limits|exceeds its limit/],
+  ] as const)(
+    'zeroes allocated canonical request bytes when the %s check fails',
+    (failure, message) => {
       const sdkRequest = buildClosedOpenAiRequest({
         route: 'synthetic-canary',
         promptVersion: 'synthetic-canary-prompt-v1',
@@ -353,19 +323,6 @@ describe('prepared AI invocation', () => {
         return result
       }) as typeof Buffer.from)
       try {
-        const keys: VersionedHmacKeyring =
-          failure === 'signing'
-            ? {
-                activeVersion: 'v1',
-                retainedVersions: [],
-                sign: () => {
-                  throw new Error('signing failed')
-                },
-                verify: () => false,
-                derive: () => null,
-                dispose: () => {},
-              }
-            : createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`)
         expect(() =>
           createPreparedAiInvocation({
             sourceBytes: Uint8Array.of(1),
@@ -376,10 +333,15 @@ describe('prepared AI invocation', () => {
                 ? () => {
                     throw new Error('descriptor failed')
                   }
-                : descriptor,
-            requestBindingKeys: keys,
+                : (facts) => ({
+                    ...descriptor(facts),
+                    limits: {
+                      ...descriptor(facts).limits,
+                      preparedRequestBytes: facts.preparedByteCount - 1,
+                    },
+                  }),
           }),
-        ).toThrow(`${failure} failed`)
+        ).toThrow(message)
         expect(captured.length).toBeGreaterThan(0)
         expect(captured.every((bytes) => bytes.every((byte) => byte === 0))).toBe(true)
       } finally {
@@ -388,18 +350,7 @@ describe('prepared AI invocation', () => {
     },
   )
 
-  it('rejects every route byte cap before creating a request-binding HMAC', () => {
-    const sign = vi.fn<VersionedHmacKeyring['sign']>(() => {
-      throw new Error('request binding must not be reached')
-    })
-    const keys: VersionedHmacKeyring = {
-      activeVersion: 'v1',
-      retainedVersions: [],
-      sign,
-      verify: () => false,
-      derive: () => null,
-      dispose: () => {},
-    }
+  it('rejects every route byte cap before creating an invocation', () => {
     const providerPayload = { reviewText: 'expanded-redaction'.repeat(8) }
     const providerJson = JSON.stringify(providerPayload)
     const sdkRequest = buildClosedOpenAiRequest({
@@ -423,7 +374,6 @@ describe('prepared AI invocation', () => {
           ...descriptor(facts),
           limits: { ...descriptor(facts).limits, sourceBytes: 16 },
         }),
-        requestBindingKeys: keys,
       }),
     ).toThrow(/route profile limits|exceeds its limit/)
 
@@ -439,7 +389,6 @@ describe('prepared AI invocation', () => {
             providerPayloadBytes: facts.providerPayloadByteCount - 1,
           },
         }),
-        requestBindingKeys: keys,
       }),
     ).toThrow(/route profile limits|exceeds its limit/)
 
@@ -455,10 +404,8 @@ describe('prepared AI invocation', () => {
             preparedRequestBytes: facts.preparedByteCount - 1,
           },
         }),
-        requestBindingKeys: keys,
       }),
     ).toThrow(/route profile limits|exceeds its limit/)
-    expect(sign).not.toHaveBeenCalled()
   })
 
   it('rejects non-hex shards and prompt versions outside the frozen route map', () => {
@@ -497,7 +444,6 @@ describe('prepared AI invocation', () => {
         providerPayload: {},
         sdkRequest: mutated,
         createDescriptor: descriptor,
-        requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
     ).toThrow(/cache key is invalid/)
   })

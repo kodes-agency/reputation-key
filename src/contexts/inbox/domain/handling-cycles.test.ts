@@ -10,9 +10,7 @@ import {
 import {
   closeHandlingCycle,
   createInitialHandlingCycle,
-  createInitialReviewHandlingCycle,
   createNextHandlingCycle,
-  createNextReviewHandlingCycle,
 } from './handling-cycles'
 
 const ITEM_ID = inboxItemId('4e000000-0000-0000-0000-000000000001')
@@ -22,17 +20,41 @@ const REVIEW_ID = reviewId('4e000000-0000-0000-0000-000000000003')
 const USER_ID = userId('user-inbox-cycle-domain')
 const OPENED_AT = new Date('2026-08-26T08:00:00.000Z')
 
+const initialReviewCycle = (
+  overrides: Partial<Parameters<typeof createInitialHandlingCycle>[0]> = {},
+) =>
+  createInitialHandlingCycle({
+    inboxItemId: ITEM_ID,
+    organizationId: ORG_ID,
+    propertyId: PROPERTY_ID,
+    sourceType: 'review',
+    sourceId: REVIEW_ID,
+    sourceRevision: 4,
+    openedReason: 'review_observed',
+    actorType: 'provider',
+    triggerEventId: null,
+    openedAt: OPENED_AT,
+    status: 'open',
+    ...overrides,
+  })
+
+const nextReviewCycle = (
+  current: Parameters<typeof createNextHandlingCycle>[0]['current'],
+  input: Omit<
+    Parameters<typeof createNextHandlingCycle>[0],
+    'current' | 'actorType' | 'triggerEventId'
+  >,
+) =>
+  createNextHandlingCycle({
+    ...input,
+    current,
+    actorType: input.openedBy ? 'user' : 'provider',
+    triggerEventId: null,
+  })
+
 describe('Review Handling Cycle decisions', () => {
   it('starts cycle one at the observed Material Review Revision', () => {
-    const result = createInitialReviewHandlingCycle({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      reviewId: REVIEW_ID,
-      materialReviewRevision: 4,
-      openedAt: OPENED_AT,
-      status: 'open',
-    })
+    const result = initialReviewCycle({ sourceRevision: 4, status: 'open' })
 
     expect(result.isOk()).toBe(true)
     if (result.isErr()) return
@@ -45,8 +67,6 @@ describe('Review Handling Cycle decisions', () => {
         sourceType: 'review',
         sourceId: REVIEW_ID,
         sourceRevision: 4,
-        reviewId: REVIEW_ID,
-        materialReviewRevision: 4,
         openedReason: 'review_observed',
         manualReopenReason: null,
         manualReopenExplanation: null,
@@ -62,8 +82,6 @@ describe('Review Handling Cycle decisions', () => {
         sourceId: REVIEW_ID,
         currentCycleNumber: 1,
         currentSourceRevision: 4,
-        reviewId: REVIEW_ID,
-        currentMaterialReviewRevision: 4,
         stateRevision: 1,
         status: 'open',
       },
@@ -251,21 +269,12 @@ describe('Review Handling Cycle decisions', () => {
   })
 
   it('allows a manual reopen to create another cycle on the same material revision', () => {
-    const initial = createInitialReviewHandlingCycle({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      reviewId: REVIEW_ID,
-      materialReviewRevision: 4,
-      openedAt: OPENED_AT,
-      status: 'closed',
-    })
+    const initial = initialReviewCycle({ sourceRevision: 4, status: 'closed' })
     expect(initial.isOk()).toBe(true)
     if (initial.isErr()) return
 
-    const reopened = createNextReviewHandlingCycle({
-      current: initial.value.head,
-      materialReviewRevision: 4,
+    const reopened = nextReviewCycle(initial.value.head, {
+      sourceRevision: 4,
       openedReason: 'manual_reopen',
       manualReopenReason: 'guest_follow_up_still_needed',
       manualReopenExplanation: null,
@@ -286,21 +295,12 @@ describe('Review Handling Cycle decisions', () => {
   })
 
   it('requires and trims an explanation only for the Other reopen reason', () => {
-    const initial = createInitialReviewHandlingCycle({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      reviewId: REVIEW_ID,
-      materialReviewRevision: 4,
-      openedAt: OPENED_AT,
-      status: 'closed',
-    })
+    const initial = initialReviewCycle({ sourceRevision: 4, status: 'closed' })
     expect(initial.isOk()).toBe(true)
     if (initial.isErr()) return
 
-    const missing = createNextReviewHandlingCycle({
-      current: initial.value.head,
-      materialReviewRevision: 4,
+    const missing = nextReviewCycle(initial.value.head, {
+      sourceRevision: 4,
       openedReason: 'manual_reopen',
       manualReopenReason: 'other',
       manualReopenExplanation: '   ',
@@ -309,9 +309,8 @@ describe('Review Handling Cycle decisions', () => {
     })
     expect(missing.isErr()).toBe(true)
 
-    const reopened = createNextReviewHandlingCycle({
-      current: initial.value.head,
-      materialReviewRevision: 4,
+    const reopened = nextReviewCycle(initial.value.head, {
+      sourceRevision: 4,
       openedReason: 'manual_reopen',
       manualReopenReason: 'other',
       manualReopenExplanation: '  A new guest message needs a response.  ',
@@ -327,21 +326,12 @@ describe('Review Handling Cycle decisions', () => {
   })
 
   it('rejects a material-change cycle that does not advance the material revision', () => {
-    const initial = createInitialReviewHandlingCycle({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      reviewId: REVIEW_ID,
-      materialReviewRevision: 4,
-      openedAt: OPENED_AT,
-      status: 'open',
-    })
+    const initial = initialReviewCycle({ sourceRevision: 4, status: 'open' })
     expect(initial.isOk()).toBe(true)
     if (initial.isErr()) return
 
-    const result = createNextReviewHandlingCycle({
-      current: initial.value.head,
-      materialReviewRevision: 4,
+    const result = nextReviewCycle(initial.value.head, {
+      sourceRevision: 4,
       openedReason: 'material_revision_changed',
       openedBy: null,
       openedAt: OPENED_AT,
@@ -385,16 +375,8 @@ const feedbackCycleHead = (overrides: Partial<CycleHead> = {}): CycleHead => ({
 })
 
 describe('source-neutral Handling Cycle invariants', () => {
-  it('rejects a non-positive revision through the Review compatibility seam', () => {
-    const result = createInitialReviewHandlingCycle({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      reviewId: REVIEW_ID,
-      materialReviewRevision: 0,
-      openedAt: OPENED_AT,
-      status: 'open',
-    })
+  it('rejects a non-positive revision for a Review source', () => {
+    const result = initialReviewCycle({ sourceRevision: 0, status: 'open' })
 
     expect(result.isErr()).toBe(true)
     if (result.isOk()) return

@@ -70,6 +70,9 @@ export type SystemAction =
   | 'system:portal.health_reconcile'
   | 'system:portal.responsibility_reannounce'
   | 'system:portal.release_member_responsibility'
+  | 'system:identity.member_role_cleanup'
+  | 'system:inbox.release_member_assignments'
+  | 'system:integration.release_member_google_authority'
   | 'system:portal.destination_revalidate'
   | 'system:portal.media_sweep'
   | 'system:property.import_v2'
@@ -110,7 +113,6 @@ export type SystemAction =
   | 'system:notification.email_urgent'
   | 'system:notification.email_mandatory'
   | 'system:notification.email_digest'
-  | 'system:notification.reconcile'
   | 'system:notification.settle'
   | 'system:inbox.update'
   | 'system:inbox.project_review'
@@ -219,12 +221,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
   ),
   job('refresh-expiring-reviews', 'system:review.refresh_sweep', 'none', 'tenant_cross'),
-  job(
-    'reconcile-missing-notifications',
-    'system:notification.reconcile',
-    'none',
-    'tenant_cross',
-  ),
   // Reads a Google review from Google once before it releases a reminder for
   // it, so the action has an external effect and takes a fresh policy read.
   job(
@@ -390,6 +386,27 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   consumer(
     'portal.member-offboarding',
     'system:portal.release_member_responsibility',
+    'none',
+    'organization',
+  ),
+  consumer(
+    'inbox.member-offboarding',
+    'system:inbox.release_member_assignments',
+    'none',
+    'organization',
+  ),
+  // A role change's cleanup: what the member may no longer be responsible for.
+  consumer(
+    'identity.member-role-cleanup',
+    'system:identity.member_role_cleanup',
+    'none',
+    'organization',
+  ),
+  // Google authority a departing or demoted AccountAdmin held: fence and
+  // cancel. No provider call, and a denied consumer is never retried.
+  consumer(
+    'integration.member-departure',
+    'system:integration.release_member_google_authority',
     'none',
     'organization',
   ),
@@ -683,12 +700,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   schedule(
     'discover-new-reviews-recurring',
     'system:review.discovery_sweep',
-    'none',
-    'tenant_cross',
-  ),
-  schedule(
-    'reconcile-missing-notifications-recurring',
-    'system:notification.reconcile',
     'none',
     'tenant_cross',
   ),

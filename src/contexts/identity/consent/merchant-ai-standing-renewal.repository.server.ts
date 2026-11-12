@@ -20,11 +20,8 @@ import {
   standingRenewalTargetSkip,
   type StandingRenewalSkip,
 } from '../domain/merchant-ai-standing-renewal'
-import {
-  mapSnapshot,
-  runMerchantAiMutation,
-  type SnapshotRow,
-} from './merchant-ai-transition.server'
+import { mapSnapshot, type SnapshotRow } from './merchant-ai-snapshot.server'
+import { transitionMerchantAi } from './merchant-ai-transition.server'
 
 type Input = Parameters<StandingRenewalStore['renew']>[0]
 type Policy = Pick<
@@ -122,23 +119,26 @@ async function renewInTransaction(
     const decision = await deps.authorize({ ...input, capability })
     if (decision !== 'allowed') return skipped(decision)
   }
-  // The shared change path locks and rechecks Property, membership and head.
+  // The one transition locks and rechecks Property, membership and head.
   // Its standing-renewal guard also forbids rebinding to a different source.
-  await runMerchantAiMutation(
+  await transitionMerchantAi(
     tx,
     {
-      ...deps.policy,
-      ...input,
-      actorUserId,
-      expectedStateVersion: input.stateVersion,
-      operation: 'change',
-      state: 'enabled',
-      capabilities: candidate.head.capabilities,
-      reasonCode: STANDING_RENEWAL_REASON,
+      kind: 'command',
+      command: {
+        ...deps.policy,
+        ...input,
+        actorUserId,
+        expectedStateVersion: input.stateVersion,
+        operation: 'change',
+        state: 'enabled',
+        capabilities: candidate.head.capabilities,
+        reasonCode: STANDING_RENEWAL_REASON,
+      },
+      replayIsNoOp: true,
     },
     deps.idGen,
     deps.replyEffects,
-    true,
   )
   return { status: 'renewed' }
 }

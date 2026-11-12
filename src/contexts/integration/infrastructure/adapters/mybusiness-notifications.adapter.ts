@@ -3,8 +3,11 @@ import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-con
 import type { MyBusinessNotificationsPort } from '../../application/ports/mybusiness-notifications.port'
 import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
-import { createGbpApiError, isGbpApiError } from '../../domain/gbp-api-error'
-import { googleCallError } from '../../domain/google-call-error'
+import {
+  createGoogleCallError,
+  isGoogleCallError,
+  googleCallError,
+} from '../../domain/google-call-error'
 import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
@@ -31,7 +34,7 @@ function sameTypes(left: readonly string[], right: readonly string[]): boolean {
 }
 
 function writeOutcomeCouldBeAmbiguous(error: unknown): boolean {
-  return isGbpApiError(error) && googleCallError(error).code === 'upstream_error'
+  return isGoogleCallError(error) && googleCallError(error).code === 'upstream_error'
 }
 
 export const createMyBusinessNotificationsAdapter = (
@@ -65,7 +68,7 @@ export const createMyBusinessNotificationsAdapter = (
       !parsed.success ||
       parsed.data.name !== `accounts/${input.gbpAccountId}/notificationSetting`
     ) {
-      throw createGbpApiError('readNotificationSetting', 'parse_error')
+      throw createGoogleCallError('readNotificationSetting', 'parse_error')
     }
     return parsed.data
   }
@@ -77,7 +80,7 @@ export const createMyBusinessNotificationsAdapter = (
     try {
       return await readSetting(input)
     } catch (error) {
-      if (isGbpApiError(error) && error.providerStatus === 404) {
+      if (isGoogleCallError(error) && error.providerStatus === 404) {
         return { name: `accounts/${input.gbpAccountId}/notificationSetting` }
       }
       throw error
@@ -117,7 +120,7 @@ export const createMyBusinessNotificationsAdapter = (
       throw error
     }
     if (input.desired(current)) return
-    throw createGbpApiError(input.operation, 'upstream_error')
+    throw createGoogleCallError(input.operation, 'upstream_error')
   }
 
   return Object.freeze({

@@ -21,7 +21,7 @@ import {
 } from '../domain/events'
 import { isPortalError } from '../domain/errors'
 import type { PortalLink, PortalLinkCategory } from '../domain/types'
-import type { CreatePortalCommand } from '../application/ports/portal-command-store.port'
+import type { CreatePortalCommand } from '../publication/portal-command-store-port.server'
 import { assertCreateCommand } from './portal-create-guards'
 
 const ORG = organizationId('org-guards-0000-0000-000000000001')

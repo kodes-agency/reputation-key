@@ -15,6 +15,10 @@ import {
 } from '#/contexts/feed/infrastructure/adapters/activity-rights.adapter'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
+  createGuestFeedbackErasureReplayer,
+  createGuestResponseErasureReplayer,
+} from '#/contexts/guest/infrastructure/adapters/guest-response-erasure-replayer.adapter'
+import {
   createGuestBackupErasureReplayer,
   createGuestPropertyErasureReplayer,
 } from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
@@ -131,6 +135,8 @@ export function composeRightsReplayers(
     ...createInboxRightsReplayers({ db: deps.db, now }),
     createGuestBackupErasureReplayer(),
     createGuestPropertyErasureReplayer(),
+    createGuestResponseErasureReplayer(),
+    createGuestFeedbackErasureReplayer(),
     ...createReportingRightsReplayers(now),
     createRetiredReadingsReplayer(),
     ...createPortalErasureReplayers(),

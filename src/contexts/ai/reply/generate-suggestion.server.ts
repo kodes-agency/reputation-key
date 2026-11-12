@@ -11,7 +11,6 @@ import {
   replyUnavailable as unavailable,
   hasProducedDraft,
   isReplyDraftingIdentityCurrent,
-  PERSONALIZED_LANGUAGE_SET,
 } from './requests.server'
 import type {
   GenerateReplySuggestionInput,
@@ -23,30 +22,22 @@ export type {
   GenerateReplySuggestionResult,
   GenerateReplySuggestionDependencies,
 } from '../application/reply-suggestion-contract'
-import { REPLY_DRAFTING_V2_OPERATION_PROFILE } from '#/shared/reply-drafting-v2-profile'
-import {
-  REPLY_DRAFTING_V2_SERVED_LANGUAGES,
-  REPLY_DRAFTING_V2_VERSIONS,
-} from '#/shared/reply-drafting-v2-schema'
+import { REPLY_DRAFTING_V2_OPERATION_PROFILE } from '#/shared/reply/profile'
+import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply-drafting-v2-schema'
 import {
   bindReplyDraftingV2,
   replyDraftingV2GenerationSeed,
   selectedReplyDraftingAttempt,
   rewriteReplyDraftingV2,
   releaseReplyAdmissionOnce,
-  admitInteractiveDraft,
   type ReplyDraftingV2Attempt,
 } from './workflow.server'
 import type { OrganizationId } from '#/shared/domain/ids'
-import {
-  AI_OPERATION_PROFILES,
-  AI_PROVIDER_DEPLOYMENT_PROFILE,
-} from '#/shared/ai-operation-profiles'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import {
   parseCanonicalReplyLanguageTag,
   type ReplyTemplateLanguageGroup,
 } from '#/shared/ai-review-language-catalogue'
-import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-contract'
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
 import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
 import type {
@@ -68,10 +59,11 @@ import {
   replyOperationIdentity,
 } from '../application/ai-operation-binding'
 
-const REPLY_OPERATION_PROFILE_VERSION = 'reply-suggestion-v1' as const
-const PROFILE = AI_OPERATION_PROFILES.find(
-  (candidate) => candidate.profileVersion === REPLY_OPERATION_PROFILE_VERSION,
-)!
+/** What admission answers when the claimed source or consent moved before send. */
+const ADMISSION_CURRENTNESS_REFUSALS: ReadonlySet<AiErrorCode> = new Set([
+  'source_revision_changed',
+  'capability_epoch_changed',
+])
 
 type ReplyProviderFailure = Readonly<{
   operationId: AiOperationId
@@ -284,7 +276,7 @@ export function createGenerateReplySuggestion(
   v2Attempt?: ReplyDraftingV2Attempt,
 ): (input: GenerateReplySuggestionInput) => Promise<GenerateReplySuggestionResult> {
   const v2 = selectedReplyDraftingAttempt(v2Attempt)
-  const operationProfile = v2 ? REPLY_DRAFTING_V2_OPERATION_PROFILE : PROFILE
+  const operationProfile = REPLY_DRAFTING_V2_OPERATION_PROFILE
   // fallow-ignore-next-line complexity -- fail-closed AI operation lifecycle must settle every claimed state in one boundary
   const generate = manageReplyDraftingRequests(dependencies, v2, async (input) => {
     const [source, baseReplyStateRevision] = await Promise.all([
@@ -292,7 +284,7 @@ export function createGenerateReplySuggestion(
         organizationId: input.organizationId,
         propertyId: input.propertyId,
         reviewId: input.reviewId,
-        ...(v2 ? { sentences: true } : {}),
+        sentences: true,
         expected: {
           kind: 'reply',
           sourceEpoch: input.expectedSourceEpoch,
@@ -309,12 +301,7 @@ export function createGenerateReplySuggestion(
     }
 
     const observation = source.observation
-    const language = await resolveSuggestionLanguage(
-      dependencies,
-      input,
-      observation,
-      v2 ? new Set(REPLY_DRAFTING_V2_SERVED_LANGUAGES) : PERSONALIZED_LANGUAGE_SET,
-    )
+    const language = await resolveSuggestionLanguage(dependencies, input, observation)
     if (language.kind === 'settled') {
       if (language.result.status !== 'fallback') return language.result
       const fallbackLanguage = parseCanonicalReplyLanguageTag(
@@ -338,43 +325,33 @@ export function createGenerateReplySuggestion(
           }
     }
     const { reviewText, concreteReplyLanguage } = language
-    const replyLocalFrame =
-      (await dependencies.replyVoices?.resolveLocalFrame({
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        reviewId: input.reviewId,
-        languageGroup: concreteReplyLanguage.templateGroup,
-      })) ?? null
     const grant = await resolveDraftingGrant(dependencies, input)
     if (grant.kind === 'refused') return grant.result
     const { authorization, profile, brandProfile, stopFence } = grant
     const nowEpochMillis = dependencies.nowEpochMillis()
 
-    // V2 admits before reserving a frame or claiming an operation, so refused
+    // Admission comes before reserving a frame or claiming an operation, so refused
     // and busy requests leave no generation records.
-    const admission = v2
-      ? await admitReplyDraft(dependencies, input, nowEpochMillis)
-      : null
-    if (admission && !admission.ok) {
+    const admission = await admitReplyDraft(dependencies, input, nowEpochMillis)
+    if (!admission.ok) {
       return admission.code === 'admission_busy'
         ? unavailable('busy', admission.retryAfterEpochMillis)
         : unavailable('provider_unavailable', nowEpochMillis + 5_000)
     }
-    let releaseAdmission = admission
-      ? releaseReplyAdmissionOnce(dependencies.admission, admission.admissionId)
-      : async () => {}
+    const releaseAdmission = releaseReplyAdmissionOnce(
+      dependencies.admission,
+      admission.admissionId,
+    )
     try {
       const generationSeed = replyDraftingV2GenerationSeed(input)
-      const replyV2Frame = v2
-        ? await dependencies.replyVoices?.resolveV2Frame?.({
-            ...input,
-            languageGroup: concreteReplyLanguage.templateGroup,
-            generationSeed,
-            nowEpochMillis: dependencies.nowEpochMillis(),
-          })
-        : undefined
-      if (v2 && !replyV2Frame) return unavailable('policy_unavailable')
-      reportReplyReading(input, v2, replyV2Frame?.candidates[0], reviewText)
+      const replyV2Frame = await dependencies.replyVoices?.resolveV2Frame?.({
+        ...input,
+        languageGroup: concreteReplyLanguage.templateGroup,
+        generationSeed,
+        nowEpochMillis: dependencies.nowEpochMillis(),
+      })
+      if (!replyV2Frame) return unavailable('policy_unavailable')
+      reportReplyReading(input, v2, replyV2Frame.candidates[0], reviewText)
       const canonicalSource = encodeCanonicalAiReviewSource({
         text: reviewText,
         rating: observation.rating,
@@ -391,14 +368,10 @@ export function createGenerateReplySuggestion(
         replyBrandProfileVersion: brandProfile.version,
         replyBrandDisplayName: brandProfile.displayName,
         replyBrandDisplayNameDigest: brandProfile.displayNameDigest,
-        voiceDigest: replyV2Frame?.voiceDigest ?? replyLocalFrame?.voiceDigest ?? null,
-        ...(v2
-          ? {
-              authorizationStateVersion: authorization.stateVersion,
-              noticeVersion: authorization.noticeVersion,
-              noticeDigest: authorization.noticeDigest,
-            }
-          : {}),
+        voiceDigest: replyV2Frame.voiceDigest,
+        authorizationStateVersion: authorization.stateVersion,
+        noticeVersion: authorization.noticeVersion,
+        noticeDigest: authorization.noticeDigest,
         languageGroup: concreteReplyLanguage.templateGroup,
       }
       const identity = replyOperationIdentity(
@@ -425,7 +398,7 @@ export function createGenerateReplySuggestion(
         input,
         languageCode: concreteReplyLanguage.tag,
         generationSeed,
-        voiceDigest: replyV2Frame?.voiceDigest ?? null,
+        voiceDigest: replyV2Frame.voiceDigest,
       })
       const requestFingerprint = aiRequestFingerprint({
         identity,
@@ -457,22 +430,6 @@ export function createGenerateReplySuggestion(
       }
       const expectedAttempt = claimed.operation.executionAttempt + 1
       if (expectedAttempt > 4) return unavailable('provider_unavailable')
-      // Preserve v1's claim-before-admission order for replay and conflict handling.
-      if (!admission) {
-        const v1Admission = await admitInteractiveDraft(
-          dependencies,
-          input,
-          nowEpochMillis,
-        )
-        if (!v1Admission.ok)
-          return v1Admission.code === 'admission_busy'
-            ? unavailable('busy', v1Admission.retryAfterEpochMillis)
-            : unavailable('provider_unavailable', nowEpochMillis + 5_000)
-        releaseAdmission = releaseReplyAdmissionOnce(
-          dependencies.admission,
-          v1Admission.admissionId,
-        )
-      }
       const admittedAtEpochMillis = Math.max(
         nowEpochMillis,
         dependencies.nowEpochMillis(),
@@ -487,13 +444,12 @@ export function createGenerateReplySuggestion(
         return unavailable('provider_unavailable', admittedAtEpochMillis + 1_000)
       }
       if (
-        v2 &&
         (await isReplySuggestionStillCurrent(dependencies, input, currentnessFence)) !==
-          'current'
+        'current'
       )
         return unavailable('source_changed')
       if (
-        v2?.logicalDeadlineEpochMillis !== undefined &&
+        v2.logicalDeadlineEpochMillis !== undefined &&
         dependencies.nowEpochMillis() + operationProfile.requestDeadlineMs >
           v2.logicalDeadlineEpochMillis
       )
@@ -501,11 +457,9 @@ export function createGenerateReplySuggestion(
       const response = await dependencies.inference.generateReply(
         {
           route: 'reply-suggestion',
-          replyProfileVersion: v2
-            ? REPLY_DRAFTING_V2_VERSIONS.profile
-            : AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+          replyProfileVersion: REPLY_DRAFTING_V2_VERSIONS.profile,
           brandProfile: { displayName: brandProfile.displayName },
-          ...(v2 ? { replyV2Frame: replyV2Frame! } : { replyLocalFrame }),
+          replyV2Frame,
           operationId: execution.id,
           permitId: execution.executionPermitId,
           attemptNumber: expectedAttempt,
@@ -524,11 +478,11 @@ export function createGenerateReplySuggestion(
             rating: observation.rating,
             languageCode: observation.languageCode,
             reviewedAtEpochMillis: observation.reviewedAtEpochMillis,
-            ...(v2 ? { sentences: [...(observation.sentences ?? [])] } : {}),
+            sentences: [...(observation.sentences ?? [])],
           },
         },
         AbortSignal.timeout(operationProfile.requestDeadlineMs),
-        ...replyProgressArguments(v2, input),
+        ...replyProgressArguments(input),
       )
       if (response.status === 'error') {
         const retryAtEpochMillis = await recordReplyProviderFailure(dependencies, {
@@ -538,17 +492,28 @@ export function createGenerateReplySuggestion(
           failureCode: response.code,
           providerRetryAfterEpochMillis: response.retryAfterEpochMillis,
         })
+        // Admission re-reads the source and the consent before anything is
+        // sent. Its refusal is the same finding as the check after a
+        // response, so it answers the same way.
+        if (ADMISSION_CURRENTNESS_REFUSALS.has(response.code)) {
+          const refusedCurrentness = await isReplySuggestionStillCurrent(
+            dependencies,
+            input,
+            currentnessFence,
+          )
+          return unavailable(
+            refusedCurrentness === 'current' ? 'source_changed' : refusedCurrentness,
+          )
+        }
         // Never substitute a template here. A manager who asked for a
         // personalized draft is told it could not be written; using the
         // governed template is their explicit choice (`templateOnly`).
         return await rewriteReplyDraftingV2({
-          attempt: v2
-            ? {
-                ...v2,
-                logicalDeadlineEpochMillis:
-                  v2.logicalDeadlineEpochMillis ?? admittedAtEpochMillis + 150_000,
-              }
-            : undefined,
+          attempt: {
+            ...v2,
+            logicalDeadlineEpochMillis:
+              v2.logicalDeadlineEpochMillis ?? admittedAtEpochMillis + 150_000,
+          },
           operationId: execution.id,
           issues: response.code === 'output_invalid' ? response.rewriteIssues : undefined,
           nowEpochMillis: dependencies.nowEpochMillis(),
@@ -602,9 +567,7 @@ export function createGenerateReplySuggestion(
         propertyProfileVersion: profile.profileVersion,
         replyBrandProfileVersion: brandProfile.version,
         replyBrandDisplayNameDigest: brandProfile.displayNameDigest,
-        operationProfileVersion: v2
-          ? REPLY_DRAFTING_V2_VERSIONS.operation
-          : REPLY_OPERATION_PROFILE_VERSION,
+        operationProfileVersion: REPLY_DRAFTING_V2_VERSIONS.operation,
         replyProfileVersion: response.result.profileVersion,
       })
       if (!settled) {
@@ -617,21 +580,19 @@ export function createGenerateReplySuggestion(
           settlementCurrentness === 'current' ? 'source_changed' : settlementCurrentness,
         )
       }
-      if (v2) {
-        const finalCurrentness = await isReplySuggestionStillCurrent(
-          dependencies,
-          input,
-          currentnessFence,
-        )
-        if (finalCurrentness !== 'current') return unavailable(finalCurrentness)
-      }
+      const finalCurrentness = await isReplySuggestionStillCurrent(
+        dependencies,
+        input,
+        currentnessFence,
+      )
+      if (finalCurrentness !== 'current') return unavailable(finalCurrentness)
       const delivered = await dependencies.operations.markDelivered({
         operationId: execution.id,
         organizationId: input.organizationId,
         expectedAttempt,
         deliveredAtEpochMillis: dependencies.nowEpochMillis(),
       })
-      if (v2 && !delivered) return unavailable('completed_without_delivery')
+      if (!delivered) return unavailable('completed_without_delivery')
       return {
         status: 'ready',
         profileVersion: response.result.profileVersion,

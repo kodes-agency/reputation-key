@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type { NotificationWorkDecision } from '../../application/notification-work-state'
+import { type NotificationWorkDecision } from '../../domain/notification-actionable'
 import {
   createSendEmailsHandler,
   type SendEmailJobData,
@@ -36,6 +36,9 @@ const grouped = buildNotification({
 })
 const workState = (answer: NotificationWorkDecision) => ({
   isWaiting: vi.fn(async () => answer),
+  isWaitingMany: vi.fn(async (subjects: ReadonlyArray<unknown>) =>
+    subjects.map(() => answer),
+  ),
   finished: vi.fn(),
 })
 

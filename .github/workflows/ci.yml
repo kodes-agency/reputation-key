@@ -1229,9 +1229,22 @@ jobs:
       - name: Install Chromium
         if: steps.scope.outputs.run == 'true' && steps.pw-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install chromium
+      # The browser job's package cache, restored only: without it a stalled
+      # Ubuntu mirror leaves this job nothing to install offline.
+      - name: Week of the Ubuntu package cache
+        if: steps.scope.outputs.run == 'true'
+        id: apt-week
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+      - name: Restore Ubuntu packages for Playwright
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/playwright-apt
+          key: playwright-apt-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium_${{ steps.apt-week.outputs.week }}
+          restore-keys: playwright-apt-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium_
       - name: Install browser system packages
         if: steps.scope.outputs.run == 'true'
-        run: sh scripts/ci/install-playwright-deps.sh chromium
+        run: PLAYWRIGHT_DEPS_CACHE_DIR="$HOME/.cache/playwright-apt" sh scripts/ci/install-playwright-deps.sh chromium
       - name: Check guest geometry, motion and vitals
         if: steps.scope.outputs.run == 'true'
         run: pnpm test:guest:quality

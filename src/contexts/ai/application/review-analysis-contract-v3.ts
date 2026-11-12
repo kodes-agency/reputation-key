@@ -27,7 +27,7 @@ import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
 } from '#/shared/review-analysis-v3-normalizer'
-import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/review-analysis-v3-profile'
+import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/analysis/profile'
 import { reviewAnalysisV3GatewayResultSchema } from '#/shared/review-analysis-v3-request'
 import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
 import { DERIVATIVE_RETENTION_MILLIS } from '../domain/types'

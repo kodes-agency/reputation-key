@@ -22,7 +22,7 @@ import {
   recoverPropertyImportInputSchema,
   retryPropertyImportItemInputSchema,
   startPropertyImportInputSchema,
-} from '../application/dto/google-import-v2.dto'
+} from '../application/dto/google-import.dto'
 import {
   GoogleImportDiscoveryError,
   type GoogleImportDiscoveryErrorCode,

@@ -56,10 +56,9 @@ export type ChangePortalLanguagesVariables = {
 
 /**
  * Governed Portal workflow fact: the only producer of
- * `portal.content_review.completed`, `portal.configuration_completeness` and
- * `portal.approved_destination_ratio`. `reviewId` is the manager-visible
- * idempotency key; `revision` is 1 for an initial review (corrections need the
- * superseded fact ids, which no UI surface can supply yet).
+ * `portal.content_review.completed`. `reviewId` is the manager-visible
+ * idempotency key; `revision` is 1 for an initial review (a correction needs the
+ * superseded fact id, which no UI surface can supply yet).
  */
 export type CompleteReviewVariables = {
   data: { portalId: string; reviewId: string; revision: number }

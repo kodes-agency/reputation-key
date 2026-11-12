@@ -9,7 +9,7 @@ import type {
 import type {
   googleImportReviewDraftSchema,
   GoogleImportReviewDraftInput,
-} from '#/contexts/integration/application/dto/google-import-v2.dto'
+} from '#/contexts/integration/application/dto/google-import.dto'
 import type { ImportReviewDraft } from './google-import-review-model'
 import type { ConnectionCallbackError } from './google-import-callback-errors'
 import type {
@@ -86,7 +86,6 @@ export type GoogleImportDiscoveryController = Readonly<{
   setSearch: (value: string) => void
   visibleCandidates: readonly ImportCandidateDto[]
   reviewDraft: ImportReviewDraft | null
-  reviewCandidates: readonly ImportCandidateDto[]
   changeConnection: (connectionId: string) => Promise<void>
   resumeDiscovery: () => void
   selectAccount: (accountRef: string) => void

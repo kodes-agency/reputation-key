@@ -12,9 +12,9 @@ import {
 import { createGoogleImportDiscovery } from '../application/google-import-discovery'
 import { createGoogleImportPropertyClassifier } from '../application/google-import-property-classifier'
 import { createGoogleImportTransaction } from '../application/google-import-transaction'
-import { createGoogleImportV2Lifecycle } from '../application/google-import-v2-lifecycle'
-import { createGoogleImportV2Processor } from '../application/google-import-v2-processor'
-import type { GoogleImportV2Store } from '../application/ports/google-import-v2-store.port'
+import { createGoogleImportLifecycle } from '../application/google-import-lifecycle'
+import { createGoogleImportProcessor } from '../application/google-import-processor'
+import type { GoogleImportStore } from '../application/ports/google-import-store.port'
 import type { GoogleImportReferenceStore } from '../application/ports/google-import-reference-store.port'
 import { createRefreshBoundGoogleCategories } from '../application/refresh-bound-google-categories'
 import type { GoogleAuthorizedProviderExecutor } from '../application/ports/google-authorized-provider-executor.port'
@@ -29,7 +29,7 @@ export type GoogleImportRuntimeDeps = Readonly<{
   newId: () => string
   connectionRepo: ActiveConnectionTokenProviderDeps['connectionRepo']
   tokenProvider: ActiveConnectionTokenProvider
-  store: GoogleImportV2Store
+  store: GoogleImportStore
   propertyApi: PropertyPublicApi
   propertyBindingApi: PropertyGoogleBindingPublicApi | undefined
   resolveActiveMember: ActiveMemberAuthResolver
@@ -42,8 +42,8 @@ export type GoogleImportRuntimeDeps = Readonly<{
 }>
 
 export type GoogleImportRuntime = Readonly<{
-  lifecycle: ReturnType<typeof createGoogleImportV2Lifecycle> | null
-  processor: ReturnType<typeof createGoogleImportV2Processor> | null
+  lifecycle: ReturnType<typeof createGoogleImportLifecycle> | null
+  processor: ReturnType<typeof createGoogleImportProcessor> | null
   discovery: ReturnType<typeof createGoogleImportDiscovery> | null
   transaction: ReturnType<typeof createGoogleImportTransaction> | null
   refreshBoundCategories:
@@ -62,7 +62,7 @@ export const createGoogleImportRuntime = (
 ): GoogleImportRuntime => {
   const binding = deps.propertyBindingApi
   const lifecycle = binding
-    ? createGoogleImportV2Lifecycle({
+    ? createGoogleImportLifecycle({
         store: deps.store,
         propertyBindingApi: binding,
         clock: deps.clock,
@@ -114,7 +114,7 @@ export const createGoogleImportRuntime = (
     resolveActor: deps.resolveActiveMember,
     authorize: authorizeCommand,
   })
-  const processor = createGoogleImportV2Processor({
+  const processor = createGoogleImportProcessor({
     store: deps.store,
     propertyBindingApi: binding,
     authorizeGoogleImportCommand: authorizeCommand,

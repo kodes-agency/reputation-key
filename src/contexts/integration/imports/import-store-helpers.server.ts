@@ -2,11 +2,11 @@ import { and, eq, sql } from 'drizzle-orm'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { organizationId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
-import { PROPERTY_IMPORT_RETENTION_RELEASED_EVENT } from '../application/google-import-v2-contract'
+import { PROPERTY_IMPORT_RETENTION_RELEASED_EVENT } from '../application/google-import-contract'
 import type {
-  GoogleImportV2Intent,
-  GoogleImportV2TerminalAuthority,
-} from '../application/ports/google-import-v2-store.port'
+  GoogleImportIntent,
+  GoogleImportTerminalAuthority,
+} from '../application/ports/google-import-store.port'
 import type {
   IntegrationPropertyImportRequested,
   IntegrationPropertyImportRetentionReleased,
@@ -41,7 +41,7 @@ export function assertLifecycleSweepLimit(limit: number): void {
 export function unclaimedTerminalAuthority(
   row: Readonly<{ dispatchEpoch: number; claimFence: string | null }>,
   expiredClaim: boolean,
-): GoogleImportV2TerminalAuthority {
+): GoogleImportTerminalAuthority {
   return expiredClaim
     ? {
         kind: 'expired_claim',
@@ -108,7 +108,7 @@ function frozenCount(vector: FrozenVector, key: string): number {
 
 type FrozenVector = Readonly<Record<string, string | number | boolean | null>>
 
-export function authorizationColumns(item: GoogleImportV2Intent['items'][number]) {
+export function authorizationColumns(item: GoogleImportIntent['items'][number]) {
   const vector: FrozenVector = item.authorization.authorizationVector
   return {
     expectedExecutionPolicyVersion: frozenText(vector, 'executionPolicyVersion'),

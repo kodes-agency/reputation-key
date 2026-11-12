@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
+import { digestOf } from './ai-digest'
 import {
   AI_CLOSED_PLACEHOLDERS,
   AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
@@ -54,10 +53,10 @@ const OUTPUT_LEAKAGE_MANIFEST = Object.freeze({
   reasons: AI_REPLY_OUTPUT_LEAKAGE_REASONS,
 })
 
-export const AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST = createHash('sha256')
-  .update('repkey-reply-output-leakage-profile-v1\0', 'utf8')
-  .update(canonicalizeRfc8785(OUTPUT_LEAKAGE_MANIFEST), 'utf8')
-  .digest('hex')
+export const AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST = digestOf(
+  'repkey-reply-output-leakage-profile-v1\0',
+  OUTPUT_LEAKAGE_MANIFEST,
+)
 
 export type AiReplyOutputLeakageInput = Readonly<{
   text: string

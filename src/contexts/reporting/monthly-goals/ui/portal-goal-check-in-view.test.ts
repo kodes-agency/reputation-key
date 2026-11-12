@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalLastMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalLastMonth } from '#/contexts/reporting/monthly-goals/contracts'
 import {
   CHECK_IN_NOTHING,
   CHECK_IN_OFFER,

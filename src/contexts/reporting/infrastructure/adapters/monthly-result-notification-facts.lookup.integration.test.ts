@@ -433,6 +433,36 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
     }
   })
 
+  it('refuses an achieved result when any one identity input names another record', async () => {
+    const portalId = randomUUID()
+    await lease.pool.query(
+      `INSERT INTO portals
+         (id, organization_id, property_id, entity_type, entity_id, name, slug)
+       VALUES ($1, $2, $3, 'property', $5, 'Achieved QR', $4)`,
+      [portalId, organizationId, propertyId, `achieved-${randomUUID()}`, propertyId],
+    )
+    const seeded = await seedClosedResult({ kind: 'portal', id: portalId }, true)
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+    const exact = {
+      organizationId,
+      propertyId,
+      assignmentId: seeded.assignmentId,
+      monthlyResultId: seeded.monthlyResultId,
+    }
+
+    await expect(lookup.findMonthlyResultNotificationFacts(exact)).resolves.not.toBeNull()
+    for (const mismatch of [
+      { organizationId: `${organizationId}-other` },
+      { propertyId: randomUUID() },
+      { assignmentId: randomUUID() },
+      { monthlyResultId: randomUUID() },
+    ]) {
+      await expect(
+        lookup.findMonthlyResultNotificationFacts({ ...exact, ...mismatch }),
+      ).resolves.toBeNull()
+    }
+  })
+
   async function appendRevision(
     monthlyResultId: string,
     input: Readonly<{

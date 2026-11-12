@@ -34,6 +34,17 @@ import {
   googleConnectionId,
 } from '#/shared/domain/ids'
 
+/** What the integration adapter throws for a call Google answered or refused. */
+const providerFailure = (
+  fields: Readonly<{ code: string; providerStatus?: number; retryAfterMs?: number }>,
+) =>
+  Object.assign(new Error('provider call failed'), {
+    _tag: 'GbpApiError',
+    dispatch: 'answered',
+    providerStatus: 429,
+    ...fields,
+  })
+
 const ORG_ID = organizationId('org-1')
 const PROP_ID = propertyId('prop-1')
 const REVIEW_ID = reviewId('rev-1')
@@ -708,4 +719,28 @@ describe('reconcileReplyPublication reading Google moderation', () => {
       expect(actual.isOk() && actual.value).toEqual(expected.isOk() && expected.value)
     },
   )
+
+  describe('reconcileReplyPublication provider failures', () => {
+    it('reads a Google refusal as a review API error and ends as sync_failed', async () => {
+      const { deps, googleReviewApi } = makeDeps({
+        reply: makeReply(),
+        review: makeReview(),
+        googleError: providerFailure({ code: 'auth_failed', providerStatus: 401 }),
+      })
+
+      const result = await reconcileReplyPublication(deps)({
+        replyId: REPLY_ID,
+        organizationId: ORG_ID,
+      })
+
+      expect(googleReviewApi.getReview).toHaveBeenCalledOnce()
+      expect(result.isErr()).toBe(true)
+      if (result.isErr()) {
+        expect(result.error).toMatchObject({ code: 'sync_failed' })
+        expect(JSON.stringify(result.error)).toContain(
+          'Google review API request failed (auth_failed; answered; status 401)',
+        )
+      }
+    })
+  })
 })
