@@ -5,8 +5,8 @@ import type { journalBeforeErasure } from '#/shared/db/lifecycle/erasure-journal
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 
-/** Enable only in an owner-approved release after command replay and fresh backups. */
-export const GUEST_WITHDRAWAL_JOURNAL_ACTIVE: boolean = false
+/** Self-service withdrawals journal before deleting; a failed write refuses the withdrawal. */
+export const GUEST_WITHDRAWAL_JOURNAL_ACTIVE: boolean = true
 
 export type GuestWithdrawalJournal = Parameters<typeof journalBeforeErasure>[1] &
   Readonly<{ idGen: () => string }>
