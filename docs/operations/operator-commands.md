@@ -74,23 +74,14 @@ container and need the full settings. `--help` opens neither.
 | `rebuild-projection`                                      | application | Kept: runbook §5 names it as the repair for a missing inbox item.                                                                                                  |
 | `reconcile-publication`                                   | application | Reports a publication reconcile.                                                                                                                                   |
 | `refresh`                                                 | database    | Enqueues one Review refresh sweep.                                                                                                                                 |
-| `reparse-review-translations`                             | database    | Kept until the beta count below reads 0.                                                                                                                           |
 | `report-capability-refusal`                               | database    | Capability refusal report.                                                                                                                                         |
 | `restore-preflight`, `restore-verify`                     | application | Restore rehearsal and verification.                                                                                                                                |
 | `review-observations`                                     | application | Kept until the beta count below reads 0.                                                                                                                           |
 | `storage-cors`                                            | application | Bucket CORS check, run after every deploy.                                                                                                                         |
 | `work`                                                    | application | Durable work items; replaces `quarantine` after its removal.                                                                                                       |
 
-Retained until the data says they are done. Run each count read-only against the
+Retained until the data says it is done. Run the count read-only against the
 beta database and report it; the command stays until the count reads 0.
-
-- `reparse-review-translations`: Reviews still carrying Google's translation
-  envelope in their stored text.
-
-  ```sql
-  SELECT count(*) FROM review_source_contents
-  WHERE text LIKE '(Translated by Google)%' AND position('(Original)' IN text) > 0;
-  ```
 
 - `review-observations prune`: observation rows that repeat the row before them
   (same epoch, revision, digest and content state) and are not the Review's
@@ -193,7 +184,6 @@ The commands:
      );
   ```
 
-- `ops:reparse-review-translations <report|repair> [--property <id>]` — re-split Google's `(Translated by Google) … (Original)` envelope on Review rows stored before the provider adapter split it at ingestion. It selects only that prefix shape; rows that hold Google's original-first envelope (`<original>\n\n(Translated by Google)\n<translation>`, stored on 2026-10-23 before the adapter knew it) are split by the next sync, which compares the split text against the stored baseline as no guest edit. A targeted column update: the text, `translated_text`, `content_hash` and AI source provenance are recomputed with the sync path's own functions, and the Review lifecycle, `source_revision` and analysis position are untouched. `report` never writes; `repair` is dry-run by default and `--apply` requires `--reason` and `--ticket`. Idempotent.
 - `ops:triage-beta-feedback --operator <id>` — list the global content-free native-feedback support queue. Applying one exact local-reference transition additionally requires all 14 reviewed positional values, `--ticket`, `--reason`, and `--apply`; it is revision/transition-ID guarded, appends immutable evidence, and never reads report text/downloads attachments or creates an engineering issue. §16
 - Operational Action History currently exposes a context-owned restricted
   AccountAdmin list/export seam, wired to current Identity authority, plus internal readiness, hold,
