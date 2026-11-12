@@ -1,8 +1,7 @@
 // Portal context — the link reorder server function.
-// Invokes the real createServerFn handler: the Portal and the category decide
-// the Property, the policy is asked, and only then are the links the caller
-// named read. A caller the policy refuses costs two lookups, however many
-// links the request names.
+// A caller the policy refuses costs two lookups, however many links the
+// request names: the count is the proof here. The stored outcome of every
+// refusal is asserted in portal-links-handler.integration.test.ts.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
@@ -57,9 +56,6 @@ const reorder = {
   ],
 }
 
-const firstCallOrder = (mock: ReturnType<typeof vi.fn>): number =>
-  Math.min(...mock.mock.invocationCallOrder)
-
 describe('reorderLinks server function', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -86,72 +82,5 @@ describe('reorderLinks server function', () => {
     expect(mocks.resolvePortalCategoryManagementScope).toHaveBeenCalledTimes(1)
     expect(mocks.resolvePortalLinkManagementScope).not.toHaveBeenCalled()
     expect(mocks.reorderLinks).not.toHaveBeenCalled()
-  })
-
-  it('asks the policy on the Portal and the category, then reads the links and reorders', async () => {
-    await withStartContext(() => reorderLinks({ data: reorder }))
-
-    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
-      actor: ctx,
-      action: 'portal.update',
-      capability: 'portal.write',
-      propertyId: 'property-1',
-    })
-    expect(mocks.resolvePortalLinkManagementScope.mock.calls.map(([id]) => id)).toEqual([
-      'link-1',
-      'link-2',
-      'link-3',
-    ])
-    expect(firstCallOrder(mocks.requireExecutionAllowed)).toBeLessThan(
-      firstCallOrder(mocks.resolvePortalLinkManagementScope),
-    )
-    expect(mocks.reorderLinks).toHaveBeenCalledWith(reorder, ctx)
-  })
-
-  it('answers not found, and reorders nothing, for a link that sits in another Portal', async () => {
-    mocks.resolvePortalLinkManagementScope.mockImplementation(async (id: string) =>
-      id === 'link-2' ? { ...scope, portalId: 'portal-2' } : scope,
-    )
-
-    await expect(
-      withStartContext(() => reorderLinks({ data: reorder })),
-    ).rejects.toMatchObject({
-      name: 'PortalError',
-      code: 'link_not_found',
-      status: 404,
-    })
-    expect(mocks.reorderLinks).not.toHaveBeenCalled()
-  })
-
-  it('answers not found, and reorders nothing, for a link id that names no row', async () => {
-    mocks.resolvePortalLinkManagementScope.mockImplementation(async (id: string) =>
-      id === 'link-3' ? null : scope,
-    )
-
-    await expect(
-      withStartContext(() => reorderLinks({ data: reorder })),
-    ).rejects.toMatchObject({
-      name: 'PortalError',
-      code: 'link_not_found',
-      status: 404,
-    })
-    expect(mocks.reorderLinks).not.toHaveBeenCalled()
-  })
-
-  it('answers not found before the policy or any link for a category of another Portal', async () => {
-    mocks.resolvePortalCategoryManagementScope.mockResolvedValue({
-      ...scope,
-      portalId: 'portal-2',
-    })
-
-    await expect(
-      withStartContext(() => reorderLinks({ data: reorder })),
-    ).rejects.toMatchObject({
-      name: 'PortalError',
-      code: 'link_not_found',
-      status: 404,
-    })
-    expect(mocks.requireExecutionAllowed).not.toHaveBeenCalled()
-    expect(mocks.resolvePortalLinkManagementScope).not.toHaveBeenCalled()
   })
 })
