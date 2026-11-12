@@ -361,7 +361,6 @@ describe('health checker content safety (BQC-4.3)', () => {
           oldestAcceptedUnresolvedAgeMs: null,
           capturedUnresolvedCount: 0,
         },
-        missingForInboxItemCount: 0,
         deliveryLag: {
           sourceReceiptPending: 0,
           sourceReceiptPendingByEventType: {},
@@ -703,20 +702,6 @@ describe('health checker notification delivery metrics', () => {
         capturedUnresolvedCount: 0,
       },
     })
-  })
-
-  it('surfaces the injected notification-gap count, defaulting to no known gap', async () => {
-    const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW, NOTIFICATION_ROW])
-
-    // The query belongs to the notification context, so shared/** cannot run
-    // it — an unwired deployment must report "no known gap", never invent one.
-    const unwired = await createHealthChecker(db).check()
-    expect(unwired.notifications.missingForInboxItemCount).toBe(0)
-
-    const wired = await createHealthChecker(db, undefined, {
-      readMissingNotificationCount: async () => 7,
-    }).check()
-    expect(wired.notifications.missingForInboxItemCount).toBe(7)
   })
 
   it('surfaces bounded content-free delivery lag clocks, ages, and saturation', async () => {

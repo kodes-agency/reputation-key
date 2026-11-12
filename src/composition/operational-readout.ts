@@ -58,7 +58,6 @@ export type OperationalReadoutInput = Readonly<{
   /** Notification-owned health gauges the shared snapshot joins. Typed from
    * the snapshot's own contract so the seam cannot drift from its consumer. */
   notification: Readonly<{
-    readMissingNotificationCount: OperationsSnapshotDeps['readMissingNotificationCount']
     readNotificationDeliveryLag: OperationsSnapshotDeps['readNotificationDeliveryLag']
   }>
   /** Guest-owned observation-loss gauge. */
@@ -151,10 +150,6 @@ function buildOperationsSnapshot(
       policyStore: input.identity.policyStoreVersion,
       sourceContentPolicy: createGoogleSourceContentPolicy().policyVersion,
     },
-    // notification.missing_for_inbox_item: the query is the notification
-    // context's, the gauge is the shared health snapshot's — the root is the
-    // only place allowed to join them.
-    readMissingNotificationCount: input.notification.readMissingNotificationCount,
     readNotificationDeliveryLag: input.notification.readNotificationDeliveryLag,
     // The same scoped email decision Feed's delivery-lag evidence reads.
     isEmailDeliveryAllowed,

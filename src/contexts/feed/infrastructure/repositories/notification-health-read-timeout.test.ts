@@ -22,7 +22,6 @@ import {
   withHealthReadTimeout,
 } from './health-read-timeout'
 import { createNotificationDeliveryLagRepository } from './notification-delivery-lag.repository'
-import { createNotificationGapRepository } from './notification-gap.repository'
 
 const WINDOW_END = new Date('2026-08-30T08:00:00.000Z')
 const STATEMENT_TIMEOUT_MS = 200
@@ -94,29 +93,13 @@ describe.sequential(
       expect(elapsedMs).toBeLessThan(LOCK_HELD_MS)
     })
 
-    it('cancels a notification-gap count blocked past its statement timeout', async () => {
-      const repo = createNotificationGapRepository(db)
-
-      const { outcome, elapsedMs } = await whileLocked('inbox_items', () =>
-        repo.countItemsMissingNotifications({
-          createdAtOrAfter: new Date(WINDOW_END.getTime() - 24 * 60 * 60 * 1000),
-          createdBefore: WINDOW_END,
-          scanLimit: 10,
-          statementTimeoutMs: STATEMENT_TIMEOUT_MS,
-        }),
-      )
-
-      expect(outcome).toBeInstanceOf(NotificationHealthReadTimeoutError)
-      expect(elapsedMs).toBeLessThan(LOCK_HELD_MS)
-    })
-
     it('leaves no statement timeout on the connection it read on', async () => {
-      const repo = createNotificationGapRepository(db)
+      const repo = createNotificationDeliveryLagRepository(db, () => true)
 
-      await whileLocked('inbox_items', () =>
-        repo.countItemsMissingNotifications({
-          createdAtOrAfter: new Date(WINDOW_END.getTime() - 24 * 60 * 60 * 1000),
-          createdBefore: WINDOW_END,
+      await whileLocked('notification_email_queue', () =>
+        repo.read({
+          recordedAtOrAfter: new Date(WINDOW_END.getTime() - 24 * 60 * 60 * 1000),
+          recordedBefore: WINDOW_END,
           scanLimit: 10,
           statementTimeoutMs: STATEMENT_TIMEOUT_MS,
         }),
