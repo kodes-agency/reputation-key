@@ -128,8 +128,10 @@ private bucket by hand and delete the local copy.
   restore replay with the same server secret writes the same values again; a
   rotated secret gives the replayed copy other, still consistent, pseudonyms. A
   Property erasure changes that Property's audit events and the audit log rows
-  whose details name the Property. Operator handles (`ops:<name>`), including
-  the record of the rights request itself, stay.
+  whose details name the Property. Operators name no customer and stay: an
+  operator handle (`ops:<name>`) wherever it appears, including the record of
+  the rights request itself, and the platform operator's user id on the
+  operator console's own records (`platform.*` actions).
 - **work-items** (`organization`, last): deletes the Organization's settled
   work items and the outbox events a restore fenced, which are never delivered
   and never age out. It refuses while any item is pending, running, uncertain or

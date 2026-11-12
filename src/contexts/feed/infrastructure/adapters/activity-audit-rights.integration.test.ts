@@ -2,7 +2,8 @@
 // Property A and B of one Organization beside a second Organization. The audit
 // rows keep the event and lose the person, only in the erased scope, and a
 // replay after a restore writes the same pseudonyms again. Audit log rows
-// belong to a Property through the Property id in their details.
+// belong to a Property through the Property id in their details. Operator
+// handles and the operator console's own record keep the operator.
 
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -30,6 +31,7 @@ import {
 const RESTORE_POINT = new Date('2026-07-01T00:00:00.000Z')
 const IP = '203.0.113.9'
 const SECRET = 'audit-pseudonym-test-secret'
+const OPERATOR_USER = 'platform-operator-user'
 
 let lease: TestLease
 let db: Database
@@ -89,39 +91,61 @@ async function seed(properties: number): Promise<RightsSeeded> {
   )
   const user = userOf(seeded.organizationId)
   const [a, b] = seeded.propertyIds
-  const logs: Array<[string, Record<string, unknown>, string | null]> = [
-    [
-      user,
-      {
+  const status = 'goal.program.status_changed'
+  const logs: Array<
+    Readonly<{
+      userId: string
+      action: string
+      details: Record<string, unknown>
+      ip: string | null
+    }>
+  > = [
+    {
+      userId: user,
+      action: status,
+      details: {
         propertyId: a,
         status: 'paused',
         reason: 'Dana Rivera asked to pause',
         contact: 'dana@example.test',
         summary: 'Call dana@example.test before Friday',
+        label: 'Front desk @ lobby',
+        reviewedBy: 'ops:auditor',
         actors: [user],
         votes: { [user]: 1 },
       },
-      IP,
-    ],
-    ['system', { resultCount: 2 }, null],
-    ['ops:auditor', { propertyId: a, status: 'active' }, null],
+      ip: IP,
+    },
+    { userId: 'system', action: status, details: { resultCount: 2 }, ip: null },
+    {
+      userId: 'ops:auditor',
+      action: status,
+      details: { propertyId: a, status: 'active' },
+      ip: null,
+    },
+    {
+      userId: OPERATOR_USER,
+      action: 'platform.admin_invited',
+      details: { invitationId: 'invitation-1', operatorUserId: OPERATOR_USER },
+      ip: null,
+    },
     ...(b === undefined
       ? []
       : [
-          [user, { propertyId: b, reason: 'Sam asked' }, IP] as [
-            string,
-            Record<string, unknown>,
-            string,
-          ],
+          {
+            userId: user,
+            action: status,
+            details: { propertyId: b, reason: 'Sam asked' },
+            ip: IP,
+          },
         ]),
   ]
-  for (const [userId, details, ip] of logs) {
+  for (const { userId, action, details, ip } of logs) {
     await query(
       `INSERT INTO audit_logs
          (id, organization_id, user_id, action, resource_type, resource_id, details, ip_address)
-       VALUES (gen_random_uuid()::text, $1, $2, 'goal.program.status_changed', 'goal_program',
-               'program-1', $3::jsonb, $4)`,
-      [seeded.organizationId, userId, JSON.stringify(details), ip],
+       VALUES (gen_random_uuid()::text, $1, $2, $3, 'goal_program', 'program-1', $4::jsonb, $5)`,
+      [seeded.organizationId, userId, action, JSON.stringify(details), ip],
     )
   }
   organizations.push(seeded.organizationId)
@@ -188,7 +212,11 @@ const replay = (
     }),
   )
 
-type LogRow = Readonly<{ user_id: string; details: Record<string, unknown> }>
+type LogRow = Readonly<{
+  user_id: string
+  action: string
+  details: Record<string, unknown>
+}>
 
 type EventRow = Readonly<{
   actor_type: string
@@ -260,9 +288,12 @@ describe('activity rights executor and audit records', () => {
     expect(aAfter.events).toHaveLength(aBefore.events.length)
     const aLogs = aAfter.logs as LogRow[]
     expect(aLogs).toHaveLength(2)
-    expect(aLogs.find((log) => log.details.status === 'paused')!.user_id).toBe(
-      person.actor_id,
-    )
+    const paused = aLogs.find((log) => log.details.status === 'paused')!
+    expect(paused.user_id).toBe(person.actor_id)
+    expect(paused.details).toMatchObject({
+      label: 'Front desk @ lobby',
+      reviewedBy: 'ops:auditor',
+    })
     expect(aLogs.find((log) => log.details.status === 'active')!.user_id).toBe(
       'ops:auditor',
     )
@@ -333,7 +364,7 @@ describe('activity rights executor and audit records', () => {
       expect(text).not.toContain(personal)
     }
     expect(after.events).toHaveLength(before.events.length)
-    expect(after.logs).toHaveLength(4)
+    expect(after.logs).toHaveLength(5)
     const logs = after.logs as LogRow[]
     const personLog = logs.find((log) => log.details.status === 'paused')!
     expect(personLog.user_id).toMatch(/^pseudonym:/)
@@ -352,6 +383,12 @@ describe('activity rights executor and audit records', () => {
     expect(logs.find((log) => log.details.status === 'active')!.user_id).toBe(
       'ops:auditor',
     )
+    const operatorLog = logs.find((log) => log.action === 'platform.admin_invited')!
+    expect(operatorLog.user_id).toBe(OPERATOR_USER)
+    expect(operatorLog.details).toEqual({
+      invitationId: 'invitation-1',
+      operatorUserId: OPERATOR_USER,
+    })
     expect(await snapshot(other.organizationId)).toEqual(otherBefore)
 
     await putBack(first.organizationId, before)
