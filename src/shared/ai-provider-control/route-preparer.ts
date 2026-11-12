@@ -58,10 +58,9 @@ import {
 } from '#/shared/ai-operation-profiles'
 import type {
   AiAdmissionDescriptorV1,
-  AiExecutionGrantV1,
   AiSettlementReceiptV1,
 } from '#/shared/ai-internal-transport-contract'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import type { AiExecutionAdmission } from './execution-admission'
 import type {
   AiGatewayRouteRequestV1,
   AiGatewayRouteResponseV1,
@@ -328,7 +327,6 @@ export type { AiReplyOutputRefusal } from './reply-output-refusal'
 
 export function createAiGatewayRoutePreparer(
   dependencies: Readonly<{
-    requestBindingKeys: VersionedHmacKeyring
     safetyIdentifierKey: Uint8Array
     replyLanguageDetector: ReplyLanguageDetector
     provenanceKid: string
@@ -569,7 +567,6 @@ export function createAiGatewayRoutePreparer(
               facts,
               reservationMicros(profile, provider, facts.providerPayloadByteCount),
             ),
-          requestBindingKeys: dependencies.requestBindingKeys,
         })
       } finally {
         sourceBytes.fill(0)
@@ -673,12 +670,12 @@ export function createAiGatewayRoutePreparer(
           return Object.freeze({
             buildResponse: (
               receipt: AiSettlementReceiptV1,
-              grant: AiExecutionGrantV1,
+              admission: AiExecutionAdmission,
             ): AiGatewayRouteResponseV1 => {
               if (
-                grant.replyTokenExpiresAtEpochMillis === null ||
-                grant.replyDraftExpiresAtEpochMillis === null ||
-                grant.replyTokenExpiresAtEpochMillis <= now()
+                admission.replyTokenExpiresAtEpochMillis === null ||
+                admission.replyDraftExpiresAtEpochMillis === null ||
+                admission.replyTokenExpiresAtEpochMillis <= now()
               ) {
                 dependencies.onOutputRefused?.({
                   route: 'reply-suggestion',
@@ -695,7 +692,8 @@ export function createAiGatewayRoutePreparer(
                   organizationId: responseContext.organizationId,
                   propertyId: responseContext.propertyId,
                   reviewId: responseContext.reviewId,
-                  requestBindingHmac: grant.requestBindingHmac,
+                  executionPermitId: admission.permitId,
+                  executionAttempt: admission.attemptNumber,
                   sourceEpoch: responseContext.sourceEpoch,
                   sourceRevision: responseContext.sourceRevision,
                   baseReplyStateRevision: responseContext.baseReplyStateRevision,
@@ -717,8 +715,8 @@ export function createAiGatewayRoutePreparer(
                   concreteLanguageTag: responseContext.concreteLanguage.tag,
                   templateGroup: responseContext.concreteLanguage.templateGroup,
                   renderedSuggestionDigest: renderDigest,
-                  tokenExpiresAtEpochMillis: grant.replyTokenExpiresAtEpochMillis,
-                  draftExpiresAtEpochMillis: grant.replyDraftExpiresAtEpochMillis,
+                  tokenExpiresAtEpochMillis: admission.replyTokenExpiresAtEpochMillis,
+                  draftExpiresAtEpochMillis: admission.replyDraftExpiresAtEpochMillis,
                 },
                 dependencies.provenancePrivateKey,
               )
@@ -730,7 +728,7 @@ export function createAiGatewayRoutePreparer(
                   profileVersion: responseContext.replyProfileVersion,
                   replyText,
                   provenanceToken,
-                  expiresAtEpochMillis: grant.replyTokenExpiresAtEpochMillis,
+                  expiresAtEpochMillis: admission.replyTokenExpiresAtEpochMillis,
                   baseReplyStateRevision: responseContext.baseReplyStateRevision,
                   concreteLanguageTag: responseContext.concreteLanguage.tag,
                   templateGroup: responseContext.concreteLanguage.templateGroup,

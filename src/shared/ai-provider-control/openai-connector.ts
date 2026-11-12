@@ -1,15 +1,12 @@
 import { readOpenAiReplyStream } from './openai-stream-response'
-import { type KeyObject } from 'node:crypto'
 import OpenAI from 'openai'
 export type OpenAiStreamClient = Pick<OpenAI, 'responses'>
 export type OpenAiTerminalResponse = OpenAI.Responses.Response
 import { zodTextFormat } from 'openai/helpers/zod'
 import type { Dispatcher } from 'undici'
 import { z } from 'zod/v4'
-import { type AiExecutionGrantV1 } from '#/shared/ai-internal-transport-contract'
 import { explainJsonBytesRejection } from '#/shared/ai-json'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
   OPENAI_RESPONSES_URL,
   OPENAI_USER_AGENT,
@@ -22,10 +19,10 @@ import {
   parseOpenAiJsonContentType,
   parseOpenAiRetryAfter,
 } from './dispositions'
+import type { AiExecutionAdmission } from './execution-admission'
 import { deriveOpenAiClientRequestId } from './prepared-invocation'
 import { parseUsage, usageOfDecodedBody } from './openai-usage'
 import {
-  GrantNonceRegistry,
   PINNED_PROVIDER_DISPATCHER_LIMITS,
   PROVIDER_ZERO_USAGE as ZERO_USAGE,
   closePinnedProviderOutbound,
@@ -372,31 +369,25 @@ function canaryThrowDiagnostics(
 export function createOpenAiConnector(
   dependencies: Readonly<{
     apiKey: string
-    requestBindingKeys: VersionedHmacKeyring
-    admissionPublicKeys: ReadonlyMap<string, KeyObject>
     outboundFetch?: typeof fetch
     now?: () => number
     pinnedOutboundFactory?: () => PinnedOpenAiOutbound
   }>,
 ): OpenAiConnector {
   if (dependencies.apiKey.length === 0) throw new Error('OPENAI_API_KEY is required')
-  const nonceRegistry = new GrantNonceRegistry()
   const now = dependencies.now ?? Date.now
   let cleanupHealthy = true
   return Object.freeze({
     invoke: async (
       invocation: PreparedAiInvocation,
-      grant: AiExecutionGrantV1,
+      admission: AiExecutionAdmission,
       outputSchema: z.ZodTypeAny,
       signal: AbortSignal,
       observer?: Readonly<{ onText(text: string): void; onDispatch(): void }>,
     ): Promise<OpenAiConnectorOutcome<unknown>> => {
       const gateRefusal = refusalAtProviderDispatchGate({
         invocation,
-        grant,
-        requestBindingKeys: dependencies.requestBindingKeys,
-        admissionPublicKeys: dependencies.admissionPublicKeys,
-        nonceRegistry,
+        admission,
         now,
       })
       if (gateRefusal !== null) return gateRefusal
@@ -411,9 +402,9 @@ export function createOpenAiConnector(
         boundary = createOneShotOpenAiFetch({
           route: invocation.descriptor.route,
           apiKey: dependencies.apiKey,
-          permitId: grant.permitId,
+          permitId: admission.permitId,
           canonicalProviderBytes: invocation.canonicalProviderBytes,
-          responseBytes: grant.limits.responseBytes,
+          responseBytes: admission.limits.responseBytes,
           outboundFetch,
           signal,
           eventStream: invocation.sdkRequest.stream,
@@ -470,7 +461,7 @@ export function createOpenAiConnector(
           state: boundary?.state ?? null,
           pinnedAbsent: pinned === null,
           invocation,
-          responseBytes: grant.limits.responseBytes,
+          responseBytes: admission.limits.responseBytes,
           signal,
           classifyRefusal: classifyOpenAiRefusal,
           isInvalidOutput: (value) => value instanceof InvalidOpenAiOutputError,

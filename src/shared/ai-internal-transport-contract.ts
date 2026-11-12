@@ -1,22 +1,15 @@
 import { AI_JSON_MAX_BYTES } from './ai-json'
-import { sign, verify, type KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
-import type { VersionedHmacKeyring } from './security/versioned-hmac-keyring'
 
 export const AI_REVIEW_ROUTE_MAX_BYTES = 65_536 as const
 export const AI_TREND_ROUTE_MAX_BYTES = AI_JSON_MAX_BYTES
 export const AI_INTERNAL_RESPONSE_MAX_BYTES = 65_536 as const
 
-const REQUEST_BINDING_AUDIENCE = 'ai-request-binding-v1'
-const GRANT_DOMAIN = 'ai-execution-grant-v1\0'
 const SAFE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/
 const KEY_ID = /^[a-z][a-z0-9_-]{0,31}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const SHA256 = /^[0-9a-f]{64}$/
 const RELEASE_SHA = /^[0-9a-f]{40}$/
-const BASE64URL = /^[A-Za-z0-9_-]+$/
-const HMAC = /^[A-Za-z0-9_-]{43}$/
 
 export const aiInternalCanonicalUuidSchema = z.string().regex(UUID)
 export const aiInternalSafeIdSchema = z.string().regex(SAFE_ID)
@@ -27,41 +20,6 @@ const nullableDigest = z.union([digest, z.null()])
 const nonnegative = z.number().int().nonnegative().safe()
 const positive = z.number().int().positive().safe()
 const keyId = z.string().regex(KEY_ID)
-const hmac = z
-  .string()
-  .regex(HMAC)
-  .refine((value) => {
-    try {
-      return Buffer.from(value, 'base64url').toString('base64url') === value
-    } catch {
-      return false
-    }
-  })
-const nonce = z
-  .string()
-  .min(1)
-  .max(128)
-  .regex(BASE64URL)
-  .refine((value) => {
-    try {
-      return Buffer.from(value, 'base64url').toString('base64url') === value
-    } catch {
-      return false
-    }
-  })
-const signature = z
-  .string()
-  .length(86)
-  .regex(BASE64URL)
-  .refine((value) => {
-    try {
-      const decoded = Buffer.from(value, 'base64url')
-      return decoded.byteLength === 64 && decoded.toString('base64url') === value
-    } catch {
-      return false
-    }
-  })
-
 const limitsSchema = z
   .object({
     sourceBytes: positive,
@@ -380,68 +338,6 @@ export type AiCanaryExecutionBindingV1 = z.infer<typeof canaryBindingSchema>
 export type AiAdmissionLimitsV1 = z.infer<typeof limitsSchema>
 export type AiAdmissionDescriptorV1 = z.infer<typeof aiAdmissionDescriptorSchema>
 
-const admissionRequestSchema = z
-  .object({
-    descriptor: aiAdmissionDescriptorSchema,
-    requestBindingKeyId: keyId,
-    requestBindingHmac: hmac,
-  })
-  .strict()
-export type AiAdmissionRequestV1 = z.infer<typeof admissionRequestSchema>
-
-const grantBaseSchema = z
-  .object({
-    version: z.literal('ai-execution-grant-v1'),
-    subjectKind: z.enum(['property', 'synthetic_canary']),
-    grantKid: keyId,
-    requestBindingKeyId: keyId,
-    requestBindingHmac: hmac,
-    route: z.enum([
-      'review-analysis',
-      'reply-suggestion',
-      'property-trend',
-      'synthetic-canary',
-    ]),
-    operationId: canonicalUuid,
-    permitId: canonicalUuid,
-    attemptNumber: z.number().int().min(1).max(4),
-    nonce,
-    limits: limitsSchema,
-    callerDeadlineEpochMillis: positive,
-    issuedAtEpochMillis: positive,
-    expiresAtEpochMillis: positive,
-    replyTokenExpiresAtEpochMillis: z.union([positive, z.null()]),
-    replyDraftExpiresAtEpochMillis: z.union([positive, z.null()]),
-  })
-  .strict()
-function validateGrantFields(
-  value: z.infer<typeof grantBaseSchema>,
-  context: z.RefinementCtx,
-): void {
-  const replyRoute = value.route === 'reply-suggestion'
-  const tokenPresent = value.replyTokenExpiresAtEpochMillis !== null
-  const draftPresent = value.replyDraftExpiresAtEpochMillis !== null
-  if (
-    value.expiresAtEpochMillis <= value.issuedAtEpochMillis ||
-    value.expiresAtEpochMillis !== value.callerDeadlineEpochMillis ||
-    (value.route === 'synthetic-canary') !== (value.subjectKind === 'synthetic_canary') ||
-    tokenPresent !== draftPresent ||
-    replyRoute !== (tokenPresent && draftPresent) ||
-    (tokenPresent &&
-      draftPresent &&
-      value.replyTokenExpiresAtEpochMillis! > value.replyDraftExpiresAtEpochMillis!)
-  ) {
-    context.addIssue({ code: 'custom', message: 'grant fields are inconsistent' })
-  }
-}
-const unsignedGrantSchema = grantBaseSchema.superRefine(validateGrantFields)
-const grantSchema = grantBaseSchema
-  .extend({ grantSignature: signature })
-  .strict()
-  .superRefine(validateGrantFields)
-export type AiExecutionGrantUnsignedV1 = z.infer<typeof unsignedGrantSchema>
-export type AiExecutionGrantV1 = z.infer<typeof grantSchema>
-
 const AI_GATEWAY_REPORTED_DISPOSITIONS = [
   'success',
   'no_dispatch',
@@ -463,13 +359,10 @@ const AI_GATEWAY_REPORTED_DISPOSITIONS = [
   'transport_ambiguous',
 ] as const
 /** What the gateway reports, plus the two outcomes only admission decides. */
-const AI_PROVIDER_DISPOSITIONS = [
-  ...AI_GATEWAY_REPORTED_DISPOSITIONS,
-  'source_stale',
-  'policy_denied',
-] as const
+type AiProviderDisposition =
+  (typeof AI_GATEWAY_REPORTED_DISPOSITIONS)[number] | 'source_stale' | 'policy_denied'
 type SettlementUsage = Pick<
-  z.infer<typeof receiptBaseSchema>,
+  AiSettlementRequestV1,
   | 'disposition'
   | 'reportedDisposition'
   | 'usageKnown'
@@ -512,140 +405,34 @@ function hasInconsistentSettlementUsage(value: SettlementUsage): boolean {
   )
 }
 
-function validateReceiptUsage(
-  value: z.infer<typeof receiptBaseSchema>,
-  context: z.RefinementCtx,
-): void {
-  const expectedState =
-    value.disposition === 'no_dispatch'
-      ? 'released'
-      : value.disposition === 'transport_ambiguous'
-        ? 'ambiguous'
-        : 'settled'
-  if (
-    hasInconsistentSettlementUsage(value) ||
-    value.settlementState !== expectedState ||
-    (value.disposition === 'no_dispatch' && (value.usageKnown || value.costMicros !== 0))
-  ) {
-    context.addIssue({ code: 'custom', message: 'receipt usage is inconsistent' })
-  }
-}
-
-const receiptBaseSchema = z
-  .object({
-    version: z.literal('ai-settlement-receipt-v1'),
-    grantKid: keyId,
-    operationId: canonicalUuid,
-    permitId: canonicalUuid,
-    attemptNumber: z.number().int().min(1).max(4),
-    nonce,
-    requestBindingHmac: hmac,
-    disposition: z.enum(AI_PROVIDER_DISPOSITIONS),
-    reportedDisposition: z.enum(AI_GATEWAY_REPORTED_DISPOSITIONS),
-    providerRetryable: z.boolean(),
-    usageKnown: z.boolean(),
-    inputTokens: nonnegative,
-    cachedInputTokens: nonnegative,
-    outputTokens: nonnegative,
-    reasoningTokens: nonnegative,
-    costMicros: nonnegative,
-    settledAtEpochMillis: positive,
-    settlementState: z.enum(['settled', 'released', 'ambiguous']),
-  })
-  .strict()
-const receiptSchema = receiptBaseSchema.superRefine(validateReceiptUsage)
-export const aiSettlementReceiptSchema = receiptSchema
-export type AiSettlementReceiptV1 = z.infer<typeof receiptSchema>
-
 /**
- * Validates the admission envelope before binding its descriptor or issuing
- * a signed execution grant.
+ * What the settlement authority recorded for one admitted attempt. It is built
+ * in this process from a settlement request the authority validated, so it is a
+ * type, not a wire schema.
  */
-export function parseAiAdmissionRequest(value: unknown): AiAdmissionRequestV1 {
-  return admissionRequestSchema.parse(value)
-}
-
-export function signAiRequestBinding(
-  descriptor: AiAdmissionDescriptorV1,
-  keyring: VersionedHmacKeyring,
-): AiAdmissionRequestV1 {
-  const parsed = aiAdmissionDescriptorSchema.parse(descriptor)
-  const signed = keyring.sign(REQUEST_BINDING_AUDIENCE, canonicalizeRfc8785(parsed))
-  return admissionRequestSchema.parse({
-    descriptor: parsed,
-    requestBindingKeyId: signed.keyVersion,
-    requestBindingHmac: signed.digest,
-  })
-}
-
-export function verifyAiRequestBinding(
-  request: AiAdmissionRequestV1,
-  keyring: VersionedHmacKeyring,
-): boolean {
-  const parsed = admissionRequestSchema.safeParse(request)
-  return (
-    parsed.success &&
-    keyring.verify(
-      REQUEST_BINDING_AUDIENCE,
-      canonicalizeRfc8785(parsed.data.descriptor),
-      parsed.data.requestBindingKeyId,
-      parsed.data.requestBindingHmac,
-    )
-  )
-}
-
-export function parseAiExecutionGrant(value: unknown): AiExecutionGrantV1 {
-  return grantSchema.parse(value)
-}
-
-export function signAiExecutionGrant(
-  unsigned: AiExecutionGrantUnsignedV1,
-  privateKey: KeyObject,
-): AiExecutionGrantV1 {
-  const parsed = unsignedGrantSchema.parse(unsigned)
-  const canonical = canonicalAiSigningBytes(GRANT_DOMAIN, parsed)
-  let signature: Buffer | null = null
-  try {
-    signature = sign(null, canonical, privateKey)
-    return grantSchema.parse({
-      ...parsed,
-      grantSignature: signature.toString('base64url'),
-    })
-  } finally {
-    canonical.fill(0)
-    signature?.fill(0)
-  }
-}
-
-export function verifyAiExecutionGrant(
-  grant: AiExecutionGrantV1,
-  publicKeys: ReadonlyMap<string, KeyObject>,
-): boolean {
-  const parsed = grantSchema.safeParse(grant)
-  if (!parsed.success) return false
-  const { grantSignature, ...unsigned } = parsed.data
-  const key = publicKeys.get(unsigned.grantKid)
-  if (key === undefined) return false
-  const canonical = canonicalAiSigningBytes(GRANT_DOMAIN, unsigned)
-  const signature = Buffer.from(grantSignature, 'base64url')
-  try {
-    return verify(null, canonical, key, signature)
-  } finally {
-    canonical.fill(0)
-    signature.fill(0)
-  }
-}
-
-export function parseAiSettlementReceipt(value: unknown): AiSettlementReceiptV1 {
-  return receiptSchema.parse(value)
-}
+export type AiSettlementReceiptV1 = Readonly<{
+  version: 'ai-settlement-receipt-v1'
+  operationId: string
+  permitId: string
+  attemptNumber: number
+  disposition: AiProviderDisposition
+  reportedDisposition: (typeof AI_GATEWAY_REPORTED_DISPOSITIONS)[number]
+  providerRetryable: boolean
+  usageKnown: boolean
+  inputTokens: number
+  cachedInputTokens: number
+  outputTokens: number
+  reasoningTokens: number
+  costMicros: number
+  settledAtEpochMillis: number
+  settlementState: 'settled' | 'released' | 'ambiguous'
+}>
 
 export const aiSettlementRequestSchema = z
   .object({
     operationId: canonicalUuid,
     permitId: canonicalUuid,
     attemptNumber: z.number().int().min(1).max(4),
-    nonce,
     disposition: z.enum(AI_GATEWAY_REPORTED_DISPOSITIONS),
     reportedDisposition: z.enum(AI_GATEWAY_REPORTED_DISPOSITIONS),
     providerRetryable: z.boolean(),
@@ -672,13 +459,12 @@ export const aiSettlementRequestSchema = z
 export type AiSettlementRequestV1 = z.infer<typeof aiSettlementRequestSchema>
 
 export type AiSettlementPermit = Pick<
-  AiExecutionGrantV1,
-  'operationId' | 'permitId' | 'attemptNumber' | 'nonce' | 'grantKid'
+  AiSettlementRequestV1,
+  'operationId' | 'permitId' | 'attemptNumber'
 >
 export type AiSettlementOutcome = Omit<
   AiSettlementRequestV1,
-  'operationId' | 'permitId' | 'attemptNumber' | 'nonce'
+  'operationId' | 'permitId' | 'attemptNumber'
 >
 
-import { canonicalAiSigningBytes } from './security/ai-signing-bytes'
 import { replyDraftingV2BindingSchema } from './reply-drafting-v2-binding'

@@ -1,12 +1,12 @@
 import { summarizeError } from '#/shared/observability/error-summary'
-import type { AiExecutionGrantV1 } from '#/shared/ai-internal-transport-contract'
+import type { AiExecutionAdmission } from './execution-admission'
 import type { PreparedInvocationBase } from './provider-contracts'
 
 type DiagnosticInvocation = Pick<PreparedInvocationBase, 'descriptor'>
 
 export function logProviderGateRefusal(
   invocation: DiagnosticInvocation,
-  grant: AiExecutionGrantV1,
+  admission: AiExecutionAdmission,
   currentTime: number,
   reasons: readonly string[],
 ): void {
@@ -17,7 +17,7 @@ export function logProviderGateRefusal(
       operationId: invocation.descriptor.operationId,
       permitId: invocation.descriptor.permitId,
       attempt: invocation.descriptor.attemptNumber,
-      grantTtlMillis: grant.expiresAtEpochMillis - currentTime,
+      admissionTtlMillis: admission.expiresAtEpochMillis - currentTime,
       reasons,
     })}\n`,
   )

@@ -1,7 +1,6 @@
 import type { z } from 'zod/v4'
 import type {
   AiAdmissionDescriptorV1,
-  AiExecutionGrantV1,
   AiSettlementRequestV1,
 } from '#/shared/ai-internal-transport-contract'
 import type {
@@ -10,7 +9,7 @@ import type {
 } from '#/shared/ai-openai-request-contract'
 import type { AiProviderId } from '#/shared/ai-provider-ids'
 import type { AiProviderPriceCatalogue } from '#/shared/ai-provider-pricing'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import type { AiExecutionAdmission } from './execution-admission'
 import type { DerivedDescriptorFacts } from './prepared-invocation'
 
 // The provider-neutral seam (contract section 7.1). The gateway service, the
@@ -52,13 +51,11 @@ export type AiProviderOutcome<T> = Readonly<{
 
 /**
  * The part of a prepared invocation the gateway reads whatever the provider is:
- * the descriptor admission authorizes, the request binding that signs it, and the
- * exact bytes a provider call may send. Each adapter's own invocation extends it.
+ * the descriptor admission authorizes and the exact bytes a provider call may
+ * send. Each adapter's own invocation extends it.
  */
 export type PreparedInvocationBase = Readonly<{
   descriptor: AiAdmissionDescriptorV1
-  requestBindingKeyId: string
-  requestBindingHmac: string
   canonicalProviderBytes: Uint8Array
 }>
 
@@ -104,7 +101,6 @@ export type PrepareProviderInvocationInput = Readonly<{
   /** The structured payload `logical.untrustedData` is the canonical form of. */
   providerPayload: unknown
   createDescriptor: (facts: DerivedDescriptorFacts) => AiAdmissionDescriptorV1
-  requestBindingKeys: VersionedHmacKeyring
 }>
 
 /** The half of an adapter that shapes the exact request. It reads no credential. */
@@ -129,7 +125,7 @@ export type AiProviderConnection<
    */
   invoke(
     invocation: Invocation,
-    grant: AiExecutionGrantV1,
+    admission: AiExecutionAdmission,
     outputSchema: z.ZodTypeAny,
     signal: AbortSignal,
     observer?: Readonly<{ onText(text: string): void; onDispatch(): void }>,
