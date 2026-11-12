@@ -48,6 +48,7 @@ export function PropertyLookPreview({
         {ownPhoto === null ? (
           <SegmentedControl
             aria-label="Preview with or without a photo"
+            touch
             value={showPhoto && hasPhoto ? 'with' : 'without'}
             onValueChange={(value) => onShowPhotoChange(value === 'with')}
             options={PHOTO_OPTIONS.map((option) => ({

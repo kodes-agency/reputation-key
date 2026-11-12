@@ -43,7 +43,10 @@ function BreadcrumbLink({
   return (
     <Comp
       data-slot="breadcrumb-link"
-      className={cn('transition-colors hover:text-foreground', className)}
+      className={cn(
+        'transition-colors hover:text-foreground max-md:flex max-md:min-h-11 max-md:items-center',
+        className,
+      )}
       {...props}
     />
   )
@@ -56,7 +59,10 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<'span'>) {
       role="link"
       aria-disabled="true"
       aria-current="page"
-      className={cn('font-normal text-foreground', className)}
+      className={cn(
+        'font-normal text-foreground max-md:flex max-md:min-h-11 max-md:items-center',
+        className,
+      )}
       {...props}
     />
   )

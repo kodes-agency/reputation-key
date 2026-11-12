@@ -85,7 +85,7 @@ export function LinktreeTile({
           aria-expanded={isOpen}
           aria-controls={panelId}
           onClick={onToggle}
-          className="min-w-0 flex-1 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="min-w-0 flex-1 rounded-sm text-left max-md:min-h-11 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
           <span className="block truncate text-sm font-medium">{name}</span>
           {line === null ? null : (

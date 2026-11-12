@@ -90,6 +90,7 @@ export function LinktreeTitleForm({
                     type="button"
                     variant="link"
                     size="inline"
+                    touch
                     disabled={disabled}
                     onClick={() => field.handleChange('')}
                   >
