@@ -66,16 +66,6 @@ export const Phone320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
-export const Phone390: Story = {
-  ...MonthClosedAndGoalsEnded,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-}
-
-export const OnATablet: Story = {
-  ...MonthClosedAndGoalsEnded,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-}
-
 export const OnADesktop: Story = {
   ...MonthClosedAndGoalsEnded,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
@@ -144,4 +134,9 @@ export const InThePortalGoalsSectionOnAPhone: Story = {
 export const InThePortalGoalsSectionOnADesktop: Story = {
   ...InThePortalGoalsSection,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
+}
+
+export const OnATablet: Story = {
+  ...MonthClosedAndGoalsEnded,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }
