@@ -5,10 +5,10 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
 import type {
-  GoogleImportV2ClaimedItem,
-  GoogleImportV2Store,
-} from './ports/google-import-v2-store.port'
-import { createGoogleImportV2Processor } from './google-import-v2-processor'
+  GoogleImportClaimedItem,
+  GoogleImportStore,
+} from './ports/google-import-store.port'
+import { createGoogleImportProcessor } from './google-import-processor'
 
 const NOW = new Date('2026-08-12T12:00:00.000Z')
 const ORG_ID = 'org-1'
@@ -52,8 +52,8 @@ const authorization = {
 } as const
 
 function claimedItem(
-  over: Partial<GoogleImportV2ClaimedItem> = {},
-): GoogleImportV2ClaimedItem {
+  over: Partial<GoogleImportClaimedItem> = {},
+): GoogleImportClaimedItem {
   return {
     organizationId: ORG_ID,
     importJobId: JOB_ID,
@@ -109,7 +109,7 @@ function importedReceipt(
 
 function setup(
   over: {
-    claim?: Awaited<ReturnType<GoogleImportV2Store['claimItem']>>
+    claim?: Awaited<ReturnType<GoogleImportStore['claimItem']>>
     actor?: AuthContext | null
     resolveActorError?: unknown
     authorization?: Awaited<ReturnType<GoogleImportCommandAuthorizer>>
@@ -150,7 +150,7 @@ function setup(
     completeClaim,
     runClaimedEffect,
     terminalizeItem,
-  } as unknown as GoogleImportV2Store
+  } as unknown as GoogleImportStore
   const createBoundProperty = over.createError
     ? vi.fn().mockRejectedValue(over.createError)
     : vi.fn().mockResolvedValue({
@@ -233,7 +233,7 @@ function setup(
     debug: vi.fn(),
     child: vi.fn(),
   }
-  const processor = createGoogleImportV2Processor({
+  const processor = createGoogleImportProcessor({
     store,
     propertyBindingApi,
     authorizeGoogleImportCommand: authorize,
@@ -265,7 +265,7 @@ function setup(
   }
 }
 
-describe('GoogleImportV2Processor', () => {
+describe('GoogleImportProcessor', () => {
   it('executes a freshly authorized create only while its exact claim fence is locked', async () => {
     const committedReceipt = {
       organizationId: ORG_ID,

@@ -6,7 +6,7 @@ import {
   retryPropertyImportItemInputSchema,
   startPropertyImportInputSchema,
   getPropertyImportStatusInputSchema,
-} from './google-import-v2.dto'
+} from './google-import.dto'
 
 const CANDIDATE_A = 'A'.repeat(43)
 const CANDIDATE_B = 'B'.repeat(43)

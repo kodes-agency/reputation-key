@@ -11,12 +11,12 @@ import {
   reconciledOutcomeCode,
   type GbpImportItemStatus,
   type ImportOutcomeCode,
-} from '../application/google-import-v2-contract'
+} from '../application/google-import-contract'
 import { lockItemParent, markTerminalParent } from './import-store-helpers.server'
 import type {
-  GoogleImportV2OutcomeDetail,
-  GoogleImportV2TerminalAuthority,
-} from '../application/ports/google-import-v2-store.port'
+  GoogleImportOutcomeDetail,
+  GoogleImportTerminalAuthority,
+} from '../application/ports/google-import-store.port'
 
 export type GoogleImportCompletionDeps = Readonly<{
   readReceipt: PropertyGoogleBindingPublicApi['readReceipt']
@@ -32,11 +32,11 @@ export type GoogleImportCompletionInput = Readonly<{
   (
     | Readonly<{ authority: { kind: 'receipt' } }>
     | Readonly<{
-        authority: GoogleImportV2TerminalAuthority
+        authority: GoogleImportTerminalAuthority
         retryRevision: number
         outcomeCode: ImportOutcomeCode
         retainRetryState: boolean
-        detail?: GoogleImportV2OutcomeDetail
+        detail?: GoogleImportOutcomeDetail
       }>
   )
 
@@ -48,7 +48,7 @@ export type GoogleImportCompletionInput = Readonly<{
  */
 function assertOutcomeDetail(
   outcomeCode: ImportOutcomeCode,
-  detail: GoogleImportV2OutcomeDetail | undefined,
+  detail: GoogleImportOutcomeDetail | undefined,
 ): void {
   if (outcomeCode === 'tenant_profile_invalid') {
     if (detail?.kind !== 'invalid_profile_field' || !isImportProfileField(detail.field)) {
@@ -89,7 +89,7 @@ function terminalItemPatch(
     outcomeCode: ImportOutcomeCode
     retainRetryState: boolean
     now: Date
-    detail?: GoogleImportV2OutcomeDetail
+    detail?: GoogleImportOutcomeDetail
   }>,
 ) {
   const protectedState = input.retainRetryState ? undefined : null

@@ -9,7 +9,7 @@ import {
 import {
   googleImportReviewDraftSchema,
   type GoogleImportReviewDraftInput,
-} from '#/contexts/integration/application/dto/google-import-v2.dto'
+} from '#/contexts/integration/application/dto/google-import.dto'
 import type {
   GoogleImportContentOptions,
   GoogleImportDiscoveryController,

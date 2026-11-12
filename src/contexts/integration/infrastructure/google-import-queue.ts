@@ -1,8 +1,8 @@
 import type { Queue } from 'bullmq'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
-import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from '../application/google-import-v2-contract'
-import type { GoogleImportV2QueuePort } from '../application/ports/gbp-queue.port'
+import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from '../application/google-import-contract'
+import type { GoogleImportQueuePort } from '../application/ports/gbp-queue.port'
 
 /**
  * How Google import items become queued jobs.
@@ -16,9 +16,9 @@ import type { GoogleImportV2QueuePort } from '../application/ports/gbp-queue.por
  * one. If that budget is ever violated, every worker slot holds a client
  * and the nested acquisitions deadlock until connectionTimeoutMillis.
  */
-export function createGoogleImportV2Queue(
+export function createGoogleImportQueue(
   jobQueue: Pick<Queue, 'addBulk'>,
-): GoogleImportV2QueuePort {
+): GoogleImportQueuePort {
   return {
     addImportItemJobs: async (jobs) => {
       if (jobs.length === 0) return
