@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalPageTiles } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
+import type { PortalGoalPageTiles } from '#/contexts/reporting/monthly-goals/contracts'
 import type {
   PortalGoalCardView,
   PortalGoalRunningMonth,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import {
   changeNumberNote,
   compareBand,

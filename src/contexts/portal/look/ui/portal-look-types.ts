@@ -20,4 +20,6 @@ export type PortalLookActions = Readonly<{
   savePhoto: Action<{ data: PortalLookPhotoInput }, PortalLookSaved>
   /** Sends an image to the media endpoint; the real upload unless a story hands in a stub. */
   uploadImage?: PortalImageUploader
+  /** Takes a photograph down for good; left out, the photo dialog offers no takedown. */
+  takeDownImage?: (assetId: string) => Promise<unknown>
 }>

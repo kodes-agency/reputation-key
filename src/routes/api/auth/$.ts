@@ -34,7 +34,7 @@ let bypassRefusalLogged = false
 
 /**
  * Whether the E2E hatch stands the shared limiter down for this process
- * (review §5.1). Requires E2E=1 exactly AND the same test/CI execution
+ * Requires E2E=1 exactly AND the same test/CI execution
  * identity that authorizes the capability override; every other state keeps
  * the limiter ON. `E2E` reaches here through the zod schema, so a near-miss
  * value ('0', 'true') already refused boot rather than opening the endpoint.
@@ -60,7 +60,7 @@ const PASSWORD_RESET_REQUEST_ROUTE = '/request-password-reset'
  * over its limit, or the request asks for a reset mail to an address that is
  * over its own. Both of the per-IP limits in front of that route (this one and
  * the provider's) let any number of callers mail one member, so it is also
- * counted per address, as the app-owned verification resend is (ADR 0062 §6).
+ * counted per address, as the app-owned verification resend is.
  */
 async function overRateLimit(request: Request, route: string | null): Promise<boolean> {
   const { rateLimiter, identityRequestSecurity } = getContainer()
@@ -80,14 +80,12 @@ async function overRateLimit(request: Request, route: string | null): Promise<bo
  * the limiter so a 429 cannot mask it. Allowed POSTs are rate-limited to blunt
  * brute-force / credential stuffing against better-auth native auth.
  *
- * BQC-6.8 / review §5.1: the 60-POSTs/60s fixed window per IP was sized for
- * interactive traffic; the e2e suite signs in per test (~70 POSTs in ~70s once
- * the accessibility spec joined) and retries: 0 makes a single 429 fatal, so
- * the Playwright-launched stack stands the limiter down. That hatch used to be
- * `!process.env.E2E` — bare truthiness on a variable absent from the env
- * schema — which let one stray env var disable both auth brute-force layers in
- * a real deployment with no signal; it now requires an exact value plus an
- * authorized execution identity (authRateLimitBypassed). Production and
+ * The 60-POSTs/60s fixed window per IP is sized for interactive traffic; the
+ * e2e suite signs in per test and retries: 0 makes a single 429 fatal, so the
+ * Playwright-launched stack stands the limiter down. A stray env var must not
+ * disable both auth brute-force layers in a real deployment, so the hatch
+ * requires an exact value plus an authorized execution identity
+ * (authRateLimitBypassed). Production and
  * local-dev limiting are unchanged (better-auth's own limiter inside the
  * handler is gated by the same rule, see shared/auth/auth.ts).
  *

@@ -32,7 +32,8 @@ export type AiBudgetAdmissionResult =
   | Readonly<{ ok: true; operationId: string; reservedMicros: number }>
   | Readonly<{
       ok: false
-      code: 'kill_switch' | 'budget_exhausted' | 'capability_unavailable'
+      code:
+        'kill_switch' | 'budget_exhausted' | 'capability_unavailable' | 'already_reserved'
     }>
 
 export type AiBudgetControl = Readonly<{
@@ -158,13 +159,10 @@ export function createAiBudgetControl(
       ) {
         return { ok: false, code: 'capability_unavailable' }
       }
-      if (operation.costWindowId !== null && operation.reservedMicros > 0) {
-        return {
-          ok: true,
-          operationId: operation.id,
-          reservedMicros: operation.reservedMicros,
-        }
-      }
+      // One reservation per operation. A released one is cleared by the
+      // admission authority before the next attempt is reserved; anything else
+      // still holds or has spent the operation's budget.
+      if (operation.costWindowId !== null) return { ok: false, code: 'already_reserved' }
 
       const controlKeys = [
         'global',
@@ -301,11 +299,11 @@ export function createAiBudgetControl(
 }
 
 /**
- * Settle reservations whose operation never settled within the TTL. An admission
- * may have dispatched and its usage is unknown, so it costs its reserved maximum;
- * a reservation without an admission costs nothing. Reads the database clock so
- * the recovery fence, which ages rows with `clock_timestamp()` before calling
- * this, and the reaper job agree on what "stale" means.
+ * Settle reservations whose operation never settled within the TTL. Every
+ * reservation is taken by the admission that may dispatch on it, so its usage is
+ * unknown and it costs its reserved maximum. Reads the database clock so the
+ * recovery fence, which ages rows with `clock_timestamp()` before calling this,
+ * and the reaper job agree on what "stale" means.
  */
 export async function reapStaleAiReservations(tx: AiBudgetTx): Promise<number> {
   const operations = await tx
@@ -313,7 +311,6 @@ export async function reapStaleAiReservations(tx: AiBudgetTx): Promise<number> {
       id: aiOperations.id,
       costWindowId: aiOperations.costWindowId,
       reservedMicros: aiOperations.reservedMicros,
-      admissionNonce: aiOperations.admissionNonce,
     })
     .from(aiOperations)
     .where(
@@ -327,7 +324,7 @@ export async function reapStaleAiReservations(tx: AiBudgetTx): Promise<number> {
 
   for (const operation of operations) {
     if (!operation.costWindowId) continue
-    const actualMicros = operation.admissionNonce === null ? 0 : operation.reservedMicros
+    const actualMicros = operation.reservedMicros
     const [released] = await tx
       .update(aiOrganizationCostWindows)
       .set({

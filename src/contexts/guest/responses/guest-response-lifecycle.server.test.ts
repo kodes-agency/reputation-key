@@ -1,0 +1,1135 @@
+import { describe, expect, it } from 'vitest'
+import type { GuestResponse, GuestResponseStatus } from '../domain/guest-response'
+import type { GuestMutationFact } from '../application/ports/guest-response-command-store.port'
+import type {
+  GuestResponseRepository,
+  GuestResponseScope,
+} from '../application/ports/guest-response.repository'
+import {
+  guestSessionId,
+  organizationId,
+  portalId,
+  propertyId,
+  type GuestSessionId,
+} from '#/shared/domain/ids'
+import {
+  GuestResponseLifecycleError,
+  guestResponseLifecycle,
+  type OperatorErasureAuthority,
+} from './guest-response-lifecycle.server'
+import {
+  canStartNewGuestResponse,
+  isQualifiedGuestResponse,
+  type GuestResponseView,
+} from './contracts'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+
+const STAFF_ATTRIBUTION = {
+  staffParticipantId: '10000000-0000-4000-8000-000000000001',
+  staffParticipationId: '10000000-0000-4000-8000-000000000002',
+  portalResponsibilityId: '10000000-0000-4000-8000-000000000003',
+  effectiveFrom: new Date('2026-08-01T00:00:00.000Z'),
+  effectiveTo: null,
+} as const
+
+const scope: GuestResponseScope = {
+  organizationId: organizationId('org-1'),
+  propertyId: propertyId('00000000-0000-4000-8000-000000000001'),
+  portalId: portalId('00000000-0000-4000-8000-000000000002'),
+}
+
+const experience = (privateFeedbackThreshold = 3) => ({
+  portalPublicationState: 'published' as const,
+  portalPublicationSnapshotId: 'snapshot-1',
+  portalPublicationVersion: 1,
+  portalPublicationDigest: 'b'.repeat(64),
+  portalConfigurationDigest: 'a'.repeat(64),
+  guestLocale: 'en',
+  languagePackVersion: 'guest-ui-en-v1',
+  privateFeedbackThreshold,
+})
+
+function memoryRepo(): GuestResponseRepository & {
+  responses: GuestResponse[]
+} {
+  const responses: GuestResponse[] = []
+  const sameScope = (candidate: GuestResponseScope, row: GuestResponse) =>
+    candidate.organizationId === row.organizationId &&
+    candidate.propertyId === row.propertyId &&
+    candidate.portalId === row.portalId
+  return {
+    responses,
+    findForSession: async (candidate, sessionId) =>
+      responses.find((row) => sameScope(candidate, row) && row.sessionId === sessionId) ??
+      null,
+    findById: async (candidate, responseId) =>
+      responses.find((row) => sameScope(candidate, row) && row.id === responseId) ?? null,
+    findSnippetForOrg: async (organizationId, responseId) => {
+      const row = responses.find(
+        (candidate) =>
+          candidate.organizationId === organizationId && candidate.id === responseId,
+      )
+      if (!row) return null
+      return {
+        comment: row.textConsent && row.status !== 'moderated' ? row.text : null,
+        ratingValue: row.responseConsent ? row.rating : null,
+      }
+    },
+    findSnippetsForOrg: async () => [],
+    findEligibleSnippetIdsForOrg: async () => [],
+    summarizePortalIntegrity: async () => ({
+      accepted: 0,
+      filteredAutomatically: 0,
+      underReview: 0,
+      total: 0,
+    }),
+    summarizePortalRatingLanguages: async () => ({
+      total: 0,
+      languages: [],
+      unrecorded: 0,
+    }),
+  }
+}
+
+function harness(
+  clock: () => Date = () => new Date('2026-08-09T12:00:00Z'),
+  operatorAuthority?: OperatorErasureAuthority,
+) {
+  const repo = memoryRepo()
+  let sequence = 10
+  const outbox = createRecordedOutbox()
+  let resolvedStaffAttribution: PrimaryStaffAttributionSnapshot | null = STAFF_ATTRIBUTION
+  let staffAttributionResolutionCount = 0
+  const commandStore = {
+    commitSubmitted: async (
+      response: GuestResponse,
+      facts: Parameters<
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitSubmitted']
+      >[1],
+    ) => {
+      if (
+        repo.responses.some(
+          (row) =>
+            row.organizationId === response.organizationId &&
+            row.portalId === response.portalId &&
+            row.sessionId === response.sessionId,
+        )
+      ) {
+        return 'duplicate' as const
+      }
+      const ratingFact = facts.find((fact) => fact._tag === 'guest.rating.submitted')
+      const feedbackFact = facts.find((fact) => fact._tag === 'guest.feedback.submitted')
+      repo.responses.push({
+        ...response,
+        ratingSourceEventId: ratingFact?.eventId ?? null,
+        feedbackSourceEventId: feedbackFact?.eventId ?? null,
+      })
+      for (const fact of facts) await outbox.record(fact)
+      return 'applied' as const
+    },
+    commitCorrected: async (
+      previous: GuestResponse,
+      response: GuestResponse,
+      facts: Parameters<
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitCorrected']
+      >[2],
+    ) => {
+      const index = repo.responses.findIndex(
+        (row) =>
+          row.id === response.id &&
+          row.status === previous.status &&
+          row.correctionCount === previous.correctionCount &&
+          row.ratingSourceEventId === previous.ratingSourceEventId &&
+          row.feedbackSourceEventId === previous.feedbackSourceEventId,
+      )
+      if (index < 0) return 'conflict' as const
+      const ratingFact = facts.find(
+        (fact) =>
+          fact._tag === 'guest.rating.submitted' ||
+          fact._tag === 'guest.rating.retracted',
+      )
+      const feedbackFact = facts.find(
+        (fact) =>
+          fact._tag === 'guest.feedback.submitted' ||
+          fact._tag === 'guest.feedback.retracted',
+      )
+      repo.responses[index] = {
+        ...response,
+        ratingSourceEventId:
+          ratingFact?._tag === 'guest.rating.submitted'
+            ? ratingFact.eventId
+            : ratingFact?._tag === 'guest.rating.retracted'
+              ? null
+              : response.ratingSourceEventId,
+        feedbackSourceEventId:
+          feedbackFact?._tag === 'guest.feedback.submitted'
+            ? feedbackFact.eventId
+            : feedbackFact?._tag === 'guest.feedback.retracted'
+              ? null
+              : response.feedbackSourceEventId,
+      }
+      for (const fact of facts) await outbox.record(fact)
+      return 'applied' as const
+    },
+    commitIntegrityChanged: async (
+      previous: GuestResponse,
+      response: GuestResponse,
+      _decision: Parameters<
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitIntegrityChanged']
+      >[2],
+      facts: Parameters<
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitIntegrityChanged']
+      >[3],
+    ) => {
+      const index = repo.responses.findIndex(
+        (row) =>
+          row.id === previous.id &&
+          row.integrityOutcome === previous.integrityOutcome &&
+          row.integrityRevision === previous.integrityRevision &&
+          row.ratingSourceEventId === previous.ratingSourceEventId,
+      )
+      if (index < 0) return 'conflict' as const
+      const ratingFact = facts.find(
+        (fact) =>
+          fact._tag === 'guest.rating.submitted' ||
+          fact._tag === 'guest.rating.retracted',
+      )
+      repo.responses[index] = {
+        ...response,
+        ratingSourceEventId:
+          ratingFact?._tag === 'guest.rating.submitted'
+            ? ratingFact.eventId
+            : ratingFact?._tag === 'guest.rating.retracted'
+              ? null
+              : response.ratingSourceEventId,
+      }
+      for (const fact of facts) await outbox.record(fact)
+      return 'applied' as const
+    },
+    commitFeedbackAdded: async (
+      response: GuestResponse,
+      fact: Parameters<
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitFeedbackAdded']
+      >[1],
+    ) => {
+      const index = repo.responses.findIndex(
+        (row) =>
+          row.id === response.id &&
+          row.text === null &&
+          row.feedbackSourceEventId === null,
+      )
+      if (index < 0) return 'conflict' as const
+      repo.responses[index] = {
+        ...response,
+        feedbackSourceEventId: fact.eventId,
+      }
+      await outbox.record(fact)
+      return 'applied' as const
+    },
+    commitFeedbackWithdrawn: async (
+      previous: GuestResponse,
+      response: GuestResponse,
+      fact: Parameters<
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitFeedbackWithdrawn']
+      >[2],
+    ) => {
+      const index = repo.responses.findIndex(
+        (row) =>
+          row.id === previous.id &&
+          row.status === previous.status &&
+          row.ratingSourceEventId === previous.ratingSourceEventId &&
+          row.feedbackSourceEventId === previous.feedbackSourceEventId &&
+          row.text === previous.text &&
+          row.feedbackWithdrawnAt === null,
+      )
+      if (index < 0) return 'conflict' as const
+      repo.responses[index] = { ...response, feedbackSourceEventId: null }
+      await outbox.record(fact)
+      return 'applied' as const
+    },
+    commitErased: async (
+      response: GuestResponse,
+      facts: ReadonlyArray<GuestMutationFact>,
+    ) => {
+      const index = repo.responses.findIndex((row) => row.id === response.id)
+      if (index < 0) return 'conflict' as const
+      repo.responses[index] = {
+        ...response,
+        ratingSourceEventId: null,
+        feedbackSourceEventId: null,
+      }
+      for (const fact of facts) await outbox.record(fact)
+      return 'applied' as const
+    },
+    commitWithdrawn: async (
+      response: GuestResponse,
+      facts: Parameters<
+        import('../application/ports/guest-response-command-store.port').GuestResponseCommandStore['commitWithdrawn']
+      >[1],
+    ) => {
+      const index = repo.responses.findIndex((row) => row.id === response.id)
+      if (index < 0) return 'conflict' as const
+      repo.responses[index] = {
+        ...response,
+        ratingSourceEventId: null,
+        feedbackSourceEventId: null,
+      }
+      for (const fact of facts) await outbox.record(fact)
+      return 'applied' as const
+    },
+  }
+  const rawLifecycle = guestResponseLifecycle({
+    repo,
+    clock,
+    idGen: () => `00000000-0000-4000-8000-${String(sequence++).padStart(12, '0')}`,
+    commandStore,
+    operatorAuthority,
+    resolvePrimaryStaffAttribution: async () => {
+      staffAttributionResolutionCount += 1
+      return resolvedStaffAttribution
+    },
+  })
+  // Most lifecycle tests focus on behavior after submission. This adapter keeps
+  // their threshold-oriented call shape compact while production callers must
+  // provide the complete server-resolved experience contract.
+  const lifecycle = {
+    ...rawLifecycle,
+    submit: (
+      candidateScope: GuestResponseScope,
+      sessionId: GuestSessionId,
+      input: Parameters<typeof rawLifecycle.submit>[2],
+      privateFeedbackThreshold = 3,
+      sessionExpiresAt?: Date,
+    ) =>
+      rawLifecycle.submit(
+        candidateScope,
+        sessionId,
+        input,
+        experience(privateFeedbackThreshold),
+        sessionExpiresAt,
+      ),
+  }
+  return {
+    repo,
+    outbox,
+    lifecycle,
+    rawLifecycle,
+    setStaffAttribution: (value: PrimaryStaffAttributionSnapshot | null) => {
+      resolvedStaffAttribution = value
+    },
+    staffAttributionResolutionCount: () => staffAttributionResolutionCount,
+  }
+}
+
+describe('guest response lifecycle', () => {
+  it('copies initial Staff attribution through later correction facts without re-resolving', async () => {
+    const test = harness()
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000099')
+
+    await test.lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true }, 3)
+    test.setStaffAttribution({
+      staffParticipantId: '20000000-0000-4000-8000-000000000001',
+      staffParticipationId: '20000000-0000-4000-8000-000000000002',
+      portalResponsibilityId: '20000000-0000-4000-8000-000000000003',
+      effectiveFrom: new Date('2026-08-09T12:00:00.001Z'),
+      effectiveTo: null,
+    })
+
+    await test.lifecycle.correct(scope, sessionId, {
+      rating: 4,
+      responseConsent: true,
+    })
+
+    expect(test.staffAttributionResolutionCount()).toBe(1)
+    expect(test.repo.responses[0]?.staffAttribution).toEqual(STAFF_ATTRIBUTION)
+    expect(test.outbox.byTag('guest.rating.submitted')).toMatchObject([
+      { staffAttribution: STAFF_ATTRIBUTION },
+      { staffAttribution: STAFF_ATTRIBUTION },
+    ])
+  })
+
+  it('pins exact session expiry separately from the 24-month fact deadline', async () => {
+    const { lifecycle, repo } = harness()
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+    const sessionExpiresAt = new Date('2026-08-10T12:00:00.000Z')
+
+    await lifecycle.submit(
+      scope,
+      sessionId,
+      { rating: 5, responseConsent: true },
+      3,
+      sessionExpiresAt,
+    )
+
+    expect(repo.responses[0]).toMatchObject({
+      sessionId,
+      sessionExpiresAt,
+      retentionDeadline: new Date('2028-08-09T12:00:00.000Z'),
+      experienceSnapshot: {
+        portalPublicationState: 'published',
+        portalPublicationSnapshotId: 'snapshot-1',
+        portalPublicationVersion: 1,
+        portalPublicationDigest: 'b'.repeat(64),
+        portalConfigurationDigest: 'a'.repeat(64),
+        guestLocale: 'en',
+        languagePackVersion: 'guest-ui-en-v1',
+        privateFeedbackThreshold: 3,
+        capturedAt: new Date('2026-08-09T12:00:00.000Z'),
+      },
+    })
+  })
+
+  it('rejects expired or overlong recovery bindings', async () => {
+    const { lifecycle } = harness()
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+    for (const expiresAt of [
+      new Date('2026-08-09T12:00:00.000Z'),
+      new Date('2026-08-10T12:00:00.001Z'),
+    ]) {
+      await expect(
+        lifecycle.submit(
+          scope,
+          sessionId,
+          { rating: 5, responseConsent: true },
+          3,
+          expiresAt,
+        ),
+      ).rejects.toMatchObject({ code: 'response_unavailable' })
+    }
+  })
+
+  it.each([
+    { portalPublicationState: 'disabled' },
+    { portalConfigurationDigest: 'not-a-digest' },
+    { guestLocale: 'en--US' },
+    { languagePackVersion: 'Guest UI V1' },
+    { privateFeedbackThreshold: 0 },
+    { privateFeedbackThreshold: 6 },
+  ])('rejects an invalid server-resolved experience: %o', async (override) => {
+    const { rawLifecycle, repo } = harness()
+    await expect(
+      rawLifecycle.submit(
+        scope,
+        guestSessionId('00000000-0000-4000-8000-000000000003'),
+        { rating: 5, responseConsent: true },
+        { ...experience(), ...override } as Parameters<typeof rawLifecycle.submit>[3],
+      ),
+    ).rejects.toMatchObject({ code: 'response_unavailable' })
+    expect(repo.responses).toHaveLength(0)
+  })
+
+  it('retains an automatically filtered submission without recording a rating fact', async () => {
+    const { rawLifecycle, repo, outbox } = harness()
+    const receipt = await rawLifecycle.submit(
+      scope,
+      guestSessionId('00000000-0000-4000-8000-000000000003'),
+      { rating: 5, responseConsent: true },
+      experience(),
+      undefined,
+      {
+        outcome: 'filtered_automatically',
+        reasonCode: 'honeypot_signal',
+        source: 'automatic',
+        actorId: 'guest-integrity-honeypot-v1',
+      },
+    )
+
+    expect(receipt).toMatchObject({ status: 'submitted', rating: 5 })
+    expect(receipt).not.toHaveProperty('integrityOutcome')
+    expect(repo.responses[0]).toMatchObject({
+      rating: 5,
+      integrityOutcome: 'filtered_automatically',
+      ratingSourceEventId: null,
+    })
+    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(0)
+  })
+
+  it('keeps a rating filtered for network volume: durable, in the normal view, out of the figures', async () => {
+    // A venue's guests share one public address, so a rating past the network
+    // layer's budget is kept and filtered automatically instead of refused.
+    const { rawLifecycle, repo, outbox } = harness()
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+    const receipt = await rawLifecycle.submit(
+      scope,
+      sessionId,
+      { rating: 4, responseConsent: true },
+      experience(),
+      undefined,
+      {
+        outcome: 'filtered_automatically',
+        reasonCode: 'network_volume',
+        source: 'automatic',
+        actorId: 'guest-integrity-network-v1',
+      },
+    )
+
+    expect(receipt).toMatchObject({ status: 'submitted', rating: 4 })
+    expect(receipt).not.toHaveProperty('integrityOutcome')
+    expect(repo.responses[0]).toMatchObject({
+      rating: 4,
+      integrityOutcome: 'filtered_automatically',
+      integrityReasonCode: 'network_volume',
+      ratingSourceEventId: null,
+    })
+    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(0)
+    // Durable: the guest's session now holds a rating, so the Google step opens.
+    expect(isQualifiedGuestResponse(await rawLifecycle.getState(scope, sessionId))).toBe(
+      true,
+    )
+  })
+
+  it('answers a network-volume rating exactly as an accepted one, and lets the guest go on', async () => {
+    // The guest on a busy venue's Wi-Fi must get the page an accepted rating gets,
+    // and a script crossing the budget must learn nothing from the answer.
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+    const input = { rating: 2, responseConsent: true }
+    const accepted = harness()
+    const filtered = harness()
+
+    const acceptedView = await accepted.rawLifecycle.submit(
+      scope,
+      sessionId,
+      input,
+      experience(),
+    )
+    const filteredView = await filtered.rawLifecycle.submit(
+      scope,
+      sessionId,
+      input,
+      experience(),
+      undefined,
+      {
+        outcome: 'filtered_automatically',
+        reasonCode: 'network_volume',
+        source: 'automatic',
+        actorId: 'guest-integrity-network-v1',
+      },
+    )
+    expect(filteredView).toEqual(acceptedView)
+    expect(filteredView.privateFeedbackEligible).toBe(true)
+
+    // The one correction and the private note both go through; the rating
+    // still records no reading, and the note reaches the manager.
+    await expect(
+      filtered.rawLifecycle.correct(scope, sessionId, { rating: 1 }),
+    ).resolves.toMatchObject({ status: 'corrected', rating: 1 })
+    await expect(
+      filtered.rawLifecycle.addPrivateFeedback(scope, sessionId, {
+        text: 'The lobby Wi-Fi kept dropping.',
+        textConsent: true,
+      }),
+    ).resolves.toMatchObject({ hasPrivateFeedback: true })
+    expect(filtered.outbox.byTag('guest.rating.submitted')).toHaveLength(0)
+    expect(filtered.outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+    expect(filtered.outbox.byTag('guest.feedback.submitted')).toHaveLength(1)
+  })
+
+  it('submits, corrects once, and withdraws only for the same session', async () => {
+    const { lifecycle } = harness()
+    const submitted = await lifecycle.submit(
+      scope,
+      guestSessionId('00000000-0000-4000-8000-000000000003'),
+      {
+        rating: 5,
+        responseConsent: true,
+      },
+    )
+    expect(submitted.status).toBe('submitted')
+    expect(submitted.correctionAvailable).toBe(true)
+    const corrected = await lifecycle.correct(
+      scope,
+      guestSessionId('00000000-0000-4000-8000-000000000003'),
+      { rating: 4 },
+    )
+    expect(corrected.status).toBe('corrected')
+    expect(corrected.correctionAvailable).toBe(false)
+    await expect(
+      lifecycle.correct(scope, guestSessionId('00000000-0000-4000-8000-000000000003'), {
+        rating: 3,
+      }),
+    ).rejects.toMatchObject({ code: 'already_submitted' })
+    await expect(
+      lifecycle.withdraw(scope, guestSessionId('00000000-0000-4000-8000-000000000099')),
+    ).rejects.toBeInstanceOf(GuestResponseLifecycleError)
+    const withdrawn = await lifecycle.withdraw(
+      scope,
+      guestSessionId('00000000-0000-4000-8000-000000000003'),
+    )
+    expect(withdrawn).toMatchObject({ status: 'deleted', rating: null })
+    expect('text' in withdrawn).toBe(false)
+  })
+
+  it('stops advertising correction at the exact one-hour boundary plus one millisecond', async () => {
+    let now = new Date('2026-08-09T12:00:00.000Z')
+    const { lifecycle } = harness(() => now)
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+    await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
+
+    now = new Date('2026-08-09T13:00:00.000Z')
+    await expect(lifecycle.getState(scope, sessionId)).resolves.toMatchObject({
+      correctionAvailable: true,
+    })
+
+    now = new Date('2026-08-09T13:00:00.001Z')
+    await expect(lifecycle.getState(scope, sessionId)).resolves.toMatchObject({
+      correctionAvailable: false,
+    })
+  })
+
+  it('rejects another tenant without revealing the response', async () => {
+    const { lifecycle } = harness()
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+    await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
+    await expect(
+      lifecycle.withdraw(
+        { ...scope, organizationId: organizationId('org-2') },
+        sessionId,
+      ),
+    ).rejects.toMatchObject({ code: 'response_not_found' })
+  })
+
+  it('excludes an anomaly from metrics, preserves its rating, and restores the corrected value', async () => {
+    let now = new Date('2026-08-09T12:00:00.000Z')
+    const { lifecycle, repo, outbox } = harness(() => now)
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+    await lifecycle.submit(scope, sessionId, { rating: 2, responseConsent: true })
+    const responseId = repo.responses[0]!.id
+    const original = outbox.byTag('guest.rating.submitted')[0]!
+
+    now = new Date('2026-08-09T12:10:00.000Z')
+    await expect(
+      lifecycle.changeIntegrity(scope, responseId, {
+        outcome: 'under_review',
+        reasonCode: 'traffic_velocity_anomaly',
+        source: 'automatic',
+        actorId: 'guest-integrity-v1',
+      }),
+    ).resolves.toMatchObject({
+      revision: 2,
+      previousOutcome: 'accepted',
+      outcome: 'under_review',
+    })
+    expect(repo.responses[0]).toMatchObject({
+      rating: 2,
+      integrityOutcome: 'under_review',
+      ratingSourceEventId: null,
+    })
+    expect(outbox.byTag('guest.rating.retracted')).toMatchObject([
+      { supersedesSourceEventId: original.eventId },
+    ])
+
+    now = new Date('2026-08-09T12:20:00.000Z')
+    await lifecycle.correct(scope, sessionId, { rating: 4 })
+    expect(repo.responses[0]).toMatchObject({
+      rating: 4,
+      integrityOutcome: 'under_review',
+      ratingSourceEventId: null,
+    })
+    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(1)
+
+    now = new Date('2026-08-09T12:30:00.000Z')
+    await lifecycle.changeIntegrity(scope, responseId, {
+      outcome: 'accepted',
+      reasonCode: 'reviewer_restored',
+      source: 'reviewer',
+      actorId: 'reviewer-1',
+    })
+    expect(repo.responses[0]).toMatchObject({
+      rating: 4,
+      integrityOutcome: 'accepted',
+      integrityRevision: 3,
+    })
+    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(2)
+    expect(outbox.byTag('guest.rating.submitted')[1]).toMatchObject({
+      value: 4,
+      supersedesSourceEventId: null,
+      occurredAt: new Date('2026-08-09T12:20:00.000Z'),
+    })
+  })
+})
+
+// The submit path is the only producer of the guest rating/feedback facts the
+// metric handlers consume (portal.rating, portal.feedback). These pin the
+// producer: without them both metrics silently read 0 again.
+describe('guest response lifecycle — submitted facts', () => {
+  const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+
+  it('records rating then feedback facts from the two staged commands', async () => {
+    const { lifecycle, outbox, repo } = harness()
+
+    await lifecycle.submit(scope, sessionId, {
+      rating: 2,
+      responseConsent: true,
+    })
+    const withFeedback = await lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'Please follow up with the property team.',
+      textConsent: true,
+    })
+    const responseId = repo.responses[0]!.id
+
+    expect(outbox.byTag('guest.rating.submitted')).toMatchObject([
+      {
+        ratingId: responseId,
+        organizationId: scope.organizationId,
+        portalId: scope.portalId,
+        propertyId: scope.propertyId,
+        value: 2,
+      },
+    ])
+    expect(outbox.byTag('guest.feedback.submitted')).toMatchObject([
+      { feedbackId: responseId, ratingId: responseId, responseRevision: 1 },
+    ])
+    expect(withFeedback).toMatchObject({
+      hasPrivateFeedback: true,
+      privateFeedbackEligible: false,
+    })
+    expect('text' in withFeedback).toBe(false)
+  })
+
+  it('records no feedback fact when the guest supplied no free text', async () => {
+    const { lifecycle, outbox } = harness()
+
+    await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
+
+    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(1)
+    expect(outbox.byTag('guest.feedback.submitted')).toHaveLength(0)
+  })
+
+  it('renews recovery for 24 hours from late feedback without duplicating it', async () => {
+    let now = new Date('2026-08-09T12:00:00.000Z')
+    const { lifecycle, outbox, repo } = harness(() => now)
+    await lifecycle.submit(scope, sessionId, { rating: 2, responseConsent: true })
+    now = new Date('2026-08-10T11:00:00.000Z')
+
+    await lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'Late but still within the original recovery session.',
+      textConsent: true,
+    })
+    expect(repo.responses[0]!.sessionExpiresAt).toEqual(
+      new Date('2026-08-11T11:00:00.000Z'),
+    )
+    await expect(
+      lifecycle.addPrivateFeedback(scope, sessionId, {
+        text: 'A replay must not overwrite the original.',
+        textConsent: true,
+      }),
+    ).resolves.toMatchObject({ hasPrivateFeedback: true })
+    expect(repo.responses[0]!.text).toBe(
+      'Late but still within the original recovery session.',
+    )
+    expect(outbox.byTag('guest.feedback.submitted')).toHaveLength(1)
+  })
+
+  it('rejects feedback without the required private rating', async () => {
+    const { lifecycle, outbox } = harness()
+
+    await expect(
+      lifecycle.submit(scope, sessionId, {
+        text: 'The lobby coffee is excellent.',
+        textConsent: true,
+      }),
+    ).rejects.toMatchObject({ code: 'rating_required' })
+
+    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(0)
+    expect(outbox.byTag('guest.feedback.submitted')).toHaveLength(0)
+  })
+
+  it('records nothing for a repeated submit of the same session', async () => {
+    const { lifecycle, outbox } = harness()
+    const input = { rating: 3, responseConsent: true }
+
+    await lifecycle.submit(scope, sessionId, input)
+    await lifecycle.submit(scope, sessionId, input)
+
+    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(1)
+  })
+
+  it('records a superseding fact for a corrected rating', async () => {
+    const { lifecycle, outbox } = harness()
+    await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+    const original = outbox.byTag('guest.rating.submitted')[0]!
+
+    await lifecycle.correct(scope, sessionId, { rating: 1 })
+
+    expect(outbox.byTag('guest.rating.submitted')).toMatchObject([
+      { value: 3 },
+      { value: 1, supersedesSourceEventId: original.eventId },
+    ])
+  })
+
+  it('fails closed when historical shared content has no recoverable fact lineage', async () => {
+    const { lifecycle, outbox, repo } = harness()
+    await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+    repo.responses[0] = { ...repo.responses[0]!, ratingSourceEventId: null }
+
+    await expect(
+      lifecycle.correct(scope, sessionId, { rating: 1 }),
+    ).rejects.toMatchObject({ code: 'response_unavailable' })
+    await expect(lifecycle.withdraw(scope, sessionId)).rejects.toMatchObject({
+      code: 'response_unavailable',
+    })
+    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(1)
+    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+  })
+
+  it('records a retraction for a withdrawn rating', async () => {
+    const { lifecycle, outbox } = harness()
+    await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+    const original = outbox.byTag('guest.rating.submitted')[0]!
+
+    await lifecycle.withdraw(scope, sessionId)
+
+    expect(outbox.byTag('guest.rating.retracted')).toMatchObject([
+      { ratingId: original.ratingId, supersedesSourceEventId: original.eventId },
+    ])
+  })
+
+  it('retracts private-feedback count independently during withdrawal', async () => {
+    const { lifecycle, outbox } = harness()
+    await lifecycle.submit(scope, sessionId, {
+      rating: 2,
+      responseConsent: true,
+    })
+    await lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'Please follow up.',
+      textConsent: true,
+    })
+    const original = outbox.byTag('guest.feedback.submitted')[0]!
+
+    await lifecycle.withdraw(scope, sessionId)
+
+    expect(outbox.byTag('guest.feedback.retracted')).toMatchObject([
+      { feedbackId: original.feedbackId, supersedesSourceEventId: original.eventId },
+    ])
+  })
+
+  it('withdraws private feedback without retracting the rating', async () => {
+    const { lifecycle, outbox, repo } = harness()
+    await lifecycle.submit(scope, sessionId, {
+      rating: 2,
+      responseConsent: true,
+    })
+    await lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'Please follow up.',
+      textConsent: true,
+    })
+    const ratingFact = outbox.byTag('guest.rating.submitted')[0]!
+    const feedbackFact = outbox.byTag('guest.feedback.submitted')[0]!
+
+    const receipt = await lifecycle.withdrawPrivateFeedback(scope, sessionId)
+
+    expect(receipt).toMatchObject({
+      status: 'submitted',
+      rating: 2,
+      hasPrivateFeedback: false,
+      privateFeedbackEligible: false,
+      feedbackSubmittedAt: '2026-08-09T12:00:00.000Z',
+      feedbackWithdrawnAt: '2026-08-09T12:00:00.000Z',
+    })
+    expect(repo.responses[0]).toMatchObject({
+      rating: 2,
+      text: null,
+      feedbackSourceEventId: null,
+    })
+    expect(outbox.byTag('guest.feedback.retracted')).toMatchObject([
+      {
+        feedbackId: feedbackFact.feedbackId,
+        supersedesSourceEventId: feedbackFact.eventId,
+      },
+    ])
+    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+    expect(outbox.byTag('guest.rating.submitted')).toEqual([ratingFact])
+
+    await expect(lifecycle.withdrawPrivateFeedback(scope, sessionId)).resolves.toEqual(
+      receipt,
+    )
+    expect(outbox.byTag('guest.feedback.retracted')).toHaveLength(1)
+  })
+
+  it('rejects private-feedback withdrawal after 24 hours without changing data', async () => {
+    let now = new Date('2026-08-09T12:00:00.000Z')
+    const { lifecycle, outbox, repo } = harness(() => now)
+    await lifecycle.submit(scope, sessionId, { rating: 2, responseConsent: true })
+    await lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'Please follow up.',
+      textConsent: true,
+    })
+    now = new Date('2026-08-10T12:00:00.001Z')
+
+    await expect(
+      lifecycle.withdrawPrivateFeedback(scope, sessionId),
+    ).rejects.toMatchObject({ code: 'feedback_withdrawal_expired' })
+    expect(repo.responses[0]).toMatchObject({
+      rating: 2,
+      text: 'Please follow up.',
+      feedbackWithdrawnAt: null,
+    })
+    expect(outbox.byTag('guest.feedback.retracted')).toHaveLength(0)
+  })
+
+  it('rejects whole-response withdrawal after 24 hours without retracting rating', async () => {
+    let now = new Date('2026-08-09T12:00:00.000Z')
+    const { lifecycle, outbox, repo } = harness(() => now)
+    await lifecycle.submit(scope, sessionId, { rating: 4, responseConsent: true })
+    now = new Date('2026-08-10T12:00:00.001Z')
+
+    await expect(lifecycle.withdraw(scope, sessionId)).rejects.toMatchObject({
+      code: 'response_withdrawal_expired',
+    })
+    expect(repo.responses[0]).toMatchObject({ status: 'submitted', rating: 4 })
+    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+  })
+
+  it('uses the snapshotted inclusive threshold and never returns feedback text', async () => {
+    const eligible = harness()
+    const low = await eligible.lifecycle.submit(
+      scope,
+      sessionId,
+      { rating: 3, responseConsent: true },
+      3,
+    )
+    expect(low.privateFeedbackEligible).toBe(true)
+    const receipt = await eligible.lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'A private note for the manager.',
+      textConsent: true,
+    })
+    expect(receipt).toMatchObject({
+      hasPrivateFeedback: true,
+      privateFeedbackEligible: false,
+    })
+    expect('text' in receipt).toBe(false)
+    for (const internalField of [
+      'id',
+      'organizationId',
+      'propertyId',
+      'portalId',
+      'sessionId',
+      'category',
+      'responseConsent',
+      'textConsent',
+      'mediaConsent',
+    ]) {
+      expect(receipt).not.toHaveProperty(internalField)
+    }
+
+    const ineligible = harness()
+    const high = await ineligible.lifecycle.submit(
+      scope,
+      sessionId,
+      { rating: 4, responseConsent: true },
+      3,
+    )
+    expect(high.privateFeedbackEligible).toBe(false)
+    await expect(
+      ineligible.lifecycle.addPrivateFeedback(scope, sessionId, {
+        text: 'Not eligible',
+        textConsent: true,
+      }),
+    ).rejects.toMatchObject({ code: 'feedback_not_eligible' })
+  })
+
+  it.each([1, 2, 3, 4, 5])(
+    'treats %i as inclusive for its captured threshold',
+    async (threshold) => {
+      const { lifecycle } = harness()
+      const receipt = await lifecycle.submit(
+        scope,
+        sessionId,
+        { rating: threshold, responseConsent: true },
+        threshold,
+      )
+      expect(receipt.privateFeedbackEligible).toBe(true)
+    },
+  )
+
+  it('unlocks feedback after a high-to-low correction without spending another correction', async () => {
+    const { lifecycle, repo, outbox } = harness()
+    await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true }, 3)
+    const corrected = await lifecycle.correct(scope, sessionId, { rating: 2 })
+    expect(corrected.privateFeedbackEligible).toBe(true)
+
+    await lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'Now eligible after correction.',
+      textConsent: true,
+    })
+    expect(repo.responses[0]).toMatchObject({
+      correctionCount: 1,
+      rating: 2,
+      text: 'Now eligible after correction.',
+      feedbackSubmissionRevision: 2,
+    })
+    expect(outbox.byTag('guest.feedback.submitted')).toMatchObject([
+      { responseRevision: 2 },
+    ])
+  })
+})
+
+describe('isQualifiedGuestResponse', () => {
+  // Keyed by every status, so a new status fails typecheck until it decides.
+  const RATED_RESPONSE_QUALIFIES: Record<GuestResponseStatus, boolean> = {
+    pending: true,
+    submitted: true,
+    corrected: true,
+    moderated: true,
+    expired: true,
+    deleted: false,
+  }
+  const STATUSES = Object.keys(RATED_RESPONSE_QUALIFIES) as GuestResponseStatus[]
+
+  function view(status: GuestResponseStatus, rating: number | null): GuestResponseView {
+    return {
+      status,
+      rating,
+      hasPrivateFeedback: false,
+      privateFeedbackEligible: false,
+      submittedAt: null,
+      correctedAt: null,
+      correctionDeadline: null,
+      correctionAvailable: false,
+      responseWithdrawalDeadline: null,
+      responseWithdrawalAvailable: false,
+      feedbackSubmittedAt: null,
+      feedbackWithdrawalDeadline: null,
+      feedbackWithdrawalAvailable: false,
+      feedbackWithdrawnAt: null,
+      deletedAt: null,
+    }
+  }
+
+  it('denies a session that has no response', () => {
+    expect(isQualifiedGuestResponse(null)).toBe(false)
+  })
+
+  it.each(STATUSES)('qualifies a rated %s response unless it was withdrawn', (status) => {
+    expect(isQualifiedGuestResponse(view(status, 1))).toBe(
+      RATED_RESPONSE_QUALIFIES[status],
+    )
+    expect(isQualifiedGuestResponse(view(status, 5))).toBe(
+      RATED_RESPONSE_QUALIFIES[status],
+    )
+  })
+
+  it.each(STATUSES)('denies an unrated %s response', (status) => {
+    expect(isQualifiedGuestResponse(view(status, null))).toBe(false)
+  })
+})
+
+describe('canStartNewGuestResponse', () => {
+  const view = (
+    status: GuestResponseStatus,
+    rating: number | null,
+  ): GuestResponseView => ({
+    status,
+    rating,
+    hasPrivateFeedback: false,
+    privateFeedbackEligible: false,
+    submittedAt: null,
+    correctedAt: null,
+    correctionDeadline: null,
+    correctionAvailable: false,
+    responseWithdrawalDeadline: null,
+    responseWithdrawalAvailable: false,
+    feedbackSubmittedAt: null,
+    feedbackWithdrawalDeadline: null,
+    feedbackWithdrawalAvailable: false,
+    feedbackWithdrawnAt: null,
+    deletedAt: status === 'deleted' ? '2026-01-01T12:10:00.000Z' : null,
+  })
+
+  it('denies a session that has no response: there is nothing to start over from', () => {
+    expect(canStartNewGuestResponse(null)).toBe(false)
+  })
+
+  it.each(['pending', 'submitted', 'corrected', 'moderated', 'expired'] as const)(
+    'admits a rated %s response, as the shared-device case always did',
+    (status) => {
+      expect(canStartNewGuestResponse(view(status, 4))).toBe(true)
+    },
+  )
+
+  it.each(['pending', 'submitted', 'corrected', 'moderated', 'expired'] as const)(
+    'still denies an unrated %s response',
+    (status) => {
+      expect(canStartNewGuestResponse(view(status, null))).toBe(false)
+    },
+  )
+
+  it('admits a response the guest withdrew, rated or not: its session can take no other', () => {
+    expect(canStartNewGuestResponse(view('deleted', null))).toBe(true)
+    expect(canStartNewGuestResponse(view('deleted', 2))).toBe(true)
+  })
+
+  it('widens nothing else: a withdrawn response still qualifies for no Google or link action', () => {
+    expect(isQualifiedGuestResponse(view('deleted', null))).toBe(false)
+    expect(isQualifiedGuestResponse(view('deleted', 2))).toBe(false)
+  })
+})
+
+describe('operator erasure', () => {
+  const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+  const allow: OperatorErasureAuthority = { verify: async (id) => id === 'operator-1' }
+
+  it('erases after the withdrawal window and retracts the readings', async () => {
+    let now = new Date('2026-08-09T12:00:00.000Z')
+    const { lifecycle, rawLifecycle, repo, outbox } = harness(() => now, allow)
+    await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+    const original = outbox.byTag('guest.rating.submitted')[0]!
+    now = new Date('2026-08-12T12:00:00.000Z')
+    await expect(lifecycle.withdraw(scope, sessionId)).rejects.toMatchObject({
+      code: 'response_withdrawal_expired',
+    })
+
+    await expect(
+      rawLifecycle.eraseAsOperator('operator-1', scope, repo.responses[0]!.id),
+    ).resolves.toBe('erased')
+
+    expect(repo.responses[0]).toMatchObject({ status: 'deleted', rating: null })
+    expect(outbox.byTag('guest.rating.retracted')).toMatchObject([
+      { supersedesSourceEventId: original.eventId },
+    ])
+  })
+
+  it.each([undefined, allow])(
+    'writes nothing for a denied operator',
+    async (authority) => {
+      const { lifecycle, rawLifecycle, repo, outbox } = harness(undefined, authority)
+      await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+
+      await expect(
+        rawLifecycle.eraseAsOperator('someone-else', scope, repo.responses[0]!.id),
+      ).rejects.toMatchObject({ code: 'operator_not_authorized' })
+
+      expect(repo.responses[0]).toMatchObject({ status: 'submitted', rating: 3 })
+      expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+    },
+  )
+
+  it('writes nothing for a subject outside the tenant scope', async () => {
+    const { lifecycle, rawLifecycle, repo, outbox } = harness(undefined, allow)
+    await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+
+    await expect(
+      rawLifecycle.eraseAsOperator(
+        'operator-1',
+        { ...scope, organizationId: organizationId('other-org') },
+        repo.responses[0]!.id,
+      ),
+    ).rejects.toMatchObject({ code: 'response_not_found' })
+
+    expect(repo.responses[0]).toMatchObject({ status: 'submitted' })
+    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+  })
+
+  it('is idempotent for an already erased response', async () => {
+    const { lifecycle, rawLifecycle, repo, outbox } = harness(undefined, allow)
+    await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+    const id = repo.responses[0]!.id
+    await rawLifecycle.eraseAsOperator('operator-1', scope, id)
+
+    await expect(rawLifecycle.eraseAsOperator('operator-1', scope, id)).resolves.toBe(
+      'already_erased',
+    )
+    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(1)
+  })
+})

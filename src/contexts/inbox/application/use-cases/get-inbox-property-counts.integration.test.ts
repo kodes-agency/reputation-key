@@ -24,12 +24,12 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import { seedInboxOrganization } from '../../infrastructure/inbox-database-fixtures'
 import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
   dropInboxOrganization,
-} from '../../infrastructure/inbox-database-fixtures-use-cases-slice'
+  seedInboxOrganization,
+} from '../../infrastructure/inbox-database-fixtures'
 
 const ORG_ID = organizationId('org-inbox-property-counts-test')
 const VIEWER = userId('user-1')

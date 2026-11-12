@@ -70,7 +70,7 @@ type UnavailablePageContent = Readonly<{
 
 /** What the page knows about the reader beyond the URL. */
 export type UnavailableAccountState = Readonly<{
-  /** Their access to a workspace was removed (I27); false while unknown. */
+  /** Their access to a workspace was removed; false while unknown. */
   accessRemoved: boolean
   /** They left that workspace themselves rather than being removed. */
   leftWorkspace?: boolean
@@ -83,9 +83,8 @@ export function unavailablePageContent(
   if (reason === 'workspace_access') {
     // Two very different people reach this screen. One is waiting for a first
     // invitation; the other was removed, and the notice that said so was
-    // written into a workspace they can no longer open, so until now the
-    // product told them their access "isn't ready" and left them waiting for
-    // something that is not coming.
+    // written into a workspace they can no longer open, so "isn't ready"
+    // would leave them waiting for something that is not coming.
     if (account.accessRemoved && account.leftWorkspace === true) {
       return {
         title: 'You left the workspace',

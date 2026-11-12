@@ -8,7 +8,7 @@ import { createInMemoryMyBusinessNotificationsPort } from '#/shared/testing/in-m
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { GoogleReviewSyncProviderCallAuthorization } from '../google-provider-contract'
-import { createGbpApiError } from '../../domain/gbp-api-error'
+import { createGoogleCallError } from '../../domain/google-call-error'
 
 const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
 const CONN = googleConnectionId('e0000000-0000-0000-0000-000000000001')
@@ -228,7 +228,7 @@ describe('manageNotifications', () => {
       })
       notifications.setAccountError(
         ACCOUNT_ID,
-        createGbpApiError('subscribe', 'upstream_error', {
+        createGoogleCallError('subscribe', 'upstream_error', {
           executionAdmissionCode: 'coordination_unavailable',
           dispatch: 'not_sent',
         }),
@@ -275,17 +275,21 @@ describe('manageNotifications', () => {
     it.each([
       [
         'the provider status',
-        createGbpApiError('subscribe', 'permission_denied', { providerStatus: 403 }),
+        createGoogleCallError('subscribe', 'permission_denied', { providerStatus: 403 }),
         'provider_403',
       ],
       [
         'the execution code',
-        createGbpApiError('subscribe', 'upstream_error', {
+        createGoogleCallError('subscribe', 'upstream_error', {
           executionCode: 'transport_error',
         }),
         'transport_error',
       ],
-      ['the error kind', createGbpApiError('subscribe', 'parse_error'), 'parse_error'],
+      [
+        'the error kind',
+        createGoogleCallError('subscribe', 'parse_error'),
+        'parse_error',
+      ],
       ['a fallback for anything unclassified', new Error('boom'), 'unexpected_error'],
     ])('codes a failed account by %s', async (_label, error, code) => {
       const { useCase, notifications } = setup()
@@ -348,7 +352,7 @@ describe('manageNotifications', () => {
       const { useCase, notifications } = setup()
       notifications.setError(
         'subscribe',
-        createGbpApiError('subscribe', 'upstream_error'),
+        createGoogleCallError('subscribe', 'upstream_error'),
       )
 
       await expect(useCase.subscribe(ORG, CONN)).resolves.toEqual({
@@ -462,7 +466,9 @@ describe('manageNotifications', () => {
       const { useCase, notifications } = setup({ authorizationResult: TWO_ACCOUNTS })
       notifications.setAccountError(
         ACCOUNT_ID_2,
-        createGbpApiError('unsubscribe', 'permission_denied', { providerStatus: 403 }),
+        createGoogleCallError('unsubscribe', 'permission_denied', {
+          providerStatus: 403,
+        }),
       )
 
       await expect(useCase.unsubscribe(ORG, CONN)).resolves.toEqual({

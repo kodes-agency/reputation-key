@@ -33,7 +33,7 @@ const pubSubBodySchema = z.object({
   subscription: z.string().min(1).max(512).optional(),
 })
 // Google's My Business Notifications payload, as published to the topic
-// (captured 2026-09-29): `{"type":"NEW_REVIEW","location":"accounts/…/locations/…",
+// (as captured): `{"type":"NEW_REVIEW","location":"accounts/…/locations/…",
 // "review":"accounts/…/locations/…/reviews/…"}` with no message attributes.
 const gbpNotificationPayloadSchema = z.object({
   location: z.string().min(1).max(768),

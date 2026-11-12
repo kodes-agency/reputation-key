@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalChangeFacts } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalChangeFacts } from '#/contexts/reporting/monthly-goals/contracts'
 import {
   changedAverageDraft,
   openingAverageDraft,

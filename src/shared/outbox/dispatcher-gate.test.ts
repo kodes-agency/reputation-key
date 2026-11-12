@@ -36,6 +36,7 @@ import {
 import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent, withEnvelopeIdentifiers } from './event-adapter'
 import { getRequestContext } from '#/shared/observability/request-context'
+import { getDatabaseScope } from '#/shared/db/tenant-scope.server'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -148,6 +149,28 @@ describe('dispatcher gate (BQC-3.2)', () => {
       executionKind: 'consumer',
       correlationId: 'evt-gate-1',
     })
+  })
+
+  it("runs an allowed consumer under the event's Organization", async () => {
+    decideMock.mockResolvedValue(ALLOW)
+    const seen: unknown[] = []
+    consumerRegistry.registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-scope',
+      module: TEST_MODULE,
+      handler: async () => {
+        seen.push(getDatabaseScope())
+        return { status: 'applied' as const }
+      },
+    })
+
+    await createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
+      fakeJob(makeEnvelope()),
+    )
+
+    expect(seen).toEqual([
+      { kind: 'tenant', organizationId: 'org-1', entry: 'consumer', name: 'c-scope' },
+    ])
   })
 
   it('stamps consumer-emitted facts with the delivered event as their cause', async () => {

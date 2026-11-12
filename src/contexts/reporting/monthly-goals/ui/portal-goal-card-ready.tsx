@@ -6,7 +6,7 @@ import { useRef } from 'react'
 import type {
   PortalGoalOffer,
   SetMonthlyPortalGoalRequest,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import {
   actionErrorMessage,
   useActionMutation,

@@ -4,7 +4,7 @@
 
 import QRCode from 'qrcode'
 import { describe, expect, it } from 'vitest'
-import { printAddressShape } from '#/shared/domain/portal-print-kit-code-tile'
+import { printAddressShape } from '#/shared/domain/portal-print-address'
 import { QR_QUIET_ZONE_MODULES, renderQrSvg } from './portal-qr'
 import { PREVIEW_SAMPLE_ADDRESS, symbolModulesOfSvg } from './use-print-kit-code'
 

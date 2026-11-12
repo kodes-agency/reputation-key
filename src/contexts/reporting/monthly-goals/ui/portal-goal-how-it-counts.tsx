@@ -1,7 +1,7 @@
 // Describe the current measure in the Property's time zone, including subject scope on
 // Portal and group pages.
 
-import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/monthly-goals/contracts'
 import { GoalClosedCard } from '../../../../components/goals/goal-history-list'
 import { HOW_IT_COUNTS_TITLE, howItCountsWords } from './portal-goal-page-view'
 

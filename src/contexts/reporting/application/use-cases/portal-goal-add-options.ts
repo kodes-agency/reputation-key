@@ -14,7 +14,7 @@ import type {
   PortalGoalAddHeld,
   PortalGoalAddOffer,
   PortalGoalAddOptions,
-} from '../dto/monthly-portal-goal-add.types'
+} from '../../monthly-goals/contracts'
 import { subjectHolds } from '../../monthly-goals/subject-assignments.server'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import type { GoalSubjectNameReader } from './goal-bulk-create'

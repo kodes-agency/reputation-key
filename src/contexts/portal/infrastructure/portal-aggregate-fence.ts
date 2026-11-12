@@ -4,7 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portals } from '#/shared/db/schema'
 import { unbrand } from '#/shared/domain/ids'
-import type { IssuePortalTokenCommand } from '../application/ports/portal-command-store.port'
+import type { IssuePortalTokenCommand } from '../publication/portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { assertCommittedRevision } from './portal-command-guards'
 

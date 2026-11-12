@@ -63,16 +63,18 @@ import {
   registerIntegrationNotificationConsumers,
   type GoogleConnectionPropertyLookup,
 } from './infrastructure/integration-outbox-consumers'
-import { registerBulkAssignmentNotificationConsumer } from './infrastructure/bulk-assignment-outbox-consumers'
-import { registerAssignmentReleaseNotificationConsumer } from './infrastructure/assignment-release-outbox-consumers'
-import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
+import {
+  registerAssignmentReleaseNotificationConsumer,
+  registerBulkAssignmentNotificationConsumer,
+  registerEscalationResolutionNotificationConsumer,
+  registerResponseTargetNotificationConsumer,
+} from './infrastructure/inbox-notice-routes'
 import { registerGoalNotificationConsumer } from './infrastructure/goal-notice-routes'
 import { registerAiGuestVoiceSummaryNoticeConsumer } from './infrastructure/goal-notice-routes'
 import { registerAiUrgentReviewNoticeConsumer } from './infrastructure/goal-notice-routes'
 import { registerRatingGoalNoticeConsumer } from './infrastructure/goal-notice-routes'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './infrastructure/notification-settlement-outbox-consumers'
-import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
 import { createAccountAccessRemovalReader } from './infrastructure/repositories/account-access-removal.repository'
 import {
   createNotificationGapRepository,

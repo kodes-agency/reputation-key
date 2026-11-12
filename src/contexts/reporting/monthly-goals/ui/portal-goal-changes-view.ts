@@ -1,4 +1,4 @@
-import type { PortalGoalChange } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
+import type { PortalGoalChange } from '#/contexts/reporting/monthly-goals/contracts'
 import { formatLocalDate } from '#/lib/format'
 import { goalFigure } from '../../../../components/goals/goal-so-far'
 import { dayWords, listOfNames, monthName, portalGoalUnit } from './portal-goal-words'

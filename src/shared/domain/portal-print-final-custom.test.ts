@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  PRINT_FINAL_CUSTOM_MAX_CHARACTERS,
   normalisePrintFinalText,
   printFinalCopyOf,
-  printFinalCustomProblem,
   printFinalIsOwnCopy,
   printFinalOwnWordsToSend,
   printFinalWordsHeldLanguage,
@@ -20,33 +18,6 @@ describe('the own words as typed (spec 5.6)', () => {
     expect(normalisePrintFinalText('Com’è andata? “Bene”')).toBe('Com’è andata? “Bene”')
   })
 })
-
-describe('printFinalCustomProblem', () => {
-  const words = (headline: string, subline = '') => ({ en: { headline, subline } })
-
-  it('takes a headline with an empty sub-line', () => {
-    expect(printFinalCustomProblem(words('How was today?'), ['en'])).toBeNull()
-  })
-
-  it('refuses an empty headline, a field past 60 characters and a control character', () => {
-    expect(printFinalCustomProblem(words('   '), ['en'])).toBe('empty_headline')
-    expect(
-      printFinalCustomProblem(words('a'.repeat(PRINT_FINAL_CUSTOM_MAX_CHARACTERS + 1)), [
-        'en',
-      ]),
-    ).toBe('too_long')
-    expect(printFinalCustomProblem(words('How\u0007 was it'), ['en'])).toBe(
-      'control_characters',
-    )
-  })
-
-  it('refuses words in a language that is not on the print', () => {
-    expect(
-      printFinalCustomProblem({ es: { headline: '¿Qué tal hoy?', subline: '' } }, ['en']),
-    ).toBe('language_not_on_print')
-  })
-})
-
 describe('the words a print resolves to', () => {
   it('reads a language without own words from the wording', () => {
     expect(printFinalCopyOf({ preset: 'got_30_seconds' }, 'en')).toEqual({

@@ -12,7 +12,7 @@ import {
 } from '#/shared/domain/ids'
 import type { Notification, NotificationStatus } from '../../domain/notification-types'
 import { notificationFromRow } from './notification-row.mapper'
-import { isCurrentInboxAssignee } from '../adapters/inbox-item-lookup.adapter'
+import { isCurrentInboxAssignee } from '#/contexts/reputation/application/public-api'
 import { notificationError } from '../../domain/notification-errors'
 import { writeNotification } from '../../notify/write.server'
 import { ACTIONABLE_NOTIFICATION_TYPES } from '../../domain/notification-settlement'

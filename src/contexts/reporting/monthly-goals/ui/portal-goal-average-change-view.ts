@@ -2,8 +2,8 @@
 // month leaves the running month alone. An average has no recommendation and cannot
 // change measure. The read owns month keys; invalid typed input must not throw.
 
-import type { PortalGoalChangeFacts } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import type { PortalGoalAverageOfPage } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
+import type { PortalGoalChangeFacts } from '#/contexts/reporting/monthly-goals/contracts'
+import type { PortalGoalAverageOfPage } from '#/contexts/reporting/monthly-goals/contracts'
 import {
   AVERAGE_METRIC,
   AVERAGE_NEEDS,

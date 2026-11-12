@@ -18,6 +18,7 @@ import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
 } from '../../../../../test-fixtures/generated/google-provider-identifiers-v1'
+import { translatedGoogleReviewApi } from '#/contexts/review/application/public-api'
 import { createGoogleReviewApiAdapter } from './google-review-api.adapter'
 
 // Closed beta, 2026-10-16..18: 126 snapshot runs failed `cursor_failure` with
@@ -138,16 +139,18 @@ function realCursorStore(): GoogleReviewCursorStore {
 
 function createAdapter(execute: Mock, cursorStore: GoogleReviewCursorStore) {
   const warn = vi.fn()
-  const api = createGoogleReviewApiAdapter({
-    connectionRepo: { findById: vi.fn().mockResolvedValue(connection) } as never,
-    logger: { warn } as never,
-    cursorStore,
-    executor: { execute },
-    authorizeReviewSyncProviderCall: vi
-      .fn()
-      .mockResolvedValue({ accessToken: 'access-token', authorization }),
-    nowMs: () => NOW_MS,
-  })
+  const api = translatedGoogleReviewApi(
+    createGoogleReviewApiAdapter({
+      connectionRepo: { findById: vi.fn().mockResolvedValue(connection) } as never,
+      logger: { warn } as never,
+      cursorStore,
+      executor: { execute },
+      authorizeReviewSyncProviderCall: vi
+        .fn()
+        .mockResolvedValue({ accessToken: 'access-token', authorization }),
+      nowMs: () => NOW_MS,
+    }),
+  )
   return { api, warn }
 }
 

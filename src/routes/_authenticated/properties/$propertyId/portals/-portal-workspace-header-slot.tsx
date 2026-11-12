@@ -1,5 +1,5 @@
 import { hasFailed } from '#/components/hooks/is-retrying'
-import { PortalReadState } from '#/components/features/portal/portal-detail/portal-read-state'
+import { PortalReadState } from '#/contexts/portal/workspace/ui/portal-read-state'
 // Publication status and group labels load locally, so a failed status read
 // cannot replace the workspace. Publish affordances wait for those facts.
 import { notFound, useRouter } from '@tanstack/react-router'
@@ -11,7 +11,7 @@ import {
   canReviewAndPublish,
   describePendingChanges,
   type PortalDetailTab,
-} from '#/components/features/portal/portal-detail/portal-detail-rules'
+} from '#/contexts/portal/workspace/ui/portal-detail-rules'
 import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import { PortalDraftSaveStatus } from '#/contexts/portal/editor/ui/portal-draft-save-status'
 import { PortalOpenPageControl } from '#/components/features/portal/portal-workspace/portal-open-page-control'
