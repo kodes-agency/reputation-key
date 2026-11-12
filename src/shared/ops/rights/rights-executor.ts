@@ -4,7 +4,7 @@
 // The command contract decides whether a request may apply at all; this module
 // only runs the executors that cover the requested scope.
 
-import type { BackupErasureLedgerContext } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import type { ErasureJournalContext } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type { OperatorIO } from '../operator-command'
 import { rightsAuditEvent, type RightsAudit } from './rights-audit'
 import type { RightsJournal } from './rights-journal'
@@ -27,7 +27,7 @@ export type RightsExecutor = Readonly<{
   name: string
   scopes: ReadonlyArray<RightsRequestScope>
   /** Lifecycle contexts whose erasure this executor journals before it applies. */
-  journalContexts: ReadonlyArray<BackupErasureLedgerContext>
+  journalContexts: ReadonlyArray<ErasureJournalContext>
   /**
    * Read-only refusals that need no write: a missing argument, a scope the
    * executor cannot erase, a context that is not ready. Runs for every
@@ -122,7 +122,7 @@ async function subjectRefusalOf(input: RunRightsExecutorsInput): Promise<string 
 async function applyJournaled(
   input: RunRightsExecutorsInput,
   executor: RightsExecutor,
-  planContexts: ReadonlyArray<BackupErasureLedgerContext>,
+  planContexts: ReadonlyArray<ErasureJournalContext>,
 ): Promise<RightsApplyOutcome> {
   try {
     return await input.journal.run(

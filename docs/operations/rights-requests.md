@@ -43,6 +43,30 @@ Scopes: `access`, `guest-response`, `participant`, `property`, `organization`.
 executor's export files under that directory (mode 0600). Upload them to the
 private bucket by hand and delete the local copy.
 
+## Audit pseudonym secret
+
+A Property or Organization erasure replaces the people in the audit records
+with pseudonyms keyed by `AUDIT_PSEUDONYM_SECRET`, a secret of its own:
+`ENCRYPTION_KEY` keys nothing here, so rotating it changes no pseudonym. While
+`AUDIT_PSEUDONYM_SECRET` is unset, `pnpm ops rights-request` refuses such an
+erasure at preflight, before anything changes, and `pnpm ops restore-verify`
+refuses to replay a journal that holds an Activity entry, before any restore
+work. Reports, access exports and the other scopes do not need it. No command
+prints its value.
+
+Set it once, before deploying the release that reads it:
+
+1. Generate it: `openssl rand -hex 32` (64 lowercase hex characters).
+2. Keep it with the other beta secrets, and set it as the variable
+   `AUDIT_PSEUDONYM_SECRET` of the Railway service you run `pnpm ops` from in
+   `closed-beta-v2`. Only these two commands read it; the web and worker
+   processes do not need it.
+3. Give a restore verifier process the same value
+   ([backup and lifecycle](backup-and-lifecycle.md), restore step 4).
+
+Keep the value. A replay keyed with another one still gives each person one
+pseudonym, but not the one the erasure wrote.
+
 ## Executors
 
 - **google-integration** (`access`, `organization`): exports the lifecycle
@@ -101,6 +125,51 @@ private bucket by hand and delete the local copy.
   items with their history, the policy and the per-Property overrides.
 
 - **notification** (`access`, `property`, `organization`): see below.
+- **google-integration** on `property` also deletes the Property's finished
+  Google execution permits, and refuses while a Google call is admitted or
+  under way for it before its deadline. A permit left admitted or started past
+  its deadline is dead and goes with the Property.
+- **staff** (`property`, `organization`): a Property erasure deletes that
+  Property's Staff participations, Portal responsibilities, Portal Group
+  memberships, onboardings and Staff settings; a closure deletes the whole
+  Staff directory. The people themselves go only with the `participant` scope.
+  It runs before Portal, whose Portals these rows reference.
+- **identity** (`property`, `organization`): a Property erasure deletes its
+  access grants and AI decide-later records; a closure deletes them for every
+  Property, plus every member's AI notice receipts and product update receipts
+  and settings, and the Organization's memberships, its owners' included, and
+  invitations. Login identities stay: a person may belong to another
+  Organization.
+- **property** (`property`, `organization`): each Property becomes a
+  content-free tombstone (`purged`, no name, address or Google binding) and
+  its Responsible Managers are deleted. A closure tombstones every Property of
+  the Organization rather than deleting the rows, because deleting them would
+  cascade the retained AI consent evidence away.
+- **activity** (`property`, `organization`) also pseudonymises the audit
+  records: every event stays, and each user id, email address, name, IP
+  address and free-text note in it is replaced by `pseudonym:` and a keyed
+  hash, including email addresses inside longer text and detail keys that name
+  a person. One person gets the same pseudonym throughout one erasure, and a
+  restore replay with the same server secret writes the same values again; a
+  rotated secret gives the replayed copy other, still consistent, pseudonyms. A
+  Property erasure changes that Property's audit events and the audit log rows
+  whose details name the Property. Operators name no customer and stay: an
+  operator handle (`ops:<name>`) wherever it appears, including the record of
+  the rights request itself, and the platform operator's user id on the
+  operator console's own records (`platform.*` actions).
+- **work-items** (`organization`, last): deletes the Organization's settled
+  work items and the outbox events a restore fenced, which are never delivered
+  and never age out. It refuses while any item is pending, running, uncertain or
+  quarantined, or while an outbox event of the Organization is unsettled,
+  since delivery would pick that event up again. Settle or cancel the work,
+  then run the same command again.
+
+Other outbox events are not erased early: settled events age out with the
+30-day outbox retention. A Property erasure leaves the Property's fenced events
+until the Organization's closure deletes them. The other tables an erasure
+keeps on purpose (lifecycle and erasure evidence, AI consent evidence,
+operational history under legal hold, reply authorization proof) are listed
+with their reason in `src/composition/rights-coverage.test.ts`.
 
 ### Notifications
 
