@@ -291,6 +291,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
       'The daily retention sweep blanks superseded observation copies past their content clock across tenants, oldest clock first in bounded batches, joining each row to its Review on Organization; it returns a count only.',
     category: 'LEGITIMATE-GLOBAL',
   },
+  ...(['supersededRuns', 'deleteSupersededBatch'] as const).map((symbol) => ({
+    file: 'src/contexts/review/infrastructure/repositories/snapshot-run-retention.repository.ts',
+    symbol,
+    reason:
+      'The daily retention sweep ranks snapshot runs within each Property (partitioned by Organization and Property) across tenants, or within the one Organization it is given, and deletes the runs outside the keep rule by id with their members and the mappings that point at them; it returns counts only.',
+    category: 'LEGITIMATE-GLOBAL' as const,
+  })),
   {
     file: 'src/contexts/ai/replay/backlog-store.server.ts',
     symbol: 'claimReady',
