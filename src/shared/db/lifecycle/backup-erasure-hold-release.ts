@@ -49,6 +49,11 @@ export async function appendBackupErasureHoldReleaseEvent(
     .limit(1)
   const ledger = ledgers[0]
   if (!ledger) throw new Error('backup erasure ledger entry does not exist')
+  // The platform's work items are never held, and the lifecycle event table
+  // names only lifecycle contexts.
+  if (ledger.context === 'platform') {
+    throw new Error('platform erasure entries carry no hold to release')
+  }
 
   await tx
     .insert(organizationLifecycleEvents)

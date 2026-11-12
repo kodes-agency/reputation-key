@@ -14,6 +14,7 @@ const deps = {
   journal: createRightsJournal(undefined),
   runNotification: vi.fn(),
   portalObjectStore: { deleteObject: vi.fn() },
+  auditPseudonymSecret: 'audit-pseudonym-test-secret',
 }
 
 describe('composeRightsExecutors', () => {
@@ -24,14 +25,15 @@ describe('composeRightsExecutors', () => {
       'inbox',
       'guest',
       'reporting',
+      'staff',
       'portal',
       'ai',
       'activity',
-      'identity-grants',
-      'staff',
+      'identity',
       'property',
       'notification',
       'staff-participant',
+      'work-items',
     ])
   })
 
@@ -62,11 +64,14 @@ describe('composeRightsExecutors', () => {
       'inbox',
       'guest',
       'reporting',
+      'staff',
       'portal',
       'ai',
       'activity',
-      'staff',
+      'identity',
+      'property',
       'notification',
+      'work-items',
     ])
   })
 
@@ -80,10 +85,11 @@ describe('composeRightsExecutors', () => {
       'inbox',
       'guest',
       'reporting',
+      'staff',
       'portal',
       'ai',
       'activity',
-      'identity-grants',
+      'identity',
       'property',
       'notification',
     ])

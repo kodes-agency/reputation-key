@@ -95,7 +95,7 @@ export const GOOGLE_RIGHTS_TABLES = Object.freeze({
     'idempotency_receipts',
     'authorization_execution_permits',
   ],
-  property: ['google_import_items', 'google_imports'],
+  property: ['google_import_items', 'google_imports', 'authorization_execution_permits'],
 })
 
 async function footprint(tx: Tx, organizationId: string) {
@@ -155,13 +155,22 @@ async function propertyFootprint(tx: Tx, organizationId: string, propertyId: str
               AND item.import_id = parent.id
               AND item.destination_property_id IS DISTINCT FROM ${propertyId}::uuid
               AND item.existing_property_id IS DISTINCT FROM ${propertyId}::uuid)
-      ) AS emptied_imports
+      ) AS emptied_imports,
+      (SELECT count(*)::int FROM authorization_execution_permits
+        WHERE organization_id = ${organizationId}
+          AND property_id = ${propertyId}::uuid) AS permits,
+      (SELECT count(*)::int FROM authorization_execution_permits
+        WHERE organization_id = ${organizationId}
+          AND property_id = ${propertyId}::uuid
+          AND state IN ('admitted', 'started')) AS live_permits
   `)
   const row = result.rows[0] as Row | undefined
   return {
     importItems: count(row, 'import_items'),
     inFlight: count(row, 'in_flight_import_items'),
     emptiedImports: count(row, 'emptied_imports'),
+    permits: count(row, 'permits'),
+    livePermits: count(row, 'live_permits'),
   }
 }
 
@@ -452,11 +461,11 @@ export async function readGoogleRightsPropertyReport(
   return db.transaction(
     async (tx) => {
       const held = await propertyFootprint(tx, organizationId, propertyId)
+      const blocked = propertyBlockers(held)
       return [
-        `import_items=${held.importItems} imports=${held.emptiedImports}`,
-        held.inFlight === 0
-          ? 'erasure blockers: none'
-          : `erasure blockers: in_flight_import_items=${held.inFlight}`,
+        `import_items=${held.importItems} imports=${held.emptiedImports} ` +
+          `authorization_execution_permits=${held.permits}`,
+        blocked ? `erasure blockers: ${blocked}` : 'erasure blockers: none',
       ]
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
@@ -507,8 +516,19 @@ async function deleteReturningIds(
   return result.rows.map((row) => String((row as Row).parent_id))
 }
 
-function inFlightError(inFlight: number): string {
-  return `Google integration is not ready to erase (in_flight_import_items=${inFlight})`
+type PropertyFootprint = Awaited<ReturnType<typeof propertyFootprint>>
+
+/** A live permit is a Google call admitted or under way for the Property. */
+function propertyBlockers(held: PropertyFootprint): string | null {
+  const found = [
+    ...(held.inFlight > 0 ? [`in_flight_import_items=${held.inFlight}`] : []),
+    ...(held.livePermits > 0 ? [`live_execution_permits=${held.livePermits}`] : []),
+  ]
+  return found.length > 0 ? found.join(' ') : null
+}
+
+function notReadyError(blocked: string): string {
+  return `Google integration is not ready to erase (${blocked})`
 }
 
 /** The reason a Property erase would be refused, or null. Writes nothing. */
@@ -519,15 +539,17 @@ export async function googlePropertyErasureRefusal(
 ): Promise<string | null> {
   return db.transaction(
     async (tx) => {
-      const held = await propertyFootprint(tx, organizationId, propertyId)
-      return held.inFlight > 0 ? inFlightError(held.inFlight) : null
+      const blocked = propertyBlockers(
+        await propertyFootprint(tx, organizationId, propertyId),
+      )
+      return blocked ? notReadyError(blocked) : null
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
   )
 }
 
 /**
- * Deletes the Property's import items, then the imports those items leave empty. Other Properties' items in the same import keep their parent, whose item count is lowered to match.
+ * Deletes the Property's import items, then the imports those items leave empty, then the Property's execution permits. Other Properties' items in the same import keep their parent, whose item count is lowered to match.
  */
 export async function eraseGoogleIntegrationForProperty(
   db: Database,
@@ -545,8 +567,10 @@ export async function eraseGoogleIntegrationForPropertyInTx(
   organizationId: string,
   propertyId: string,
 ): Promise<GoogleClosureOutcome> {
-  const held = await propertyFootprint(tx, organizationId, propertyId)
-  if (held.inFlight > 0) return { ok: false, error: inFlightError(held.inFlight) }
+  const blocked = propertyBlockers(
+    await propertyFootprint(tx, organizationId, propertyId),
+  )
+  if (blocked) return { ok: false, error: notReadyError(blocked) }
   const newParents = await deleteReturningIds(
     tx,
     sql`DELETE FROM google_import_items
@@ -578,9 +602,14 @@ export async function eraseGoogleIntegrationForPropertyInTx(
           WHERE item.organization_id = parent.organization_id
             AND item.import_id = parent.id)
       RETURNING 1`)
+  const permits = await tx.execute(sql`
+      DELETE FROM authorization_execution_permits
+      WHERE organization_id = ${organizationId}
+        AND property_id = ${propertyId}::uuid
+      RETURNING 1`)
   return {
     ok: true,
-    deleted: newParents.length + imports.rows.length,
+    deleted: newParents.length + imports.rows.length + permits.rows.length,
     scrubbed: 0,
   }
 }

@@ -82,6 +82,7 @@ async function main(): Promise<void> {
             const replayers = composeRightsReplayers({
               db: container.db,
               now: container.clock,
+              auditPseudonymSecret: env.ENCRYPTION_KEY,
               notificationReplayers: await loadNotificationRightsReplayers(),
             })
             return container.db.transaction((tx) =>

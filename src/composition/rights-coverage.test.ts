@@ -15,6 +15,7 @@ const executors = composeRightsExecutors(
     journal: createRightsJournal(undefined),
     runNotification: vi.fn(),
     portalObjectStore: { deleteObject: vi.fn() },
+    auditPseudonymSecret: 'audit-pseudonym-test-secret',
   },
   false,
 )
@@ -28,6 +29,7 @@ const RETAINED: Readonly<Record<string, string>> = {
   operational_action_history_heads: 'legal-hold evidence, never touched',
   operational_action_history_legal_holds: 'legal-hold evidence, never touched',
   operational_action_history_records: 'legal-hold evidence, never touched',
+  outbox_events: 'settled events age out with the 30-day outbox retention',
   reply_publication_authorizations: 'content-free proof of a manager authorization',
 }
 
@@ -45,29 +47,8 @@ const PERSONAL_COLUMN =
  * fails the gate until it is covered, retained or named here.
  */
 const KNOWN_GAPS: Readonly<Record<TenantScope, ReadonlyArray<string>>> = {
-  organization: [
-    'audit_events',
-    'audit_logs',
-    'merchant_ai_decision_deferrals',
-    'merchant_ai_notice_update_receipts',
-    'outbox_events',
-    'product_update_receipts',
-    'product_update_settings',
-    'properties',
-    'property_access_grant',
-    'property_responsible_managers',
-    'work_items',
-  ],
-  property: [
-    'audit_events',
-    'authorization_execution_permits',
-    'outbox_events',
-    'portal_group_memberships',
-    'portal_responsibilities',
-    'staff_onboardings',
-    'staff_participations',
-    'staff_property_settings',
-  ],
+  organization: [],
+  property: [],
 }
 
 const COLUMN_FOR: Readonly<Record<TenantScope, string>> = {

@@ -36,8 +36,15 @@ import { createRightsJournal } from './rights-journal'
 const EXPIRES_AT = new Date('2027-08-26T10:00:00.000Z')
 const DIGEST = 'd'.repeat(64)
 
-/** Rows a request erases or scrubs in place instead of deleting. */
-const KEPT_IN_PLACE = new Set(['reviews', 'replies', 'properties', 'user'])
+/** Rows a request erases, scrubs or pseudonymises in place instead of deleting. */
+const KEPT_IN_PLACE = new Set([
+  'reviews',
+  'replies',
+  'properties',
+  'user',
+  'audit_events',
+  'audit_logs',
+])
 
 let lease: TestLease
 let db: Database
@@ -132,6 +139,23 @@ async function seedProperty(organizationId: string, propertyId: string) {
      VALUES ('user:a', 'Actor', 'admin', 'created', 'review', $3, $2, $1, $3)`,
     [organizationId, propertyId, `event-${propertyId}`],
   )
+  await writeAuditEvent(db, {
+    organizationId,
+    propertyId,
+    actorType: 'user',
+    actorId: userId,
+    action: 'member.role_changed',
+    outcome: 'succeeded',
+    resourceType: 'member',
+    resourceId: userId,
+    sourceKind: 'interactive_command',
+    sourceId: `audit-${propertyId}`,
+    sourceEventType: null,
+    sourceEventVersion: null,
+    sourceContext: null,
+    sourceAggregateId: null,
+    occurredAt: at,
+  })
 }
 
 async function seedOrganization(properties: number) {
@@ -141,6 +165,12 @@ async function seedOrganization(properties: number) {
     `INSERT INTO organization_reply_voices (organization_id, contact, overridden_fields, updated_by)
      VALUES ($1, 'Voice', ARRAY['contact'], $2)`,
     [seeded.organizationId, userId],
+  )
+  await query(
+    `INSERT INTO audit_logs (id, organization_id, user_id, action, resource_type, details, ip_address)
+     VALUES (gen_random_uuid()::text, $1, $2, 'goal.program.revised', 'goal_program', $3::jsonb,
+             '203.0.113.9')`,
+    [seeded.organizationId, userId, JSON.stringify({ reason: 'Dana asked', count: 2 })],
   )
   await query(
     `INSERT INTO inbox_response_target_organization_policies (
@@ -159,6 +189,7 @@ function executorsFor(scope: 'property' | 'organization'): RightsExecutor[] {
       journal: createRightsJournal(undefined),
       runNotification: (run) => runNotificationRights(port, run),
       portalObjectStore: { deleteObject: async () => {} },
+      auditPseudonymSecret: 'audit-pseudonym-test-secret',
     },
     false,
   ).filter((executor) => executor.scopes.includes(scope))
@@ -251,6 +282,8 @@ describe('composed rights executors', () => {
         [org],
       )
       for (const table of [
+        'audit_events',
+        'audit_logs',
         'reply_templates',
         'property_reply_voices',
         'organization_reply_voices',
@@ -300,6 +333,9 @@ describe('composed rights executors', () => {
       .filter(([table, rows]) => rows.length > 0 && !KEPT_IN_PLACE.has(table))
       .map(([table]) => table)
     expect(leftInA).toEqual([])
+    expect(afterA.audit_events).toHaveLength(1)
+    expect(JSON.stringify(afterA.audit_events)).not.toContain(userId)
+    expect(before.b).toContain(userId)
     expect(await snapshot(tables, first.organizationId, b)).toBe(before.b)
     expect(await snapshot(tables, other.organizationId)).toBe(before.other)
   })
@@ -321,7 +357,7 @@ describe('composed rights executors', () => {
       expect(result.code).toBe(0)
       const rows = await query(
         `SELECT action, outcome, actor_type, actor_id, property_id, source_kind, resource_type
-         FROM audit_events WHERE organization_id = $1`,
+         FROM audit_events WHERE organization_id = $1 AND source_kind = 'operator_command'`,
         [first.organizationId],
       )
       expect(rows.rows).toEqual([
@@ -361,6 +397,12 @@ describe('composed rights executors', () => {
       .filter(([table, rows]) => rows.length > 0 && !KEPT_IN_PLACE.has(table))
       .map(([table]) => table)
     expect(left).toEqual([])
+    expect(after.audit_events).toHaveLength(2)
+    expect(after.audit_logs).toHaveLength(1)
+    const kept = JSON.stringify([after.audit_events, after.audit_logs])
+    expect(kept).not.toContain(userId)
+    expect(kept).not.toContain('Dana')
+    expect(kept).not.toContain('203.0.113.9')
     expect(await snapshot(tables, other.organizationId)).toBe(otherBefore)
   })
 

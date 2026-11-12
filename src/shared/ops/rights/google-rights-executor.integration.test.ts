@@ -856,7 +856,9 @@ describe.sequential('Google rights executor through the rights-request command',
             propertyId,
           ])
           expect(report.exit).toBe(0)
-          expect(report.out).toContain('google-integration: import_items=2 imports=1')
+          expect(report.out).toContain(
+            'google-integration: import_items=2 imports=1 authorization_execution_permits=0',
+          )
           expect(report.out).toContain('google-integration: erasure blockers: none')
         }
         const org = await runScript(['organization', '--org', fixture.organizationId])
@@ -983,7 +985,7 @@ describe.sequential('Google rights executor through the rights-request command',
       const items = itemsBefore - (await count('google_import_items'))
       const imports = importsBefore - (await count('google_imports'))
       expect(report).toEqual([
-        `google-integration: import_items=${items} imports=${imports}`,
+        `google-integration: import_items=${items} imports=${imports} authorization_execution_permits=0`,
       ])
       expect([items, imports]).toEqual([2, 1])
       expect(await propertyReport(other.fixture, other.fixture.propertyId)).toEqual(

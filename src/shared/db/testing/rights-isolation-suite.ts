@@ -57,6 +57,8 @@ export type RightsIsolationConfig = Readonly<{
     propertyId: string,
   ) => Promise<void>
   seedOrganization?: (query: RightsQuery, organizationId: string) => Promise<void>
+  /** Removes fixture rows the executor does not own, before the Properties go. */
+  cleanupOrganization?: (query: RightsQuery, organizationId: string) => Promise<void>
 }>
 
 type Seed = Readonly<{ first: RightsSeeded; other: RightsSeeded }>
@@ -151,6 +153,7 @@ export function describeRightsIsolation(config: RightsIsolationConfig): void {
             organizationId,
           ])
         }
+        await config.cleanupOrganization?.(query, organizationId)
         await lease.pool.query('DELETE FROM properties WHERE organization_id = $1', [
           organizationId,
         ])

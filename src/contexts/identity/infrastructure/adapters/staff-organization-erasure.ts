@@ -1,6 +1,6 @@
-// People's Organization erasure: the Staff-owned tenant tables, deleted in
-// foreign-key-safe order, and the check that no Staff fact is still unpublished.
-// The rights executor runs it behind its journal entry.
+// People's Organization and Property erasure: the Staff-owned tenant tables,
+// deleted in foreign-key-safe order, and the check that no Staff fact is still
+// unpublished. The rights executor runs it behind its journal entry.
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { Tx } from '#/shared/outbox/commit'
@@ -75,12 +75,14 @@ const readCount = async (tx: Tx, query: SQL): Promise<number> => {
 export const assertStaffOutboxSettled = async (
   tx: Tx,
   organizationId: string,
+  propertyId?: string,
 ): Promise<void> => {
+  const property = propertyId ? sql` AND property_id = ${propertyId}` : sql``
   const pending = await readCount(
     tx,
     sql`SELECT count(*)::int AS count
         FROM outbox_events
-        WHERE organization_id = ${organizationId}
+        WHERE organization_id = ${organizationId}${property}
           AND source_context = 'staff'
           AND published_at IS NULL
           AND recovery_fenced_at IS NULL`,
@@ -110,7 +112,44 @@ export const deleteStaffTenantRows = async (
   return scrubbed
 }
 
+/**
+ * The Staff tables that belong to one Property, in the same FK-safe order. The
+ * people themselves (`staff_participants`, `staff_user_links`) belong to the
+ * Organization and stay; the participant scope erases a person.
+ */
+const STAFF_PROPERTY_TABLES: readonly string[] = Object.freeze([
+  'staff_onboardings',
+  'staff_property_settings',
+  'portal_responsibilities',
+  'portal_group_memberships',
+  'staff_participations',
+])
+
+/** One Property's Staff rows, bound to its Organization; returns the rows removed. */
+export const deleteStaffPropertyRows = async (
+  tx: Tx,
+  organizationId: string,
+  propertyId: string,
+): Promise<number> => {
+  let deleted = 0
+  for (const table of STAFF_PROPERTY_TABLES) {
+    deleted += await readCount(
+      tx,
+      sql`WITH deleted AS (
+            DELETE FROM ${sql.identifier(table)}
+            WHERE organization_id = ${organizationId}
+              AND property_id = ${propertyId}::uuid
+            RETURNING 1
+          )
+          SELECT count(*)::int AS count FROM deleted`,
+    )
+  }
+  return deleted
+}
+
 /** The static, reviewable table plan. Exported for the contract tests. */
 export const STAFF_LIFECYCLE_TABLES: readonly string[] = Object.freeze(
   STAFF_TENANT_TABLES.map(({ table }) => table),
 )
+
+export const STAFF_PROPERTY_LIFECYCLE_TABLES = STAFF_PROPERTY_TABLES

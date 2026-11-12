@@ -308,6 +308,7 @@ describe('guest response erasure replay', () => {
     const replayers = composeRightsReplayers({
       db,
       now: () => AT,
+      auditPseudonymSecret: 'audit-pseudonym-test-secret',
       notificationReplayers: createNotificationRightsReplayers(),
     })
     const outcome = await db.transaction((tx) =>

@@ -99,6 +99,42 @@ private bucket by hand and delete the local copy.
   items with their history, the policy and the per-Property overrides.
 
 - **notification** (`access`, `property`, `organization`): see below.
+- **google-integration** on `property` also deletes the Property's finished
+  Google execution permits, and refuses while a Google call is admitted or
+  under way for it.
+- **staff** (`property`, `organization`): a Property erasure deletes that
+  Property's Staff participations, Portal responsibilities, Portal Group
+  memberships, onboardings and Staff settings; a closure deletes the whole
+  Staff directory. The people themselves go only with the `participant` scope.
+  It runs before Portal, whose Portals these rows reference.
+- **identity** (`property`, `organization`): a Property erasure deletes its
+  access grants and AI decide-later records; a closure deletes them for every
+  Property, plus every member's AI notice receipts and product update receipts
+  and settings. Login identities stay: a person may belong to another
+  Organization.
+- **property** (`property`, `organization`): each Property becomes a
+  content-free tombstone (`purged`, no name, address or Google binding) and
+  its Responsible Managers are deleted. A closure tombstones every Property of
+  the Organization rather than deleting the rows, because deleting them would
+  cascade the retained AI consent evidence away.
+- **activity** (`property`, `organization`) also pseudonymises the audit
+  records: every event stays, and each user id, email address, name, IP
+  address and free-text note in it is replaced by `pseudonym:` and a keyed
+  hash. One person gets the same pseudonym throughout one erasure, and a
+  restore replay writes the same values again. A Property erasure changes that
+  Property's audit events only. Operator handles (`ops:<name>`), including the
+  record of the rights request itself, stay.
+- **work-items** (`organization`, last): deletes the Organization's settled
+  work items. It refuses while any item is pending, running, uncertain or
+  quarantined, or while an outbox event of the Organization is unsettled,
+  since delivery would pick that event up again. Settle or cancel the work,
+  then run the same command again.
+
+Outbox events are not erased early: settled events age out with the 30-day
+outbox retention. The other tables an erasure keeps on purpose (lifecycle and
+erasure evidence, AI consent evidence, operational history under legal hold,
+reply authorization proof) are listed with their reason in
+`src/composition/rights-coverage.test.ts`.
 
 ### Notifications
 
