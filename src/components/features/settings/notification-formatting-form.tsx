@@ -1,4 +1,5 @@
-import { useForm } from '@tanstack/react-form'
+import { useEffect, useState } from 'react'
+import { useForm, useStore } from '@tanstack/react-form'
 import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
 import { FormActions } from '#/components/forms/form-actions'
@@ -26,6 +27,7 @@ import {
   type NotificationLocale,
   type NotificationUserSettingsInput,
 } from '#/contexts/feed/preferences/contracts'
+import { formattingBaseline } from './notification-formatting-baseline'
 
 export type NotificationSettingsUpdate = Readonly<{
   data: NotificationUserSettingsInput
@@ -83,8 +85,14 @@ function localeOptions(stored: string) {
     : [{ value: stored, label: stored }, ...offered]
 }
 
-export function NotificationFormattingForm({ settings, updateUserSettings }: Props) {
+export function NotificationFormattingForm({
+  settings: latest,
+  updateUserSettings,
+}: Props) {
   const pending = updateUserSettings.isPending
+  // What the form edits against: the saved values it was seeded with, until a
+  // newer read can replace them without losing an edit.
+  const [settings, setSettings] = useState(latest)
   // Validates what the save will carry: only the changed fields, by the save's
   // own rules, so an untouched value delivery is using is never judged.
   const formattingDto = notificationFormattingFormDto(settings)
@@ -102,6 +110,16 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
       toast.success('Timezone and date format saved')
     },
   })
+  const draft = useStore(form.store, (state) =>
+    state.isDefaultValue ? null : state.values,
+  )
+  const baseline = formattingBaseline(settings, latest, draft)
+  if (baseline !== settings) setSettings(baseline)
+  // A touched form keeps its dirtiness when its defaults move, so the adopted
+  // values are put in afresh (Reset then goes back to them).
+  useEffect(() => {
+    form.reset({ locale: settings.locale, timezone: settings.timezone })
+  }, [form, settings])
 
   return (
     <form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={submitHandler(form)}>

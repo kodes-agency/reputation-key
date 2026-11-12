@@ -72,6 +72,7 @@ const meta = {
     failed: false,
     retrying: false,
     onRetry,
+    organizationId: 'org-1',
     organizationName: 'Harbor Hotels',
     updateUserSettings: asAction(updateUserSettingsMock),
   },
@@ -245,6 +246,7 @@ function RetryingCard() {
         onRetry()
         setRetrying(true)
       }}
+      organizationId="org-1"
       organizationName="Harbor Hotels"
       updateUserSettings={asAction(updateUserSettingsMock)}
     />
@@ -292,5 +294,49 @@ export const ResetPutsBackWhatIsInEffect: Story = {
     expect(
       canvas.getByRole('button', { name: 'Save timezone and format' }),
     ).toBeDisabled()
+  },
+}
+
+/** The card under a read that another tab's save refreshes. */
+function RefreshedByAnotherTab() {
+  const [settings, setSettings] = useState(userSettings)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setSettings({ ...userSettings, timezone: 'Europe/Berlin' })}
+      >
+        Another tab saves Berlin
+      </button>
+      <TimezoneAndFormatCard
+        settings={settings}
+        failed={false}
+        retrying={false}
+        onRetry={onRetry}
+        organizationId="org-1"
+        organizationName="Harbor Hotels"
+        updateUserSettings={asAction(updateUserSettingsMock)}
+      />
+    </>
+  )
+}
+
+/**
+ * A newer read never discards an edit in progress, and the save then sends
+ * only the edit, so it does not put back the timezone the other tab changed.
+ */
+export const KeepsAnEditWhenAnotherTabSaves: Story = {
+  render: () => <RefreshedByAnotherTab />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await pickFormat(canvas, 'English (US)')
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Another tab saves Berlin' }),
+    )
+
+    expect(
+      canvas.getByRole('combobox', { name: 'Date and time format' }),
+    ).toHaveTextContent('English (US)')
+    await expectFormattingSaved(canvas, { locale: 'en' })
   },
 }
