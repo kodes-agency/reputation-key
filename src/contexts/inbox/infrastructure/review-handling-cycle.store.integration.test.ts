@@ -12,7 +12,6 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/types'
-import { isInboxError } from '../domain/errors'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
@@ -27,21 +26,6 @@ const USER_ID = userId('user-inbox-cycles-000000000000001')
 const OPENED_AT = new Date('2026-08-26T10:00:00.000Z')
 const db = getDb()
 let pool: Pool
-
-const responseTargetPermit = (materialReviewRevision: number) => ({
-  reviewAuthority: {
-    authority: 'review.current-response-target.v1' as const,
-    organizationId: ORG_ID,
-    propertyId: PROPERTY_ID,
-    reviewId: REVIEW_ID,
-    sourceEpoch: 0,
-    materialReviewRevision,
-    eligibility: 'legacy_unknown' as const,
-    responseTargetStartAt: null,
-    rating: null,
-  },
-  targetStart: { basis: 'review_provenance' as const },
-})
 
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
   allowed: true,
@@ -148,15 +132,6 @@ async function insertMaterialRevision(revision: number): Promise<void> {
   )
 }
 
-async function advanceReviewTo(revision: number): Promise<void> {
-  await insertMaterialRevision(revision)
-  await pool.query(
-    `UPDATE reviews SET source_revision = $1, updated_at = $2
-     WHERE id = $3 AND organization_id = $4`,
-    [revision, OPENED_AT, REVIEW_ID, ORG_ID],
-  )
-}
-
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 4 })
   const client = await pool.connect()
@@ -184,13 +159,19 @@ describe.sequential('Review Handling Cycle store (PostgreSQL)', () => {
       status: 'open',
       reviewId: REVIEW_ID,
     })
-    await expect(store.listCycles(ITEM_ID, ORG_ID)).resolves.toEqual([
-      expect.objectContaining({
-        cycleNumber: 1,
-        materialReviewRevision: 1,
-        openedReason: 'review_observed',
-        supersedesCycleNumber: null,
-      }),
+    const cycles = await pool.query(
+      `SELECT cycle_number, material_review_revision, opened_reason,
+              supersedes_cycle_number
+       FROM inbox_handling_cycles WHERE inbox_item_id = $1`,
+      [ITEM_ID],
+    )
+    expect(cycles.rows).toEqual([
+      {
+        cycle_number: '1',
+        material_review_revision: '1',
+        opened_reason: 'review_observed',
+        supersedes_cycle_number: null,
+      },
     ])
   })
 
@@ -225,196 +206,5 @@ describe.sequential('Review Handling Cycle store (PostgreSQL)', () => {
     await expect(insertManualCycle('other', '   ')).rejects.toThrow(
       'inbox_handling_cycles_manual_reopen_valid',
     )
-  })
-
-  it('appends a later material-revision cycle and preserves cycle one verbatim', async () => {
-    const store = createReviewHandlingCycleStore(db)
-    const [cycleOne] = await store.listCycles(ITEM_ID, ORG_ID)
-    await advanceReviewTo(2)
-
-    const result = await store.startNext({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      expected: { cycleNumber: 1, materialReviewRevision: 1, stateRevision: 1 },
-      materialReviewRevision: 2,
-      openedReason: 'material_revision_changed',
-      openedBy: null,
-      openedAt: OPENED_AT,
-      responseTarget: responseTargetPermit(2),
-    })
-
-    expect(result.head).toMatchObject({
-      currentCycleNumber: 2,
-      currentMaterialReviewRevision: 2,
-      stateRevision: 3,
-      status: 'open',
-    })
-    const cycles = await store.listCycles(ITEM_ID, ORG_ID)
-    expect(cycles).toHaveLength(2)
-    expect(cycles[0]).toEqual(cycleOne)
-    expect(cycles[1]).toMatchObject({
-      cycleNumber: 2,
-      materialReviewRevision: 2,
-      openedReason: 'material_revision_changed',
-      supersedesCycleNumber: 1,
-    })
-    const transitionRows = await pool.query<{
-      state_revision: string
-      cycle_number: string
-      kind: string
-      transition_reason: string
-    }>(
-      `SELECT state_revision, cycle_number, kind, transition_reason
-       FROM inbox_handling_cycle_transitions
-       WHERE inbox_item_id = $1
-       ORDER BY state_revision`,
-      [ITEM_ID],
-    )
-    expect(transitionRows.rows).toEqual([
-      {
-        state_revision: '1',
-        cycle_number: '1',
-        kind: 'opened',
-        transition_reason: 'review_observed',
-      },
-      {
-        state_revision: '2',
-        cycle_number: '1',
-        kind: 'closed',
-        transition_reason: 'superseded_by_source_revision',
-      },
-      {
-        state_revision: '3',
-        cycle_number: '2',
-        kind: 'opened',
-        transition_reason: 'material_revision_changed',
-      },
-    ])
-  })
-
-  it('lets exactly one concurrent writer advance the expected head', async () => {
-    const store = createReviewHandlingCycleStore(db)
-    await advanceReviewTo(2)
-    const command = {
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      expected: {
-        cycleNumber: 1,
-        materialReviewRevision: 1,
-        stateRevision: 1,
-      },
-      materialReviewRevision: 2,
-      openedReason: 'material_revision_changed' as const,
-      openedBy: null,
-      openedAt: OPENED_AT,
-      responseTarget: responseTargetPermit(2),
-    }
-
-    const outcomes = await Promise.allSettled([
-      store.startNext(command),
-      store.startNext(command),
-    ])
-
-    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
-    const rejected = outcomes.find((outcome) => outcome.status === 'rejected')
-    expect(rejected?.status).toBe('rejected')
-    if (rejected?.status !== 'rejected') return
-    expect(isInboxError(rejected.reason)).toBe(true)
-    if (!isInboxError(rejected.reason)) return
-    expect(rejected.reason).toMatchObject({
-      code: 'revision_conflict',
-      context: {
-        current: {
-          cycleNumber: 2,
-          materialReviewRevision: 2,
-          stateRevision: 3,
-        },
-      },
-    })
-    await expect(store.listCycles(ITEM_ID, ORG_ID)).resolves.toHaveLength(2)
-  })
-
-  it('permits a same-revision manual reopen but rejects a mismatched authority permit', async () => {
-    const store = createReviewHandlingCycleStore(db)
-    await advanceReviewTo(2)
-    await store.startNext({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      expected: { cycleNumber: 1, materialReviewRevision: 1, stateRevision: 1 },
-      materialReviewRevision: 2,
-      openedReason: 'material_revision_changed',
-      openedBy: null,
-      openedAt: OPENED_AT,
-      responseTarget: responseTargetPermit(2),
-    })
-
-    await pool.query(
-      `UPDATE inbox_handling_cycle_heads SET status = 'closed'
-       WHERE inbox_item_id = $1`,
-      [ITEM_ID],
-    )
-    await pool.query(
-      `UPDATE inbox_items SET status = 'closed', closed_at = $2
-       WHERE id = $1`,
-      [ITEM_ID, OPENED_AT],
-    )
-
-    const reopened = await store.startNext({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      expected: { cycleNumber: 2, materialReviewRevision: 2, stateRevision: 3 },
-      materialReviewRevision: 2,
-      openedReason: 'manual_reopen',
-      manualReopenReason: 'internal_follow_up_still_needed',
-      manualReopenExplanation: null,
-      openedBy: USER_ID,
-      openedAt: OPENED_AT,
-      responseTarget: responseTargetPermit(2),
-    })
-    expect(reopened.cycle).toMatchObject({
-      cycleNumber: 3,
-      materialReviewRevision: 2,
-      openedBy: USER_ID,
-      manualReopenReason: 'internal_follow_up_still_needed',
-      manualReopenExplanation: null,
-    })
-    await expect(
-      pool.query<{
-        state_revision: string
-        cycle_number: string
-        kind: string
-        transition_reason: string
-      }>(
-        `SELECT state_revision, cycle_number, kind, transition_reason
-         FROM inbox_handling_cycle_transitions
-         WHERE inbox_item_id = $1
-         ORDER BY state_revision DESC
-         LIMIT 1`,
-        [ITEM_ID],
-      ),
-    ).resolves.toMatchObject({
-      rows: [
-        {
-          state_revision: '4',
-          cycle_number: '3',
-          kind: 'reopened',
-          transition_reason: 'internal_follow_up_still_needed',
-        },
-      ],
-    })
-
-    await expect(
-      store.startNext({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        expected: { cycleNumber: 3, materialReviewRevision: 2, stateRevision: 4 },
-        materialReviewRevision: 3,
-        openedReason: 'material_revision_changed',
-        openedBy: null,
-        openedAt: OPENED_AT,
-        responseTarget: responseTargetPermit(2),
-      }),
-    ).rejects.toMatchObject({ code: 'invalid_input' })
-    await expect(store.listCycles(ITEM_ID, ORG_ID)).resolves.toHaveLength(3)
   })
 })

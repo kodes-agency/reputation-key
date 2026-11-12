@@ -200,8 +200,6 @@ function makeDeps() {
       }),
     ),
     cancelPublications: vi.fn(),
-    mirrorSyncedReply: vi.fn(),
-    purgeExpiredReview: vi.fn(),
   }
   return {
     replyRepo: {

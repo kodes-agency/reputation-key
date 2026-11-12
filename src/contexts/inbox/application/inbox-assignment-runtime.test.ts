@@ -13,37 +13,28 @@ const input = {
 }
 
 describe('createInboxAssignmentRuntime', () => {
-  it('hands the caller transaction to both release methods', async () => {
-    const releaseAssignmentsForUser = vi.fn(async () => ({ released: 2 }))
+  it('hands the caller transaction to the release method', async () => {
     const releaseIneligibleAssignmentsForUser = vi.fn(async () => ({ released: 1 }))
     const runtime = createInboxAssignmentRuntime({
-      releaseAssignmentsForUser,
       releaseIneligibleAssignmentsForUser,
     } as unknown as InboxCommandStore)
     const tx = { lent: true } as unknown as Tx
 
-    await expect(runtime.releaseAssignmentsForUser(input, tx)).resolves.toEqual({
-      released: 2,
-    })
     await expect(runtime.releaseIneligibleAssignmentsForUser(input, tx)).resolves.toEqual(
-      {
-        released: 1,
-      },
+      { released: 1 },
     )
 
-    expect(releaseAssignmentsForUser).toHaveBeenCalledWith(input, tx)
     expect(releaseIneligibleAssignmentsForUser).toHaveBeenCalledWith(input, tx)
   })
 
   it('leaves the transaction undefined when the caller lends none', async () => {
-    const releaseAssignmentsForUser = vi.fn(async () => ({ released: 0 }))
+    const releaseIneligibleAssignmentsForUser = vi.fn(async () => ({ released: 0 }))
     const runtime = createInboxAssignmentRuntime({
-      releaseAssignmentsForUser,
-      releaseIneligibleAssignmentsForUser: vi.fn(),
+      releaseIneligibleAssignmentsForUser,
     } as unknown as InboxCommandStore)
 
-    await runtime.releaseAssignmentsForUser(input)
+    await runtime.releaseIneligibleAssignmentsForUser(input)
 
-    expect(releaseAssignmentsForUser).toHaveBeenCalledWith(input, undefined)
+    expect(releaseIneligibleAssignmentsForUser).toHaveBeenCalledWith(input, undefined)
   })
 })
