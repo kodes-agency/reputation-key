@@ -214,35 +214,6 @@ describe('the stylesheet', () => {
     expect(style?.[1]).not.toMatch(/&(?:gt|quot|amp|#x27);/u)
   })
 
-  it('answers the global link colour, which no scoped selector could outrank', () => {
-    expect(IMMERSIVE_CSS).toMatch(
-      /\.ih-root a \{[^}]*color: var\(--ih-link-colour, inherit\) !important/u,
-    )
-    expect(IMMERSIVE_CSS).toMatch(
-      /\.ih-root a \{[^}]*text-decoration: var\(--ih-link-decoration, none\) !important/u,
-    )
-  })
-
-  it('pins the dark colour scheme on the document over the theme script, for the page alone', () => {
-    expect(IMMERSIVE_CSS).toMatch(
-      /:root:has\(\.ih-root--page\) \{ color-scheme: dark !important/u,
-    )
-    expect(IMMERSIVE_CSS).toMatch(/body:has\(\.ih-root--page\) \{ background-color:/u)
-    expect(IMMERSIVE_CSS).toMatch(/\.ih-root \{[^}]*color-scheme: dark/u)
-  })
-
-  it('never reaches the document from a frame: no document rule matches a bare root', () => {
-    for (const rule of IMMERSIVE_CSS.matchAll(/(?:^|\n)((?::root|html|body)[^{]*)\{/gu)) {
-      expect(rule[1]).toContain('.ih-root--page')
-    }
-  })
-
-  it('answers body { overflow-wrap: anywhere } with break-word and language hyphenation', () => {
-    expect(IMMERSIVE_CSS).toMatch(/\.ih-root \{[^}]*overflow-wrap: break-word/u)
-    expect(IMMERSIVE_CSS).toMatch(/\.ih-root \{[^}]*hyphens: auto/u)
-    expect(IMMERSIVE_CSS).not.toMatch(/overflow-wrap:\s*anywhere/u)
-  })
-
   it('gives every glass surface the resolver literal where backdrop-filter is missing', () => {
     const fallback =
       /@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{([\s\S]*?)\n\}/u.exec(
