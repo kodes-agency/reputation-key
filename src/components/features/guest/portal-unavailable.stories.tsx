@@ -41,6 +41,9 @@ export const G12Unavailable: Story = {
     expect(canvas.getByRole('main')).toBeVisible()
     // No fixed second language: the Bulgarian line is gone.
     expect(canvasElement.querySelector('[lang="bg"]')).toBeNull()
+    // English alone has no divider and no second language under it.
+    expect(canvasElement.querySelector('.portal-unavailable__rule')).toBeNull()
+    expect(canvasElement.querySelectorAll('[lang]:not([lang="en"])')).toHaveLength(0)
     const retry = canvas.getByRole('button', { name: 'Try again' })
     expect(retry.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
     // The page fills the screen and its message sits at the centre, both ways.
@@ -77,7 +80,20 @@ export const G12UnavailableInGerman: Story = {
     expect(
       heading.compareDocumentPosition(english) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(canvas.getByRole('button', { name: 'Erneut versuchen' })).toBeVisible()
+    const retry = canvas.getByRole('button', { name: 'Erneut versuchen' })
+    expect(retry).toBeVisible()
+    // The English words sit under a divider that assistive technology skips, after the German button.
+    const rule = canvasElement.querySelector('.portal-unavailable__rule')
+    expect(rule).toHaveAttribute('aria-hidden', 'true')
+    expect(
+      retry.compareDocumentPosition(rule as Element) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      (rule as Element).compareDocumentPosition(english) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(canvas.getAllByRole('button')).toHaveLength(1)
+    expect(canvasElement.querySelector('[lang="bg"]')).toBeNull()
   },
 }
 

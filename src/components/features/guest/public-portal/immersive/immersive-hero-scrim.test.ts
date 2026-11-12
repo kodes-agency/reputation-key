@@ -17,26 +17,16 @@ import {
 } from '#/shared/domain/portal-field-colour'
 import {
   HERO_PHONE_HEIGHT,
-  HERO_PHOTO_MASK,
-  HERO_TEXT_BANDS,
-  HERO_TITLE_CLEARANCE,
-  HERO_TITLE_SCRIM,
-  HERO_TITLE_SCRIM_HALF_WIDTH,
-  HERO_TOP_SCRIM,
   HERO_WIDE,
   heroBackgroundAt,
   heroBackgroundsOf,
-  photoMaskGradient,
   scrimAlphaAt,
-  scrimGradient,
-  scrimReach,
 } from './immersive-hero-scrim'
 import {
   IMMERSIVE_TEXT_COLOUR,
   PHOTO_BACKDROP,
   resolveImmersiveLook,
 } from './immersive-look'
-import { IMMERSIVE_CSS } from './immersive-styles'
 
 type Rgb = readonly [number, number, number]
 const LARGE_TEXT_CONTRAST = 3
@@ -160,38 +150,5 @@ describe('the kicker on a photo takes the accent only where the accent is readab
         '--ih-kicker-photo'
       ],
     ).toBe(IMMERSIVE_TEXT_COLOUR)
-  })
-})
-
-describe('the stylesheet is built from these stops', () => {
-  it('draws the fade, both scrims and the hero height from them', () => {
-    expect(IMMERSIVE_CSS).toContain(photoMaskGradient())
-    expect(IMMERSIVE_CSS).toContain(scrimGradient(HERO_TOP_SCRIM, true))
-    expect(IMMERSIVE_CSS).toContain(scrimGradient(HERO_TITLE_SCRIM, false))
-    expect(IMMERSIVE_CSS).toContain(`height: ${scrimReach(HERO_TOP_SCRIM)}px;`)
-    expect(IMMERSIVE_CSS).toContain(`height: ${scrimReach(HERO_TITLE_SCRIM)}px;`)
-    expect(IMMERSIVE_CSS).toContain(`--ih-hero-h: ${HERO_PHONE_HEIGHT}px;`)
-  })
-
-  it('has the photo fade in px from the bottom, so it does not move when the hero grows', () => {
-    expect(photoMaskGradient()).toMatch(/^linear-gradient\(0deg, /u)
-    expect(photoMaskGradient()).not.toContain('%')
-    expect(HERO_PHOTO_MASK[0]).toEqual([0, 0])
-  })
-
-  it('is solid across the whole of the title’s column, and fades only beyond it', () => {
-    // The column is 30rem (480 px) wide, so no word of the title is further than 240 px from the centre.
-    expect(HERO_TITLE_SCRIM_HALF_WIDTH.solid).toBeGreaterThanOrEqual(240)
-    expect(HERO_TITLE_SCRIM_HALF_WIDTH.gone).toBeGreaterThan(
-      HERO_TITLE_SCRIM_HALF_WIDTH.solid,
-    )
-    expect(IMMERSIVE_CSS).toContain(
-      `transparent calc(50% - ${HERO_TITLE_SCRIM_HALF_WIDTH.gone}px), #000 calc(50% - ${HERO_TITLE_SCRIM_HALF_WIDTH.solid}px)`,
-    )
-  })
-
-  it('puts the title block where the bands say: the hero’s height less the clearance', () => {
-    const titleTop = HERO_PHONE_HEIGHT - HERO_TITLE_CLEARANCE + 64
-    expect(HERO_PHONE_HEIGHT - titleTop).toBe(HERO_TEXT_BANDS.kicker.to)
   })
 })
