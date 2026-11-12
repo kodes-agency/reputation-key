@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   createExecutionPolicy,
+  decidePublicExecution,
   initExecutionPolicy,
   parseOperatorIdentities,
   refuseDecision,
@@ -27,6 +28,8 @@ import {
 import { organizationId, userId, propertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
+import { runWithContext } from '#/shared/observability/request-context'
+import { getDatabaseScope } from '#/shared/db/tenant-scope.server'
 
 const ORG = 'org-policy'
 const USER = 'user-policy'
@@ -571,5 +574,42 @@ describe('registerExecutionPolicyInit (cold-boot lazy init)', () => {
       }),
     ).resolves.toBeUndefined()
     expect(install).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('public decisions and database scope', () => {
+  afterEach(() => resetExecutionPolicy())
+
+  async function scopeAfterDecision(allowed: boolean) {
+    initExecutionPolicy({
+      decide: async (request) => ({
+        allowed,
+        reason: allowed ? 'allowed' : 'org_suspended',
+        action: request.action,
+        policyVersion: EXECUTION_POLICY_VERSION,
+      }),
+    })
+    return runWithContext('guest-request', async () => {
+      await decidePublicExecution({
+        action: 'public:portal.response.submit',
+        organizationId: ORG,
+        propertyId: PROP,
+        now: new Date(),
+      })
+      return getDatabaseScope()
+    })
+  }
+
+  it("gives an allowed public request its Organization's scope", async () => {
+    expect(await scopeAfterDecision(true)).toEqual({
+      kind: 'tenant',
+      organizationId: ORG,
+      entry: 'public',
+      name: 'public:portal.response.submit',
+    })
+  })
+
+  it('enters no scope for a refused public request', async () => {
+    expect(await scopeAfterDecision(false)).toBeUndefined()
   })
 })

@@ -38,6 +38,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import { organizationId, userId } from '#/shared/domain/ids'
+import { enterTenantScope } from '#/shared/db/tenant-scope.server'
 import {
   checkBetaCapability,
   checkGlobalCapability,
@@ -585,12 +586,21 @@ export async function requireExecutionAllowed(input: {
   if (!decision.allowed) refuseDecision(decision)
 }
 
+/** An allowed public decision gives the rest of the request its Organization's scope. */
 export async function decidePublicExecution(
   input: PublicDecisionRequest,
 ): Promise<ExecutionDecision> {
-  return getExecutionPolicy().decide({
+  const decision = await getExecutionPolicy().decide({
     ...input,
     principal: { kind: 'public' },
     executionKind: 'public',
   })
+  if (decision.allowed) {
+    enterTenantScope({
+      organizationId: input.organizationId ?? '',
+      entry: 'public',
+      name: input.action,
+    })
+  }
+  return decision
 }
