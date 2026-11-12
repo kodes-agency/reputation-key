@@ -1,4 +1,4 @@
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import type { NoteDraft, NoteSubmission } from './immersive-note-card'
 import type { RatingSubmission } from './immersive-rating-card'

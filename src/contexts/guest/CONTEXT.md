@@ -135,7 +135,9 @@ and backend-only until its approval and handling requirements are met.
 
 ## Runtime
 
-`build.ts` composes response lifecycle, public Portal resolution, qualified-action
+`responses/` owns the response lifecycle, its command store and repository
+(`*.server.ts`); `responses/contracts.ts` holds the browser-safe response view and its
+action rules. `build.ts` composes response lifecycle, public Portal resolution, qualified-action
 stores, integrity reads, rating-language reads (private ratings by the language of the
 page the guest saw, from the response's experience snapshot), reconciliation, and
 retention. PostgreSQL receipts own

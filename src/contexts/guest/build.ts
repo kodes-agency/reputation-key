@@ -11,9 +11,9 @@ import type {
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Clock } from '#/shared/domain/clock'
-import { createGuestResponseRepository } from './infrastructure/repositories/guest-response.repository'
+import { createGuestResponseRepository } from './responses/guest-response.repository.server'
 import type { GuestResponseContentFilter } from './application/ports/guest-response.repository'
-import { createAtomicGuestResponseCommandStore } from './infrastructure/guest-response-command-store'
+import { createAtomicGuestResponseCommandStore } from './responses/guest-response-command-store.server'
 import {
   createGuestWithdrawalJournal,
   type GuestWithdrawalJournalConfig,
@@ -29,8 +29,8 @@ import { getPublicPortal } from './application/use-cases/get-public-portal'
 import {
   guestResponseLifecycle,
   type OperatorErasureAuthority,
-  type ResolvePrimaryStaffAttribution,
-} from './application/use-cases/guest-response-lifecycle'
+} from './responses/guest-response-lifecycle.server'
+import type { ResolvePrimaryStaffAttribution } from './responses/contracts'
 import { createGuestSessionManager } from './server/guest-session'
 import {
   guestResponseId,
