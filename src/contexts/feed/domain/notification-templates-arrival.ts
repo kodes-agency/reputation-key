@@ -1,16 +1,5 @@
+import { atProperty, factsAt, sentence, type RendererCopy } from './notification-copy-kit'
 import type { NotificationPayload } from './notification-payload'
-import type { RenderedNotification } from './notification-templates'
-
-type RendererCopy = Omit<RenderedNotification, 'detail'> & Readonly<{ detail?: string }>
-
-const atProperty = (p: NotificationPayload): string =>
-  p.propertyName === undefined ? '' : ` at ${p.propertyName}`
-
-const sentence = (...parts: ReadonlyArray<string>): string =>
-  parts.filter((part) => part !== '').join(' ')
-
-const factsAt = (p: NotificationPayload, ...parts: ReadonlyArray<string>): string =>
-  [p.propertyName ?? '', ...parts].filter((part) => part !== '').join(' · ')
 
 const ratedFeedback = (p: NotificationPayload): string =>
   p.guestRating === undefined ? 'feedback' : `${p.guestRating}-star feedback`
