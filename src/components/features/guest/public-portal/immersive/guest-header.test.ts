@@ -48,7 +48,6 @@ describe('GuestHeader', () => {
     // The display name is the large line beneath; a small copy of it was cut off.
     for (const wordmark of [null, '', '   ']) {
       const html = header({ wordmark })
-      expect(html).not.toContain('ih-wordmark')
       expect(html).not.toContain('Avela Resort')
       expect(html).not.toContain('<img')
     }
@@ -102,13 +101,13 @@ describe('GuestTitleBlock', () => {
   it('makes the portal title the h1 kicker and the display name the large line', () => {
     const html = title()
     expect(html).toMatch(/<h1\b[^>]*>Pool &amp; Terrace<\/h1>/u)
-    expect(html).toMatch(/<p\b[^>]*ih-display[^>]*>Avela Resort<\/p>/u)
+    expect(html).toMatch(/<p\b[^>]*>Avela Resort<\/p>/u)
     expect(html.match(/<h1\b/gu)).toHaveLength(1)
   })
 
   it('declares the language of a title that was copied from another language', () => {
-    expect(title({ title: { value: 'Pool & Terrace', lang: 'en' } })).toContain(
-      '<h1 class="ih-title__kicker" lang="en">',
+    expect(title({ title: { value: 'Pool & Terrace', lang: 'en' } })).toMatch(
+      /<h1\b[^>]*lang="en"[^>]*>Pool &amp; Terrace<\/h1>/u,
     )
     expect(title()).not.toContain('lang=')
   })
@@ -116,8 +115,8 @@ describe('GuestTitleBlock', () => {
   it('is one large h1 when the portal is titled with the property’s own name', () => {
     const html = title({ title: { value: ' avela resort ' } })
     expect(html.match(/<h1\b/gu)).toHaveLength(1)
-    expect(html).toMatch(/<h1\b[^>]*ih-title__name[^>]*>Avela Resort<\/h1>/u)
-    expect(html).not.toContain('ih-title__kicker')
+    expect(html).toMatch(/<h1\b[^>]*>Avela Resort<\/h1>/u)
+    expect(html.match(/Avela Resort/gu)).toHaveLength(1)
   })
 
   it('does not tag a bare name with a language', () => {

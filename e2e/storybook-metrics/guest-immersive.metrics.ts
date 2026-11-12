@@ -19,7 +19,11 @@
 //      animates (computed style of every element and pseudo-element, and the
 //      browser's own list of running animations). The app's global floor in
 //      `src/styles.css` makes this pass whatever the guest stylesheets do, so
-//      their own answer is a unit test, `immersive/guest-reduced-motion.test.ts`.
+//      their own answer is a unit test, `immersive/guest-reduced-motion.test.ts`;
+//   4. under the same preference a hovered or pressed tile, chip, arrow or photo
+//      keeps no transform, and without it they do move (the floor in
+//      `src/styles.css` does not touch `transform`, so only the page's own
+//      rules can hold it still).
 //
 // ── How a story is put at a width ───────────────────────────────────────────
 //
@@ -294,3 +298,71 @@ for (const storyId of MEASURED_GUEST_STORIES) {
     })
   })
 }
+
+/** Stories whose tiles, arrows, photos and chips answer a hover or a press by moving. */
+const PRESS_MOTION_STORIES: ReadonlyArray<string> = [
+  'features-guest-immersivelinktree--before-a-rating',
+  'features-guest-immersiveheader--g-01-header-and-title',
+]
+
+const PRESSABLE = '.ih-tile, .ih-glass--tile, .ih-glass--chip'
+const MOVING_PARTS = '.ih-tile__arrow, .ih-tile__image'
+
+/**
+ * The transform of every pressable thing, and of the arrow and photo inside
+ * it, while the pointer is on it (`hover`) or held down (`press`).
+ */
+async function transformsUnderPointer(
+  page: Page,
+  mode: 'hover' | 'press',
+): Promise<ReadonlyArray<string>> {
+  const found: string[] = []
+  const count = await page.locator(PRESSABLE).count()
+  for (let index = 0; index < count; index += 1) {
+    const target = page.locator(PRESSABLE).nth(index)
+    await target.scrollIntoViewIfNeeded()
+    await target.hover()
+    if (mode === 'press') await page.mouse.down()
+    found.push(
+      ...(await target.evaluate((element, parts) => {
+        const own = [element, ...Array.from(element.querySelectorAll(parts))]
+        return own.map((part) => getComputedStyle(part).transform)
+      }, MOVING_PARTS)),
+    )
+    if (mode === 'press') {
+      // Let go away from the target, so the press is not a tap that navigates.
+      await page.mouse.move(0, 0)
+      await page.mouse.up()
+    }
+  }
+  return found
+}
+
+test.describe('press and hover motion', () => {
+  for (const storyId of PRESS_MOTION_STORIES) {
+    for (const mode of ['hover', 'press'] as const) {
+      test(`${storyId}: ${mode} moves nothing under reduced motion`, async ({ page }) => {
+        await page.emulateMedia({ reducedMotion: 'reduce' })
+        await showAtWidth(page, storyId, REDUCED_MOTION_WIDTH)
+        const transforms = await transformsUnderPointer(page, mode)
+        expect(transforms.length).toBeGreaterThan(0)
+        expect(transforms.filter((value) => value !== 'none')).toEqual([])
+      })
+    }
+  }
+
+  // Without the preference the same pointer does move things, so the check
+  // above is measuring a real effect and not an element that never moves.
+  test('the same hover and press do move tiles and chips otherwise', async ({ page }) => {
+    const moved: string[] = []
+    for (const storyId of PRESS_MOTION_STORIES) {
+      await page.emulateMedia({ reducedMotion: 'no-preference' })
+      await showAtWidth(page, storyId, REDUCED_MOTION_WIDTH)
+      for (const mode of ['hover', 'press'] as const) {
+        const transforms = await transformsUnderPointer(page, mode)
+        moved.push(...transforms.filter((value) => value !== 'none'))
+      }
+    }
+    expect(moved.length).toBeGreaterThan(0)
+  })
+})
