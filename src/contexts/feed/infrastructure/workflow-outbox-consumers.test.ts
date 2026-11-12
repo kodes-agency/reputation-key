@@ -14,6 +14,7 @@ import {
 } from './workflow-outbox-consumers'
 import {
   createNotificationConsumerDeps,
+  noticeWriterOver,
   NOTIF_TEST_IDS,
   type FakeNotificationConsumerDeps,
 } from './notification-consumer-test-fixtures'
@@ -33,14 +34,20 @@ let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const EVENT_ID = '30000000-0000-4000-8000-000000000008'
 
-type Deps = WorkflowNotificationConsumerDeps & { fakes: FakeNotificationConsumerDeps }
+type Deps = WorkflowNotificationConsumerDeps & {
+  fakes: FakeNotificationConsumerDeps
+  queue: FakeNotificationConsumerDeps['queue']
+  receipts: FakeNotificationConsumerDeps['receipts']
+}
 
 const makeDeps = (): Deps => {
   const fakes = createNotificationConsumerDeps()
   fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
   fakes.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
   fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+  const receipts = { insertReceipt: vi.fn(async () => undefined) }
   return {
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
     queue: fakes.queue,
     userLookup: fakes.userLookup,
     responsibleManagers: fakes.responsibleManagers,
@@ -50,7 +57,7 @@ const makeDeps = (): Deps => {
     retireMovedAssignment: fakes.retireMovedAssignment,
     clock: fakes.clock,
     logger: fakes.logger,
-    receipts: { insertReceipt: vi.fn(async () => {}) },
+    receipts,
     fakes,
   }
 }

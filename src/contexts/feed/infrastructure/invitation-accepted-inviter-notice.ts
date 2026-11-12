@@ -59,23 +59,16 @@ export async function handleInvitationAcceptedInviterNotice(
 
   const organization = organizationId(event.organizationId)
   const named = await buildOrganizationPayload(deps, organization)
-  return deliverNotices(
-    deps,
-    event,
-    INVITATION_ACCEPTED_INVITER_CONSUMER,
-    [
-      {
-        userId: userId(inviterId),
-        organizationId: organization,
-        propertyId: null,
-        type: 'account.invitation_accepted',
-        resourceType: 'organization',
-        resourceId: event.organizationId,
-        ...(Object.keys(named).length > 0 ? { payload: named } : {}),
-        audience: { kind: 'account_admin' },
-      },
-    ],
-    // Apart from the new member's own job for the same fact.
-    { jobId: () => `${event.eventId}-inviter-${inviterId}` },
-  )
+  return deliverNotices(deps, event, INVITATION_ACCEPTED_INVITER_CONSUMER, [
+    {
+      userId: userId(inviterId),
+      organizationId: organization,
+      propertyId: null,
+      type: 'account.invitation_accepted',
+      resourceType: 'organization',
+      resourceId: event.organizationId,
+      ...(Object.keys(named).length > 0 ? { payload: named } : {}),
+      audience: { kind: 'account_admin' },
+    },
+  ])
 }

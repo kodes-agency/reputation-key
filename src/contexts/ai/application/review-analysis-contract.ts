@@ -108,7 +108,7 @@ export type ReviewAnalysisAcceptanceInput = Readonly<{
 export type ReviewAnalysisAcceptance = 'invalid' | 'stale' | 'stored'
 
 export type ReviewAnalysisContract = Readonly<{
-  contract: 'v2' | 'v3'
+  contract: 'v3'
   operationProfile: ReviewAnalysisOperationProfile
   /** Whether a Property's authorization was recorded under the contract this one serves. */
   isServedContract(

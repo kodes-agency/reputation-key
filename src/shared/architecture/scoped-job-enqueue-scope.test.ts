@@ -42,7 +42,10 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
 import { handleInvitationAcceptedInviterNotice } from '#/contexts/feed/infrastructure/invitation-accepted-inviter-notice'
 import { createImmediateEmailEnqueue } from '#/contexts/feed/email/send-emails.server'
-import { createNotificationConsumerDeps } from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
 import { createGoogleImportV2Queue } from '#/contexts/integration/infrastructure/google-import-v2-queue'
 import { buildReviewContext } from '#/contexts/review/build'
 
@@ -187,7 +190,11 @@ const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
   'insert-notification': producer(async (queue) => {
     const fakes = createNotificationConsumerDeps()
     await handleInvitationAcceptedInviterNotice(
-      { queue, receipts, displayNames: fakes.displayNames, logger: fakes.logger },
+      {
+        noticeWriter: noticeWriterOver(queue, receipts),
+        displayNames: fakes.displayNames,
+        logger: fakes.logger,
+      },
       {
         eventId: ID(9),
         eventType: 'identity.invitation.accepted',

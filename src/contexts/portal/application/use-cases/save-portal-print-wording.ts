@@ -67,5 +67,3 @@ export const savePortalPrintWording =
     })
     return wording
   }
-
-export type SavePortalPrintWording = ReturnType<typeof savePortalPrintWording>

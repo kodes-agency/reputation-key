@@ -324,6 +324,15 @@ export async function createAiHandlerHarness(db: Database, seed: Seed) {
         ),
       )
     if (!operation) throw new Error('provider operation missing')
+    // The fake gateway charges an operation once, however many fakes wrap it:
+    // the ledger holds one reservation per operation.
+    if (operation.costWindowId !== null) {
+      return {
+        ok: true as const,
+        operationId: operation.id,
+        reservedMicros: operation.reservedMicros,
+      }
+    }
     return db.transaction(async (tx) => {
       const admission = await budget.admitAiOperation(tx, {
         ...scope,

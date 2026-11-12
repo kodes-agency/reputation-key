@@ -11,9 +11,7 @@ import {
   PRINT_FINAL_PER_SHEET,
   printFinalChoiceProblem,
   printFinalChoiceTile,
-  printFinalPerSheetOf,
   printFinalPieceCount,
-  printFinalPieceOffers,
   printFinalSheetCount,
   type PrintFinalChoice,
   type PrintFinalCodeFacts,
@@ -156,34 +154,11 @@ describe('choices and refusals (spec 12)', () => {
     expect(refusalOf({ languageCount: 3 })).toBe('languages_out_of_range')
     expect(refusalOf({ languageCount: 0 })).toBe('languages_out_of_range')
   })
-
-  it('takes fewer pieces a sheet than fit, never more', () => {
-    expect(refusalOf({ perSheet: 1 })).toBeNull()
-    expect(refusalOf({ perSheet: 3 })).toBeNull()
-    expect(refusalOf({ perSheet: 4 })).toBe('per_sheet_out_of_range')
-    expect(refusalOf({ perSheet: 0 })).toBe('per_sheet_out_of_range')
-    expect(refusalOf({ perSheet: 1.5 })).toBe('per_sheet_out_of_range')
-    expect(printFinalPerSheetOf(choice())).toBe(3)
-    expect(printFinalPerSheetOf(choice({ perSheet: 2 }))).toBe(2)
-  })
-
   it('says what is wrong with a choice before its code is known', () => {
     expect(printFinalChoiceProblem(choice())).toBeNull()
     expect(
       printFinalChoiceProblem(choice({ piece: 'tent', printer: 'print_shop' })),
     ).toEqual({ code: 'tents_office_only' })
-  })
-
-  it('offers all three pieces on the short address and holds tents and Small cards on the long one', () => {
-    const { piece: _piece, ...rest } = choice()
-    expect(printFinalPieceOffers(rest, SHORT).map((o) => o.refusal)).toEqual([
-      null,
-      null,
-      null,
-    ])
-    expect(printFinalPieceOffers(rest, LONG).map((o) => o.refusal?.code ?? null)).toEqual(
-      [null, 'needs_short_code', 'needs_short_code'],
-    )
   })
 })
 

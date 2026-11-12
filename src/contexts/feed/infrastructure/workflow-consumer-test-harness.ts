@@ -3,7 +3,6 @@
 // its own copy; this one exists so a new audience rule gets a short file of
 // its own instead of growing that one.
 
-import { vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { unbrand } from '#/shared/domain/ids'
 import type {
@@ -18,6 +17,7 @@ import {
 import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 
 export type WorkflowTestDeps = WorkflowNotificationConsumerDeps & {
+  receipts: FakeNotificationConsumerDeps['receipts']
   fakes: FakeNotificationConsumerDeps
 }
 
@@ -28,7 +28,7 @@ export const makeWorkflowDeps = (): WorkflowTestDeps => {
   fakes.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
   fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
   return {
-    queue: fakes.queue,
+    noticeWriter: fakes.noticeWriter,
     userLookup: fakes.userLookup,
     responsibleManagers: fakes.responsibleManagers,
     inboxItemLookup: fakes.inboxItemLookup,
@@ -37,7 +37,7 @@ export const makeWorkflowDeps = (): WorkflowTestDeps => {
     retireMovedAssignment: fakes.retireMovedAssignment,
     clock: fakes.clock,
     logger: fakes.logger,
-    receipts: { insertReceipt: vi.fn(async () => {}) },
+    receipts: fakes.receipts,
     fakes,
   }
 }

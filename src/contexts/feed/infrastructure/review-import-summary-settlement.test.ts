@@ -11,6 +11,7 @@ import { propertyId, unbrand } from '#/shared/domain/ids'
 import {
   createNotificationConsumerDeps,
   NOTIF_TEST_IDS,
+  noticeWriterOver,
 } from './notification-consumer-test-fixtures'
 import {
   handleNotificationReviewHistoryImportFinished,
@@ -51,8 +52,10 @@ const makeDeps = (now: Date) => {
   const hasPendingReviewProjections = vi.fn(
     async (_property: string, _org: unknown, _before: Date) => true,
   )
+  const receipts = { insertReceipt: vi.fn(async () => {}) }
   return {
     queue: fakes.queue,
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
     userLookup: fakes.userLookup,
     responsibleManagers: fakes.responsibleManagers,
     inboxItemLookup: {
@@ -63,7 +66,7 @@ const makeDeps = (now: Date) => {
     displayNames: fakes.displayNames,
     logger: fakes.logger,
     importInitiators: { findPropertyImportInitiator: vi.fn(async () => null) },
-    receipts: { insertReceipt: vi.fn(async () => {}) },
+    receipts,
     clock: () => now,
     fakes,
     hasPendingReviewProjections,

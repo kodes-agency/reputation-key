@@ -3,9 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GoalExecutionPolicy } from '../monthly-goals/goal-programs.server'
 
 const mocks = vi.hoisted(() => ({
-  create: vi.fn(),
-  changeStatus: vi.fn(),
-  get: vi.fn(),
   list: vi.fn(),
   progress: vi.fn(),
   listProgress: vi.fn(),
@@ -17,9 +14,6 @@ vi.mock('#/composition', () => ({
   getContainer: () => ({
     goalPublicApi: {
       programs: {
-        create: mocks.create,
-        changeStatus: mocks.changeStatus,
-        get: mocks.get,
         list: mocks.list,
         progress: mocks.progress,
         listProgress: mocks.listProgress,
@@ -38,36 +32,16 @@ vi.mock('#/shared/auth/execution-policy', () => ({
 }))
 
 import { GoalProgramError } from '../monthly-goals/goal-programs.server'
-import {
-  createGoalProgramSchema,
-  getGoalProgressSchema,
-} from '../application/dto/goal-program.dto'
-import {
-  changeGoalProgramStatus,
-  createGoalProgram,
-  getGoalProgram,
-  getGoalListProgress,
-  getGoalProgress,
-  listGoalPrograms,
-} from './goal-programs'
+import { getGoalProgressSchema } from '../application/dto/goal-program.dto'
+import { getGoalListProgress, getGoalProgress, listGoalPrograms } from './goal-programs'
 
 const ORG_ID = '00000000-0000-4000-8000-000000000001'
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000002'
-const PORTAL_ID = '00000000-0000-4000-8000-000000000003'
 const actor = {
   organizationId: ORG_ID,
   userId: 'manager-1',
   role: 'AccountAdmin',
 } as const
-const validInput = {
-  propertyId: PROPERTY_ID,
-  name: 'Monthly private ratings',
-  description: null,
-  metric: 'portal_rating_average' as const,
-  targetValue: 4.5,
-  subjects: [{ kind: 'portal' as const, portalId: PORTAL_ID }],
-}
-
 describe('canonical Goal Program server functions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -75,28 +49,20 @@ describe('canonical Goal Program server functions', () => {
     mocks.requireExecutionAllowed.mockResolvedValue(undefined)
   })
 
-  it('validates and forwards one program with many canonical subjects', async () => {
-    mocks.create.mockResolvedValue({ program: { id: 'program-1' } })
-
-    await withStartContext(() => createGoalProgram({ data: validInput }))
-
-    expect(mocks.create).toHaveBeenCalledWith(expect.any(Object), validInput, actor)
-  })
-
   it('binds goal.use and the interactive permission to the resolved request', async () => {
-    mocks.create.mockResolvedValue({ program: { id: 'program-1' } })
-    await withStartContext(() => createGoalProgram({ data: validInput }))
-    const policy = mocks.create.mock.calls[0]?.[0] as GoalExecutionPolicy
+    mocks.list.mockResolvedValue([])
+    await withStartContext(() => listGoalPrograms({ data: { propertyId: PROPERTY_ID } }))
+    const policy = mocks.list.mock.calls[0]?.[0] as GoalExecutionPolicy
 
     await policy.authorize({
       actor,
       organizationId: ORG_ID,
       propertyId: PROPERTY_ID,
-      action: 'goal.create',
+      action: 'goal.read',
     })
     expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
       actor,
-      action: 'goal.create',
+      action: 'goal.read',
       capability: 'goal.use',
       propertyId: PROPERTY_ID,
     })
@@ -106,7 +72,7 @@ describe('canonical Goal Program server functions', () => {
         actor: { ...actor, userId: 'another-user' },
         organizationId: ORG_ID,
         propertyId: PROPERTY_ID,
-        action: 'goal.create',
+        action: 'goal.read',
       }),
     ).rejects.toMatchObject({ code: 'forbidden' })
   })
@@ -119,28 +85,24 @@ describe('canonical Goal Program server functions', () => {
     }
     mocks.resolveTenantContext.mockResolvedValue(assignedOnlyActor)
     const program = { program: { id: 'program-1' }, assignments: [], results: [] }
-    mocks.get.mockResolvedValue(program)
     mocks.list.mockResolvedValue([program])
-    const identity = {
-      propertyId: PROPERTY_ID,
-      programId: '00000000-0000-4000-8000-000000000004',
-    }
-
     // The container offers no People or Portal lookups, so any scoping left in
     // the server function would fail these calls.
-    await withStartContext(() => getGoalProgram({ data: identity }))
     await withStartContext(() => listGoalPrograms({ data: { propertyId: PROPERTY_ID } }))
 
-    expect(mocks.get).toHaveBeenCalledWith(
-      expect.any(Object),
-      identity,
-      assignedOnlyActor,
-    )
     expect(mocks.list).toHaveBeenCalledWith(
       expect.any(Object),
       PROPERTY_ID,
       assignedOnlyActor,
     )
+  })
+
+  it('answers a refused request with the status of its code', async () => {
+    mocks.list.mockRejectedValue(new GoalProgramError('not_found'))
+
+    await expect(
+      withStartContext(() => listGoalPrograms({ data: { propertyId: PROPERTY_ID } })),
+    ).rejects.toMatchObject({ name: 'GoalProgramError', code: 'not_found', status: 404 })
   })
 
   it('reads live goal progress for one subject through the request policy', async () => {
@@ -158,47 +120,6 @@ describe('canonical Goal Program server functions', () => {
 
     expect(mocks.progress).toHaveBeenCalledWith(expect.any(Object), input, actor)
   })
-
-  it('forwards the chosen start month with the goal, and leaves it out when none is sent', async () => {
-    mocks.create.mockResolvedValue({ program: { id: 'program-1' } })
-
-    await withStartContext(() =>
-      createGoalProgram({ data: { ...validInput, startMonth: '2026-10' } }),
-    )
-    await withStartContext(() => createGoalProgram({ data: validInput }))
-
-    expect(mocks.create).toHaveBeenNthCalledWith(
-      1,
-      expect.any(Object),
-      { ...validInput, startMonth: '2026-10' },
-      actor,
-    )
-    expect(mocks.create).toHaveBeenNthCalledWith(2, expect.any(Object), validInput, actor)
-  })
-
-  it('accepts a start month only as a calendar month key', () => {
-    const withStart = (startMonth: unknown) =>
-      createGoalProgramSchema.safeParse({ ...validInput, startMonth }).success
-
-    expect(withStart('2026-10')).toBe(true)
-    expect(withStart('2026-01')).toBe(true)
-    for (const invalid of ['2026-13', '2026-00', '2026-1', '2026_10', 'next', '', 7]) {
-      expect(withStart(invalid)).toBe(false)
-    }
-  })
-
-  it.each(['subject_has_goal', 'start_month_changed'] as const)(
-    'answers %s as a conflict the form can explain',
-    async (code) => {
-      mocks.create.mockRejectedValue(new GoalProgramError(code))
-
-      await expect(
-        withStartContext(() =>
-          createGoalProgram({ data: { ...validInput, startMonth: '2026-10' } }),
-        ),
-      ).rejects.toMatchObject({ name: 'GoalProgramError', code, status: 409 })
-    },
-  )
 
   it('reads the month so far of every goal on the Goals list in one call', async () => {
     mocks.listProgress.mockResolvedValue([
@@ -222,49 +143,5 @@ describe('canonical Goal Program server functions', () => {
     expect(
       getGoalProgressSchema.safeParse({ propertyId: PROPERTY_ID, subject }).success,
     ).toBe(false)
-  })
-
-  it('rejects empty subjects and count targets are left to domain validation', () => {
-    expect(
-      createGoalProgramSchema.safeParse({ ...validInput, subjects: [] }).success,
-    ).toBe(false)
-    expect(
-      createGoalProgramSchema.safeParse({
-        ...validInput,
-        metric: 'portal_rating_count',
-        targetValue: 1.5,
-      }).success,
-    ).toBe(true)
-  })
-
-  it('forwards a status change without a note', async () => {
-    const programId = '00000000-0000-4000-8000-000000000004'
-    const pause = { propertyId: PROPERTY_ID, programId, status: 'paused' as const }
-    mocks.changeStatus.mockResolvedValue({ id: programId, status: 'paused' })
-
-    await withStartContext(() => changeGoalProgramStatus({ data: pause }))
-
-    expect(mocks.changeStatus).toHaveBeenCalledWith(expect.any(Object), pause, actor)
-  })
-
-  describe('a change that is refused', () => {
-    const identity = {
-      propertyId: PROPERTY_ID,
-      programId: '00000000-0000-4000-8000-000000000004',
-    }
-    const end = (): Promise<unknown> =>
-      changeGoalProgramStatus({ data: { ...identity, status: 'ended' } })
-    it.each([['a status change', 'revision_conflict', mocks.changeStatus, end]] as const)(
-      'answers %s refused with %s as a conflict',
-      async (_name, code, mock, run) => {
-        mock.mockRejectedValue(new GoalProgramError(code))
-
-        await expect(withStartContext(run)).rejects.toMatchObject({
-          name: 'GoalProgramError',
-          code,
-          status: 409,
-        })
-      },
-    )
   })
 })

@@ -12,6 +12,7 @@ import type { PortalDestinationApprovalFacts } from '#/contexts/portal/applicati
 import {
   createNotificationConsumerDeps,
   NOTIF_TEST_IDS,
+  noticeWriterOver,
 } from './notification-consumer-test-fixtures'
 import {
   handleNotificationPortalDestinationPending,
@@ -62,13 +63,15 @@ const waitingSite = (
 const makeDeps = (site: PortalDestinationApprovalFacts | null = waitingSite()) => {
   const fakes = createNotificationConsumerDeps()
   const findDestinationApprovalNotificationFacts = vi.fn(async () => site)
+  const receipts = { insertReceipt: vi.fn(async () => {}) }
   return {
     queue: fakes.queue,
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
     userLookup: fakes.userLookup,
     displayNames: fakes.displayNames,
     destinations: { findDestinationApprovalNotificationFacts },
     logger: fakes.logger,
-    receipts: { insertReceipt: vi.fn(async () => {}) },
+    receipts,
     fakes,
     findDestinationApprovalNotificationFacts,
   }

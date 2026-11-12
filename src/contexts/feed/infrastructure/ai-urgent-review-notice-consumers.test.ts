@@ -12,7 +12,10 @@ import {
   PROJECTION_HORIZON_MS,
 } from '../notify/goals.server'
 import { registerAiUrgentReviewNoticeConsumer } from './goal-notice-routes'
-import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  noticeWriterOver,
+} from './notification-consumer-test-fixtures'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
 
@@ -57,14 +60,16 @@ const event = (
 const makeDeps = () => {
   const base = createNotificationConsumerDeps()
   const receipts: Array<[string, string, string]> = []
+  const receiptStore = {
+    insertReceipt: async (eventId: string, consumer: string, status: string) => {
+      receipts.push([eventId, consumer, status])
+    },
+  }
   const deps = {
     ...base,
     clock: () => NOW,
-    receipts: {
-      insertReceipt: async (eventId: string, consumer: string, status: string) => {
-        receipts.push([eventId, consumer, status])
-      },
-    },
+    receipts: receiptStore,
+    noticeWriter: noticeWriterOver({ add: base.addMock }, receiptStore),
   }
   base.inboxItemLookup.findInboxItemByReviewId.mockResolvedValue(inboxItemId(IDS.item))
   base.inboxItemLookup.findHandlingCycleNotificationFacts.mockResolvedValue({

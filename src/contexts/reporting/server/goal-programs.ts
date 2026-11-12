@@ -6,51 +6,11 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 // top-level zod calls (scripts/check-bundle-budget.mjs, 2026-10-13). Tests and
 // forms import the schemas from the DTO.
 import {
-  changeGoalProgramStatusSchema,
-  createGoalProgramSchema,
   getGoalProgressSchema,
   getGoalProgramHistorySchema,
-  goalProgramIdentitySchema,
   listGoalProgramsSchema,
 } from '../application/dto/goal-program.dto'
 import { withGoalPrograms } from './goal-program-request.server'
-
-export const createGoalProgram = createServerFn({ method: 'POST' })
-  .validator(createGoalProgramSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.create(policy, data, actor),
-        ),
-      'POST',
-      'goal.createGoalProgram',
-    ),
-  )
-
-export const changeGoalProgramStatus = createServerFn({ method: 'POST' })
-  .validator(changeGoalProgramStatusSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.changeStatus(policy, data, actor),
-        ),
-      'POST',
-      'goal.changeGoalProgramStatus',
-    ),
-  )
-
-export const getGoalProgram = createServerFn({ method: 'GET' })
-  .validator(goalProgramIdentitySchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) => programs.get(policy, data, actor)),
-      'GET',
-      'goal.getGoalProgram',
-    ),
-  )
 
 export const listGoalPrograms = createServerFn({ method: 'GET' })
   .validator(listGoalProgramsSchema)

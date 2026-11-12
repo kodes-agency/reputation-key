@@ -10,6 +10,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   createNotificationConsumerDeps,
   NOTIF_TEST_IDS,
+  noticeWriterOver,
 } from './notification-consumer-test-fixtures'
 import {
   handleNotificationPortalResponsibilityNeeded,
@@ -44,12 +45,14 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
 
 const makeDeps = () => {
   const fakes = createNotificationConsumerDeps()
+  const receipts = { insertReceipt: vi.fn(async () => {}) }
   return {
     queue: fakes.queue,
+    noticeWriter: noticeWriterOver(fakes.queue, receipts),
     userLookup: fakes.userLookup,
     displayNames: fakes.displayNames,
     logger: fakes.logger,
-    receipts: { insertReceipt: vi.fn(async () => {}) },
+    receipts,
     fakes,
   }
 }

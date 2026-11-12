@@ -13,6 +13,7 @@ import {
 import { registerAiGuestVoiceSummaryNoticeConsumer } from './goal-notice-routes'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
+import { noticeWriterOver } from './notification-consumer-test-fixtures'
 
 const IDS = {
   event: '94000000-0000-4000-8000-000000000001',
@@ -88,15 +89,22 @@ const makeDeps = () => {
   const jobs: Array<{ name: string; data: Record<string, unknown>; opts?: unknown }> = []
   const receipts: Array<[string, string, string]> = []
   const eligible = new Set<string>([ADMIN, MANAGER])
+  const queue = {
+    add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
+      jobs.push({ name, data: data as Record<string, unknown>, opts })
+    }),
+  }
+  const receiptWriter = {
+    insertReceipt: async (eventId: string, consumer: string, status: string) => {
+      receipts.push([eventId, consumer, status])
+    },
+  }
   return {
     jobs,
     receipts,
     deps: {
-      queue: {
-        add: vi.fn(async (name: string, data: unknown, opts?: unknown) => {
-          jobs.push({ name, data: data as Record<string, unknown>, opts })
-        }),
-      },
+      queue,
+      noticeWriter: noticeWriterOver(queue, receiptWriter),
       userLookup: {
         findByRole: vi.fn(async (_org: unknown, role: string) =>
           role === 'AccountAdmin' ? [ADMIN] : [MANAGER, OUTSIDER],
@@ -116,11 +124,7 @@ const makeDeps = () => {
         error: vi.fn(),
         child: vi.fn(),
       },
-      receipts: {
-        insertReceipt: async (eventId: string, consumer: string, status: string) => {
-          receipts.push([eventId, consumer, status])
-        },
-      },
+      receipts: receiptWriter,
     },
   }
 }

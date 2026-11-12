@@ -27,7 +27,7 @@ describe('buildReportingContext', () => {
     const context = build()
 
     expect(typeof context.publicApi.queryGoalMetric).toBe('function')
-    expect(typeof context.publicApi.programs.create).toBe('function')
+    expect(typeof context.publicApi.programs.list).toBe('function')
     expect(Object.keys(context.publicApi.programs.portalGoalAdd).sort()).toEqual([
       'each',
       'one',

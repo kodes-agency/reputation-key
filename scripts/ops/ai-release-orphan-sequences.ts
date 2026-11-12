@@ -22,10 +22,10 @@ import {
   planAiReleaseOrphanSequences,
   runAiReleaseOrphanSequences,
 } from '../../src/shared/ops/ai-release-orphan-sequences-command'
-import { runOperatorCommand } from './operator-command'
+import { runDatabaseOperatorCommand } from './operator-command'
 
 async function main(): Promise<void> {
-  const result = await runOperatorCommand(
+  const result = await runDatabaseOperatorCommand(
     aiReleaseOrphanSequencesCommandSpec,
     async (ctx, args, io) => {
       const plan = planAiReleaseOrphanSequences(args)
