@@ -31,6 +31,30 @@ hours. Do not rely on the server default: `pool-session-time-zone.integration.te
 connects with a daylight-saving default and writes across a change. A session
 opened outside the pool (a script's own `pg.Client`) keeps the server default.
 
+## Database scope (row-security observe mode)
+
+Every unit of work carries a database scope: a tenant (`tenant-scope.server.ts`)
+or named system work (`system-scope.server.ts`). Auth enters the session's
+Organization in `resolveTenantContext`; an allowed `decidePublicExecution`
+enters a public request's Organization; the delayed execution gate runs
+Organization- and Property-scoped jobs and outbox consumers under their
+Organization and tenant-cross or unscoped work as system work. Transactions
+opened through `createDatabase` set `app.scope` and `app.organization_id` with
+`set_config(..., true)`, so the values end with the transaction and a pooled
+client never carries them to its next user. A process that serves requests
+declares itself in `getContainer`, after which system scope throws; the lint
+rule `source-policy/system-scope` keeps the module out of request code.
+
+Nothing is refused yet and the application still connects with its existing
+credential. `scope-observation.server.ts` watches every pooled client: a
+statement on a table with an `organization_id` column and no scope, or with an
+`organization_id = $n` parameter for another Organization, is counted and
+logged each minute as `database scope observe: row security would refuse` by
+reason, entry point and table, never by identifier. Each server function's
+`request complete` line also carries its statement, autocommit, transaction and
+scope-setting time (`db*` fields), which prices running every read in a short
+scoped transaction before policies are enabled.
+
 ## Independent erasure evidence
 
 `lifecycle/erasure-journal.server.ts` and its bucket adapter provide inactive
