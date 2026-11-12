@@ -12,7 +12,7 @@ import type { InboxItem, InboxPriority } from '#/contexts/inbox/domain/types'
 import { unbrandAll, type UserId } from '#/shared/domain/ids'
 
 type InboxFilters = Parameters<InboxRepository['findFilteredPaginated']>[0]
-type SourceScopes = Parameters<InboxRepository['countByStatus']>[3]
+type SourceScopes = Parameters<InboxRepository['countOpenSince']>[3]
 
 /** The star rating a story's `available` review shows in the detail pane. */
 const STORY_REVIEW_RATING = 4
@@ -159,12 +159,6 @@ export function createStoryOnlyInboxRepo(): StoryOnlyInboxFake {
       return [...counts].map(([propertyId, count]) => ({ propertyId, count }))
     },
     stampReplyMilestones: refuse('Reply milestone stamping'),
-    countByStatus: async (orgId, status, propertyIds, sourceScopes) =>
-      scoped(orgId, propertyIds, sourceScopes).filter((i) => i.status === status).length,
-    countEscalatedActive: async (orgId, propertyIds, sourceScopes) =>
-      scoped(orgId, propertyIds, sourceScopes).filter(
-        (i) => i.isEscalated && i.escalationResolvedAt === null,
-      ).length,
     countOpenSince: async (orgId, since, propertyIds, sourceScopes) =>
       scoped(orgId, propertyIds, sourceScopes).filter(
         (i) =>
@@ -221,7 +215,6 @@ export function createStoryOnlyInboxCommandStore(deps: {
   }
 
   return {
-    releaseAssignmentsForUser: async () => ({ released: 0 }),
     releaseIneligibleAssignmentsForUser: async () => ({ released: 0 }),
     createItem: async (item) => {
       const existing = await deps.repo.findBySource(
