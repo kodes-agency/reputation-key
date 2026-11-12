@@ -14,15 +14,20 @@ import {
 import { purgeNotificationRightsData } from './purge.server'
 import { createNotificationRightsReplayers } from './replayer.server'
 import {
-  buildManualFinalWarningJobs,
+  buildManualFinalWarning,
   createNotificationRightsPort,
   runNotificationRights,
-  type ManualFinalWarningJob,
+  type FinalWarningWriter,
+  type ManualFinalWarning,
 } from './executor.server'
 import { createNotificationAudienceAuthorizer } from '../application/notification-audience'
-import { parseNotificationAudience } from '../application/notification-audience'
+import { createNoticeWriter } from '../notify/consumers.server'
+import { waitingWorkState } from '../infrastructure/jobs/test-fixtures'
+import { currentRouteDeps } from '#/shared/testing/notification-route-test-harness'
 import { createOrganizationAccountNotificationAuthority } from '../infrastructure/adapters/organization-account-notification-authority.adapter'
 import {
+  notificationEmailId,
+  notificationId,
   organizationId as brandOrganization,
   userId as brandUser,
 } from '#/shared/domain/ids'
@@ -40,6 +45,14 @@ import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
 import type { Tx } from '#/shared/outbox/commit'
+
+/** A writer for runs that only report, or that check what a run asked to send. */
+const recordingWriter = (sent: ManualFinalWarning[] = []): FinalWarningWriter => ({
+  writeDirect: async ({ eventId, notices }) => {
+    sent.push({ eventId, notices })
+    return 'applied'
+  },
+})
 
 let lease: TestLease
 let db: Database
@@ -311,7 +324,7 @@ async function runRights(
   } as unknown as OperatorContext
   const out: string[] = []
   const err: string[] = []
-  const enqueued: ManualFinalWarningJob[] = []
+  const sent: ManualFinalWarning[] = []
   const io: OperatorIO = { out: (l) => out.push(l), err: (l) => err.push(l) }
   const code = await handleRightsRequest(
     {
@@ -326,9 +339,7 @@ async function runRights(
           tables: NOTIFICATION_RIGHTS_TABLES,
           run: (request) =>
             runNotificationRights(
-              createNotificationRightsPort(db, async (job) => {
-                enqueued.push(job)
-              }),
+              createNotificationRightsPort(db, recordingWriter(sent)),
               request,
             ),
         }),
@@ -338,7 +349,7 @@ async function runRights(
     parsed.args,
     io,
   )
-  return { code, out, err, enqueued }
+  return { code, out, err, sent }
 }
 
 const propertyApply = (propertyId: string) => [
@@ -547,7 +558,7 @@ describe.sequential('Notification rights reads and purge', () => {
     organizationId: string,
     propertyId?: string,
   ): Promise<Record<string, number>> => {
-    const port = createNotificationRightsPort(db, async () => {})
+    const port = createNotificationRightsPort(db, recordingWriter())
     const result = await runNotificationRights(port, {
       scope: propertyId ? 'property' : 'organization',
       mode: 'report',
@@ -637,80 +648,118 @@ describe.sequential('Notification rights reads and purge', () => {
       organizationAccountAuthority: createOrganizationAccountNotificationAuthority(db),
     } as unknown as Parameters<typeof createNotificationAudienceAuthorizer>[0])
 
-  it('delivers a manual final warning to an admin and to a former member with no role', async () => {
-    const a = await seedTenant()
-    const b = await seedTenant()
-    const enqueued: ManualFinalWarningJob[] = []
-    const port = createNotificationRightsPort(db, async (job) => {
-      enqueued.push(job)
+  const noticeWriterFor = (adminIds: readonly string[]) =>
+    createNoticeWriter({
+      db,
+      clock: () => new Date(),
+      idGen: () => notificationId(randomUUID()),
+      emailIdGen: () => notificationEmailId(randomUUID()),
+      logger: currentRouteDeps().logger as never,
+      ratingForRouting: async () => null,
+      authorizeAudience: authorizer(adminIds),
+      workState: waitingWorkState(),
     })
 
-    const result = await runNotificationRights(port, {
+  const finalWarningRows = async (organizationId: string) =>
+    (
+      await lease.pool.query(
+        `SELECT user_id, property_id, event_id, payload, coalesced_count
+           FROM notifications
+          WHERE organization_id = $1 AND type = 'account.organization_purge_pending'`,
+        [organizationId],
+      )
+    ).rows
+
+  it('delivers a manual final warning to a former member with no role, once', async () => {
+    const a = await seedTenant()
+    const b = await seedTenant()
+    const sent: ManualFinalWarning[] = []
+    const writer = noticeWriterFor([a.adminId])
+    const port = createNotificationRightsPort(db, {
+      writeDirect: async (warning) => {
+        sent.push({ eventId: warning.eventId, notices: warning.notices })
+        return writer.writeDirect(warning)
+      },
+    })
+    const request = {
       scope: 'organization',
       mode: 'apply',
       organizationId: a.organizationId,
       batchSize: 50,
       finalWarning: true,
       requestRef: 'ticket:9',
-    })
+    } as const
+
+    const result = await runNotificationRights(port, request)
     expect(result.lines).toEqual(['final warnings queued: 1'])
     // The seeded admin holds no member row here, so the lookup finds nobody:
-    // only the former member is queued, found through the removal notice.
-    const former = enqueued.find((job) => job.data.userId === a.userId)
-    expect(former?.data.payload).toEqual({ organizationName: a.organizationName })
-    expect(former?.data.propertyId).toBeNull()
+    // only the former member is written, found through the removal notice.
+    expect(sent).toHaveLength(1)
+    const rows = await finalWarningRows(a.organizationId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      user_id: a.userId,
+      property_id: null,
+      event_id: `manual-final-warning:${a.organizationId}:ticket:9`,
+      payload: { organizationName: a.organizationName },
+      coalesced_count: 1,
+    })
+    expect(await finalWarningRows(b.organizationId)).toEqual([])
+    const emails = await count('notification_email_queue', a.organizationId)
+
+    // The same request again folds into the waiting notice: no second row,
+    // no second email.
+    await runNotificationRights(port, request)
+    expect(await finalWarningRows(a.organizationId)).toHaveLength(1)
+    expect(await count('notification_email_queue', a.organizationId)).toBe(emails)
 
     const decide = authorizer([a.adminId])
-    const asJob = (
-      job: ManualFinalWarningJob,
-      userId: string,
-      org = a.organizationId,
-    ) => ({
-      userId: brandUser(userId),
-      organizationId: brandOrganization(org),
+    const former = sent[0]!.notices.find(
+      (notice) => notice.userId === brandUser(a.userId),
+    )
+    expect(former).toBeDefined()
+    const formerInput = {
+      userId: brandUser(a.userId),
+      organizationId: brandOrganization(a.organizationId),
       propertyId: null,
-      audience: parseNotificationAudience(job.data.audience),
-    })
-    const formerInput = asJob(former!, a.userId)
-    expect(formerInput.audience).not.toBeNull()
-    expect(await decide({ ...formerInput, audience: formerInput.audience! })).toBe(true)
+      audience: former!.audience,
+    }
+    expect(await decide(formerInput)).toBe(true)
 
     // The same audience refuses another person and another Organization.
-    expect(
-      await decide({
-        ...formerInput,
-        userId: brandUser(a.adminId),
-        audience: formerInput.audience!,
-      }),
-    ).toBe(false)
+    expect(await decide({ ...formerInput, userId: brandUser(a.adminId) })).toBe(false)
     expect(
       await decide({
         ...formerInput,
         organizationId: brandOrganization(b.organizationId),
-        audience: formerInput.audience!,
       }),
     ).toBe(false)
 
     // A current AccountAdmin is admitted by the role, with no Property.
-    const [adminJob] = buildManualFinalWarningJobs({
+    const [adminNotice] = buildManualFinalWarning({
       organizationId: a.organizationId,
       requestRef: 'ticket:9',
-      payload: former!.data.payload,
+      payload: { organizationName: a.organizationName },
       accountAdmins: [a.adminId],
       formerMembers: [],
-    })
-    const adminInput = asJob(adminJob!, a.adminId)
-    expect(await decide({ ...adminInput, audience: adminInput.audience! })).toBe(true)
+    }).notices
+    expect(
+      await decide({
+        ...formerInput,
+        userId: brandUser(a.adminId),
+        audience: adminNotice!.audience,
+      }),
+    ).toBe(true)
   })
 
-  it('queues final warnings through the rights-request script for two tenants', async () => {
+  it('sends final warnings through the rights-request script for two tenants', async () => {
     const a = await seedTenant()
     const b = await seedTenant()
-    const queues = new Map<string, ManualFinalWarningJob[]>()
+    const queues = new Map<string, ManualFinalWarning[]>()
 
     const run = async (tenant: Tenant) => {
-      const jobs: ManualFinalWarningJob[] = []
-      queues.set(tenant.organizationId, jobs)
+      const warnings: ManualFinalWarning[] = []
+      queues.set(tenant.organizationId, warnings)
       const argv = [
         '--operator',
         'op',
@@ -753,9 +802,7 @@ describe.sequential('Notification rights reads and purge', () => {
               tables: NOTIFICATION_RIGHTS_TABLES,
               run: (request) =>
                 runNotificationRights(
-                  createNotificationRightsPort(db, async (job) => {
-                    jobs.push(job)
-                  }),
+                  createNotificationRightsPort(db, recordingWriter(warnings)),
                   request,
                 ),
             }),
@@ -771,10 +818,10 @@ describe.sequential('Notification rights reads and purge', () => {
     expect((await run(a)).code).toBe(0)
     expect((await run(b)).code).toBe(0)
     for (const tenant of [a, b]) {
-      const jobs = queues.get(tenant.organizationId) ?? []
-      expect(jobs.map((job) => job.data.userId)).toEqual([tenant.userId])
-      expect(jobs[0]?.data.organizationId).toBe(tenant.organizationId)
-      expect(jobs[0]?.data.payload).toEqual({ organizationName: tenant.organizationName })
+      const notices = (queues.get(tenant.organizationId) ?? []).flatMap((w) => w.notices)
+      expect(notices.map((notice) => notice.userId)).toEqual([tenant.userId])
+      expect(notices[0]?.organizationId).toBe(tenant.organizationId)
+      expect(notices[0]?.payload).toEqual({ organizationName: tenant.organizationName })
     }
     expect(await count('notifications', a.organizationId)).toBe(3)
   })
@@ -951,7 +998,7 @@ describe.sequential('Notification rights reads and purge', () => {
       expect(result.err.join('\n')).toContain(
         'Final warnings are sent for an Organization, not a Property',
       )
-      expect(result.enqueued).toEqual([])
+      expect(result.sent).toEqual([])
       expect(canonical(await dumpOrganization(a.organizationId))).toBe(canonical(before))
     })
   })

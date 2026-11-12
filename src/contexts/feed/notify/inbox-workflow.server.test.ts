@@ -27,7 +27,7 @@ import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
-import type { InsertNotificationJobData } from '../infrastructure/jobs/insert-notification.job'
+import type { QueuedNotice } from '../infrastructure/notification-consumer-test-fixtures'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -89,8 +89,7 @@ const event = (
 const recipientsOf = (deps: Deps) =>
   deps.fakes.jobs.map((job) => (job.data as { userId: string }).userId)
 
-const audienceOf = (deps: Deps) =>
-  (deps.fakes.jobs[0]!.data as InsertNotificationJobData).audience
+const audienceOf = (deps: Deps) => (deps.fakes.jobs[0]!.data as QueuedNotice).audience
 
 describe('durable workflow notification consumers', () => {
   beforeEach(() => {
@@ -309,9 +308,9 @@ describe('durable workflow notification consumers', () => {
         at: expect.any(Date),
       })
       // They are not told about their own handoff; only the new holder is.
-      expect(
-        deps.fakes.jobs.map((job) => (job.data as InsertNotificationJobData).type),
-      ).toEqual(['inbox.assigned'])
+      expect(deps.fakes.jobs.map((job) => (job.data as QueuedNotice).type)).toEqual([
+        'inbox.assigned',
+      ])
     })
 
     it('retires it when the item moves in bulk, which notifies per group', async () => {
@@ -592,7 +591,7 @@ describe('durable workflow notification consumers', () => {
 
       const byUser = new Map(
         deps.fakes.jobs.map((job) => {
-          const data = job.data as InsertNotificationJobData
+          const data = job.data as QueuedNotice
           return [data.userId as string, data.type]
         }),
       )
@@ -725,7 +724,7 @@ describe('durable workflow notification consumers', () => {
 
       const audiences = new Map(
         deps.fakes.jobs.map((job) => {
-          const data = job.data as InsertNotificationJobData
+          const data = job.data as QueuedNotice
           return [data.userId as string, data.audience]
         }),
       )
@@ -766,7 +765,7 @@ describe('durable workflow notification consumers', () => {
       }),
     )
 
-    const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+    const data = deps.fakes.jobs[0]!.data as QueuedNotice
     expect(deps.fakes.userLookup.findActorRole).toHaveBeenCalledWith(
       NOTIF_TEST_IDS.submitter,
       NOTIF_TEST_IDS.orgId,
@@ -803,7 +802,7 @@ describe('durable workflow notification consumers', () => {
           event(eventType, { ...payload, userId: unbrand(NOTIF_TEST_IDS.submitter) }),
         )
 
-        const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+        const data = deps.fakes.jobs[0]!.data as QueuedNotice
         expect(deps.fakes.inboxItemLookup.findWaitingSince).toHaveBeenCalledWith(
           NOTIF_TEST_IDS.inboxItemId,
           NOTIF_TEST_IDS.orgId,
@@ -828,7 +827,7 @@ describe('durable workflow notification consumers', () => {
         }),
       )
 
-      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      const data = deps.fakes.jobs[0]!.data as QueuedNotice
       expect(data.payload).not.toHaveProperty('waitingSince')
       expect(data.payload).not.toHaveProperty('waitingHours')
     })
@@ -846,7 +845,7 @@ describe('durable workflow notification consumers', () => {
         }),
       )
 
-      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      const data = deps.fakes.jobs[0]!.data as QueuedNotice
       expect(data.payload).not.toHaveProperty('waitingSince')
     })
   })
@@ -1004,9 +1003,10 @@ describe('durable workflow notification consumers', () => {
 
       await handleWorkflowNotificationEvent(deps, cancelled('policy'))
 
-      expect(
-        deps.fakes.jobs.map((job) => (job.data as InsertNotificationJobData).userId),
-      ).toEqual([NOTIF_TEST_IDS.authorId, NOTIF_TEST_IDS.admin1])
+      expect(deps.fakes.jobs.map((job) => (job.data as QueuedNotice).userId)).toEqual([
+        NOTIF_TEST_IDS.authorId,
+        NOTIF_TEST_IDS.admin1,
+      ])
     })
 
     it('keeps every approver for a cancellation that took nobody’s authority', async () => {
@@ -1016,9 +1016,10 @@ describe('durable workflow notification consumers', () => {
 
       await handleWorkflowNotificationEvent(deps, cancelled('disconnect'))
 
-      expect(
-        deps.fakes.jobs.map((job) => (job.data as InsertNotificationJobData).userId),
-      ).toEqual([NOTIF_TEST_IDS.authorId, NOTIF_TEST_IDS.admin1])
+      expect(deps.fakes.jobs.map((job) => (job.data as QueuedNotice).userId)).toEqual([
+        NOTIF_TEST_IDS.authorId,
+        NOTIF_TEST_IDS.admin1,
+      ])
     })
 
     it.each([
@@ -1043,7 +1044,7 @@ describe('durable workflow notification consumers', () => {
 
       await handleWorkflowNotificationEvent(deps, cancelled(cause))
 
-      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      const data = deps.fakes.jobs[0]!.data as QueuedNotice
       expect(
         renderNotification(
           'reply.publication_cancelled',
@@ -1062,7 +1063,7 @@ describe('durable workflow notification consumers', () => {
 
       await handleWorkflowNotificationEvent(deps, cancelled('ai_draft_withdrawn'))
 
-      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      const data = deps.fakes.jobs[0]!.data as QueuedNotice
       expect(
         renderNotification(
           'reply.publication_cancelled',
@@ -1103,7 +1104,7 @@ describe('durable workflow notification consumers', () => {
       }),
     )
 
-    const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+    const data = deps.fakes.jobs[0]!.data as QueuedNotice
     expect(data.payload).toMatchObject({ publishOutcome: 'unconfirmed' })
     expect(
       renderNotification('reply.publish_failed', parseNotificationPayload(data.payload)),
@@ -1143,7 +1144,7 @@ describe('durable workflow notification consumers', () => {
       const deps = makeDeps()
       const recorded = recordRejection(reason)
       await handleWorkflowNotificationEvent(deps, recorded)
-      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      const data = deps.fakes.jobs[0]!.data as QueuedNotice
       const { body } = renderNotification(
         'reply.rejected',
         parseNotificationPayload(data.payload),

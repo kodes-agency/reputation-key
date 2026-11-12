@@ -1,6 +1,6 @@
 // Durable notification admission for canonical Inbox Handling Cycle facts.
 //
-// The consumer and the insert-notification worker both resolve the exact
+// The consumer and the notice writer both resolve the exact
 // current cycle/head. The first read prevents obviously obsolete fan-out; the
 // delivery-time audience check closes the queue-delay race and revalidates the
 // current Property/Portal Responsible Managers. Event and job payloads contain

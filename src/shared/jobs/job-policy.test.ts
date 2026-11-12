@@ -118,10 +118,10 @@ describe('withCatalogueJobOptions (BQC-3.6)', () => {
     const queue = fakeQueue()
     const wrapped = withCatalogueJobOptions(queue)
 
-    await wrapped.add('insert-notification', { resourceId: 'r1' })
+    await wrapped.add('urgent-email', { resourceId: 'r1' })
 
     expect(queue.add).toHaveBeenCalledWith(
-      'insert-notification',
+      'urgent-email',
       { resourceId: 'r1' },
       expect.objectContaining({
         attempts: 3,
@@ -134,7 +134,7 @@ describe('withCatalogueJobOptions (BQC-3.6)', () => {
     const queue = fakeQueue()
     const wrapped = withCatalogueJobOptions(queue)
 
-    await wrapped.add('insert-notification', { n: 1 }, { jobId: 'dedupe-1' })
+    await wrapped.add('urgent-email', { n: 1 }, { jobId: 'dedupe-1' })
 
     const opts = (queue.add as ReturnType<typeof vi.fn>).mock.calls[0]![2] as JobsOptions
     expect(opts.jobId).toBe('dedupe-1')
@@ -145,8 +145,8 @@ describe('withCatalogueJobOptions (BQC-3.6)', () => {
     const queue = fakeQueue()
     withCatalogueJobOptions(queue)
 
-    await queue.add('insert-notification', {})
+    await queue.add('urgent-email', {})
 
-    expect(queue.add).toHaveBeenCalledWith('insert-notification', {})
+    expect(queue.add).toHaveBeenCalledWith('urgent-email', {})
   })
 })

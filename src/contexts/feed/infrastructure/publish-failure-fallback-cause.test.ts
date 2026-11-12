@@ -11,7 +11,7 @@ import {
 } from './notification-consumer-test-fixtures'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
-import type { InsertNotificationJobData } from './jobs/insert-notification.job'
+import type { QueuedNotice } from './notification-consumer-test-fixtures'
 
 const EVENT_ID = '30000000-0000-4000-8000-000000000081'
 
@@ -75,7 +75,7 @@ describe('publish failure fallback to the responsible managers', () => {
     await handleWorkflowNotificationEvent(deps, publishFailed())
 
     expect(deps.fakes.jobs).toHaveLength(1)
-    const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+    const data = deps.fakes.jobs[0]!.data as QueuedNotice
     expect(data).toEqual(
       expect.objectContaining({
         userId: NOTIF_TEST_IDS.manager1,

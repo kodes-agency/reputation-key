@@ -1,5 +1,4 @@
 import { NOTIFICATION_RIGHTS_TABLES } from '../domain/notification-rights-tables'
-import { Job as BullmqJob } from 'bullmq'
 import { describe, expect, it } from 'vitest'
 import {
   parseOperatorArgs,
@@ -15,20 +14,12 @@ import { rightsRequestCommandSpec } from '#/shared/ops/rights/rights-request-com
 import type { RightsAuditEvent } from '#/shared/ops/rights/rights-audit'
 import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
 import {
-  buildManualFinalWarningJobs,
+  buildManualFinalWarning,
   runNotificationRights,
-  type ManualFinalWarningJob,
+  type ManualFinalWarning,
   type NotificationRightsPort,
 } from './executor.server'
 import type { RightsRow, ScopedRightsRow } from './fields'
-
-/** BullMQ's own add-time rule for a custom job id, run without Redis. */
-function assertBullmqAcceptsJobId(jobId: string): void {
-  const queue = { opts: {}, keys: {}, toKey: () => '', name: 'notifications' }
-  const job = new BullmqJob(queue as never, 'probe', {}, { jobId }, jobId)
-  const validator = job as unknown as { validateOptions(json: unknown): void }
-  validator.validateOptions(job.asJSON())
-}
 
 const ORG_A = 'org-a'
 const ORG_B = 'org-b'
@@ -75,7 +66,7 @@ function seed(): Store {
   }
 }
 
-function fakePort(store: Store, enqueued: ManualFinalWarningJob[], deleted: string[]) {
+function fakePort(store: Store, sent: ManualFinalWarning[], deleted: string[]) {
   const inScope = (rows: ScopedRightsRow[], org: string, property?: string) =>
     rows.filter(
       (r) => r.organizationId === org && (!property || r.propertyId === property),
@@ -95,8 +86,8 @@ function fakePort(store: Store, enqueued: ManualFinalWarningJob[], deleted: stri
       deleted.push(`${s.organizationId}/${s.propertyId ?? '*'}`)
       return { notifications: 1 }
     },
-    enqueue: async (job) => {
-      enqueued.push(job)
+    send: async (warning) => {
+      sent.push(warning)
     },
   }
   return port
@@ -114,14 +105,14 @@ async function runScript(
     auditFails?: boolean
   } = {},
 ) {
-  const enqueued: ManualFinalWarningJob[] = []
+  const sent: ManualFinalWarning[] = []
   const deleted: string[] = []
   const exports: string[] = []
   const out: string[] = []
   const err: string[] = []
   const journalWrites: string[] = []
   const audits: RightsAuditEvent[] = []
-  const basePort = fakePort(store, enqueued, deleted)
+  const basePort = fakePort(store, sent, deleted)
   const port: NotificationRightsPort = tamper
     ? { ...basePort, history: async () => store.history }
     : basePort
@@ -164,7 +155,7 @@ async function runScript(
     ],
   }
   const code = await handleRightsRequest(effects, ctx, parsed.args, io)
-  return { code, out, err, enqueued, deleted, exports, journalWrites, audits }
+  return { code, out, err, sent, deleted, exports, journalWrites, audits }
 }
 
 describe('notification: rights through the rights-request handler', () => {
@@ -220,25 +211,37 @@ describe('notification: rights through the rights-request handler', () => {
     expect(result.code).toBe(0)
     expect(result.deleted).toEqual([])
     expect(result.journalWrites).toEqual([])
-    expect(result.enqueued.map((j) => j.data.userId).sort()).toEqual([
-      'admin-a',
-      'former-a',
-    ])
-    for (const job of result.enqueued) {
-      expect(job.data.propertyId).toBeNull()
-      expect(job.data.organizationId).toBe(ORG_A)
-      expect(job.data.type).toBe('account.organization_purge_pending')
+    expect(result.sent).toHaveLength(1)
+    const [warning] = result.sent
+    expect(warning!.eventId).toBe(`manual-final-warning:${ORG_A}:ticket:123`)
+    expect(warning!.notices.map((n) => n.userId).sort()).toEqual(['admin-a', 'former-a'])
+    for (const notice of warning!.notices) {
+      expect(notice.propertyId).toBeNull()
+      expect(notice.organizationId).toBe(ORG_A)
+      expect(notice.type).toBe('account.organization_purge_pending')
+      expect(notice.resourceType).toBe('organization')
+      expect(notice.resourceId).toBe(ORG_A)
+      expect(notice.payload).toEqual({ organizationName: `Name of ${ORG_A}` })
     }
-    const former = result.enqueued.find((j) => j.data.userId === 'former-a')
-    expect(former?.data.audience).toEqual({
+    const former = warning!.notices.find((n) => n.userId === 'former-a')
+    expect(former?.audience).toEqual({
       kind: 'affected_organization_user',
       eventId: 'removal-a',
       eventType: 'identity.member.removed',
     })
-    expect(result.enqueued.every((j) => !j.data.userId.endsWith('-b'))).toBe(true)
-    for (const job of result.enqueued) {
-      expect(job.data.payload).toEqual({ organizationName: `Name of ${ORG_A}` })
-    }
+    const admin = warning!.notices.find((n) => n.userId === 'admin-a')
+    expect(admin?.audience).toEqual({ kind: 'account_admin' })
+    expect(warning!.notices.every((n) => !String(n.userId).endsWith('-b'))).toBe(true)
+  })
+
+  it('sends nothing when the final warning runs without --apply', async () => {
+    const result = await runScript(seed(), ORG_A, ['organization', 'final-warning'])
+    expect(result.code).toBe(0)
+    expect(result.sent).toEqual([])
+    expect(result.deleted).toEqual([])
+    expect(result.out).toContain(
+      'notification: final warning: 1 account admins, 2 former members, no Property',
+    )
   })
 
   const CLOSURE = [
@@ -353,44 +356,32 @@ describe('notification: rights through the rights-request handler', () => {
   })
 })
 
-describe('buildManualFinalWarningJobs', () => {
-  it('is repeat-safe: the same request yields the same job ids', () => {
-    const input = {
-      organizationId: ORG_A,
-      requestRef: 'ticket:1',
-      payload: {},
-      accountAdmins: ['admin-a', 'admin-a'],
-      formerMembers: [{ userId: 'former-a', removalEventId: 'removal-a' }],
-    }
-    const first = buildManualFinalWarningJobs(input)
-    expect(first.map((j) => j.jobId)).toEqual(
-      buildManualFinalWarningJobs(input).map((j) => j.jobId),
+describe('buildManualFinalWarning', () => {
+  const input = {
+    organizationId: ORG_A,
+    requestRef: 'ticket:1',
+    payload: {},
+    accountAdmins: ['admin-a', 'admin-a'],
+    formerMembers: [
+      { userId: 'former-a', removalEventId: 'removal-a' },
+      { userId: 'admin-a', removalEventId: 'removal-x' },
+    ],
+  }
+
+  it('is repeat-safe: the same request names the same source event', () => {
+    expect(buildManualFinalWarning(input).eventId).toBe(
+      buildManualFinalWarning(input).eventId,
     )
-    expect(first).toHaveLength(2)
   })
 
-  it('gives ids BullMQ accepts for a ref that carries colons', () => {
-    const jobs = buildManualFinalWarningJobs({
-      organizationId: ORG_A,
-      requestRef: 'ticket:123',
-      payload: {},
-      accountAdmins: ['admin-a'],
-      formerMembers: [{ userId: 'former-a', removalEventId: 'removal-a' }],
-    })
-    expect(jobs).toHaveLength(2)
-    for (const job of jobs) assertBullmqAcceptsJobId(job.jobId)
-    expect(new Set(jobs.map((j) => j.jobId)).size).toBe(2)
+  it('names one notice per recipient, an admin once even when also a former member', () => {
+    const { notices } = buildManualFinalWarning(input)
+    expect(notices.map((n) => n.userId)).toEqual(['admin-a', 'former-a'])
   })
 
-  it('gives different requests different ids', () => {
-    const ids = (requestRef: string) =>
-      buildManualFinalWarningJobs({
-        organizationId: ORG_A,
-        requestRef,
-        payload: {},
-        accountAdmins: ['admin-a'],
-        formerMembers: [],
-      }).map((j) => j.jobId)
-    expect(ids('ticket:1')).not.toEqual(ids('ticket:2'))
+  it('gives different requests different source events', () => {
+    const event = (requestRef: string) =>
+      buildManualFinalWarning({ ...input, requestRef }).eventId
+    expect(event('ticket:1')).not.toEqual(event('ticket:2'))
   })
 })

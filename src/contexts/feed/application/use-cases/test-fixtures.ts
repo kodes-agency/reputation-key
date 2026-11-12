@@ -1,4 +1,4 @@
-// Shared test fixtures for the insert-notification use case + job.
+// Shared test fixtures for the insert-notification use case.
 // Eliminates the duplicated fake-deps construction between the use-case tests
 // and the job-handler tests. Mirrors the shared `buildTestX(overrides)` convention.
 
