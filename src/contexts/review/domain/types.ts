@@ -160,9 +160,12 @@ export type Reply = Readonly<{
  * Default source-lifecycle fields when constructing or refreshing a review.
  *
  * BQR-3.1 / ADR 0031:
- * - `lastFetchedAt` is always the successful fetch instant (`now`).
- * - `contentExpiresAt` is always derived from that fetch (policy TTL), never
- *   preserved from a prior observation or from publication time.
+ * - `lastFetchedAt` is the successful fetch instant (`now`). Stored, it means a
+ *   fetch within the last day: a re-read less than a day after the stored clock
+ *   leaves it and the expiry unmoved.
+ * - `contentExpiresAt` is derived from that fetch (policy TTL), never from
+ *   publication time; the observation writer keeps the stored one for a re-read
+ *   under a day later.
  * - `contentHash` is supplied by the caller from current source fields so
  *   unchanged vs content-changed refreshes can be distinguished (BQR-3.4).
  */
