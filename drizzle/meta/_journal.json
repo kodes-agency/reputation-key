@@ -1052,6 +1052,13 @@
       "when": 1801900008000,
       "tag": "0149_audit_logs_created_at_index",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1801901008000,
+      "tag": "0150_staff_address_leases",
+      "breakpoints": true
     }
   ]
 }

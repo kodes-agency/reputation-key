@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  bigint,
   boolean,
   check,
   foreignKey,
@@ -76,3 +77,15 @@ export const staffPropertySettings = pgTable(
     }).onDelete('restrict'),
   ],
 )
+
+/**
+ * One row per staff address while a staff command works on it, across
+ * Organizations. The primary key is the mutual exclusion; the key is a hash of
+ * the address, so the table holds no contact data. A holder that dies leaves a
+ * row that the next command takes over once it expires.
+ */
+export const staffAddressLeases = pgTable('staff_address_leases', {
+  addressKey: bigint('address_key', { mode: 'bigint' }).primaryKey(),
+  holder: uuid('holder').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})
