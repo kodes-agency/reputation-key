@@ -69,7 +69,6 @@ function createFakes(
     releaseForUser: portalRelease,
   } as unknown as PortalResponsibilityRuntime
   const inboxAssignments = {
-    releaseAssignmentsForUser: vi.fn(async () => ({ released: 2 })),
     releaseIneligibleAssignmentsForUser: vi.fn(async () => ({ released: 1 })),
   } as unknown as InboxAssignmentRuntime
   const eligible = new Set(seed.eligibleProperties ?? [])

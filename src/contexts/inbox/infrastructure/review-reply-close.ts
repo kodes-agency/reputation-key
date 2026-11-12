@@ -36,8 +36,8 @@ import {
 import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head'
 
 /**
- * Canonical Review Handling Cycle lock order is head -> Inbox item. `startNext`
- * uses the same order; reversing it here lets a material revision/reopen race
+ * Canonical Review Handling Cycle lock order is head -> Inbox item. Every
+ * cycle-opening writer uses the same order; reversing it here lets a material revision/reopen race
  * form a PostgreSQL row-lock cycle. A Review-attested epoch carry advances only
  * the head's exact-material fence under this lock; cycle, state, and status stay
  * unchanged because the normalized material did not create work.

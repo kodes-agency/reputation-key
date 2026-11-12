@@ -390,7 +390,6 @@ async function makeDeps(overrides: {
   } satisfies FeedbackLookupPort
 
   const handlingCycleStore = createReviewHandlingCycleStore(getDb())
-  vi.spyOn(handlingCycleStore, 'startNext')
 
   const replyObservationAuthority = {
     withExactCurrent: vi.fn(async (expectation, apply) => {
@@ -1166,7 +1165,6 @@ describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () =>
 
     await handleInboxReviewUpdated(deps, event)
 
-    expect(deps.handlingCycleStore.startNext).not.toHaveBeenCalled()
     expect(apply).toHaveBeenCalledTimes(1)
     expect(apply).toHaveBeenCalledWith(
       expect.objectContaining({

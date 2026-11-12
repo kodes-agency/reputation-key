@@ -132,18 +132,6 @@ export type InboxRepository = Readonly<{
     }>,
     now?: Date,
   ): Promise<InboxItem | null>
-  countByStatus(
-    orgId: OrganizationId,
-    status: InboxStatus,
-    propertyIds?: ReadonlyArray<PropertyId>,
-    sourceScopes?: ReadonlyArray<InboxSourceScope>,
-  ): Promise<number>
-  /** Count items with an active escalation flag (isEscalated AND not yet resolved). */
-  countEscalatedActive(
-    orgId: OrganizationId,
-    propertyIds?: ReadonlyArray<PropertyId>,
-    sourceScopes?: ReadonlyArray<InboxSourceScope>,
-  ): Promise<number>
   /** Count `open` items created after `since` (null since = all open). */
   countOpenSince(
     orgId: OrganizationId,

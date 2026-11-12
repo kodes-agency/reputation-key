@@ -40,38 +40,6 @@ export async function deleteGoogleSyncMirrors(
   return removed.length
 }
 
-/**
- * Refreshes the provider mirror. Publication columns are deliberately not in
- * the conflict set: a mirror refresh never clobbers an in-flight publication.
- */
-export async function upsertMirrorReply(
-  tx: Tx,
-  row: typeof replies.$inferInsert,
-  updatedAt: Date,
-): Promise<ReplyRow | undefined> {
-  const [saved] = await tx
-    .insert(replies)
-    .values(row)
-    .onConflictDoUpdate({
-      target: [replies.reviewId, replies.source, replies.organizationId],
-      set: {
-        text: row.text,
-        status: row.status,
-        approvedBy: row.approvedBy,
-        rejectedBy: row.rejectedBy,
-        rejectionReason: row.rejectionReason,
-        aiGenerated: row.aiGenerated,
-        stateRevision: row.stateRevision,
-        submittedAt: row.submittedAt,
-        approvedAt: row.approvedAt,
-        publishedAt: row.publishedAt,
-        updatedAt,
-      },
-    })
-    .returning()
-  return saved
-}
-
 /** The draft state a Reply returns to when provider truth cancels its publication. */
 const cancelledByProviderTruth = (observedAt: Date) => ({
   status: 'draft' as const,
