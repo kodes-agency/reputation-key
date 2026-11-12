@@ -26,6 +26,7 @@ import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { BackLink } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
 import { InlineLink } from '#/components/ui/inline-link'
+import { PHONE_LINK_TOUCH } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import type { ReactNode } from 'react'
 import type { PortalDetailTab } from '#/contexts/portal/workspace/ui/portal-detail-rules'
@@ -207,7 +208,10 @@ function ReviewActions({
             to="/properties/$propertyId/portals/$portalId/review"
             params={{ propertyId, portalId }}
             search={reviewSearch}
-            className="text-sm text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground"
+            className={cn(
+              'text-sm text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground',
+              PHONE_LINK_TOUCH,
+            )}
           >
             {pendingNote}
           </Link>

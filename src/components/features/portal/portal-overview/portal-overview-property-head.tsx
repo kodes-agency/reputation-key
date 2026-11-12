@@ -6,7 +6,7 @@
 import { Link } from '@tanstack/react-router'
 import { Building2, TriangleAlert } from 'lucide-react'
 import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
-import { ROW_NAME_LINK } from '#/components/ui/row-link'
+import { ROW_NAME_LINK, PHONE_LINK_TOUCH } from '#/components/ui/row-link'
 import { TableCell, TableHead, TableRow } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
 import { PortalMeasureCells } from './portal-overview-measure-cells'
@@ -94,7 +94,7 @@ export function PortalOverviewPropertyHead({
         <Link
           to="/properties/$propertyId/portals"
           params={{ propertyId: property.propertyId }}
-          className={cn('font-semibold', ROW_NAME_LINK)}
+          className={cn('font-semibold', ROW_NAME_LINK, PHONE_LINK_TOUCH)}
         >
           {name}
         </Link>

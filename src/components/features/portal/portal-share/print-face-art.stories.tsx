@@ -102,6 +102,7 @@ function Family(args: Args) {
   return (
     <main
       style={{
+        overflowX: 'auto',
         padding: 24,
         background: 'var(--muted)',
         display: 'flex',

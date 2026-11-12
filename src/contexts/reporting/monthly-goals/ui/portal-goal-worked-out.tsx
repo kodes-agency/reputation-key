@@ -26,7 +26,9 @@ export function PortalGoalWorkedOut({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       {/* In the sentence it explains, like a glossary term: no tap height of its own. */}
-      <ExplainTrigger className={triggerClassName}>{WORKED_OUT_TITLE}</ExplainTrigger>
+      <ExplainTrigger touch className={triggerClassName}>
+        {WORKED_OUT_TITLE}
+      </ExplainTrigger>
       <PopoverContent
         side="top"
         aria-label={WORKED_OUT_TITLE}

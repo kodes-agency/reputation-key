@@ -7,6 +7,7 @@ import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
 import { EXPLAIN_UNDERLINE } from '#/components/ui/explain-trigger'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
+import { PHONE_LINK_TOUCH } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import { issuesTone, type PortalIssue, type PortalIssueFix } from './portal-attention'
 import { PORTAL_LINE_LINK, PORTAL_LINE_TONE } from './portal-line-link'
@@ -30,7 +31,10 @@ const FIX_LABEL: Readonly<Record<PortalIssueFix, string>> = {
   page: 'Open the portal',
 }
 
-const LINK = 'text-xs font-medium text-foreground underline underline-offset-4'
+const LINK = cn(
+  'text-xs font-medium text-foreground underline underline-offset-4',
+  PHONE_LINK_TOUCH,
+)
 
 /**
  * The link to where an issue is put right: Share, the responsible managers, the

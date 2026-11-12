@@ -21,13 +21,14 @@ function ListToolbar({ className, ...props }: React.ComponentProps<'div'>) {
 /**
  * The `ResultCount` and the Clear beside it, as one unit. A ghost Clear that wrapped
  * alone would start a line 16px in from the search field (its own padding); together
- * they wrap as one, the count at the gutter and Clear after it.
+ * they wrap as one, the count at the gutter and Clear after it; in a line too narrow
+ * for both, Clear drops under the count.
  */
 function ListToolbarStatus({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="list-toolbar-status"
-      className={cn('flex items-center gap-2', className)}
+      className={cn('flex flex-wrap items-center gap-x-2', className)}
       {...props}
     />
   )

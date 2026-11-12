@@ -21,7 +21,7 @@ const meta = {
   parameters: { layout: 'centered' },
   decorators: [
     (Story) => (
-      <div style={{ width: COLUMN_WIDTH, padding: 24 }}>
+      <div style={{ width: '100%', maxWidth: COLUMN_WIDTH, padding: 24 }}>
         <Story />
       </div>
     ),
