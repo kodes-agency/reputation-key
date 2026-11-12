@@ -12,7 +12,7 @@ import {
   printKitAvailability,
   printKitHasLiveVersion,
 } from './print-kit-state'
-import { usePrintFinal } from './use-print-final'
+import { usePrint } from './use-print'
 import { usePrintKit } from './use-print-kit'
 
 /** Stands in for the read when the tab has no print kit; the query is off then and never calls it. */
@@ -46,13 +46,13 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
   const blocked =
     notLive?.body ??
     printKitAvailability({ canDownloadAgain: view.canDownloadAgain }).reason
-  const final = usePrintFinal({
+  const printState = usePrint({
     portalId: props.portalId,
     view: show ? printKit.view : null,
     enabled: show && printKit.view !== null,
     countryCode: props.countryCode ?? null,
     qrAddress: props.issuedLink?.publicUrl ?? null,
-    downloadMutation: props.printKit?.downloadFinalMutation,
+    downloadMutation: props.printKit?.downloadPrintMutation,
     saveWordingMutation: props.printKit?.saveWordingMutation,
     onDownloaded: printKit.refresh,
     onWordingSaved: printKit.refresh,
@@ -66,7 +66,7 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
     settling,
     notLive,
     printKit,
-    final,
-    finalUnavailableReason: blocked ?? final.refusal,
+    printState,
+    printUnavailableReason: blocked ?? printState.refusal,
   }
 }

@@ -111,7 +111,7 @@ function PortalShareTab({ actions }: PortalTabActions) {
         revealAddress: actions.revealAddress,
         printKit: {
           read: getPortalPrintKit,
-          downloadFinal: actions.downloadPrintFinal,
+          downloadPrint: actions.downloadPrint,
           saveWording: actions.savePrintWording,
         },
       }}
