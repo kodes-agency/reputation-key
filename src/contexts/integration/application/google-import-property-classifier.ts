@@ -1,7 +1,7 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { GbpLocationCandidate } from './google-provider-contract'
-import type { ImportCandidateEligibility } from './google-import-v2-contract'
+import type { ImportCandidateEligibility } from './google-import-contract'
 import type { ImportDiscoveryCandidate } from './ports/google-import-reference-store.port'
 import type { GoogleImportPropertyClassifier } from './google-import-discovery'
 

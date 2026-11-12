@@ -27,11 +27,14 @@ describe('Integration infrastructure time authority', () => {
 
   it('threads the context clock into every affected store factory', () => {
     const build = read('src/contexts/integration/build.ts')
+    const connections = read(
+      'src/contexts/integration/connections/connections-runtime.server.ts',
+    )
 
-    expect(build).toMatch(
+    expect(connections).toMatch(
       /createGoogleConnectionRepository\(\s*deps\.db,\s*deps\.clock,?\s*\)/u,
     )
-    expect(build).toMatch(
+    expect(connections).toMatch(
       /createAtomicIntegrationCommandStore\(\s*deps\.db,\s*deps\.clock,?\s*\)/u,
     )
     expect(build).toMatch(/createImportStore\(\s*deps\.db,\s*deps\.clock,/u)

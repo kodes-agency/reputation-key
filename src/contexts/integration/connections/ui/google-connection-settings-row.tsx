@@ -1,4 +1,4 @@
-import { ConnectGoogleButton } from '#/components/features/integration/connect-google-button'
+import { ConnectGoogleButton } from './connect-google-button'
 import {
   ConfirmationDialog,
   ConfirmationTrigger,
@@ -9,7 +9,7 @@ import type {
   GoogleConnectionDto,
   GoogleConnectionStatus,
 } from '#/contexts/integration/application/public-api'
-import { googleConnectionLabel } from '#/components/features/integration/google-account-selector/google-connection-label'
+import { googleConnectionLabel } from './google-connection-label'
 import {
   accountEmailConsentForConnection,
   reauthorizationForConnection,

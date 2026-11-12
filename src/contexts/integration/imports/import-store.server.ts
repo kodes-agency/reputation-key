@@ -4,9 +4,9 @@ import type { Clock } from '#/shared/domain/clock'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import type {
-  GoogleImportV2Intent,
-  GoogleImportV2Store,
-} from '../application/ports/google-import-v2-store.port'
+  GoogleImportIntent,
+  GoogleImportStore,
+} from '../application/ports/google-import-store.port'
 import {
   completeImportItem,
   type GoogleImportCompletionDeps,
@@ -32,7 +32,7 @@ import {
 /** The root, every checkpoint and the dispatch fact either all commit or none do. */
 async function insertImport(
   db: Database,
-  intent: GoogleImportV2Intent,
+  intent: GoogleImportIntent,
 ): Promise<'committed' | 'conflict'> {
   if (
     intent.items.length === 0 ||
@@ -94,8 +94,8 @@ export function createImportStore(
   db: Database,
   clock: Clock,
   completion: GoogleImportCompletionDeps,
-): GoogleImportV2Store {
-  return Object.freeze<GoogleImportV2Store>({
+): GoogleImportStore {
+  return Object.freeze<GoogleImportStore>({
     ...createImportClaims(db),
     ...createImportLifecycleStore(db),
     ...createImportRetention(db),

@@ -7,8 +7,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
-import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from '../application/google-import-v2-contract'
-import { createGoogleImportV2Queue } from './google-import-v2-queue'
+import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from '../application/google-import-contract'
+import { createGoogleImportQueue } from './google-import-queue'
 
 const item = (suffix: number) => ({
   jobId: `google-import-item-${suffix}`,
@@ -28,7 +28,7 @@ describe('Google import item queue', () => {
   it('queues a batch in one call, each item under its Organization and job id', async () => {
     const queue = createQueue()
 
-    await createGoogleImportV2Queue(queue).addImportItemJobs([item(1), item(2)])
+    await createGoogleImportQueue(queue).addImportItemJobs([item(1), item(2)])
 
     expect(queue.addBulk).toHaveBeenCalledExactlyOnceWith(
       [item(1), item(2)].map((data) => ({
@@ -52,7 +52,7 @@ describe('Google import item queue', () => {
   it('queues nothing for an empty batch', async () => {
     const queue = createQueue()
 
-    await createGoogleImportV2Queue(queue).addImportItemJobs([])
+    await createGoogleImportQueue(queue).addImportItemJobs([])
 
     expect(queue.addBulk).not.toHaveBeenCalled()
   })
@@ -61,7 +61,7 @@ describe('Google import item queue', () => {
     const queue = createQueue()
 
     await expect(
-      createGoogleImportV2Queue(queue).addImportItemJobs([
+      createGoogleImportQueue(queue).addImportItemJobs([
         { ...item(1), organizationId: '' },
       ]),
     ).rejects.toThrow('job execution envelope requires organizationId')

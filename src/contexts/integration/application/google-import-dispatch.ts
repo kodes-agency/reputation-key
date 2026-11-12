@@ -1,12 +1,12 @@
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type { ReceiptStatus } from '#/shared/outbox'
 import type {
-  GoogleImportV2ItemJobData,
-  GoogleImportV2QueuePort,
+  GoogleImportItemJobData,
+  GoogleImportQueuePort,
 } from './ports/gbp-queue.port'
-import type { GoogleImportV2Store } from './ports/google-import-v2-store.port'
-import type { GooglePropertyImportItemJobId } from './google-import-v2-contract'
-import { GOOGLE_PROPERTY_IMPORT_REQUESTED_EVENT } from './google-import-v2-contract'
+import type { GoogleImportStore } from './ports/google-import-store.port'
+import type { GooglePropertyImportItemJobId } from './google-import-contract'
+import { GOOGLE_PROPERTY_IMPORT_REQUESTED_EVENT } from './google-import-contract'
 
 const GOOGLE_IMPORT_DISPATCH_CONSUMER = 'integration.property-import-dispatch' as const
 
@@ -79,8 +79,8 @@ function parseRequestedPayload(event: GoogleImportDispatchEvent): RequestedPaylo
 
 export function createGoogleImportDispatchHandler(
   deps: Readonly<{
-    store: GoogleImportV2Store
-    queue: GoogleImportV2QueuePort
+    store: GoogleImportStore
+    queue: GoogleImportQueuePort
     receipts: DispatchReceiptWriter
   }>,
 ) {
@@ -101,7 +101,7 @@ export function createGoogleImportDispatchHandler(
       return { status: 'obsolete' }
     }
 
-    const jobs: GoogleImportV2ItemJobData[] = items.map((item) => ({
+    const jobs: GoogleImportItemJobData[] = items.map((item) => ({
       jobId: googlePropertyImportItemJobId({
         itemId: item.itemId,
         lifecycleVersion: item.expectedConnectionLifecycleVersion,
