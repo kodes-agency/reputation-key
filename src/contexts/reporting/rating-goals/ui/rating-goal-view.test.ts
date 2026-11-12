@@ -155,6 +155,15 @@ describe('a goal reached or ended lately', () => {
     expect(recentOutcome([{ ...ended, endedReason: 'manager' }, reached], NOW)).toBeNull()
   })
 
+  it('is news for exactly fourteen days and none a millisecond later', () => {
+    const at = (offsetMs: number) =>
+      new Date(NOW.getTime() - 14 * DAY - offsetMs).toISOString()
+
+    expect(recentOutcome([{ ...reached, reachedAt: at(-DAY) }], NOW)).not.toBeNull()
+    expect(recentOutcome([{ ...reached, reachedAt: at(0) }], NOW)).not.toBeNull()
+    expect(recentOutcome([{ ...reached, reachedAt: at(1) }], NOW)).toBeNull()
+  })
+
   it('is no news once it is more than two weeks old, or when History is empty', () => {
     const old = new Date(NOW.getTime() - (OUTCOME_SHOWN_FOR_DAYS + 1) * DAY)
 
