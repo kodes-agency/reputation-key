@@ -47,6 +47,7 @@ import { createAtomicReviewCommandStore } from './review-command-store'
 import { createReviewFirstSightingRecorder } from './repositories/review-first-sighting.repository'
 import { createReviewHeadCheckRepository } from './repositories/review-head-check.repository'
 import { createReviewProviderSnapshotRepository } from './repositories/review-provider-snapshot.repository'
+import { UNLISTED_REVIEW_HOLD_RUNS } from './repositories/review-provider-snapshot-listing'
 import { createReviewProviderSubjectSightings } from './repositories/review-provider-subject-link'
 import { createReviewRepository } from './repositories/review.repository'
 import { createReviewSyncActivityRecorder } from './repositories/review-sync-activity.repository'
@@ -155,30 +156,33 @@ const quietActivity = {
 
 let queued: SyncPropertyReviewsJobData[] = []
 
-const handler = createSyncPropertyReviewsHandler({
-  runSnapshot: runReviewProviderSnapshot({
-    repository: snapshotRepository,
-    googleReviewApi,
+const syncHandler = (repository = snapshotRepository) =>
+  createSyncPropertyReviewsHandler({
+    runSnapshot: runReviewProviderSnapshot({
+      repository,
+      googleReviewApi,
+      propertySourceEpoch,
+      observationWriter,
+      subjectKeyService,
+      syncActivity: quietActivity,
+      clock: () => new Date(),
+      logger,
+    }),
     propertySourceEpoch,
-    observationWriter,
-    subjectKeyService,
+    enqueueContinuation: async (data) => {
+      queued.push(data)
+    },
     syncActivity: quietActivity,
+    discoveryRepo: {
+      markDiscoveryDeferred: vi.fn(async () => undefined),
+      findFailureState: vi.fn(async () => null),
+      markSyncSucceeded: vi.fn(async () => undefined),
+    },
     clock: () => new Date(),
-    logger,
-  }),
-  propertySourceEpoch,
-  enqueueContinuation: async (data) => {
-    queued.push(data)
-  },
-  syncActivity: quietActivity,
-  discoveryRepo: {
-    markDiscoveryDeferred: vi.fn(async () => undefined),
-    findFailureState: vi.fn(async () => null),
-    markSyncSucceeded: vi.fn(async () => undefined),
-  },
-  clock: () => new Date(),
-  hotIntervalMs: 15 * 60 * 1000,
-})
+    hotIntervalMs: 15 * 60 * 1000,
+  })
+
+const handler = syncHandler()
 
 const SYNC: SyncPropertyReviewsJobData = {
   organizationId: ORG,
@@ -189,13 +193,13 @@ const SYNC: SyncPropertyReviewsJobData = {
 }
 
 /** One full sync as the worker runs it, step after step, until none is left. */
-async function sync(): Promise<unknown> {
+async function sync(run = handler): Promise<unknown> {
   queued = [SYNC]
   let last: unknown = null
   for (let steps = 0; queued.length > 0; steps += 1) {
     if (steps === MAX_STEPS) throw new Error('The sync never settled')
     const data = queued.shift()
-    last = await handler({ id: `step-${steps}`, data } as never)
+    last = await run({ id: `step-${steps}`, data } as never)
   }
   return last
 }
@@ -292,6 +296,27 @@ async function subjectOf(id: string) {
   return result.rows[0]
 }
 
+/** The mapping's revision beside the stored Review's own. */
+async function revisionsOf(id: string) {
+  const result = await db.execute(sql`
+    SELECT s.last_source_revision AS mapped, r.source_revision AS stored
+    FROM review_provider_subjects s
+    JOIN reviews r ON r.id = s.review_id
+    WHERE s.organization_id = ${ORG} AND s.review_id = ${id}
+  `)
+  return result.rows[0]
+}
+
+/** How the Property's runs ended, oldest first. */
+async function runEndings(): Promise<unknown[]> {
+  const result = await db.execute(sql`
+    SELECT state, failure_code FROM review_provider_snapshot_runs
+    WHERE organization_id = ${ORG}
+    ORDER BY started_at, id
+  `)
+  return result.rows
+}
+
 async function sourceStateOf(id: string): Promise<unknown> {
   const result = await db.execute(sql`
     SELECT source_content_state FROM reviews
@@ -308,6 +333,9 @@ async function ageFirstMiss(): Promise<void> {
     WHERE organization_id = ${ORG} AND first_missing_at IS NOT NULL
   `)
 }
+
+const listingsRead = (): number =>
+  vi.mocked(googleReviewApi.listReviewsPage).mock.calls.length
 
 const directReadsOf = (review: GoogleReview): number =>
   vi
@@ -390,6 +418,7 @@ beforeEach(async () => {
   readable = []
   headPage = []
   vi.mocked(googleReviewApi.getReview).mockClear()
+  vi.mocked(logger.warn).mockClear()
   // A completed listing of the Property, as every head check needs.
   listed = [first, second]
   await expect(sync()).resolves.toMatchObject({ status: 'completed' })
@@ -425,6 +454,31 @@ const storedBy = {
       status: 'persisted',
       isNew: true,
     })
+  },
+} as const
+
+/** The same review as Google shows it after its guest edited it. */
+const editOf = (review: GoogleReview): GoogleReview => ({
+  ...review,
+  text: `${review.text}, edited`,
+  sourceUpdatedAt: new Date(PUBLISHED.getTime() + 24 * 60 * 60 * 1000),
+})
+
+const editedBy = {
+  'a persisting head check': async (review: GoogleReview) => {
+    headPage = [review, first, second]
+    const checked = await headCheck({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      connectionId: CONNECTION,
+      sourceEpoch: 0,
+      locationName: LOCATION,
+      mode: 'persist',
+    })
+    expect(checked).toMatchObject({ persistence: { outcome: 'stored' } })
+  },
+  'a Google push': async (review: GoogleReview) => {
+    await expect(push(review)).resolves.toMatchObject({ status: 'persisted' })
   },
 } as const
 
@@ -470,5 +524,102 @@ describe.each(Object.keys(storedBy) as (keyof typeof storedBy)[])(
       expect(await sourceStateOf(id)).toBe('active')
       expect(await subjectOf(id)).toMatchObject({ state: 'linked' })
     })
+
+    it('is removed after an edit stored the same way, with its mapping at the edited revision', async () => {
+      await storedBy[via](unlisted)
+      const id = await storedIdOf(unlisted)
+      await editedBy[via](editOf(unlisted))
+      const revisions = await revisionsOf(id)
+      expect(Number(revisions?.stored)).toBeGreaterThan(1)
+      expect(Number(revisions?.mapped)).toBe(Number(revisions?.stored))
+
+      await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+      await ageFirstMiss()
+      await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+
+      expect(directReadsOf(unlisted)).toBe(1)
+      expect(await sourceStateOf(id)).toBe('provider_deleted')
+    })
   },
 )
+
+describe('a review Google returns on a direct read but leaves out of its listing (real PostgreSQL)', () => {
+  it('stops costing reads for the hold, then alerts once when it is still left out', async () => {
+    await storedBy['a Google push'](unlisted)
+    const id = await storedIdOf(unlisted)
+    readable = [unlisted]
+    const before = listingsRead()
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+    const listingsPerRun = listingsRead() - before
+
+    // The direct read finds it: the run ends quietly as a listing that moved
+    // and a fresh run completes at once.
+    await ageFirstMiss()
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+    expect(directReadsOf(unlisted)).toBe(1)
+
+    // From then on every run costs one listing and no read.
+    for (let run = 1; run < UNLISTED_REVIEW_HOLD_RUNS; run += 1) {
+      const listingsBefore = listingsRead()
+      await ageFirstMiss()
+      await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+      expect(listingsRead() - listingsBefore).toBe(listingsPerRun)
+    }
+    expect(directReadsOf(unlisted)).toBe(1)
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      { event: 'review_snapshot_unlisted_review_still_found' },
+      expect.any(String),
+    )
+
+    // The hold over, the read finds it still left out: the run fails loudly.
+    await ageFirstMiss()
+    await expect(sync()).rejects.toMatchObject({
+      name: 'ReviewProviderSnapshotFailure',
+      failureCode: 'confirmation_set_changed',
+    })
+    expect(directReadsOf(unlisted)).toBe(2)
+    expect((await runEndings()).at(-1)).toEqual({
+      state: 'failed',
+      failure_code: 'confirmation_set_changed',
+    })
+    expect(logger.warn).toHaveBeenCalledWith(
+      { event: 'review_snapshot_unlisted_review_still_found' },
+      expect.any(String),
+    )
+    expect(await sourceStateOf(id)).toBe('active')
+  }, 120_000)
+})
+
+describe('a review edited and mapped by a push while a run is listing it (real PostgreSQL)', () => {
+  it('ends that run quietly and the fresh run completes', async () => {
+    const posted = guestReview('posted-mid-run')
+    const edited = editOf(posted)
+    listed = [posted, first, second]
+    let raced = false
+    // The run has written the review at its first revision; before its page
+    // commits, a push stores the edit and maps the review.
+    const racing = syncHandler({
+      ...snapshotRepository,
+      commitPage: async (input) => {
+        if (!raced) {
+          raced = true
+          await expect(push(edited)).resolves.toMatchObject({ status: 'persisted' })
+          listed = [edited, first, second]
+        }
+        return snapshotRepository.commitPage(input)
+      },
+    })
+
+    await expect(sync(racing)).resolves.toMatchObject({ status: 'completed' })
+
+    expect(raced).toBe(true)
+    expect((await runEndings()).slice(-2)).toEqual([
+      { state: 'failed', failure_code: 'listing_changed' },
+      { state: 'completed', failure_code: null },
+    ])
+    const id = await storedIdOf(posted)
+    const revisions = await revisionsOf(id)
+    expect(Number(revisions?.mapped)).toBe(Number(revisions?.stored))
+    expect(await subjectOf(id)).toMatchObject({ state: 'linked', missed: false })
+  })
+})

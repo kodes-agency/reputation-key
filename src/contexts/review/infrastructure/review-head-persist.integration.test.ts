@@ -535,7 +535,7 @@ describe('a persisting head check (real PostgreSQL)', () => {
     expect(await factRows()).toHaveLength(2)
   })
 
-  it('maps each review it stores to its provider subject, seen by no run, and leaves a listed one as the listing mapped it', async () => {
+  it('maps each review it stores to its provider subject, seen by no run, and moves only the revision of a listed one', async () => {
     const earlier = new Date(Date.now() - 2 * DAY_MS)
     const listed = providerReview('listed')
     const stored = await observeEarlier(listed, earlier)
@@ -598,11 +598,12 @@ describe('a persisting head check (real PostgreSQL)', () => {
         last_seen_snapshot_run_id: null,
         first_missing_snapshot_run_id: null,
       },
-      // Insert-only: the listing's mapping stays as the listing left it.
+      // The listing's mapping keeps the run that saw it; only its revision
+      // follows the edit, so the removal step still matches the Review.
       {
         external_id: 'head-persist-listed',
         state: 'linked',
-        last_source_revision: String(stored.sourceRevision),
+        last_source_revision: String(stored.sourceRevision + 1),
         last_seen_snapshot_run_id: runId,
         first_missing_snapshot_run_id: null,
       },

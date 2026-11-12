@@ -14,7 +14,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // every completed scan died before writing its confirmation transition. These
 // tests execute the real statements.
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -1620,10 +1620,10 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     const OTHER_REVIEW_ID = '72000000-0000-4000-8000-000000000023'
     const FALLBACK_ACTIVE_KEY = 'sighting-test-active'
     const RETIRED_KEY = 'sighting-test-retired'
+    const STAGED_KEY = 'sighting-test-staged'
     const KEY = new Uint8Array(32).fill(5)
-    const sightings = createReviewProviderSubjectSightings(db, {
-      warn: () => undefined,
-    })
+    const warn = vi.fn()
+    const sightings = createReviewProviderSubjectSightings(db, { warn })
     let activeKey = FALLBACK_ACTIVE_KEY
     let insertedActiveKey = false
 
@@ -1667,7 +1667,7 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       await resetSightingScope()
       await db.execute(sql`
         DELETE FROM review_provider_subject_hmac_key_versions
-        WHERE key_version = ${RETIRED_KEY}
+        WHERE key_version IN (${RETIRED_KEY}, ${STAGED_KEY})
           OR (${insertedActiveKey} AND key_version = ${FALLBACK_ACTIVE_KEY})
       `)
     })
@@ -1743,27 +1743,54 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     const missOf = async () =>
       (await sightedSubject())?.first_missing_snapshot_run_id ?? null
 
-    it('maps it as linked and seen by no run, and leaves an existing mapping alone', async () => {
+    it('maps it as linked and seen by no run, then keeps only its revision current', async () => {
       await resetSightingScope()
 
       await expect(sight()).resolves.toBe('linked')
-      expect(await sightedSubject()).toMatchObject({
+      const linked = await sightedSubject()
+      expect(linked).toMatchObject({
         state: 'linked',
         last_source_revision: '1',
         last_seen_snapshot_run_id: null,
         first_missing_snapshot_run_id: null,
       })
 
-      // A later sighting of the same review, at a newer revision: insert-only.
+      // A later sighting of the same review, at a newer revision: the removal
+      // step compares this revision with the Review's own.
+      await expect(sight({ sourceRevision: 3 })).resolves.toBe('already_mapped')
+      const edited = await sightedSubject()
+      expect(edited).toMatchObject({ state: 'linked', last_source_revision: '3' })
+      expect(new Date(String(edited?.last_observed_at)).getTime()).toBeGreaterThan(
+        new Date(String(linked?.last_observed_at)).getTime(),
+      )
+      // An older revision, read before that edit, never moves it back.
       await expect(sight({ sourceRevision: 2 })).resolves.toBe('already_mapped')
+      expect(await sightedSubject()).toMatchObject({ last_source_revision: '3' })
+      await resetSightingScope()
+    })
+
+    it('leaves a mapping of another review alone and logs the collision without identifiers', async () => {
+      await resetSightingScope()
+      await expect(sight()).resolves.toBe('linked')
+      warn.mockClear()
+
       // Another review under the same locator: the mapping it found wins.
-      await expect(sight({ reviewId: OTHER_REVIEW_ID })).resolves.toBe('already_mapped')
-      expect(await sightedSubject()).toMatchObject({ last_source_revision: '1' })
+      await expect(sight({ reviewId: OTHER_REVIEW_ID, sourceRevision: 5 })).resolves.toBe(
+        'collision',
+      )
+
       const rows = await db.execute(sql`
-        SELECT review_id FROM review_provider_subjects
+        SELECT review_id, last_source_revision FROM review_provider_subjects
         WHERE review_id IN (${SIGHTED_REVIEW_ID}, ${OTHER_REVIEW_ID})
       `)
-      expect(rows.rows).toEqual([{ review_id: SIGHTED_REVIEW_ID }])
+      expect(rows.rows).toEqual([
+        { review_id: SIGHTED_REVIEW_ID, last_source_revision: '1' },
+      ])
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn.mock.calls[0]?.[0]).toEqual({
+        event: 'review_provider_subject_sighting_collision',
+        count: 1,
+      })
       await resetSightingScope()
     })
 
@@ -1819,6 +1846,67 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       await expect(sight({ keyVersion: RETIRED_KEY })).resolves.toBe('key_rotating')
 
       expect(await sightedSubject()).toBeUndefined()
+    })
+
+    // Page commits and sightings only read the key rows: one does not wait for
+    // another, while a rotation, which updates them, waits for both.
+    it('does not wait for another writer holding the active key row', async () => {
+      await resetSightingScope()
+      const holder = await getPool().connect()
+      try {
+        await holder.query('BEGIN')
+        await holder.query(
+          `SELECT 1 FROM review_provider_subject_hmac_key_versions
+           WHERE key_version = $1 FOR SHARE`,
+          [activeKey],
+        )
+        const blocked = new Promise<'blocked'>((resolve) => {
+          setTimeout(() => resolve('blocked'), 5_000)
+        })
+
+        await expect(Promise.race([sight(), blocked])).resolves.toBe('linked')
+      } finally {
+        await holder.query('ROLLBACK')
+        holder.release()
+        await resetSightingScope()
+      }
+    })
+
+    // Candidates are never derived under a staged next key. Activation needs
+    // that key to have no mapping, so one written under the active key while
+    // a rotation is staged leaves the activation free to proceed; the active
+    // key then retires, and cannot be removed while a mapping still uses it.
+    it('maps under the active key while a next key is staged, and nothing under the staged key', async () => {
+      await resetSightingScope()
+      await db.execute(sql`
+        INSERT INTO review_provider_subject_hmac_key_versions
+          (key_version, key_digest, state, generation, created_at)
+        VALUES (${STAGED_KEY}, ${'7'.repeat(64)}, 'trusted_next', 999999,
+          transaction_timestamp())
+      `)
+      try {
+        await expect(sight()).resolves.toBe('linked')
+
+        expect(
+          (
+            await db.execute(sql`
+              SELECT key_version FROM review_provider_subjects
+              WHERE review_id = ${SIGHTED_REVIEW_ID}
+            `)
+          ).rows,
+        ).toEqual([{ key_version: activeKey }])
+        const staged = await db.execute(sql`
+          SELECT count(*)::int AS mappings FROM review_provider_subjects
+          WHERE key_version = ${STAGED_KEY}
+        `)
+        expect(staged.rows[0]).toEqual({ mappings: 0 })
+      } finally {
+        await resetSightingScope()
+        await db.execute(sql`
+          DELETE FROM review_provider_subject_hmac_key_versions
+          WHERE key_version = ${STAGED_KEY}
+        `)
+      }
     })
   })
 })

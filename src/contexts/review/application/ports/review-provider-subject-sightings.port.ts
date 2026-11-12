@@ -23,15 +23,17 @@ export type ReviewProviderSubjectSighting = Readonly<{
 export type ReviewProviderSubjectSightingOutcome =
   /** No mapping existed: one is linked now. */
   | 'linked'
-  /** A mapping of the locator or of the review exists and is left as it is. */
+  /** A mapping of this review exists: it stays, with its revision kept current. */
   | 'already_mapped'
+  /** The locator or the review is mapped to another resource: left as it is. */
+  | 'collision'
   /** A key rotation is staged: nothing is written; the next listing maps it. */
   | 'key_rotating'
   /** The write failed and was logged; the next listing maps it. */
   | 'unavailable'
 
 export type ReviewProviderSubjectSightings = Readonly<{
-  /** Insert-only. Never throws. */
+  /** Inserts a missing mapping or keeps one's revision current. Never throws. */
   record(
     sighting: ReviewProviderSubjectSighting,
   ): Promise<ReviewProviderSubjectSightingOutcome>
