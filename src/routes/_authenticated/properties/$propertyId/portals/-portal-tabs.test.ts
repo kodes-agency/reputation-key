@@ -359,7 +359,6 @@ describe('Portal tab reads', () => {
     }
     expect(resources.reads.linktree.errorUpdateCount).toBeGreaterThan(0)
     screen.tab = 'history'
-    client.setQueryData(portalKeys.publicationHistory('portal-1'), { current: null })
     expect(render(client)).toContain('History ready')
   })
 })

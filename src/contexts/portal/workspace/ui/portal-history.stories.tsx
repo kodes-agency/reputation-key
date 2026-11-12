@@ -1,13 +1,16 @@
 // fallow-ignore-file code-duplication
 // The History tab (board 08): the ledger beside the Versions rail, and making
-// an earlier version live again. The harness holds the state the tab holds
-// (filter, what is open) over fixed data, so every story is the real view.
+// an earlier version live again. The harness mounts the real tab parts over
+// reads that answer from fixed data (or do not answer, or are refused), so every
+// story is the real view in the state its reads put it in.
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { portalKeys } from '#/shared/queries/query-keys'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
-import { buildHistoryRows, type HistoryFilterKey } from './portal-history-rows'
+import type { HistoryFilterKey } from './portal-history-rows'
 import {
   STORY_ENTRIES,
   STORY_LIVE_4_DETAILS,
@@ -19,10 +22,15 @@ import {
   STORY_VERSION_DETAILS,
   STORY_VERSIONS,
   storyHistoryFor,
+  storyPublicationHistory,
 } from './__fixtures__/portal-history-stories-data'
-import { PortalHistoryView, type HistorySelection } from './portal-history-view'
-import { listedTileCount } from './portal-version-page-note'
-import { PortalVersionPreview } from './portal-version-preview'
+import {
+  PortalHistoryProvider,
+  type HistorySelection,
+  type MakeVersionLiveAction,
+  type PortalHistoryReads,
+} from './portal-history-context'
+import { PortalHistoryView } from './portal-history-view'
 import { storyVersionPreview } from './__fixtures__/portal-version-preview-stories-data'
 
 type HarnessProps = Readonly<{
@@ -30,23 +38,36 @@ type HarnessProps = Readonly<{
   versionsLoaded?: boolean
   versionsFailed?: boolean
   canMakeLive?: boolean
+  /** The page is off: no version can be made live. */
+  pageIsOff?: boolean
   pendingChanges?: number
   initialFilter?: HistoryFilterKey
-  initialSelection?: HistorySelection | null
+  initialSelection?: HistorySelection
   detailStatus?: 'loading' | 'error' | 'ready'
-  restoreError?: string | null
+  /** Confirming is refused with this sentence. */
+  refusal?: string
   /** The restore request is in flight. */
   submitting?: boolean
   entries?: typeof STORY_ENTRIES
-  note?: string | null
   /** Version 4 was made live again after version 5; the draft is still on 5. */
   afterRestore?: boolean
   /** Confirming succeeds: the confirmation closes, as the tab does. */
   confirmSucceeds?: boolean
-  /** The dialog draws the version's page (the tab's container passes it; here it answers from data). */
+  /** The dialog draws the version's page (it reads for itself). */
   withPagePreview?: boolean
   onConfirm?: (version: number) => void
 }>
+
+const PORTAL_ID = 'portal-1'
+
+/** A read that has not answered. */
+const never = () => new Promise<never>(() => {})
+
+/** A read the server refused, as the browser receives it. */
+const failure = (message: string) =>
+  Object.assign(new Error(message), { _tag: 'Refused', code: 'refused', status: 409 })
+
+const asRead = <T,>(read: unknown) => read as T
 
 // fallow-ignore-next-line complexity
 function Harness({
@@ -54,98 +75,106 @@ function Harness({
   versionsLoaded = true,
   versionsFailed = false,
   canMakeLive = true,
+  pageIsOff = false,
   pendingChanges = STORY_PENDING_CHANGES,
   initialFilter = 'all',
-  initialSelection = null,
+  initialSelection,
   detailStatus = 'ready',
-  restoreError = null,
+  refusal,
   submitting = false,
   entries,
-  note = null,
   afterRestore = false,
   confirmSucceeds = false,
   withPagePreview = false,
   onConfirm = fn(),
 }: HarnessProps) {
-  const [filter, setFilter] = useState<HistoryFilterKey>(initialFilter)
-  const [selection, setSelection] = useState<HistorySelection | null>(initialSelection)
-  const [showEarlier, setShowEarlier] = useState(false)
-  const [revealedVersion, setRevealedVersion] = useState<number | null>(null)
-  const [restoredVersion, setRestoredVersion] = useState<number | null>(null)
-  const versions = versionsLoaded
-    ? afterRestore
-      ? STORY_LIVE_4_VERSIONS
-      : STORY_VERSIONS
-    : null
+  const versions = afterRestore ? STORY_LIVE_4_VERSIONS : STORY_VERSIONS
   const details = afterRestore ? STORY_LIVE_4_DETAILS : STORY_VERSION_DETAILS
-  const rows = useMemo(
-    () =>
-      buildHistoryRows({
-        entries: entries ?? storyHistoryFor(filter),
-        versions,
-        filter,
-        showEarlier,
-      }),
-    [entries, filter, versions, showEarlier],
+  const queryClient = useQueryClient()
+  // What a read has already answered is in the cache when the tab mounts, so a
+  // story starts on the state it names; a read that has not (or will not) answer
+  // is the story's loading or failed state.
+  useState(() => {
+    if (entriesState === 'ready') {
+      queryClient.setQueryData(portalKeys.historyFor(PORTAL_ID, initialFilter), {
+        pages: [{ entries: entries ?? storyHistoryFor(initialFilter), nextCursor: null }],
+        pageParams: [undefined],
+      })
+    }
+    if (versionsLoaded && !versionsFailed) {
+      queryClient.setQueryData(portalKeys.versions(PORTAL_ID), versions)
+    }
+    queryClient.setQueryData(
+      portalKeys.publicationHistory(PORTAL_ID),
+      storyPublicationHistory(pendingChanges),
+    )
+    if (detailStatus === 'ready') {
+      for (const [version, detail] of Object.entries(details)) {
+        queryClient.setQueryData(portalKeys.version(PORTAL_ID, Number(version)), detail)
+      }
+    }
+  })
+  const [reads] = useState<PortalHistoryReads>(() => ({
+    getHistory: asRead<PortalHistoryReads['getHistory']>(
+      async (input: { data: { filter: string } }) => {
+        if (entriesState === 'loading') return never()
+        if (entriesState === 'error') throw new Error('not read')
+        return {
+          entries: entries ?? storyHistoryFor(input.data.filter),
+          nextCursor: null,
+        }
+      },
+    ),
+    getVersions: asRead<PortalHistoryReads['getVersions']>(async () => {
+      if (versionsFailed) throw new Error('not read')
+      return versionsLoaded ? versions : never()
+    }),
+    getVersion: asRead<PortalHistoryReads['getVersion']>(
+      async (input: { data: { version: number } }) => {
+        if (detailStatus === 'loading') return never()
+        if (detailStatus === 'error') throw new Error('not read')
+        return details[input.data.version]
+      },
+    ),
+    getPublicationHistory: asRead<PortalHistoryReads['getPublicationHistory']>(async () =>
+      storyPublicationHistory(pendingChanges),
+    ),
+    ...(withPagePreview
+      ? {
+          getVersionPreview: asRead<PortalHistoryReads['getVersionPreview']>(
+            async (input: { data: { version: number } }) =>
+              storyVersionPreview(input.data.version),
+          ),
+        }
+      : {}),
+  }))
+  const [makeLive] = useState<MakeVersionLiveAction>(() =>
+    Object.assign(
+      async (input: { data: { portalId: string; version: number } }) => {
+        onConfirm(input.data.version)
+        if (refusal !== undefined) throw failure(refusal)
+        return confirmSucceeds ? {} : never()
+      },
+      { isPending: submitting, error: null as unknown, isSuccess: false, data: null },
+    ),
   )
   return (
-    <PortalHistoryView
+    <PortalHistoryProvider
+      portalId={PORTAL_ID}
       portalName={STORY_PORTAL_NAME}
-      now={STORY_NOW}
       timeZone={STORY_TIME_ZONE}
-      filter={filter}
-      onFilterChange={(next) => {
-        setFilter(next)
-        setSelection(null)
+      mayMakeLive={canMakeLive}
+      pageIsLive={!pageIsOff}
+      reads={reads}
+      makeLive={makeLive}
+      now={STORY_NOW}
+      initial={{
+        filter: initialFilter,
+        ...(initialSelection ? { selection: initialSelection } : {}),
       }}
-      rows={rows}
-      entriesState={entriesState}
-      hasMore={false}
-      loadingMore={false}
-      onLoadMore={fn()}
-      onRetry={fn()}
-      onShowEarlier={(firstVersion) => {
-        setRevealedVersion(firstVersion)
-        setShowEarlier(true)
-      }}
-      revealedVersion={revealedVersion}
-      restoredVersion={restoredVersion}
-      announcement={
-        restoredVersion === null ? null : `Version ${restoredVersion} is live again.`
-      }
-      versions={versions}
-      versionsFailed={versionsFailed}
-      onRetryVersions={fn()}
-      pendingChangeCount={pendingChanges}
-      canMakeLive={canMakeLive}
-      note={note}
-      selection={selection}
-      versionPreview={
-        withPagePreview && selection ? (
-          <PortalVersionPreview
-            key={selection.version}
-            portalId="portal-1"
-            version={selection.version}
-            getVersionPreview={async ({ data }) => storyVersionPreview(data.version)}
-            listedTileCount={listedTileCount(details[selection.version] ?? null)}
-          />
-        ) : null
-      }
-      detail={{
-        status: detailStatus,
-        detail: selection ? (details[selection.version] ?? null) : null,
-        retry: fn(),
-      }}
-      submitting={submitting}
-      restoreError={restoreError}
-      onSelect={setSelection}
-      onConfirmRestore={(version) => {
-        onConfirm(version)
-        if (!confirmSucceeds) return
-        setRestoredVersion(version)
-        setSelection(null)
-      }}
-    />
+    >
+      <PortalHistoryView />
+    </PortalHistoryProvider>
   )
 }
 
@@ -286,9 +315,11 @@ export const MakeLiveAgainDone: Story = {
     await userEvent.click(
       within(region).getByRole('button', { name: 'Make version 4 live' }),
     )
-    await expect(
-      canvas.queryByRole('region', { name: 'Make version 4 live again?' }),
-    ).toBeNull()
+    await waitFor(() =>
+      expect(
+        canvas.queryByRole('region', { name: 'Make version 4 live again?' }),
+      ).toBeNull(),
+    )
     await expect(canvas.getByRole('button', { name: 'View version 4' })).toHaveFocus()
     await expect(canvas.getByRole('status')).toHaveTextContent('Version 4 is live again.')
   },
@@ -341,10 +372,14 @@ export const MakeLaterVersionLive: Story = {
 export const MakeLiveAgainFailed: Story = {
   args: {
     initialSelection: { version: 4, mode: 'restore', host: 'row' },
-    restoreError: 'Only a currently published Portal can make another version live again',
+    refusal: 'Only a currently published Portal can make another version live again',
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole('alert')).toHaveTextContent(
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'Make version 4 live' }),
+    )
+    await expect(await canvas.findByRole('alert')).toHaveTextContent(
       /currently published/,
     )
   },
@@ -373,12 +408,15 @@ export const MakeLiveAgainDialogHeldWhileSubmitting: Story = {
 export const MakeLiveAgainDialogClosesWhenIdle: Story = {
   args: {
     initialSelection: { version: 4, mode: 'restore', host: 'dialog' },
-    restoreError: 'Only a currently published Portal can make another version live again',
+    refusal: 'Only a currently published Portal can make another version live again',
   },
   play: async () => {
     const body = within(document.body)
     const dialog = await body.findByRole('dialog')
-    await expect(within(dialog).getByRole('alert')).toHaveTextContent(
+    await userEvent.click(
+      await within(dialog).findByRole('button', { name: 'Make version 4 live' }),
+    )
+    await expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       /currently published/,
     )
     await userEvent.keyboard('{Escape}')
@@ -393,7 +431,7 @@ export const CheckingWhatWouldChange: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByText(/checking what would change/i),
+      await within(canvasElement).findByText(/checking what would change/i),
     ).toBeInTheDocument()
   },
 }
@@ -406,7 +444,7 @@ export const CheckingFailed: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('alert')).toHaveTextContent(
+    await expect(await canvas.findByRole('alert')).toHaveTextContent(
       'What would change couldn’t be checked.',
     )
     await expect(canvas.getByRole('button', { name: 'Try again' })).toBeVisible()
@@ -482,10 +520,7 @@ export const ReadOnly: Story = {
 }
 
 export const PageIsOff: Story = {
-  args: {
-    canMakeLive: false,
-    note: 'No version is live while the page is off. Turn it on from Review & publish to make a version live again.',
-  },
+  args: { pageIsOff: true },
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByText(/no version is live/i),
@@ -517,7 +552,7 @@ export const LoadFailed: Story = {
   args: { entriesState: 'error', versionsLoaded: false, versionsFailed: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getAllByRole('alert')).toHaveLength(2)
+    await waitFor(() => expect(canvas.getAllByRole('alert')).toHaveLength(2))
     // The ledger and the rail each offer the one recovery.
     await expect(canvas.getAllByRole('button', { name: 'Try again' })).toHaveLength(2)
   },
