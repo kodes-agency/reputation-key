@@ -1,6 +1,6 @@
 // `reviewId` is the idempotency key the browser makes for one review act, a
-// random UUID, and it is written into three durable facts and their
-// `source_aggregate_id`; a superseded id is the event id of one of those facts.
+// random UUID, and it is written into the durable fact and its
+// `source_aggregate_id`; a superseded id is the event id of an earlier fact.
 // The request is held to that shape, so no fact carries text of a caller's
 // choosing and size.
 
@@ -10,8 +10,6 @@ import { completeContentReviewInputSchema } from './complete-content-review.dto'
 const REVIEW_ID = '7d0a6c1e-3f52-4b8a-9c1d-2e4f6a8b0c1d'
 const EVENT_IDS = {
   contentReviewSourceEventId: '11111111-1111-4111-8111-111111111111',
-  configurationSourceEventId: '22222222-2222-4222-8222-222222222222',
-  destinationRatioSourceEventId: '33333333-3333-4333-8333-333333333333',
 } as const
 
 const first = { portalId: 'portal-p1', reviewId: REVIEW_ID, revision: 1 }
@@ -23,7 +21,7 @@ const refusedPaths = (input: unknown): ReadonlyArray<string> =>
   )
 
 describe('completeContentReview input', () => {
-  it('accepts the review the browser sends, and a correction naming three event ids', () => {
+  it('accepts the review the browser sends, and a correction naming the event id', () => {
     expect(completeContentReviewInputSchema.parse(first)).toEqual(first)
     const correction = { ...first, revision: 2, supersedes: EVENT_IDS }
     expect(completeContentReviewInputSchema.parse(correction)).toEqual(correction)
