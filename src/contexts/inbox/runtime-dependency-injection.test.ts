@@ -8,7 +8,7 @@ const read = (file: string): string => readFileSync(join(ROOT, file), 'utf8')
 describe('Inbox ARC-03 runtime dependency injection', () => {
   it('keeps context logging composition-owned', () => {
     for (const file of [
-      'src/contexts/inbox/infrastructure/outbox-consumers.ts',
+      'src/contexts/reputation/inbox/outbox-consumers.server.ts',
       'src/contexts/inbox/infrastructure/repositories/inbox.repository.ts',
       'src/contexts/inbox/server/inbox-queries.ts',
     ]) {

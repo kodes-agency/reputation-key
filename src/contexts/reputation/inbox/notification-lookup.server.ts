@@ -103,7 +103,7 @@ export type InboxNotificationLookup = Readonly<{
 }>
 
 // The review facts that move an Inbox item's open count, and the Inbox
-// consumers that apply them (inbox/infrastructure/outbox-consumers.ts).
+// consumers that apply them (reputation/inbox/outbox-consumers.server.ts).
 const REVIEW_PROJECTION_EVENT_TYPES = [
   'review.created',
   'review.updated',

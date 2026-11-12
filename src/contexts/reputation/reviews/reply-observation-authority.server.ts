@@ -12,14 +12,14 @@ import type {
   ReviewCurrentReplyObservationPermit,
   ReviewReplyObservationAuthority,
   ReviewReplyObservationExpectation,
-} from '../application/ports/reply-observation-authority.port'
-import type { ReviewOpenTransaction } from '../application/ports/open-transaction'
-import { lendReviewTransaction } from './open-transaction'
-import { lockReplyTruthScope } from './reply-truth-serialization'
+} from '#/contexts/review/application/ports/reply-observation-authority.port'
+import type { ReviewOpenTransaction } from '#/contexts/review/application/ports/open-transaction'
+import { lendReviewTransaction } from '#/contexts/review/infrastructure/open-transaction'
+import { lockReplyTruthScope } from '#/contexts/review/infrastructure/reply-truth-serialization'
 import {
   isSourceEpochCarry,
   selectRevisionBindingComparisons,
-} from './source-epoch-carry'
+} from '#/contexts/review/infrastructure/source-epoch-carry'
 
 const sameInstant = (left: Date, right: Date): boolean =>
   left.getTime() === right.getTime()
@@ -152,6 +152,7 @@ async function sourceEpochCarryFromMaterialReviewRevision(
  * well formed. Every clause is an independent equality against the same
  * expectation, so they are kept together as one readable decision.
  */
+// fallow-ignore-next-line complexity -- independent equalities against one expectation, kept as one decision (see above)
 function isExactCurrentObservation(
   current: CurrentObservationHeadRow,
   expectation: ReviewReplyObservationExpectation,

@@ -6,15 +6,14 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { reviewSourceTransitioned } from '#/contexts/review/domain/events'
-import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
-import { createSourceTransitionAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/source-transition-authority.adapter'
+import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/inbox/infrastructure/inbox-command-store'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
-import { handleInboxReviewSourceTransitioned } from '#/contexts/inbox/infrastructure/outbox-consumers'
+import { handleInboxReviewSourceTransitioned } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import type { InboxItem } from '#/contexts/inbox/domain/types'
 import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
 import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
@@ -230,9 +229,7 @@ describe.sequential('Review source transition -> Inbox exact-current boundary', 
       const started = new Promise<void>((resolve) => {
         authorityStarted = resolve
       })
-      const realAuthority = createSourceTransitionAuthorityAdapter(
-        createReviewSourceTransitionAuthority(database),
-      )
+      const realAuthority = createReviewSourceTransitionAuthority(database)
       const guardedAuthority = {
         withExactCurrent: async <T>(
           expectation: Parameters<typeof realAuthority.withExactCurrent<T>>[0],

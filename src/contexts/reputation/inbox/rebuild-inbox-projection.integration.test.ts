@@ -10,7 +10,7 @@
 
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Pool } from 'pg'
-import { rebuildInboxProjection } from './rebuild-inbox-projection'
+import { rebuildInboxProjection } from './rebuild-inbox-projection.server'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -21,20 +21,20 @@ import {
   readOutboxFacts,
   seedInboxScope,
   seedReviewSource,
-} from '../../infrastructure/inbox-database-fixtures'
+} from '#/contexts/inbox/infrastructure/inbox-database-fixtures'
 import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
-} from '../ports/review-source-lookup.port'
+} from '#/contexts/inbox/application/ports/review-source-lookup.port'
 import type {
   GoogleReplyHead,
   ReplyLookupPort,
   ReplyMilestones,
-} from '../ports/reply-lookup.port'
+} from '#/contexts/inbox/application/ports/reply-lookup.port'
 import type {
   CurrentReplyObservationPermit,
   ReplyObservationAuthorityPort,
-} from '../ports/reply-observation-authority.port'
+} from '#/contexts/inbox/application/ports/reply-observation-authority.port'
 import {
   inboxItemId,
   organizationId,
@@ -42,7 +42,7 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '#/contexts/inbox/domain/types'
 
 const NOW = new Date('2026-06-15T12:00:00Z')
 const SCOPE = 'rebuild-inbox-projection'

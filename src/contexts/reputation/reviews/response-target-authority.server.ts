@@ -12,14 +12,14 @@ import type {
   ReviewResponseTargetAuthority,
   ReviewResponseTargetEligibility,
   ReviewResponseTargetExpectation,
-} from '../application/ports/response-target-authority.port'
-import type { ReviewOpenTransaction } from '../application/ports/open-transaction'
-import { lendReviewTransaction } from './open-transaction'
-import { lockReviewSourceMutationScope } from './review-source-mutation-serialization'
+} from '#/contexts/review/application/ports/response-target-authority.port'
+import type { ReviewOpenTransaction } from '#/contexts/review/application/ports/open-transaction'
+import { lendReviewTransaction } from '#/contexts/review/infrastructure/open-transaction'
+import { lockReviewSourceMutationScope } from '#/contexts/review/infrastructure/review-source-mutation-serialization'
 import {
   isSourceEpochCarry,
   selectRevisionBindingComparisons,
-} from './source-epoch-carry'
+} from '#/contexts/review/infrastructure/source-epoch-carry'
 
 const ELIGIBILITY = new Set<ReviewResponseTargetEligibility>([
   'measured',

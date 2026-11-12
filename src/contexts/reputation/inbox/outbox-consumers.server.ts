@@ -15,23 +15,23 @@
 // durable exact-head authority for automatic Review close/reopen effects.
 
 import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
-import type { ReviewLookupPort } from '../application/ports/review-lookup.port'
-import type { ReviewSourceLookupPort } from '../application/ports/review-source-lookup.port'
-import type { InboxRepository } from '../application/ports/inbox.repository'
-import type { InboxCommandStore } from '../application/ports/inbox-command-store.port'
-import type { ReviewHandlingCycleStore } from '../application/ports/review-handling-cycle.store'
-import type { ReplyObservationAuthorityPort } from '../application/ports/reply-observation-authority.port'
-import type { SourceTransitionAuthorityPort } from '../application/ports/source-transition-authority.port'
-import type { ReviewResponseTargetAuthorityPort } from '../application/ports/review-response-target-authority.port'
+import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
+import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
+import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
+import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
+import type { ReviewHandlingCycleStore } from '#/contexts/inbox/application/ports/review-handling-cycle.store'
+import type { ReplyObservationAuthorityPort } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
+import type { SourceTransitionAuthorityPort } from '#/contexts/inbox/application/ports/source-transition-authority.port'
+import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
 import {
   borrowReviewTransaction,
   lentTransactionArgs,
-} from '../application/ports/review-open-transaction'
+} from '#/contexts/inbox/application/ports/review-open-transaction'
 import type { InboxItemId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { createInboxItem as buildInboxItem } from '../domain/constructors'
-import { inboxError } from '../domain/errors'
-import { inboxItemCreated, inboxItemStatusChanged } from '../domain/events'
+import { createInboxItem as buildInboxItem } from '#/contexts/inbox/domain/constructors'
+import { inboxError } from '#/contexts/inbox/domain/errors'
+import { inboxItemCreated, inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
 import { organizationId, propertyId, reviewId, unbrand } from '#/shared/domain/ids'
 
 export type InboxConsumerDeps = Readonly<{
