@@ -12,7 +12,7 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
-import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
+import type { PortalGoalAddOptions } from '#/contexts/reporting/monthly-goals/contracts'
 import {
   openingOf,
   type PortalGoalAddAddress,

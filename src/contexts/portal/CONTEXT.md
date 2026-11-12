@@ -425,6 +425,8 @@ hidden in a segment do not survive, and the original is never stored.
   the row becomes `taken_down` and is never served; its object is then removed and
   `object_deleted_at` recorded. The row stays, because snapshots name assets by id
   with no foreign key. A failed removal is retried by the sweep.
+  The Property look's and a Portal look's photograph dialog offer it ("Take this photo down")
+  to an Account Admin with Portals writes on; it also clears the photograph from the look.
 - **Sweep** (`sweepPortalMedia`, hourly, not capability-gated): finishes takedown
   removals, and deletes `active` assets older than a day that no Brand Profile,
   Portal look override, link or publication snapshot refers to (object, then row, in

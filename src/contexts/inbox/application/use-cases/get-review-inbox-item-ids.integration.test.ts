@@ -7,16 +7,12 @@ import {
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
-  dropInboxUseCaseTenant,
-  runScopedId,
-} from '../../infrastructure/inbox-database-fixtures-use-case-ids'
-import {
-  clearInboxUseCaseRows,
+  clearInboxOrganization,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
+  dropInboxUseCaseTenant,
   openFixturePool,
-} from '../../infrastructure/inbox-database-fixtures-use-cases'
-import {
+  runScopedId,
   seedInboxItem,
   seedInboxOrganization,
 } from '../../infrastructure/inbox-database-fixtures'
@@ -150,8 +146,8 @@ describe.sequential('getReviewInboxItemIds', () => {
   })
 
   beforeEach(async () => {
-    await clearInboxUseCaseRows(pool, ORG_ID)
-    await clearInboxUseCaseRows(pool, OTHER_ORG_ID)
+    await clearInboxOrganization(pool, ORG_ID)
+    await clearInboxOrganization(pool, OTHER_ORG_ID)
   })
 
   afterAll(async () => {

@@ -52,7 +52,6 @@
     "scripts/ops/quarantine-redrive.ts",
     "scripts/ops/queue-quarantine.ts",
     "scripts/ops/rebuild-projection.ts",
-    "scripts/ops/repair-partial-offboarding.ts",
     "scripts/ops/reparse-review-translations.ts",
     "scripts/ops/restore-preflight.ts",
     "scripts/ops/restore-verify.ts",
@@ -114,10 +113,6 @@
     {
       "file": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts",
       "exports": ["DURABLE_OPERATIONAL_ACTION_HISTORY_EVENT_TYPES"]
-    },
-    {
-      "file": "src/contexts/identity/domain/partialOffboarding.ts",
-      "exports": ["PARTIAL_OFFBOARDING_FINDINGS"]
     },
     {
       "file": "src/contexts/feed/server/activity.ts",

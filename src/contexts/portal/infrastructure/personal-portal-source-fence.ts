@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
-import type { CreatePortalCommand } from '../application/ports/portal-command-store.port'
+import type { CreatePortalCommand } from '../publication/portal-command-store-port.server'
 import { portalError } from '../domain/errors'
 import { assertSnapshotMatchesCommittedWorkingCopy } from './portal-publication-commands'
 import {

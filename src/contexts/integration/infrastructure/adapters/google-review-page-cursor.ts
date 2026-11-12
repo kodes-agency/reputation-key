@@ -1,10 +1,11 @@
-import type { GoogleReviewApiError } from '#/contexts/review/application/public-api'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
-  cursorFailureCode,
   isGoogleReviewApiError,
   reviewApiError,
-} from './google-review-api-errors'
+  type GoogleReviewApiError,
+} from '#/contexts/review/application/public-api'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import { cursorFailureCode } from './google-review-api-errors'
+import { isGoogleCallError } from '../../domain/google-call-error'
 import type {
   GoogleReviewCursorFailureCode,
   GoogleReviewCursorStore,
@@ -131,10 +132,10 @@ export async function callCursorStore<T>(
  * proof (see `GoogleProviderDispatch`).
  */
 function neverReachedGoogle(error: unknown): boolean {
-  return (
-    isGoogleReviewApiError(error) &&
-    (error as GoogleReviewApiError).failure?.dispatch === 'not_sent'
-  )
+  if (isGoogleReviewApiError(error)) {
+    return (error as GoogleReviewApiError).failure?.dispatch === 'not_sent'
+  }
+  return isGoogleCallError(error) && error.dispatch === 'not_sent'
 }
 
 /**

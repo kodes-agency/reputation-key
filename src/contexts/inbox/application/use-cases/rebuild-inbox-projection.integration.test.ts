@@ -15,13 +15,13 @@ import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
-  clearInboxScope,
   createInboxDatabaseStores,
+  dropInboxOrganization,
   fixtureUuid,
   readOutboxFacts,
   seedInboxScope,
-} from '../../infrastructure/inbox-database-fixtures-status'
-import { seedReviewSource } from '../../infrastructure/inbox-database-fixtures-projection'
+  seedReviewSource,
+} from '../../infrastructure/inbox-database-fixtures'
 import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
@@ -206,11 +206,11 @@ describe.sequential('rebuildInboxProjection', () => {
 
   beforeEach(async () => {
     seq = 0
-    await clearInboxScope(pool, ORG)
+    await dropInboxOrganization(pool, ORG)
   })
 
   afterAll(async () => {
-    await clearInboxScope(pool, ORG)
+    await dropInboxOrganization(pool, ORG)
     await pool.end()
   })
 

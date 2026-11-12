@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGoalChange } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
+import type { PortalGoalChange } from '#/contexts/reporting/monthly-goals/contracts'
 import { anyChangeInAnotherYear, changeLines } from './portal-goal-changes-view'
 
 const NAMES: Readonly<Record<string, string>> = { elena: 'Elena', marco: 'Marco' }

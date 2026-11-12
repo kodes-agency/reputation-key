@@ -1,6 +1,6 @@
 /**
  * How often an open progress view re-reads Review Analysis counts while they
- * move. The backlog drain settles several reviews a second (ADR 0058), so a
+ * move. The backlog drain settles several reviews a second, so a
  * slower poll would trail the work it reports.
  */
 export const REVIEW_ANALYSIS_PROGRESS_POLL_MS = 3_000

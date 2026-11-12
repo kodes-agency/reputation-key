@@ -1,13 +1,13 @@
-// Ops diagnostics — outbox lag, queue depths, worker heartbeat (BQR-6.2).
+// Ops diagnostics — outbox lag, queue depths, worker heartbeat.
 // Not a k8s probe: may hit DB and Redis; Cache-Control: no-store.
-// Identifier-only payload (ADR 0030) — no review text, emails, or tokens.
+// Identifier-only payload — no review text, emails, or tokens.
 //
-// BQC-5.5 (STD-P1-04): the route no longer constructs DB/Redis readers — it
+// The route constructs no DB/Redis readers: it
 // consumes the composition-owned OperationsSnapshot, which owns health-checker
 // construction, queue-depth/heartbeat reads, per-section time budgets, and
 // degrade-not-abort assembly.
 //
-// BQC-7.2: PRIVATE operator surface. Gated by OPS_METRICS_TOKEN (env.ts) —
+// PRIVATE operator surface. Gated by OPS_METRICS_TOKEN (env.ts) —
 // `x-ops-token` header or `Authorization: Bearer <token>`. Fail-closed:
 // absent env OR wrong/missing credential → 404 (not 403), so the endpoint's
 // existence is not revealed to probing clients. The platform probes

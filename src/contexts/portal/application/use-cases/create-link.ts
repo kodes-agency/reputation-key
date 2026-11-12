@@ -20,7 +20,7 @@ import { loadPortalOrThrow } from '../load-accessible-portal'
 import type {
   CreatePortalLinkCommand,
   PortalCommandStore,
-} from '../ports/portal-command-store.port'
+} from '../../publication/portal-command-store-port.server'
 import { nextPortalCommandAt } from '../portal-command-version'
 import { canForContext } from '#/shared/domain/permissions'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'

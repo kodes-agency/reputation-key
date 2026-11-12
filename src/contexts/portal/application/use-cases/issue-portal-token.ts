@@ -23,7 +23,7 @@ import { publishNewCodeArtifacts } from '../new-code-artifacts'
 import { issueToken } from '../../domain/portal-token'
 import { portalError } from '../../domain/errors'
 import { portalTokenIssued } from '../../domain/events'
-import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import type { PortalCommandStore } from '../../publication/portal-command-store-port.server'
 import { nextPortalCommandAt } from '../portal-command-version'
 
 export type IssuePortalTokenDeps = Readonly<{

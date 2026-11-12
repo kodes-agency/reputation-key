@@ -15,7 +15,7 @@ import {
   loadGroupAndPortalForMembership,
   loadPortalOfGroupProperty,
 } from '../load-accessible-portal'
-import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import type { PortalCommandStore } from '../../publication/portal-command-store-port.server'
 import { nextPortalCommandAt } from '../portal-command-version'
 
 export type MovePortalToGroupDeps = Readonly<{

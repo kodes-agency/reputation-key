@@ -10,7 +10,7 @@ import type {
   PortalGoalOfCard,
   PortalGoalSheetFacts,
   ReviseMonthlyPortalGoalRequest,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+} from '#/contexts/reporting/monthly-goals/contracts'
 import {
   actionErrorMessage,
   useActionMutation,

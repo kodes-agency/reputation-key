@@ -3,7 +3,7 @@
 // These tests pin the recipient outcomes the outbox consumer writes notices for.
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { inboxItemCreatedNotices } from './inbox-notification-fanout'
+import { inboxItemCreatedNotices } from '../notify/inbox.server'
 import {
   createNotificationConsumerDeps,
   type FakeNotificationConsumerDeps,

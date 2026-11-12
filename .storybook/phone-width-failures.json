@@ -10200,49 +10200,49 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--history-tab",
+    "storyId": "portal-workspacetabs--history-tab",
     "state": "History Tab",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--history-tab",
+    "storyId": "portal-workspacetabs--history-tab",
     "state": "History Tab",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--linktree-section",
+    "storyId": "portal-workspacetabs--linktree-section",
     "state": "Linktree Section",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--linktree-section",
+    "storyId": "portal-workspacetabs--linktree-section",
     "state": "Linktree Section",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--page-tab",
+    "storyId": "portal-workspacetabs--page-tab",
     "state": "Page Tab",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--page-tab",
+    "storyId": "portal-workspacetabs--page-tab",
     "state": "Page Tab",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--rating-section",
+    "storyId": "portal-workspacetabs--rating-section",
     "state": "Rating Section",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaldetailpage--rating-section",
+    "storyId": "portal-workspacetabs--rating-section",
     "state": "Rating Section",
     "width": 390,
     "checks": ["targets"]

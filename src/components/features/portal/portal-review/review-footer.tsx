@@ -14,7 +14,7 @@ import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { BackLink } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
-import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
+import type { PortalDetailTab } from '#/contexts/portal/workspace/ui/portal-detail-rules'
 import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import type { ReviewFooterView } from './portal-review-footer'
 

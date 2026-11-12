@@ -93,7 +93,7 @@ not run in.
   name and to no environment. Both restore commands also refuse to start unless
   `RESTORE_MODE=isolated` is set and the process carries no Redis, queue or
   bucket setting (step 4), and they run with no Redis or queue connection. The
-  signed Review approval of step 7 and the durable recovery checkpoints are
+  typed confirmation of step 7 and the durable recovery checkpoints are
   unchanged. `restore-verify` runs erasure replay (§8) from `journal=<file>`, and apply
   refuses without it. A full restore to operational state remains unmeasured
   (`docs/BETA.md` §7).
@@ -139,7 +139,7 @@ cutover mechanism. This procedure uses the PITR sibling described by
 1. Contain the deployment: stop public routing, set
    `BETA_CAPABILITIES_OFF=all`, and scale the cell worker to zero. Record the
    incident/change reference, source cell, exact restore timestamp, active
-   40-character release SHA, signed release-manifest SHA-256, source Postgres
+   40-character release SHA, release-manifest SHA-256, source Postgres
    service, and named operator. Do not alter another cell.
 2. In the source Postgres service's Railway **Backups** tab, select the exact
    PITR timestamp. Railway creates the sibling; record its generated service
@@ -169,7 +169,7 @@ cutover mechanism. This procedure uses the PITR sibling described by
    and schema parity. If the migration is not forward-safe, stop; do not repair
    the production source or reverse DDL from this workflow.
 6. Run `pnpm ops restore-verify --operator <id> journal=<file>` first as a dry run. Review and
-   retain its canonical aggregate Review report and exact approval request,
+   retain its canonical aggregate Review report and recovery request,
    together with the content-free retention, Google-import, and
    external-effect-authority inventories. Follow
    [review-lifecycle-recovery-approval](review-lifecycle-recovery-approval.md)
@@ -178,8 +178,8 @@ cutover mechanism. This procedure uses the PITR sibling described by
    `pnpm ops restore-verify --operator <id> journal=<file> --reason <change-ref> --apply --yes closed-beta-v2`.
    A missing or different name refuses before runtime boot or mutation. The
    command logs the environment, operator, time and correlation ID before
-   reserving or resuming the durable Review recovery receipt. No signed Review
-   approval bundle is required. The authorized command, without BullMQ,
+   reserving or resuming the durable Review recovery receipt. No signed bundle
+   or trusted keyring exists or is read. The authorized command, without BullMQ,
    applies all overdue retention rules; reconciles Google import retention;
    invalidates restored sessions and verification tokens; cancels pending
    invitations, email/digest work, legacy imports, and unpublished reply

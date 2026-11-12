@@ -48,7 +48,7 @@ describe('tenant cache transition', () => {
     expect(clear).toHaveBeenCalledOnce()
   })
 
-  // The shell remembers who is signed in for 30 seconds (ADR 0072). A sign-out or a
+  // The shell remembers who is signed in for 30 seconds. A sign-out or a
   // sign-in must not leave that answer for the next navigation, here or in another tab.
   it('forgets the shell checks with the rest and tells the other tabs', async () => {
     const queryClient = new QueryClient()

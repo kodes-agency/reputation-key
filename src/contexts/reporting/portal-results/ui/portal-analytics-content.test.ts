@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { PortalAnalyticsContent } from './portal-analytics-content'
 import { RESULTS_HEALTHY } from './portal-results-stories-data'
 
-vi.mock('#/components/features/portal/portal-detail/use-portal-edit-access', () => ({
+vi.mock('#/components/features/portal/shared/use-portal-edit-access', () => ({
   usePortalEditAccess: () => ({ canEdit: false }),
 }))
 

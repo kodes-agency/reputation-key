@@ -1,4 +1,4 @@
-// The browser's memory of the shell's own checks (ADR 0072).
+// The browser's memory of the shell's own checks.
 //
 // `_authenticated`'s `beforeLoad` asks who is signed in, which Organization and role
 // they have, and which features are on for the Property in scope, and the controlled

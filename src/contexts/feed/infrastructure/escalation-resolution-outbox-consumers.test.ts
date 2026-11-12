@@ -8,11 +8,11 @@ import {
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { inboxItemId, propertyId, userId, type UserId } from '#/shared/domain/ids'
+import { registerEscalationResolutionNotificationConsumer } from './inbox-notice-routes'
 import {
   handleNotificationInboxEscalationResolved,
   ON_INBOX_ESCALATION_RESOLVED_CONSUMER,
-  registerEscalationResolutionNotificationConsumer,
-} from './escalation-resolution-outbox-consumers'
+} from '../notify/inbox.server'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()

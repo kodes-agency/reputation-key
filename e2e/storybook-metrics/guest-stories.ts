@@ -61,12 +61,15 @@ export const MEASURED_GUEST_STORIES: ReadonlyArray<string> = [
   'features-guest-immersiveheader--short-wordmark-keeps-the-boards-size',
   'features-guest-immersiveheader--medium-wordmark-steps-down',
   'features-guest-immersiveheader--wordmark-with-no-chip-has-the-whole-bar',
+  'features-guest-immersiveheader--wordmark-reserve-follows-the-chip',
+  'features-guest-immersiveheader--wordmark-without-chip-has-more-room',
   'features-guest-immersiveheader--no-wordmark-no-logo-is-just-the-chip',
   // Features/Guest/ImmersiveShell
   'features-guest-immersiveshell--g-01-arrival',
   'features-guest-immersiveshell--g-09-no-photo',
   'features-guest-immersiveshell--ignores-the-app-theme',
   'features-guest-immersiveshell--container-leaves-the-document',
+  'features-guest-immersiveshell--frame-leaves-the-document-alone',
   'features-guest-immersiveshell--dark-accent-is-replaced',
   'features-guest-immersiveshell--wide-viewport',
   'features-guest-immersiveshell--hero-grows-on-a-tablet',
@@ -134,6 +137,7 @@ export const MEASURED_GUEST_STORIES: ReadonlyArray<string> = [
   'features-guest-immersivefooter--first-visit-is-counted-before-acknowledging',
   'features-guest-immersivefooter--acknowledge-hides-the-notice',
   'features-guest-immersivefooter--acknowledged-guest-is-still-counted',
+  'features-guest-immersivefooter--inert-preview',
   // Features/Guest/PortalUnavailable
   'features-guest-portalunavailable--g-12-unavailable',
   'features-guest-portalunavailable--g-12-unavailable-in-german',
