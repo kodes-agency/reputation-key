@@ -127,7 +127,7 @@ export function InboxDetailHeader({
           variant="ghost"
           // `close` is the desktop panel's variant and the panel is
           // `hidden md:flex`, so below `md` it is never in the app; a caller that
-          // mounts it there gets the same compact 36 px as `Back to list`.
+          // mounts it there gets the same 44 px as `Back to list`.
           label="Close detail"
           onClick={onClose}
         >

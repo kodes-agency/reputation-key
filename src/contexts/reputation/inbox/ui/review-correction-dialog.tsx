@@ -38,7 +38,7 @@ export function ReviewCorrectionDialog({
           Not right?
         </Button>
       </DialogTrigger>
-      <DialogContent showCloseButton={false} data-density="compact">
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Not right?</DialogTitle>
           <DialogDescription>

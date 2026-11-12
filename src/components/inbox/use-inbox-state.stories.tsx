@@ -12,6 +12,7 @@
 // The harness renders no product UI: three facts as text (the open item, the
 // loaded rows, the detail's reply status), the read counters, and buttons
 // standing in for the events a manager or the server causes.
+import { Button } from '#/components/ui/button'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState, type ReactNode } from 'react'
@@ -190,8 +191,9 @@ function PresenceHarness({
       <p>Open item: {itemId ?? 'none'}</p>
       <p>Loaded rows: {list.items.length}</p>
       <p>Detail reply: {detail.detail?.reply?.status ?? 'none'}</p>
-      <button
+      <Button
         type="button"
+        variant="outline"
         onClick={() =>
           detail.onReplyMutated({
             kind: 'state_changed',
@@ -201,16 +203,17 @@ function PresenceHarness({
         }
       >
         Apply the command result
-      </button>
-      <button type="button" onClick={() => detail.refetch()}>
+      </Button>
+      <Button type="button" variant="outline" onClick={() => detail.refetch()}>
         Poll the detail
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="outline"
         onClick={() => void qc.invalidateQueries({ queryKey: inboxKeys.lists() })}
       >
         Refresh the list
-      </button>
+      </Button>
     </main>
   )
 }

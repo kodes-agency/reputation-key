@@ -25,6 +25,7 @@ import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { feedbackId, userId } from '#/shared/domain/ids'
 import { FeedbackHandlingPrimary } from '#/contexts/reputation/inbox/ui/feedback-handling-primary'
 import { InboxDetailContent } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole, withPermissions } from '../../../.storybook/AuthedRouterDecorator'
@@ -751,6 +752,10 @@ export const FeedbackOpen: Story = {
  * The chip's accessible name carries the outcome rather than leaving it as
  * decoration beside a bare `Handled`, so a reader who only ever hears the label
  * still hears which outcome closed the cycle.
+ *
+ * Played in both themes, so axe runs its contrast pass over this pane's own
+ * palette in each: the dark `--primary` was tuned for dark contrast, and the
+ * chip that carries the outcome is a surface the card never had.
  */
 export const FeedbackHandled: Story = {
   args: {
@@ -764,7 +769,7 @@ export const FeedbackHandled: Story = {
       detail: detailFor(closedItem, HANDLED_CYCLE),
     }),
   },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expectTheFourRegions(canvas)
 
@@ -822,7 +827,14 @@ export const FeedbackHandled: Story = {
         dialog.getByText(/original completion time and timing result stay unchanged/i),
       ).toBeVisible(),
     )
-  },
+    // Closed again, so the second theme mounts the pane with no dialog open.
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() =>
+      expect(
+        dialog.queryByRole('heading', { name: 'Correct handling outcome' }),
+      ).toBeNull(),
+    )
+  }),
 }
 
 /**
@@ -1369,35 +1381,5 @@ export const HandlingPrimaryAloneWithPermission: Story = {
     await expect(correct).toBeVisible()
     await expect(correct).toHaveAttribute('data-variant', 'default')
     await expect(canvas.queryByRole('button', { name: MARK })).toBeNull()
-  },
-}
-
-// ─── light theme ─────────────────────────────────────────────────────────────
-
-/**
- * The handled state in light, so axe runs its contrast pass over this pane's
- * own palette too — the dark `--primary` was tuned for dark contrast, and the
- * chip that now carries the outcome is a surface the card never had.
- */
-export const FeedbackHandledLight: Story = {
-  parameters: { theme: 'light' },
-  args: {
-    currentItem: closedItem,
-    detailFns: detailFns([
-      OPENED_FROM_FEEDBACK,
-      outcomeEvent('2026-03-02T08:00:00Z', FIRST_OUTCOME),
-      CLOSED_AS_HANDLED,
-    ]),
-    detailState: mkDetailState({
-      detail: detailFor(closedItem, HANDLED_CYCLE),
-    }),
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      canvas.getByRole('button', { name: /^Work status/ }),
-    ).toHaveAccessibleName('Work status: Handled · Follow-up completed')
-    await expect(canvas.getByRole('button', { name: CORRECT })).toBeVisible()
-    await expect(canvas.findByText(sentence(HANDLED_LINE))).resolves.toBeVisible()
   },
 }

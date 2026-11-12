@@ -70,7 +70,7 @@ export function InboxChoiceChips({
               aria-checked={isChecked}
               tabIndex={index === tabbableIndex ? 0 : -1}
               className={cn(
-                'inline-flex h-9 shrink-0 items-center rounded-full border px-3.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                'inline-flex h-9 shrink-0 max-md:h-11 items-center rounded-full border px-3.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50',
                 // The checked pill is set apart by an accent edge as well as by
                 // its tint, which alone is a faint difference from the others.
                 isChecked

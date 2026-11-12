@@ -4,7 +4,7 @@
 //   - the pending state: a spinner, aria-busy, disabled, and an optional label
 //     swap, so a click is acknowledged the same way everywhere;
 //   - the touch density: 44px below `md`, 36px inside a `data-density="compact"`
-//     workspace (the Inbox), the desktop heights unchanged.
+//     bar (the top bar), the desktop heights unchanged.
 //
 // The heights are CSS, so the checks read the class list and the stylesheet's
 // density tokens; the geometry itself is measured in Storybook's phone metrics.

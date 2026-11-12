@@ -168,11 +168,9 @@ const LIST_CLASS =
 
 /**
  * One thumb: 26 px on the desktop (the canvas's 30 px track less its padding)
- * and 36 px below `md` — row 20 lowered v1's 44 px (`max-md:min-h-11`) to 36,
- * because WCAG 2.5.8 AA asks for 24 px and 44 was what inflated the phone
- * strip. 36 is the thumb, not the track, so the one number PR 5's metrics
- * harness asserts of every control (≥ 36 × 36 at 390 and 320) holds of the
- * thing a finger actually lands on.
+ * and 44 px below `md`, the tap target. 44 is the thumb, not the track, so the
+ * phone-width check, which measures every control, holds of the thing a finger
+ * actually lands on.
  *
  * `text-muted-foreground` replaces the primitive's `text-foreground/60` for the
  * resting label. Composited over the segment's `bg-muted` track that alpha
@@ -183,7 +181,7 @@ const LIST_CLASS =
  * the thumb's fill alone.
  */
 const TRIGGER_CLASS =
-  'h-[26px] gap-1.5 rounded-sm px-2.5 text-[13px] text-muted-foreground data-[state=active]:font-semibold aria-disabled:opacity-50 max-md:h-9 max-md:px-3'
+  'h-[26px] gap-1.5 rounded-sm px-2.5 text-[13px] text-muted-foreground data-[state=active]:font-semibold aria-disabled:opacity-50 max-md:h-11 max-md:px-3'
 
 /**
  * The Note thumb's active label in the warn ink (row 19) — on the NOTE trigger
@@ -244,8 +242,8 @@ const KBD_CLASS =
  * The bottom padding is a pixel short of the top because the rule is inside
  * the box: the canvas's `6px … 6px` with a 1 px `border-bottom` measured 43 px
  * in Chromium, so `pb-[5px]` is what makes the head the 42 px row 14 names
- * (6 + 30 + 5 + 1). Below `md` the thumbs are 36 px and the padding tightens to
- * 4 / 3, a 48 px head (4 + 40 + 3 + 1) rather than 53.
+ * (6 + 30 + 5 + 1). Below `md` the thumbs are 44 px and the padding tightens to
+ * 4 / 3, a 52 px head (4 + 44 + 3 + 1) rather than 53.
  */
 const HEAD_CLASS =
   'flex min-h-[42px] min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b pt-1.5 pr-2.5 pb-[5px] pl-1.5 max-md:pt-1 max-md:pb-[3px]'
