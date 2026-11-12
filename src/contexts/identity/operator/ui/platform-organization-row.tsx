@@ -40,9 +40,8 @@ type Props = Readonly<{
 }>
 
 /** Waiting on the operator is the one flag that needs them: a tone, not a look. */
-const FLAG_VARIANT: Readonly<Record<OrganizationFlag['id'], 'warn' | 'outline'>> = {
+const FLAG_VARIANT: Readonly<Record<OrganizationFlag['id'], 'warn'>> = {
   'needs-account-admin': 'warn',
-  'controlled-beta-off': 'outline',
 }
 
 function Fact({ term, value }: Readonly<{ term: string; value: number }>) {
@@ -113,7 +112,6 @@ export function PlatformOrganizationRow(props: Props) {
   const { organization } = props
   const flags = organizationFlags(organization)
   const headingId = `platform-organization-${organization.id}`
-  const betaFlag = flags.find((flag) => flag.id === 'controlled-beta-off')
 
   return (
     <li aria-labelledby={headingId} className="flex flex-col gap-4 px-5 py-5">
@@ -146,13 +144,6 @@ export function PlatformOrganizationRow(props: Props) {
         <Fact term="Account Admins" value={organization.accountAdminCount} />
         <Fact term="Pending invitations" value={organization.pendingInvitationCount} />
       </DescriptionList>
-
-      {betaFlag?.detail ? (
-        <p className="text-sm text-muted-foreground">
-          Add <code className="font-mono">{betaFlag.detail}</code> to BETA_ALLOWLIST_ORGS
-          on web and worker to turn controlled-beta capabilities on for it.
-        </p>
-      ) : null}
 
       <AdministrationSection {...props} />
     </li>

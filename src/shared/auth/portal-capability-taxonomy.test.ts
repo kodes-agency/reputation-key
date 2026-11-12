@@ -1,7 +1,7 @@
-// ADR 0049 — portal read, write, and upload are independent controlled capabilities.
+// ADR 0049 — portal read, write, and upload are independent capabilities.
 //
-// Enabling portal.read alone cannot authorize manager mutation or media paths;
-// write and upload can now be promoted only by their own scoped policy.
+// A store that serves portal.read alone cannot authorize manager mutation or
+// media paths, and the Guest pages switch stops guests, not managers.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { capabilityForPermission } from './capability-for-permission'
@@ -24,8 +24,7 @@ function makeStore(
   overrides: Partial<CapabilityPolicyStore> = {},
 ): CapabilityPolicyStore {
   return {
-    isCapabilityGloballyEnabled: () => false,
-    isOrgAllowlisted: () => false,
+    isCapabilityKilled: () => false,
     isOrgSuspended: () => false,
     ...overrides,
   }
@@ -73,13 +72,10 @@ describe('BQC-0.2 portal capability taxonomy (STD-P0-01)', () => {
 
   describe('read enablement cannot open mutations', () => {
     beforeEach(() => {
-      // Only portal.read is globally enabled; the organization and property
-      // are otherwise eligible so denial isolates the independent capability.
+      // Only portal.read is served; the organization and property are
+      // otherwise eligible so denial isolates the independent capability.
       initCapabilityPolicyStore(
-        makeStore({
-          isCapabilityGloballyEnabled: (cap) => cap === 'portal.read',
-          isOrgAllowlisted: (_orgId, cap) => cap === 'portal.read',
-        }),
+        makeStore({ isCapabilityKilled: (cap) => cap !== 'portal.read' }),
       )
     })
 
@@ -91,14 +87,14 @@ describe('BQC-0.2 portal capability taxonomy (STD-P0-01)', () => {
     it('denies portal.create when only portal.read is enabled', async () => {
       const decision = await decide('portal.create')
       expect(decision.allowed).toBe(false)
-      expect(decision.reason).toBe('org_not_allowlisted')
+      expect(decision.reason).toBe('capability_disabled')
     })
 
     it('denies portal.update and portal.delete when only portal.read is enabled', async () => {
       for (const action of ['portal.update', 'portal.delete'] as const) {
         const decision = await decide(action)
         expect(decision.allowed, action).toBe(false)
-        expect(decision.reason, action).toBe('org_not_allowlisted')
+        expect(decision.reason, action).toBe('capability_disabled')
       }
     })
 
@@ -111,23 +107,22 @@ describe('BQC-0.2 portal capability taxonomy (STD-P0-01)', () => {
         requireExecutionAllowed({ actor: ctx, action: 'portal.create' }),
       ).rejects.toMatchObject({
         _tag: 'AuthError',
-        code: 'org_not_allowlisted',
+        code: 'capability_disabled',
         status: 403,
       })
     })
   })
 
-  describe('controlled write/upload environment posture', () => {
-    it('treats upload like write in an E2E environment, and still cannot open a safety block', () => {
+  describe('guest pages switched off', () => {
+    it('keeps manager Portal read, write and upload, and stops the guest surface', () => {
       const store = createEnvCapabilityPolicyStore({
-        BETA_E2E_GLOBAL_CAPABILITIES:
-          'portal.read,portal.write,portal.upload,portal.guest_contact,identity.register',
+        BETA_CAPABILITIES_OFF: 'guest_pages',
       })
-      expect(store.isCapabilityGloballyEnabled('portal.read')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('portal.write')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('portal.upload')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('portal.guest_contact')).toBe(false)
-      expect(store.isCapabilityGloballyEnabled('identity.register')).toBe(false)
+      expect(store.isCapabilityKilled('portal.read')).toBe(false)
+      expect(store.isCapabilityKilled('portal.write')).toBe(false)
+      expect(store.isCapabilityKilled('portal.upload')).toBe(false)
+      expect(store.isCapabilityKilled('portal.public_read')).toBe(true)
+      expect(store.isCapabilityKilled('portal.guest_response')).toBe(true)
     })
   })
 })

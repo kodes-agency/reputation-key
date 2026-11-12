@@ -227,7 +227,6 @@ describe('E2E hatch boot guard', () => {
         NODE_ENV: 'production',
         E2E: '1',
         BETA_E2E_EXECUTION_IDENTITY: IDENTITY,
-        BETA_E2E_GLOBAL_CAPABILITIES: 'identity.register,organization.create',
       },
       logger,
     )

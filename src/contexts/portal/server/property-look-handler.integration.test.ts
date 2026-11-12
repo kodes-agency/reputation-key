@@ -156,7 +156,7 @@ describe('savePropertyLook server function (real PostgreSQL)', () => {
 
   it('stores nothing when the Property policy refuses', async () => {
     handlerWorld.requireExecutionAllowed.mockRejectedValue(
-      policyDenial('property_not_allowlisted'),
+      policyDenial('capability_disabled'),
     )
 
     await expect(
@@ -167,7 +167,7 @@ describe('savePropertyLook server function (real PostgreSQL)', () => {
       ),
     ).rejects.toMatchObject({
       _tag: 'AuthError',
-      code: 'property_not_allowlisted',
+      code: 'capability_disabled',
       status: 403,
     })
 

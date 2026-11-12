@@ -130,15 +130,15 @@ export const RetryReadsWithTheButtonBusy: Story = {
 export const NotSwitchedOn: Story = {
   args: {
     getPortalAnalytics: asRead(async () => {
-      throw Object.assign(new Error('org_not_allowlisted'), {
-        code: 'org_not_allowlisted',
+      throw Object.assign(new Error('capability_disabled'), {
+        code: 'capability_disabled',
       })
     }),
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText('Results aren’t available yet')).toBeVisible()
     await expect(canvas.queryByRole('button', { name: 'Try again' })).toBeNull()
-    await expect(canvas.queryByText(/org_not_allowlisted/)).toBeNull()
+    await expect(canvas.queryByText(/capability_disabled/)).toBeNull()
   },
 }
 

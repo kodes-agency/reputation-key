@@ -85,8 +85,6 @@ export type PlatformOrganizationView = Readonly<{
   accountAdminCount: number
   /** Invitations of any role still pending and not past their expiry. */
   pendingInvitationCount: number
-  /** False while BETA_ALLOWLIST_ORGS does not cover this Organization. */
-  controlledBetaEnabled: boolean
   /**
    * Open (pending or expired) AccountAdmin invitations, newest first. Empty
    * once the Organization has an AccountAdmin: the console stops acting on

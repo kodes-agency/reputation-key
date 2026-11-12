@@ -1,64 +1,42 @@
-// CapabilityBootGuard — BQC-0.3 / SPEC-P0-03 containment for test-only
-// capability overrides.
-//
-// BETA_E2E_GLOBAL_CAPABILITIES exists so browser E2E (a separate app process)
-// can open registration/team surfaces without changing production posture.
-// Before BQC-0.3, a production environment mistake with this variable set
-// would silently open non-core capabilities on first use.
+// CapabilityBootGuard — startup containment for the capability policy.
 //
 // This module runs at true process startup where an app-level entry exists
 // (the worker — a plain Node process) and:
-//   1. Refuses startup when the override is non-empty outside an explicit
-//      test/CI execution identity (assertE2EOverrideIdentity).
-//   2. Refuses startup when E2E — the sibling hatch that stands BOTH auth
-//      brute-force limiters down (review §5.1) — is set outside that same
-//      identity (assertE2ERateLimitBypassIdentity).
-//      A deployed process has no such identity: with a Railway project or
-//      environment id present, 1 and 2 refuse whatever
-//      BETA_E2E_EXECUTION_IDENTITY says.
-//   3. Asserts every blocked capability is not globally enabled (production
-//      boot assertion — blocked capabilities must never boot enabled).
-//   4. Eagerly initializes the global policy store and records the
+//   1. Refuses startup when E2E — the hatch that stands BOTH auth
+//      brute-force limiters down — is set outside an explicit test/CI
+//      execution identity (assertE2ERateLimitBypassIdentity). A deployed
+//      process has no such identity: with a Railway project or environment id
+//      present, it refuses whatever BETA_E2E_EXECUTION_IDENTITY says.
+//   2. Refuses startup when BETA_CAPABILITIES_OFF names something that is not
+//      a switch (createEnvCapabilityPolicyStore throws).
+//   3. Eagerly initializes the global policy store and records the
 //      capability-policy version + effective beta manifest at startup —
-//      capabilities only, never tenant/org identifiers, plus whether the
-//      auth rate-limit hatch is in effect and the Organization allowlist's
-//      shape (all / N listed / none).
+//      switches only, never tenant/org identifiers, plus whether the auth
+//      rate-limit hatch is in effect.
 //
-// This guard does not run in the web server. serverDir scanning is off under
-// TanStack Start, so vite.config.ts registers nitro plugins by explicit list —
-// and that list does not include this module (the B0.7 security-headers plugin,
-// once inert for the same reason, is now on it and proven by
-// scripts/check-security-headers.mjs). Web and every other unguarded process
-// are therefore fail-closed at first capability evaluation: the primitives live
-// in beta-capabilities.ts so the lazy getStore() fallback enforces the same
-// rules (proven in dev and in the built production server, which 500s on any
-// request when the override leaks without an identity). The rate-limit hatch is
-// fail-closed the same way — an unauthorized E2E claim leaves both limiters ON
-// at the call sites, so it costs 429s rather than a refused boot. The store the
-// web composition root builds (createEnvCapabilityPolicyStore) drops the
-// capability override in a deployed process, so the refusal there does not
-// depend on which read reaches the store first.
+// This guard does not run in the web server: vite.config.ts registers nitro
+// plugins by explicit list, and that list does not include this module. The
+// web composition root builds the same store (policy-store-init.ts), so an
+// unreadable BETA_CAPABILITIES_OFF refuses web's startup too, and readiness
+// reports it (shared/health/readiness.ts). The rate-limit hatch is fail-closed
+// at its call sites — an unauthorized E2E claim leaves both limiters ON, so it
+// costs 429s rather than a refused boot.
 //
-// Unit/component tests do not need the env backdoor: they inject policy
-// stores via initCapabilityPolicyStore (see beta-capabilities.ts).
+// Unit/component tests inject policy stores via initCapabilityPolicyStore
+// (see beta-capabilities.ts).
 
 import {
   CAPABILITY_POLICY_VERSION,
-  assertBlockedCapabilitiesContained,
-  assertE2EOverrideIdentity,
   assertE2ERateLimitBypassIdentity,
   createEnvCapabilityPolicyStore,
-  describeOrgAllowlist,
   initCapabilityPolicyStore,
   isE2ERateLimitBypassAuthorized,
   isKillSwitchAll,
   listBlockedCapabilities,
-  listCoreCapabilities,
-  parseE2EGlobalOverrides,
-  parseKilledCapabilities,
+  parseSwitchesOff,
   type Capability,
   type CapabilityPolicyEnv,
-  type OrgAllowlistMode,
+  type FeatureSwitch,
 } from './beta-capabilities'
 
 export type { CapabilityPolicyEnv }
@@ -67,21 +45,14 @@ export type { CapabilityPolicyEnv }
 export type CapabilityBootManifest = Readonly<{
   policyVersion: string
   nodeEnv: string
-  /** Whole-switch kill ('1'/'true'/'all'). */
+  /** Everything off ('1'/'true'/'all'). */
   killSwitchActive: boolean
-  /** BQC-0.4 per-capability kill list (empty when whole-switch or absent). */
-  disabledCapabilities: ReadonlyArray<string>
-  coreCapabilities: ReadonlyArray<Capability>
+  /** Switches turned off (empty when everything is off or none is). */
+  switchesOff: ReadonlyArray<FeatureSwitch>
   blockedCapabilities: ReadonlyArray<Capability>
-  e2eGlobalOverrides: ReadonlyArray<Capability>
   /**
-   * Which Organizations controlled-beta capabilities are open to: every one,
-   * a count of listed IDs, or none. The shape only — never an ID.
-   */
-  orgAllowlist: OrgAllowlistMode
-  /**
-   * Review §5.1: whether the E2E hatch has stood the auth brute-force
-   * limiters down in this process — the health signal the hatch never had.
+   * Whether the E2E hatch has stood the auth brute-force limiters down in
+   * this process — the health signal the hatch never had.
    */
   authRateLimitBypass: boolean
   e2eExecutionIdentity?: string
@@ -93,8 +64,7 @@ export type CapabilityBootLogger = Readonly<{
 
 /**
  * Build the effective beta manifest for startup logging. Contains capability
- * posture only — allowlisted/suspended org IDs are deliberately excluded; the
- * allowlist appears as its shape (mode and count).
+ * posture only — suspended org IDs are deliberately excluded.
  */
 export function buildCapabilityBootManifest(
   env: CapabilityPolicyEnv,
@@ -104,11 +74,8 @@ export function buildCapabilityBootManifest(
     policyVersion: CAPABILITY_POLICY_VERSION,
     nodeEnv: env.NODE_ENV ?? '(unset)',
     killSwitchActive: isKillSwitchAll(env),
-    disabledCapabilities: parseKilledCapabilities(env),
-    coreCapabilities: listCoreCapabilities(),
+    switchesOff: parseSwitchesOff(env),
     blockedCapabilities: listBlockedCapabilities(),
-    e2eGlobalOverrides: parseE2EGlobalOverrides(env),
-    orgAllowlist: describeOrgAllowlist(env),
     authRateLimitBypass: isE2ERateLimitBypassAuthorized(env),
     ...(identity ? { e2eExecutionIdentity: identity } : {}),
   }
@@ -123,11 +90,8 @@ export function runCapabilityBootGuard(
   env: CapabilityPolicyEnv,
   logger: CapabilityBootLogger,
 ): CapabilityBootManifest {
-  assertE2EOverrideIdentity(env)
   assertE2ERateLimitBypassIdentity(env)
-  const store = createEnvCapabilityPolicyStore(env)
-  assertBlockedCapabilitiesContained(store)
-  initCapabilityPolicyStore(store)
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
   const manifest = buildCapabilityBootManifest(env)
   logger.info({ capabilityPolicy: manifest }, 'capability policy boot manifest')
   return manifest

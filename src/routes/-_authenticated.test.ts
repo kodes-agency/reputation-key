@@ -77,6 +77,28 @@ describe('authenticated route', () => {
     })
   })
 
+  it('redirects a suspended workspace to its temporarily-unavailable page', async () => {
+    getSession.mockResolvedValue(SESSION)
+    getActiveOrganization.mockResolvedValue({
+      availability: 'suspended',
+      organization: null,
+      role: 'Member',
+      authz: {},
+    })
+
+    const beforeLoad = Route.options.beforeLoad
+    if (!beforeLoad) throw new Error('Authenticated route must define beforeLoad')
+
+    await expect(
+      beforeLoad({ context: shellContext(), location: { href: '/dashboard' } } as never),
+    ).rejects.toMatchObject({
+      options: {
+        to: '/unavailable',
+        search: { feature: 'Workspace', category: 'temporarily_unavailable' },
+      },
+    })
+  })
+
   it('routes an active workspace without a resolved role to its unavailable page', async () => {
     getSession.mockResolvedValue(SESSION)
     getActiveOrganization.mockResolvedValue({
@@ -173,8 +195,7 @@ describe('authenticated route', () => {
         to: '/unavailable',
         search: {
           feature: 'Goals',
-          category: 'needs_admin_enablement',
-          propertyId: 'property-1',
+          category: 'temporarily_unavailable',
         },
       }),
     )
@@ -192,8 +213,7 @@ describe('authenticated route', () => {
         to: '/unavailable',
         search: {
           feature: 'Goals',
-          category: 'needs_admin_enablement',
-          propertyId: 'property-1',
+          category: 'temporarily_unavailable',
         },
       },
     })

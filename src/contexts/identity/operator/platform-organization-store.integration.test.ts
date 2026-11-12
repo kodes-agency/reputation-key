@@ -448,7 +448,6 @@ describe.sequential('the platform console end to end', () => {
     },
     baseUrl: 'https://app.example.test',
     invitationExpiresInMs: WEEK_MS,
-    isControlledBetaEnabled: () => true,
   })
 
   beforeEach(() => {

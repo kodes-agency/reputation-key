@@ -349,7 +349,7 @@ describe('resultsStateOf', () => {
   })
 
   it('treats a deliberately dark capability as no results, not as a failure', () => {
-    const dark = Object.assign(new Error('denied'), { code: 'org_not_allowlisted' })
+    const dark = Object.assign(new Error('denied'), { code: 'capability_disabled' })
 
     expect(resultsStateOf({ allowed: true, error: dark }, null)).toEqual({
       status: 'off',

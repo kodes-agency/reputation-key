@@ -153,9 +153,7 @@ describe.sequential(
         enabled: true,
         cadence: 'immediate',
       })
-      initCapabilityPolicyStore(
-        createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: ORG }),
-      )
+      initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
       initDelayedExecutionPolicy(
         createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
       )

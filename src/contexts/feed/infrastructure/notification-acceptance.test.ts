@@ -46,7 +46,7 @@ import type { QueuedNotice } from './notification-consumer-test-fixtures'
 
 beforeAll(registerAllEventSchemas)
 beforeEach(() => {
-  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: ORG }))
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
   initDelayedExecutionPolicy(
     createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
   )

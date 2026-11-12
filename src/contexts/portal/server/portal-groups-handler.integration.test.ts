@@ -164,12 +164,12 @@ describe('movePortalToGroup server function (real PostgreSQL)', () => {
 
   it('does not move anything when the Property is not allowed to be written', async () => {
     handlerWorld.requireExecutionAllowed.mockRejectedValue(
-      policyDenial('property_not_allowlisted'),
+      policyDenial('capability_disabled'),
     )
 
     await expect(move(GROUP_A, A.portalId)).rejects.toMatchObject({
       name: 'AuthError',
-      code: 'property_not_allowlisted',
+      code: 'capability_disabled',
       status: 403,
     })
 

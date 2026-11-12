@@ -613,7 +613,7 @@ describe('generateReplySuggestionFn — a local template under the real policy',
   })
 
   it('still answers a template while the AI reply capability is switched off', async () => {
-    await underPolicy({ BETA_CAPABILITIES_OFF: 'ai.generate_reply' }, [PROPERTY_ID])
+    await underPolicy({ BETA_CAPABILITIES_OFF: 'ai' }, [PROPERTY_ID])
 
     await expect(callTemplateOnly()).resolves.toEqual(TEMPLATE)
   })

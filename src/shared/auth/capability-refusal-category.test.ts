@@ -17,37 +17,9 @@ const DENY_CASES = [
     category: 'not_in_beta',
   },
   {
-    // Only an operator can change the Organization allowlist. Sending the
-    // reader to Property settings — where nothing can fix it — cost every
-    // tester a detour before anyone checked the environment.
-    reason: 'org_not_allowlisted',
-    capability: 'goal.use',
-    category: 'not_enabled_for_organization',
-  },
-  {
-    reason: 'property_not_allowlisted',
-    capability: 'goal.use',
-    category: 'needs_admin_enablement',
-  },
-  {
     reason: 'org_suspended',
     capability: 'goal.use',
     category: 'temporarily_unavailable',
-  },
-  {
-    reason: 'property_suspended',
-    capability: 'goal.use',
-    category: 'temporarily_unavailable',
-  },
-  {
-    reason: 'unknown_capability',
-    capability: 'goal.use',
-    category: 'not_in_beta',
-  },
-  {
-    reason: 'missing_policy',
-    capability: 'goal.use',
-    category: 'needs_admin_enablement',
   },
   {
     reason: 'capability_blocked',
@@ -87,39 +59,19 @@ describe('capability refusal category', () => {
   })
 
   it('publishes the approved refusal copy', () => {
-    expect(REFUSAL_COPY.not_in_beta).toMatchObject({
+    expect(REFUSAL_COPY.not_in_beta).toEqual({
       tooltip: 'Not available in this beta',
+      title: expect.any(Function),
       description:
         'This capability is switched off for the closed beta and cannot be enabled from Settings.',
-      next: null,
     })
     expect(REFUSAL_COPY.not_in_beta.title('Goals')).toBe('Goals is not part of this beta')
 
-    expect(REFUSAL_COPY.needs_admin_enablement).toMatchObject({
-      tooltip: 'Not enabled for this property',
-      description:
-        'An account admin can enable it for this property from Property settings.',
-      next: 'property_settings',
-    })
-    expect(REFUSAL_COPY.needs_admin_enablement.title('Goals')).toBe(
-      'Goals is not enabled for this workspace',
-    )
-
-    expect(REFUSAL_COPY.not_enabled_for_organization).toMatchObject({
-      tooltip: 'Not enabled for your organization',
-      description:
-        'Beta features are switched on per organization by the RepKey team, not from Settings. Contact support to have it enabled.',
-      next: null,
-    })
-    expect(
-      REFUSAL_COPY.not_enabled_for_organization.title('Google property import'),
-    ).toBe('Google property import is not enabled for your organization yet')
-
-    expect(REFUSAL_COPY.temporarily_unavailable).toMatchObject({
+    expect(REFUSAL_COPY.temporarily_unavailable).toEqual({
       tooltip: 'Temporarily unavailable',
+      title: expect.any(Function),
       description:
         'Access is paused for this workspace or property. Try again later or contact support.',
-      next: null,
     })
     expect(REFUSAL_COPY.temporarily_unavailable.title('Goals')).toBe(
       'Goals is temporarily unavailable',

@@ -93,21 +93,12 @@ export function noticeProps(
       }
     case 'feature': {
       const copy = REFUSAL_COPY[notice.category]
-      // An admin-enablement refusal can be lifted from the Property's settings;
-      // no other can.
-      const settings =
-        copy.next === 'property_settings' && notice.propertyId
-          ? {
-              to: `/properties/${notice.propertyId}/settings`,
-              label: 'Open property settings',
-            }
-          : propertiesOrProfile(access)
       return {
         kind: 'unavailable',
         title: notice.title,
         heading: copy.title(notice.title),
         reason: copy.description,
-        back: settings,
+        back: propertiesOrProfile(access),
       }
     }
   }

@@ -8,10 +8,12 @@ const REPORT: CapabilityRefusalReport = {
   decidedBy: 'google_execution_control',
   code: 'capability_killed',
   fate: {
-    fate: 'controlled_beta',
+    fate: 'core',
+    featureSwitch: 'google',
+    needsOrganization: true,
     authority: 'Google discovery/import is active only through the governed import saga.',
     activation:
-      'Open to an Organization listed in BETA_ALLOWLIST_ORGS (or to all with `*`), plus any readiness gates; global kill and tenant suspension still win.',
+      'Enabled by default; the google switch, everything off and Organization suspension still win.',
   },
   chain: [
     { authority: 'catalogue', outcome: 'pass', code: null, facts: [] },
@@ -42,9 +44,9 @@ describe('capability refusal operator report', () => {
         'REFUSED property.import_gbp_v2',
         '  deciding authority: google_execution_control',
         '  code: capability_killed',
-        '  fate: controlled_beta',
+        '  fate: core',
         '  fate authority: Google discovery/import is active only through the governed import saga.',
-        '  activation: Open to an Organization listed in BETA_ALLOWLIST_ORGS (or to all with `*`), plus any readiness gates; global kill and tenant suspension still win.',
+        '  activation: Enabled by default; the google switch, everything off and Organization suspension still win.',
         '  chain:',
         '    - catalogue: pass',
         '    - google_execution_control: refused (code=capability_killed)',

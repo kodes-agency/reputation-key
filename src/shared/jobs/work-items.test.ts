@@ -70,7 +70,7 @@ describe('ledger scope at the dispatch gate', () => {
 
   it.each([
     [{ BETA_SUSPENDED_ORGS: 'org-1' }, 'org_suspended'],
-    [{ BETA_CAPABILITIES_OFF: 'property.connect_gbp' }, 'capability_disabled'],
+    [{ BETA_CAPABILITIES_OFF: 'google' }, 'capability_disabled'],
   ])('retains current policy denial for ledger work: %s', async (env, reason) => {
     const { dispatch, handler } = dispatchFixture(env)
     await expect(

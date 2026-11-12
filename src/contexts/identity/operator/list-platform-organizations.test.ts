@@ -27,7 +27,7 @@ const row = (id: string, accountAdminCount: number): PlatformOrganizationRow => 
 })
 
 describe('listPlatformOrganizations', () => {
-  it('lists at most 200 Organizations as views, with controlled-beta coverage', async () => {
+  it('lists at most 200 Organizations as views', async () => {
     const store = {
       listOrganizations: vi.fn(async () => [row('org-dark', 0), row('org-lit', 2)]),
       readAdministration: vi.fn(),
@@ -38,17 +38,13 @@ describe('listPlatformOrganizations', () => {
     } satisfies PlatformOrganizationStore
     const list = listPlatformOrganizations({
       store,
-      isControlledBetaEnabled: (id) => id === 'org-lit',
       clock: () => NOW,
     })
 
     const views = await list()
 
     expect(store.listOrganizations).toHaveBeenCalledWith({ limit: 200, now: NOW })
-    expect(views.map((view) => [view.id, view.controlledBetaEnabled])).toEqual([
-      ['org-dark', false],
-      ['org-lit', true],
-    ])
+    expect(views.map((view) => view.id)).toEqual(['org-dark', 'org-lit'])
     expect(views[0]?.pendingAdminInvitations).toHaveLength(1)
     expect(views[1]?.pendingAdminInvitations).toEqual([])
   })

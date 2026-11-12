@@ -171,14 +171,14 @@ describe('publishPortal server function (real PostgreSQL)', () => {
 
   it('leaves the Portal a draft when the policy refuses the Property', async () => {
     handlerWorld.requireExecutionAllowed.mockRejectedValue(
-      policyDenial('property_not_allowlisted'),
+      policyDenial('capability_disabled'),
     )
 
     await expect(
       withStartContext(() =>
         publishPortal({ data: { portalId: PORTAL, reviewedDigest: 'reviewed-digest' } }),
       ),
-    ).rejects.toMatchObject({ code: 'property_not_allowlisted', status: 403 })
+    ).rejects.toMatchObject({ code: 'capability_disabled', status: 403 })
 
     expect(await portalRow()).toMatchObject({ publication_state: 'draft' })
   })
@@ -209,12 +209,12 @@ describe('archivePortal server function (real PostgreSQL)', () => {
 
   it('leaves the Portal as it was when the policy refuses the Property', async () => {
     handlerWorld.requireExecutionAllowed.mockRejectedValue(
-      policyDenial('property_not_allowlisted'),
+      policyDenial('capability_disabled'),
     )
 
     await expect(
       withStartContext(() => archivePortal({ data: { portalId: PORTAL } })),
-    ).rejects.toMatchObject({ code: 'property_not_allowlisted', status: 403 })
+    ).rejects.toMatchObject({ code: 'capability_disabled', status: 403 })
 
     expect(await portalRow()).toEqual({ publication_state: 'draft', deleted_at: null })
   })

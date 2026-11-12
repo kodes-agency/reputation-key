@@ -12,12 +12,12 @@
 //     one atomic disconnect + identifier/secret redaction, and a bounded
 //     source-content purge. It is an `integration.manage` action, so the app
 //     refuses it while the Organization is suspended, and while
-//     BETA_CAPABILITIES_OFF is all or names integration.use: disconnect
-//     first, suspend afterwards (runbook §2).
+//     BETA_CAPABILITIES_OFF is all: disconnect first, suspend afterwards
+//     (runbook §2).
 //   - To stop the Organization's Google work without them, add its ID to
 //     BETA_SUSPENDED_ORGS on web and worker (runbook §1).
-//   - To stop Google for everyone, set BETA_CAPABILITIES_OFF to the Google
-//     capabilities (runbook §11).
+//   - To stop Google for everyone, add google to BETA_CAPABILITIES_OFF
+//     (runbook §11).
 //
 // Usage:
 //   pnpm ops disconnect-connection <connectionId> --operator <id> --org <id>

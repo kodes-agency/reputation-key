@@ -80,9 +80,6 @@ denies everyone it does not list. The beta has no MFA.
   invitation the operator cancels, leaves one. The console lists them and
   flags them; inviting again fixes them. Closing an empty Organization stays an
   ops task.
-- A new Organization is dark for controlled-beta capabilities until
-  `BETA_ALLOWLIST_ORGS` covers it on web and worker. The console reports which
-  Organizations are dark.
 - The operator's user id appears as `inviterId` in that Organization's export.
   The operator is no member, so any notice addressed to the inviter as a member
   is refused. The console's `audit_logs` rows are not exported (Activity treats

@@ -122,7 +122,7 @@ function ResultsBody({
   // beta-dark posture surfaces here as a query error (BQC-6.7 / F-PEOPLE).
   // Degrade those to friendly copy and keep a generic message for real
   // failures: the raw `.message` was rendering deny reasons like
-  // `org_not_allowlisted` at the reader, in destructive red.
+  // `capability_disabled` at the reader, in destructive red.
   if (failed) {
     if (isDarkCapabilityDenial(queryError)) {
       return (

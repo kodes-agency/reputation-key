@@ -24,7 +24,7 @@ const allowed: CapabilityDecision = {
 }
 const denied: CapabilityDecision = {
   allowed: false,
-  reason: 'property_not_allowlisted',
+  reason: 'capability_disabled',
   capability: 'goal.use',
 }
 
@@ -104,7 +104,7 @@ describe('gateControlledRoute', () => {
     it('answers a remembered refusal with the same notice', async () => {
       checkControlledRoute.mockResolvedValue(denied)
       const notice = {
-        data: { cause: 'feature', title: 'Goals', propertyId: PROPERTY_A },
+        data: { cause: 'feature', title: 'Goals', category: 'not_in_beta' },
       }
 
       await expect(gate()).rejects.toMatchObject(notice)
