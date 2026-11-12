@@ -148,3 +148,33 @@ export async function recordMissingFromListing(tx: Tx, run: RunRow): Promise<voi
       )
   `)
 }
+
+/**
+ * Whether a pending candidate's mapping was moved to a newer revision than the
+ * candidate was found under, by a head check or a push after the run began:
+ * the Review was edited on Google after the listing that missed it, so the
+ * candidate is stale and nothing may be removed on it.
+ */
+export async function candidateEditedSinceListing(
+  tx: Tx,
+  run: RunRow,
+  candidate: Readonly<{ reviewId: string; expectedSourceRevision: number }>,
+): Promise<boolean> {
+  const rows = await tx.execute(sql`
+    SELECT 1
+    FROM review_provider_deletion_candidates c
+    JOIN review_provider_subjects s
+      ON s.organization_id = ${run.organizationId}
+      AND s.property_id = ${run.propertyId}
+      AND s.source_epoch = ${run.sourceEpoch}
+      AND s.review_id = c.review_id
+    WHERE c.run_id = ${run.id}
+      AND c.review_id = ${candidate.reviewId}
+      AND c.expected_source_revision = ${candidate.expectedSourceRevision}
+      AND c.state = 'pending'
+      AND s.state = 'linked'
+      AND s.last_source_revision > c.expected_source_revision
+      AND s.last_observed_at > ${run.startedAt}
+  `)
+  return rows.rows.length > 0
+}

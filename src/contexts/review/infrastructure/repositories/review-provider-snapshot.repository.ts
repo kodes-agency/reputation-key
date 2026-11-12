@@ -41,6 +41,7 @@ import { eraseReviewSourceContent } from '#/contexts/reputation/application/publ
 import { lockReviewSourceMutationScope } from '../review-source-mutation-serialization'
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
 import {
+  candidateEditedSinceListing,
   foundUnlistedBefore,
   listingAgreement,
   recordMissingFromListing,
@@ -657,6 +658,21 @@ function pageCommitUpdate(
   }
 }
 
+/** A mapping of the observed review, written by a sighting after the run
+ * began, at the observed revision or a newer one. */
+function sameReviewMovedOn(
+  run: RunRow,
+  observation: ReviewProviderPersistedObservation,
+  mapping: SubjectRow,
+): boolean {
+  return (
+    mapping.reviewId === observation.reviewId &&
+    verifiedCandidateOf(observation, mapping) != null &&
+    mapping.lastSourceRevision >= observation.sourceRevision &&
+    mapping.lastObservedAt > run.startedAt
+  )
+}
+
 async function recordObservationMapping(
   tx: Tx,
   run: RunRow,
@@ -683,10 +699,24 @@ async function recordObservationMapping(
       )
       .for('update')
     if (reviewConflict.length !== 0) throw new SnapshotConflict('duplicate_resource')
-    await tx
+    const inserted = await tx
       .insert(reviewProviderSubjects)
       .values(linkedSubjectValues(run, observation, run.id))
-    return
+      .onConflictDoNothing()
+      .returning({ reviewId: reviewProviderSubjects.reviewId })
+    if (inserted.length > 0) return
+    // A head check or a push mapped the review after the lookup above, and
+    // committed while this page was inserting: the mapping moved under the
+    // run as it does for an edit, unless it is another resource's.
+    const written = await findSubjectMatches(tx, run, observation)
+    const [mapped] = written
+    throw new SnapshotConflict(
+      written.length === 1 &&
+        mapped != null &&
+        sameReviewMovedOn(run, observation, mapped)
+        ? 'review_edited'
+        : 'resource_collision',
+    )
   }
 
   if (
@@ -823,6 +853,26 @@ async function recordSourceTransition(
     occurredAt,
   })
   await insertOutboxRow(tx, event)
+}
+
+/**
+ * A candidate an edit made stale ends the run as a listing that moved
+ * (`review_edited`), which a fresh run reads as it is now. Anything else that
+ * left it unconfirmed is `stale`, for the caller to fail loudly.
+ */
+async function endRunOnEditedCandidate(
+  tx: Tx,
+  input: Readonly<{ runId: string; reviewId: string; expectedSourceRevision: number }>,
+): Promise<'stale' | 'edited_run_failed'> {
+  const [run] = await tx
+    .select()
+    .from(reviewProviderSnapshotRuns)
+    .where(eq(reviewProviderSnapshotRuns.id, input.runId))
+    .for('update')
+  if (run?.state !== 'confirming') return 'stale'
+  if (!(await candidateEditedSinceListing(tx, run, input))) return 'stale'
+  await failLockedRun(tx, run, 'review_edited')
+  return 'edited_run_failed'
 }
 
 export async function startOrResumeSnapshot(
@@ -1103,7 +1153,8 @@ export const createReviewProviderSnapshotRepository = (
           AND s.first_missing_snapshot_run_id IS NOT NULL
         RETURNING c.review_id
       `)
-      return rows.rowCount === 1 ? 'confirmed' : 'stale'
+      if (rows.rowCount === 1) return 'confirmed'
+      return endRunOnEditedCandidate(tx, input)
     }),
 
   recordCandidateObservation: async ({ runId, organizationId, observation }) =>

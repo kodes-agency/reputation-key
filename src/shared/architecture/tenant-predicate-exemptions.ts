@@ -636,6 +636,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
   },
   {
     file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
+    symbol: 'endRunOnEditedCandidate',
+    reason:
+      "Locks the run of a deletion candidate the snapshot worker addressed by its run id; the candidate's provider subject is then read under that run's Organization and Property.",
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
     symbol: 'readNextLinkedCandidate',
     reason:
       "The snapshot worker reads the next deletion candidate of a run by the run id, and the statement ties the review to the run's Organization and Property.",

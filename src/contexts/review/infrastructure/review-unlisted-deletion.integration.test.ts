@@ -48,7 +48,10 @@ import { createReviewFirstSightingRecorder } from './repositories/review-first-s
 import { createReviewHeadCheckRepository } from './repositories/review-head-check.repository'
 import { createReviewProviderSnapshotRepository } from './repositories/review-provider-snapshot.repository'
 import { UNLISTED_REVIEW_HOLD_RUNS } from './repositories/review-provider-snapshot-listing'
-import { createReviewProviderSubjectSightings } from './repositories/review-provider-subject-link'
+import {
+  createReviewProviderSubjectSightings,
+  recordSubjectSighting,
+} from './repositories/review-provider-subject-link'
 import { createReviewRepository } from './repositories/review.repository'
 import { createReviewSyncActivityRecorder } from './repositories/review-sync-activity.repository'
 
@@ -621,5 +624,109 @@ describe('a review edited and mapped by a push while a run is listing it (real P
     const revisions = await revisionsOf(id)
     expect(Number(revisions?.mapped)).toBe(Number(revisions?.stored))
     expect(await subjectOf(id)).toMatchObject({ state: 'linked', missed: false })
+  })
+})
+
+/** Whether some backend is queued on a lock while inserting a mapping. */
+async function mappingInsertWaits(): Promise<boolean> {
+  const result = await db.execute(sql`
+    SELECT count(*)::int AS waiting FROM pg_stat_activity
+    WHERE datname = current_database()
+      AND wait_event_type = 'Lock'
+      AND query ILIKE 'insert into "review_provider_subjects"%'
+  `)
+  return Number(result.rows[0]?.waiting ?? 0) > 0
+}
+
+async function untilMappingInsertWaits(): Promise<void> {
+  const deadline = Date.now() + 10_000
+  while (!(await mappingInsertWaits())) {
+    if (Date.now() > deadline) throw new Error('The page never waited on the mapping')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+}
+
+describe('a review a push maps while the page that lists it is committing (real PostgreSQL)', () => {
+  it('ends that run quietly and the fresh run completes', async () => {
+    const posted = guestReview('mapped-mid-page')
+    listed = [posted, first, second]
+    let raced = false
+    // The page has found no mapping of the review and is inserting one, while
+    // a sighting of the same review has inserted its own and not committed.
+    const racing = syncHandler({
+      ...snapshotRepository,
+      commitPage: async (input) => {
+        if (raced) return snapshotRepository.commitPage(input)
+        raced = true
+        const id = await storedIdOf(posted)
+        const observation = input.observations.find((seen) => seen.reviewId === id)
+        if (!observation) throw new Error('The page does not list the review')
+        const mapped = Promise.withResolvers<void>()
+        const release = Promise.withResolvers<void>()
+        const sighting = db.transaction(async (tx) => {
+          await expect(
+            recordSubjectSighting(
+              tx,
+              { organizationId: ORG, propertyId: PROPERTY, sourceEpoch: 0 },
+              observation,
+            ),
+          ).resolves.toBe('linked')
+          mapped.resolve()
+          await release.promise
+        })
+        sighting.catch(mapped.reject)
+        await mapped.promise
+        const committing = snapshotRepository.commitPage(input)
+        committing.catch(() => undefined)
+        await untilMappingInsertWaits()
+        release.resolve()
+        await sighting
+        return committing
+      },
+    })
+
+    await expect(sync(racing)).resolves.toMatchObject({ status: 'completed' })
+
+    expect(raced).toBe(true)
+    expect((await runEndings()).slice(-2)).toEqual([
+      { state: 'failed', failure_code: 'listing_changed' },
+      { state: 'completed', failure_code: null },
+    ])
+    const id = await storedIdOf(posted)
+    expect(await subjectOf(id)).toMatchObject({ state: 'linked', missed: false })
+  })
+})
+
+describe('a removal candidate a push edits while the run confirms it gone (real PostgreSQL)', () => {
+  it('ends that run quietly and removes nothing on the stale candidate', async () => {
+    await storedBy['a Google push'](unlisted)
+    const id = await storedIdOf(unlisted)
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+    await ageFirstMiss()
+    const before = await revisionsOf(id)
+    const edited = editOf(unlisted)
+    let raced = false
+    // The candidate was found at the first revision. Between reading it and
+    // confirming it gone, a push stores the edit and raises the mapping's
+    // revision; Google's direct read then answers not found.
+    vi.mocked(googleReviewApi.getReview).mockImplementationOnce(async () => {
+      raced = true
+      await editedBy['a Google push'](edited)
+      readable = [edited]
+      return { status: 'not_found' as const }
+    })
+    const endingsBefore = (await runEndings()).length
+
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+
+    expect(raced).toBe(true)
+    const after = await revisionsOf(id)
+    expect(Number(after?.mapped)).toBeGreaterThan(Number(before?.mapped))
+    expect((await runEndings())[endingsBefore]).toEqual({
+      state: 'failed',
+      failure_code: 'listing_changed',
+    })
+    expect(await sourceStateOf(id)).toBe('active')
+    expect(await subjectOf(id)).toMatchObject({ state: 'linked' })
   })
 })

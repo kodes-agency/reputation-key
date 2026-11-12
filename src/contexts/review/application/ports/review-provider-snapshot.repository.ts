@@ -280,13 +280,20 @@ export type ReviewProviderSnapshotRepository = Readonly<{
     }>,
   ): Promise<ReviewProviderLinkedCandidate | null>
 
+  /**
+   * Confirm a candidate gone after a direct read found it missing. A
+   * candidate whose mapping a head check or a push moved to a newer revision
+   * after the run began is stale: the store ends the run as a listing that
+   * moved (`edited_run_failed`), and the caller reads the code back from
+   * `failRun`.
+   */
   confirmLinkedCandidateMissing(
     input: Readonly<{
       runId: string
       reviewId: ReviewId
       expectedSourceRevision: number
     }>,
-  ): Promise<'confirmed' | 'stale' | 'run_failed'>
+  ): Promise<'confirmed' | 'stale' | 'edited_run_failed' | 'run_failed'>
 
   /**
    * A removal candidate Google returned after all: the run's set changed, so
