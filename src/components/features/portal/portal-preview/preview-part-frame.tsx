@@ -34,6 +34,8 @@ import { partActionName, previewPartOf, type PreviewSelection } from './preview-
 const LINE_WIDTH = 2
 /** The gap between a focused part and its focus ring, on screen. */
 const FOCUS_GAP = 2
+/** The least a finger can press on a phone, on screen. */
+const TOUCH_PAD = 44
 // Where things sit is geometry, not styling: it is set inline, with the numbers
 // it is computed from, and the classes carry only colour and shape.
 const FRAME_STYLE: CSSProperties = { position: 'relative', minHeight: '100%' }
@@ -51,7 +53,7 @@ const FLAG_ROOM = 28
 function partStyle(
   box: Box,
   scale: number,
-): CSSProperties & Record<'--part-gap', string> {
+): CSSProperties & Record<'--part-gap' | '--part-pad', string> {
   return {
     position: 'absolute',
     pointerEvents: 'auto',
@@ -62,6 +64,7 @@ function partStyle(
     outlineStyle: 'solid',
     outlineWidth: LINE_WIDTH / scale,
     '--part-gap': `${FOCUS_GAP / scale}px`,
+    '--part-pad': `${TOUCH_PAD / scale}px`,
   }
 }
 
@@ -124,6 +127,9 @@ export function PreviewPartFrame({
               onClick={() => selection.onSelect(section)}
               className={cn(
                 'cursor-pointer rounded-[28px] bg-transparent p-0',
+                // A small part (the language chip) is still a thumb's target on a phone:
+                // a pad drawn around its centre, 44px on screen whatever the scale.
+                "max-md:after:absolute max-md:after:top-1/2 max-md:after:left-1/2 max-md:after:size-(--part-pad) max-md:after:-translate-1/2 max-md:after:content-['']",
                 'transition-[outline-color] duration-150',
                 // Focus is its own mark: a gap and the ring colour, so it is not
                 // taken for the outline of the part being edited.

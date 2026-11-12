@@ -336,210 +336,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--assigned-but-no-longer-eligible",
-    "state": "Assigned But No Longer Eligible",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--assigned-but-no-longer-eligible",
-    "state": "Assigned But No Longer Eligible",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--assigned-no-alert",
-    "state": "Assigned No Alert",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--assigned-no-alert",
-    "state": "Assigned No Alert",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--needs-a-manager",
-    "state": "Needs A Manager",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--needs-a-manager",
-    "state": "Needs A Manager",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--no-heading-inside-the-editor",
-    "state": "No Heading Inside The Editor",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--no-heading-inside-the-editor",
-    "state": "No Heading Inside The Editor",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--property-heading-level",
-    "state": "Property Heading Level",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--property-heading-level",
-    "state": "Property Heading Level",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--reset-puts-the-saved-managers-back",
-    "state": "Reset Puts The Saved Managers Back",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--reset-puts-the-saved-managers-back",
-    "state": "Reset Puts The Saved Managers Back",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--save-enabled-only-after-a-change",
-    "state": "Save Enabled Only After A Change",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--save-enabled-only-after-a-change",
-    "state": "Save Enabled Only After A Change",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--save-failed",
-    "state": "Save Failed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--save-failed",
-    "state": "Save Failed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--save-pending",
-    "state": "Save Pending",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--save-pending",
-    "state": "Save Pending",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--tells-the-page-when-ticks-wait-for-save",
-    "state": "Tells The Page When Ticks Wait For Save",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "features-responsiblemanagers-responsiblemanagerspanel--tells-the-page-when-ticks-wait-for-save",
-    "state": "Tells The Page When Ticks Wait For Save",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--average",
-    "state": "Average",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--average",
-    "state": "Average",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--choose",
-    "state": "Choose",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--choose",
-    "state": "Choose",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--each-portal",
-    "state": "Each Portal",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--each-portal",
-    "state": "Each Portal",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--each-portal-after-one-failed",
-    "state": "Each Portal After One Failed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--each-portal-after-one-failed",
-    "state": "Each Portal After One Failed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--each-portal-row-failed",
-    "state": "Each Portal Row Failed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--each-portal-row-failed",
-    "state": "Each Portal Row Failed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--group",
-    "state": "Group",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--group",
-    "state": "Group",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--one-portal",
-    "state": "One Portal",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoaladd--one-portal",
-    "state": "One Portal",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoaladd--phone-320",
     "state": "Phone 320",
     "width": 320,
@@ -576,42 +372,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "goals-portalgoalcarddoors--getting-ready-own-number",
-    "state": "Getting Ready Own Number",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalcarddoors--getting-ready-own-number",
-    "state": "Getting Ready Own Number",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalcarddoors--getting-ready-own-number-light",
-    "state": "Getting Ready Own Number Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalcarddoors--getting-ready-own-number-light",
-    "state": "Getting Ready Own Number Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalcarddoors--nothing-counted-anyway",
-    "state": "Nothing Counted Anyway",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalcarddoors--nothing-counted-anyway",
-    "state": "Nothing Counted Anyway",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalcarddoors--ready-change",
     "state": "Ready Change",
     "width": 320,
@@ -644,18 +404,6 @@
   {
     "storyId": "goals-portalgoalcarddoors--scans-only-private-ratings",
     "state": "Scans Only Private Ratings",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalcarddoors--unreadable-own-number",
-    "state": "Unreadable Own Number",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalcarddoors--unreadable-own-number",
-    "state": "Unreadable Own Number",
     "width": 390,
     "checks": ["targets"]
   },
@@ -1584,66 +1332,6 @@
     "checks": ["overflow"]
   },
   {
-    "storyId": "goals-portalgoalsheet--change-320",
-    "state": "Change 320",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-320",
-    "state": "Change 320",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-light",
-    "state": "Change Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-light",
-    "state": "Change Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-on-a-desktop",
-    "state": "Change On A Desktop",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-on-a-desktop",
-    "state": "Change On A Desktop",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-on-a-tablet",
-    "state": "Change On A Tablet",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-on-a-tablet",
-    "state": "Change On A Tablet",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-scans-held",
-    "state": "Change Scans Held",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--change-scans-held",
-    "state": "Change Scans Held",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "goals-portalgoalsheet--choose-a-row",
     "state": "Choose A Row",
     "width": 320,
@@ -1712,18 +1400,6 @@
   {
     "storyId": "goals-portalgoalsheet--refused-month-turned",
     "state": "Refused Month Turned",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--refused-start-month-changed",
-    "state": "Refused Start Month Changed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsheet--refused-start-month-changed",
-    "state": "Refused Start Month Changed",
     "width": 390,
     "checks": ["targets"]
   },
@@ -1820,18 +1496,6 @@
   {
     "storyId": "goals-portalgoalsinglepage--average-change-now",
     "state": "Average Change Now",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsinglepage--average-change-refused-conflict",
-    "state": "Average Change Refused Conflict",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "goals-portalgoalsinglepage--average-change-refused-conflict",
-    "state": "Average Change Refused Conflict",
     "width": 390,
     "checks": ["targets"]
   },
@@ -3822,114 +3486,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "patterns-page-header--identity-and-trail",
-    "state": "Identity And Trail",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-page-header--identity-and-trail",
-    "state": "Identity And Trail",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-page-header--identity-and-trail-light",
-    "state": "Identity And Trail Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-page-header--identity-and-trail-light",
-    "state": "Identity And Trail Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-page-header--purpose-only",
-    "state": "Purpose Only",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-page-header--purpose-only",
-    "state": "Purpose Only",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--failed",
-    "state": "Failed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--failed",
-    "state": "Failed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--failed-light",
-    "state": "Failed Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--failed-light",
-    "state": "Failed Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--loading",
-    "state": "Loading",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--loading",
-    "state": "Loading",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--loading-light",
-    "state": "Loading Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--loading-light",
-    "state": "Loading Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--not-found",
-    "state": "Not Found",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--not-found",
-    "state": "Not Found",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--not-found-light",
-    "state": "Not Found Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-pagestate--not-found-light",
-    "state": "Not Found Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "patterns-region-error--compact-density",
     "state": "Compact Density",
     "width": 320,
@@ -4374,534 +3930,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-linktree--account-admin-approves-from-the-tile",
-    "state": "Account Admin Approves From The Tile",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--account-admin-approves-from-the-tile",
-    "state": "Account Admin Approves From The Tile",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--add-waits-for-typed-text-and-earlier-writes",
-    "state": "Add Waits For Typed Text And Earlier Writes",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--add-waits-for-typed-text-and-earlier-writes",
-    "state": "Add Waits For Typed Text And Earlier Writes",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--address-shows-the-saved-form-and-is-not-written-twice",
-    "state": "Address Shows The Saved Form And Is Not Written Twice",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--address-shows-the-saved-form-and-is-not-written-twice",
-    "state": "Address Shows The Saved Form And Is Not Written Twice",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--adds-a-link",
-    "state": "Adds A Link",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--adds-a-link",
-    "state": "Adds A Link",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--approved-tile-offers-turn-off-to-an-account-admin",
-    "state": "Approved Tile Offers Turn Off To An Account Admin",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--approved-tile-offers-turn-off-to-an-account-admin",
-    "state": "Approved Tile Offers Turn Off To An Account Admin",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--bulgarian-primary-portal-lists-its-language-first",
-    "state": "Bulgarian Primary Portal Lists Its Language First",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--bulgarian-primary-portal-lists-its-language-first",
-    "state": "Bulgarian Primary Portal Lists Its Language First",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--check-this-address-shows-checking",
-    "state": "Check This Address Shows Checking",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--check-this-address-shows-checking",
-    "state": "Check This Address Shows Checking",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--checking-an-address-is-shown",
-    "state": "Checking An Address Is Shown",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--checking-an-address-is-shown",
-    "state": "Checking An Address Is Shown",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--chooses-an-icon",
-    "state": "Chooses An Icon",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--chooses-an-icon",
-    "state": "Chooses An Icon",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--chosen-icon-shows-at-once",
-    "state": "Chosen Icon Shows At Once",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--chosen-icon-shows-at-once",
-    "state": "Chosen Icon Shows At Once",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--collapsed-tiles-say-when-guests-cannot-see-them",
-    "state": "Collapsed Tiles Say When Guests Cannot See Them",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--collapsed-tiles-say-when-guests-cannot-see-them",
-    "state": "Collapsed Tiles Say When Guests Cannot See Them",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--delete-link-confirms-then-closes",
-    "state": "Delete Link Confirms Then Closes",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--delete-link-confirms-then-closes",
-    "state": "Delete Link Confirms Then Closes",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--delete-link-refusal-stays-in-the-dialog",
-    "state": "Delete Link Refusal Stays In The Dialog",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--delete-link-refusal-stays-in-the-dialog",
-    "state": "Delete Link Refusal Stays In The Dialog",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--denied-tap-read",
-    "state": "Denied Tap Read",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--denied-tap-read",
-    "state": "Denied Tap Read",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--draft-has-no-tap-figures",
-    "state": "Draft Has No Tap Figures",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--draft-has-no-tap-figures",
-    "state": "Draft Has No Tap Figures",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--four-tiles",
-    "state": "Four Tiles",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--four-tiles",
-    "state": "Four Tiles",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--hidden-from-the-page",
-    "state": "Hidden From The Page",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--hidden-from-the-page",
-    "state": "Hidden From The Page",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--icon-names-show-on-focus",
-    "state": "Icon Names Show On Focus",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--icon-names-show-on-focus",
-    "state": "Icon Names Show On Focus",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--last-thirty-days-taps",
-    "state": "Last Thirty Days Taps",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--last-thirty-days-taps",
-    "state": "Last Thirty Days Taps",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--last-thirty-days-taps-dark",
-    "state": "Last Thirty Days Taps Dark",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--last-thirty-days-taps-dark",
-    "state": "Last Thirty Days Taps Dark",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--last-thirty-days-taps-phone",
-    "state": "Last Thirty Days Taps Phone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--last-thirty-days-taps-phone",
-    "state": "Last Thirty Days Taps Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--line-without-a-label-says-it-is-not-saved",
-    "state": "Line Without A Label Says It Is Not Saved",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--line-without-a-label-says-it-is-not-saved",
-    "state": "Line Without A Label Says It Is Not Saved",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--manager-is-told-who-approves",
-    "state": "Manager Is Told Who Approves",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--manager-is-told-who-approves",
-    "state": "Manager Is Told Who Approves",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--missing-language-chip-has-an-icon",
-    "state": "Missing Language Chip Has An Icon",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--missing-language-chip-has-an-icon",
-    "state": "Missing Language Chip Has An Icon",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--moves-a-tile-from-the-keyboard",
-    "state": "Moves A Tile From The Keyboard",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--moves-a-tile-from-the-keyboard",
-    "state": "Moves A Tile From The Keyboard",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--moves-a-tile-with-the-arrow-keys",
-    "state": "Moves A Tile With The Arrow Keys",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--moves-a-tile-with-the-arrow-keys",
-    "state": "Moves A Tile With The Arrow Keys",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--no-links-yet",
-    "state": "No Links Yet",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--no-links-yet",
-    "state": "No Links Yet",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--open-tile-shows-the-approval",
-    "state": "Open Tile Shows The Approval",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--open-tile-shows-the-approval",
-    "state": "Open Tile Shows The Approval",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--phone-chip-names-the-missing-language",
-    "state": "Phone Chip Names The Missing Language",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--phone-chip-names-the-missing-language",
-    "state": "Phone Chip Names The Missing Language",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--read-only",
-    "state": "Read Only",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--read-only",
-    "state": "Read Only",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--six-languages-wrap-the-language-tabs",
-    "state": "Six Languages Wrap The Language Tabs",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--six-languages-wrap-the-language-tabs",
-    "state": "Six Languages Wrap The Language Tabs",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--title-is-saved-and-can-go-back-to-the-default",
-    "state": "Title Is Saved And Can Go Back To The Default",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--title-is-saved-and-can-go-back-to-the-default",
-    "state": "Title Is Saved And Can Go Back To The Default",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--two-quick-moves-behind-a-slow-write",
-    "state": "Two Quick Moves Behind A Slow Write",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--two-quick-moves-behind-a-slow-write",
-    "state": "Two Quick Moves Behind A Slow Write",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--typed-label-is-saved-as-you-go",
-    "state": "Typed Label Is Saved As You Go",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--typed-label-is-saved-as-you-go",
-    "state": "Typed Label Is Saved As You Go",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--waiting-for-approval",
-    "state": "Waiting For Approval",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree--waiting-for-approval",
-    "state": "Waiting For Approval",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-phone-and-email--adds-a-phone-number",
-    "state": "Adds A Phone Number",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-phone-and-email--adds-a-phone-number",
-    "state": "Adds A Phone Number",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-phone-and-email--email-tile-shows-the-address-plainly",
-    "state": "Email Tile Shows The Address Plainly",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-phone-and-email--email-tile-shows-the-address-plainly",
-    "state": "Email Tile Shows The Address Plainly",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-phone-and-email--leaving-an-unchanged-number-saves-nothing",
-    "state": "Leaving An Unchanged Number Saves Nothing",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-phone-and-email--leaving-an-unchanged-number-saves-nothing",
-    "state": "Leaving An Unchanged Number Saves Nothing",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-phone-and-email--phone-tile-shows-the-number-plainly",
-    "state": "Phone Tile Shows The Number Plainly",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-phone-and-email--phone-tile-shows-the-number-plainly",
-    "state": "Phone Tile Shows The Number Plainly",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-phone-and-email--refuses-a-second-recipient",
-    "state": "Refuses A Second Recipient",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-phone-and-email--refuses-a-second-recipient",
-    "state": "Refuses A Second Recipient",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-tile-photo--a-key-slip-does-not-lose-the-photo",
-    "state": "A Key Slip Does Not Lose The Photo",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-tile-photo--a-key-slip-does-not-lose-the-photo",
-    "state": "A Key Slip Does Not Lose The Photo",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-tile-photo--a-tile-with-a-photo",
-    "state": "A Tile With A Photo",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-tile-photo--a-tile-with-a-photo",
-    "state": "A Tile With A Photo",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-tile-photo--choosing-an-icon-takes-the-photo-off",
-    "state": "Choosing An Icon Takes The Photo Off",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-tile-photo--choosing-an-icon-takes-the-photo-off",
-    "state": "Choosing An Icon Takes The Photo Off",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-tile-photo--choosing-the-photo-again-saves-its-asset-not-an-upload",
-    "state": "Choosing The Photo Again Saves Its Asset Not An Upload",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-tile-photo--choosing-the-photo-again-saves-its-asset-not-an-upload",
-    "state": "Choosing The Photo Again Saves Its Asset Not An Upload",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "portal-linktree-tile-photo--keeps-the-dialog-open-when-the-server-refuses",
     "state": "Keeps The Dialog Open When The Server Refuses",
     "width": 320,
@@ -4926,18 +3954,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-linktree-tile-photo--read-only-cannot-upload",
-    "state": "Read Only Cannot Upload",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-tile-photo--read-only-cannot-upload",
-    "state": "Read Only Cannot Upload",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "portal-linktree-tile-photo--says-so-when-the-photo-uploads-but-the-tile-cannot-take-it",
     "state": "Says So When The Photo Uploads But The Tile Cannot Take It",
     "width": 320,
@@ -4958,18 +3974,6 @@
   {
     "storyId": "portal-linktree-tile-photo--stays-open-while-the-photo-is-on-its-way",
     "state": "Stays Open While The Photo Is On Its Way",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-tile-photo--uploads-a-photo-for-a-tile",
-    "state": "Uploads A Photo For A Tile",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-linktree-tile-photo--uploads-a-photo-for-a-tile",
-    "state": "Uploads A Photo For A Tile",
     "width": 390,
     "checks": ["targets"]
   },
@@ -5250,1582 +4254,568 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--archived-portal-is-read-only",
-    "state": "Archived Portal Is Read Only",
+    "storyId": "portal-portalgroup-grouppage--archiving-asks-first-and-keeps-the-portals",
+    "state": "Archiving Asks First And Keeps The Portals",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--archived-portal-is-read-only",
-    "state": "Archived Portal Is Read Only",
+    "storyId": "portal-portalgroup-grouppage--archiving-asks-first-and-keeps-the-portals",
+    "state": "Archiving Asks First And Keeps The Portals",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--autosaves-the-name",
-    "state": "Autosaves The Name",
+    "storyId": "portal-portalgroup-grouppage--average-too-thin-to-show",
+    "state": "Average Too Thin To Show",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--autosaves-the-name",
-    "state": "Autosaves The Name",
+    "storyId": "portal-portalgroup-grouppage--average-too-thin-to-show",
+    "state": "Average Too Thin To Show",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--changes-off-for-the-organization-reads-only",
-    "state": "Changes Off For The Organization Reads Only",
+    "storyId": "portal-portalgroup-grouppage--default",
+    "state": "Default",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--changes-off-for-the-organization-reads-only",
-    "state": "Changes Off For The Organization Reads Only",
+    "storyId": "portal-portalgroup-grouppage--default",
+    "state": "Default",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--failed-save-can-be-retried",
-    "state": "Failed Save Can Be Retried",
+    "storyId": "portal-portalgroup-grouppage--draft-row-offers-share",
+    "state": "Draft Row Offers Share",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--failed-save-can-be-retried",
-    "state": "Failed Save Can Be Retried",
+    "storyId": "portal-portalgroup-grouppage--draft-row-offers-share",
+    "state": "Draft Row Offers Share",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--footer-is-fixed-text",
-    "state": "Footer Is Fixed Text",
+    "storyId": "portal-portalgroup-grouppage--goal-card-is-live-and-neutral",
+    "state": "Goal Card Is Live And Neutral",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--footer-is-fixed-text",
-    "state": "Footer Is Fixed Text",
+    "storyId": "portal-portalgroup-grouppage--goal-card-is-live-and-neutral",
+    "state": "Goal Card Is Live And Neutral",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--group-section-names-the-group",
-    "state": "Group Section Names The Group",
+    "storyId": "portal-portalgroup-grouppage--goal-card-names-who-changed-the-month",
+    "state": "Goal Card Names Who Changed The Month",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--group-section-names-the-group",
-    "state": "Group Section Names The Group",
+    "storyId": "portal-portalgroup-grouppage--goal-card-names-who-changed-the-month",
+    "state": "Goal Card Names Who Changed The Month",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--language-without-property-wording",
-    "state": "Language Without Property Wording",
+    "storyId": "portal-portalgroup-grouppage--goal-not-offered-to-this-reader",
+    "state": "Goal Not Offered To This Reader",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--language-without-property-wording",
-    "state": "Language Without Property Wording",
+    "storyId": "portal-portalgroup-grouppage--goal-not-offered-to-this-reader",
+    "state": "Goal Not Offered To This Reader",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--languages-flag-missing-text",
-    "state": "Languages Flag Missing Text",
+    "storyId": "portal-portalgroup-grouppage--header-says-what-a-group-is",
+    "state": "Header Says What A Group Is",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--languages-flag-missing-text",
-    "state": "Languages Flag Missing Text",
+    "storyId": "portal-portalgroup-grouppage--header-says-what-a-group-is",
+    "state": "Header Says What A Group Is",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--languages-opens-the-sheet-in-the-preview",
-    "state": "Languages Opens The Sheet In The Preview",
+    "storyId": "portal-portalgroup-grouppage--history-tells-what-happened-newest-first",
+    "state": "History Tells What Happened Newest First",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--languages-opens-the-sheet-in-the-preview",
-    "state": "Languages Opens The Sheet In The Preview",
+    "storyId": "portal-portalgroup-grouppage--history-tells-what-happened-newest-first",
+    "state": "History Tells What Happened Newest First",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--languages-section",
-    "state": "Languages Section",
+    "storyId": "portal-portalgroup-grouppage--keeping-a-portal-in-the-group",
+    "state": "Keeping A Portal In The Group",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--languages-section",
-    "state": "Languages Section",
+    "storyId": "portal-portalgroup-grouppage--keeping-a-portal-in-the-group",
+    "state": "Keeping A Portal In The Group",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--link-check-names-the-live-version",
-    "state": "Link Check Names The Live Version",
+    "storyId": "portal-portalgroup-grouppage--lists-only-the-portals-in-the-group",
+    "state": "Lists Only The Portals In The Group",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--link-check-names-the-live-version",
-    "state": "Link Check Names The Live Version",
+    "storyId": "portal-portalgroup-grouppage--lists-only-the-portals-in-the-group",
+    "state": "Lists Only The Portals In The Group",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--linktree-section",
-    "state": "Linktree Section",
+    "storyId": "portal-portalgroup-grouppage--no-goal-yet",
+    "state": "No Goal Yet",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--linktree-section",
-    "state": "Linktree Section",
+    "storyId": "portal-portalgroup-grouppage--no-goal-yet",
+    "state": "No Goal Yet",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--look-opens-the-property-look",
-    "state": "Look Opens The Property Look",
+    "storyId": "portal-portalgroup-grouppage--removing-a-portal-takes-it-out-of-the-group",
+    "state": "Removing A Portal Takes It Out Of The Group",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--look-opens-the-property-look",
-    "state": "Look Opens The Property Look",
+    "storyId": "portal-portalgroup-grouppage--removing-a-portal-takes-it-out-of-the-group",
+    "state": "Removing A Portal Takes It Out Of The Group",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--look-section",
-    "state": "Look Section",
+    "storyId": "portal-portalgroup-grouppage--results-are-the-groups-own",
+    "state": "Results Are The Groups Own",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--look-section",
-    "state": "Look Section",
+    "storyId": "portal-portalgroup-grouppage--results-are-the-groups-own",
+    "state": "Results Are The Groups Own",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--manager-can-edit-the-fields",
-    "state": "Manager Can Edit The Fields",
+    "storyId": "portal-portalgroup-grouppage--side-reads-wait-and-fail-alone",
+    "state": "Side Reads Wait And Fail Alone",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--manager-can-edit-the-fields",
-    "state": "Manager Can Edit The Fields",
+    "storyId": "portal-portalgroup-grouppage--side-reads-wait-and-fail-alone",
+    "state": "Side Reads Wait And Fail Alone",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--preview-click-reveals-the-section-it-opens",
-    "state": "Preview Click Reveals The Section It Opens",
+    "storyId": "portal-portalgroup-grouppage--view-only",
+    "state": "View Only",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--preview-click-reveals-the-section-it-opens",
-    "state": "Preview Click Reveals The Section It Opens",
+    "storyId": "portal-portalgroup-grouppage--view-only",
+    "state": "View Only",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--preview-outlines-the-active-section",
-    "state": "Preview Outlines The Active Section",
+    "storyId": "portal-portalgroup-grouppage--without-results",
+    "state": "Without Results",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--preview-outlines-the-active-section",
-    "state": "Preview Outlines The Active Section",
+    "storyId": "portal-portalgroup-grouppage--without-results",
+    "state": "Without Results",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--private-note-threshold",
-    "state": "Private Note Threshold",
+    "storyId": "portal-portalhistory--view-version-with-page",
+    "state": "View Version With Page",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--private-note-threshold",
-    "state": "Private Note Threshold",
+    "storyId": "portal-portalhistory--view-version-with-page",
+    "state": "View Version With Page",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--property-manager-reads-the-property-wording",
-    "state": "Property Manager Reads The Property Wording",
+    "storyId": "portal-portalhistorytab--view-shows-another-language-and-state",
+    "state": "View Shows Another Language And State",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--property-manager-reads-the-property-wording",
-    "state": "Property Manager Reads The Property Wording",
+    "storyId": "portal-portalhistorytab--view-shows-another-language-and-state",
+    "state": "View Shows Another Language And State",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--property-wording-keeps-an-unsaved-edit",
-    "state": "Property Wording Keeps An Unsaved Edit",
+    "storyId": "portal-portalhistorytab--view-shows-the-page-of-the-version",
+    "state": "View Shows The Page Of The Version",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--property-wording-keeps-an-unsaved-edit",
-    "state": "Property Wording Keeps An Unsaved Edit",
+    "storyId": "portal-portalhistorytab--view-shows-the-page-of-the-version",
+    "state": "View Shows The Page Of The Version",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--rating-section",
-    "state": "Rating Section",
+    "storyId": "portal-portallanguagessection--manager-is-told-who-writes-the-property-wording",
+    "state": "Manager Is Told Who Writes The Property Wording",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--rating-section",
-    "state": "Rating Section",
+    "storyId": "portal-portallanguagessection--manager-is-told-who-writes-the-property-wording",
+    "state": "Manager Is Told Who Writes The Property Wording",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--reader-sees-the-fields-read-only",
-    "state": "Reader Sees The Fields Read Only",
+    "storyId": "portal-portallanguagessection--show-missing-names-each-gap",
+    "state": "Show Missing Names Each Gap",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--reader-sees-the-fields-read-only",
-    "state": "Reader Sees The Fields Read Only",
+    "storyId": "portal-portallanguagessection--show-missing-names-each-gap",
+    "state": "Show Missing Names Each Gap",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--refused-edit-is-not-saved",
-    "state": "Refused Edit Is Not Saved",
+    "storyId": "portal-portallistpage--a-blocking-issue-is-red-and-worded",
+    "state": "A Blocking Issue Is Red And Worded",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--refused-edit-is-not-saved",
-    "state": "Refused Edit Is Not Saved",
+    "storyId": "portal-portallistpage--a-blocking-issue-is-red-and-worded",
+    "state": "A Blocking Issue Is Red And Worded",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--responsible-section",
-    "state": "Responsible Section",
+    "storyId": "portal-portallistpage--a-group-with-no-portal-stays-reachable",
+    "state": "A Group With No Portal Stays Reachable",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--responsible-section",
-    "state": "Responsible Section",
+    "storyId": "portal-portallistpage--a-group-with-no-portal-stays-reachable",
+    "state": "A Group With No Portal Stays Reachable",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--section-list",
-    "state": "Section List",
+    "storyId": "portal-portallistpage--a-long-list-with-no-groups-keeps-search-and-sort",
+    "state": "A Long List With No Groups Keeps Search And Sort",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--section-list",
-    "state": "Section List",
+    "storyId": "portal-portallistpage--a-long-list-with-no-groups-keeps-search-and-sort",
+    "state": "A Long List With No Groups Keeps Search And Sort",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--skips-private-rating",
-    "state": "Skips Private Rating",
+    "storyId": "portal-portallistpage--a-short-list-with-no-groups-is-just-the-list",
+    "state": "A Short List With No Groups Is Just The List",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--skips-private-rating",
-    "state": "Skips Private Rating",
+    "storyId": "portal-portallistpage--a-short-list-with-no-groups-is-just-the-list",
+    "state": "A Short List With No Groups Is Just The List",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--unoffered-section-falls-back-to-welcome",
-    "state": "Unoffered Section Falls Back To Welcome",
+    "storyId": "portal-portallistpage--a-single-issue-is-named-and-links-to-its-fix",
+    "state": "A Single Issue Is Named And Links To Its Fix",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--unoffered-section-falls-back-to-welcome",
-    "state": "Unoffered Section Falls Back To Welcome",
+    "storyId": "portal-portallistpage--a-single-issue-is-named-and-links-to-its-fix",
+    "state": "A Single Issue Is Named And Links To Its Fix",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--unsaved-responsible-ticks-ask-before-leaving",
-    "state": "Unsaved Responsible Ticks Ask Before Leaving",
+    "storyId": "portal-portallistpage--changes-off-for-the-organization",
+    "state": "Changes Off For The Organization",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--unsaved-responsible-ticks-ask-before-leaving",
-    "state": "Unsaved Responsible Ticks Ask Before Leaving",
+    "storyId": "portal-portallistpage--changes-off-for-the-organization",
+    "state": "Changes Off For The Organization",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--welcome-lines-per-language",
-    "state": "Welcome Lines Per Language",
+    "storyId": "portal-portallistpage--default",
+    "state": "Default",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor--welcome-lines-per-language",
-    "state": "Welcome Lines Per Language",
+    "storyId": "portal-portallistpage--default",
+    "state": "Default",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--archived-portal-shows-facts",
-    "state": "Archived Portal Shows Facts",
+    "storyId": "portal-portallistpage--disable-can-be-cancelled",
+    "state": "Disable Can Be Cancelled",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--archived-portal-shows-facts",
-    "state": "Archived Portal Shows Facts",
+    "storyId": "portal-portallistpage--disable-can-be-cancelled",
+    "state": "Disable Can Be Cancelled",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--choosing-a-photo-for-this-portal",
-    "state": "Choosing A Photo For This Portal",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--choosing-a-photo-for-this-portal",
-    "state": "Choosing A Photo For This Portal",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--focus-point-autosaves",
-    "state": "Focus Point Autosaves",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--focus-point-autosaves",
-    "state": "Focus Point Autosaves",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--follows-everything",
-    "state": "Follows Everything",
+    "storyId": "portal-portallistpage--disables-a-live-page",
+    "state": "Disables A Live Page",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--follows-everything",
-    "state": "Follows Everything",
+    "storyId": "portal-portallistpage--disables-a-live-page",
+    "state": "Disables A Live Page",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--giving-back-the-name-and-logo",
-    "state": "Giving Back The Name And Logo",
+    "storyId": "portal-portallistpage--flat-list",
+    "state": "Flat List",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--giving-back-the-name-and-logo",
-    "state": "Giving Back The Name And Logo",
+    "storyId": "portal-portallistpage--flat-list",
+    "state": "Flat List",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--live-version-ignores-a-draft-edit",
-    "state": "Live Version Ignores A Draft Edit",
+    "storyId": "portal-portallistpage--folds-a-group",
+    "state": "Folds A Group",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--live-version-ignores-a-draft-edit",
-    "state": "Live Version Ignores A Draft Edit",
+    "storyId": "portal-portallistpage--folds-a-group",
+    "state": "Folds A Group",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--long-wordmark-is-not-saved",
-    "state": "Long Wordmark Is Not Saved",
+    "storyId": "portal-portallistpage--group-heads-link-to-their-page-and-carry-actions",
+    "state": "Group Heads Link To Their Page And Carry Actions",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--long-wordmark-is-not-saved",
-    "state": "Long Wordmark Is Not Saved",
+    "storyId": "portal-portallistpage--group-heads-link-to-their-page-and-carry-actions",
+    "state": "Group Heads Link To Their Page And Carry Actions",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--no-photo-on-this-portal",
-    "state": "No Photo On This Portal",
+    "storyId": "portal-portallistpage--grouped-with-counts",
+    "state": "Grouped With Counts",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--no-photo-on-this-portal",
-    "state": "No Photo On This Portal",
+    "storyId": "portal-portallistpage--grouped-with-counts",
+    "state": "Grouped With Counts",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--no-photo-on-this-portal-is-one-write",
-    "state": "No Photo On This Portal Is One Write",
+    "storyId": "portal-portallistpage--lists-the-code-and-languages-never-a-place",
+    "state": "Lists The Code And Languages Never A Place",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--no-photo-on-this-portal-is-one-write",
-    "state": "No Photo On This Portal Is One Write",
+    "storyId": "portal-portallistpage--lists-the-code-and-languages-never-a-place",
+    "state": "Lists The Code And Languages Never A Place",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--own-colours-only",
-    "state": "Own Colours Only",
+    "storyId": "portal-portallistpage--needs-attention-filter",
+    "state": "Needs Attention Filter",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--own-colours-only",
-    "state": "Own Colours Only",
+    "storyId": "portal-portallistpage--needs-attention-filter",
+    "state": "Needs Attention Filter",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--own-look",
-    "state": "Own Look",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--own-look",
-    "state": "Own Look",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--own-look-keeps-the-editor-at-one-portal",
-    "state": "Own Look Keeps The Editor At One Portal",
+    "storyId": "portal-portallistpage--older-code-links-to-share",
+    "state": "Older Code Links To Share",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--own-look-keeps-the-editor-at-one-portal",
-    "state": "Own Look Keeps The Editor At One Portal",
+    "storyId": "portal-portallistpage--older-code-links-to-share",
+    "state": "Older Code Links To Share",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--own-name-and-logo",
-    "state": "Own Name And Logo",
+    "storyId": "portal-portallistpage--opens-the-new-portal-dialog",
+    "state": "Opens The New Portal Dialog",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--own-name-and-logo",
-    "state": "Own Name And Logo",
+    "storyId": "portal-portallistpage--opens-the-new-portal-dialog",
+    "state": "Opens The New Portal Dialog",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--own-photo-only",
-    "state": "Own Photo Only",
+    "storyId": "portal-portallistpage--pages-long-lists",
+    "state": "Pages Long Lists",
+    "width": 320,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-portallistpage--pages-long-lists",
+    "state": "Pages Long Lists",
+    "width": 390,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-portallistpage--pending-changes-lead-to-review-and-publish",
+    "state": "Pending Changes Lead To Review And Publish",
+    "width": 320,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-portallistpage--pending-changes-lead-to-review-and-publish",
+    "state": "Pending Changes Lead To Review And Publish",
+    "width": 390,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-portallistpage--phone",
+    "state": "Phone",
     "width": 320,
     "checks": ["overflow", "targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--own-photo-only",
-    "state": "Own Photo Only",
+    "storyId": "portal-portallistpage--phone",
+    "state": "Phone",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--own-photo-taken-down",
-    "state": "Own Photo Taken Down",
+    "storyId": "portal-portallistpage--reader-read-only",
+    "state": "Reader Read Only",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--own-photo-taken-down",
-    "state": "Own Photo Taken Down",
+    "storyId": "portal-portallistpage--reader-read-only",
+    "state": "Reader Read Only",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--property-manager-sees-facts",
-    "state": "Property Manager Sees Facts",
+    "storyId": "portal-portallistpage--recoverable-lifecycle",
+    "state": "Recoverable Lifecycle",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--property-manager-sees-facts",
-    "state": "Property Manager Sees Facts",
+    "storyId": "portal-portallistpage--recoverable-lifecycle",
+    "state": "Recoverable Lifecycle",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--refused-switch-is-told-in-a-toast",
-    "state": "Refused Switch Is Told In A Toast",
+    "storyId": "portal-portallistpage--responsible-managers",
+    "state": "Responsible Managers",
     "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--refused-switch-is-told-in-a-toast",
-    "state": "Refused Switch Is Told In A Toast",
+    "storyId": "portal-portallistpage--responsible-managers",
+    "state": "Responsible Managers",
     "width": 390,
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--removing-the-portals-photo-leaves-none",
-    "state": "Removing The Portals Photo Leaves None",
+    "storyId": "portal-portallistpage--search-filters-rows",
+    "state": "Search Filters Rows",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--removing-the-portals-photo-leaves-none",
-    "state": "Removing The Portals Photo Leaves None",
+    "storyId": "portal-portallistpage--search-filters-rows",
+    "state": "Search Filters Rows",
     "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
-    "storyId": "portal-portaleditor-look--replacing-the-logo-names-this-portal-only",
-    "state": "Replacing The Logo Names This Portal Only",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--replacing-the-logo-names-this-portal-only",
-    "state": "Replacing The Logo Names This Portal Only",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--replacing-the-photo-keeps-its-descriptions",
-    "state": "Replacing The Photo Keeps Its Descriptions",
+    "storyId": "portal-portallistpage--search-stops-at-its-limit",
+    "state": "Search Stops At Its Limit",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-portaleditor-look--set-colours-starts-from-the-propertys-and-autosaves",
-    "state": "Set Colours Starts From The Propertys And Autosaves",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--set-colours-starts-from-the-propertys-and-autosaves",
-    "state": "Set Colours Starts From The Propertys And Autosaves",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--set-name-and-logo-starts-from-the-propertys",
-    "state": "Set Name And Logo Starts From The Propertys",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--set-name-and-logo-starts-from-the-propertys",
-    "state": "Set Name And Logo Starts From The Propertys",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--single-portal-keeps-todays-view",
-    "state": "Single Portal Keeps Todays View",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--single-portal-keeps-todays-view",
-    "state": "Single Portal Keeps Todays View",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--unreadable-colours-are-not-saved",
-    "state": "Unreadable Colours Are Not Saved",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--unreadable-colours-are-not-saved",
-    "state": "Unreadable Colours Are Not Saved",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--using-the-propertys-colours-gives-them-back",
-    "state": "Using The Propertys Colours Gives Them Back",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--using-the-propertys-colours-gives-them-back",
-    "state": "Using The Propertys Colours Gives Them Back",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--using-the-propertys-photo-gives-it-back",
-    "state": "Using The Propertys Photo Gives It Back",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--using-the-propertys-photo-gives-it-back",
-    "state": "Using The Propertys Photo Gives It Back",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--wordmark-autosaves",
-    "state": "Wordmark Autosaves",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portaleditor-look--wordmark-autosaves",
-    "state": "Wordmark Autosaves",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--archiving-asks-first-and-keeps-the-portals",
-    "state": "Archiving Asks First And Keeps The Portals",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--archiving-asks-first-and-keeps-the-portals",
-    "state": "Archiving Asks First And Keeps The Portals",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--average-too-thin-to-show",
-    "state": "Average Too Thin To Show",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--average-too-thin-to-show",
-    "state": "Average Too Thin To Show",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--default",
-    "state": "Default",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--default",
-    "state": "Default",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--draft-row-offers-share",
-    "state": "Draft Row Offers Share",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--draft-row-offers-share",
-    "state": "Draft Row Offers Share",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--empty-group",
-    "state": "Empty Group",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--empty-group",
-    "state": "Empty Group",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--goal-card-is-live-and-neutral",
-    "state": "Goal Card Is Live And Neutral",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--goal-card-is-live-and-neutral",
-    "state": "Goal Card Is Live And Neutral",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--goal-card-names-who-changed-the-month",
-    "state": "Goal Card Names Who Changed The Month",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--goal-card-names-who-changed-the-month",
-    "state": "Goal Card Names Who Changed The Month",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--goal-not-offered-to-this-reader",
-    "state": "Goal Not Offered To This Reader",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--goal-not-offered-to-this-reader",
-    "state": "Goal Not Offered To This Reader",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--header-says-what-a-group-is",
-    "state": "Header Says What A Group Is",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--header-says-what-a-group-is",
-    "state": "Header Says What A Group Is",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--history-tells-what-happened-newest-first",
-    "state": "History Tells What Happened Newest First",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--history-tells-what-happened-newest-first",
-    "state": "History Tells What Happened Newest First",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--keeping-a-portal-in-the-group",
-    "state": "Keeping A Portal In The Group",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--keeping-a-portal-in-the-group",
-    "state": "Keeping A Portal In The Group",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--lists-only-the-portals-in-the-group",
-    "state": "Lists Only The Portals In The Group",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--lists-only-the-portals-in-the-group",
-    "state": "Lists Only The Portals In The Group",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--no-goal-yet",
-    "state": "No Goal Yet",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--no-goal-yet",
-    "state": "No Goal Yet",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--removing-a-portal-takes-it-out-of-the-group",
-    "state": "Removing A Portal Takes It Out Of The Group",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--removing-a-portal-takes-it-out-of-the-group",
-    "state": "Removing A Portal Takes It Out Of The Group",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--results-are-the-groups-own",
-    "state": "Results Are The Groups Own",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--results-are-the-groups-own",
-    "state": "Results Are The Groups Own",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--side-reads-wait-and-fail-alone",
-    "state": "Side Reads Wait And Fail Alone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--side-reads-wait-and-fail-alone",
-    "state": "Side Reads Wait And Fail Alone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--view-only",
-    "state": "View Only",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--view-only",
-    "state": "View Only",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--without-results",
-    "state": "Without Results",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalgroup-grouppage--without-results",
-    "state": "Without Results",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--all",
-    "state": "All",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--all",
-    "state": "All",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--checking-failed",
-    "state": "Checking Failed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--checking-failed",
-    "state": "Checking Failed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--checking-what-would-change",
-    "state": "Checking What Would Change",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--checking-what-would-change",
-    "state": "Checking What Would Change",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--codes-filter",
-    "state": "Codes Filter",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--codes-filter",
-    "state": "Codes Filter",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--empty-filter",
-    "state": "Empty Filter",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--empty-filter",
-    "state": "Empty Filter",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--load-failed",
-    "state": "Load Failed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--load-failed",
-    "state": "Load Failed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--loading",
-    "state": "Loading",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--loading",
-    "state": "Loading",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-later-version-live",
-    "state": "Make Later Version Live",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-later-version-live",
-    "state": "Make Later Version Live",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-after-restore",
-    "state": "Make Live Again After Restore",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-after-restore",
-    "state": "Make Live Again After Restore",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-dialog-closes-when-idle",
-    "state": "Make Live Again Dialog Closes When Idle",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-dialog-closes-when-idle",
-    "state": "Make Live Again Dialog Closes When Idle",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-done",
-    "state": "Make Live Again Done",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-done",
-    "state": "Make Live Again Done",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-failed",
-    "state": "Make Live Again Failed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-failed",
-    "state": "Make Live Again Failed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-flow",
-    "state": "Make Live Again Flow",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-flow",
-    "state": "Make Live Again Flow",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-open",
-    "state": "Make Live Again Open",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--make-live-again-open",
-    "state": "Make Live Again Open",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--no-draft-changes",
-    "state": "No Draft Changes",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--no-draft-changes",
-    "state": "No Draft Changes",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--page-edits-filter",
-    "state": "Page Edits Filter",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--page-edits-filter",
-    "state": "Page Edits Filter",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--page-is-off",
-    "state": "Page Is Off",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--page-is-off",
-    "state": "Page Is Off",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--phone",
-    "state": "Phone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--phone",
-    "state": "Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--publishing-filter",
-    "state": "Publishing Filter",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--publishing-filter",
-    "state": "Publishing Filter",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--read-only",
-    "state": "Read Only",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--read-only",
-    "state": "Read Only",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--show-earlier-versions",
-    "state": "Show Earlier Versions",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--show-earlier-versions",
-    "state": "Show Earlier Versions",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--view-version-with-page",
-    "state": "View Version With Page",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistory--view-version-with-page",
-    "state": "View Version With Page",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--filter-is-asked-of-the-server",
-    "state": "Filter Is Asked Of The Server",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--filter-is-asked-of-the-server",
-    "state": "Filter Is Asked Of The Server",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--make-live-again",
-    "state": "Make Live Again",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--make-live-again",
-    "state": "Make Live Again",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--make-live-again-refused",
-    "state": "Make Live Again Refused",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--make-live-again-refused",
-    "state": "Make Live Again Refused",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--page-is-off",
-    "state": "Page Is Off",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--page-is-off",
-    "state": "Page Is Off",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--reads-on-mount",
-    "state": "Reads On Mount",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--reads-on-mount",
-    "state": "Reads On Mount",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--view-shows-another-language-and-state",
-    "state": "View Shows Another Language And State",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--view-shows-another-language-and-state",
-    "state": "View Shows Another Language And State",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--view-shows-the-page-of-the-version",
-    "state": "View Shows The Page Of The Version",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--view-shows-the-page-of-the-version",
-    "state": "View Shows The Page Of The Version",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--viewer-cannot-make-live",
-    "state": "Viewer Cannot Make Live",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalhistorytab--viewer-cannot-make-live",
-    "state": "Viewer Cannot Make Live",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallanguagessection--manager-is-told-who-writes-the-property-wording",
-    "state": "Manager Is Told Who Writes The Property Wording",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallanguagessection--manager-is-told-who-writes-the-property-wording",
-    "state": "Manager Is Told Who Writes The Property Wording",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallanguagessection--show-missing-names-each-gap",
-    "state": "Show Missing Names Each Gap",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallanguagessection--show-missing-names-each-gap",
-    "state": "Show Missing Names Each Gap",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--a-blocking-issue-is-red-and-worded",
-    "state": "A Blocking Issue Is Red And Worded",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--a-blocking-issue-is-red-and-worded",
-    "state": "A Blocking Issue Is Red And Worded",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--a-group-with-no-portal-stays-reachable",
-    "state": "A Group With No Portal Stays Reachable",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--a-group-with-no-portal-stays-reachable",
-    "state": "A Group With No Portal Stays Reachable",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--a-long-list-with-no-groups-keeps-search-and-sort",
-    "state": "A Long List With No Groups Keeps Search And Sort",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--a-long-list-with-no-groups-keeps-search-and-sort",
-    "state": "A Long List With No Groups Keeps Search And Sort",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--a-short-list-with-no-groups-is-just-the-list",
-    "state": "A Short List With No Groups Is Just The List",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--a-short-list-with-no-groups-is-just-the-list",
-    "state": "A Short List With No Groups Is Just The List",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--a-single-issue-is-named-and-links-to-its-fix",
-    "state": "A Single Issue Is Named And Links To Its Fix",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--a-single-issue-is-named-and-links-to-its-fix",
-    "state": "A Single Issue Is Named And Links To Its Fix",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--changes-off-for-the-organization",
-    "state": "Changes Off For The Organization",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--changes-off-for-the-organization",
-    "state": "Changes Off For The Organization",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--default",
-    "state": "Default",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--default",
-    "state": "Default",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--disable-can-be-cancelled",
-    "state": "Disable Can Be Cancelled",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--disable-can-be-cancelled",
-    "state": "Disable Can Be Cancelled",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--disables-a-live-page",
-    "state": "Disables A Live Page",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--disables-a-live-page",
-    "state": "Disables A Live Page",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--empty",
-    "state": "Empty",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--empty",
-    "state": "Empty",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--flat-list",
-    "state": "Flat List",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--flat-list",
-    "state": "Flat List",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--folds-a-group",
-    "state": "Folds A Group",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--folds-a-group",
-    "state": "Folds A Group",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--group-heads-link-to-their-page-and-carry-actions",
-    "state": "Group Heads Link To Their Page And Carry Actions",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--group-heads-link-to-their-page-and-carry-actions",
-    "state": "Group Heads Link To Their Page And Carry Actions",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--grouped-with-counts",
-    "state": "Grouped With Counts",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--grouped-with-counts",
-    "state": "Grouped With Counts",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--lists-the-code-and-languages-never-a-place",
-    "state": "Lists The Code And Languages Never A Place",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--lists-the-code-and-languages-never-a-place",
-    "state": "Lists The Code And Languages Never A Place",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--needs-attention-filter",
-    "state": "Needs Attention Filter",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--needs-attention-filter",
-    "state": "Needs Attention Filter",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--older-code-links-to-share",
-    "state": "Older Code Links To Share",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--older-code-links-to-share",
-    "state": "Older Code Links To Share",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--opens-the-new-portal-dialog",
-    "state": "Opens The New Portal Dialog",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--opens-the-new-portal-dialog",
-    "state": "Opens The New Portal Dialog",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--pages-long-lists",
-    "state": "Pages Long Lists",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--pages-long-lists",
-    "state": "Pages Long Lists",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--pending-changes-lead-to-review-and-publish",
-    "state": "Pending Changes Lead To Review And Publish",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--pending-changes-lead-to-review-and-publish",
-    "state": "Pending Changes Lead To Review And Publish",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--phone",
-    "state": "Phone",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--phone",
-    "state": "Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--reader-read-only",
-    "state": "Reader Read Only",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--reader-read-only",
-    "state": "Reader Read Only",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--recoverable-lifecycle",
-    "state": "Recoverable Lifecycle",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--recoverable-lifecycle",
-    "state": "Recoverable Lifecycle",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--responsible-managers",
-    "state": "Responsible Managers",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--responsible-managers",
-    "state": "Responsible Managers",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--search-filters-rows",
-    "state": "Search Filters Rows",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--search-filters-rows",
-    "state": "Search Filters Rows",
-    "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-portallistpage--search-stops-at-its-limit",
-    "state": "Search Stops At Its Limit",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
     "storyId": "portal-portallistpage--search-stops-at-its-limit",
     "state": "Search Stops At Its Limit",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portallistpage--search-with-no-matches",
@@ -7275,205 +5265,205 @@
     "storyId": "portal-portalpreviewpane--after-a-high-rating",
     "state": "After A High Rating",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--after-a-high-rating",
     "state": "After A High Rating",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--after-a-low-rating",
     "state": "After A Low Rating",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--after-a-low-rating",
     "state": "After A Low Rating",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--draft-arrival",
     "state": "Draft Arrival",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--draft-arrival",
     "state": "Draft Arrival",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--filmstrip-leaves-trying",
     "state": "Filmstrip Leaves Trying",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--filmstrip-leaves-trying",
     "state": "Filmstrip Leaves Trying",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--live-earlier-design",
     "state": "Live Earlier Design",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--live-earlier-design",
     "state": "Live Earlier Design",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--live-not-published",
     "state": "Live Not Published",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--live-not-published",
     "state": "Live Not Published",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--live-version",
     "state": "Live Version",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--live-version",
     "state": "Live Version",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--load-failure",
     "state": "Load Failure",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--load-failure",
     "state": "Load Failure",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--no-photo",
     "state": "No Photo",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--no-photo",
     "state": "No Photo",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--note-sent",
     "state": "Note Sent",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--note-sent",
     "state": "Note Sent",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--one-language",
     "state": "One Language",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--one-language",
     "state": "One Language",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--switch-to-bulgarian",
     "state": "Switch To Bulgarian",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--switch-to-bulgarian",
     "state": "Switch To Bulgarian",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--try-as-guest",
     "state": "Try As Guest",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--try-as-guest",
     "state": "Try As Guest",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--waiting-for-approval-tile",
     "state": "Waiting For Approval Tile",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewpane--waiting-for-approval-tile",
     "state": "Waiting For Approval Tile",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--choose-a-part-with-the-keyboard",
     "state": "Choose A Part With The Keyboard",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--choose-a-part-with-the-keyboard",
     "state": "Choose A Part With The Keyboard",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--click-a-part-to-edit-it",
     "state": "Click A Part To Edit It",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--click-a-part-to-edit-it",
     "state": "Click A Part To Edit It",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--every-part-is-a-button",
     "state": "Every Part Is A Button",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--every-part-is-a-button",
     "state": "Every Part Is A Button",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--follows-the-section",
@@ -7491,97 +5481,97 @@
     "storyId": "portal-portalpreviewselection--languages-opens-the-sheet",
     "state": "Languages Opens The Sheet",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--languages-opens-the-sheet",
     "state": "Languages Opens The Sheet",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--one-language-has-no-sheet",
     "state": "One Language Has No Sheet",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--one-language-has-no-sheet",
     "state": "One Language Has No Sheet",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--outline-and-flag-on-the-active-part",
     "state": "Outline And Flag On The Active Part",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--outline-and-flag-on-the-active-part",
     "state": "Outline And Flag On The Active Part",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--private-note-shows-after-a-low-rating",
     "state": "Private Note Shows After A Low Rating",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--private-note-shows-after-a-low-rating",
     "state": "Private Note Shows After A Low Rating",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--read-only-parts-say-open",
     "state": "Read Only Parts Say Open",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--read-only-parts-say-open",
     "state": "Read Only Parts Say Open",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--the-chip-opens-languages",
     "state": "The Chip Opens Languages",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--the-chip-opens-languages",
     "state": "The Chip Opens Languages",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--try-as-guest-turns-selection-off",
     "state": "Try As Guest Turns Selection Off",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--try-as-guest-turns-selection-off",
     "state": "Try As Guest Turns Selection Off",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--without-selection-the-phone-is-a-picture",
     "state": "Without Selection The Phone Is A Picture",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalpreviewselection--without-selection-the-phone-is-a-picture",
     "state": "Without Selection The Phone Is A Picture",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-portalreviewpage--blocked-by-a-missing-code",
@@ -8088,18 +6078,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-portalshare-print-kit-share--overflowing-back-refuses-download",
-    "state": "Overflowing Back Refuses Download",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalshare-print-kit-share--overflowing-back-refuses-download",
-    "state": "Overflowing Back Refuses Download",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "portal-portalshare-print-kit-share--download-sends-the-choice",
     "state": "Download Sends The Choice",
     "width": 320,
@@ -8192,6 +6170,18 @@
   {
     "storyId": "portal-portalshare-print-kit-share--never-printed",
     "state": "Never Printed",
+    "width": 390,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-portalshare-print-kit-share--overflowing-back-refuses-download",
+    "state": "Overflowing Back Refuses Download",
+    "width": 320,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-portalshare-print-kit-share--overflowing-back-refuses-download",
+    "state": "Overflowing Back Refuses Download",
     "width": 390,
     "checks": ["targets"]
   },
@@ -8240,18 +6230,6 @@
   {
     "storyId": "portal-portalshare-print-kit-share--paper-tents-on-letter",
     "state": "Paper Tents On Letter",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalshare-print-kit-share--phone-upright-tents",
-    "state": "Phone Upright Tents",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-portalshare-print-kit-share--phone-upright-tents",
-    "state": "Phone Upright Tents",
     "width": 390,
     "checks": ["targets"]
   },
@@ -8532,726 +6510,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-propertylook-batchpublish--a-failed-portal-does-not-stop-the-rest",
-    "state": "A Failed Portal Does Not Stop The Rest",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--a-not-allowed-portal-has-no-tick",
-    "state": "A Not Allowed Portal Has No Tick",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--a-refused-request-says-why",
-    "state": "A Refused Request Says Why",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--a-retry-keeps-the-outcomes-on-screen",
-    "state": "A Retry Keeps The Outcomes On Screen",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--a-server-fault-does-not-claim-nothing-was-published",
-    "state": "A Server Fault Does Not Claim Nothing Was Published",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--an-unreadable-portal-is-left-out",
-    "state": "An Unreadable Portal Is Left Out",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--button-counts-the-live-portals",
-    "state": "Button Counts The Live Portals",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--button-counts-the-live-portals",
-    "state": "Button Counts The Live Portals",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--fifty-live-portals",
-    "state": "Fifty Live Portals",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--no-button-with-no-live-portal",
-    "state": "No Button With No Live Portal",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--no-button-with-no-live-portal",
-    "state": "No Button With No Live Portal",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--no-button-without-the-right-to-publish",
-    "state": "No Button Without The Right To Publish",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--no-button-without-the-right-to-publish",
-    "state": "No Button Without The Right To Publish",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--nothing-to-publish",
-    "state": "Nothing To Publish",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--owners-and-followers-in-one-review",
-    "state": "Owners And Followers In One Review",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--publishes-the-ticked-portals",
-    "state": "Publishes The Ticked Portals",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--publishes-the-ticked-portals",
-    "state": "Publishes The Ticked Portals",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--ready-rows-link-to-their-changes",
-    "state": "Ready Rows Link To Their Changes",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--review-lists-each-live-portal",
-    "state": "Review Lists Each Live Portal",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--rows-say-what-the-publish-carries",
-    "state": "Rows Say What The Publish Carries",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--the-ticks-lock-while-publishing",
-    "state": "The Ticks Lock While Publishing",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--waits-for-the-save-to-settle",
-    "state": "Waits For The Save To Settle",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--waits-for-the-save-to-settle",
-    "state": "Waits For The Save To Settle",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--a-new-photograph-starts-without-the-old-description",
-    "state": "A New Photograph Starts Without The Old Description",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--adding-a-first-photo",
-    "state": "Adding A First Photo",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--adding-a-first-photo",
-    "state": "Adding A First Photo",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--cannot-be-closed-while-sending",
-    "state": "Cannot Be Closed While Sending",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--description-is-bounded",
-    "state": "Description Is Bounded",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--editing-the-description-alone",
-    "state": "Editing The Description Alone",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--editing-the-description-alone",
-    "state": "Editing The Description Alone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--focal-point-moves-with-the-keys-and-autosaves",
-    "state": "Focal Point Moves With The Keys And Autosaves",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--focal-point-moves-with-the-keys-and-autosaves",
-    "state": "Focal Point Moves With The Keys And Autosaves",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--focal-point-stops-at-the-edge",
-    "state": "Focal Point Stops At The Edge",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--focal-point-stops-at-the-edge",
-    "state": "Focal Point Stops At The Edge",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--keeping-the-photo",
-    "state": "Keeping The Photo",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--keeping-the-photo",
-    "state": "Keeping The Photo",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--narrow-photo-gets-print-advice-but-can-be-used",
-    "state": "Narrow Photo Gets Print Advice But Can Be Used",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--no-logo-yet",
-    "state": "No Logo Yet",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--no-logo-yet",
-    "state": "No Logo Yet",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--read-only-sees-no-controls",
-    "state": "Read Only Sees No Controls",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--read-only-sees-no-controls",
-    "state": "Read Only Sees No Controls",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--refused-upload-is-shown-in-place",
-    "state": "Refused Upload Is Shown In Place",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--refused-write-says-why",
-    "state": "Refused Write Says Why",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--removing-fails-in-place",
-    "state": "Removing Fails In Place",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--removing-fails-in-place",
-    "state": "Removing Fails In Place",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--removing-the-logo",
-    "state": "Removing The Logo",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--removing-the-logo",
-    "state": "Removing The Logo",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--removing-the-photo",
-    "state": "Removing The Photo",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--removing-the-photo",
-    "state": "Removing The Photo",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--replace-photo",
-    "state": "Replace Photo",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--replace-photo",
-    "state": "Replace Photo",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--replace-photo-on-a-portal-with-its-own-photo",
-    "state": "Replace Photo On A Portal With Its Own Photo",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--replace-photo-shows-a-phone",
-    "state": "Replace Photo Shows A Phone",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--retry-does-not-send-the-file-twice",
-    "state": "Retry Does Not Send The File Twice",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--retry-does-not-send-the-file-twice",
-    "state": "Retry Does Not Send The File Twice",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--small-logo-fails-the-check",
-    "state": "Small Logo Fails The Check",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--small-photo-fails-the-check",
-    "state": "Small Photo Fails The Check",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--uploading-a-logo",
-    "state": "Uploading A Logo",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--uploading-a-logo",
-    "state": "Uploading A Logo",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--with-a-photo",
-    "state": "With A Photo",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--with-a-photo",
-    "state": "With A Photo",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-photo-and-logo--wrong-format-is-turned-away",
-    "state": "Wrong Format Is Turned Away",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--a-manager-sees-what-is-own-but-cannot-edit-it",
-    "state": "A Manager Sees What Is Own But Cannot Edit It",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--a-manager-sees-what-is-own-but-cannot-edit-it",
-    "state": "A Manager Sees What Is Own But Cannot Edit It",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--a-portals-own-photo-is-not-the-propertys",
-    "state": "A Portals Own Photo Is Not The Propertys",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--a-portals-own-photo-is-not-the-propertys",
-    "state": "A Portals Own Photo Is Not The Propertys",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--accent-saves-as-a-draft",
-    "state": "Accent Saves As A Draft",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--accent-saves-as-a-draft",
-    "state": "Accent Saves As A Draft",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--adding-a-language",
-    "state": "Adding A Language",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--adding-a-language",
-    "state": "Adding A Language",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--choosing-a-portal-to-preview",
-    "state": "Choosing A Portal To Preview",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--choosing-a-portal-to-preview",
-    "state": "Choosing A Portal To Preview",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--custom-background",
-    "state": "Custom Background",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--custom-background",
-    "state": "Custom Background",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--custom-starts-from-a-readable-field",
-    "state": "Custom Starts From A Readable Field",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--custom-starts-from-a-readable-field",
-    "state": "Custom Starts From A Readable Field",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--default",
-    "state": "Default",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--default",
-    "state": "Default",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--default-languages",
-    "state": "Default Languages",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--default-languages",
-    "state": "Default Languages",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--default-palette-saves-a-wordmark",
-    "state": "Default Palette Saves A Wordmark",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--default-palette-saves-a-wordmark",
-    "state": "Default Palette Saves A Wordmark",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--every-live-portal-shows-the-look",
-    "state": "Every Live Portal Shows The Look",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--every-live-portal-shows-the-look",
-    "state": "Every Live Portal Shows The Look",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--failed-save-offers-retry",
-    "state": "Failed Save Offers Retry",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--failed-save-offers-retry",
-    "state": "Failed Save Offers Retry",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--hard-to-see-accent-is-flagged-not-refused",
-    "state": "Hard To See Accent Is Flagged Not Refused",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--hard-to-see-accent-is-flagged-not-refused",
-    "state": "Hard To See Accent Is Flagged Not Refused",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--language-controls-are-touch-targets",
-    "state": "Language Controls Are Touch Targets",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--language-controls-are-touch-targets",
-    "state": "Language Controls Are Touch Targets",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--leaving-after-a-failed-save-asks",
-    "state": "Leaving After A Failed Save Asks",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--leaving-after-a-failed-save-asks",
-    "state": "Leaving After A Failed Save Asks",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--no-portals-yet",
-    "state": "No Portals Yet",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--no-portals-yet",
-    "state": "No Portals Yet",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--no-public-display-name",
-    "state": "No Public Display Name",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--no-public-display-name",
-    "state": "No Public Display Name",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--no-public-display-name-for-a-reader",
-    "state": "No Public Display Name For A Reader",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--no-public-display-name-for-a-reader",
-    "state": "No Public Display Name For A Reader",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--one-portal-sees-nothing-new",
-    "state": "One Portal Sees Nothing New",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--one-portal-sees-nothing-new",
-    "state": "One Portal Sees Nothing New",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--one-portal-with-its-own-photo",
-    "state": "One Portal With Its Own Photo",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--one-portal-with-its-own-photo",
-    "state": "One Portal With Its Own Photo",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--portals-with-their-own-look",
-    "state": "Portals With Their Own Look",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--portals-with-their-own-look",
-    "state": "Portals With Their Own Look",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--preview-without-a-photo",
-    "state": "Preview Without A Photo",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--preview-without-a-photo",
-    "state": "Preview Without A Photo",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--read-only",
-    "state": "Read Only",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--read-only",
-    "state": "Read Only",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--refused-save-says-why",
-    "state": "Refused Save Says Why",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--refused-save-says-why",
-    "state": "Refused Save Says Why",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--saved-look-not-yet-live",
-    "state": "Saved Look Not Yet Live",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--saved-look-not-yet-live",
-    "state": "Saved Look Not Yet Live",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--wordmark-clears-and-is-bounded",
-    "state": "Wordmark Clears And Is Bounded",
-    "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "portal-propertylook-propertylookpage--wordmark-clears-and-is-bounded",
-    "state": "Wordmark Clears And Is Bounded",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--linktree-section",
-    "state": "Linktree Section",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--linktree-section",
-    "state": "Linktree Section",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--page-tab",
-    "state": "Page Tab",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--page-tab",
-    "state": "Page Tab",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--rating-section",
-    "state": "Rating Section",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-workspacetabs--rating-section",
-    "state": "Rating Section",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "property-googleperformancesection--compact-320",
     "state": "Compact 320",
     "width": 320,
@@ -9375,49 +6633,25 @@
     "storyId": "property-guestvoice2-check-in--dark",
     "state": "Dark",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--dark",
-    "state": "Dark",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-guestvoice2-check-in--hampton-like",
     "state": "Hampton Like",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--hampton-like",
-    "state": "Hampton Like",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-guestvoice2-check-in--insufficient-trend",
     "state": "Insufficient Trend",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--insufficient-trend",
-    "state": "Insufficient Trend",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-guestvoice2-check-in--long-manager-rename",
     "state": "Long Manager Rename",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--long-manager-rename",
-    "state": "Long Manager Rename",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-guestvoice2-check-in--missing-quote",
@@ -9429,25 +6663,13 @@
     "storyId": "property-guestvoice2-check-in--no-goal",
     "state": "No Goal",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--no-goal",
-    "state": "No Goal",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-guestvoice2-check-in--no-google-snapshot",
     "state": "No Google Snapshot",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--no-google-snapshot",
-    "state": "No Google Snapshot",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-guestvoice2-check-in--praise-sheet",
@@ -9459,25 +6681,13 @@
     "storyId": "property-guestvoice2-check-in--provisional",
     "state": "Provisional",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--provisional",
-    "state": "Provisional",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-guestvoice2-check-in--quiet",
     "state": "Quiet",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--quiet",
-    "state": "Quiet",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-guestvoice2-check-in--sheet-error",
@@ -9495,61 +6705,19 @@
     "storyId": "property-guestvoice2-check-in--sheet-open",
     "state": "Sheet Open",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--sheet-open",
-    "state": "Sheet Open",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-guestvoice2-check-in--slipping",
     "state": "Slipping",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--slipping",
-    "state": "Slipping",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--small",
-    "state": "Small",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--small",
-    "state": "Small",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--small-with-concern",
-    "state": "Small With Concern",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--small-with-concern",
-    "state": "Small With Concern",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-guestvoice2-check-in--steady",
     "state": "Steady",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "property-guestvoice2-check-in--steady",
-    "state": "Steady",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-guestvoice2-check-in--topic-unjudged",
@@ -9618,54 +6786,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "property-propertyguestvoicepage--analysis-off",
-    "state": "Analysis Off",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyguestvoicepage--analysis-off",
-    "state": "Analysis Off",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyguestvoicepage--analysis-off-for-member",
-    "state": "Analysis Off For Member",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyguestvoicepage--analysis-off-for-member",
-    "state": "Analysis Off For Member",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyguestvoicepage--preparing",
-    "state": "Preparing",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyguestvoicepage--preparing",
-    "state": "Preparing",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyguestvoicepage--reading-next-range",
-    "state": "Reading Next Range",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyguestvoicepage--reading-next-range",
-    "state": "Reading Next Range",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "property-propertylistpage--compact-320",
     "state": "Compact 320",
     "width": 320,
@@ -9942,210 +7062,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "property-propertyoverview--compact-390",
-    "state": "Compact 390",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--compact-390",
-    "state": "Compact 390",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--filling-in",
-    "state": "Filling In",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--filling-in",
-    "state": "Filling In",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--google-not-linked",
-    "state": "Google Not Linked",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--google-not-linked",
-    "state": "Google Not Linked",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--google-numbers-never",
-    "state": "Google Numbers Never",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--google-numbers-never",
-    "state": "Google Numbers Never",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--google-numbers-stale",
-    "state": "Google Numbers Stale",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--google-numbers-stale",
-    "state": "Google Numbers Stale",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--google-unavailable",
-    "state": "Google Unavailable",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--google-unavailable",
-    "state": "Google Unavailable",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--no-portal-chip-when-guests-can-use-them-all",
-    "state": "No Portal Chip When Guests Can Use Them All",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--no-portal-chip-when-guests-can-use-them-all",
-    "state": "No Portal Chip When Guests Can Use Them All",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--one-portal-guests-cannot-use",
-    "state": "One Portal Guests Cannot Use",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--one-portal-guests-cannot-use",
-    "state": "One Portal Guests Cannot Use",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--portal-goal-below-pace-chip",
-    "state": "Portal Goal Below Pace Chip",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--portal-goal-below-pace-chip",
-    "state": "Portal Goal Below Pace Chip",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--portal-goal-below-pace-chip-light",
-    "state": "Portal Goal Below Pace Chip Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--portal-goal-below-pace-chip-light",
-    "state": "Portal Goal Below Pace Chip Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--portal-goal-below-pace-chip-narrow-phone",
-    "state": "Portal Goal Below Pace Chip Narrow Phone",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--portal-goal-below-pace-chip-narrow-phone",
-    "state": "Portal Goal Below Pace Chip Narrow Phone",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--portal-goals-below-pace-chip",
-    "state": "Portal Goals Below Pace Chip",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--portal-goals-below-pace-chip",
-    "state": "Portal Goals Below Pace Chip",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--portals-guests-cannot-use",
-    "state": "Portals Guests Cannot Use",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--portals-guests-cannot-use",
-    "state": "Portals Guests Cannot Use",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--ready",
-    "state": "Ready",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--ready",
-    "state": "Ready",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--week-one",
-    "state": "Week One",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--week-one",
-    "state": "Week One",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--with-portal-goal",
-    "state": "With Portal Goal",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--with-portal-goal",
-    "state": "With Portal Goal",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--with-rating-goal",
-    "state": "With Rating Goal",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-propertyoverview--with-rating-goal",
-    "state": "With Rating Goal",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "property-propertyratingspage--all-time",
     "state": "All Time",
     "width": 320,
@@ -10214,30 +7130,6 @@
   {
     "storyId": "property-propertyratingspage--too-thin-to-chart",
     "state": "Too Thin To Chart",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-settings-hub--header-names-the-section",
-    "state": "Header Names The Section",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-settings-hub--header-names-the-section",
-    "state": "Header Names The Section",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-settings-hub--header-names-the-section-light",
-    "state": "Header Names The Section Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "property-settings-hub--header-names-the-section-light",
-    "state": "Header Names The Section Light",
     "width": 390,
     "checks": ["targets"]
   },
@@ -10464,18 +7356,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "propertysetup-reply-voice-question--focused-step",
-    "state": "Focused Step",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "propertysetup-reply-voice-question--focused-step",
-    "state": "Focused Step",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "propertysetup-setuppropertiesstep--nothing-left-to-ask",
     "state": "Nothing Left To Ask",
     "width": 320,
@@ -10692,18 +7572,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "staff-manager--person-sheet-from-portal",
-    "state": "Person Sheet From Portal",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-manager--person-sheet-from-portal",
-    "state": "Person Sheet From Portal",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "staff-manager--phone-375",
     "state": "Phone 375",
     "width": 320,
@@ -10716,18 +7584,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "staff-manager--staff-page",
-    "state": "Staff Page",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-manager--staff-page",
-    "state": "Staff Page",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "staff-manager--tablet-768",
     "state": "Tablet 768",
     "width": 320,
@@ -10735,150 +7591,6 @@
   },
   {
     "storyId": "staff-manager--tablet-768",
-    "state": "Tablet 768",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-manager--update-guest-pages",
-    "state": "Update Guest Pages",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-manager--update-guest-pages",
-    "state": "Update Guest Pages",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--desktop-1440",
-    "state": "Desktop 1440",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--desktop-1440",
-    "state": "Desktop 1440",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--expired",
-    "state": "Expired",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--expired",
-    "state": "Expired",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--failed",
-    "state": "Failed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--failed",
-    "state": "Failed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--invited",
-    "state": "Invited",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--invited",
-    "state": "Invited",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--narrow-320",
-    "state": "Narrow 320",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--narrow-320",
-    "state": "Narrow 320",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--phone-375",
-    "state": "Phone 375",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--phone-375",
-    "state": "Phone 375",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--property-manager",
-    "state": "Property Manager",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--property-manager",
-    "state": "Property Manager",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--read-only",
-    "state": "Read Only",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--read-only",
-    "state": "Read Only",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--send-failed",
-    "state": "Send Failed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--send-failed",
-    "state": "Send Failed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--signed-in",
-    "state": "Signed In",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--signed-in",
-    "state": "Signed In",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--tablet-768",
-    "state": "Tablet 768",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "staff-person--tablet-768",
     "state": "Tablet 768",
     "width": 390,
     "checks": ["targets"]

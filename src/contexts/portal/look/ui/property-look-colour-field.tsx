@@ -42,7 +42,7 @@ export function PropertyLookColourField({
           value={value.toLowerCase()}
           disabled={disabled}
           onChange={(event) => commit(event.target.value.toUpperCase())}
-          className="size-9 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+          className="size-11 shrink-0 md:size-9 cursor-pointer rounded-md border bg-transparent p-0.5 disabled:cursor-not-allowed disabled:opacity-50"
         />
         <Input
           id={id}
