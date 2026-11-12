@@ -4,7 +4,7 @@
 // over every pack.
 
 import { describe, expect, it } from 'vitest'
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { GuestResponseView } from '#/contexts/guest/responses/contracts'
 import { DEADLINE_WORDING, PACKS } from './__fixtures__/immersive-response-fixtures'
 import { responseSectionRows, type ResponseClock } from './immersive-response-rows'
 
