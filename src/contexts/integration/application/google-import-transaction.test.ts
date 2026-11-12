@@ -12,15 +12,15 @@ import type {
 } from './ports/google-import-reference-store.port'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
 import type {
-  GoogleImportV2Intent,
-  GoogleImportV2RetryCandidate,
-  GoogleImportV2StoredReplay,
-  GoogleImportV2Store,
-} from './ports/google-import-v2-store.port'
+  GoogleImportIntent,
+  GoogleImportRetryCandidate,
+  GoogleImportStoredReplay,
+  GoogleImportStore,
+} from './ports/google-import-store.port'
 import {
   retryPropertyImportItemInputSchema,
   startPropertyImportInputSchema,
-} from './dto/google-import-v2.dto'
+} from './dto/google-import.dto'
 import {
   createGoogleImportTransaction,
   GoogleImportTransactionError,
@@ -145,13 +145,13 @@ function referenceStore(claims: readonly ClaimedImportCandidate[]) {
 }
 
 function memoryStore() {
-  const replays = new Map<string, GoogleImportV2StoredReplay>()
-  const intents: GoogleImportV2Intent[] = []
+  const replays = new Map<string, GoogleImportStoredReplay>()
+  const intents: GoogleImportIntent[] = []
   const findReplay = vi.fn(
     async (organization: string, requestId: string) =>
       replays.get(`${organization}:${requestId}`) ?? null,
   )
-  const commitImport = vi.fn(async (intent: GoogleImportV2Intent) => {
+  const commitImport = vi.fn(async (intent: GoogleImportIntent) => {
     const key = `${intent.organizationId}:${intent.requestId}`
     if (replays.has(key)) return 'conflict' as const
     intents.push(intent)
@@ -163,15 +163,15 @@ function memoryStore() {
     })
     return 'committed' as const
   })
-  const retryItem = vi.fn<GoogleImportV2Store['retryItem']>(async () => ({
+  const retryItem = vi.fn<GoogleImportStore['retryItem']>(async () => ({
     kind: 'rejected',
     reason: 'missing',
   }))
-  const listRetryCandidates = vi.fn<GoogleImportV2Store['listRetryCandidates']>(
+  const listRetryCandidates = vi.fn<GoogleImportStore['listRetryCandidates']>(
     async () => [],
   )
-  const getProgress = vi.fn<GoogleImportV2Store['getProgress']>(async () => null)
-  const store: GoogleImportV2Store = {
+  const getProgress = vi.fn<GoogleImportStore['getProgress']>(async () => null)
+  const store: GoogleImportStore = {
     findPropertyImportInitiator: vi.fn(async () => null),
     findReplay,
     commitImport,
@@ -602,7 +602,7 @@ describe('Google import transaction', () => {
   })
   it('accepts a retry only after fresh original-initiator authorization', async () => {
     const fixture = setup()
-    const candidate: GoogleImportV2RetryCandidate = {
+    const candidate: GoogleImportRetryCandidate = {
       importJobId: JOB_ID,
       itemId: ITEM_ID,
       connectionId: CONNECTION_ID,
@@ -703,7 +703,7 @@ describe('Google import transaction', () => {
 
   it('only exposes retry controls after fresh item authorization', async () => {
     const fixture = setup()
-    const candidate: GoogleImportV2RetryCandidate = {
+    const candidate: GoogleImportRetryCandidate = {
       importJobId: JOB_ID,
       itemId: ITEM_ID,
       connectionId: CONNECTION_ID,

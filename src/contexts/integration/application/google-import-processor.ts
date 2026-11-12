@@ -12,21 +12,21 @@ import {
   terminalWriteFor,
   type ImportOutcomeCode,
   type ImportProfileField,
-} from './google-import-v2-contract'
+} from './google-import-contract'
 import {
   GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS,
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
-  type GoogleImportV2ClaimedItem,
-  type GoogleImportV2OutcomeDetail,
-  type GoogleImportV2Store,
-  type GoogleImportV2TerminalAuthority,
-} from './ports/google-import-v2-store.port'
+  type GoogleImportClaimedItem,
+  type GoogleImportOutcomeDetail,
+  type GoogleImportStore,
+  type GoogleImportTerminalAuthority,
+} from './ports/google-import-store.port'
 import {
   googleImportErrorCode,
   isTransientGoogleImportInfrastructureError,
 } from './google-import-error-taxonomy'
 
-export type ProcessGoogleImportV2Item = Readonly<{
+export type ProcessGoogleImportItem = Readonly<{
   organizationId: string
   itemId: string
   retryRevision: number
@@ -34,8 +34,8 @@ export type ProcessGoogleImportV2Item = Readonly<{
   attemptOrdinal: number
 }>
 
-export type GoogleImportV2Processor = Readonly<{
-  process(input: ProcessGoogleImportV2Item): Promise<void>
+export type GoogleImportProcessor = Readonly<{
+  process(input: ProcessGoogleImportItem): Promise<void>
 }>
 
 type PropertyReceipt = NonNullable<
@@ -44,7 +44,7 @@ type PropertyReceipt = NonNullable<
 
 type TerminalOutcome = Readonly<{
   outcomeCode: ImportOutcomeCode
-  detail?: GoogleImportV2OutcomeDetail
+  detail?: GoogleImportOutcomeDetail
 }>
 
 const profileRejected = (field: ImportProfileField): TerminalOutcome => ({
@@ -132,9 +132,9 @@ function authorizationOutcome(
   }
 }
 
-export function createGoogleImportV2Processor(
+export function createGoogleImportProcessor(
   deps: Readonly<{
-    store: GoogleImportV2Store
+    store: GoogleImportStore
     propertyBindingApi: PropertyGoogleBindingPublicApi
     authorizeGoogleImportCommand: GoogleImportCommandAuthorizer
     resolveActor: (organizationId: string, userId: string) => Promise<AuthContext | null>
@@ -147,7 +147,7 @@ export function createGoogleImportV2Processor(
      */
     logger: LoggerPort
   }>,
-): GoogleImportV2Processor {
+): GoogleImportProcessor {
   const reconcileKnownReceipt = async (
     organizationIdValue: string,
     itemId: string,
@@ -177,9 +177,9 @@ export function createGoogleImportV2Processor(
   }
 
   const complete = async (
-    item: GoogleImportV2ClaimedItem,
+    item: GoogleImportClaimedItem,
     outcomeCode: ImportOutcomeCode,
-    detail?: GoogleImportV2OutcomeDetail,
+    detail?: GoogleImportOutcomeDetail,
   ): Promise<void> => {
     const now = deps.clock()
     if (await reconcileReceipt(item.organizationId, item.itemId, now)) return
@@ -203,8 +203,8 @@ export function createGoogleImportV2Processor(
    * recorded. A failed lookup loses only the link, never the outcome.
    */
   const existingPropertyDetail = async (
-    item: GoogleImportV2ClaimedItem,
-  ): Promise<GoogleImportV2OutcomeDetail | undefined> => {
+    item: GoogleImportClaimedItem,
+  ): Promise<GoogleImportOutcomeDetail | undefined> => {
     try {
       const [holder] = await deps.propertyBindingApi.readByLocationIds(
         organizationId(item.organizationId),
@@ -227,7 +227,7 @@ export function createGoogleImportV2Processor(
   }
 
   const transientFailure = async (
-    item: GoogleImportV2ClaimedItem,
+    item: GoogleImportClaimedItem,
     error?: unknown,
   ): Promise<void> => {
     const now = deps.clock()
@@ -258,8 +258,8 @@ export function createGoogleImportV2Processor(
   }
 
   const terminalizeUnclaimed = async (
-    input: ProcessGoogleImportV2Item,
-    authority: GoogleImportV2TerminalAuthority,
+    input: ProcessGoogleImportItem,
+    authority: GoogleImportTerminalAuthority,
   ): Promise<void> => {
     const now = deps.clock()
     if (await reconcileReceipt(input.organizationId, input.itemId, now)) return
@@ -273,7 +273,7 @@ export function createGoogleImportV2Processor(
     })
   }
 
-  const processClaim = async (item: GoogleImportV2ClaimedItem): Promise<void> => {
+  const processClaim = async (item: GoogleImportClaimedItem): Promise<void> => {
     const properties =
       item.action === 'relink' &&
       item.existingPropertyId !== null &&

@@ -2,14 +2,14 @@ import type {
   ImportOutcomeCode,
   ImportProfileField,
   ImportProgressDto,
-} from '../google-import-v2-contract'
+} from '../google-import-contract'
 import type { ImportDiscoveryAuthorization } from './google-import-reference-store.port'
 import type { GoogleImportReplayDigest } from '../google-import-replay'
 
 export const GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS = 5
 export const GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS = 60_000
 
-export type GoogleImportV2ItemIntent = Readonly<{
+export type GoogleImportItemIntent = Readonly<{
   id: string
   connectionId: string
   existingPropertyId: string | null
@@ -34,7 +34,7 @@ export type GoogleImportV2ItemIntent = Readonly<{
   effectDeadlineAt: Date
 }>
 
-export type GoogleImportV2DispatchItem = Readonly<{
+export type GoogleImportDispatchItem = Readonly<{
   itemId: string
   expectedConnectionLifecycleVersion: number
   expectedSourceEpoch: number | null
@@ -42,7 +42,7 @@ export type GoogleImportV2DispatchItem = Readonly<{
   dispatchEpoch: number
 }>
 
-export type GoogleImportV2ClaimedItem = Readonly<{
+export type GoogleImportClaimedItem = Readonly<{
   organizationId: string
   importJobId: string
   itemId: string
@@ -73,8 +73,8 @@ export type GoogleImportV2ClaimedItem = Readonly<{
   effectDeadlineAt: Date
 }>
 
-export type GoogleImportV2ClaimResult =
-  | Readonly<{ kind: 'claimed'; item: GoogleImportV2ClaimedItem }>
+export type GoogleImportClaimResult =
+  | Readonly<{ kind: 'claimed'; item: GoogleImportClaimedItem }>
   | Readonly<{
       kind: 'ignored'
       reason:
@@ -89,7 +89,7 @@ export type GoogleImportV2ClaimResult =
       kind: 'ignored'
       reason: 'effect_expired' | 'attempts_exhausted'
       effectDeadlineAt: Date
-      authority: GoogleImportV2TerminalAuthority
+      authority: GoogleImportTerminalAuthority
     }>
 
 /**
@@ -98,11 +98,11 @@ export type GoogleImportV2ClaimResult =
  * in the same Organization that already holds its location. Both are internal,
  * content-free references and never provider identifiers.
  */
-export type GoogleImportV2OutcomeDetail =
+export type GoogleImportOutcomeDetail =
   | Readonly<{ kind: 'invalid_profile_field'; field: ImportProfileField }>
   | Readonly<{ kind: 'existing_property'; propertyId: string }>
 
-export type GoogleImportV2TerminalAuthority =
+export type GoogleImportTerminalAuthority =
   | Readonly<{ kind: 'pending'; dispatchEpoch: number }>
   | Readonly<{
       kind: 'claim' | 'expired_claim'
@@ -111,7 +111,7 @@ export type GoogleImportV2TerminalAuthority =
     }>
   | Readonly<{ kind: 'lifecycle' }>
 
-export type GoogleImportV2DueItem = GoogleImportV2DispatchItem &
+export type GoogleImportDueItem = GoogleImportDispatchItem &
   Readonly<{
     organizationId: string
     importJobId: string
@@ -121,7 +121,7 @@ export type GoogleImportV2DueItem = GoogleImportV2DispatchItem &
     effectDeadlineAt: Date
   }>
 
-export type GoogleImportV2TerminalInput = Readonly<{
+export type GoogleImportTerminalInput = Readonly<{
   organizationId: string
   itemId: string
   retryRevision: number
@@ -136,29 +136,29 @@ export type GoogleImportV2TerminalInput = Readonly<{
    */
   retainRetryState: boolean
   now: Date
-  detail?: GoogleImportV2OutcomeDetail
+  detail?: GoogleImportOutcomeDetail
 }>
 
-export type GoogleImportV2Intent = Readonly<{
+export type GoogleImportIntent = Readonly<{
   id: string
   organizationId: string
   requestId: string
   initiatedBy: string
   wireReplay: GoogleImportReplayDigest
   semanticReplay: GoogleImportReplayDigest
-  items: readonly GoogleImportV2ItemIntent[]
+  items: readonly GoogleImportItemIntent[]
   now: Date
   outboxEventId: string
 }>
 
-export type GoogleImportV2StoredReplay = Readonly<{
+export type GoogleImportStoredReplay = Readonly<{
   importJobId: string
   initiatedBy: string
   wireReplay: GoogleImportReplayDigest | null
   semanticReplay: GoogleImportReplayDigest | null
 }>
 
-export type GoogleImportV2RetryCandidate = Readonly<{
+export type GoogleImportRetryCandidate = Readonly<{
   importJobId: string
   itemId: string
   connectionId: string
@@ -168,31 +168,31 @@ export type GoogleImportV2RetryCandidate = Readonly<{
   authorization: ImportDiscoveryAuthorization
 }>
 
-export type GoogleImportV2ExpiredItem = Readonly<{
+export type GoogleImportExpiredItem = Readonly<{
   organizationId: string
   itemId: string
   retryRevision: number
 }>
 
-export type GoogleImportV2PurgeCandidate = Readonly<{
+export type GoogleImportPurgeCandidate = Readonly<{
   organizationId: string
   importJobId: string
   deletionFence: number
 }>
 
-export type GoogleImportV2LifecycleScope =
+export type GoogleImportLifecycleScope =
   | Readonly<{ kind: 'organization'; organizationId: string }>
   | Readonly<{ kind: 'user'; organizationId: string; userId: string }>
   | Readonly<{ kind: 'connection'; organizationId: string; connectionId: string }>
   | Readonly<{ kind: 'property'; organizationId: string; propertyId: string }>
   | Readonly<{ kind: 'request'; organizationId: string; importJobId: string }>
 
-export type GoogleImportV2LifecycleParent = Readonly<{
+export type GoogleImportLifecycleParent = Readonly<{
   organizationId: string
   importJobId: string
 }>
 
-export type GoogleImportV2LifecycleItem = Readonly<{
+export type GoogleImportLifecycleItem = Readonly<{
   organizationId: string
   importJobId: string
   itemId: string
@@ -200,7 +200,7 @@ export type GoogleImportV2LifecycleItem = Readonly<{
   active: boolean
 }>
 
-export type GoogleImportV2RetryResult =
+export type GoogleImportRetryResult =
   | Readonly<{
       kind: 'accepted' | 'replayed'
       importJobId: string
@@ -219,7 +219,7 @@ export type GoogleImportV2RetryResult =
         | 'authorization_unavailable'
     }>
 
-export type GoogleImportV2Store = Readonly<{
+export type GoogleImportStore = Readonly<{
   /**
    * Who asked for the import that produced this Property — the FIRST one, so a
    * later relink does not take credit for the history the original brought in.
@@ -233,8 +233,8 @@ export type GoogleImportV2Store = Readonly<{
   findReplay(
     organizationId: string,
     requestId: string,
-  ): Promise<GoogleImportV2StoredReplay | null>
-  commitImport(intent: GoogleImportV2Intent): Promise<'committed' | 'conflict'>
+  ): Promise<GoogleImportStoredReplay | null>
+  commitImport(intent: GoogleImportIntent): Promise<'committed' | 'conflict'>
   retryItem(
     input: Readonly<{
       organizationId: string
@@ -247,10 +247,10 @@ export type GoogleImportV2Store = Readonly<{
       now: Date
       outboxEventId: string
       authorize: (
-        candidate: GoogleImportV2RetryCandidate,
+        candidate: GoogleImportRetryCandidate,
       ) => Promise<'authorized' | 'denied' | 'unavailable'>
     }>,
-  ): Promise<GoogleImportV2RetryResult>
+  ): Promise<GoogleImportRetryResult>
   claimItem(
     input: Readonly<{
       organizationId: string
@@ -263,7 +263,7 @@ export type GoogleImportV2Store = Readonly<{
       now: Date
       leaseExpiresAt: Date
     }>,
-  ): Promise<GoogleImportV2ClaimResult>
+  ): Promise<GoogleImportClaimResult>
   runClaimedEffect<TResult>(
     input: Readonly<{
       organizationId: string
@@ -298,13 +298,13 @@ export type GoogleImportV2Store = Readonly<{
       now: Date
     }>,
   ): Promise<'completed' | 'lost'>
-  completeClaim(input: GoogleImportV2TerminalInput): Promise<'completed' | 'lost'>
+  completeClaim(input: GoogleImportTerminalInput): Promise<'completed' | 'lost'>
   terminalizeItem(
     input: Readonly<{
       organizationId: string
       itemId: string
       retryRevision: number
-      authority: GoogleImportV2TerminalAuthority
+      authority: GoogleImportTerminalAuthority
       outcomeCode: ImportOutcomeCode
       retainRetryState: boolean
       now: Date
@@ -318,23 +318,20 @@ export type GoogleImportV2Store = Readonly<{
   listPendingDispatchItems(
     organizationId: string,
     importJobId: string,
-  ): Promise<readonly GoogleImportV2DispatchItem[] | null>
+  ): Promise<readonly GoogleImportDispatchItem[] | null>
   listRetryCandidates(
     organizationId: string,
     userId: string,
     importJobId: string,
     now: Date,
-  ): Promise<readonly GoogleImportV2RetryCandidate[]>
-  listExpiredItems(
-    now: Date,
-    limit: number,
-  ): Promise<readonly GoogleImportV2ExpiredItem[]>
+  ): Promise<readonly GoogleImportRetryCandidate[]>
+  listExpiredItems(now: Date, limit: number): Promise<readonly GoogleImportExpiredItem[]>
   /** Reserve and advance at most 100 due active items before doing work. */
-  reserveDueItems(now: Date, limit: number): Promise<readonly GoogleImportV2DueItem[]>
+  reserveDueItems(now: Date, limit: number): Promise<readonly GoogleImportDueItem[]>
   listPurgeCandidates(
     now: Date,
     limit: number,
-  ): Promise<readonly GoogleImportV2PurgeCandidate[]>
+  ): Promise<readonly GoogleImportPurgeCandidate[]>
   purgeParent(
     input: Readonly<{
       organizationId: string
@@ -345,9 +342,9 @@ export type GoogleImportV2Store = Readonly<{
     }>,
   ): Promise<'purged' | 'lost'>
   listLifecycleScopeParents(
-    scope: GoogleImportV2LifecycleScope,
+    scope: GoogleImportLifecycleScope,
     limit: number,
-  ): Promise<readonly GoogleImportV2LifecycleParent[]>
+  ): Promise<readonly GoogleImportLifecycleParent[]>
   fenceLifecycleParent(
     input: Readonly<{
       organizationId: string
@@ -356,9 +353,9 @@ export type GoogleImportV2Store = Readonly<{
     }>,
   ): Promise<'fenced' | 'lost'>
   listLifecycleScopeItems(
-    scope: GoogleImportV2LifecycleScope,
+    scope: GoogleImportLifecycleScope,
     limit: number,
-  ): Promise<readonly GoogleImportV2LifecycleItem[]>
+  ): Promise<readonly GoogleImportLifecycleItem[]>
   scrubLifecycleItems(
     input: Readonly<{
       organizationId: string
@@ -367,7 +364,7 @@ export type GoogleImportV2Store = Readonly<{
     }>,
   ): Promise<number>
   countLifecycleScopeItems(
-    scope: GoogleImportV2LifecycleScope,
+    scope: GoogleImportLifecycleScope,
     limit: number,
   ): Promise<number>
   getOperatorProgress(

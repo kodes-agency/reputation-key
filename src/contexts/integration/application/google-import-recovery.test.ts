@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createGoogleImportV2ClaimReaper } from './google-import-v2-claim-reaper'
+import { createGoogleImportClaimReaper } from './google-import-claim-reaper'
 import type {
-  GoogleImportV2DueItem,
-  GoogleImportV2Store,
-} from './ports/google-import-v2-store.port'
+  GoogleImportDueItem,
+  GoogleImportStore,
+} from './ports/google-import-store.port'
 
 const NOW = new Date('2026-08-12T10:00:00Z')
-const dueItem = (over: Partial<GoogleImportV2DueItem> = {}): GoogleImportV2DueItem => ({
+const dueItem = (over: Partial<GoogleImportDueItem> = {}): GoogleImportDueItem => ({
   organizationId: 'org-one',
   importJobId: '10000000-0000-4000-8000-000000000001',
   itemId: '10000000-0000-4000-8000-000000000002',
@@ -21,15 +21,15 @@ const dueItem = (over: Partial<GoogleImportV2DueItem> = {}): GoogleImportV2DueIt
   ...over,
 })
 
-function setup(items: readonly GoogleImportV2DueItem[]) {
+function setup(items: readonly GoogleImportDueItem[]) {
   const reserveDueItems = vi.fn(async () => items)
-  const releaseClaimForRetry = vi.fn<GoogleImportV2Store['releaseClaimForRetry']>(
+  const releaseClaimForRetry = vi.fn<GoogleImportStore['releaseClaimForRetry']>(
     async () => 'released',
   )
   const addImportItemJobs = vi.fn(async () => {})
   const processItem = vi.fn(async () => {})
   const logger = { warn: vi.fn() }
-  const reap = createGoogleImportV2ClaimReaper({
+  const reap = createGoogleImportClaimReaper({
     store: { reserveDueItems, releaseClaimForRetry },
     queue: { addImportItemJobs },
     processItem,

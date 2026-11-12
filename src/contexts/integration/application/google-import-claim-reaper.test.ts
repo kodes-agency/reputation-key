@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
-  type GoogleImportV2DueItem,
-  type GoogleImportV2Store,
-} from './ports/google-import-v2-store.port'
-import { createGoogleImportV2ClaimReaper } from './google-import-v2-claim-reaper'
+  type GoogleImportDueItem,
+  type GoogleImportStore,
+} from './ports/google-import-store.port'
+import { createGoogleImportClaimReaper } from './google-import-claim-reaper'
 
 const NOW = new Date('2026-08-12T10:00:00.000Z')
 const ITEM_ID = '20000000-0000-4000-8000-000000000001'
 const FENCE = '20000000-0000-4000-8000-000000000003'
 
-function staleClaim(over: Partial<GoogleImportV2DueItem> = {}): GoogleImportV2DueItem {
+function staleClaim(over: Partial<GoogleImportDueItem> = {}): GoogleImportDueItem {
   return {
     organizationId: 'org-1',
     importJobId: '20000000-0000-4000-8000-000000000009',
@@ -27,14 +27,14 @@ function staleClaim(over: Partial<GoogleImportV2DueItem> = {}): GoogleImportV2Du
   }
 }
 
-function setup(items: readonly GoogleImportV2DueItem[] = [staleClaim()]) {
-  const reserveDueItems = vi.fn<GoogleImportV2Store['reserveDueItems']>(async () => items)
-  const releaseClaimForRetry = vi.fn<GoogleImportV2Store['releaseClaimForRetry']>(
+function setup(items: readonly GoogleImportDueItem[] = [staleClaim()]) {
+  const reserveDueItems = vi.fn<GoogleImportStore['reserveDueItems']>(async () => items)
+  const releaseClaimForRetry = vi.fn<GoogleImportStore['releaseClaimForRetry']>(
     async () => 'released',
   )
   const processItem = vi.fn(async () => {})
   const addImportItemJobs = vi.fn(async () => {})
-  const reap = createGoogleImportV2ClaimReaper({
+  const reap = createGoogleImportClaimReaper({
     store: { reserveDueItems, releaseClaimForRetry },
     queue: { addImportItemJobs },
     processItem,
@@ -45,7 +45,7 @@ function setup(items: readonly GoogleImportV2DueItem[] = [staleClaim()]) {
   return { reap, reserveDueItems, releaseClaimForRetry, processItem, addImportItemJobs }
 }
 
-describe('GoogleImportV2ClaimReaper', () => {
+describe('GoogleImportClaimReaper', () => {
   it('reserves the bounded due set at the current database-facing instant', async () => {
     const h = setup()
     await h.reap()

@@ -2,12 +2,12 @@ import { and, asc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import type {
-  GoogleImportV2LifecycleScope,
-  GoogleImportV2Store,
-} from '../application/ports/google-import-v2-store.port'
+  GoogleImportLifecycleScope,
+  GoogleImportStore,
+} from '../application/ports/google-import-store.port'
 import { assertLifecycleSweepLimit } from './import-store-helpers.server'
 
-function lifecycleScopePredicate(scope: GoogleImportV2LifecycleScope) {
+function lifecycleScopePredicate(scope: GoogleImportLifecycleScope) {
   const tenant = eq(googleImportItems.organizationId, scope.organizationId)
   switch (scope.kind) {
     case 'organization':
@@ -49,7 +49,7 @@ const lifecycleAuthorityPresent = or(
 
 // A Property deletion must also find the terminal rows that still name the
 // Property, so its sweep selects on the reference as well as on authority.
-function lifecycleSweepPredicate(scope: GoogleImportV2LifecycleScope) {
+function lifecycleSweepPredicate(scope: GoogleImportLifecycleScope) {
   return scope.kind === 'property'
     ? and(
         lifecycleScopePredicate(scope),
@@ -61,7 +61,7 @@ function lifecycleSweepPredicate(scope: GoogleImportV2LifecycleScope) {
 export function createImportLifecycleStore(
   db: Database,
 ): Pick<
-  GoogleImportV2Store,
+  GoogleImportStore,
   | 'listLifecycleScopeParents'
   | 'fenceLifecycleParent'
   | 'listLifecycleScopeItems'

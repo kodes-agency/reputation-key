@@ -4,7 +4,7 @@ import type { Database } from '#/shared/db'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import type { GoogleImportV2Store } from '../application/ports/google-import-v2-store.port'
+import type { GoogleImportStore } from '../application/ports/google-import-store.port'
 import {
   assertLifecycleSweepLimit,
   parentScope,
@@ -13,7 +13,7 @@ import {
 
 export function createImportRetention(
   db: Database,
-): Pick<GoogleImportV2Store, 'listPurgeCandidates' | 'purgeParent'> {
+): Pick<GoogleImportStore, 'listPurgeCandidates' | 'purgeParent'> {
   return {
     listPurgeCandidates: async (now, limit) => {
       assertLifecycleSweepLimit(limit)
@@ -40,7 +40,7 @@ export function createImportRetention(
     purgeParent: purgeCurrent,
   }
 
-  function purgeCurrent(input: Parameters<GoogleImportV2Store['purgeParent']>[0]) {
+  function purgeCurrent(input: Parameters<GoogleImportStore['purgeParent']>[0]) {
     return db.transaction(async (tx) => {
       const [parent] = await tx
         .select()

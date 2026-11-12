@@ -3,7 +3,7 @@ import type {
   ImportAccountPageDto,
   ImportCandidateEligibility,
   ImportCandidatePageDto,
-} from '../google-import-v2-contract'
+} from '../google-import-contract'
 
 export type ImportAuthorizationVectorValue = string | number | boolean | null
 

@@ -17,13 +17,13 @@ import type { Job } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import { JOB_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
-import { createGoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'
-import type { GoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'
+import { createGoogleImportClaimReaper } from '#/contexts/integration/application/google-import-claim-reaper'
+import type { GoogleImportClaimReaper } from '#/contexts/integration/application/google-import-claim-reaper'
 import {
   GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS,
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
-  type GoogleImportV2Store,
-} from '#/contexts/integration/application/ports/google-import-v2-store.port'
+  type GoogleImportStore,
+} from '#/contexts/integration/application/ports/google-import-store.port'
 import {
   createGoogleImportClaimReaperHandler,
   JOB_NAME,
@@ -84,47 +84,46 @@ function createHarness(
   now: Date,
   outcomes: Readonly<{ release?: 'released' | 'lost' }> = {},
 ) {
-  const reserveDueItems = vi.fn<GoogleImportV2Store['reserveDueItems']>(
-    async (at, limit) =>
-      rows
-        .filter(
-          (row) =>
-            row.status !== 'completed' &&
-            row.nextDispatchAt <= at &&
-            (row.status === 'pending' ||
-              (row.claimLeaseExpiresAt !== null && row.claimLeaseExpiresAt <= at)),
-        )
-        .sort(
-          (left, right) => left.nextDispatchAt.getTime() - right.nextDispatchAt.getTime(),
-        )
-        .slice(0, limit)
-        .flatMap((row) =>
-          row.status === 'completed'
-            ? []
-            : [
-                {
-                  organizationId: row.organizationId,
-                  importJobId: 'parent-import',
-                  itemId: row.itemId,
-                  retryRevision: row.retryRevision,
-                  dispatchEpoch: row.dispatchEpoch,
-                  status: row.status,
-                  claimFence: row.claimFence,
-                  attemptOrdinal: row.attemptOrdinal,
-                  effectDeadlineAt: row.effectDeadlineAt,
-                  expectedConnectionLifecycleVersion: 1,
-                  expectedSourceEpoch: null,
-                },
-              ],
-        ),
+  const reserveDueItems = vi.fn<GoogleImportStore['reserveDueItems']>(async (at, limit) =>
+    rows
+      .filter(
+        (row) =>
+          row.status !== 'completed' &&
+          row.nextDispatchAt <= at &&
+          (row.status === 'pending' ||
+            (row.claimLeaseExpiresAt !== null && row.claimLeaseExpiresAt <= at)),
+      )
+      .sort(
+        (left, right) => left.nextDispatchAt.getTime() - right.nextDispatchAt.getTime(),
+      )
+      .slice(0, limit)
+      .flatMap((row) =>
+        row.status === 'completed'
+          ? []
+          : [
+              {
+                organizationId: row.organizationId,
+                importJobId: 'parent-import',
+                itemId: row.itemId,
+                retryRevision: row.retryRevision,
+                dispatchEpoch: row.dispatchEpoch,
+                status: row.status,
+                claimFence: row.claimFence,
+                attemptOrdinal: row.attemptOrdinal,
+                effectDeadlineAt: row.effectDeadlineAt,
+                expectedConnectionLifecycleVersion: 1,
+                expectedSourceEpoch: null,
+              },
+            ],
+      ),
   )
-  const releaseClaimForRetry = vi.fn<GoogleImportV2Store['releaseClaimForRetry']>(
+  const releaseClaimForRetry = vi.fn<GoogleImportStore['releaseClaimForRetry']>(
     async () => outcomes.release ?? 'released',
   )
   const processItem = vi.fn(async () => undefined)
   const addImportItemJobs = vi.fn(async () => undefined)
-  const reap = vi.fn<GoogleImportV2ClaimReaper>(
-    createGoogleImportV2ClaimReaper({
+  const reap = vi.fn<GoogleImportClaimReaper>(
+    createGoogleImportClaimReaper({
       store: { reserveDueItems, releaseClaimForRetry },
       processItem,
       queue: { addImportItemJobs },
@@ -361,7 +360,7 @@ describe('google import claim-lease reaper job', () => {
           warn(fields)
         },
       }
-      const reap = vi.fn<GoogleImportV2ClaimReaper>(async () => ({
+      const reap = vi.fn<GoogleImportClaimReaper>(async () => ({
         dueItemsVisited: 3,
         claimsReleased: 1,
         itemsDispatched: 1,
@@ -385,7 +384,7 @@ describe('google import claim-lease reaper job', () => {
 
   it('rejects so the attempt retries, and logs no completion line, when the scan fails', async () => {
     const failure = new Error('import store unavailable')
-    const reap = vi.fn<GoogleImportV2ClaimReaper>(async () => {
+    const reap = vi.fn<GoogleImportClaimReaper>(async () => {
       throw failure
     })
     const handler = createGoogleImportClaimReaperHandler({

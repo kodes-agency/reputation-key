@@ -2,7 +2,7 @@
 // Per architecture: "Ports are TypeScript types defining capability contracts."
 // Queue boundary for enqueuing async import jobs.
 
-export type GoogleImportV2ItemJobData = Readonly<{
+export type GoogleImportItemJobData = Readonly<{
   jobId: string
   organizationId: string
   importJobId: string
@@ -11,10 +11,10 @@ export type GoogleImportV2ItemJobData = Readonly<{
   dispatchEpoch: number
 }>
 
-export type GoogleImportV2QueuePort = Readonly<{
+export type GoogleImportQueuePort = Readonly<{
   /**
    * One bounded addBulk call. Every entry carries a deterministic BullMQ ID,
    * so ambiguous relay delivery and concurrent consumers converge.
    */
-  addImportItemJobs: (jobs: readonly GoogleImportV2ItemJobData[]) => Promise<void>
+  addImportItemJobs: (jobs: readonly GoogleImportItemJobData[]) => Promise<void>
 }>

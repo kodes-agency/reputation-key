@@ -3,7 +3,7 @@ import type { Database } from '#/shared/db'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import type { GoogleImportV2Store } from '../application/ports/google-import-v2-store.port'
+import type { GoogleImportStore } from '../application/ports/google-import-store.port'
 import {
   authorizationFromRow,
   itemScope as googleImportItemScope,
@@ -14,7 +14,7 @@ import {
 import { AUTHORIZATION_SNAPSHOT_COLUMNS } from './import-claims.server'
 
 export const createImportRetry =
-  (db: Database): GoogleImportV2Store['retryItem'] =>
+  (db: Database): GoogleImportStore['retryItem'] =>
   async (input) =>
     db.transaction(async (tx) => {
       const parent = await lockItemParent(tx, input.organizationId, input.itemId)

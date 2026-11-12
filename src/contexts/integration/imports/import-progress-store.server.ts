@@ -12,7 +12,7 @@ import {
   type ImportParentStatus,
   type ImportProgressDto,
   type ImportProgressItemDto,
-} from '../application/google-import-v2-contract'
+} from '../application/google-import-contract'
 import { googleImportProgressPollAfterMs } from './import-progress-policy.server'
 import { parentScope } from './import-store-helpers.server'
 

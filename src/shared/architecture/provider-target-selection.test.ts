@@ -232,8 +232,14 @@ describe('BQC-4.3: exactly one provider construction site per adapter factory', 
       'createGoogleReviewApiAdapter',
       ['src/contexts/integration/review-sync/google-review-sync-runtime.server.ts'],
     ],
-    ['createMyBusinessNotificationsAdapter', ['src/contexts/integration/build.ts']],
-    ['createGoogleOAuthAdapter', ['src/contexts/integration/build.ts']],
+    [
+      'createMyBusinessNotificationsAdapter',
+      ['src/contexts/integration/connections/notifications-runtime.server.ts'],
+    ],
+    [
+      'createGoogleOAuthAdapter',
+      ['src/contexts/integration/connections/connections-runtime.server.ts'],
+    ],
   ]
 
   it.each(FACTORIES)(

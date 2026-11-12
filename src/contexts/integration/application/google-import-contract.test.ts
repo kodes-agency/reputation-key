@@ -9,7 +9,7 @@ import {
   PROPERTY_IMPORT_RETENTION_RELEASED_EVENT,
   getImportOutcomePresentation,
   terminalWriteFor,
-} from './google-import-v2-contract'
+} from './google-import-contract'
 
 describe('Google property import v2 contract', () => {
   it('freezes event and job wire names', () => {

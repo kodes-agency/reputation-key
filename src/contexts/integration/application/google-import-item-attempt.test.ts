@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { importItemAdmitsAttempt } from './google-import-item-attempt'
-import { GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS } from './ports/google-import-v2-store.port'
+import { GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS } from './ports/google-import-store.port'
 
 describe('importItemAdmitsAttempt', () => {
   it('admits only the first attempt on an item nobody has claimed', () => {

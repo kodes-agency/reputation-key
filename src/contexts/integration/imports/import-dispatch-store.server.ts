@@ -2,7 +2,7 @@ import { and, asc, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Tx } from '#/shared/outbox/commit'
 import { googleImportItems } from '#/shared/db/schema/google-import.schema'
-import type { GoogleImportV2Store } from '../application/ports/google-import-v2-store.port'
+import type { GoogleImportStore } from '../application/ports/google-import-store.port'
 
 const RECOVERY_APPOINTMENT_MS = 60_000
 
@@ -26,7 +26,7 @@ async function advanceAppointment(
 }
 
 export const createImportDueReservation =
-  (db: Database): GoogleImportV2Store['reserveDueItems'] =>
+  (db: Database): GoogleImportStore['reserveDueItems'] =>
   async (now, limit) => {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
       throw new Error('google import recovery limit must be between 1 and 100')
