@@ -24,8 +24,10 @@ import type { Database } from '#/shared/db'
  *      operator prune of repeated observations
  *      (review_source_observations.repeats).
  *  11: + metric_readings.expired, the 24-month metric reading retention rule.
+ *  12: + review_provider_snapshot_runs.superseded, the bounded deletion of
+ *      snapshot runs and members outside the keep rule.
  */
-const RETENTION_POLICY_VERSION = 11
+const RETENTION_POLICY_VERSION = 12
 
 export async function openRetentionRun(
   db: Database,

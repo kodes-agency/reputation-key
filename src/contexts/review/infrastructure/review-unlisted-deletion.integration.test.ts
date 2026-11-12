@@ -54,6 +54,7 @@ import {
 } from './repositories/review-provider-subject-link'
 import { createReviewRepository } from './repositories/review.repository'
 import { createReviewSyncActivityRecorder } from './repositories/review-sync-activity.repository'
+import { createSnapshotRunRetention } from './repositories/snapshot-run-retention.repository'
 
 const ORG = organizationId('review-unlisted-deletion-org')
 const PROPERTY = propertyId('76000000-0000-4000-8000-00000000a001')
@@ -195,17 +196,46 @@ const SYNC: SyncPropertyReviewsJobData = {
   initiator: { kind: 'system', id: DISCOVERY_SWEEP_SYNC_INITIATOR_ID },
 }
 
+const snapshotRunRetention = createSnapshotRunRetention(db)
+/** Whether every sync is followed by the retention sweep's snapshot run clean-up. */
+let cleanUpAfterSync = false
+
 /** One full sync as the worker runs it, step after step, until none is left. */
 async function sync(run = handler): Promise<unknown> {
   queued = [SYNC]
   let last: unknown = null
-  for (let steps = 0; queued.length > 0; steps += 1) {
-    if (steps === MAX_STEPS) throw new Error('The sync never settled')
-    const data = queued.shift()
-    last = await run({ id: `step-${steps}`, data } as never)
+  try {
+    for (let steps = 0; queued.length > 0; steps += 1) {
+      if (steps === MAX_STEPS) throw new Error('The sync never settled')
+      const data = queued.shift()
+      last = await run({ id: `step-${steps}`, data } as never)
+    }
+  } finally {
+    if (cleanUpAfterSync)
+      await snapshotRunRetention.sweepSupersededRuns({ scope: { organizationId: ORG } })
   }
   return last
 }
+
+/** Enough later runs for the clean-up to delete a run (it keeps the latest three). */
+const LATEST_RUNS_OUTLIVED = 3
+
+/** Whether the run that recorded the mapping's first miss still exists. */
+async function firstMissRunKept(id: string): Promise<boolean> {
+  const result = await db.execute(sql`
+    SELECT EXISTS (SELECT 1 FROM review_provider_snapshot_runs run
+      WHERE run.id = s.first_missing_snapshot_run_id) AS kept
+    FROM review_provider_subjects s
+    WHERE s.organization_id = ${ORG} AND s.review_id = ${id}
+  `)
+  return result.rows[0]?.kept === true
+}
+
+/** Each case as it runs today, and with old snapshot runs deleted after every sync. */
+const RETENTION = [
+  ['', false],
+  [', old snapshot runs deleted after every sync', true],
+] as const
 
 const headCheck = createRunReviewHeadCheck({
   googleReviewApi,
@@ -401,6 +431,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
+  cleanUpAfterSync = false
   await clear()
   await db.execute(sql`
     INSERT INTO google_connections (
@@ -485,9 +516,17 @@ const editedBy = {
   },
 } as const
 
-describe.each(Object.keys(storedBy) as (keyof typeof storedBy)[])(
-  'a review stored by %s and never listed (real PostgreSQL)',
-  (via) => {
+describe.each(
+  (Object.keys(storedBy) as (keyof typeof storedBy)[]).flatMap((via) =>
+    RETENTION.map(([label, cleanUp]) => [via, label, cleanUp] as const),
+  ),
+)(
+  'a review stored by %s and never listed%s (real PostgreSQL)',
+  (via, _label, cleanUp) => {
+    beforeEach(() => {
+      cleanUpAfterSync = cleanUp
+    })
+
     it('is removed once two listings and a direct read agree it is gone, and not before', async () => {
       await storedBy[via](unlisted)
       const id = await storedIdOf(unlisted)
@@ -503,6 +542,15 @@ describe.each(Object.keys(storedBy) as (keyof typeof storedBy)[])(
       expect(await subjectOf(id)).toMatchObject({ missed: true })
       expect(await sourceStateOf(id)).toBe('active')
       expect(directReadsOf(unlisted)).toBe(0)
+
+      // Listings within 15 minutes of the first miss still take nothing, also
+      // once the clean-up has deleted the run that recorded the miss.
+      for (let run = 0; run < LATEST_RUNS_OUTLIVED; run += 1) {
+        await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+      }
+      expect(directReadsOf(unlisted)).toBe(0)
+      expect(await sourceStateOf(id)).toBe('active')
+      expect(await firstMissRunKept(id)).toBe(!cleanUp)
 
       // A second listing at least 15 minutes later, then a direct read that
       // finds it gone: one reviews.get for the one candidate.
@@ -546,52 +594,61 @@ describe.each(Object.keys(storedBy) as (keyof typeof storedBy)[])(
   },
 )
 
-describe('a review Google returns on a direct read but leaves out of its listing (real PostgreSQL)', () => {
-  it('stops costing reads for the hold, then alerts once when it is still left out', async () => {
-    await storedBy['a Google push'](unlisted)
-    const id = await storedIdOf(unlisted)
-    readable = [unlisted]
-    const before = listingsRead()
-    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
-    const listingsPerRun = listingsRead() - before
+describe.each(RETENTION)(
+  'a review Google returns on a direct read but leaves out of its listing%s (real PostgreSQL)',
+  (_label, cleanUp) => {
+    beforeEach(() => {
+      cleanUpAfterSync = cleanUp
+    })
 
-    // The direct read finds it: the run ends quietly as a listing that moved
-    // and a fresh run completes at once.
-    await ageFirstMiss()
-    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
-    expect(directReadsOf(unlisted)).toBe(1)
+    it('stops costing reads for the hold, then alerts once when it is still left out', async () => {
+      await storedBy['a Google push'](unlisted)
+      const id = await storedIdOf(unlisted)
+      readable = [unlisted]
+      const before = listingsRead()
+      await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+      const listingsPerRun = listingsRead() - before
 
-    // From then on every run costs one listing and no read.
-    for (let run = 1; run < UNLISTED_REVIEW_HOLD_RUNS; run += 1) {
-      const listingsBefore = listingsRead()
+      // The direct read finds it: the run ends quietly as a listing that moved
+      // and a fresh run completes at once.
       await ageFirstMiss()
       await expect(sync()).resolves.toMatchObject({ status: 'completed' })
-      expect(listingsRead() - listingsBefore).toBe(listingsPerRun)
-    }
-    expect(directReadsOf(unlisted)).toBe(1)
-    expect(logger.warn).not.toHaveBeenCalledWith(
-      { event: 'review_snapshot_unlisted_review_still_found' },
-      expect.any(String),
-    )
+      expect(directReadsOf(unlisted)).toBe(1)
 
-    // The hold over, the read finds it still left out: the run fails loudly.
-    await ageFirstMiss()
-    await expect(sync()).rejects.toMatchObject({
-      name: 'ReviewProviderSnapshotFailure',
-      failureCode: 'confirmation_set_changed',
-    })
-    expect(directReadsOf(unlisted)).toBe(2)
-    expect((await runEndings()).at(-1)).toEqual({
-      state: 'failed',
-      failure_code: 'confirmation_set_changed',
-    })
-    expect(logger.warn).toHaveBeenCalledWith(
-      { event: 'review_snapshot_unlisted_review_still_found' },
-      expect.any(String),
-    )
-    expect(await sourceStateOf(id)).toBe('active')
-  }, 120_000)
-})
+      // From then on every run costs one listing and no read.
+      for (let run = 1; run < UNLISTED_REVIEW_HOLD_RUNS; run += 1) {
+        const listingsBefore = listingsRead()
+        await ageFirstMiss()
+        await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+        expect(listingsRead() - listingsBefore).toBe(listingsPerRun)
+      }
+      expect(directReadsOf(unlisted)).toBe(1)
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        { event: 'review_snapshot_unlisted_review_still_found' },
+        expect.any(String),
+      )
+
+      // The hold over, the read finds it still left out: the run fails loudly.
+      await ageFirstMiss()
+      await expect(sync()).rejects.toMatchObject({
+        name: 'ReviewProviderSnapshotFailure',
+        failureCode: 'confirmation_set_changed',
+      })
+      expect(directReadsOf(unlisted)).toBe(2)
+      expect((await runEndings()).at(-1)).toEqual({
+        state: 'failed',
+        failure_code: 'confirmation_set_changed',
+      })
+      expect(logger.warn).toHaveBeenCalledWith(
+        { event: 'review_snapshot_unlisted_review_still_found' },
+        expect.any(String),
+      )
+      expect(await sourceStateOf(id)).toBe('active')
+      // With the clean-up, the run that found it went long before the hold ended.
+      if (cleanUp) expect((await runEndings()).length).toBeLessThanOrEqual(4)
+    }, 120_000)
+  },
+)
 
 describe('a review edited and mapped by a push while a run is listing it (real PostgreSQL)', () => {
   it('ends that run quietly and the fresh run completes', async () => {

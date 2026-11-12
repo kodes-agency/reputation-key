@@ -42,7 +42,9 @@ import { lockReviewSourceMutationScope } from '../review-source-mutation-seriali
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
 import {
   candidateEditedSinceListing,
+  countRunAgainstHolds,
   foundUnlistedBefore,
+  holdFoundUnlisted,
   listingAgreement,
   recordMissingFromListing,
   refuseRemovalWithoutExactListing,
@@ -473,8 +475,9 @@ async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<void> {
 
 /**
  * Everything the transaction that completes a run records: the verified
- * provider aggregate, and — when this run is the one that ends the Property's
- * first history import — that import's own terminal fact.
+ * provider aggregate, one completed run off each unlisted-review hold, and —
+ * when this run ends the Property's first history import — that import's own
+ * terminal fact.
  *
  * The import question is asked BEFORE the verified fact is written, because
  * that fact is the very proof `endsFirstHistoryImport` reads to decide the
@@ -483,6 +486,7 @@ async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<void> {
 async function recordCompletionFacts(tx: Tx, run: RunRow): Promise<void> {
   const endsImport = await endsFirstHistoryImport(tx, run, 'completed')
   await recordVerifiedSnapshotFact(tx, run)
+  await countRunAgainstHolds(tx, run)
   if (endsImport) await recordHistoryImportFinished(tx, run, { outcome: 'completed' })
 }
 
@@ -762,6 +766,7 @@ async function recordObservationMapping(
       state: 'linked',
       lastObservedAt: sql`transaction_timestamp()`,
       lastSeenSnapshotRunId: run.id,
+      unlistedHoldRunsLeft: null,
       firstMissingAt: null,
       firstMissingSnapshotRunId: null,
       unlinkedAt: null,
@@ -1167,18 +1172,7 @@ export const createReviewProviderSnapshotRepository = (
       } catch {
         return 'stale'
       }
-      const candidate = await tx
-        .update(reviewProviderDeletionCandidates)
-        .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
-        .where(
-          and(
-            eq(reviewProviderDeletionCandidates.runId, runId),
-            eq(reviewProviderDeletionCandidates.reviewId, observation.reviewId),
-            eq(reviewProviderDeletionCandidates.state, 'pending'),
-          ),
-        )
-        .returning({ reviewId: reviewProviderDeletionCandidates.reviewId })
-      if (!candidate[0]) return 'stale'
+      if (!(await holdFoundUnlisted(tx, run, observation.reviewId))) return 'stale'
       // Found again, unlisted, once its hold ran out: loud, so it is seen.
       if (unlistedAgain) {
         await endLockedRun(tx, run, 'confirmation_set_changed')

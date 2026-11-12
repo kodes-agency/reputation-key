@@ -24,6 +24,11 @@ export const GUEST_CONTACT_REQUEST_RETENTION_SUBJECT =
 /** ADR 0055, note 2026-10-24 (b): superseded observation copies past their clock. */
 export const REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT =
   'review_source_observations.superseded_expired' as const
+/** Snapshot runs outside the keep rule, with their members and candidates. */
+export const REVIEW_SNAPSHOT_RUN_RETENTION_SUBJECT =
+  'review_provider_snapshot_runs.superseded' as const
+/** Evidence batch size: the member rows one snapshot-run batch deletes at most. */
+const REVIEW_SNAPSHOT_RUN_BATCH_SIZE = 5_000
 const GOOGLE_IMPORT_LIFECYCLE_BATCH_SIZE = 100
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -362,6 +367,10 @@ type RetentionSweepDeps = Readonly<{
   reviewObservationRetentionSweep?: (input: {
     batchSize: number
   }) => Promise<Readonly<{ batches: number; processed: number; capped: boolean }>>
+  /** Review deletes snapshot runs and members no reader needs. */
+  reviewSnapshotRunRetentionSweep?: () => Promise<
+    Readonly<{ batches: number; runs: number; members: number; capped: boolean }>
+  >
   googleImportLifecycleSweep?: () => Promise<
     Readonly<{
       expiredItemsVisited: number
@@ -440,6 +449,48 @@ async function sweepRedactedMaterial(
       failures,
       logger,
       `${label} retention sweep failed`,
+    )
+  }
+}
+
+async function sweepSnapshotRuns(
+  deps: RetentionSweepDeps,
+  sweep: NonNullable<RetentionSweepDeps['reviewSnapshotRunRetentionSweep']>,
+  failures: RetentionSweepFailure[],
+  logger: RetentionSweepLogger,
+): Promise<void> {
+  const subject = REVIEW_SNAPSHOT_RUN_RETENTION_SUBJECT
+  let runId: string | undefined
+  try {
+    runId = await openRetentionRun(
+      deps.db,
+      subject,
+      REVIEW_SNAPSHOT_RUN_BATCH_SIZE,
+      deps.clock(),
+    )
+    const result = await sweep()
+    await closeRetentionRun(deps.db, runId, {
+      finishedAt: deps.clock(),
+      batches: result.batches,
+      rowsDeleted: result.runs + result.members,
+      outcome: result.capped ? 'failed' : 'completed',
+      ...(result.capped ? { errorCode: 'retention_capped' } : {}),
+    })
+    logger.info(
+      { subject, ...result },
+      result.capped
+        ? 'Snapshot run retention sweep reached its batch cap'
+        : 'Snapshot run retention sweep completed',
+    )
+  } catch (err) {
+    await recordRetentionFailure(
+      deps,
+      runId,
+      subject,
+      err,
+      failures,
+      logger,
+      'Snapshot run retention sweep failed',
     )
   }
 }
@@ -574,6 +625,11 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
           REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT,
           'Superseded observation',
         )
+      }
+
+      const snapshotRunSweep = deps.reviewSnapshotRunRetentionSweep
+      if (snapshotRunSweep) {
+        await sweepSnapshotRuns(deps, snapshotRunSweep, failures, logger)
       }
 
       const importSweep = deps.googleImportLifecycleSweep
