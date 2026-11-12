@@ -1,0 +1,235 @@
+import sharp from 'sharp'
+import { describe, expect, it } from 'vitest'
+import {
+  PrintRenderRefusal,
+  type PrintRenderInput,
+} from '../../application/ports/portal-print-renderer.port'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
+import { printBlocks } from '#/shared/domain/portal-print-languages'
+import {
+  PRINT_ORIENTATIONS,
+  PRINT_PIECES,
+  type PrintFace,
+} from '#/shared/domain/portal-print'
+import { printLiveArea } from '#/shared/domain/portal-print-measures'
+import { createPdfKitPrintRenderer } from './pdfkit-print-renderer'
+import { decodePrintQr } from './__fixtures__/decode-print-qr'
+
+// The kit's single pieces as PDFs: one face per page at its trim, the
+// words drawn in the embedded guest fonts, the address never drawn as text, and
+// a piece whose symbol would print too small refused before any page.
+
+const SHORT = 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R'
+const LONG =
+  'https://web-closed-beta-v2.up.railway.app/p/pt_Q7mXc2LpV9sKt4Rw_Hc8vN3pL0qZr5TfY2bWm7XdJ9aKs4EuG1oPi6CnV8hR?accessArtifact=0b6d1c1e-52c4-4b34-9d63-6e3b4a1f9a10'
+
+const renderer = createPdfKitPrintRenderer({
+  now: () => new Date('2026-10-25T10:00:00Z'),
+  compress: false,
+})
+
+function inputFor(
+  face: PrintFace,
+  languages: readonly GuestLocale[] = ['en'],
+  over: Partial<PrintRenderInput> = {},
+): PrintRenderInput {
+  const blocks = printBlocks(
+    languages,
+    { preset: 'how_did_we_do' },
+    { en: 'Review us on Google', es: 'Reseñe en Google' },
+    'Reception',
+  )
+  return {
+    title: 'Hotel Elegance counter card',
+    face,
+    blocks: blocks,
+    wordmark: 'Hotel Elegance',
+    logo: null,
+    accentColour: '#A8C6FE',
+    fieldColour: '#001E57',
+    photo: null,
+    qrAddress: SHORT,
+    address: 'short',
+    ...over,
+  }
+}
+
+const paper = (piece: PrintFace['piece'], orientation: PrintFace['orientation']) =>
+  ({ piece, orientation, look: 'paper', region: 'us' }) as const
+
+const text = (pdf: Uint8Array) => Buffer.from(pdf).toString('latin1')
+
+describe('createPdfKitPrintRenderer', () => {
+  it.each(
+    (['paper', 'immersive'] as const).flatMap((look) =>
+      PRINT_PIECES.flatMap((piece) =>
+        PRINT_ORIENTATIONS.map((orientation) => ({
+          look,
+          piece,
+          orientation,
+          region: 'us' as const,
+        })),
+      ),
+    ),
+  )('decodes the rendered $look $piece $orientation to its issued URL', async (face) => {
+    const pdf = await renderer.render(inputFor(face))
+    expect(await decodePrintQr(pdf)).toBe(SHORT)
+  })
+
+  it.each(
+    PRINT_PIECES.flatMap((piece) =>
+      PRINT_ORIENTATIONS.map((orientation) => [piece, orientation] as const),
+    ),
+  )('prints a Paper %s %s on one page at its trim', async (piece, orientation) => {
+    const face = paper(piece, orientation)
+    const pdf = text(await renderer.render(inputFor(face)))
+    const area = printLiveArea(face)
+    const boxes = [...pdf.matchAll(/\/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/gu)]
+    expect(boxes).toHaveLength(1)
+    expect(Number(boxes[0]?.[1])).toBeCloseTo(area.widthPt, 1)
+    expect(Number(boxes[0]?.[2])).toBeCloseTo(area.heightPt, 1)
+    expect(pdf).not.toContain('AP.UP.RAILWAY.APP')
+  })
+
+  it.each(
+    (['us', 'eu'] as const).flatMap((region) =>
+      (['paper', 'immersive'] as const).flatMap((look) =>
+        PRINT_PIECES.flatMap((piece) =>
+          PRINT_ORIENTATIONS.map((orientation) => ({
+            region,
+            look,
+            piece,
+            orientation,
+          })),
+        ),
+      ),
+    ),
+  )(
+    'refuses an unbreakable headline on $region $look $piece $orientation',
+    async (face) => {
+      const blocks = printBlocks(
+        ['en'],
+        {
+          preset: 'how_did_we_do',
+          custom: { en: { headline: 'W'.repeat(60), subline: '' } },
+        },
+        {},
+        'Reception',
+      )
+      await expect(
+        renderer.render(inputFor(face, ['en'], { blocks })),
+      ).rejects.toMatchObject({ refusal: { code: 'words_do_not_fit' } })
+    },
+  )
+
+  it('refuses an unbreakable back-page name before returning a PDF', async () => {
+    await expect(
+      renderer.render(
+        inputFor(paper('counter', 'upright'), ['en'], {
+          back: { propertyName: 'W'.repeat(60) },
+        }),
+      ),
+    ).rejects.toMatchObject({ refusal: { code: 'words_do_not_fit' } })
+  })
+
+  it('embeds the true italic for the second-language line on the upright tent', async () => {
+    const pdf = text(
+      await renderer.render(inputFor(paper('tent', 'upright'), ['en', 'es'])),
+    )
+    expect(pdf).toMatch(/\/FontName \/[A-Z]{6}\+YsabeauOffice-Italic/u)
+    const wide = text(
+      await renderer.render(inputFor(paper('tent', 'wide'), ['en', 'es'])),
+    )
+    expect(wide).not.toMatch(/YsabeauOffice-Italic/u)
+  })
+
+  it('prints the Counter card on today’s long address, on its 2.1 in tile', async () => {
+    const pdf = await renderer.render(
+      inputFor(paper('counter', 'upright'), ['en'], { qrAddress: LONG, address: 'long' }),
+    )
+    expect(text(pdf)).toContain('/MediaBox [0 0 288 432]')
+    expect(await decodePrintQr(pdf)).toBe(LONG)
+  })
+
+  it('refuses a tent or a Small card on the long address before drawing', async () => {
+    for (const piece of ['tent', 'small'] as const) {
+      const refused = renderer.render(
+        inputFor(paper(piece, 'wide'), ['en'], { qrAddress: LONG, address: 'long' }),
+      )
+      await expect(refused).rejects.toBeInstanceOf(PrintRenderRefusal)
+      await expect(refused).rejects.toMatchObject({
+        refusal: { code: 'needs_short_code' },
+      })
+    }
+  })
+
+  it.each(
+    PRINT_PIECES.flatMap((piece) =>
+      PRINT_ORIENTATIONS.map((orientation) => [piece, orientation] as const),
+    ),
+  )(
+    'prints a Paper %s %s in English and Spanish, the cues in the bar',
+    async (piece, orientation) => {
+      const pdf = await renderer.render(inputFor(paper(piece, orientation), ['en', 'es']))
+      expect(text(pdf)).toContain('/MediaBox')
+    },
+  )
+
+  it('keeps every short cue on one line, alone and beside English, on the pieces whose bars are narrowest', async () => {
+    for (const locale of ['fr', 'de', 'bg', 'it'] as const) {
+      const alone = await renderer.render(inputFor(paper('tent', 'wide'), [locale]))
+      expect(text(alone)).toContain('/MediaBox')
+      for (const piece of ['tent', 'small'] as const) {
+        const pair = await renderer.render(inputFor(paper(piece, 'wide'), ['en', locale]))
+        expect(text(pair)).toContain('/MediaBox')
+      }
+    }
+  })
+
+  it('refuses words the piece cannot hold at the smallest headline, before any page, and prints the other way up', async () => {
+    const [block] = printBlocks(['en'], { preset: 'how_did_we_do' }, {}, 'Reception')
+    if (block === undefined) throw new Error('one block')
+    const long = [
+      {
+        ...block,
+        headline: 'Tell us how your visit went today, in a few quick taps now',
+      },
+    ]
+    const upright = renderer.render(
+      inputFor(paper('tent', 'upright'), ['en'], { blocks: long }),
+    )
+    await expect(upright).rejects.toBeInstanceOf(PrintRenderRefusal)
+    await expect(upright).rejects.toMatchObject({ refusal: { code: 'words_do_not_fit' } })
+    const wide = await renderer.render(
+      inputFor(paper('tent', 'wide'), ['en'], { blocks: long }),
+    )
+    expect(text(wide)).toContain('/MediaBox')
+  })
+
+  it('refuses "How was your visit?" in English and Spanish on an upright Paper tent, as the sweep says, and prints it wide', async () => {
+    const blocks = printBlocks(['en', 'es'], { preset: 'how_was_visit' }, {}, 'Reception')
+    // A badge as wide as Harborline's, so the brand is as tall as the boards' (8.2 mm on a tent).
+    const logo = new Uint8Array(
+      await sharp({
+        create: { width: 910, height: 506, channels: 4, background: '#1D4FB8' },
+      })
+        .png()
+        .toBuffer(),
+    )
+    const upright = renderer.render(
+      inputFor(paper('tent', 'upright'), ['en', 'es'], { blocks, logo }),
+    )
+    await expect(upright).rejects.toMatchObject({ refusal: { code: 'words_do_not_fit' } })
+    const wide = await renderer.render(
+      inputFor(paper('tent', 'wide'), ['en', 'es'], { blocks, logo }),
+    )
+    expect(text(wide)).toContain('/MediaBox')
+  })
+})
+
+it('keeps every byte of a single piece unchanged by a manager-only person label', async () => {
+  const input = inputFor(paper('counter', 'wide'))
+  const place = await renderer.render(input)
+  const personal = await renderer.render({ ...input, personalName: 'Polly Jones' })
+  expect(personal).toEqual(place)
+})

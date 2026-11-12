@@ -3,14 +3,14 @@ import { z } from 'zod/v4'
 import type { Database } from '#/shared/db'
 import { portalPrintWordings } from '#/shared/db/schema/portal-print-wording.schema'
 import { unbrand } from '#/shared/domain/ids'
-import { PRINT_FINAL_CALLS_TO_ACTION } from '#/shared/domain/portal-print-final-copy'
+import { PRINT_CALLS_TO_ACTION } from '#/shared/domain/portal-print-copy'
 import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
 import { trace } from '#/shared/observability/trace'
 import type { PortalPrintWordingRepository } from '../../application/ports/portal-print-wording.repository'
 
 /** The row as the table keeps it, read through the same vocabularies the kit's download is. */
 const rowSchema = z.object({
-  callToAction: z.enum(PRINT_FINAL_CALLS_TO_ACTION),
+  callToAction: z.enum(PRINT_CALLS_TO_ACTION),
   // Words a later rule would refuse are still the words that were saved: only their shape is read.
   callToActionCustom: z
     .partialRecord(
