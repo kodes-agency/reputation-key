@@ -10,6 +10,7 @@ import { previewReader } from '#/components/features/portal/portal-preview/__fix
 import { PortalEditor } from '#/contexts/portal/editor/ui/portal-editor'
 import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import { usePortalLinkIssuance } from '#/components/features/portal/portal-workspace/portal-link-issuance'
+import type { PortalHistoryReads } from './portal-history-context'
 import { PortalHistorySection } from './portal-history-section'
 import { PortalShareSection } from './portal-share-section'
 import type { SectionRead } from './portal-read-state'
@@ -22,7 +23,10 @@ import type {
   UpdatePortalVariables,
 } from '#/components/features/portal/shared/types'
 import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
-import type { getPortalHistory } from '#/contexts/portal/server/portals'
+import type {
+  getPortalHistory,
+  getPortalPublicationHistory,
+} from '#/contexts/portal/server/portals'
 import type {
   getPortalVersion,
   getPortalVersionPreview,
@@ -70,8 +74,7 @@ function WorkspaceTab({ tab, section, reads = 'ready', resources }: TabProps) {
       <PortalHistorySection
         portal={portal}
         timeZone={STORY_TIME_ZONE}
-        history={readOf(publicationHistory, reads)}
-        reads={historyReads}
+        reads={historyReadsIn(reads)}
         makeLive={makeVersionLiveMutation}
       />
     )
@@ -210,7 +213,7 @@ const tokenStatus: PortalTokenStatus = {
 
 // The History tab reads on mount, like the Results tab: the reads are handed in
 // as server-fn-typed props and answered here from the board 08 ledger.
-const historyReads = {
+const historyReads: PortalHistoryReads = {
   getHistory: mockServerFn(async (input: { data: { filter?: string } }) => ({
     entries: storyHistoryFor(input.data.filter ?? 'all'),
     nextCursor: null,
@@ -218,6 +221,9 @@ const historyReads = {
   getVersions: mockServerFn(
     async (_input: unknown) => STORY_VERSIONS,
   ) as unknown as typeof getPortalVersions,
+  getPublicationHistory: mockServerFn(
+    async (_input: unknown) => publicationHistory,
+  ) as unknown as typeof getPortalPublicationHistory,
   getVersion: mockServerFn(
     async (input: { data: { version: number } }) =>
       STORY_VERSION_DETAILS[input.data.version],
@@ -225,6 +231,29 @@ const historyReads = {
   getVersionPreview: mockServerFn(async (input: { data: { version: number } }) =>
     storyVersionPreview(input.data.version),
   ) as unknown as typeof getPortalVersionPreview,
+}
+/** The tab's reads in the state a story asks for: none has answered, or the publication history is refused. */
+function historyReadsIn(state: ReadState): PortalHistoryReads {
+  if (state === 'ready') return historyReads
+  const unanswered = () => new Promise<never>(() => {})
+  const refused = async () => {
+    throw new Error('not read in a story')
+  }
+  const pending = {
+    getHistory: unanswered,
+    getVersions: unanswered,
+    getVersion: unanswered,
+    getPublicationHistory: unanswered,
+  }
+  return {
+    ...historyReads,
+    ...(state === 'loading'
+      ? (pending as unknown as Partial<PortalHistoryReads>)
+      : {
+          getPublicationHistory:
+            refused as unknown as PortalHistoryReads['getPublicationHistory'],
+        }),
+  }
 }
 const makeVersionLiveMutation = Object.assign(async (_input: unknown) => ({}), {
   isPending: false,
@@ -372,26 +401,32 @@ export const ShareTab: Story = {
   },
 }
 
-// A section that is still reading says so itself, in its own place.
+// A part that is still reading says so itself, in its own place.
 export const HistoryLoading: Story = {
   args: { ...baseArgs, tab: 'history', reads: 'loading' },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('heading', { name: 'Versions' })).toBeInTheDocument()
     await expect(
-      within(canvasElement).getByRole('status', { name: 'Loading publication history' }),
-    ).toBeInTheDocument()
+      canvas.queryByRole('list', { name: /history, newest first/i }),
+    ).toBeNull()
+    await expect(canvas.queryByRole('alert')).toBeNull()
   },
 }
 
-// A history that cannot be read says so and offers to try again; the rest of
-// the workspace is untouched.
+// A publication history that cannot be read says so in the Versions rail and
+// offers to try again; the ledger and the rest of the workspace are untouched.
 export const HistoryReadFailed: Story = {
   args: { ...baseArgs, tab: 'history', reads: 'failed' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByText('The publication history couldn’t be loaded.'),
+      await canvas.findByText('The publication history couldn’t be loaded.'),
     ).toBeInTheDocument()
     await expect(canvas.getByRole('button', { name: /try again/i })).toBeEnabled()
+    await expect(
+      await canvas.findByRole('list', { name: /history, newest first/i }),
+    ).toBeInTheDocument()
   },
 }
 
