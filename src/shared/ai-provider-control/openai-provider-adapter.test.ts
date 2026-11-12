@@ -159,7 +159,7 @@ describe('OpenAI behind the provider seam', () => {
     expect(again.descriptor.preparedDigest).toBe(
       prepared.invocation.descriptor.preparedDigest,
     )
-    expect(again.requestBindingHmac).toBe(prepared.invocation.requestBindingHmac)
+    expect(again.descriptor).toEqual(prepared.invocation.descriptor)
     expect(prepared.providerId).toBe('openai')
   })
 

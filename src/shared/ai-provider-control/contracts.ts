@@ -1,11 +1,10 @@
 import type { z } from 'zod/v4'
 import type {
-  AiAdmissionRequestV1,
-  AiExecutionGrantV1,
+  AiAdmissionDescriptorV1,
   AiSettlementReceiptV1,
-  AiSettlementPermit,
   AiSettlementOutcome,
 } from '#/shared/ai-internal-transport-contract'
+import type { AiExecutionAdmission } from './execution-admission'
 import type {
   AiGatewayRouteRequestV1,
   AiGatewayRouteResponseV1,
@@ -50,14 +49,14 @@ export class GatewayPreparationError extends Error {
 
 export type AiAdmissionClient = Readonly<{
   authorize(
-    request: AiAdmissionRequestV1,
+    descriptor: AiAdmissionDescriptorV1,
     signal: AbortSignal,
   ): Promise<
-    | Readonly<{ status: 'authorized'; grant: AiExecutionGrantV1 }>
+    | Readonly<{ status: 'authorized'; admission: AiExecutionAdmission }>
     | Readonly<{ status: 'denied'; code: string }>
   >
   settle(
-    permit: AiSettlementPermit,
+    admission: AiExecutionAdmission,
     outcome: AiSettlementOutcome,
     signal: AbortSignal,
   ): Promise<
@@ -76,7 +75,7 @@ export type OpenAiConnectorOutcome<T> = AiProviderOutcome<T>
 export type OpenAiConnector = Readonly<{
   invoke(
     invocation: PreparedAiInvocation,
-    grant: AiExecutionGrantV1,
+    admission: AiExecutionAdmission,
     outputSchema: z.ZodTypeAny,
     signal: AbortSignal,
     observer?: Readonly<{ onText(text: string): void; onDispatch(): void }>,
@@ -89,7 +88,7 @@ export type OpenAiConnector = Readonly<{
 export type AcceptedGatewayResult = Readonly<{
   buildResponse(
     receipt: AiSettlementReceiptV1,
-    grant: AiExecutionGrantV1,
+    admission: AiExecutionAdmission,
   ): AiGatewayRouteResponseV1
 }>
 

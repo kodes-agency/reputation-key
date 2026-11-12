@@ -34,15 +34,11 @@ const db = getDb()
 const operations = createAiOperationStoreAdapter(db, randomUUID)
 const authority = createAiExecutionAdmissionAdapter({
   pool: getPool(),
-  signingKid: 'grant-v1',
   now: () => NOW,
 })
-async function settle(request: AiSettlementRequestV1, grantKid: string) {
-  const { operationId, permitId, attemptNumber, nonce, ...outcome } = request
-  return authority.settle(
-    { operationId, permitId, attemptNumber, nonce, grantKid },
-    outcome,
-  )
+async function settle(request: AiSettlementRequestV1) {
+  const { operationId, permitId, attemptNumber, ...outcome } = request
+  return authority.settle({ operationId, permitId, attemptNumber }, outcome)
 }
 
 let fixture: AiOperationFixture
@@ -167,9 +163,8 @@ async function charge(operationId: string, binding: AiExecutionBinding) {
     nowEpochMillis: NOW.getTime(),
   })
   expect(execution).not.toBeNull()
-  const admitted = await authority.authorizeProperty(
+  const admitted = await authority.authorize(
     descriptor(operationId, execution!.executionPermitId!, binding),
-    { keyId: 'binding-v1', hmac: 'A'.repeat(43) },
   )
   if (admitted.status !== 'admitted')
     throw new Error(`Admission refused: ${admitted.code}`)
@@ -177,7 +172,6 @@ async function charge(operationId: string, binding: AiExecutionBinding) {
     operationId,
     permitId: execution!.executionPermitId!,
     attemptNumber: 1,
-    nonce: admitted.nonce,
     disposition: 'output_invalid',
     reportedDisposition: 'success',
     usageKnown: true,
@@ -188,9 +182,12 @@ async function charge(operationId: string, binding: AiExecutionBinding) {
     reasoningTokens: 0,
     retryAfterSeconds: null,
   }
-  const first = await settle(settlement, 'grant-v1')
-  const replay = await settle(settlement, 'grant-v1')
-  expect(replay).toEqual(first)
+  const first = await settle(settlement)
+  // The admission's reservation closed with the first settlement.
+  await expect(settle(settlement)).resolves.toEqual({
+    status: 'denied',
+    code: 'settlement_conflict',
+  })
   await operations.recordFailure({
     operationId: operationId as never,
     organizationId: ORG,
