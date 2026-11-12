@@ -1,19 +1,18 @@
-import { createHash, timingSafeEqual, type KeyObject } from 'node:crypto'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { lookup as dnsLookup } from 'node:dns'
 import { BlockList, isIP } from 'node:net'
 import { Agent, request as undiciRequest, type Dispatcher } from 'undici'
 import { REPLY_STREAM_RESPONSE_MAX_BYTES } from '#/shared/ai-openai-stream-profile'
 import { boundedProviderEventStream } from './bounded-event-stream'
 import { z } from 'zod/v4'
-import {
-  parseAiExecutionGrant,
-  verifyAiExecutionGrant,
-  verifyAiRequestBinding,
-  type AiExecutionGrantV1,
-} from '#/shared/ai-internal-transport-contract'
 import { parseAiInternalJsonBytes, parseAiProviderJsonBytes } from '#/shared/ai-json'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import {
+  aiAdmissionDescriptorDigest,
+  consumeAiExecutionAdmission,
+  isMintedAiExecutionAdmission,
+  type AiExecutionAdmission,
+} from './execution-admission'
 import type { PreparedInvocationBase } from './provider-contracts'
 import type {
   AiProviderOutcome,
@@ -623,71 +622,29 @@ export function createPinnedProviderOutbound(
   })
 }
 
-export class GrantNonceRegistry {
-  readonly #entries = new Map<string, number>()
-
-  consume(nonce: string, expiresAtEpochMillis: number, now: number): boolean {
-    for (const [key, expiry] of this.#entries) {
-      if (expiry <= now) this.#entries.delete(key)
-    }
-    if (this.#entries.has(nonce) || this.#entries.size >= 8_192) return false
-    this.#entries.set(nonce, expiresAtEpochMillis)
-    return true
-  }
-}
-
+/**
+ * The gate before any byte can leave: the admission must be one the authority
+ * minted in this process, for exactly this descriptor, limits and deadline, still
+ * inside its window, and the bytes must be the ones the descriptor's digest
+ * names. Spending the admission is the last check, so a refusal for any other
+ * reason never uses it up. Each failed check is named for the refusal log.
+ */
 export function evaluateProviderDispatchGate(
   input: Readonly<{
     invocation: ProviderBoundaryInvocation
-    grant: AiExecutionGrantV1
-    requestBindingKeys: VersionedHmacKeyring
-    admissionPublicKeys: ReadonlyMap<string, KeyObject>
-    nonceRegistry: GrantNonceRegistry
+    admission: AiExecutionAdmission
     currentTime: number
   }>,
 ): Readonly<{ accepted: boolean; reasons: readonly string[] }> {
-  const attestationCurrent = providerInvocationAttestationIsCurrent(
-    input.invocation,
-    input.grant,
-    input.requestBindingKeys,
-    input.admissionPublicKeys,
-  )
-  const timingReasons: string[] = []
-  if (
-    input.grant.expiresAtEpochMillis !==
-    input.invocation.descriptor.callerDeadlineEpochMillis
-  )
-    timingReasons.push('grant_expiry_not_caller_deadline')
-  if (input.grant.issuedAtEpochMillis >= input.grant.expiresAtEpochMillis)
-    timingReasons.push('grant_issued_after_expiry')
-  if (input.grant.issuedAtEpochMillis > input.currentTime)
-    timingReasons.push('grant_issued_in_future')
-  if (input.grant.expiresAtEpochMillis <= input.currentTime)
-    timingReasons.push('grant_expired')
-  const nonceAccepted =
-    attestationCurrent &&
-    timingReasons.length === 0 &&
-    input.nonceRegistry.consume(
-      input.grant.nonce,
-      input.grant.expiresAtEpochMillis,
-      input.currentTime,
-    )
   const reasons = [
-    ...(attestationCurrent
-      ? []
-      : describeProviderAttestationFailure(
-          input.invocation,
-          input.grant,
-          input.requestBindingKeys,
-          input.admissionPublicKeys,
-        )),
-    ...timingReasons,
-    ...(attestationCurrent && timingReasons.length === 0 && !nonceAccepted
-      ? ['nonce_replayed']
-      : []),
+    ...admissionAttestationFailures(input.invocation, input.admission),
+    ...admissionTimingFailures(input.invocation, input.admission, input.currentTime),
   ]
+  if (reasons.length === 0 && !consumeAiExecutionAdmission(input.admission)) {
+    reasons.push('admission_already_used')
+  }
   return Object.freeze({
-    accepted: attestationCurrent && timingReasons.length === 0 && nonceAccepted,
+    accepted: reasons.length === 0,
     reasons: Object.freeze(reasons),
   })
 }
@@ -714,110 +671,56 @@ function invocationDigestFacts(invocation: ProviderBoundaryInvocation): Readonly
   }
 }
 
-function providerInvocationAttestationIsCurrent(
+function admissionAttestationFailures(
   invocation: ProviderBoundaryInvocation,
-  grant: AiExecutionGrantV1,
-  requestBindingKeys: VersionedHmacKeyring,
-  admissionPublicKeys: ReadonlyMap<string, KeyObject>,
-): boolean {
-  const parsedGrant = parseAiExecutionGrant(grant)
+  admission: AiExecutionAdmission,
+): string[] {
+  if (!isMintedAiExecutionAdmission(admission)) return ['admission_not_minted']
+  const descriptor = invocation.descriptor
   const facts = invocationDigestFacts(invocation)
-  return (
-    verifyAiExecutionGrant(parsedGrant, admissionPublicKeys) &&
-    facts.exactOutboundBytes &&
-    invocation.descriptor.preparedByteCount ===
-      invocation.canonicalProviderBytes.byteLength &&
-    invocation.descriptor.preparedDigest === facts.digest &&
-    parsedGrant.subjectKind === invocation.descriptor.subjectKind &&
-    parsedGrant.route === invocation.descriptor.route &&
-    parsedGrant.operationId === invocation.descriptor.operationId &&
-    parsedGrant.permitId === invocation.descriptor.permitId &&
-    parsedGrant.attemptNumber === invocation.descriptor.attemptNumber &&
-    verifyAiRequestBinding(
-      {
-        descriptor: invocation.descriptor,
-        requestBindingKeyId: invocation.requestBindingKeyId,
-        requestBindingHmac: invocation.requestBindingHmac,
-      },
-      requestBindingKeys,
-    ) &&
-    parsedGrant.requestBindingKeyId === invocation.requestBindingKeyId &&
-    parsedGrant.requestBindingHmac === invocation.requestBindingHmac &&
-    canonicalizeRfc8785(parsedGrant.limits) ===
-      canonicalizeRfc8785(invocation.descriptor.limits) &&
-    parsedGrant.callerDeadlineEpochMillis ===
-      invocation.descriptor.callerDeadlineEpochMillis
-  )
+  const checks: readonly (readonly [boolean, string])[] = [
+    [facts.exactOutboundBytes, 'outbound_bytes_differ'],
+    [
+      descriptor.preparedByteCount === invocation.canonicalProviderBytes.byteLength,
+      'prepared_byte_count_mismatch',
+    ],
+    [descriptor.preparedDigest === facts.digest, 'prepared_digest_mismatch'],
+    [admission.subjectKind === descriptor.subjectKind, 'subject_kind_mismatch'],
+    [admission.route === descriptor.route, 'route_mismatch'],
+    [admission.operationId === descriptor.operationId, 'operation_id_mismatch'],
+    [admission.permitId === descriptor.permitId, 'permit_id_mismatch'],
+    [admission.attemptNumber === descriptor.attemptNumber, 'attempt_mismatch'],
+    [
+      canonicalizeRfc8785(admission.limits) === canonicalizeRfc8785(descriptor.limits),
+      'limits_mismatch',
+    ],
+    [
+      admission.callerDeadlineEpochMillis === descriptor.callerDeadlineEpochMillis,
+      'caller_deadline_mismatch',
+    ],
+    [
+      admission.descriptorDigest === aiAdmissionDescriptorDigest(descriptor),
+      'descriptor_digest_mismatch',
+    ],
+  ]
+  return checks.filter(([holds]) => !holds).map(([, reason]) => reason)
 }
 
-// `providerInvocationAttestationIsCurrent` folds twelve independent checks into one
-// boolean, and the caller turns a false into a silent `no_dispatch` — no log, no
-// code, no provider call. From the outside that is indistinguishable from a
-// deadline abort or a dead outbound boundary, which cost a full debugging cycle on
-// the closed beta. This names the failing check. It runs ONLY on the failure path,
-// so the happy path is untouched, and it emits identifiers and booleans only —
-// never key material, never provider bytes.
-function describeProviderAttestationFailure(
+function admissionTimingFailures(
   invocation: ProviderBoundaryInvocation,
-  grant: AiExecutionGrantV1,
-  requestBindingKeys: VersionedHmacKeyring,
-  admissionPublicKeys: ReadonlyMap<string, KeyObject>,
-): readonly string[] {
+  admission: AiExecutionAdmission,
+  currentTime: number,
+): string[] {
+  if (!isMintedAiExecutionAdmission(admission)) return []
   const reasons: string[] = []
-  let parsedGrant: AiExecutionGrantV1
-  try {
-    parsedGrant = parseAiExecutionGrant(grant)
-  } catch {
-    return Object.freeze(['grant_unparseable'])
-  }
-  const facts = invocationDigestFacts(invocation)
-  if (!verifyAiExecutionGrant(parsedGrant, admissionPublicKeys))
-    reasons.push('grant_signature_unverified')
-  if (!facts.exactOutboundBytes) reasons.push('outbound_bytes_differ')
-  if (
-    invocation.descriptor.preparedByteCount !==
-    invocation.canonicalProviderBytes.byteLength
-  )
-    reasons.push('prepared_byte_count_mismatch')
-  if (invocation.descriptor.preparedDigest !== facts.digest)
-    reasons.push('prepared_digest_mismatch')
-  if (parsedGrant.subjectKind !== invocation.descriptor.subjectKind)
-    reasons.push('subject_kind_mismatch')
-  if (parsedGrant.route !== invocation.descriptor.route) reasons.push('route_mismatch')
-  if (parsedGrant.operationId !== invocation.descriptor.operationId)
-    reasons.push('operation_id_mismatch')
-  if (parsedGrant.permitId !== invocation.descriptor.permitId)
-    reasons.push('permit_id_mismatch')
-  if (parsedGrant.attemptNumber !== invocation.descriptor.attemptNumber)
-    reasons.push('attempt_mismatch')
-  if (
-    !verifyAiRequestBinding(
-      {
-        descriptor: invocation.descriptor,
-        requestBindingKeyId: invocation.requestBindingKeyId,
-        requestBindingHmac: invocation.requestBindingHmac,
-      },
-      requestBindingKeys,
-    )
-  )
-    reasons.push('request_binding_unverified')
-  if (parsedGrant.requestBindingKeyId !== invocation.requestBindingKeyId)
-    reasons.push('request_binding_key_id_mismatch')
-  if (parsedGrant.requestBindingHmac !== invocation.requestBindingHmac)
-    reasons.push('request_binding_hmac_mismatch')
-  if (
-    canonicalizeRfc8785(parsedGrant.limits) !==
-    canonicalizeRfc8785(invocation.descriptor.limits)
-  )
-    reasons.push('limits_mismatch')
-  if (
-    parsedGrant.callerDeadlineEpochMillis !==
-    invocation.descriptor.callerDeadlineEpochMillis
-  )
-    reasons.push('caller_deadline_mismatch')
-  return Object.freeze(
-    reasons.length === 0 ? ['attestation_current_on_recheck'] : reasons,
-  )
+  if (admission.expiresAtEpochMillis !== invocation.descriptor.callerDeadlineEpochMillis)
+    reasons.push('admission_expiry_not_caller_deadline')
+  if (admission.issuedAtEpochMillis >= admission.expiresAtEpochMillis)
+    reasons.push('admission_issued_after_expiry')
+  if (admission.issuedAtEpochMillis > currentTime)
+    reasons.push('admission_issued_in_future')
+  if (admission.expiresAtEpochMillis <= currentTime) reasons.push('admission_expired')
+  return reasons
 }
 
 export async function closePinnedProviderOutbound(
