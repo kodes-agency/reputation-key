@@ -22,8 +22,8 @@ describe('rights journal', () => {
       alert: vi.fn(),
     })
 
-    await journal.run(plan, ['integration'], async () => 1)
-    await journal.run(plan, ['integration'], async () => 1)
+    await journal.run(plan, ['integration'], ['integration'], async () => 1)
+    await journal.run(plan, ['integration'], ['integration'], async () => 1)
 
     expect(writes).toHaveLength(2)
     expect(writes[1]).toEqual(writes[0])
@@ -36,6 +36,39 @@ describe('rights journal', () => {
     const ids = journal.entryIds(plan, ['goal', 'metric', 'dashboard'])
 
     expect(new Set(ids).size).toBe(3)
+  })
+
+  it("records each entry's place in the whole apply under one plan id", async () => {
+    const writes: string[] = []
+    const journal = createRightsJournal({
+      put: async (_key, bytes) => {
+        writes.push(bytes)
+      },
+      alert: vi.fn(),
+    })
+    const planContexts = ['integration', 'guest', 'goal', 'metric', 'staff'] as const
+
+    await journal.run(plan, ['goal', 'metric'], planContexts, async () => 1)
+    await journal.run(plan, ['staff'], planContexts, async () => 1)
+
+    const orders = writes.map((bytes) => decodeErasureJournalEntry(bytes).applyOrder)
+    expect(orders.map((order) => order?.position)).toEqual([2, 3, 4])
+    expect(new Set(orders.map((order) => order?.planId)).size).toBe(1)
+  })
+
+  it('refuses before any write when the apply order is ambiguous', async () => {
+    const put = vi.fn(async () => {})
+    const erase = vi.fn(async () => 1)
+    const journal = createRightsJournal({ put, alert: vi.fn() })
+
+    await expect(
+      journal.run(plan, ['guest'], ['guest', 'staff', 'guest'], erase),
+    ).rejects.toThrow('journaled twice')
+    await expect(journal.run(plan, ['guest'], ['staff'], erase)).rejects.toThrow(
+      'missing from the apply order',
+    )
+    expect(put).not.toHaveBeenCalled()
+    expect(erase).not.toHaveBeenCalled()
   })
 
   it('names the batch ids in its entry and keys it by them', async () => {
@@ -76,9 +109,9 @@ describe('rights journal', () => {
     const journal = createRightsJournal(undefined)
 
     expect(journal.check(plan, ['integration'])).toContain('no erasure journal store')
-    await expect(journal.run(plan, ['integration'], async () => 1)).rejects.toThrow(
-      'no erasure journal store',
-    )
+    await expect(
+      journal.run(plan, ['integration'], ['integration'], async () => 1),
+    ).rejects.toThrow('no erasure journal store')
   })
 
   it('refuses a plan it cannot date or scope', () => {

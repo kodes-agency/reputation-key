@@ -32,10 +32,15 @@ export type RightsJournal = Readonly<{
     plan: RightsRequestPlan,
     contexts: ReadonlyArray<BackupErasureLedgerContext>,
   ) => ReadonlyArray<string>
-  /** Writes every entry, then calls erase; a rejected write means erase never runs. */
+  /**
+   * Writes every entry, then calls erase; a rejected write means erase never
+   * runs. `planContexts` lists every context the whole apply journals, in the
+   * order it erases them; each entry records its place there for replay.
+   */
   run: <T>(
     plan: RightsRequestPlan,
     contexts: ReadonlyArray<BackupErasureLedgerContext>,
+    planContexts: ReadonlyArray<BackupErasureLedgerContext>,
     erase: () => Promise<T>,
   ) => Promise<T>
   /** Writes one entry naming the batch's rows, then calls erase. */
@@ -59,7 +64,7 @@ export function derivedUuid(seed: string): string {
 
 function seedOf(
   plan: RightsRequestPlan,
-  context: BackupErasureLedgerContext,
+  context: BackupErasureLedgerContext | '',
   kind: string,
   targets?: RightsJournalTargets,
 ): string {
@@ -138,6 +143,25 @@ function entriesOf(
   })
 }
 
+// A context journaled twice in one apply would share one entry id, so its
+// place in the apply order would be ambiguous.
+function orderedEntriesOf(
+  plan: RightsRequestPlan,
+  contexts: ReadonlyArray<BackupErasureLedgerContext>,
+  planContexts: ReadonlyArray<BackupErasureLedgerContext>,
+): ReadonlyArray<ErasureJournalEntry> {
+  if (new Set(planContexts).size !== planContexts.length) {
+    throw new Error('a lifecycle context is journaled twice in one apply')
+  }
+  const planId = derivedUuid(seedOf(plan, '', 'plan'))
+  return entriesOf(plan, contexts).map((entry) => {
+    const position = planContexts.indexOf(entry.context)
+    if (position < 0)
+      throw new Error('a journaled context is missing from the apply order')
+    return { ...entry, applyOrder: { planId, position } }
+  })
+}
+
 /** Without a store every apply is refused. */
 export function createRightsJournal(
   store: RightsJournalStore | undefined,
@@ -154,10 +178,10 @@ export function createRightsJournal(
       }
     },
     entryIds: (plan, contexts) => entriesOf(plan, contexts).map(({ id }) => id),
-    async run(plan, contexts, erase) {
+    async run(plan, contexts, planContexts, erase) {
       if (contexts.length === 0) return erase()
       if (!store) throw new Error('no erasure journal store is configured')
-      const entries = entriesOf(plan, contexts)
+      const entries = orderedEntriesOf(plan, contexts, planContexts)
       const write = entries.reduceRight<() => ReturnType<typeof erase>>(
         (next, entry) => () => journalBeforeErasure(entry, store, next),
         erase,

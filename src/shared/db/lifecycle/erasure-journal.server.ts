@@ -29,6 +29,9 @@ const entrySchema = z.strictObject({
         .refine((ids) => new Set(ids).size === ids.length),
     })
     .optional(),
+  applyOrder: z
+    .strictObject({ planId: z.uuid(), position: z.number().int().nonnegative().max(999) })
+    .optional(),
   subjectClass: z.enum(BACKUP_ERASURE_SUBJECT_CLASSES),
   organizationId: token,
   propertyId: z.uuid().optional(),
