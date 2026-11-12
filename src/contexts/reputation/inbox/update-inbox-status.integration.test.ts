@@ -1,19 +1,19 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Pool } from 'pg'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { updateInboxStatus } from './update-inbox-status'
+import { updateInboxStatus } from './update-inbox-status.server'
 import { getEnv } from '#/shared/config/env'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { isInboxError } from '../../domain/errors'
+import { isInboxError } from '#/contexts/inbox/domain/errors'
 import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
+import type { InboxItem, InboxStatus, SourceType } from '#/contexts/inbox/domain/types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
-import type { ReviewSourceLookupPort } from '../ports/review-source-lookup.port'
-import type { ReviewResponseTargetAuthorityPort } from '../ports/review-response-target-authority.port'
+import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
+import type { ReviewResponseTargetAuthorityPort } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
 import {
   buildFixtureItem,
   createInboxDatabaseStores,
@@ -21,7 +21,7 @@ import {
   fixtureUuid,
   readOutboxFacts,
   seedInboxScope,
-} from '../../infrastructure/inbox-database-fixtures'
+} from '#/contexts/inbox/infrastructure/inbox-database-fixtures'
 
 const SCOPE = 'update-inbox-status'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')

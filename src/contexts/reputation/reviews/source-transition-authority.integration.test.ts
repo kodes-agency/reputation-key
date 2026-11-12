@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { createReviewSourceTransitionAuthority } from './source-transition-authority'
+import { createReviewSourceTransitionAuthority } from './source-transition-authority.server'
 
 const ORG = organizationId('review-source-transition-authority-org')
 const OTHER_ORG = organizationId('review-source-transition-authority-other')

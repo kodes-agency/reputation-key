@@ -25,8 +25,7 @@ import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/goog
 import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
 import type { InboxItem } from '#/contexts/inbox/domain/types'
 import { createAtomicInboxCommandStore } from '#/contexts/inbox/infrastructure/inbox-command-store'
-import { createReplyObservationAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-observation-authority.adapter'
-import { createReviewReplyObservationAuthority } from './reply-observation-authority'
+import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import type {
   GoogleReviewHeadResult,
   GoogleReviewRead,
@@ -744,9 +743,7 @@ describe('a reply written on Google, seen by a head check (real PostgreSQL)', ()
     })
 
     // The Inbox consumer's own step, from the event the head check published.
-    const authority = createReplyObservationAuthorityAdapter(
-      createReviewReplyObservationAuthority(db),
-    )
+    const authority = createReviewReplyObservationAuthority(db)
     const expectation = {
       organizationId: ORG,
       reviewId: seen.reviewId,

@@ -34,8 +34,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { reviewCreated } from '#/contexts/review/domain/events'
 import type { Review, StarRating } from '#/contexts/review/domain/types'
 import { createAtomicReviewCommandStore } from '#/contexts/review/infrastructure/review-command-store'
-import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
-import { createReviewResponseTargetAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/review-response-target-authority.adapter'
+import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
@@ -43,7 +42,7 @@ import {
 import {
   handleInboxReviewCreated,
   type InboxConsumerDeps,
-} from '#/contexts/inbox/infrastructure/outbox-consumers'
+} from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
@@ -212,9 +211,7 @@ function inboxDeps(db: ReturnType<typeof drizzle>): InboxConsumerDeps {
     ),
     handlingCycleStore: createReviewHandlingCycleStore(db),
     replyObservationAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
-    responseTargetAuthority: createReviewResponseTargetAuthorityAdapter(
-      createReviewResponseTargetAuthority(db),
-    ),
+    responseTargetAuthority: createReviewResponseTargetAuthority(db),
     sourceTransitionAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
     reviewLookup,
     reviewSourceLookup,

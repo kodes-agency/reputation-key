@@ -21,7 +21,7 @@ const expectation = {
 describe('Review reply-observation exact-current admission', () => {
   it('runs each apply on one Review transaction without queueing them', async () => {
     const { createReviewReplyObservationAuthority } =
-      await import('./reply-observation-authority')
+      await import('./reply-observation-authority.server')
     const concurrent = 12
     let activeTransactions = 0
     let peakTransactions = 0
@@ -116,7 +116,7 @@ describe('Review reply-observation exact-current admission', () => {
     },
   ])('fails closed for $label', async (invalidMetadata) => {
     const { createReviewReplyObservationAuthority } =
-      await import('./reply-observation-authority')
+      await import('./reply-observation-authority.server')
     const currentRow = {
       organizationId: expectation.organizationId,
       propertyId: expectation.propertyId,
@@ -168,7 +168,7 @@ describe('Review reply-observation exact-current admission', () => {
     { label: 'no time when Google gave none', providerUpdatedAt: null },
   ])("hands Inbox $label as the reply's provider time", async ({ providerUpdatedAt }) => {
     const { createReviewReplyObservationAuthority } =
-      await import('./reply-observation-authority')
+      await import('./reply-observation-authority.server')
     const currentRow = {
       organizationId: expectation.organizationId,
       propertyId: expectation.propertyId,

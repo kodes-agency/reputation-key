@@ -38,9 +38,9 @@ import { createReplyRepository } from '#/contexts/review/infrastructure/reposito
 import { createEligibleReads } from '#/contexts/review/application/eligible-reads'
 import type { InboxItem } from '../../domain/types'
 import { inboxItemStatusChanged } from '../../domain/events'
-import { updateInboxStatus } from '../../application/use-cases/update-inbox-status'
-import { bulkUpdateInboxStatus } from '../../application/use-cases/bulk-update-inbox-status'
-import { rebuildInboxProjection } from '../../application/use-cases/rebuild-inbox-projection'
+import { updateInboxStatus } from '#/contexts/reputation/inbox/update-inbox-status.server'
+import { bulkUpdateInboxStatus } from '#/contexts/reputation/inbox/bulk-update-inbox-status.server'
+import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
 import type { ReviewResponseTargetAuthorityPort } from '../../application/ports/review-response-target-authority.port'
 import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
@@ -48,8 +48,7 @@ import { createAtomicInboxCommandStore } from '../inbox-command-store'
 import { createReviewHandlingCycleStore } from '../review-handling-cycle.store'
 import { createReviewSourceLookupAdapter } from '../adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '../adapters/reply-lookup.adapter'
-import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
-import { createReplyObservationAuthorityAdapter } from '../adapters/reply-observation-authority.adapter'
+import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createInboxRepository } from './inbox.repository'
 
 const ORG = organizationId('org-inbox-erased-review-1111111111')
@@ -406,9 +405,7 @@ describe.sequential('an Inbox item whose Review Google deleted', () => {
         findReviewIdsByReplyStage: (orgId, propertyIds) =>
           replyRepo.findReviewIdsByReplyStage(orgId, propertyIds),
       }),
-      replyObservationAuthority: createReplyObservationAuthorityAdapter(
-        createReviewReplyObservationAuthority(db),
-      ),
+      replyObservationAuthority: createReviewReplyObservationAuthority(db),
       idGen: () => inboxItemId(crypto.randomUUID()),
       clock: () => NOW,
       logger,

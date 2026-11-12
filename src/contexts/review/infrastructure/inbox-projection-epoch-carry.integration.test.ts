@@ -1,7 +1,7 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createAtomicReviewCommandStore } from './review-command-store'
-import { createReviewResponseTargetAuthority } from './response-target-authority'
+import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { reviewCreated, reviewUpdated } from '../domain/events'
 import type { Review } from '../domain/types'
 import { getDb } from '#/shared/db'

@@ -489,6 +489,23 @@ export default tseslint.config(
                 },
               },
             },
+            // Review, Inbox and Reputation form one bounded context: Reputation's
+            // feature servers may use Review and Inbox internals.
+            {
+              from: {
+                file: {
+                  categories: 'feature-server',
+                  path: 'src/contexts/reputation/**',
+                },
+              },
+              allow: {
+                to: {
+                  file: {
+                    path: 'src/contexts/{review,inbox}/{domain,application,infrastructure,server,ports}/**',
+                  },
+                },
+              },
+            },
             {
               from: fileCategory('feature-test-fixtures'),
               allow: { to: elementTypes(...CONTEXT, ...SHARED_ALL, 'test-helpers') },
@@ -785,6 +802,24 @@ export default tseslint.config(
                 },
               },
               allow: { to: fileCategory('feature-server') },
+            },
+            {
+              from: {
+                file: {
+                  path: [
+                    'src/contexts/{review,inbox}/{application,infrastructure,server}/**',
+                    'src/contexts/{review,inbox}/build{,-*}.ts',
+                  ],
+                },
+              },
+              allow: {
+                to: {
+                  file: {
+                    categories: 'feature-server',
+                    path: 'src/contexts/reputation/**',
+                  },
+                },
+              },
             },
           ],
         },

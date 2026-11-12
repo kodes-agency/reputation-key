@@ -24,38 +24,38 @@ import {
   handleInboxReplyPublished,
   handleInboxReplySubmitted,
   type InboxConsumerDeps,
-} from './outbox-consumers'
+} from './outbox-consumers.server'
 import {
   handleInboxGuestFeedbackRetracted,
   handleInboxGuestFeedbackSubmitted,
-} from './guest-feedback-outbox-consumers'
+} from '#/contexts/inbox/infrastructure/guest-feedback-outbox-consumers'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import type {
   ReviewLookupPort,
   ReviewSnippetResult,
-} from '../application/ports/review-lookup.port'
+} from '#/contexts/inbox/application/ports/review-lookup.port'
 import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
-} from '../application/ports/review-source-lookup.port'
-import type { ApplyReceiptStatus } from '../application/ports/inbox-command-store.port'
-import type { ReplyObservationAuthorityPort } from '../application/ports/reply-observation-authority.port'
-import type { SourceTransitionAuthorityPort } from '../application/ports/source-transition-authority.port'
+} from '#/contexts/inbox/application/ports/review-source-lookup.port'
+import type { ApplyReceiptStatus } from '#/contexts/inbox/application/ports/inbox-command-store.port'
+import type { ReplyObservationAuthorityPort } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
+import type { SourceTransitionAuthorityPort } from '#/contexts/inbox/application/ports/source-transition-authority.port'
 import type {
   ReviewResponseTargetAuthorityPort,
   ReviewResponseTargetExpectation,
-} from '../application/ports/review-response-target-authority.port'
-import { createAtomicInboxCommandStore } from './inbox-command-store'
-import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
-import { createInboxRepository } from './repositories/inbox.repository'
+} from '#/contexts/inbox/application/ports/review-response-target-authority.port'
+import { createAtomicInboxCommandStore } from '#/contexts/inbox/infrastructure/inbox-command-store'
+import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
+import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import {
   dropInboxUseCaseTenant,
   seedInboxItem,
   seedInboxOrganization,
   seedReviewSource,
-} from './inbox-database-fixtures'
+} from '#/contexts/inbox/infrastructure/inbox-database-fixtures'
 import {
   feedbackId,
   inboxItemId,
@@ -63,11 +63,11 @@ import {
   propertyId,
   reviewId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../domain/types'
+import type { InboxItem } from '#/contexts/inbox/domain/types'
 import type {
   FeedbackLookupPort,
   FeedbackSnippet,
-} from '../application/ports/feedback-lookup.port'
+} from '#/contexts/inbox/application/ports/feedback-lookup.port'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
