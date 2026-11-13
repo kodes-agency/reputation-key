@@ -29,6 +29,7 @@ export const COMMANDS: Readonly<
   purge: ['scripts/ops/enqueue-purge.ts'],
   quarantine: ['scripts/ops/quarantine-redrive.ts'],
   queue: ['scripts/ops/queue-quarantine.ts'],
+  retention: ['scripts/ops/retention.ts'],
   'rights-request': ['scripts/ops/rights-request.ts'],
   'rebuild-projection': ['scripts/ops/rebuild-projection.ts'],
   'reconcile-publication': ['scripts/ops/reconcile-publication.ts'],
