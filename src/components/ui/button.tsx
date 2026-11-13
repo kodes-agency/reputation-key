@@ -3,13 +3,14 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { Slot } from 'radix-ui'
 
 import { cn } from '#/lib/utils'
+import { PHONE_TOUCH_PAD } from './touch-pad'
 
 // Below `md` a control is at least a tap target tall: `--control-touch` is 44px, and
 // 36px inside a `data-density="compact"` workspace (styles.css). It is a minimum, not
 // a height, so a deliberately taller control keeps its own height. From `md` the
 // desktop heights below apply. A caller sets the density on a container, never the
-// numbers. `touch` keeps a small button (`xs`, `icon-xs`, `inline`) a tap target on a
-// phone; `iconBelow` hides the label below a width, leaving a square as wide as the
+// numbers. `xs` and `icon-xs` are tap targets on a phone too; `touch` makes an
+// `inline` link that stands alone one; `iconBelow` hides the label below a width, leaving a square as wide as the
 // touch height. `sm` and `md` are window breakpoints; `@lg` is the width of the
 // nearest `@container` ancestor, for a bar in a pane the window does not size, and
 // whoever sets `@lg` also hides the label under the same `@max-lg:`.
@@ -33,16 +34,19 @@ const buttonVariants = cva(
       },
       size: {
         default: 'h-9 px-4 py-2 has-[>svg]:px-3 max-md:min-h-(--control-touch)',
-        xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
+        xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 max-md:min-h-(--control-touch) max-md:min-w-(--control-touch) [&_svg:not([class*='size-'])]:size-3",
         sm: 'h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5 max-md:min-h-(--control-touch)',
         lg: 'h-10 rounded-md px-6 has-[>svg]:px-4 max-md:min-h-(--control-touch)',
         icon: 'size-9 max-md:min-h-(--control-touch) max-md:min-w-(--control-touch)',
-        'icon-xs': "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
+        'icon-xs':
+          "size-6 rounded-md max-md:min-h-(--control-touch) max-md:min-w-(--control-touch) [&_svg:not([class*='size-'])]:size-3",
         'icon-sm': 'size-8 max-md:min-h-(--control-touch) max-md:min-w-(--control-touch)',
         'icon-lg':
           'size-10 max-md:min-h-(--control-touch) max-md:min-w-(--control-touch)',
-        // A link set in a line of text: no height, no padding, the line's own box.
-        inline: 'h-auto p-0',
+        // A link set in a line of text: no height, no padding, the line's own box,
+        // and below `md` a 44 px pad around it (`touch-pad.ts`). `touch` makes it a
+        // flex box with the touch size instead, for one that stands alone.
+        inline: `h-auto p-0 ${PHONE_TOUCH_PAD}`,
       },
       touch: { true: 'max-md:min-h-(--control-touch)' },
       wrap: { true: 'h-auto min-h-9 whitespace-normal text-balance' },
@@ -53,8 +57,12 @@ const buttonVariants = cva(
       },
     },
     compoundVariants: [
-      { size: 'icon-xs', touch: true, className: 'max-md:min-w-(--control-touch)' },
-      { size: 'inline', touch: true, className: 'max-md:min-w-(--control-touch)' },
+      {
+        size: 'inline',
+        touch: true,
+        className:
+          'max-md:inline-flex max-md:items-center max-md:justify-center max-md:min-w-(--control-touch)',
+      },
     ],
     defaultVariants: {
       variant: 'default',

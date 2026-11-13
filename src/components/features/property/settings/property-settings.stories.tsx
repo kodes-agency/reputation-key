@@ -52,7 +52,7 @@ export const SectionNavigation: Story = {
     withRole('AccountAdmin', { at: `/properties/${PROPERTY_ID}/settings/google` }),
   ],
   render: () => (
-    <div className="max-w-xs">
+    <div className="max-w-xs px-4 md:px-0">
       <PropertySettingsNav
         propertyId={PROPERTY_ID}
         sections={visiblePropertySettingsSections(() => true)}

@@ -28,6 +28,7 @@ import {
   barsOf,
   expectBarsReadByKeyboard,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.play'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const meta: Meta<typeof PortalGoalResultsList> = {
   title: 'Goals/PortalGoalResultsList',
@@ -74,46 +75,46 @@ const STATES = [
   ['Spa average', '4.6 · goal 4.5', 'Met'],
 ] as const
 
-export const AllEvidenceStates: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    // One card per goal, titled by its name, and by whom it counted where it counts one.
-    await expect(titlesOf(canvasElement)).toEqual([
-      'Monthly scans',
-      'Front desk ratings · Front desk',
-      'Breakfast average · Breakfast cards',
-      'Lobby ratings · Lobby NFC',
-      'Spa average · Spa',
-    ])
-    for (const [goal, figure, verdict] of STATES) {
-      const row = within(julyOf(canvas, goal))
-      await expect(row.getByText(figure, { exact: true })).toBeVisible()
-      await expect(row.getByText(verdict, { exact: true })).toBeVisible()
-      await expect(julyOf(canvas, goal)).toHaveAttribute('aria-expanded', 'false')
-    }
-    // Closed until asked: when a figure was final and who set the number are not drawn.
-    await expect(canvas.queryByText(/^Counted through/u)).toBeNull()
-    // In a manager's words: no internals, no table's columns, no ranking.
-    await expect(
-      canvas.queryByText(/Metric rules|Program version|Effective |Data through/u),
-    ).toBeNull()
-    await expect(canvas.queryByText(/rank|composite/iu)).toBeNull()
-    await expect(canvas.queryByRole('table')).toBeNull()
-    // One tap opens a row: the day the figure was counted through, and the number with its day.
-    await expect(await openRow(julyOf(canvas, 'Monthly scans'))).toEqual([
-      'Counted through Jul 31, 2026.',
-      'The number was 100, set on Jun 18.',
-    ])
-    // A count that could not be read was counted through no day.
-    await expect(await openRow(julyOf(canvas, 'Lobby ratings'))).toEqual([
-      'The number was 100, set on Jun 18.',
-    ])
-    // An average's number is in tenths.
-    await expect(await openRow(julyOf(canvas, 'Spa average'))).toContain(
-      'The number was 4.5, set on Jun 18.',
-    )
-  },
+const playAllEvidenceStates: NonNullable<Story['play']> = async ({ canvasElement }) => {
+  const canvas = within(canvasElement)
+  // One card per goal, titled by its name, and by whom it counted where it counts one.
+  await expect(titlesOf(canvasElement)).toEqual([
+    'Monthly scans',
+    'Front desk ratings · Front desk',
+    'Breakfast average · Breakfast cards',
+    'Lobby ratings · Lobby NFC',
+    'Spa average · Spa',
+  ])
+  for (const [goal, figure, verdict] of STATES) {
+    const row = within(julyOf(canvas, goal))
+    await expect(row.getByText(figure, { exact: true })).toBeVisible()
+    await expect(row.getByText(verdict, { exact: true })).toBeVisible()
+    await expect(julyOf(canvas, goal)).toHaveAttribute('aria-expanded', 'false')
+  }
+  // Closed until asked: when a figure was final and who set the number are not drawn.
+  await expect(canvas.queryByText(/^Counted through/u)).toBeNull()
+  // In a manager's words: no internals, no table's columns, no ranking.
+  await expect(
+    canvas.queryByText(/Metric rules|Program version|Effective |Data through/u),
+  ).toBeNull()
+  await expect(canvas.queryByText(/rank|composite/iu)).toBeNull()
+  await expect(canvas.queryByRole('table')).toBeNull()
+  // One tap opens a row: the day the figure was counted through, and the number with its day.
+  await expect(await openRow(julyOf(canvas, 'Monthly scans'))).toEqual([
+    'Counted through Jul 31, 2026.',
+    'The number was 100, set on Jun 18.',
+  ])
+  // A count that could not be read was counted through no day.
+  await expect(await openRow(julyOf(canvas, 'Lobby ratings'))).toEqual([
+    'The number was 100, set on Jun 18.',
+  ])
+  // An average's number is in tenths.
+  await expect(await openRow(julyOf(canvas, 'Spa average'))).toContain(
+    'The number was 4.5, set on Jun 18.',
+  )
 }
+
+export const AllEvidenceStates: Story = { play: playInThemes(playAllEvidenceStates) }
 
 /** No room is lost sideways on a phone. */
 const fitsTheWidth: Story['play'] = async ({ canvasElement }) => {
@@ -121,19 +122,13 @@ const fitsTheWidth: Story['play'] = async ({ canvasElement }) => {
   await expect(page.scrollWidth).toBeLessThanOrEqual(page.clientWidth)
 }
 
-/** The same states on the light surface; axe checks both themes. */
-export const AllEvidenceStatesLight: Story = {
-  ...AllEvidenceStates,
-  parameters: { theme: 'light' },
-}
-
 /** The same states at each width the page is read at; the words stay the same. */
 export const AllEvidenceStatesNarrowPhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-  play: async (context) => {
-    await AllEvidenceStates.play?.(context)
+  play: playInThemes(async (context) => {
+    await playAllEvidenceStates(context)
     await fitsTheWidth(context)
-  },
+  }),
 }
 
 export const AllEvidenceStatesDesktop: Story = {

@@ -19,7 +19,7 @@ const TARGETS: ReadonlyArray<Target> = [
 ]
 
 const ROW =
-  'flex min-h-9 items-center rounded-md px-3 text-sm text-foreground aria-[current=page]:bg-accent aria-[current=page]:font-medium'
+  'flex min-h-9 items-center rounded-md px-3 max-md:min-h-(--control-touch) text-sm text-foreground aria-[current=page]:bg-accent aria-[current=page]:font-medium'
 
 function Demo({ current }: Readonly<{ current: string }>) {
   return (

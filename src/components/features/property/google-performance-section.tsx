@@ -23,7 +23,7 @@ import {
   type GooglePerformanceServerFns,
 } from './use-google-performance'
 import { IconButton } from '#/components/ui/icon-button'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 
 type UnavailablePerformanceResult = Extract<
   PropertyGooglePerformanceResultV1,
@@ -74,7 +74,7 @@ function GooglePerformanceUnavailable({
       <AlertDescription className="flex flex-col items-start gap-3">
         <span>{UNAVAILABLE_DESCRIPTIONS[unavailable.reason]}</span>
         {canOpenAction ? (
-          <InlineLink
+          <TouchInlineLink
             to={
               requiresPropertyImport
                 ? '/properties/import-google'
@@ -83,7 +83,7 @@ function GooglePerformanceUnavailable({
             className="text-xs"
           >
             {requiresPropertyImport ? 'Review property import' : 'Open integrations'}
-          </InlineLink>
+          </TouchInlineLink>
         ) : (
           <span>Ask an account admin to review this property&apos;s Google setup.</span>
         )}

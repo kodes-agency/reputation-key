@@ -3,6 +3,7 @@ import type { Decorator, Meta, StoryObj } from '@storybook/react-vite'
 import { expect, userEvent, within } from 'storybook/test'
 import { PageGutterDecorator } from '../../../../../.storybook/PageGutterDecorator'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import type { GuestVoiceDetailTarget, GuestVoiceV2Read } from '../contracts'
 import { PropertyGuestVoicePage } from './property-guest-voice-page'
 import { useGuestVoiceDetailNavigation } from './use-guest-voice-detail-navigation'
@@ -114,8 +115,10 @@ export default meta
 type Story = StoryObj<typeof meta>
 const PHONE = { viewport: { defaultViewport: 'mobileStaff' } }
 export const HamptonLike: Story = {
-  play: async ({ canvas }) => {
+  play: playInThemes(async ({ canvas }) => {
     expect(canvas.getByRole('heading', { name: 'Anything urgent?' })).toBeVisible()
+    expect(canvas.getByText('Yes — two serious concerns')).toBeVisible()
+    expect(canvas.getByText('Yes, it’s getting better')).toBeVisible()
     expect(
       canvas.getByRole('heading', { name: 'What should we fix first?' }),
     ).toBeVisible()
@@ -143,15 +146,7 @@ export const HamptonLike: Story = {
       canvas.getByRole('button', { name: '4 other concerns guests raised' }),
     )
     expect(canvas.getByText('Raised once or twice')).toBeVisible()
-  },
-}
-export const Dark: Story = {
-  parameters: { theme: 'dark' },
-  play: async ({ canvas }) => {
-    expect(canvas.getByRole('heading', { name: 'Anything urgent?' })).toBeVisible()
-    expect(canvas.getByText('Yes — two serious concerns')).toBeVisible()
-    expect(canvas.getByText('Yes, it’s getting better')).toBeVisible()
-  },
+  }),
 }
 export const Quiet: Story = {
   args: { read: QUIET_READ },

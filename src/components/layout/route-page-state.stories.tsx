@@ -44,7 +44,7 @@ const pageHeading = (canvasElement: HTMLElement, name: string) =>
   within(canvasElement).findByRole('heading', { level: 1, name })
 
 const SIDEBAR_LINK =
-  'rounded-md px-2 py-1 text-sm text-sidebar-foreground hover:bg-sidebar-accent focus-visible:outline-2 focus-visible:outline-sidebar-ring'
+  'inline-flex items-center rounded-md px-2 py-1 text-sm max-md:min-h-(--control-touch) max-md:min-w-(--control-touch) text-sidebar-foreground hover:bg-sidebar-accent focus-visible:outline-2 focus-visible:outline-sidebar-ring'
 
 /** The sidebar as the shell has it: a collapse control and links to two pages, drawn as a quiet band. */
 function Sidebar() {

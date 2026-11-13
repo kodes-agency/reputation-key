@@ -33,7 +33,7 @@ function StepLink({
 }: Readonly<{ propertyId: string; step: PropertySetupStep }>) {
   const label = propertySetupStepLabel(step)
   const chip =
-    'inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors'
+    'inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors max-md:min-h-(--control-touch)'
   if (step.status === 'waiting') {
     return (
       <span className={cn(chip, 'border-dashed text-muted-foreground')}>

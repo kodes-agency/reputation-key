@@ -156,7 +156,6 @@ export function SetupReplyVoiceQuestion({
                 change('emojiMode', value as ReplyVoiceAnswer['emojiMode'])
               }
               disabled={disabled}
-              touch
             />
           </FormFieldFrame>
         </div>

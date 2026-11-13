@@ -60,8 +60,12 @@ function stopStyle(index: number, last: number) {
   return {
     left: `calc(10px + ${fraction} * (100% - 20px))`,
     transform: `translateX(${shift})`,
-    alignItems: index === 0 ? 'flex-start' : index === last ? 'flex-end' : 'center',
   } as const
+}
+
+/** How a stop's label and tag line up under its place on the track. */
+function stopAlign(index: number, last: number) {
+  return index === 0 ? 'flex-start' : index === last ? 'flex-end' : 'center'
 }
 
 function OwnField({ plan, unit, idBase, onTypeOwn }: Props) {
@@ -85,26 +89,32 @@ function Stops({ plan, unit, ownOn, onChip }: Props) {
   return (
     <div aria-hidden="true" className="relative" style={{ height: 34 }}>
       {chips.map((chip, index) => (
-        <Button
+        // The wrapper is placed; the button is `relative` below `md` (its touch pad).
+        <span
           key={chip.tenthsPerWeek}
-          type="button"
-          variant="ghost"
-          size="inline"
-          tabIndex={-1}
-          onClick={() => onChip(index)}
-          className={cn(
-            'absolute top-0 flex-col gap-0 text-sm hover:bg-transparent',
-            !ownOn && index === chosenIndex
-              ? 'font-semibold text-foreground'
-              : 'font-normal text-muted-foreground',
-          )}
+          className="absolute top-0 flex"
           style={stopStyle(index, last)}
         >
-          <span>{stopLabel(chip.tenthsPerWeek, unit)}</span>
-          {index === recommendedIndex ? (
-            <GoalRecommendedTag>Recommended</GoalRecommendedTag>
-          ) : null}
-        </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="inline"
+            tabIndex={-1}
+            onClick={() => onChip(index)}
+            style={{ alignItems: stopAlign(index, last) }}
+            className={cn(
+              'flex-col gap-0 text-sm hover:bg-transparent',
+              !ownOn && index === chosenIndex
+                ? 'font-semibold text-foreground'
+                : 'font-normal text-muted-foreground',
+            )}
+          >
+            <span>{stopLabel(chip.tenthsPerWeek, unit)}</span>
+            {index === recommendedIndex ? (
+              <GoalRecommendedTag>Recommended</GoalRecommendedTag>
+            ) : null}
+          </Button>
+        </span>
       ))}
     </div>
   )
@@ -135,7 +145,6 @@ export function RatingGoalPaceControl(props: Props) {
           value={unit}
           onValueChange={(value) => props.onUnit(value === 'month' ? 'month' : 'day')}
           options={UNITS}
-          touch
         />
         <span className="flex-1" />
         {ownOn ? (

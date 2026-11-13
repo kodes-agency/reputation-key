@@ -19,7 +19,6 @@ export function PortalHistoryFilters() {
           if (isFilterKey(value)) changeFilter(value)
         }}
         options={HISTORY_FILTERS.map(({ key, label }) => ({ value: key, label }))}
-        touch
       />
       <p className="text-xs text-muted-foreground">Newest first · {timeZone} time</p>
     </div>

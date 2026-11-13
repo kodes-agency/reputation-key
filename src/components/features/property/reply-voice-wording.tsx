@@ -49,7 +49,6 @@ export function ReplyVoiceWording({
             { value: 'es-Latn', label: 'Español' },
           ]}
           onValueChange={(value) => setLanguage(value as VoiceLanguage)}
-          touch
         />
         {WORDING_LISTS.map((item) => (
           <FormFieldFrame

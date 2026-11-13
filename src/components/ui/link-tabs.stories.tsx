@@ -204,7 +204,7 @@ function GrowingStrip() {
     { id: 'history', label: grown ? GROWN_LABEL : 'History' },
   ]
   return (
-    <div style={{ width: 340 }}>
+    <div style={{ width: '100%', maxWidth: 340 }}>
       <LinkTabs aria-label="Portal sections">
         {tabs.map((tab) => (
           <LinkTab

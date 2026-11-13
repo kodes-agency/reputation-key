@@ -32,6 +32,7 @@ import {
 import type { RatingGoalCardView } from '#/contexts/reporting/rating-goals/contracts'
 import { expectNoExactAverage } from './rating-goal-detail.stories.play'
 import { wholeText } from './rating-goal-wizard.stories.play'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const NOW = new Date(FIXTURE_NOW)
 const read = <T,>(data: T | undefined, failed = false) => ({
@@ -101,7 +102,7 @@ async function expectOnPaceClimb(canvas: Canvas) {
 
 export const OnPace: Story = {
   args: { card: cardRead(CARD_HARBORLINE) },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expectOnPaceClimb(canvas)
     await expect(
@@ -124,7 +125,7 @@ export const OnPace: Story = {
     await expect(canvas.getAllByRole('link')).toHaveLength(1)
     await expect(canvas.queryByText(/is possible/u)).toBeNull()
     await expectNoExactAverage(canvasElement)
-  },
+  }),
 }
 
 /** 31 new reviews to 4.4 and 212 to the goal. */
@@ -377,7 +378,6 @@ export const OnPaceNarrowPhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
-export const OnPaceLight: Story = { ...OnPace, parameters: { theme: 'light' } }
 export const OnPacePhoneLight: Story = {
   ...OnPacePhone,
   parameters: { ...PHONE, theme: 'light' },

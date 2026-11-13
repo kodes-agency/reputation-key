@@ -39,7 +39,6 @@ export function PortalPreviewToolbar({
       {locales.length > 1 ? (
         <SegmentedControl
           aria-label="Preview language"
-          touch
           value={locale}
           onValueChange={(value) => {
             const next = locales.find((candidate) => candidate === value)
@@ -54,7 +53,6 @@ export function PortalPreviewToolbar({
       ) : null}
       <SegmentedControl
         aria-label="Preview version"
-        touch
         value={source}
         onValueChange={(value) => {
           if (value === 'draft' || value === 'live') onSourceChange(value)

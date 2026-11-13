@@ -143,20 +143,19 @@ export const FullBleed: Story = {
     const canvas = within(canvasElement)
     const trigger = await canvas.findByRole('button', { name: /toggle sidebar/i })
     expect(trigger).not.toHaveClass('md:hidden')
-    // Phone grid: a 44 px bar, a 36 px trigger whose glyph (not its box) lands
+    // Phone grid: a 44 px bar, a 44 px trigger whose glyph (not its box) lands
     // on the 16 px gutter, and the 28 px avatar's right edge on the gutter. The
-    // bar is a compact workspace, so its controls read the 36 px touch token from
-    // the Button; the margins pull the glyphs onto the gutter. Tailwind is not
+    // controls read the 44 px touch token from the Button; the margins pull the
+    // glyphs onto the gutter. Tailwind is not
     // compiled in this runner, so this pins what produces the geometry: the full-bleed mark, under which
     // styles.css sets `--app-top-bar-height` to 44 px below md.
     const header = canvasElement.querySelector('header')
     expect(header).toHaveAttribute('data-full-bleed', 'true')
     expect(header).toHaveClass('h-(--app-top-bar-height)')
-    expect(header).toHaveAttribute('data-density', 'compact')
-    expect(trigger).toHaveClass('max-md:min-w-(--control-touch)', 'max-md:-ml-2.5')
+    expect(trigger).toHaveClass('max-md:min-w-(--control-touch)', 'max-md:-ml-3.5')
     expect(canvas.getByRole('button', { name: 'Account menu' })).toHaveClass(
       'max-md:min-w-(--control-touch)',
-      'max-md:-mr-1',
+      'max-md:-mr-2',
     )
   },
 }

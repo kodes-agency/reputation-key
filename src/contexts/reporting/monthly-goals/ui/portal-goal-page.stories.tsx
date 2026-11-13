@@ -55,6 +55,7 @@ import {
   portalRows,
   whereOf,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.play'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const meta: Meta<typeof PortalGoalPage> = {
   title: 'Goals/PortalGoalPage',
@@ -77,7 +78,13 @@ const meta: Meta<typeof PortalGoalPage> = {
     },
     personName,
     addLink: (
-      <Button type="button" variant="link" size="inline" className="self-start text-sm">
+      <Button
+        type="button"
+        variant="link"
+        size="inline"
+        touch
+        className="self-start text-sm"
+      >
         Add a portal goal
       </Button>
     ),
@@ -243,7 +250,9 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
 
 /** Nov 22, the mock's day. */
 export const Running: Story = {
-  play: async ({ canvasElement }) => expectRunning(within(canvasElement), canvasElement),
+  play: playInThemes(async ({ canvasElement }) =>
+    expectRunning(within(canvasElement), canvasElement),
+  ),
 }
 
 export const Phone320: Story = {
@@ -254,11 +263,6 @@ export const Phone320: Story = {
 export const OnADesktop: Story = {
   ...Running,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const Light: Story = {
-  ...Running,
-  parameters: { theme: 'light' },
 }
 
 /** Set on Oct 23 for November: its first month, and nothing counted yet. */

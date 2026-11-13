@@ -71,18 +71,17 @@ export function AppTopBar({
 
   return (
     // Below md full-bleed surfaces (`isFullBleed`) use a 44 px bar like the phone
-    // grid; other pages keep h-13 (52 px). Controls are 36 px (`data-density`
-    // compact), and the two edge ghost buttons are pulled out by half of
-    // (36 - glyph) so the glyph sits on the 16 px gutter: the trigger's 16 px glyph
-    // by 10 px, the account button's 28 px circle by 4 px. The sidebar trigger shows
+    // grid; other pages keep h-13 (52 px). Controls are 44 px on a phone, and
+    // the two edge ghost buttons are pulled out by half of (44 - glyph) so the
+    // glyph sits on the 16 px gutter: the trigger's 16 px glyph by 14 px, the
+    // account button's 28 px circle by 8 px. The sidebar trigger shows
     // on every page from md up. The progress bar lies on the bar's lower edge, which
     // is why the header is positioned.
     <header
-      data-density="compact"
       data-full-bleed={isFullBleed ? 'true' : undefined}
       className="sticky top-0 z-20 flex h-(--app-top-bar-height) shrink-0 items-center gap-2 border-b bg-background px-4"
     >
-      {hasSidebar && <SidebarTrigger className="-ml-1 max-md:-ml-2.5" />}
+      {hasSidebar && <SidebarTrigger className="-ml-1 max-md:-ml-3.5" />}
 
       <div className="flex-1" />
 
@@ -103,7 +102,7 @@ export function AppTopBar({
           <IconButton
             variant="ghost"
             size="icon-sm"
-            className="relative rounded-full max-md:-mr-1"
+            className="relative rounded-full max-md:-mr-2"
             label="Account menu"
             aria-describedby={getProductUpdatesClient ? updatesHintId : undefined}
           >

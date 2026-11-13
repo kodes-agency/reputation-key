@@ -23,7 +23,7 @@ const EmailPreview = ({ subject, html, text }: PreviewProps) => (
       className="h-[680px] w-full rounded-xl border border-border"
     />
     <details className="rounded-xl border border-border bg-surface p-4">
-      <summary className="cursor-pointer text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+      <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold tracking-wide text-muted-foreground uppercase">
         Plain-text part
       </summary>
       <pre className="mt-3 text-xs whitespace-pre-wrap text-foreground">{text}</pre>

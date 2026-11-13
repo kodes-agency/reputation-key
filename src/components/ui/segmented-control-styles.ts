@@ -3,7 +3,7 @@
 // importing the radio group.
 
 /**
- * A 26 px segment inside a 2 px inset in a muted pill. The chosen segment is
+ * A 26 px segment (44 px tall and wide below `md`, so the segment is the tap target) inside a 2 px inset in a muted pill. The chosen segment is
  * the boards' white chip: `bg-card` with a 1 px `--border-control` ring (3:1 on
  * the pill, WCAG 1.4.11) and a soft drop, so it reads as chosen without leaning
  * on text weight or hue. In the dark theme the fill follows `tabs.tsx`
@@ -12,18 +12,9 @@
 const CHOSEN_EDGE =
   'data-[state=checked]:shadow-[0_0_0_1px_var(--border-control),0_1px_2px_rgb(0_0_0/0.1)]'
 export const SEGMENT_CLASS =
-  'inline-flex h-[26px] items-center justify-center gap-1.5 rounded-sm px-2.5 text-[13px] leading-5 whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-card data-[state=checked]:font-medium data-[state=checked]:text-foreground dark:data-[state=checked]:bg-input/30 ' +
+  'inline-flex h-[26px] max-md:min-h-11 max-md:min-w-11 items-center justify-center gap-1.5 rounded-sm px-2.5 text-[13px] leading-5 whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-card data-[state=checked]:font-medium data-[state=checked]:text-foreground dark:data-[state=checked]:bg-input/30 ' +
   CHOSEN_EDGE
 
 /** The pill that holds the segments. */
 export const SEGMENTED_CONTROL_CLASS =
   'inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5'
-
-/**
- * The touch size: below `md` each segment is 44px tall and wide whatever the
- * workspace density (a compact container shrinks Buttons, not a thumb's target),
- * so the segment itself is the tap target and the pill grows by its 2px inset
- * either side. From `md` the segment is the 26px chip again, so every segmented
- * control shares one desktop geometry.
- */
-export const SEGMENT_TOUCH_CLASS = 'max-md:min-h-11 max-md:min-w-11'

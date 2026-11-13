@@ -18,6 +18,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { Home } from 'lucide-react'
 import { expect, within } from 'storybook/test'
 import { Button } from './button'
+import { PHONE_LINK_TOUCH } from './row-link'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -66,12 +67,12 @@ function Surface() {
       </span>
 
       <section aria-label="Content links" className="flex flex-col gap-2">
-        <a href="#privacy" data-testid="content-link">
+        <a href="#privacy" className={PHONE_LINK_TOUCH} data-testid="content-link">
           Privacy notice
         </a>
         <a
           href="#terms"
-          className="link-ink-pinned underline-offset-4"
+          className={`link-ink-pinned underline-offset-4 ${PHONE_LINK_TOUCH}`}
           data-testid="pinned-link"
         >
           Terms of service
@@ -82,14 +83,14 @@ function Surface() {
         <a
           href="#overview"
           aria-current="page"
-          className="font-medium text-foreground"
+          className={`font-medium text-foreground ${PHONE_LINK_TOUCH}`}
           data-testid="nav-active"
         >
           Overview
         </a>
         <a
           href="#ratings"
-          className="text-muted-foreground transition-colors hover:text-foreground"
+          className={`text-muted-foreground transition-colors hover:text-foreground ${PHONE_LINK_TOUCH}`}
           data-testid="nav-inactive"
         >
           Ratings

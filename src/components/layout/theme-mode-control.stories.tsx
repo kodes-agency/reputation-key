@@ -29,7 +29,7 @@ const LABEL_ID = 'story-theme-label'
 
 function PreferencesRow() {
   return (
-    <div className="flex w-96 items-center justify-between gap-4">
+    <div className="flex w-full max-w-96 items-center justify-between gap-4">
       <span id={LABEL_ID} className="text-sm leading-none font-medium">
         Theme
       </span>

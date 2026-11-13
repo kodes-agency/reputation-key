@@ -111,7 +111,6 @@ export function ReplyVoiceFields({
               change('positiveGreeting', value as VoiceDraft['positiveGreeting'])
             }
             disabled={pending}
-            touch
           />
         </FormFieldFrame>
         <FormFieldFrame
@@ -127,7 +126,6 @@ export function ReplyVoiceFields({
               change('negativeGreeting', value as VoiceDraft['negativeGreeting'])
             }
             disabled={pending}
-            touch
           />
         </FormFieldFrame>
       </div>
@@ -207,7 +205,6 @@ export function ReplyVoiceFields({
               change('emojiMode', value as VoiceDraft['emojiMode'])
             }
             disabled={pending}
-            touch
           />
         </FormFieldFrame>
         {draft.emojiMode === 'positive' ? (

@@ -26,6 +26,7 @@ import {
   SETUP_FEW_REVIEWS,
   SETUP_KEEP_FIRST,
 } from './rating-goal.stories.fixtures'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const NOW = new Date(FIXTURE_NOW)
 
@@ -79,7 +80,7 @@ async function expectHeadlineAndRuler(card: ReturnType<typeof within>) {
 
 /** The same card as the Goals page: the new reviews to the next number, the ruler, this week. */
 export const ActiveGoal: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const card = within(canvasElement)
     await expect(
       card.getByRole('heading', { level: 2, name: 'Google rating goal' }),
@@ -94,7 +95,7 @@ export const ActiveGoal: Story = {
       `/properties/${FIXTURE_PROPERTY_ID}/goals/google-rating`,
     )
     await expect(card.queryByRole('button', { name: /Set your Google/ })).toBeNull()
-  },
+  }),
 }
 
 const keepMock = fn<RatingGoalRecapCommands['keepPaceFn']>(async ({ data }) => ({
@@ -169,8 +170,6 @@ export const ActiveGoalPhone: Story = {
     await expect(card.getByRole('link', { name: 'View details' })).toBeVisible()
   },
 }
-
-export const ActiveGoalLight: Story = { ...ActiveGoal, parameters: { theme: 'light' } }
 
 /** A far goal: 31 to 4.4 and the goal's own total, and a ruler half the way. */
 export const FarGoal: Story = {

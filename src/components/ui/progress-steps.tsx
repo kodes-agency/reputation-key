@@ -22,7 +22,7 @@ export function ProgressSteps({ steps, currentStep, label }: Props) {
           <li
             key={step.id}
             aria-current={index === currentIndex ? 'step' : undefined}
-            className="flex items-center gap-3 not-last:flex-1"
+            className="relative flex items-center gap-3 not-last:flex-1"
           >
             <span className="inline-flex min-w-0 items-center gap-2 p-1">
               <span
@@ -32,7 +32,7 @@ export function ProgressSteps({ steps, currentStep, label }: Props) {
               >
                 {index < currentIndex ? <Check className="size-4" /> : index + 1}
               </span>
-              <span className="flex min-w-0 flex-col">
+              <span className="flex min-w-0 flex-col max-lg:absolute max-lg:top-0 max-lg:left-0">
                 <span className="sr-only truncate text-sm font-medium lg:not-sr-only">
                   {step.title}
                 </span>
