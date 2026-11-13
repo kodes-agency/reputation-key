@@ -49,7 +49,7 @@ import { createInboxViewRepository } from './infrastructure/repositories/inbox-v
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
-} from './infrastructure/inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewHandlingCycleStore } from './infrastructure/review-handling-cycle.store'
 import { createFeedbackHandlingStore } from './infrastructure/feedback-handling.store'
 import { createResponseTargetStore } from './infrastructure/response-target.store'

@@ -13,7 +13,7 @@ import type { HandlingCycleHead, ManualReopenReason } from '../domain/types'
 import { inboxItemStatusChanged } from '../domain/events'
 import { inboxError } from '../domain/errors'
 import { handlingCycleHeadFromRow, itemFromRow } from './inbox-command-guards'
-import { createAtomicInboxCommandStore } from './inbox-command-store'
+import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { catchUpProjectionRevisions } from './inbox-source-projection'
 
 type ReopenBase = Readonly<{

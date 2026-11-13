@@ -30,7 +30,7 @@ import { closeHandlingCycle } from '../domain/handling-cycles'
 import { inboxError } from '../domain/errors'
 import { inboxHandlingCycleClosed, inboxItemStatusChanged } from '../domain/events'
 import type { HandlingCycleHead, InboxItem } from '../domain/types'
-import type { InboxCommandAuthority } from './inbox-command-store'
+import type { InboxCommandAuthority } from '#/contexts/reputation/inbox/command-store.server'
 import {
   selectCycleCloseReason,
   selectSourceUnavailableCloseReasons,

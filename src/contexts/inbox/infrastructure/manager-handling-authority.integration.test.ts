@@ -34,7 +34,7 @@ import { inboxItemStatusChanged } from '../domain/events'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
-} from './inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createFeedbackHandlingStore } from './feedback-handling.store'
 
 const ORG = organizationId('org-manager-handling-authority-0001')

@@ -7,7 +7,7 @@ import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/doma
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
-import { createAtomicInboxCommandStore } from './inbox-command-store'
+import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from './repositories/inbox.repository'
 import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
 import {
