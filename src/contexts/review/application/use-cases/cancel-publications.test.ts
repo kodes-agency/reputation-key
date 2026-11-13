@@ -1,4 +1,4 @@
-// Review context — cancelPublicationsForConnection tests (BQC-3.8).
+// Review context — cancelPublicationsForConnection tests.
 //
 // The disconnect/policy flow resolves the connection's reviews exactly like
 // the source-content purge (google_connection_id equality within the org),

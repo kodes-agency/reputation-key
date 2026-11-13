@@ -983,7 +983,7 @@ describe('runReviewProviderSnapshot', () => {
         code: 'provider_failure',
       },
     )
-    // runId only: BQC-7.3 bans tenant identifiers from logger call-sites, and
+    // runId only: the log schema bans tenant identifiers at logger call-sites, and
     // the run row resolves the property for whoever reads the log.
     expect(deps.logger.error).toHaveBeenCalledWith(
       {

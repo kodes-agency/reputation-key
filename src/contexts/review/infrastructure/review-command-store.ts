@@ -1,5 +1,5 @@
 import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
-// Atomic review command store (BQR-2.3).
+// Atomic review command store.
 //
 // One PostgreSQL transaction commits each Review mutation with its outbox
 // rows, so the durable fact and state change are atomic.
@@ -413,7 +413,7 @@ function restatementOf(
  * `onProviderRestatement` runs once per applied observation that was Google
  * rewording a review (the unmoved-updateTime rule), after its transaction
  * commits. It is the one signal that Google changed its format again, as it
- * did on 2026-10-23, so the process reports it rather than absorbing it quietly.
+ * has before, so the process reports it rather than absorbing it quietly.
  */
 export const createAtomicReviewCommandStore = (
   db: Database,

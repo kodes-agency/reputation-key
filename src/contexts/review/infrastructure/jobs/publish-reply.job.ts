@@ -9,14 +9,14 @@
 // writes: it runs the uncertain-attempt check below and then leaves the row to
 // the reconciliation sweep.
 //
-// BQC-3.3: provider outcomes are classified by the reply publication workflow
+// Provider outcomes are classified by the reply publication workflow
 // (classifyPublicationFailure), from the dispatch the provider plane recorded
 // (D2): `not_sent` is the only evidence that lets a failed write be retried.
 // Every classified failure is logged as { attempt, failureClass,
 // executionCode, dispatch, providerStatus, errorName, errorCode } and nothing
 // else: the last two only when identifier-shaped, never the error message.
 //
-// BQC-3.8: the publication state machine is DURABLE (replies.publication_state,
+// The publication state machine is DURABLE (replies.publication_state,
 // migration 0015). The handler:
 //   0. READS GOOGLE FIRST, for an `authorized` cycle on a Review with a Google
 //      subject (publish-reply-preread.ts). `reviews.reply` is an upsert, so one
@@ -127,7 +127,7 @@ type PublishHandlerDeps = Readonly<{
   /** One `reviews.get` of the review, recorded through the sync writer, made
    * before a fresh publication is claimed (publish-reply-preread.ts). */
   readBeforePublish: ReadReviewBeforePublish
-  /** BQC-3.3/3.8: atomic mark ops (guarded state + outbox fact in one tx). */
+  /** Atomic mark ops (guarded state + outbox fact in one tx). */
   replyCommandStore: ReplyCommandStore
   /** D4: the only input that may settle an uncertain attempt as never sent. */
   dispatchEvidence: ReplyPublicationDispatchEvidencePort
@@ -140,7 +140,7 @@ type PublishHandlerDeps = Readonly<{
   staffPublicApi: StaffPublicApi
 }>
 
-/** RPL-01: an authorization fence is current only when the job carries the full
+/** An authorization fence is current only when the job carries the full
  * provider-source coordinates the authorization was granted against. */
 function hasCurrentAuthorizationFence(data: PublishReplyJobData): boolean {
   return (
@@ -183,11 +183,11 @@ async function loadPublishTarget(
     return null
   }
 
-  // RPL-01: a durable intent or fast-path job may arrive after a later
+  // A durable intent or fast-path job may arrive after a later
   // approval/edit/retry cycle has become current. The explicit monotonic
   // cycle is the fence: stale work stops before it can claim the row or
   // reach the provider. A missing value is accepted only for a bounded
-  // pre-RPL-01 job whose persisted row is still at legacy cycle zero.
+  // job enqueued before the cycle existed whose persisted row is still at legacy cycle zero.
   const requestedCycle = job.data.publicationCycle
   if (
     (requestedCycle === undefined && reply.publicationCycle !== 0) ||
@@ -221,7 +221,7 @@ async function loadPublishTarget(
 }
 
 /**
- * BQC-3.8 POST-CALL RACE GUARD: the disconnect purge, a cancellation or a
+ * POST-CALL RACE GUARD: the disconnect purge, a cancellation or a
  * re-authorization may have run while the Google call was in flight. In
  * every one of those cases the local truth wins and the provider result is not
  * acknowledged.
@@ -262,7 +262,7 @@ async function localTruthStillOwnsCycle(
  * reply someone typed on Google since the last sync would be replaced. What the
  * read records moves the head the claim compares, or ends the cycle.
  *
- * BQC-3.8: the claim moves approved + authorized → sending, attempts+1. A
+ * The claim moves approved + authorized → sending, attempts+1. A
  * persisted sending row went through the check-only path, so it can never be
  * re-claimed into a second Google write. A null claim means the cycle was
  * cancelled meanwhile (disconnect/policy) or is no longer claimable.
@@ -298,7 +298,7 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
     return trace('job.publishReply', async () => {
       const logger = deps.logger
 
-      // BQC-3.2: capability authorization happens at dispatch in the delayed
+      // Capability authorization happens at dispatch in the delayed
       // execution gate — job handlers no longer re-check capabilities.
 
       const rId = replyId(job.data.replyId)
@@ -619,7 +619,7 @@ async function readUncertainAttempt(
   return { kind: 'recorded' }
 }
 
-/** BQC-3.3/3.8: classified failure handling — see the header table. */
+/** Classified failure handling — see the header table. */
 async function handlePublishFailure(
   deps: PublishHandlerDeps,
   job: Job<PublishReplyJobData>,

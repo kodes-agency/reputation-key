@@ -1,4 +1,4 @@
-// Inbox command store — atomic inbox state mutation + outbox record (BQC-3.4).
+// Inbox command store — atomic inbox state mutation + outbox record.
 //
 // Callers must not know Drizzle transaction types or outbox tables.
 // The production implementation commits the state write, outbox facts, and
@@ -141,7 +141,7 @@ export type ApplyReviewProjectionCommand = Readonly<{
 }>
 
 /**
- * REV-01 source transition: preserve the stable Inbox identity while removing
+ * Source transition: preserve the stable Inbox identity while removing
  * every legacy provider-controlled projection value. The store decides under
  * its row lock whether open work also closes and records `closeFact` only when
  * that open -> closed transition actually lands.
@@ -257,7 +257,7 @@ export type InboxCommandStore = Readonly<{
    * Assignment update + assigned/unassigned fact in one transaction
    * (assignedTo null covers the unassign path). `event` is null when
    * unassigning an item that had no assignee (no fact, mirrors the use
-   * case's pre-BQC-3.4 behavior).
+   * case's behavior).
    */
   assign(
     item: InboxItem,

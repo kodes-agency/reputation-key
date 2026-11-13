@@ -5,12 +5,12 @@
 // stars, in windows by the date Google created them (`reviews.reviewed_at`,
 // Google's createTime). They return counts and sums only, never a review.
 //
-// Since round 2 (2026-10-15) the goal also asks for the totals of the reviews
+// The goal also asks for the totals of the reviews
 // created since it was set (their average judges whether new reviews are too
 // low), and for each Property-local calendar year's totals (the best year is
 // evidence for a planned quality). Still counts and sums only.
 //
-// Since rounds 3 and 4 (2026-10-16) the setup also asks for each Property-local
+// The setup also asks for each Property-local
 // calendar month's totals (the best month is evidence for the planned average;
 // a month under ten reviews is never returned, so no month's total is one
 // review's stars) and for the count of reviews on each Property-local date
@@ -18,7 +18,7 @@
 // sums. Comparing successive reads of a growing month (the current one) is out
 // of scope: managers already see each review in the Inbox.
 //
-// Since round 5 (2026-10-16, the tracking page) the goal also asks for two
+// The tracking page also asks for two
 // more aggregates, and no window sum leaves Review for them either: the exact
 // average as of the end of each Property-local week (an average over every
 // current review created before then, the whole-history class `all` already
@@ -29,13 +29,13 @@
 // can tell one new review's stars; managers see each review in the Inbox.
 //
 // Two reads are per-review, by the owner's exception for the tracking page
-// (2026-10-17, ADR 0067, PLAN-D Q2): the low reviews since the goal was set
+// (ADR 0067): the low reviews since the goal was set
 // (`getLowReviews`: a review's id, stars and creation time, nothing else, up to
 // GOOGLE_RATING_LOW_REVIEW_LIMIT) and this week's star split (the star
 // distribution since this Monday). The caller reads them live for the goal's
 // managers and keeps nothing.
 //
-// Since round 5's check-in (2026-10-17, D-3) the summary also counts the
+// The Monday check-in summary also counts the
 // reviews of one range in the same scan (last Property-local week), and gives
 // their star sum only from ten reviews (GOOGLE_RATING_RANGE_MIN_COUNT): no
 // window aggregate under ten returns a sum, so a week's sum never tells a few

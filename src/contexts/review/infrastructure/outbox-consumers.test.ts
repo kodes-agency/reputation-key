@@ -52,7 +52,7 @@ import {
   type ReviewOutboxLogger,
 } from './outbox-consumers'
 
-// ARC-03-T7: a fresh container-scoped registry per test.
+// A fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const NOW = new Date('2026-08-26T12:00:00.000Z')
@@ -244,7 +244,7 @@ describe('reply publication requested durable consumer', () => {
   })
 })
 
-// BQC-3.8: durable delivery cancels every in-flight reply publication on a
+// Durable delivery cancels every in-flight reply publication on a
 // revoked Google connection. The use case is idempotent, so redelivery after
 // a crash between cancellation and receipt converges.
 describe('google account disconnected durable consumer', () => {

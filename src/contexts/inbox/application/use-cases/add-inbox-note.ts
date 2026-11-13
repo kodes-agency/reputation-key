@@ -49,7 +49,7 @@ export const addInboxNote =
     const note = result.value
 
     // 3. Persist + record the fact atomically. Notes remain context-owned
-    //    content — the event carries the note ID, never the text (BQC-3.4).
+    //    content — the event carries the note ID, never the text.
     return deps.commandStore.addNote(
       item,
       note,

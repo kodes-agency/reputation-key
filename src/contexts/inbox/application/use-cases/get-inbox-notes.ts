@@ -18,7 +18,7 @@ export type GetInboxNotesInput = Readonly<{
 }>
 
 /**
- * IBX-01-T6: the note plus the author's current display name. `displayName`
+ * The note plus the author's current display name. `displayName`
  * stays OUT of the `InboxNote` domain type on purpose — a name is mutable
  * profile data resolved at read time, not a fact the note records.
  * `null` means "not resolvable in this Organization"; the renderer shows an

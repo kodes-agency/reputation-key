@@ -650,7 +650,7 @@ describe.sequential('getInboxItems', () => {
     }
   })
 
-  // ── Property scoping tests (F-14 fix) ──────────────────────────────
+  // ── Property scoping tests ──────────────────────────────
 
   it('AccountAdmin sees all properties (org-wide role bypass)', async () => {
     const { useCase, seed } = setup(adminStaffApi)

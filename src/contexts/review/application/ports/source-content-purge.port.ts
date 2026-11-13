@@ -1,4 +1,4 @@
-// Review context — source-content lifecycle compatibility port (BQC-1.7).
+// Review context — source-content lifecycle compatibility port.
 // Ordinary composition performs bounded, checkpointed, content-free reports
 // for disconnect/property/organization scopes. Erasure is possible only in a
 // separately constructed executor carrying the exact confirmation plus a

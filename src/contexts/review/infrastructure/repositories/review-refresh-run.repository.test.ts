@@ -1,4 +1,4 @@
-// Review context — refresh sweep run repository integration tests (BQC-1.5).
+// Review context — refresh sweep run repository integration tests.
 // Proves the run record round-trips: create, per-batch updates, latest-run
 // resume lookup — content-free operational state.
 

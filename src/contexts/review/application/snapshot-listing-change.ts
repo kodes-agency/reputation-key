@@ -4,19 +4,19 @@
 // only after the second (confirmation) listing returned exactly the reviews
 // the first (main) one did, and only from pages that all agree on one total
 // and one average. A run that sees the listing move under it ends without
-// removing anything. Until 2026-10-19 that always failed the sync loudly: a
-// Sentry error, an alert, a dead letter and a repair latch.
+// removing anything. That is not a failure of the sync (no Sentry error, alert,
+// dead letter or repair latch).
 //
 // Most such runs are lost, not broken. A guest who posts while a run is
 // reading (or Google hiding or restoring a review then) moves the listing,
 // and the next run reads one that holds still. The listing moves in five ways:
 //
 // - the confirmation finds a different set than the main scan did
-//   (`confirmation_set_changed`, the first to be made quiet, 2026-10-19: the
-//   largest beta location, 3,714 reviews, saw it once in 189 overnight runs);
+//   (`confirmation_set_changed`: on the largest beta location, 3,714 reviews,
+//   it showed once in 189 overnight runs);
 // - Google's total differs from one page to the next (`total_changed`): the
-//   same location failed two runs in a row on 2026-10-20 (3,716 expected, lost
-//   at page 7; 3,717 at page 65 of 75), because guests posted while a run of
+//   same location lost a run at page 7 (3,716 expected) and another at page 65
+//   of 75 (3,717), because guests posted while a run of
 //   about 15 minutes was listing, and its next two runs completed;
 // - Google's average differs from one page to the next (`average_changed`):
 //   a guest re-rated a review (a new review moves the total first);
@@ -30,7 +30,7 @@
 //   revision after the run began, so the run's own, older sighting of it is
 //   behind the stored one.
 //
-// Such a run now ends as `listing_changed`: the sync job starts a fresh run at
+// Such a run ends as `listing_changed`: the sync job starts a fresh run at
 // once and records no failure. None of them gets as far as its apply step, so
 // none removes anything, and a run that stops mid-scan has recorded no first
 // miss either.
@@ -39,7 +39,7 @@
 // paging the same way twice, or a paging defect of ours. That stays as loud as
 // it was, under the code that says what moved. The store decides which one a
 // run is when it records the failure, from the Property's runs just before it
-// (ADR 0055, notes 2026-10-19 and 2026-10-20).
+// (ADR 0055).
 //
 // What does not count as a move, and stays loud on its first run: a review
 // twice on ONE page (Google's page is broken, a page being one response), and

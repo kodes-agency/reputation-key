@@ -46,7 +46,7 @@ export const createInboxItem = (
     sourceType: input.sourceType,
     sourceId: input.sourceId,
     status: 'open' as InboxStatus,
-    // BQC-1.2: raw source content is never stored on inbox items — rating/
+    // Raw source content is never stored on inbox items — rating/
     // snippet/reviewerName are sourced live via the eligible review lookup.
     rating: null,
     sourceDate: input.sourceDate,

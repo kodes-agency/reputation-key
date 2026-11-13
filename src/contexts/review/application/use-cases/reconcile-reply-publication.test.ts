@@ -1,4 +1,4 @@
-// BQC-3.3 — reconcileReplyPublication use case tests.
+// reconcileReplyPublication use case tests.
 //
 // Manual/operator recovery for an ambiguous publish outcome: make one targeted
 // provider read; if Google shows the reply, heal the

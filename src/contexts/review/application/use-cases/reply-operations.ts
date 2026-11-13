@@ -458,7 +458,7 @@ export const draftReply =
       submittedAt: null,
       approvedAt: null,
       publishedAt: null,
-      // BQC-3.8: a fresh draft has no publication workflow.
+      // A fresh draft has no publication workflow.
       publicationState: null,
       publicationCycle: 0,
       publicationAttempts: 0,

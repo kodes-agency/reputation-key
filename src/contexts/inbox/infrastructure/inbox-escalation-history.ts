@@ -1,5 +1,5 @@
-// Escalation history for the atomic inbox command store (BQC-3.4, ADR 0055).
-// Split out of inbox-command-store.ts (code-health-02 phase 1): every write
+// Escalation history for the atomic inbox command store (ADR 0055).
+// Split out of inbox-command-store.ts: every write
 // here targets `inbox_escalation_history`, never `inbox_items`, so none of it
 // is subject to inbox-status-mirror.guard.test.ts's mirror-writer fence.
 // inbox-command-store.ts imports from this module; this module must never

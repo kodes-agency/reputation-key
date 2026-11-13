@@ -53,7 +53,7 @@ describe('inboxItemFromRow', () => {
     expect(item.sourceType).toBe('review')
     expect(item.sourceId).toBe('source-uuid-001')
     expect(item.status).toBe('open')
-    // BQC-1.2: denormalized raw copies are never read from the row — the
+    // Denormalized raw copies are never read from the row — the
     // mapper always yields null; live values come from the review lookup.
     expect(item.rating).toBeNull()
     expect(item.sourceDate).toBe(sourceDate)
@@ -121,7 +121,7 @@ describe('inboxItemToInsertRow', () => {
     expect(row.sourceType).toBe(sampleRow.sourceType)
     expect(row.sourceId).toBe(sampleRow.sourceId)
     expect(row.status).toBe(sampleRow.status)
-    // BQC-1.2: denormalized content columns are never written.
+    // Denormalized content columns are never written.
     expect(row.rating).toBeUndefined()
     expect(row.snippet).toBeUndefined()
     expect(row.reviewerName).toBeUndefined()

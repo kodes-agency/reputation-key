@@ -1,6 +1,5 @@
 // Pure predicates, row mappers, and fact builders for the atomic inbox
-// command store (BQC-3.4). Split out of inbox-command-store.ts (code-health-02
-// phase 1): every export here is side-effect free — no `Tx`, no query, no
+// command store. Split out of inbox-command-store.ts: every export here is side-effect free — no `Tx`, no query, no
 // mutation — so it carries none of the transactional command handlers and
 // none of the `inbox_items` writers inbox-status-mirror.guard.test.ts fences.
 // inbox-command-store.ts imports from this module; this module must never

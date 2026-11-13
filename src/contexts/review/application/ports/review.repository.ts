@@ -113,7 +113,7 @@ export type ReviewRepository = Readonly<{
   /** Every live Review of the Organization, in id order. */
   findByOrganizationId(orgId: OrganizationId): Promise<ReadonlyArray<Review>>
   /**
-   * BQC-3.8: keyset-bounded batch of reviews sourced through a Google
+   * Keyset-bounded batch of reviews sourced through a Google
    * connection (reviews.google_connection_id), ordered by id. `cursor`
    * resumes strictly AFTER the given review id. Used by the disconnect
    * publication-cancellation flow (same resolution the source-content purge
@@ -126,7 +126,7 @@ export type ReviewRepository = Readonly<{
     limit: number,
   ): Promise<ReadonlyArray<Review>>
   /**
-   * Review-owned eligible id query for cross-context list filters (BQC-1.2).
+   * Review-owned eligible id query for cross-context list filters.
    * Returns ids of live reviews whose content is eligible at `now`
    * (contentExpiresAt IS NOT NULL AND > now), optionally narrowed by rating
    * range and case-insensitive text search. Callers avoid cross-context JOINs.
@@ -137,7 +137,7 @@ export type ReviewRepository = Readonly<{
     now: Date,
   ): Promise<ReadonlyArray<string>>
   /**
-   * ⚠️ CROSS-TENANT: BQC-1.5 keyset-bounded batch of expiring reviews,
+   * ⚠️ CROSS-TENANT: keyset-bounded batch of expiring reviews,
    * ordered (contentExpiresAt ASC, id ASC). `cursor` resumes strictly AFTER
    * (contentExpiresAt, id) — no row is skipped or repeated as the cursor
    * advances. Replaces the one-shot 5,000-row scan. Only reviews a refresh
@@ -151,7 +151,7 @@ export type ReviewRepository = Readonly<{
     limit: number,
   ): Promise<ReadonlyArray<Review>>
   /**
-   * ⚠️ CROSS-TENANT: BQC-8.3 keyset-bounded batch of expired reviews —
+   * ⚠️ CROSS-TENANT: keyset-bounded batch of expired reviews —
    * non-null `contentExpiresAt < date` (exclusive; no post-expiry grace,
    * ADR 0031), ordered (contentExpiresAt ASC, id ASC). `cursor` resumes
    * strictly AFTER (contentExpiresAt, id). Used by purge-expired (pass
@@ -165,7 +165,7 @@ export type ReviewRepository = Readonly<{
   ): Promise<ReadonlyArray<Review>>
   /**
    * ⚠️ CROSS-TENANT: exact count of purge-eligible rows (non-null
-   * `contentExpiresAt < date`, exclusive). BQC-8.3: the restore drill's
+   * `contentExpiresAt < date`, exclusive). The restore drill's
    * dry-run/zero-remaining probe — a COUNT, not a bounded scan, so the
    * number stays honest at any scale.
    */
@@ -173,8 +173,8 @@ export type ReviewRepository = Readonly<{
 }>
 
 /**
- * The read-only review slice Review publishes through `lookups.review`
- * (ARC-03-T12). Other contexts get these four reads and nothing that writes.
+ * The read-only review slice Review publishes through `lookups.review`.
+ * Other contexts get these four reads and nothing that writes.
  */
 export type ReviewLookups = Pick<
   ReviewRepository,

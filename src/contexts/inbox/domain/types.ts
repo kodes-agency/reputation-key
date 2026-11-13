@@ -241,7 +241,7 @@ export type InboxItemDetail = Readonly<{
    * asks for the account that manages the profile.
    */
   googleReviewUrl: string | null
-  /** BQC-1.2: typed eligibility outcome of the authorized review read. */
+  /** Typed eligibility outcome of the authorized review read. */
   reviewContentStatus: 'available' | 'expired' | 'not_found' | null
   /**
    * The guest's star rating, carried from the SAME `ReviewSnippet` that feeds
@@ -249,7 +249,7 @@ export type InboxItemDetail = Readonly<{
    * (`review-lookup.port.ts:18`), and therefore governed by the same rule:
    * `null` for `expired` and `not_found`. A review whose content we are no
    * longer eligible to serve may not assert a rating either — the number is
-   * provider-owned content exactly like the words are (BQC-1.2).
+   * provider-owned content exactly like the words are.
    *
    * This is NOT `item.rating`, and `item.rating` is no fallback for it. The
    * projection NULLs the row's own column on review projection and on source

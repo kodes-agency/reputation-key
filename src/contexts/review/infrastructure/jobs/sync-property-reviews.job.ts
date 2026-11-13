@@ -146,7 +146,7 @@ const SKIPPED_CONNECTION_UNUSABLE = Object.freeze({
  * The reconnect notice is the signal, so the step is not a failure: it returns
  * instead of throwing (BullMQ spends no retry, nothing is dead-lettered, Sentry
  * sees nothing, the family's repair state is not latched) and writes one
- * warning of closed codes. The log schema (BQC-7.3) bans tenant identifiers, so
+ * warning of closed codes. The log schema bans tenant identifiers, so
  * the line names no Property or connection; the notice and the connection row
  * say which. It records nothing about the Property's discovery state either:
  * no failure, no retry date, so the first poll after a reconnect starts a fresh
@@ -178,10 +178,10 @@ const SKIPPED_RUN_ALREADY_FAILED = Object.freeze({
  * fail again. So it returns instead of
  * throwing: no retry is spent, nothing is dead-lettered, Sentry sees nothing for
  * it, the family's repair state is not latched, and the failing step's
- * `error_class` and retry date stand. On the beta on 2026-10-24 a VACUUM FULL
- * lock failed one run and every retry of its step failed the job again, pushing
- * the backoff out, until a dead letter no redrive could clear. One warning of
- * closed codes; the log schema (BQC-7.3) bans identifiers.
+ * `error_class` and retry date stand. A lock held for a long time (a VACUUM FULL) fails
+ * one run, and retries of the step would fail the job again, pushing the
+ * backoff out until a dead letter no redrive could clear. One warning of
+ * closed codes; the log schema bans identifiers.
  *
  * One exception, for a failure nobody recorded. The store fails the run first
  * and the failing step dates the Property's failure second; a worker that died
