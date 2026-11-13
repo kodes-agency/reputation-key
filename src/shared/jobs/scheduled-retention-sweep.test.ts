@@ -10,6 +10,11 @@ vi.mock('#/shared/db/retention/evidence', () => ({
   openRetentionRun: vi.fn(async () => 'run-1'),
   closeRetentionRun: vi.fn(async () => {}),
 }))
+// Retention ships on (scheduled-retention-active.test.ts); these hold the branch a
+// release that switched it off again would run.
+vi.mock('#/shared/db/retention/scheduled-retention-activation', () => ({
+  SCHEDULED_RETENTION_ACTIVE: false,
+}))
 
 describe('scheduled retention activation', () => {
   beforeEach(() => vi.clearAllMocks())
