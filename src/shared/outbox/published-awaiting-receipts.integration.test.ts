@@ -14,6 +14,7 @@ const repo = createOutboxRepository(db)
 const ORG = 'org-published-awaiting-receipts'
 const OTHER_ORG = 'org-published-awaiting-receipts-other'
 const EVENT_TYPE = 'test.published-awaiting-receipts'
+const CATALOGUED_EVENT_TYPE = 'property.updated'
 const CONSUMER = 'test.awaiting-consumer'
 const MINUTE = 60_000
 const EXPECTED = [{ eventType: EVENT_TYPE, consumerName: CONSUMER }]
@@ -32,12 +33,15 @@ async function insertEvent(
   minutesAgo: number,
   published: boolean,
   organizationId = ORG,
+  eventType = EVENT_TYPE,
 ): Promise<string> {
   const publishedAt = new Date(Date.now() - minutesAgo * MINUTE)
   return insertAt(
     new Date(publishedAt.getTime() - 1_000),
     published ? sql`${publishedAt}::timestamptz` : sql`NULL`,
     organizationId,
+    sql`gen_random_uuid()`,
+    eventType,
   )
 }
 
@@ -46,13 +50,14 @@ async function insertAt(
   publishedAt: SQL,
   organizationId = ORG,
   id: SQL = sql`gen_random_uuid()`,
+  eventType = EVENT_TYPE,
 ): Promise<string> {
   const result = await db.execute(sql`
     INSERT INTO outbox_events (
       id, event_type, event_version, payload, organization_id, source_context,
       source_aggregate_id, created_at, published_at
     ) VALUES (
-      ${id}, ${EVENT_TYPE}, 1, '{}'::jsonb, ${organizationId}, 'test',
+      ${id}, ${eventType}, 1, '{}'::jsonb, ${organizationId}, 'test',
       'aggregate-awaiting', ${createdAt}, ${publishedAt}
     ) RETURNING id
   `)
@@ -85,15 +90,36 @@ describe('published facts awaiting durable delivery', () => {
   })
 
   it('never reads a published fact in the per-second poll', async () => {
-    const stranded = await insertEvent(40, true)
-    const unpublished = await insertEvent(20, false)
+    // A catalogued type with receipts owed: a poll that read published facts
+    // would admit the stranded one.
+    const stranded = await insertEvent(40, true, ORG, CATALOGUED_EVENT_TYPE)
+    const unpublished = await insertEvent(20, false, ORG, CATALOGUED_EVENT_TYPE)
 
     const polled = await repo.delivery.schedulePending(10)
 
     expect(polled.map(({ subjectId }) => subjectId)).toEqual([unpublished])
     expect(await repo.delivery.schedulePending(10)).toEqual([])
-    const swept = await sweep(10)
+    const swept = await createOutboxRelay(repo, undefined, { sweepPageSize: 10 }).sweep()
     expect(swept.map(({ subjectId }) => subjectId)).toEqual([stranded])
+  })
+
+  it('skips a leased published fact until its lease ends', async () => {
+    const leased = await insertEvent(40, true)
+    await db.execute(sql`
+      UPDATE outbox_events
+      SET lease_owner = 'test-worker', leased_at = now(),
+        lease_expires_at = now() + interval '1 hour'
+      WHERE id = ${leased}::uuid
+    `)
+
+    expect(await sweep(10)).toEqual([])
+
+    await db.execute(sql`
+      UPDATE outbox_events SET lease_expires_at = now() - interval '1 second'
+      WHERE id = ${leased}::uuid
+    `)
+
+    expect((await sweep(10)).map(({ subjectId }) => subjectId)).toEqual([leased])
   })
 
   it('pages across facts published within the same millisecond', async () => {
