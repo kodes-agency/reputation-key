@@ -359,7 +359,6 @@ export const aiOperations = pgTable(
       sql`(
         (${t.command} = 'analysis' AND ${t.capability} = 'review_analysis' AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'review_event_consumer' AND ${t.reviewId} IS NOT NULL AND ${t.originEventId} IS NOT NULL AND ${t.subjectHmac} ~ '^[0-9a-f]{64}$' AND ${t.subjectHmacKeyVersion} IS NOT NULL AND ${t.sourceEpoch} >= 0 AND ${t.sourceRevision} >= 1 AND ${t.analysisSequence} >= 1)
         OR (${t.command} = 'reply' AND ${t.capability} = 'reply_drafting' AND ${t.actorUserId} IS NOT NULL AND ${t.systemPrincipal} IS NULL AND ${t.reviewId} IS NOT NULL AND ${t.sourceEpoch} >= 0 AND ${t.sourceRevision} >= 1 AND ${t.tone} IN ('professional', 'friendly', 'casual') AND ${t.baseReplyStateRevision} >= 0)
-        OR (${t.command} = 'trend' AND ${t.capability} = 'property_trends' AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'property_trend_coordinator' AND ${t.sourceEpoch} >= 0 AND ${t.dueLocalDate} IS NOT NULL AND ${t.terminalAnalysisSequence} >= 0 AND ${t.aggregateRevision} >= 0)
       )`,
     ),
     check(

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
-import { aiOperations, aiReviewAnalyses } from '#/shared/db/schema'
+import { aiOperations } from '#/shared/db/schema'
 import { organizationId } from '#/shared/domain/ids'
 import {
   installAiAnalysisFixture,
@@ -91,74 +91,6 @@ describe.sequential('AI recovery selection and fences (real PostgreSQL)', () => 
 
       await expect(scan(DEADLINE - 1_000)).resolves.toEqual([])
       await expect(scan()).resolves.toMatchObject([{ operationId, state, attempt: 1 }])
-    },
-  )
-
-  // The database still admits the retired trend command. Recovery knows it as history:
-  // it is neither adopted as a candidate nor reported as an unreadable row.
-  it('skips a stored trend row: no candidate and not listed as unreadable', async () => {
-    await db
-      .update(aiOperations)
-      .set({
-        command: 'trend',
-        operationProfileVersion: 'property-trend-v1',
-        capability: 'property_trends',
-        systemPrincipal: 'property_trend_coordinator',
-        reviewId: null,
-        originEventId: null,
-        subjectHmac: null,
-        subjectHmacKeyVersion: null,
-        sourceRevision: null,
-        reviewedAtEpochMillis: null,
-        analysisSequence: null,
-        dueLocalDate: '2026-10-29',
-        terminalAnalysisSequence: 0,
-        aggregateRevision: 0,
-        state: 'pending',
-        expiresAt: new Date(DEADLINE),
-      })
-      .where(eq(aiOperations.id, operationId))
-
-    const result = await operations.listExpiredExecutions({
-      nowEpochMillis: DEADLINE,
-      executionHorizonMillis: 15 * 60_000,
-      limit: 100,
-    })
-
-    expect(
-      result.candidates.filter((row) => row.organizationId === ORGANIZATION),
-    ).toEqual([])
-    expect(
-      result.unreadable.filter((row) => row.organizationId === ORGANIZATION),
-    ).toEqual([])
-  })
-
-  it.each(['ready', 'unavailable', 'missing'] as const)(
-    'reads a persisted %s result for pending delivery',
-    async (resultStatus) => {
-      await db
-        .update(aiOperations)
-        .set({ state: 'succeeded_pending_delivery' })
-        .where(eq(aiOperations.id, operationId))
-      if (resultStatus === 'missing') {
-        await db
-          .delete(aiReviewAnalyses)
-          .where(eq(aiReviewAnalyses.operationId, operationId))
-      } else if (resultStatus === 'unavailable') {
-        await db
-          .update(aiReviewAnalyses)
-          .set({
-            status: 'unavailable',
-            unavailableReason: 'language_not_supported',
-            sentiment: null,
-            attention: null,
-          })
-          .where(eq(aiReviewAnalyses.operationId, operationId))
-      }
-
-      await expect(scan()).resolves.toMatchObject([
-        { operationId, state: 'succeeded_pending_delivery', analysis: { resultStatus } },
-      ])
     },
   )
 

@@ -266,51 +266,6 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
     })
   })
 
-  // The database still admits the retired trend command. A stored row is read as that
-  // known command on the claim and idempotency paths, not as an invalid operation.
-  it('treats a stored trend row as a retired command: never claimed for execution, named as retired on a claim', async () => {
-    const request = await analysisRequest()
-    await claim(request, {
-      providerLineage: OPENAI_LINEAGE,
-      normalization: NORMALIZATION,
-    })
-    await db
-      .update(aiOperations)
-      .set({
-        command: 'trend',
-        operationProfileVersion: 'property-trend-v1',
-        capability: 'property_trends',
-        systemPrincipal: 'property_trend_coordinator',
-        reviewId: null,
-        originEventId: null,
-        subjectHmac: null,
-        subjectHmacKeyVersion: null,
-        sourceRevision: null,
-        reviewedAtEpochMillis: null,
-        analysisSequence: null,
-        dueLocalDate: '2026-10-29',
-        terminalAnalysisSequence: 0,
-        aggregateRevision: 0,
-      })
-      .where(eq(aiOperations.organizationId, ORGANIZATION_ID))
-    const [row] = await db
-      .select({ id: aiOperations.id })
-      .from(aiOperations)
-      .where(eq(aiOperations.organizationId, ORGANIZATION_ID))
-
-    await expect(
-      operations().claimExecution({
-        operationId: row!.id as AiOperationId,
-        organizationId: ORGANIZATION_ID,
-        expectedAttempt: 1,
-        nowEpochMillis: NOW.getTime(),
-      }),
-    ).resolves.toBeNull()
-    await expect(
-      claim(request, { providerLineage: OPENAI_LINEAGE, normalization: NORMALIZATION }),
-    ).rejects.toThrow(/^AI operation command is retired$/)
-  })
-
   it('claims no new operation under the retired review-analysis-v2 profile', async () => {
     const request = await analysisRequest()
 

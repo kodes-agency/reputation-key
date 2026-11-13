@@ -1094,6 +1094,13 @@
       "when": 1802102008000,
       "tag": "0155_authorization_execution_permits_created_at_index",
       "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1802103008000,
+      "tag": "0156_ai_operations_drop_handshake_columns",
+      "breakpoints": true
     }
   ]
 }
