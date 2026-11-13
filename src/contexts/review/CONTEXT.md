@@ -113,8 +113,14 @@ Properties whose drop outlasted 72 hours of requested reads.
 A full read is a provider snapshot run (`review_provider_snapshot_runs` and its
 members; store in `infrastructure/repositories/review-provider-snapshot*.ts`). A
 review Google no longer lists keeps a counted hold on its provider mapping and a
-first-miss time; removal needs two listings, and a listing that recorded a
-first miss requests one more full read. A listing whose
+first-miss time; removal needs two listings. A completed listing asks for a
+confirming full read when a stored Review has a first miss it cannot confirm
+(the miss is less than 15 minutes older than the listing's start); the sweep
+then runs that read six hours after the listing, as it does for a count drop,
+instead of a whole reconciliation window later. A listing that fails leaves the
+ask to the run that completes next, and a later listing that misses the same
+Review again does not ask twice. Nothing is written for a Property the sweep
+has never looked at. A listing whose
 Google total or average moved mid-scan restarts without a failure
 (`application/snapshot-listing-change.ts`) unless the Property's runs keep
 changing. The retention sweep (`infrastructure/repositories/snapshot-run-retention.repository.ts`,

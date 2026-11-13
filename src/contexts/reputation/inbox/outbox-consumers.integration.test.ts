@@ -1,4 +1,4 @@
-// BQC-3.4 — durable inbox consumers apply projections via applyOnce:
+// Durable inbox consumers apply projections via applyOnce:
 // state change, outbox facts, and the receipt co-commit through the inbox
 // command store. Duplicate deliveries record receipts without second facts;
 // missing items/reviews are applied no-ops (rebuild heals).
@@ -826,7 +826,7 @@ describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
 
     expect(result).toEqual({ status: 'applied' })
     expect(deps.reviewLookup.getReviewSnippetById).not.toHaveBeenCalled()
-    // BQC-1.2: metadata only — no rating/snippet/reviewerName copied.
+    // Metadata only — no rating/snippet/reviewerName copied.
     expect(await repo.items()).toHaveLength(1)
     expect((await repo.items())[0]!.sourceDate).toEqual(SOURCE_META.sourceDate)
     expect((await repo.items())[0]!.platform).toBe('google')
