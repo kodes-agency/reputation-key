@@ -40,7 +40,7 @@ const SOLE_ANTHROPIC_SDK_IMPORTER = join(
 )
 
 /**
- * `pnpm local:up`'s host runner, the one non-`src` file allowed to name the
+ * `pnpm dev`'s host runner, the one non-`src` file allowed to name the
  * provider key. Host-only: `production-artifact-boundary` keeps `scripts/` out
  * of every image.
  */
@@ -185,7 +185,7 @@ describe('provider client singleton', () => {
         join('src', 'composition', 'provider-runtime.ts'),
         join('src', 'shared', 'ai-provider-control', 'openai-connector.ts'),
         join('src', 'shared', 'config', 'env.ts'),
-        // The `pnpm local:up` runner refuses `REPKEY_LOCAL_AI=real` with the
+        // The `pnpm dev` runner refuses `REPKEY_LOCAL_AI=real` with the
         // fake key that ships in `e2e/stack.env`, which means naming the
         // variable. It reads the shape and nothing else: it ships in no image
         // (host-only tooling) and holds no transport, which the next assertion
