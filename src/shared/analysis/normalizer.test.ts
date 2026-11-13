@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
-import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from './review-analysis-v3'
+import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from '#/shared/review-analysis-v3'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_FLAGS,
@@ -11,7 +11,7 @@ import {
   type ReviewAnalysisNormalizationFlag,
   type ReviewAnalysisV3NormalizationContext,
   type ReviewAnalysisV3NormalizationResult,
-} from './review-analysis-v3-normalizer'
+} from '#/shared/analysis/normalizer'
 
 const context: ReviewAnalysisV3NormalizationContext = Object.freeze({
   sentences: Object.freeze([

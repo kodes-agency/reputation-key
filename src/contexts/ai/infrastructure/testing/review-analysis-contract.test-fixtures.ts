@@ -3,7 +3,7 @@ import type { AiOutputStorePort } from '#/contexts/ai/application/ports/ai-outpu
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
-} from '#/shared/review-analysis-v3-normalizer'
+} from '#/shared/analysis/normalizer'
 
 export const TEST_REVIEW_SENTENCES = Object.freeze([
   Object.freeze({ number: 1, text: 'The kitchen made several guests sick.' }),

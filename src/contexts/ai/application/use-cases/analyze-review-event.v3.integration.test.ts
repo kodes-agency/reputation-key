@@ -19,7 +19,7 @@ import { AI_REVIEW_LANGUAGE_REGION_NODE_VERSION } from '#/shared/generated/ai-re
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
-} from '#/shared/review-analysis-v3-normalizer'
+} from '#/shared/analysis/normalizer'
 import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AiOperationId } from '../../domain/types'

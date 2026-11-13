@@ -1,18 +1,18 @@
-import { REPLY_DRAFTING_V2_APOLOGY_STARTS as APOLOGIES } from './domain/reply-drafting-v2'
-import { digestOf } from './ai-digest'
-import { canonicalizeRfc8785 } from './canonical-json'
-import EXAMPLES from './reply-drafting-v2-examples.json'
-import BULGARIAN from './reply-drafting-v2-examples-bg.json'
-import { REPLY_DRAFTING_V2_PROMPT } from './reply-drafting-v2-prompt'
+import { REPLY_DRAFTING_V2_APOLOGY_STARTS as APOLOGIES } from '#/shared/domain/reply-drafting-v2'
+import { digestOf } from '#/shared/ai-digest'
+import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import EXAMPLES from '#/shared/reply-drafting-v2-examples.json'
+import BULGARIAN from '#/shared/reply-drafting-v2-examples-bg.json'
+import { REPLY_DRAFTING_V2_PROMPT } from '#/shared/reply/prompt'
 import {
   replyDraftingV2OptionsSchema,
   REPLY_DRAFTING_V2_VERSIONS,
   type ReplyDraftingV2Options,
-} from './reply-drafting-v2-schema'
+} from '#/shared/reply/schema'
 import {
   REPLY_BODY_RULES,
   type ReplyBodyIssueCode,
-} from './domain/reply-body-lint-policy'
+} from '#/shared/domain/reply-body-lint-policy'
 
 export const REPLY_DRAFTING_V2_ROUTE_MAX_BYTES = 131_072
 /** Upper bound for the appended examples and controlled rewrite instructions, including JSON escaping. */

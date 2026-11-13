@@ -15,14 +15,14 @@ import {
   REPLY_DRAFTING_V2_LANGUAGES,
   REPLY_DRAFTING_V2_VERSIONS,
   type ReplyDraftingV2Output,
-} from './reply-drafting-v2-schema'
+} from '#/shared/reply/schema'
 import {
   lintReplyDraftingV2Body,
   replyBodyFinding,
   REPLY_BODY_LINT_DIGEST,
   type Language,
   type ReplyBodyFinding,
-} from './reply-drafting-v2-lint'
+} from '#/shared/reply/lint'
 
 // Unicode word edges; accent folding admits accented and unaccented variants.
 // Negation cannot authorize a compensation offer or admission either.

@@ -1,4 +1,4 @@
-import { replyDraftingV2OutputSchema } from './reply-drafting-v2-schema'
+import { replyDraftingV2OutputSchema } from '#/shared/reply/schema'
 import { z } from 'zod/v4'
 import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from './review-analysis-v3'
 

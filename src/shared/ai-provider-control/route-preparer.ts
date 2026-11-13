@@ -1,6 +1,6 @@
 import type { AiReplyOutputRefusal } from './reply-output-refusal'
 import { prepareReplyDraftingV2 } from './reply-drafting-v2'
-import { replyDynamicDeveloperBytes } from '#/shared/reply-drafting-v2-request'
+import { replyDynamicDeveloperBytes } from '#/shared/reply/request'
 import type { KeyObject } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'

@@ -13,7 +13,7 @@ import { MAX_AI_REVIEW_SENTENCES_V1 } from './ai-review-source-contract'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
-} from './review-analysis-v3-normalizer'
+} from '#/shared/analysis/normalizer'
 import { REVIEW_ANALYSIS_V3_OPERATION_PROFILE } from './review-analysis-v3-request'
 import { resolveReviewPropertyContext } from './review-vocabulary-hints'
 

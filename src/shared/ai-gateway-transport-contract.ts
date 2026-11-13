@@ -1,7 +1,7 @@
 import { hasOnlyUnicodeScalars } from './ai-json'
-import { REPLY_DRAFTING_V2_VERSIONS } from './reply-drafting-v2-schema'
+import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import type { ReplyBodyIssueCode } from './domain/reply-body-lint-policy'
-import type { ReplyDraftingV2Output } from './reply-drafting-v2-schema'
+import type { ReplyDraftingV2Output } from '#/shared/reply/schema'
 import { replyDraftingV2FrameSchema } from './reply-drafting-v2-frame'
 import { z } from 'zod/v4'
 import {

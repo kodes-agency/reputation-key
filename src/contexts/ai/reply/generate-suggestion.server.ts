@@ -23,7 +23,7 @@ export type {
   GenerateReplySuggestionDependencies,
 } from '../application/reply-suggestion-contract'
 import { REPLY_DRAFTING_V2_OPERATION_PROFILE } from '#/shared/reply/profile'
-import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply-drafting-v2-schema'
+import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import {
   bindReplyDraftingV2,
   replyDraftingV2GenerationSeed,

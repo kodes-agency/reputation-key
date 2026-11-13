@@ -1,4 +1,4 @@
-import { replyDraftingV2OutputSchema } from '#/shared/reply-drafting-v2-schema'
+import { replyDraftingV2OutputSchema } from '#/shared/reply/schema'
 import {
   reportReplyProgress,
   type ReplyDraftingProgressSink,

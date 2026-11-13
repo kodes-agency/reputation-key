@@ -11,7 +11,7 @@ import {
   type EvaluatedReviewLanguage,
 } from '#/shared/ai-review-language-catalogue'
 import { resolveAiReplyTemplate } from '#/shared/ai-reply-template-catalogue'
-import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply-drafting-v2-schema'
+import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply/schema'
 import { replyUnavailable as unavailable } from './requests.server'
 
 const SERVED_LANGUAGE_SET: ReadonlySet<string> = new Set(

@@ -10,7 +10,7 @@ import { canonicalizeRawAiReviewSource } from '#/shared/ai-review-source-contrac
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
-} from '#/shared/review-analysis-v3-normalizer'
+} from '#/shared/analysis/normalizer'
 import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from '#/shared/review-analysis-v3'
 import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
 import { GatewayPreparationError } from './contracts'

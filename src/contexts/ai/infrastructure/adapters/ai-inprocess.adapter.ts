@@ -1,5 +1,5 @@
 import type { ReplyDraftingProgressSink } from '#/shared/reply-drafting-progress'
-import { REPLY_DRAFTING_V2_ROUTE_MAX_BYTES } from '#/shared/reply-drafting-v2-request'
+import { REPLY_DRAFTING_V2_ROUTE_MAX_BYTES } from '#/shared/reply/request'
 // WP2.3 — the AI inference port, calling the egress gateway in this process.
 //
 // This replaces `ai-gateway.adapter.ts`, which spoke to a sidecar over mTLS.

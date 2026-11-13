@@ -9,7 +9,7 @@ import {
   replyRequest,
 } from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import { AI_REVIEW_ROUTE_MAX_BYTES } from '#/shared/ai-internal-transport-contract'
-import { REPLY_DRAFTING_V2_ROUTE_MAX_BYTES } from '#/shared/reply-drafting-v2-request'
+import { REPLY_DRAFTING_V2_ROUTE_MAX_BYTES } from '#/shared/reply/request'
 import { MAX_AI_REVIEW_SENTENCES_V1 } from '#/shared/ai-review-source-contract'
 import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/review-analysis-v3-request'
 import {

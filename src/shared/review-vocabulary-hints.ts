@@ -15,7 +15,7 @@ import { REVIEW_TOPICS_V3, type ReviewTopicV3 } from './review-topic-taxonomy'
 //
 // Hints are request context, not analysis semantics. Which set a request used is
 // recorded on its operation (id, version, digest), and the catalogue is NOT part
-// of any operation-profile or runtime digest (`review-analysis-v3-artifacts.ts`),
+// of any operation-profile or runtime digest (`analysis/artifacts.ts`),
 // so adding a kind of business or editing a hint changes what future requests
 // send and re-analyses nothing. A change to the topics, the cause shape, the
 // sentence rule or the normalizer is not a hint change and moves a profile.
