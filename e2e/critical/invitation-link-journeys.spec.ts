@@ -161,6 +161,10 @@ test.describe('Critical workflow: invitation link pages', () => {
     const email = inviteeEmail('expired')
     const id = await seedInvitation(browser, { email, expiresInHours: -24 })
     const link = `/accept-invitation?id=${encodeURIComponent(id)}`
+    const sendsToInvitee = async () =>
+      (await mailStubControl.sends()).filter((send) => send.to === email).length
+    // The invite command sent the first email.
+    await expect.poll(sendsToInvitee, { timeout: 15_000 }).toBe(1)
 
     const card = page.locator('[data-slot="card"]')
     await page.goto(link)
@@ -186,13 +190,8 @@ test.describe('Critical workflow: invitation link pages', () => {
       await adminContext.close()
     }
 
-    await expect
-      .poll(
-        async () =>
-          (await mailStubControl.sends()).filter((send) => send.to === email).length,
-        { timeout: 15_000 },
-      )
-      .toBe(1)
+    // The Resend sends exactly one more.
+    await expect.poll(sendsToInvitee, { timeout: 15_000 }).toBe(2)
 
     // The link the invitee already holds works again.
     await page.goto(link)
