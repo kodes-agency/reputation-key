@@ -1,5 +1,4 @@
-// Outbox consumer registrations for the inbox context (PRE17A A4 / BQR-2.4 /
-// BQC-3.4).
+// Outbox consumer registrations for the inbox context.
 //
 // Registers inbox's durable event consumers with the dispatcher. Each
 // consumer:
@@ -9,8 +8,8 @@
 //    outbox facts, and the receipt co-commit in ONE transaction (no crash
 //    window can lose a fact or duplicate a side effect across redelivery).
 //
-// BQC-3.4: review.updated gained a metadata-only refresh consumer (sourceDate/
-// platform only — content never copied onto inbox items, BQC-1.2);
+// review.updated has a metadata-only refresh consumer (sourceDate/platform
+// only — content is never copied onto inbox items);
 // review.reply.published is receipt-only, while review.reply.observed is the
 // durable exact-head authority for automatic Review close/reopen effects.
 
@@ -197,7 +196,7 @@ export async function handleInboxReviewCreated(
   return handleInboxReviewProjection(deps, event, 'created', ON_REVIEW_CREATED)
 }
 
-/** BQC-3.4 / BQR-2.4: close open inbox item when source review expires. */
+/** Close open inbox item when source review expires. */
 export async function handleInboxReviewExpired(
   deps: InboxConsumerDeps,
   event: ConsumerEvent,
@@ -241,7 +240,7 @@ export async function handleInboxReviewExpired(
 }
 
 /**
- * REV-01 content-free handoff. Review owns the source lifecycle and records an
+ * Content-free handoff. Review owns the source lifecycle and records an
  * identifier-only transition. Inbox owns its stable projection, so it closes
  * unservable work and removes legacy provider-controlled copies itself. The
  * command store co-commits the scrub, optional status fact, and receipt.
@@ -325,9 +324,9 @@ export async function handleInboxReviewSourceTransitioned(
 }
 
 /**
- * BQC-3.4: review.updated metadata-only refresh (resolves the BQC-3.1
- * orphan). Only the projection-owned sourceDate/platform fields refresh —
- * content is never copied onto inbox items (BQC-1.2).
+ * review.updated metadata-only refresh. Only the projection-owned
+ * sourceDate/platform fields refresh — content is never copied onto inbox
+ * items.
  */
 export async function handleInboxReviewUpdated(
   deps: InboxConsumerDeps,
