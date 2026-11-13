@@ -19,7 +19,7 @@ import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
-} from '#/contexts/inbox/infrastructure/inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'

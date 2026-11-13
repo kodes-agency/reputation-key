@@ -2,7 +2,7 @@ import type { Permission } from '#/shared/domain/permissions'
 import type {
   InboxCommandAuthority,
   InboxCommandAuthorityRequirement,
-} from '../inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 
 type AuthorityTransaction = Parameters<InboxCommandAuthority>[0]
 

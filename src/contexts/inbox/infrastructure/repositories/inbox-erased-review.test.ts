@@ -44,7 +44,7 @@ import { rebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbo
 import type { ReviewResponseTargetAuthorityPort } from '../../application/ports/review-response-target-authority.port'
 import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
-import { createAtomicInboxCommandStore } from '../inbox-command-store'
+import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewHandlingCycleStore } from '../review-handling-cycle.store'
 import { createReviewSourceLookupAdapter } from '../adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '../adapters/reply-lookup.adapter'

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { InboxCommandAuthority } from '../inbox-command-store'
+import type { InboxCommandAuthority } from '#/contexts/reputation/inbox/command-store.server'
 import {
   createInboxCommandAuthority,
   type InboxCommandAuthorityAdapterDeps,

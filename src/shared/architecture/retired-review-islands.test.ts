@@ -33,7 +33,7 @@ describe('retired Review islands stay contracted', () => {
     )
     const inboxCursor = source('src/contexts/inbox/application/inbox-cursor.ts')
     const inboxCommandStore = source(
-      'src/contexts/inbox/infrastructure/inbox-command-store.ts',
+      'src/contexts/reputation/inbox/assignment-commands.server.ts',
     )
 
     expect(snapshot).toContain('REVIEW_PROVIDER_SNAPSHOT_MAX_PAGES')

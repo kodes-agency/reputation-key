@@ -28,7 +28,7 @@ import type { Database } from '#/shared/db'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
-} from '../inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 
 import { queueToFilters } from '../../application/inbox-queues'
 import { Pool } from 'pg'
@@ -1809,6 +1809,23 @@ describe('inbox repository — tenant isolation', () => {
 
     const count = await repo.countFiltered({ status: 'open' }, ORG_B)
     expect(count).toBe(0)
+  })
+
+  it('lists and counts only the Properties in scope, and the two agree', async () => {
+    await repo.seedItem(makeInboxItem({ propertyId: PROP_A, status: 'open' }))
+    await repo.seedItem(makeInboxItem({ propertyId: PROP_A_2, status: 'open' }))
+    await repo.seedItem(makeInboxItem({ propertyId: PROP_A, status: 'closed' }))
+    const filters = { status: 'open' as const, propertyIds: [PROP_A] }
+
+    const [count, page] = await Promise.all([
+      repo.countFiltered(filters, ORG_A),
+      repo.findFilteredPaginated(filters, ORG_A, undefined, 50),
+    ])
+
+    expect(count).toBe(1)
+    expect(page.totalCount).toBe(1)
+    expect(page.items.map((item) => item.propertyId)).toEqual([PROP_A])
+    await expect(repo.countOpenSince(ORG_A, null, [PROP_A_2])).resolves.toBe(1)
   })
 
   it('treats an explicit empty property scope as no visible rows', async () => {

@@ -38,7 +38,7 @@ import { createReviewResponseTargetAuthority } from '#/contexts/reputation/revie
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
-} from '#/contexts/inbox/infrastructure/inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import {
   handleInboxReviewCreated,
   type InboxConsumerDeps,
