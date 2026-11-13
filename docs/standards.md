@@ -249,9 +249,6 @@ type ContextApi<T> = Readonly<{
 
 **The composition root consumes capability groups only.** It does not read a
 context's private wiring, and there is no production `.internal` reach-through.
-The single documented exception is the simulation runtime, which is guarded by
-`options?.exposeSimulationRuntime` and is absent from every application
-container.
 
 `internal` MAY be retained by a context as its own private wiring seam — for
 example so the context's `build.test.ts` can assert construction — but it is

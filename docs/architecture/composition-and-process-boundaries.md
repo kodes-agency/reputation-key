@@ -17,20 +17,18 @@ Every process described below belongs to that one deployment.
 
 ## 2. Process entry points
 
-| Process        | Construction                                                                 | Runtime distinction                                           |
-| -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| **web**        | `getContainer()` claims `web`, then calls `createContainer()`                | Serves HTTP and never imports worker bootstrap                |
-| **worker**     | Claims `worker`, then calls `createContainer({ enableJobs: true })`          | Sole production importer of `bootstrap()`                     |
-| **operator**   | The ops harness claims `operator`, then calls `createOperatorContainer()`    | No jobs or ambient Redis; three provider command paths refuse |
-| **simulation** | `createSimulationContainer()` claims `simulation`, then injects its backends | In-memory queue and an explicit process-policy binding        |
-| **sidecar**    | Own composition unit (for example, the Google provider authority)            | No database or job-queue handle                               |
+| Process      | Construction                                                              | Runtime distinction                                           |
+| ------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| **web**      | `getContainer()` claims `web`, then calls `createContainer()`             | Serves HTTP and never imports worker bootstrap                |
+| **worker**   | Claims `worker`, then calls `createContainer({ enableJobs: true })`       | Sole production importer of `bootstrap()`                     |
+| **operator** | The ops harness claims `operator`, then calls `createOperatorContainer()` | No jobs or ambient Redis; three provider command paths refuse |
+| **sidecar**  | Own composition unit (for example, the Google provider authority)         | No database or job-queue handle                               |
 
 All application processes receive the complete container rather than a
 post-construction key projection. Their runtime behavior is selected by options,
 registration calls, and the refusing operator graph. Executable authority lives
 in `src/composition.ts`, `src/worker/index.ts`,
-`src/composition/operator-container.ts`, and
-`src/shared/testing/simulation-container.server.ts`.
+and `src/composition/operator-container.ts`.
 
 ## 3. One container per process
 
@@ -44,7 +42,7 @@ before it builds. A second claim fails with
 The claim uses `Symbol.for` because production bundles the composition root
 twice; both copies must observe the same process owner. `createContainer()` stays
 an injectable wiring function, while `getContainer()`, the worker, the operator
-harness, and the simulation factory own process admission.
+harness own process admission.
 
 This matters because a container owns process-visible resources: the capability
 policy trio, the durable outbox consumer registry, and queue connections. A
@@ -52,7 +50,7 @@ second entry-point container could silently install another set, and the process
 would answer policy questions from whichever one happened to be bound.
 
 The web owner releases through `closeContainer()`, the operator harness releases
-in its cleanup, the simulation releases when its container shuts down, and the
+in its cleanup, and the
 worker owns its claim for the process lifetime.
 
 A process moves through one lifecycle (`src/composition/container-lifecycle.ts`):
@@ -73,7 +71,7 @@ Executable evidence is split by behavior:
   process cannot rebuild its container;
 - `src/shared/architecture/outbox-consumer-registration.test.ts` proves
   deterministic consumer registration across claimed worker rebuilds;
-- `src/shared/auth/process-policy-binding.test.ts` proves the claimed simulation
+- `src/shared/auth/process-policy-binding.test.ts` proves a claimed container
   owns the process-policy binding and cannot cold-boot a web container.
 
 ## 4. What the composition root does
