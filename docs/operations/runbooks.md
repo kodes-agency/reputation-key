@@ -2623,10 +2623,53 @@ days are hidden at once and erased by the next daily retention run, which logs
 `guest_contact_requests.expired_material` evidence row, and treat
 `retention_capped` or `retention_failed` as owing work.
 
+**Removing the switch.** Once the launch is approved and the feature has run
+with the switch on, a change deletes `CONTACT_REQUESTS_ENABLED` from the settings
+schema and the code that reads it, keeps the key check (the web service still
+needs `CONTACT_REQUEST_ENCRYPTION_KEY` to seal and reveal), and removes the
+variable from the web and worker services. Until then the default is off, and a
+set value of any other kind stops boot with the field named.
+
 **Verification/Evidence.** Submit and withdraw a synthetic request, confirm the
 journal entry precedes the update, reveal one as an account admin and confirm the
 audit row holds the user id, time, purpose and basis. Record ids and counts only,
 never contact details.
+
+## 36. Retired Rollout Switches and Retention Duties (Print, Own Look, Guest Tables)
+
+**Trigger/Symptoms.** A manager asks why print codes, own looks or the print kit
+do not respond to a setting, or an operator finds an old variable in a service.
+
+**Retired switches.** `PRINT_KIT_FINAL_ENABLED`, `PORTAL_PRINT_CODES_ENABLED` and
+`PORTAL_OWN_LOOK_ENABLED` were removed from the settings schema and the code. The
+features they gated (the final print kit, verified print codes in QR and NFC
+downloads, a Portal's own look) are always on, and nothing reads the variables, so
+a leftover value changes nothing: unset it on web and worker when next convenient.
+Do not switch anything off by recreating one; repair forward (§28, §31).
+`PORTAL_PRINT_ORIGIN` is configuration, not a switch (§26). Still active:
+`CONTACT_REQUESTS_ENABLED` (§35), `STAFF_SCAN_TARGETS_ENABLED` (below) and the
+operational switches (Google calls, AI calls, Guest pages, Optional email,
+everything-off).
+
+**Retention duties.**
+
+- Contact requests: details are hidden 30 days after submission and erased by the
+  daily contact-only purge, which runs whether the contact switch or scheduled
+  retention is on. Check the `guest_contact_requests.expired_material` row of
+  `retention_runs`; `retention_capped` or `retention_failed` means work is owed.
+- Legacy guest `ratings` and `feedback` tables: dropped by migration 0157. The
+  migration refuses to run over a row, so there is nothing to purge. Guest
+  responses and private feedback live in the `guest_response*` tables and follow
+  the data-retention registry in [Backup and lifecycle](backup-and-lifecycle.md).
+- Withdrawals (response, private feedback, contact request) journal to the
+  erasure journal before deleting ([Erasure journal](erasure-journal.md)).
+
+**Verification.** `rg PORTAL_OWN_LOOK_ENABLED src server --glob '*.{ts,tsx}'` and the same for
+the other two names return nothing; the beta services list none of them.
+
+**Escalation:** Bozhidar Denev.
+
+---
 
 ## Staff scan-target switch — 2026-11-01
 
