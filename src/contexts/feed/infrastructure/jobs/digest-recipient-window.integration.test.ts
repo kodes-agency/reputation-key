@@ -70,6 +70,62 @@ describe('digest timing in the recipient timezone', () => {
     expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 
+  // US DST 2026 ends Sunday 1 November: 12:00Z is 08:00 EDT on the 31st of
+  // October but 07:00 EST on the 1st, and 13:00Z is 08:00 EST.
+  it('respects DST ending: 08:00 local is a different UTC hour after the clocks go back', async () => {
+    const before = await open({
+      now: new Date('2026-10-31T12:00:00.000Z'),
+      userTimezone: 'America/New_York',
+    })
+    const beforeDeps = before.deps()
+    await before.run(beforeDeps)
+    expect(beforeDeps.emailSender.send).toHaveBeenCalledTimes(1)
+    await before.rollBack()
+
+    const after = await open({
+      now: new Date('2026-11-01T12:00:00.000Z'),
+      userTimezone: 'America/New_York',
+    })
+    const earlyDeps = after.deps()
+    await after.run(earlyDeps)
+    expect(earlyDeps.emailSender.send).not.toHaveBeenCalled()
+    await after.rollBack()
+
+    const onTime = await open({
+      now: new Date('2026-11-01T13:00:00.000Z'),
+      userTimezone: 'America/New_York',
+    })
+    const onTimeDeps = onTime.deps()
+    await onTime.run(onTimeDeps)
+    expect(onTimeDeps.emailSender.send).toHaveBeenCalledTimes(1)
+  })
+
+  // Sofia moves clocks forward on Sunday 29 March 2026: 05:00Z is 07:00 EET
+  // the day before and 08:00 EEST after it.
+  it('respects DST starting in a European zone: 08:00 local is an hour earlier in UTC afterwards', async () => {
+    const w = await open({
+      now: new Date('2026-03-29T05:00:00.000Z'),
+      userTimezone: 'Europe/Sofia',
+    })
+    const deps = w.deps()
+
+    await w.run(deps)
+
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+  })
+
+  it('holds the same UTC hour back the day before Sofia’s clocks move', async () => {
+    const w = await open({
+      now: new Date('2026-03-28T05:00:00.000Z'),
+      userTimezone: 'Europe/Sofia',
+    })
+    const deps = w.deps()
+
+    await w.run(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
   it('keys the local date on the recipient timezone across a UTC date boundary', async () => {
     // 03:30Z on the 12th is still 23:30 on the 11th in New York. Outside the
     // 08:00 window only quiet-hours-parked rows are eligible, and releasing
