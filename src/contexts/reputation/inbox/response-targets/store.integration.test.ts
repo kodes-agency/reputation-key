@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { openNextReviewCycleForTest } from '#/contexts/inbox/infrastructure/review-cycle-reopen.test-fixtures'
+import { releaseDueSlots } from '#/contexts/reputation/inbox/response-targets/release-due-slots.test-fixtures'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
@@ -739,20 +740,20 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     const halfway = new Date('2026-08-29T08:00:00.000Z')
 
     const halfwayRace = await Promise.all([
-      targets.releaseDueReminders({ now: halfway, limit: 10 }),
-      targets.releaseDueReminders({ now: halfway, limit: 10 }),
+      releaseDueSlots(targets, { now: halfway, limit: 10 }),
+      releaseDueSlots(targets, { now: halfway, limit: 10 }),
     ])
     expect(halfwayRace.reduce((sum, result) => sum + result.released, 0)).toBe(1)
-    await expect(
-      targets.releaseDueReminders({ now: halfway, limit: 10 }),
-    ).resolves.toEqual({ released: 0 })
+    await expect(releaseDueSlots(targets, { now: halfway, limit: 10 })).resolves.toEqual({
+      released: 0,
+    })
 
     const dueAt = new Date('2026-08-30T08:00:00.000Z')
-    await expect(targets.releaseDueReminders({ now: dueAt, limit: 10 })).resolves.toEqual(
-      { released: 1 },
-    )
+    await expect(releaseDueSlots(targets, { now: dueAt, limit: 10 })).resolves.toEqual({
+      released: 1,
+    })
     await expect(
-      targets.releaseDueReminders({ now: new Date('2026-09-02T08:00:00Z'), limit: 10 }),
+      releaseDueSlots(targets, { now: new Date('2026-09-02T08:00:00Z'), limit: 10 }),
     ).resolves.toEqual({ released: 0 })
 
     const facts = await pool.query(
@@ -864,10 +865,10 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     ])
 
     await expect(
-      targets.releaseDueReminders({ now: OPENED_AT, limit: 100 }),
+      releaseDueSlots(targets, { now: OPENED_AT, limit: 100 }),
     ).resolves.toEqual({ released: 1 })
     await expect(
-      targets.releaseDueReminders({
+      releaseDueSlots(targets, {
         now: new Date('2026-08-29T02:00:00.000Z'),
         limit: 100,
       }),
@@ -899,10 +900,10 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     const lateRelease = new Date('2026-08-30T09:00:00.000Z')
 
     await expect(
-      targets.releaseDueReminders({ now: lateRelease, limit: 10 }),
+      releaseDueSlots(targets, { now: lateRelease, limit: 10 }),
     ).resolves.toEqual({ released: 1 })
     await expect(
-      targets.releaseDueReminders({ now: new Date('2026-09-02T08:00:00Z'), limit: 10 }),
+      releaseDueSlots(targets, { now: new Date('2026-09-02T08:00:00Z'), limit: 10 }),
     ).resolves.toEqual({ released: 0 })
 
     expect(await releasedReminderKinds([ITEM])).toEqual([
@@ -928,10 +929,10 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     // A one-slot batch holds only the earlier halfway slot; the next pass
     // owns the target-passed slot.
     await expect(
-      targets.releaseDueReminders({ now: lateRelease, limit: 1 }),
+      releaseDueSlots(targets, { now: lateRelease, limit: 1 }),
     ).resolves.toEqual({ released: 0 })
     await expect(
-      targets.releaseDueReminders({ now: lateRelease, limit: 1 }),
+      releaseDueSlots(targets, { now: lateRelease, limit: 1 }),
     ).resolves.toEqual({ released: 1 })
 
     expect(await releasedReminderKinds([ITEM])).toEqual([

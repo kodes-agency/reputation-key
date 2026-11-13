@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { releaseDueSlots } from '#/contexts/reputation/inbox/response-targets/release-due-slots.test-fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -440,10 +441,10 @@ describe.sequential('Reminder release in two steps (PostgreSQL)', () => {
     ])
   })
 
-  it('keeps the unconditional release working for the slots it always released', async () => {
+  it('releases the slot a tick lists once it is due', async () => {
     await seedGoogleReviewCycle()
 
-    await expect(targets.releaseDueReminders({ now: DUE, limit: 10 })).resolves.toEqual({
+    await expect(releaseDueSlots(targets, { now: DUE, limit: 10 })).resolves.toEqual({
       released: 1,
     })
     expect(await dueFacts()).toEqual(['target_passed'])

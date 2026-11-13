@@ -214,6 +214,30 @@ async function insertMeasuredTarget(
   await insertSchedulableReminders(tx, cycle, snapshot, createdAt)
 }
 
+const readOrganizationPolicy = async (
+  tx: Tx,
+  orgId: HandlingCycle['organizationId'],
+  targetKind: ResponseTargetSnapshot['targetKind'],
+) => {
+  const [policy] = await tx
+    .select({
+      durationMinutes: inboxResponseTargetOrganizationPolicies.durationMinutes,
+      policyVersion: inboxResponseTargetOrganizationPolicies.policyVersion,
+      lowRatingThreshold: inboxResponseTargetOrganizationPolicies.lowRatingThreshold,
+      lowRatingDurationMinutes:
+        inboxResponseTargetOrganizationPolicies.lowRatingDurationMinutes,
+    })
+    .from(inboxResponseTargetOrganizationPolicies)
+    .where(
+      and(
+        eq(inboxResponseTargetOrganizationPolicies.organizationId, orgId),
+        eq(inboxResponseTargetOrganizationPolicies.targetKind, targetKind),
+      ),
+    )
+    .limit(1)
+  return policy ?? null
+}
+
 /** Insert the immutable source-specific target beside its Handling Cycle. */
 export async function insertResponseTargetForHandlingCycle(
   tx: Tx,
@@ -246,35 +270,18 @@ export async function insertResponseTargetForHandlingCycle(
     if (!(startAt instanceof Date)) {
       throw inboxError('invalid_input', 'Measured Review Response Target has no start')
     }
-    const [organizationPolicy] = await tx
-      .select({
-        durationMinutes: inboxResponseTargetOrganizationPolicies.durationMinutes,
-        policyVersion: inboxResponseTargetOrganizationPolicies.policyVersion,
-        lowRatingThreshold: inboxResponseTargetOrganizationPolicies.lowRatingThreshold,
-        lowRatingDurationMinutes:
-          inboxResponseTargetOrganizationPolicies.lowRatingDurationMinutes,
-      })
-      .from(inboxResponseTargetOrganizationPolicies)
-      .where(
-        and(
-          eq(
-            inboxResponseTargetOrganizationPolicies.organizationId,
-            cycle.organizationId,
-          ),
-          eq(
-            inboxResponseTargetOrganizationPolicies.targetKind,
-            'google_review_response',
-          ),
-        ),
-      )
-      .limit(1)
+    const organizationPolicy = await readOrganizationPolicy(
+      tx,
+      cycle.organizationId,
+      'google_review_response',
+    )
     const snapshot = buildResponseTargetSnapshot({
       targetKind: 'google_review_response',
       // The rating comes from Review's attested permit, the same fenced read
       // that supplies the target's start instant, so the clock is chosen from
       // the revision this cycle actually measures.
       policy: resolveGoogleReviewTargetPolicy(
-        organizationPolicy ?? null,
+        organizationPolicy,
         targetAnchor?.reviewAuthority.rating ?? null,
       ),
       startAt,
@@ -300,26 +307,15 @@ export async function insertResponseTargetForHandlingCycle(
       ),
     )
     .limit(1)
-  const [organizationPolicy] = await tx
-    .select({
-      durationMinutes: inboxResponseTargetOrganizationPolicies.durationMinutes,
-      policyVersion: inboxResponseTargetOrganizationPolicies.policyVersion,
-    })
-    .from(inboxResponseTargetOrganizationPolicies)
-    .where(
-      and(
-        eq(inboxResponseTargetOrganizationPolicies.organizationId, cycle.organizationId),
-        eq(
-          inboxResponseTargetOrganizationPolicies.targetKind,
-          'private_feedback_handling',
-        ),
-      ),
-    )
-    .limit(1)
+  const organizationPolicy = await readOrganizationPolicy(
+    tx,
+    cycle.organizationId,
+    'private_feedback_handling',
+  )
   const snapshot = buildResponseTargetSnapshot({
     targetKind: 'private_feedback_handling',
     policy: resolvePrivateFeedbackTargetPolicy({
-      organizationPolicy: organizationPolicy ?? null,
+      organizationPolicy,
       propertyOverride:
         propertyPolicy?.durationMinutes === null || propertyPolicy === undefined
           ? null
@@ -331,6 +327,30 @@ export async function insertResponseTargetForHandlingCycle(
     startAt: cycle.openedAt,
   })
   await insertMeasuredTarget(tx, cycle, snapshot, createdAt)
+}
+
+/** Close the cycle's reminder slots that were neither delivered nor cancelled. */
+async function cancelPendingCycleReminders(
+  tx: Tx,
+  cycle: Readonly<{
+    inboxItemId: HandlingCycleHead['inboxItemId']
+    organizationId: HandlingCycleHead['organizationId']
+    cycleNumber: number
+  }>,
+  at: Date,
+): Promise<void> {
+  await tx
+    .update(inboxResponseTargetReminders)
+    .set({ cancelledAt: at, updatedAt: at })
+    .where(
+      and(
+        eq(inboxResponseTargetReminders.organizationId, cycle.organizationId),
+        eq(inboxResponseTargetReminders.inboxItemId, cycle.inboxItemId),
+        eq(inboxResponseTargetReminders.cycleNumber, cycle.cycleNumber),
+        isNull(inboxResponseTargetReminders.deliveredAt),
+        isNull(inboxResponseTargetReminders.cancelledAt),
+      ),
+    )
 }
 
 type StopReason = 'private_feedback_handled' | 'guest_withdrawn'
@@ -398,17 +418,11 @@ async function stopPrivateFeedbackTarget(
   if (!saved) {
     throw inboxError('revision_conflict', 'Private Feedback Target changed')
   }
-  await tx
-    .update(inboxResponseTargetReminders)
-    .set({ cancelledAt: completedAt, updatedAt: completedAt })
-    .where(
-      and(
-        eq(inboxResponseTargetReminders.inboxItemId, current.inboxItemId),
-        eq(inboxResponseTargetReminders.cycleNumber, current.currentCycleNumber),
-        isNull(inboxResponseTargetReminders.deliveredAt),
-        isNull(inboxResponseTargetReminders.cancelledAt),
-      ),
-    )
+  await cancelPendingCycleReminders(
+    tx,
+    { ...current, cycleNumber: current.currentCycleNumber },
+    completedAt,
+  )
   return result
 }
 
@@ -480,17 +494,7 @@ export async function cancelResponseTargetForCycle(
     )
     .returning({ inboxItemId: inboxHandlingCycleResponseTargets.inboxItemId })
   if (!saved) return 'not_active'
-  await tx
-    .update(inboxResponseTargetReminders)
-    .set({ cancelledAt: input.cancelledAt, updatedAt: input.cancelledAt })
-    .where(
-      and(
-        eq(inboxResponseTargetReminders.inboxItemId, input.inboxItemId),
-        eq(inboxResponseTargetReminders.cycleNumber, input.cycleNumber),
-        isNull(inboxResponseTargetReminders.deliveredAt),
-        isNull(inboxResponseTargetReminders.cancelledAt),
-      ),
-    )
+  await cancelPendingCycleReminders(tx, input, input.cancelledAt)
   return 'cancelled'
 }
 
