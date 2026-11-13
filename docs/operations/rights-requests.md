@@ -142,7 +142,9 @@ pseudonym, but not the one the erasure wrote.
   date and `closed on request`; the name, slug, contact email and logo
   reference are replaced or cleared. The stored logo file is not journaled; the
   hourly pending-upload reclaim deletes it later. Login identities stay: a
-  person may belong to another Organization.
+  person may belong to another Organization. In one transaction it deletes the
+  other rows first, tombstones the Organization row, and deletes the members last,
+  with the last-owner trigger off only for that one delete.
 - **property** (`property`, `organization`): each Property becomes a
   content-free tombstone (`purged`, no name, address or Google binding) and
   its Responsible Managers are deleted. A closure tombstones every Property of

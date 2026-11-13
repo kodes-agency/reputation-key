@@ -111,10 +111,17 @@ export const ThreePropertiesOneCeremony: Story = {
     await expect(acknowledgement).toHaveAccessibleDescription(
       /^Hotel Berlin Mitte, Casa Lisboa, Athens Rooms\. Required to enable AI features/,
     )
+    const readsBeforeSave = fns.listProperties.mock.calls.length
     await userEvent.click(acknowledgement)
     await userEvent.click(cta)
 
     await expect(canvas.findByText('Setup saved')).resolves.toBeVisible()
+    // Saving refreshes the facts; the answered questions stay on screen
+    // instead of collapsing into "Nothing left to ask".
+    await waitFor(() =>
+      expect(fns.listProperties.mock.calls.length).toBeGreaterThan(readsBeforeSave),
+    )
+    await expect(canvas.queryByText('Nothing left to ask')).toBeNull()
     await expect(fns.enableMerchantAiForProperties).toHaveBeenCalledOnce()
     await expect(fns.enableMerchantAiForProperties).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -368,42 +375,5 @@ export const NothingLeftToAsk: Story = {
     await expect(canvas.queryByRole('group', { name: /set up properties/i })).toBeNull()
     // Nothing to ask, so what follows the setup follows at once.
     await expect(canvas.getByText(THEN_MARKER)).toBeVisible()
-  },
-}
-
-/**
- * Saving refreshes every read, and the refreshed facts report each question
- * answered. The step keeps showing what was saved instead of collapsing into
- * "Nothing left to ask".
- */
-export const KeepsAnsweredQuestionsAfterSave: Story = {
-  args: {
-    properties: [imported[0]!],
-    viewerUserId: STORY_ADMIN.userId,
-    fns: createSetupFnsFixture({ properties: [batch[0]] }),
-  },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    const fns = args.fns as ReturnType<typeof createSetupFnsFixture>
-
-    await canvas.findByText('Question 1 of 4')
-    await next(canvasElement)
-    await next(canvasElement)
-    await next(canvasElement)
-    await reviewWithAiAnswer(canvasElement, /turn on ai features/i)
-    const readsBeforeSave = fns.listProperties.mock.calls.length
-    await userEvent.click(
-      canvas.getByRole('checkbox', { name: /I have read this notice/i }),
-    )
-    await userEvent.click(canvas.getByRole('button', { name: 'Enable AI features' }))
-
-    await expect(canvas.findByText('Setup saved')).resolves.toBeVisible()
-    await waitFor(() =>
-      expect(fns.listProperties.mock.calls.length).toBeGreaterThan(readsBeforeSave),
-    )
-    await expect(canvas.queryByText('Nothing left to ask')).toBeNull()
-    await expect(
-      canvas.getByText(/Every property has its public display name/),
-    ).toBeVisible()
   },
 }

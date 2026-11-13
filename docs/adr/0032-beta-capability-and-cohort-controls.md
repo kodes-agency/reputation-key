@@ -18,24 +18,27 @@ capability's product fate, rationale, and activation condition. Runtime policy
 is derived from that table and the environment-backed store in
 `src/shared/auth/beta-capabilities.ts`; a second prose list is not authority.
 
-`BETA_CAPABILITIES_OFF` is the emergency kill switch. An unknown capability,
-blocked fate, suspended Organization or Property, unavailable policy, or
-isolated-restore mode denies before an effect. Delayed work rechecks policy at
-execution rather than relying on enqueue-time permission.
+`BETA_CAPABILITIES_OFF` takes `all` or a comma list of the four feature
+switches (`google`, `ai`, `guest_pages`, `optional_email`); each capability
+names its switch, or none, in the fate table. An unknown capability, blocked
+fate, suspended Organization or Property (`BETA_SUSPENDED_ORGS` takes
+Organization IDs), unavailable policy, or isolated-restore mode denies before
+an effect. Delayed work rechecks policy at execution rather than relying on
+enqueue-time permission.
 
-Organization and Property allowlists are explicit operator inputs. They may
-enable only a `controlled_beta` capability and can never reopen
-`beta_disabled`, `safety_blocked`, `legacy_blocked`, or `permanently_denied`
-work.
+There is no Organization admission list. A `core` capability is on for every
+Organization unless its switch, everything off or a suspension stops it, and a
+blocked fate can never be reopened by configuration. The amendments below
+record how this arrived; where an amendment mentions `BETA_ALLOWLIST_ORGS`,
+read the 2026-11-12 amendment: the variable is no longer read.
 
 ## Merged from ADR 0047
 
 The persisted capability-policy tables introduced by ADR 0047 were removed.
 Capability policy now comes from `capability-fate.ts` plus the env-backed store;
-the Organization lifecycle authority owns the closure fence. An allowlist is a
-capability input, never an inferred access grant.
+the Organization lifecycle authority owns the closure fence.
 
-## Amendment 2026-09-27 — environment-wide Organization allowlist
+## Amendment 2026-09-27 — environment-wide Organization allowlist (superseded 2026-11-12)
 
 `BETA_ALLOWLIST_ORGS` names Organization IDs, and every fresh database mints
 new ones. Each reset, new cell or hand-built local stack therefore darkened

@@ -144,6 +144,166 @@ async function goalStartMonths(
   return { current: months.current_month, next: months.next_month }
 }
 
+/**
+ * Creates a Portal and its group through the product commands, publishes it and
+ * rotates its code once. The suffix keeps each journey's Portal apart; every
+ * slug starts with `e2e-rotating-` so the clean-up after the run finds it.
+ */
+async function publishRotatingPortal(page: Page, suffix: string) {
+  await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+  const portalName = `E2E Rotating Portal ${suffix}`
+  const groupName = `E2E Rotating Group ${suffix}`
+  const created = await callServerFn<{
+    portal: { id: string; publicationState: string }
+  }>(page, {
+    file: 'src/contexts/portal/server/portals.ts',
+    exportName: 'createPortal',
+    data: {
+      propertyId: seed.p1PropertyId,
+      name: portalName,
+      slug: `e2e-rotating-${suffix}`,
+      description: 'Created through the real Portal command.',
+    },
+  })
+  expect(created.portal.publicationState).toBe('draft')
+
+  const grouped = await callServerFn<{ group: { id: string } }>(page, {
+    file: 'src/contexts/portal/server/portal-groups.ts',
+    exportName: 'createPortalGroup',
+    data: {
+      propertyId: seed.p1PropertyId,
+      name: groupName,
+      portalIds: [created.portal.id],
+    },
+  })
+  expect(grouped.group.id).toBeTruthy()
+
+  // Review needs complete guest wording to produce a digest. Set it up before
+  // checking the address refusal, since a fresh Property has no wording yet.
+  await callServerFn(page, {
+    file: 'src/contexts/portal/server/portals.ts',
+    exportName: 'savePropertyPortalBrandProfile',
+    data: {
+      propertyId: seed.p1PropertyId,
+      displayName: 'E2E Beta Hotel P1',
+      primaryColor: '#6366f1',
+      backgroundColor: '#ffffff',
+      textColor: '#111827',
+    },
+  })
+  await callServerFn(page, {
+    file: 'src/contexts/portal/server/portals.ts',
+    exportName: 'savePropertyPortalBrandContent',
+    data: {
+      propertyId: seed.p1PropertyId,
+      locale: 'en',
+      title: 'How was your stay?',
+      shortDescription: 'Tell the team how it went — it takes a moment.',
+    },
+  })
+
+  // A reviewed Portal with no public address still cannot be published.
+  const addressDenial = await callServerFnExpectError(page, {
+    file: 'src/contexts/portal/server/portals.ts',
+    exportName: 'publishPortal',
+    data: await reviewedPortalInput(page, created.portal.id),
+  })
+  expect(addressDenial.message ?? '').toContain(
+    'Create the Portal public address before publishing',
+  )
+
+  const issued = await callServerFn<{ rawToken: string; version: number }>(page, {
+    file: 'src/contexts/portal/server/portals.ts',
+    exportName: 'issuePortalToken',
+    data: { portalId: created.portal.id, printBatch: 'e2e-browser' },
+  })
+  expect(issued.version).toBe(1)
+
+  // Links are NOT a publish precondition any more. "feat(portal): make guest
+  // gateway rating first" removed portal_has_no_links: once the rating is the
+  // point of the gateway, a Portal with no secondary destinations is a
+  // perfectly valid one. Categories are gone from the editor (s28), and a
+  // fresh Portal already has its Linktree switched on, so this step proves the
+  // Linktree settings function is reachable and authorised for an Account
+  // Admin, and that the switch is idempotent (it is set to the value it
+  // already has).
+  const linktree = await callServerFn<{ saved: boolean }>(page, {
+    file: 'src/contexts/portal/server/portal-links.ts',
+    exportName: 'saveLinktreeSettings',
+    data: { portalId: created.portal.id, enabled: true },
+  })
+  expect(linktree.saved).toBe(true)
+
+  // No link is created here, and that is an ENVIRONMENT limit rather than a
+  // choice. `createLink` resolves the destination through
+  // portal-destination-network-validator, which does real DNS and a real
+  // HTTPS fetch and refuses private address space. The local stack has no
+  // egress, so every external URL comes back 'unavailable' and every
+  // in-network stub is correctly rejected as 'unsafe'. Satisfying it would
+  // mean disabling an SSRF control for tests, which is not worth a green
+  // tick. The guest-facing destination contract is covered against the
+  // seeded Portal, whose approval is fixture-provisioned, in "P1 Portal
+  // management and opaque public URL survive reload" above.
+
+  await callServerFn(page, {
+    file: 'src/contexts/portal/server/portals.ts',
+    exportName: 'updatePortalSettings',
+    data: {
+      portalId: created.portal.id,
+      description: 'Published through the real Portal command.',
+    },
+  })
+  const published = await callServerFn<{
+    portal: { id: string; publicationState: string }
+  }>(page, {
+    file: 'src/contexts/portal/server/portals.ts',
+    exportName: 'publishPortal',
+    data: await reviewedPortalInput(page, created.portal.id),
+  })
+  expect(published.portal.publicationState).toBe('published')
+  const rotated = await callServerFn<{
+    rawToken: string
+    version: number
+    publicUrls: Readonly<{ qr: string; nfc: string }>
+  }>(page, {
+    file: 'src/contexts/portal/server/portals.ts',
+    exportName: 'rotatePortalToken',
+    data: { portalId: created.portal.id },
+  })
+  expect(rotated.version).toBe(2)
+  expect(rotated.rawToken).not.toBe(issued.rawToken)
+  // The QR carries a print code, which is its own marker, so its URL names no
+  // Access Artifact. The scan counts against the rotated code's QR artifact.
+  const qualifiedUrl = new URL(rotated.publicUrls.qr)
+  const [qrArtifact] = await dbQuery<{ id: string }>(
+    `SELECT a.id
+       FROM portal_access_artifacts a
+       JOIN portal_tokens t ON t.id = a.portal_token_id
+       WHERE a.portal_id = $1::uuid AND t.status = 'active'
+         AND a.channel = 'qr' AND a.status = 'published' AND a.retired_at IS NULL`,
+    [created.portal.id],
+  )
+  const accessArtifactId = qrArtifact?.id
+  expect(accessArtifactId).toBeTruthy()
+  if (!accessArtifactId) throw new Error('Rotated Portal has no published QR artifact')
+  const qualifiedScanPortal = {
+    id: created.portal.id,
+    groupId: grouped.group.id,
+    path: `${qualifiedUrl.pathname}${qualifiedUrl.search}`,
+    accessArtifactId,
+  }
+
+  return {
+    portalName,
+    groupName,
+    groupId: grouped.group.id,
+    portalId: created.portal.id,
+    issued,
+    rotated,
+    qualifiedScanPortal,
+  }
+}
+
 test.describe('Critical: beta-local-1 product journeys', () => {
   // The rotation journey creates a Portal per run. Without this the Property's
   // paginated Portal list eventually stops showing the newest one.
@@ -151,17 +311,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await softDeleteFixturePortals('e2e-rotating-')
   })
 
-  test.describe.configure({ mode: 'serial' })
   test.use({ baseURL: BASE_ORIGIN })
-  let governedGoalDefinitionId: string | null = null
-  let qualifiedScanPortal: Readonly<{
-    id: string
-    groupId: string
-    path: string
-    accessArtifactId: string
-  }> | null = null
-  // A goal for a group is named for it and its measure.
-  const activeGoalName = `E2E Rotating Group ${e2eRunId.slice(-8)} · Scans`
 
   test('P1 Portal management and opaque public URL survive reload', async ({ page }) => {
     // This journey ends on the public Portal as a guest: it needs the seeded
@@ -253,149 +403,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
   test('Portal create, group, publish, and token rotation are durable', async ({
     page,
   }) => {
-    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
-    const suffix = e2eRunId.slice(-8)
-    const portalName = `E2E Rotating Portal ${suffix}`
-    const groupName = `E2E Rotating Group ${suffix}`
-    const created = await callServerFn<{
-      portal: { id: string; publicationState: string }
-    }>(page, {
-      file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'createPortal',
-      data: {
-        propertyId: seed.p1PropertyId,
-        name: portalName,
-        slug: `e2e-rotating-${suffix}`,
-        description: 'Created through the real Portal command.',
-      },
-    })
-    expect(created.portal.publicationState).toBe('draft')
-
-    const grouped = await callServerFn<{ group: { id: string } }>(page, {
-      file: 'src/contexts/portal/server/portal-groups.ts',
-      exportName: 'createPortalGroup',
-      data: {
-        propertyId: seed.p1PropertyId,
-        name: groupName,
-        portalIds: [created.portal.id],
-      },
-    })
-    expect(grouped.group.id).toBeTruthy()
-
-    // Review needs complete guest wording to produce a digest. Set it up before
-    // checking the address refusal, since a fresh Property has no wording yet.
-    await callServerFn(page, {
-      file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'savePropertyPortalBrandProfile',
-      data: {
-        propertyId: seed.p1PropertyId,
-        displayName: 'E2E Beta Hotel P1',
-        primaryColor: '#6366f1',
-        backgroundColor: '#ffffff',
-        textColor: '#111827',
-      },
-    })
-    await callServerFn(page, {
-      file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'savePropertyPortalBrandContent',
-      data: {
-        propertyId: seed.p1PropertyId,
-        locale: 'en',
-        title: 'How was your stay?',
-        shortDescription: 'Tell the team how it went — it takes a moment.',
-      },
-    })
-
-    // A reviewed Portal with no public address still cannot be published.
-    const addressDenial = await callServerFnExpectError(page, {
-      file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'publishPortal',
-      data: await reviewedPortalInput(page, created.portal.id),
-    })
-    expect(addressDenial.message ?? '').toContain(
-      'Create the Portal public address before publishing',
-    )
-
-    const issued = await callServerFn<{ rawToken: string; version: number }>(page, {
-      file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'issuePortalToken',
-      data: { portalId: created.portal.id, printBatch: 'e2e-browser' },
-    })
-    expect(issued.version).toBe(1)
-
-    // Links are NOT a publish precondition any more. "feat(portal): make guest
-    // gateway rating first" removed portal_has_no_links: once the rating is the
-    // point of the gateway, a Portal with no secondary destinations is a
-    // perfectly valid one. Categories are gone from the editor (s28), and a
-    // fresh Portal already has its Linktree switched on, so this step proves the
-    // Linktree settings function is reachable and authorised for an Account
-    // Admin, and that the switch is idempotent (it is set to the value it
-    // already has).
-    const linktree = await callServerFn<{ saved: boolean }>(page, {
-      file: 'src/contexts/portal/server/portal-links.ts',
-      exportName: 'saveLinktreeSettings',
-      data: { portalId: created.portal.id, enabled: true },
-    })
-    expect(linktree.saved).toBe(true)
-
-    // No link is created here, and that is an ENVIRONMENT limit rather than a
-    // choice. `createLink` resolves the destination through
-    // portal-destination-network-validator, which does real DNS and a real
-    // HTTPS fetch and refuses private address space. The local stack has no
-    // egress, so every external URL comes back 'unavailable' and every
-    // in-network stub is correctly rejected as 'unsafe'. Satisfying it would
-    // mean disabling an SSRF control for tests, which is not worth a green
-    // tick. The guest-facing destination contract is covered against the
-    // seeded Portal, whose approval is fixture-provisioned, in "P1 Portal
-    // management and opaque public URL survive reload" above.
-
-    await callServerFn(page, {
-      file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'updatePortalSettings',
-      data: {
-        portalId: created.portal.id,
-        description: 'Published through the real Portal command.',
-      },
-    })
-    const published = await callServerFn<{
-      portal: { id: string; publicationState: string }
-    }>(page, {
-      file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'publishPortal',
-      data: await reviewedPortalInput(page, created.portal.id),
-    })
-    expect(published.portal.publicationState).toBe('published')
-    const rotated = await callServerFn<{
-      rawToken: string
-      version: number
-      publicUrls: Readonly<{ qr: string; nfc: string }>
-    }>(page, {
-      file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'rotatePortalToken',
-      data: { portalId: created.portal.id },
-    })
-    expect(rotated.version).toBe(2)
-    expect(rotated.rawToken).not.toBe(issued.rawToken)
-    // The QR carries a print code, which is its own marker, so its URL names no
-    // Access Artifact. The scan counts against the rotated code's QR artifact.
-    const qualifiedUrl = new URL(rotated.publicUrls.qr)
-    const [qrArtifact] = await dbQuery<{ id: string }>(
-      `SELECT a.id
-       FROM portal_access_artifacts a
-       JOIN portal_tokens t ON t.id = a.portal_token_id
-       WHERE a.portal_id = $1::uuid AND t.status = 'active'
-         AND a.channel = 'qr' AND a.status = 'published' AND a.retired_at IS NULL`,
-      [created.portal.id],
-    )
-    const accessArtifactId = qrArtifact?.id
-    expect(accessArtifactId).toBeTruthy()
-    if (!accessArtifactId) throw new Error('Rotated Portal has no published QR artifact')
-    qualifiedScanPortal = {
-      id: created.portal.id,
-      groupId: grouped.group.id,
-      path: `${qualifiedUrl.pathname}${qualifiedUrl.search}`,
-      accessArtifactId,
-    }
+    const { portalName, groupName, portalId, issued, rotated } =
+      await publishRotatingPortal(page, e2eRunId.slice(-8))
 
     await page.goto(`/properties/${seed.p1PropertyId}/portals`)
     await expect(page.getByRole('link', { name: portalName, exact: true })).toBeVisible()
@@ -416,7 +425,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         const [row] = await dbQuery<{ status: string }>(
           `SELECT status FROM portal_health_intervals
            WHERE portal_id = $1 AND effective_to IS NULL`,
-          [created.portal.id],
+          [portalId],
         )
         return row && row.status !== 'unavailable' ? row : null
       },
@@ -715,9 +724,12 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // worker. Both are awaited on durable rows; the budget covers those two
     // production queue boundaries plus the manager UI assertions.
     test.setTimeout(90_000)
-    const portal = qualifiedScanPortal
-    expect(portal).not.toBeNull()
-    if (!portal) throw new Error('The per-run published Portal was not created')
+    const { qualifiedScanPortal: portal, groupName } = await publishRotatingPortal(
+      page,
+      `${e2eRunId.slice(-8)}-scan`,
+    )
+    // A goal for a group is named for it and its measure.
+    const activeGoalName = `${groupName} · Scans`
 
     const qualifiedScanCount = 2
     // The goal's number, far above the scans: the month is judged and missed.
@@ -891,7 +903,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       targetValue: scanGoalTarget,
       startMonth: nextMonth,
     })
-    governedGoalDefinitionId = governedGoalId
     expect(await storedGoalStatus(seed.p1PropertyId, governedGoalId)).toBe('scheduled')
 
     const temporalized = await dbQuery<{ id: string }>(
@@ -1069,7 +1080,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Goals' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'All monthly results' })).toHaveCount(0)
     await expect(page.locator('[data-slot="portal-goal-results-goal"]')).toHaveCount(0)
-    await page.goto(`/properties/${seed.p3PropertyId}/goals/${governedGoalDefinitionId}`)
+    await page.goto(`/properties/${seed.p3PropertyId}/goals/${governedGoalId}`)
     await expect(page.getByText(/doesn't exist|not found/i).first()).toBeVisible()
     await expect(page.getByText(activeGoalName)).toHaveCount(0)
   })
@@ -1078,10 +1089,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     page,
   }) => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
-    // A DIFFERENT subject from the program the previous journey leaves active:
-    // gsa_no_overlapping_subject_metric_intervals permits one open assignment
-    // per (subject, metric), and ending that one here would pull the ground out
-    // from under the Member journey that reads it. This goal is the Property's own.
+    // The Property's own subject, apart from the group program the scan journey
+    // sets: gsa_no_overlapping_subject_metric_intervals permits one open
+    // assignment per (subject, metric), so neither journey ends the other's.
     // Every create below names next month. A goal that starts this month opens
     // the month at once and, once ended, keeps the Property as its subject
     // until that month is over, which would refuse the next run of this journey.
