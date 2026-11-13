@@ -1,20 +1,21 @@
-# Orca workspace settings for Reputation Key.
+# Optional: only used by the Orca app (https://github.com/stablyai/orca). Nothing
+# else reads it; setup without Orca is in README.md.
 # The setup script runs in each new Orca worktree (cwd = the new worktree).
 scripts:
   setup: |
     set -euo pipefail
     cd "${ORCA_WORKTREE_PATH:-$PWD}"
 
-    # Orca is a GUI app, so Homebrew may be missing from its PATH.
-    command -v fnm >/dev/null 2>&1 || export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-    if ! command -v fnm >/dev/null 2>&1; then
-      echo "orca setup: fnm not found; install it with 'brew install fnm'." >&2
-      exit 1
-    fi
+    # Orca is a GUI app and may lack the shell's PATH; take it from a login shell.
+    PATH="$("${SHELL:-/bin/sh}" -lc 'printf %s "$PATH"' 2>/dev/null || printf %s "$PATH")"
+    export PATH
 
-    # Node comes from .nvmrc (engines pins 22.23.x); pnpm from package.json packageManager.
-    eval "$(fnm env --shell bash)"
-    fnm use --install-if-missing
+    # Node is pinned by .nvmrc (engines: 22.23.x). Use fnm when it is installed;
+    # otherwise the node already on PATH must match.
+    if command -v fnm >/dev/null 2>&1; then
+      eval "$(fnm env --shell bash)"
+      fnm use --install-if-missing
+    fi
     command -v pnpm >/dev/null 2>&1 || corepack enable pnpm
 
     echo "orca setup: node $(node -v), pnpm $(pnpm -v)"

@@ -320,7 +320,7 @@ function anthropicError(status: number): Record<string, unknown> {
 }
 
 /**
- * `AI_PROVIDER_STUB_UNSCRIPTED=respond` (the local inner loop, `pnpm local:up`):
+ * `AI_PROVIDER_STUB_UNSCRIPTED=respond` (the local inner loop, `pnpm dev`):
  * an unscripted request gets a synthesized answer instead of 503, so analysis,
  * and drafting run end to end without arming the stub first. The
  * answers are derived from the request's own provider payload (`input[1]`,
