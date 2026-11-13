@@ -549,6 +549,32 @@ describe('a listing that records a first miss (real PostgreSQL)', () => {
     expect(await sourceStateOf(id)).toBe('provider_deleted')
     expect((await lookAfter(6 * HOUR_MS)).kind).toBe('skip')
   })
+
+  it('asks for nothing when a later listing starts over 15 minutes after the miss and cannot confirm it', async () => {
+    const id = await storedIdOf(deleted)
+    listed = [first, second]
+    googleTotal = 2
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+    expect(await missedOf(id)).toBe(true)
+    const missed = await syncState()
+    expect(missed.requestedAt).toEqual(missed.listedAt)
+
+    // The request is spent, and Google's total now exceeds its list: a count
+    // gap, which confirms nothing and records no miss.
+    await elapse(6 * HOUR_MS)
+    googleTotal = 3
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+
+    expect(await missedOf(id)).toBe(true)
+    expect(await sourceStateOf(id)).toBe('active')
+    expect(directReadsOf(deleted)).toBe(0)
+    const gap = await syncState()
+    expect(gap.requestedAt?.getTime()).toBe(
+      (missed.requestedAt?.getTime() ?? 0) - 6 * HOUR_MS,
+    )
+    expect(gap.requestedAt?.getTime()).toBeLessThan(gap.listedAt?.getTime() ?? 0)
+    expect((await lookAfter(6 * HOUR_MS)).kind).toBe('skip')
+  })
 })
 
 describe('a stale count-drop stamp on a Property no head check reaches (real PostgreSQL)', () => {
