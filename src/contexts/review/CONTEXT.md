@@ -143,7 +143,9 @@ Properties whose drop outlasted 72 hours of requested reads.
    `reviews.reply` authorization permit for the attempt after the dispatch
    window (`REPLY_DISPATCH_EVIDENCE_WINDOW_MS`) and no recovery fence since.
    The guarantee is a lock: permit admission holds `FOR SHARE` on the attempt
-   row, and the settle re-reads permits under the row lock.
+   row, and the settle re-reads permits under the row lock. A `reviews.reply`
+   permit is kept while its attempt may have dispatched, so the retention
+   exclusion in the retention sweep must list every such state.
 10. A stale observation or event cannot confirm a newer Reply cycle; application
     agreement alone is not closure authority.
 11. Count or average drift during a reputation scan terminally fails the run.

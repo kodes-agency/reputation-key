@@ -34,6 +34,8 @@ type RetentionRuleBase = Readonly<{
   tsColumn: string
   /** Extra runtime-free registry predicate (e.g. 'published_at IS NOT NULL'). */
   extraWhere?: string
+  /** Lock each batch's rows with FOR UPDATE SKIP LOCKED, so a row another transaction holds waits for the next run. Plain delete rules only. */
+  skipLocked?: boolean
   /** Bound equality predicates for lifecycle purges and tenant scoping. */
   equalsWhere?: ReadonlyArray<Readonly<{ column: string; value: string }>>
   /**
@@ -177,6 +179,11 @@ async function deleteWithDependents(
 }
 
 function assertDependentsSupported(rule: RetentionRule): void {
+  if (rule.skipLocked && (rule.operation === 'redact' || rule.dependents?.length)) {
+    throw new Error(
+      `Retention rule '${rule.subject}' sets skipLocked, which only a plain delete rule supports`,
+    )
+  }
   if (!rule.dependents?.length) return
   if (rule.operation === 'redact' || keyCount(rule) !== 1) {
     throw new Error(
@@ -194,13 +201,16 @@ async function runPlainBatch(
   predicate: SQL,
 ): Promise<number> {
   const table = sql.identifier(rule.table)
+  // The candidates are materialised once: a planner that re-runs a LIMIT ...
+  // FOR UPDATE SKIP LOCKED subquery per row can touch more rows than the batch size.
+  const due = sql`WITH due AS MATERIALIZED (${candidates})`
   const statement =
     rule.operation === 'redact'
-      ? sql`UPDATE ${table} SET ${sql.join(
+      ? sql`${due} UPDATE ${table} SET ${sql.join(
           rule.redactColumns.map((column) => sql`${sql.identifier(column)} = NULL`),
           sql`, `,
-        )} WHERE (${keys}) IN (${candidates}) AND ${predicate} RETURNING ${keys}`
-      : sql`DELETE FROM ${table} WHERE (${keys}) IN (${candidates}) AND ${predicate} RETURNING ${keys}`
+        )} WHERE (${keys}) IN (SELECT ${keys} FROM due) AND ${predicate} RETURNING ${keys}`
+      : sql`${due} DELETE FROM ${table} WHERE (${keys}) IN (SELECT ${keys} FROM due) AND ${predicate} RETURNING ${keys}`
   return (await db.execute(statement)).rowCount ?? 0
 }
 
@@ -241,7 +251,8 @@ export async function executeRetentionRule(
   assertDependentsSupported(rule)
 
   for (;;) {
-    const candidates = sql`SELECT ${keys} FROM ${table} WHERE ${predicate} ORDER BY ${sql.identifier(orderColumn)} ASC LIMIT ${batchSize}`
+    const lock = rule.skipLocked ? sql` FOR UPDATE SKIP LOCKED` : sql``
+    const candidates = sql`SELECT ${keys} FROM ${table} WHERE ${predicate} ORDER BY ${sql.identifier(orderColumn)} ASC LIMIT ${batchSize}${lock}`
     const count =
       dependents.length > 0
         ? await deleteWithDependents(db, rule, dependents, candidates, predicate)

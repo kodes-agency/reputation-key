@@ -260,7 +260,7 @@ const LADDER_AMBIGUITY: ReadonlyArray<UncertainSendSnapshot> = [
 /** D4: every state whose attempt may or may not have reached Google. A
  * terminal row qualifies only when it is terminal ambiguity; a rejection or
  * an exhausted retry already says what happened. */
-const NEVER_DISPATCHED_SETTLEABLE: ReadonlyArray<UncertainSendSnapshot> = [
+export const NEVER_DISPATCHED_SETTLEABLE: ReadonlyArray<UncertainSendSnapshot> = [
   { status: 'approved', publicationState: 'sending' },
   { status: 'publish_failed', publicationState: 'ambiguous' },
   { status: 'publish_failed', publicationState: 'terminal', lastErrorClass: 'ambiguous' },

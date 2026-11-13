@@ -99,7 +99,7 @@ async function objectIds() {
 }
 
 it('adopts runtime-created auth tables and existing indexes without rebuilding them', async () => {
-  expect(indexes).toHaveLength(17)
+  expect(indexes).toHaveLength(18)
   run('scripts/better-auth-schema.ts', {})
   const client = new Client({ connectionString: url })
   await client.connect()

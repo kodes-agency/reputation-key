@@ -59,6 +59,7 @@ describe('journaled concurrent indexes', () => {
         'scan_events_ip_hash_redaction_idx',
         'audit_logs_created_at_idx',
         'review_provider_subjects_last_seen_run_idx',
+        'authorization_execution_permits_created_at_idx',
       ]),
     )
     expect(new Set(names).size).toBe(names.length)

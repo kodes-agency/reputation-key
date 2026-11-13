@@ -126,6 +126,7 @@ export const authorizationExecutionPermits = pgTable(
       table.startDeadlineAt,
       table.operationDeadlineAt,
     ),
+    index('authorization_execution_permits_created_at_idx').on(table.createdAt),
     index('authorization_execution_permits_scope_idx').on(
       table.organizationId,
       table.propertyId,
