@@ -21,7 +21,7 @@ import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
-import { createFeedbackHandlingStore } from './feedback-handling.store'
+import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
 import { createResponseTargetStore } from './response-target.store'
 import { completeGoogleReviewTarget } from './google-review-target-completion'
 import { createResponseTargetPolicyStore } from './response-target-policy.store'

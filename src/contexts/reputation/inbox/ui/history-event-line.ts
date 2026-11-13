@@ -112,7 +112,7 @@ type Actor = string | null
 // The three maps below are total over today's unions, but an unknown key is
 // reachable *without a client deploy*: the repository casts `openedReason`,
 // `manualReopenReason` and `outcome` straight out of `varchar` columns
-// (`inbox-history.repository.ts`), and the union is enforced only by a DB CHECK
+// (`inbox-history-repository.server.ts`), and the union is enforced only by a DB CHECK
 // constraint. A migration that widens one ships server-side while a manager's
 // cached bundle still runs this file. So every lookup is guarded and an unknown
 // value returns `null` from its line builder — the same rule the file states
@@ -330,7 +330,7 @@ function assignmentLine(
 
 function escalationLine(detail: DetailOf<'escalation'>, actor: Actor): HistoryEventLine {
   // No guard needed: the repository normalises the column to exactly these two
-  // values before the row leaves the server (`inbox-history.repository.ts:232`).
+  // values before the row leaves the server (`inbox-history-repository.server.ts:232`).
   const verb =
     detail.escalation === 'escalated'
       ? verbFor(actor, 'Escalated', 'escalated this')

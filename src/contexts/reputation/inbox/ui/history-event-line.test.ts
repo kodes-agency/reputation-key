@@ -5,7 +5,7 @@ import { historyEventLine, type HistoryEventLine } from './history-event-line'
 import type { InboxHistoryEntry } from './inbox-thread-model'
 
 // The parts contract of plan v2.1 row 11, per kind, with every guard the
-// varchar casts in `inbox-history.repository.ts` make reachable on a cached
+// varchar casts in `inbox-history-repository.server.ts` make reachable on a cached
 // client. The words asserted here are the words a reader sees: the node joins
 // actor, verb and object with single spaces and adds nothing else to them.
 

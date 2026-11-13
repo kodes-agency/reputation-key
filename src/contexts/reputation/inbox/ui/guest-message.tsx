@@ -59,7 +59,7 @@ const FEEDBACK_AUTHOR = 'Guest'
 /**
  * A null `reviewerName` has TWO meanings and the pane may only claim one of
  * them: the guest really did post anonymously, or the source snippet is gone —
- * `inbox.repository.ts` nulls every snippet field for both `expired` and
+ * `inbox-repository.server.ts` nulls every snippet field for both `expired` and
  * `not_found`. Only an available review can say anonymous; anything else says
  * the name is missing, in the same register as the unavailable-content lines
  * below, and asserts nothing about the person.
@@ -376,7 +376,7 @@ export function GuestMessage({
             the detail read builds `item` through `inboxItemFromRow`, which
             sets `rating: null` for EVERY row, feedback included
             (`inbox.mapper.ts:37`, BQC-1.2), and `findDetailById` never writes
-            it back (`inbox.repository.ts:778`, `:811`). */}
+            it back (`inbox-repository.server.ts:778`, `:811`). */}
           <MessageHeader
             name={FEEDBACK_AUTHOR}
             rating={detail.feedbackRatingValue}
@@ -456,7 +456,7 @@ export function GuestMessage({
            `inboxItemFromRow`, which sets `rating: null` for every row
            (`inbox.mapper.ts:37`, "Legacy column values must not be served").
            The one place a row DOES carry a rating is the list projection
-           (`inbox.repository.ts:433`), and that object never reaches here.
+           (`inbox-repository.server.ts:433`), and that object never reaches here.
            Reading it anyway would only matter the day someone re-adds a
            rating to the detail item — and then it would print stars beside an
            `expired` snippet, which BQC-1.2 forbids. So it is not read.

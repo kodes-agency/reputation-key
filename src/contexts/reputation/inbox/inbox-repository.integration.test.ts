@@ -3,16 +3,16 @@
 // Tenant isolation test is NON-NEGOTIABLE.
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
-import { createInboxRepository as createProductionInboxRepository } from './inbox.repository'
-import { inboxSourceIdMatchesAny } from './inbox-list-narrowing'
+import { createInboxRepository as createProductionInboxRepository } from './inbox-repository.server'
+import { inboxSourceIdMatchesAny } from './inbox-list-narrowing.server'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import type {
   ReviewLookupPort,
   ReviewSnippetResult,
-} from '../../application/ports/review-lookup.port'
-import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
-import type { AiReviewInsightsPort } from '../../application/ports/ai-review-insights.port'
+} from '#/contexts/inbox/application/ports/review-lookup.port'
+import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
+import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
+import type { AiReviewInsightsPort } from '#/contexts/inbox/application/ports/ai-review-insights.port'
 import { getDb } from '#/shared/db'
 import {
   inboxItemId,
@@ -22,7 +22,7 @@ import {
   feedbackId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../../domain/types'
+import type { InboxItem } from '#/contexts/inbox/domain/types'
 import type { Database } from '#/shared/db'
 
 import {
@@ -30,7 +30,7 @@ import {
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
 
-import { queueToFilters } from '../../application/inbox-queues'
+import { queueToFilters } from '#/contexts/inbox/application/inbox-queues'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'

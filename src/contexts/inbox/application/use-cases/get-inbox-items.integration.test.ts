@@ -27,7 +27,7 @@ import type { ReplyLookupPort } from '../ports/reply-lookup.port'
 import type { InboxViewRepository } from '../ports/inbox-view.repository'
 import type { AiReviewInsightsPort } from '../ports/ai-review-insights.port'
 import type { Cursor } from '../ports/inbox.repository'
-import { createInboxRepository } from '../../infrastructure/repositories/inbox.repository'
+import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import {
   buildFixtureItem,
   fixtureUuid,

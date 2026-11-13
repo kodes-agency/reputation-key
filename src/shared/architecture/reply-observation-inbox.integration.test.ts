@@ -20,7 +20,7 @@ import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
-import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
+import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/reviews/source-transition-authority.server'

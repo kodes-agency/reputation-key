@@ -69,7 +69,7 @@ import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/rev
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
-import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
+import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,

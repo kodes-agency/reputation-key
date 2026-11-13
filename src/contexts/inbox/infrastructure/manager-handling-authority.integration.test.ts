@@ -35,7 +35,7 @@ import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
-import { createFeedbackHandlingStore } from './feedback-handling.store'
+import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
 
 const ORG = organizationId('org-manager-handling-authority-0001')
 const PROPERTY = propertyId('6b000000-0000-4000-8000-000000000001')

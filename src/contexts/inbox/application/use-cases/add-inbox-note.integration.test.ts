@@ -15,7 +15,7 @@ import {
   seedInboxItem,
   seedInboxOrganization,
 } from '../../infrastructure/inbox-database-fixtures'
-import { createInboxNoteRepository } from '../../infrastructure/repositories/inbox-note.repository'
+import { createInboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.server'
 import {
   inboxItemId,
   inboxNoteId,

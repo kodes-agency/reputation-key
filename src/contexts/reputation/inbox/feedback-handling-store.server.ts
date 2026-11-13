@@ -20,26 +20,29 @@ import type {
   FeedbackHandlingExpectation,
   FeedbackHandlingState,
   FeedbackHandlingStore,
-} from '../application/ports/feedback-handling.store'
+} from '#/contexts/inbox/application/ports/feedback-handling.store'
 import {
   correctFeedbackHandlingOutcomeFact,
   recordFeedbackHandlingOutcome,
   type FeedbackHandlingOutcomeFact,
-} from '../domain/feedback-handling'
-import { closeHandlingCycle } from '../domain/handling-cycles'
-import { inboxError } from '../domain/errors'
-import { inboxHandlingCycleClosed, inboxItemStatusChanged } from '../domain/events'
-import type { HandlingCycleHead, InboxItem } from '../domain/types'
+} from '#/contexts/inbox/domain/feedback-handling'
+import { closeHandlingCycle } from '#/contexts/inbox/domain/handling-cycles'
+import { inboxError } from '#/contexts/inbox/domain/errors'
+import {
+  inboxHandlingCycleClosed,
+  inboxItemStatusChanged,
+} from '#/contexts/inbox/domain/events'
+import type { HandlingCycleHead, InboxItem } from '#/contexts/inbox/domain/types'
 import type { InboxCommandAuthority } from '#/contexts/reputation/inbox/command-store.server'
 import {
   selectCycleCloseReason,
   selectSourceUnavailableCloseReasons,
   type TransitionReader,
-} from './handling-cycle-transitions.read'
-import { assertManagerHandlingPermitted } from '../domain/handling-outcome-authority'
-import { inboxItemFromRow } from './mappers/inbox.mapper'
-import { transitionInsert } from './review-handling-cycle.store'
-import { completePrivateFeedbackTarget } from './response-target.store'
+} from '#/contexts/inbox/infrastructure/handling-cycle-transitions.read'
+import { assertManagerHandlingPermitted } from '#/contexts/inbox/domain/handling-outcome-authority'
+import { inboxItemFromRow } from '#/contexts/inbox/infrastructure/mappers/inbox.mapper'
+import { transitionInsert } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
+import { completePrivateFeedbackTarget } from '#/contexts/inbox/infrastructure/response-target.store'
 
 type OutcomeRow = typeof inboxFeedbackHandlingOutcomes.$inferSelect
 type HeadRow = typeof inboxHandlingCycleHeads.$inferSelect

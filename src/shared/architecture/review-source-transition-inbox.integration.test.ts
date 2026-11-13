@@ -11,7 +11,7 @@ import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
-import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
+import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { handleInboxReviewSourceTransitioned } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import type { InboxItem } from '#/contexts/inbox/domain/types'

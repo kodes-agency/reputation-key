@@ -5,12 +5,15 @@
 import { and, eq, desc } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxNotes } from '#/shared/db/schema/inbox.schema'
-import type { InboxNoteRepository } from '../../application/ports/inbox-note.repository'
-import type { InboxNote } from '../../domain/types'
+import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
+import type { InboxNote } from '#/contexts/inbox/domain/types'
 import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
-import { inboxNoteFromRow, inboxNoteToInsertRow } from '../mappers/inbox-note.mapper'
+import {
+  inboxNoteFromRow,
+  inboxNoteToInsertRow,
+} from '#/contexts/inbox/infrastructure/mappers/inbox-note.mapper'
 import { trace } from '#/shared/observability/trace'
-import { inboxError } from '../../domain/errors'
+import { inboxError } from '#/contexts/inbox/domain/errors'
 
 export const createInboxNoteRepository = (db: Database): InboxNoteRepository => ({
   findByInboxItemId: async (itemId: InboxItemId, orgId: OrganizationId) => {

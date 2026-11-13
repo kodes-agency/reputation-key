@@ -16,7 +16,7 @@ import { createGoogleReplyObservationStore } from '#/contexts/review/infrastruct
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/command-store.server'
-import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
+import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import {
   handleInboxReplyObserved,
