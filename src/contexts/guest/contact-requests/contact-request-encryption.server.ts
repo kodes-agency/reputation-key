@@ -3,12 +3,28 @@ import { z } from 'zod/v4'
 import {
   contactRequestEmailSchema,
   contactRequestNameSchema,
-} from '../../application/dto/contact-request.dto'
-import type {
-  ContactRequestEncryptionContext,
-  ContactRequestEncryptionPort,
-  SealedContactRequestValue,
-} from '../../application/ports/contact-request-encryption.port'
+  type ContactRequestContact,
+  type ContactRequestScope,
+} from './contracts'
+
+export type ContactRequestEncryptionContext = ContactRequestScope &
+  Readonly<{ contactRequestId: string; responseId: string }>
+
+export type SealedContactRequestValue = Readonly<{
+  keyId: string
+  ciphertext: string
+}>
+
+export type ContactRequestEncryption = Readonly<{
+  seal(
+    contact: ContactRequestContact,
+    context: ContactRequestEncryptionContext,
+  ): SealedContactRequestValue
+  open(
+    sealed: SealedContactRequestValue,
+    context: ContactRequestEncryptionContext,
+  ): ContactRequestContact
+}>
 
 const KEY_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,49}$/
 const KEY_PATTERN = /^[a-f0-9]{64}$/
@@ -39,13 +55,13 @@ function additionalData(context: ContactRequestEncryptionContext): Buffer {
   )
 }
 
-export const createContactRequestEncryptionAdapter = (
+export const createContactRequestEncryption = (
   input: Readonly<{
     activeKeyId: string
     keys: Readonly<Record<string, string>>
     generateIv: () => Buffer
   }>,
-): ContactRequestEncryptionPort => {
+): ContactRequestEncryption => {
   const keys = new Map<string, Buffer>()
   for (const [keyId, material] of Object.entries(input.keys)) {
     if (!KEY_ID_PATTERN.test(keyId) || !KEY_PATTERN.test(material)) {
@@ -58,7 +74,7 @@ export const createContactRequestEncryptionAdapter = (
   }
 
   const seal = (
-    contact: Parameters<ContactRequestEncryptionPort['seal']>[0],
+    contact: Parameters<ContactRequestEncryption['seal']>[0],
     context: ContactRequestEncryptionContext,
   ): SealedContactRequestValue => {
     try {
@@ -88,7 +104,7 @@ export const createContactRequestEncryptionAdapter = (
   const open = (
     sealed: SealedContactRequestValue,
     context: ContactRequestEncryptionContext,
-  ): ReturnType<ContactRequestEncryptionPort['open']> => {
+  ): ReturnType<ContactRequestEncryption['open']> => {
     try {
       const key = keys.get(sealed.keyId)
       const parts = sealed.ciphertext.split(':')

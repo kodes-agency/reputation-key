@@ -18,7 +18,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { getPortalContactRequestManagerAuthorityFacts } from '../application/use-cases/portal-contact-request-authority'
+import { getPortalContactRequestManagerAuthorityFacts } from './contact-request-authority.server'
 import {
   listPortalResponsibleManagers,
   updatePortalResponsibleManagers,

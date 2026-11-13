@@ -6,7 +6,7 @@
 
 Guest-facing interactions on public Portal pages: diagnostic and qualified scans,
 private star ratings, optional feedback, destination actions, response integrity,
-and the separately consented but inactive Contact Request backend.
+and the separately consented Contact Request, which stays off until its launch switch is on.
 
 ## Boundaries
 
@@ -168,7 +168,7 @@ has no caller at all: `responseLifecycle.changeIntegrity`, the internal integrit
 takes its actor as data and decides nothing about who may use it, so no server function
 may expose it to a manager.
 
-Cleanup remains live even while `portal.guest_contact` is hard-blocked; it cannot submit, read, reveal, or withdraw a request.
+Cleanup runs whether or not contact requests are on; it cannot submit, read, reveal, or withdraw a request.
 
 ## Published direct Google journey
 
@@ -217,7 +217,7 @@ and accessibility checks.
 
 The activation lifecycle remains absent from `build.ts`, server functions, routes, workers, and public API. Manager relationships are freshly resolved immediately before a Guest operation; the documented cross-transaction revocation interval must be accepted or replaced by a transactional permit before activation.
 
-`portal.guest_contact` is safety-blocked for beta. The backend foundation and tests do not create an activation path. Tenant allowlists, E2E overrides, routes, UI, workers, and public APIs cannot enable it. The only composed job path is fail-closed cleanup of encrypted material already present in migration-compatible storage. Activation still requires named approval evidence for the guest notice, 30-day retention wording, manager handling, and delivery channel, plus an accepted disposition for the documented authority-revocation interval and production key lifecycle; phone remains excluded.
+`portal.guest_contact` stays safety-blocked, and `CONTACT_REQUESTS_ENABLED` is off by default; both must change before a guest can submit or a manager can reveal. The code lives in `contact-requests/` (`contracts.ts`, sealing, authority, repository, lifecycle and the manager screen), the guest form in `page/ui/contact-request.tsx`, the endpoints in `server/contact-requests.ts`. A guest acts only on the response their signed session holds; a manager needs the permission and a current basis (account admin, Portal creator or responsible manager) read fresh at each call; every reveal writes an audit row with the actor, purpose and basis, never the contact. Details are sealed with `CONTACT_REQUEST_ENCRYPTION_KEY` (AES-256-GCM, bound to the organization, Property, Portal, request and response), expire 30 days after submission, and are erased at once on withdrawal. Withdrawal and the expiry sweep keep working while the switch is off. Turning it on needs the approved guest notice, the Privacy Notice change, the manager handling text and the per-Portal notice evidence in the publication snapshot, which publication does not write yet, so `create` answers `contact_disabled` for every published Portal. Phone stays excluded.
 
 ## Own-Organization visits — 2026-11-01 (ADR 0076)
 

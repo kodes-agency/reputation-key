@@ -9,6 +9,8 @@ export type GuestNetworkBudgetAction =
   | 'correct'
   | 'feedback'
   | 'feedback_withdraw'
+  | 'contact_request'
+  | 'contact_request_withdraw'
   | 'response_withdraw'
   | 'new_response'
   | 'google'

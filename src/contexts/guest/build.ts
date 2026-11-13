@@ -53,10 +53,22 @@ import {
 import { reportGuestObservationLoss } from './application/use-cases/report-observation-loss'
 import { reportGuestNetworkBudgetExhausted } from './application/use-cases/report-network-budget-exhausted'
 import { createGuestNetworkPseudonymHasher } from './server/hash-ip.server'
-import { createContactRequestResponseAuthorityAdapter } from './infrastructure/adapters/contact-request-response-authority.adapter'
-import { createContactRequestManagerAuthorityAdapter } from './infrastructure/adapters/contact-request-manager-authority.adapter'
-import { createContactRequestRetentionRepository } from './infrastructure/repositories/contact-request.repository'
-import { contactRequestRetentionSweep } from './application/use-cases/contact-request-retention'
+import type { ExecutionPolicy } from '#/shared/auth/execution-policy'
+import {
+  createContactRequestManagerAuthority,
+  createContactRequestResponseAuthority,
+} from './contact-requests/contact-request-authority.server'
+import { createContactRequestEncryption } from './contact-requests/contact-request-encryption.server'
+import {
+  createContactRequestRepository,
+  createContactRequestRetentionRepository,
+} from './contact-requests/contact-request.repository.server'
+import {
+  contactRequestLifecycle,
+  contactRequestRetentionSweep,
+} from './contact-requests/contact-request-lifecycle.server'
+
+const CONTACT_REQUEST_KEY_ID = 'v1'
 
 type GuestContextDeps = Readonly<{
   db: Database
@@ -67,6 +79,13 @@ type GuestContextDeps = Readonly<{
   identityAccountAdminAuthority: IdentityAccountAdminAuthorityPublicApi
   staffApi: Pick<StaffPublicApi, 'getAccessiblePropertyIds'>
   logger: LoggerPort
+  executionPolicy: Pick<ExecutionPolicy, 'decide'>
+  /** `enabled` is the launch switch; the sealing key is needed once it is on. */
+  contactRequests: Readonly<{
+    enabled: boolean
+    encryptionKey?: string
+    generateIv: () => Buffer
+  }>
   sessionSecret: string
   publicOrigin: string
   secureCookies: boolean
@@ -112,16 +131,40 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     clock: deps.clock,
     randomId: deps.idGen,
   })
-  const contactRequestResponseAuthority = createContactRequestResponseAuthorityAdapter({
+  const contactRequestResponseAuthority = createContactRequestResponseAuthority({
     sessions: guestSessions,
     responses: guestResponseRepo,
   })
-  const contactRequestManagerAuthority = createContactRequestManagerAuthorityAdapter({
+  const contactRequestManagerAuthority = createContactRequestManagerAuthority({
     portal: deps.portalApi,
     managerFacts: deps.identityManagerFacts,
     accountAdminAuthority: deps.identityAccountAdminAuthority,
     staff: deps.staffApi,
   })
+  const contactRequestRepo = (() => {
+    const key = deps.contactRequests.encryptionKey
+    if (!key) return undefined
+    return createContactRequestRepository(
+      deps.db,
+      createContactRequestEncryption({
+        activeKeyId: CONTACT_REQUEST_KEY_ID,
+        keys: { [CONTACT_REQUEST_KEY_ID]: key },
+        generateIv: deps.contactRequests.generateIv,
+      }),
+    )
+  })()
+  const contactRequests = contactRequestRepo
+    ? contactRequestLifecycle({
+        repo: contactRequestRepo,
+        policy: deps.executionPolicy,
+        managerAuthority: contactRequestManagerAuthority,
+        responseAuthority: contactRequestResponseAuthority,
+        isEnabled: () => deps.contactRequests.enabled,
+        clock: deps.clock,
+        idGen: deps.idGen,
+        revealAuditIdGen: deps.idGen,
+      })
+    : undefined
   const contactRequestRetention = contactRequestRetentionSweep({
     repo: createContactRequestRetentionRepository(deps.db),
     clock: deps.clock,
@@ -220,12 +263,10 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     observationLoss: Object.freeze({
       read: (asOf: Date) => guestObservationLossMonitor.read(asOf),
     }),
-    /** Contact Request stays dark; the retention sweep is the only capability
-     * a running deployable consumes, and it operates on rows that can only
-     * exist once the dark capability is turned on. */
+    /** Contact requests are off until the launch switch is on. `commands` is
+     * absent without a sealing key; the retention sweep always runs. */
     contactRequestReadiness: Object.freeze({
-      responseAuthority: contactRequestResponseAuthority,
-      managerAuthority: contactRequestManagerAuthority,
+      commands: contactRequests,
       retentionSweep: contactRequestRetention,
     }),
   } as const

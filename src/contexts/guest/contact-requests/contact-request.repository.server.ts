@@ -9,8 +9,61 @@ import {
 } from '#/shared/db/schema/guest.schema'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { portalPublicationSnapshots } from '#/shared/db/schema/portal-publication.schema'
-import type { ContactRequestEncryptionPort } from '../../application/ports/contact-request-encryption.port'
-import type { ContactRequestRepository } from '../../application/ports/contact-request.repository'
+import type { ContactRequestEncryption } from './contact-request-encryption.server'
+import type {
+  ContactRequestAccessPurpose,
+  ContactRequestManagerAuthorization,
+  ContactRequestPurpose,
+  ContactRequestScope,
+  MaskedContactRequest,
+} from './contracts'
+
+export type ContactRequestRepository = Readonly<{
+  create(input: {
+    id: string
+    scope: ContactRequestScope
+    responseId: string
+    purpose: ContactRequestPurpose
+    consent: true
+    email: string
+    name?: string
+    submittedAt: Date
+    expiresAt: Date
+  }): Promise<
+    Readonly<{
+      outcome: 'created' | 'duplicate' | 'source_unavailable' | 'contact_disabled'
+    }>
+  >
+  findMasked(input: {
+    scope: ContactRequestScope
+    responseId: string
+    authorization: ContactRequestManagerAuthorization
+    asOf: Date
+  }): Promise<MaskedContactRequest | null>
+  reveal(input: {
+    scope: ContactRequestScope
+    contactRequestId: string
+    authorization: ContactRequestManagerAuthorization
+    auditId: string
+    accessPurpose: ContactRequestAccessPurpose
+    at: Date
+  }): Promise<
+    | Readonly<{ outcome: 'revealed'; email: string; name?: string }>
+    | Readonly<{ outcome: 'not_found' | 'unavailable' | 'not_authorized' }>
+  >
+  withdraw(input: {
+    scope: ContactRequestScope
+    responseId: string
+    at: Date
+  }): Promise<Readonly<{ outcome: 'withdrawn' | 'not_found' | 'unavailable' }>>
+  purgeExpired(input: { through: Date; batchSize: number }): Promise<
+    Readonly<{
+      processed: number
+      checkpoint: Readonly<{ expiresAt: Date; id: string }> | null
+      completedThrough: Date | null
+    }>
+  >
+}>
 
 const PURGE_AUTHORITY = 'guest-contact-30d-v1'
 const PURGE_RECEIPT_SCOPE = 'guest_contact_purge'
@@ -191,7 +244,7 @@ export const createContactRequestRetentionRepository = (
 
 export const createContactRequestRepository = (
   db: Database,
-  encryption: ContactRequestEncryptionPort,
+  encryption: ContactRequestEncryption,
 ): ContactRequestRepository => ({
   create: async (input) => {
     const sealed = encryption.seal(
@@ -359,7 +412,7 @@ export const createContactRequestRepository = (
         .from(guestContactRequests)
         .where(
           and(
-            eq(guestContactRequests.id, input.contactRequestId),
+            eq(guestContactRequests.responseId, input.responseId),
             eq(guestContactRequests.organizationId, input.scope.organizationId),
             eq(guestContactRequests.propertyId, input.scope.propertyId),
             eq(guestContactRequests.portalId, input.scope.portalId),
@@ -464,11 +517,10 @@ export const createContactRequestRepository = (
         .from(guestContactRequests)
         .where(
           and(
-            eq(guestContactRequests.id, input.contactRequestId),
+            eq(guestContactRequests.responseId, input.responseId),
             eq(guestContactRequests.organizationId, input.scope.organizationId),
             eq(guestContactRequests.propertyId, input.scope.propertyId),
             eq(guestContactRequests.portalId, input.scope.portalId),
-            eq(guestContactRequests.responseId, input.responseId),
           ),
         )
         .for('update')
@@ -487,7 +539,7 @@ export const createContactRequestRepository = (
         })
         .where(
           and(
-            eq(guestContactRequests.id, input.contactRequestId),
+            eq(guestContactRequests.responseId, input.responseId),
             eq(guestContactRequests.organizationId, input.scope.organizationId),
             eq(guestContactRequests.propertyId, input.scope.propertyId),
             eq(guestContactRequests.portalId, input.scope.portalId),

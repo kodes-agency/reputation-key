@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createContactRequestResponseAuthorityAdapter } from './contact-request-response-authority.adapter'
-import type { ContactRequestSessionAuthorityPort } from '../../application/ports/contact-request-session-authority.port'
-import type { GuestResponseRepository } from '../../application/ports/guest-response.repository'
+import { createContactRequestResponseAuthority } from './contact-request-authority.server'
+import type { GuestResponseRepository } from '../application/ports/guest-response.repository'
 
 const NOW = new Date('2026-08-28T12:00:00.000Z')
 const SCOPE = Object.freeze({
@@ -40,20 +39,19 @@ const setup = (input?: {
       input?.verifiedSession === undefined ? SESSION : input.verifiedSession,
     ),
     verifyCsrf: vi.fn(() => input?.csrfValid ?? true),
-  } as unknown as ContactRequestSessionAuthorityPort
+  } as unknown as Parameters<typeof createContactRequestResponseAuthority>[0]['sessions']
   const responses = {
     findForSession: vi.fn(async () =>
       input?.foundResponse === undefined ? response() : input.foundResponse,
     ),
   } as unknown as Pick<GuestResponseRepository, 'findForSession'>
-  const authority = createContactRequestResponseAuthorityAdapter({ sessions, responses })
+  const authority = createContactRequestResponseAuthority({ sessions, responses })
   return { authority, sessions, responses }
 }
 
 const authorize = (action: 'submit' | 'withdraw' = 'submit') => ({
   action,
   scope: SCOPE,
-  responseId: RESPONSE_ID,
   authority: {
     signedSession: 'rk_guest_session=signed-cookie-value',
     csrfNonce: SESSION.csrfNonce,
@@ -61,13 +59,13 @@ const authorize = (action: 'submit' | 'withdraw' = 'submit') => ({
   at: NOW,
 })
 
-describe('Contact Request response authority adapter', () => {
+describe('Contact Request response authority', () => {
   it.each(['submit', 'withdraw'] as const)(
     'authorizes %s only through the exact live signed-session response binding',
     async (action) => {
       const { authority, sessions, responses } = setup()
 
-      await expect(authority.authorize(authorize(action))).resolves.toBe(true)
+      await expect(authority.authorize(authorize(action))).resolves.toBe(RESPONSE_ID)
       expect(sessions.verify).toHaveBeenCalledWith(
         'rk_guest_session=signed-cookie-value',
         SCOPE,
@@ -79,22 +77,21 @@ describe('Contact Request response authority adapter', () => {
 
   it('fails closed before reading a response when signature or CSRF authority is invalid', async () => {
     const unsigned = setup({ verifiedSession: null })
-    await expect(unsigned.authority.authorize(authorize())).resolves.toBe(false)
+    await expect(unsigned.authority.authorize(authorize())).resolves.toBeNull()
     expect(unsigned.responses.findForSession).not.toHaveBeenCalled()
 
     const wrongCsrf = setup({ csrfValid: false })
-    await expect(wrongCsrf.authority.authorize(authorize())).resolves.toBe(false)
+    await expect(wrongCsrf.authority.authorize(authorize())).resolves.toBeNull()
     expect(wrongCsrf.responses.findForSession).not.toHaveBeenCalled()
   })
 
   it.each([
     ['missing binding', null],
-    ['different response', response({ id: '10000000-0000-4000-8000-000000000099' })],
     ['terminal response', response({ status: 'deleted', deletedAt: NOW })],
     ['withdrawn response consent', response({ responseConsent: false })],
   ] as const)('denies a %s', async (_case, foundResponse) => {
     const { authority } = setup({ foundResponse })
 
-    await expect(authority.authorize(authorize())).resolves.toBe(false)
+    await expect(authority.authorize(authorize())).resolves.toBeNull()
   })
 })

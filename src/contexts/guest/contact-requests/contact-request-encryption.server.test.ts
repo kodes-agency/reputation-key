@@ -2,8 +2,8 @@ import { randomBytes } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
   ContactRequestEncryptionError,
-  createContactRequestEncryptionAdapter,
-} from './contact-request-encryption.adapter'
+  createContactRequestEncryption,
+} from './contact-request-encryption.server'
 
 const CONTEXT = Object.freeze({
   organizationId: '10000000-0000-4000-8000-000000000001',
@@ -15,7 +15,7 @@ const CONTEXT = Object.freeze({
 
 describe('Contact Request encryption adapter', () => {
   const adapter = () =>
-    createContactRequestEncryptionAdapter({
+    createContactRequestEncryption({
       activeKeyId: 'v2',
       keys: {
         v1: '11'.repeat(32),
@@ -64,14 +64,14 @@ describe('Contact Request encryption adapter', () => {
       adapter().open({ keyId: 'retired', ciphertext: 'not-material' }, CONTEXT),
     ).toThrowError(ContactRequestEncryptionError)
     expect(() =>
-      createContactRequestEncryptionAdapter({
+      createContactRequestEncryption({
         activeKeyId: 'v1',
         keys: { v1: 'too-short' },
         generateIv: () => randomBytes(12),
       }),
     ).toThrowError(ContactRequestEncryptionError)
     expect(() =>
-      createContactRequestEncryptionAdapter({
+      createContactRequestEncryption({
         activeKeyId: 'v1',
         keys: { v1: '11'.repeat(32) },
         generateIv: () => Buffer.alloc(11),

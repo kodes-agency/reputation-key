@@ -89,7 +89,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/guest/infrastructure/repositories/contact-request.repository.ts',
+    file: 'src/contexts/guest/contact-requests/contact-request.repository.server.ts',
     symbol: 'purgeExpiredContactRequests',
     reason:
       'The checkpointed retention sweep intentionally purges expired contact requests across tenants in a bounded, globally serialized transaction.',
