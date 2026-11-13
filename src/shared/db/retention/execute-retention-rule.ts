@@ -111,20 +111,44 @@ function retentionPredicate(rule: RetentionRule, cutoff: Date): SQL {
   return sql.join(conditions, sql` AND `)
 }
 
+export type RetentionRuleCandidateStats = Readonly<{
+  count: number
+  /** Oldest timestamp among the eligible rows; null with no rows or an equality-scoped rule. */
+  oldest: Date | null
+}>
+
 /**
- * Content-free eligibility count used by isolated restore verification. The
- * caller must pass a rule from the static retention registry; identifiers and
- * predicates are deliberately not a public/user-input query surface.
+ * Content-free eligibility count and oldest eligible timestamp, from the same
+ * predicate the sweep deletes or redacts by. Used by isolated restore
+ * verification and the operator dry run. The caller must pass a rule from the
+ * static retention registry; identifiers and predicates are deliberately not a
+ * public/user-input query surface.
  */
+export async function readRetentionRuleCandidateStats(
+  db: Pick<Database, 'execute'>,
+  rule: RetentionRule,
+  cutoff: Date,
+): Promise<RetentionRuleCandidateStats> {
+  const oldest = rule.equalsWhere
+    ? sql`NULL::timestamptz`
+    : sql`min(${sql.identifier(rule.tsColumn)})`
+  const result = await db.execute(
+    sql`SELECT count(*)::int AS count, ${oldest} AS oldest FROM ${sql.identifier(rule.table)} WHERE ${retentionPredicate(rule, cutoff)}`,
+  )
+  const row = result.rows[0] as
+    { count?: number | string; oldest?: Date | string | null } | undefined
+  return {
+    count: Number(row?.count ?? 0),
+    oldest: row?.oldest ? new Date(row.oldest) : null,
+  }
+}
+
 export async function countRetentionRuleCandidates(
   db: Database,
   rule: RetentionRule,
   cutoff: Date,
 ): Promise<number> {
-  const result = await db.execute(
-    sql`SELECT count(*)::int AS count FROM ${sql.identifier(rule.table)} WHERE ${retentionPredicate(rule, cutoff)}`,
-  )
-  return Number((result.rows[0] as { count?: number | string } | undefined)?.count ?? 0)
+  return (await readRetentionRuleCandidateStats(db, rule, cutoff)).count
 }
 
 const keyCount = (rule: RetentionRule): number => rule.keyColumns.length
