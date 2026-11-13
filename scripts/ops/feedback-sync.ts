@@ -1,4 +1,4 @@
-// OBS-01 — close the loop from the issue tracker back to beta triage.
+// Close the loop from the issue tracker back to beta triage.
 //
 // Deliberately a pull, not a webhook: an inbound GitHub hook would mean new
 // public ingress, a shared secret and a signature-verification surface, for a
@@ -17,6 +17,7 @@ import { getEnv } from '../../src/shared/config/env'
 import { BetaFeedbackTriageRepository } from '../../src/contexts/identity/infrastructure/beta-feedback-triage.repository'
 import { betaFeedbackPseudonym } from '../../src/contexts/identity/application/beta-feedback-pseudonym'
 import { resolveBetaFeedbackReporter } from '../../src/contexts/identity/infrastructure/beta-feedback-reporter'
+import { runCommandEntrypoint } from './command-entrypoint'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND = 'ops:feedback-sync'
@@ -130,7 +131,4 @@ async function main(): Promise<void> {
   process.exit(result.exitCode)
 }
 
-main().catch((error) => {
-  console.error(`${COMMAND} failed`, error)
-  process.exit(1)
-})
+void runCommandEntrypoint(COMMAND, main)

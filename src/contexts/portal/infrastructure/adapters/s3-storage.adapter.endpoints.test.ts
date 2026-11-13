@@ -158,7 +158,33 @@ describe('against a local S3-compatible store (path style)', () => {
       req.on('data', (chunk: Buffer) => chunks.push(chunk))
       req.on('end', () => {
         const stored = objects.get(url.pathname)
-        if (req.method === 'PUT') {
+        if (req.method === 'GET' && url.searchParams.get('list-type') === '2') {
+          const bucketPrefix = `${url.pathname}${url.pathname.endsWith('/') ? '' : '/'}`
+          const wanted = `${bucketPrefix}${url.searchParams.get('prefix') ?? ''}`
+          const matching = [...objects.keys()]
+            .filter((path) => path.startsWith(wanted))
+            .filter(
+              (path) =>
+                path.slice(bucketPrefix.length) >
+                (url.searchParams.get('start-after') ?? ''),
+            )
+            .sort()
+          const from = Number(url.searchParams.get('continuation-token') ?? 0)
+          const size = Number(url.searchParams.get('max-keys') ?? 1000)
+          const page = matching.slice(from, from + size)
+          const more = from + size < matching.length
+          res.writeHead(200, { 'content-type': 'application/xml' })
+          res.end(
+            `<ListBucketResult><IsTruncated>${more}</IsTruncated>${
+              more ? `<NextContinuationToken>${from + size}</NextContinuationToken>` : ''
+            }${page
+              .map(
+                (path) =>
+                  `<Contents><Key>${path.slice(bucketPrefix.length)}</Key><LastModified>2026-11-01T10:00:00.000Z</LastModified></Contents>`,
+              )
+              .join('')}</ListBucketResult>`,
+          )
+        } else if (req.method === 'PUT') {
           objects.set(url.pathname, {
             body: Buffer.concat(chunks),
             contentType: String(req.headers['content-type'] ?? ''),
@@ -230,6 +256,26 @@ describe('against a local S3-compatible store (path style)', () => {
     await expect(
       createS3StorageAdapter(config).confirmUpload('avatars/u/missing'),
     ).rejects.toMatchObject({ name: 'NotFound' })
+  })
+
+  it('lists the objects under a prefix, and says when it stopped short of the rest', async () => {
+    const adapter = createS3StorageAdapter(config)
+    for (const name of ['a', 'b', 'c']) {
+      await adapter.putObject(`listed/${name}`, Buffer.from('x'), 'image/png')
+    }
+    await adapter.putObject('other/z', Buffer.from('x'), 'image/png')
+
+    const all = await adapter.listObjects('listed/', 10)
+    const first = await adapter.listObjects('listed/', 2)
+
+    expect(all.objects.map((o) => o.key)).toEqual(['listed/a', 'listed/b', 'listed/c'])
+    expect(all.objects[0]?.lastModified).toEqual(new Date('2026-11-01T10:00:00.000Z'))
+    expect(all.truncated).toBe(false)
+    expect(first.objects.map((o) => o.key)).toEqual(['listed/a', 'listed/b'])
+    expect(first.truncated).toBe(true)
+
+    const rest = await adapter.listObjects('listed/', 10, 'listed/a')
+    expect(rest.objects.map((o) => o.key)).toEqual(['listed/b', 'listed/c'])
   })
 
   it('writes server-side without the checksum headers the SDK adds by default, which a store may refuse', async () => {
@@ -321,6 +367,7 @@ describe('against a store that stops answering', () => {
       (adapter: Adapter) => adapter.inspectObject?.('k') ?? Promise.resolve(),
     ],
     ['deleteObject', (adapter: Adapter) => adapter.deleteObject('k')],
+    ['listObjects', (adapter: Adapter) => adapter.listObjects('avatars/', 10)],
   ] as const)('%s gives up at its deadline', async (_name, call) => {
     const startedAt = Date.now()
 
