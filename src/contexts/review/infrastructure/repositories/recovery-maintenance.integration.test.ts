@@ -23,6 +23,7 @@ import {
   type RestoreReviewLifecycleRuntimeTarget,
 } from '#/shared/ops/restore-verify'
 import { collectReviewSourceContentLifecycleReport } from '../../application/use-cases/collect-source-content-lifecycle-report'
+import { dropTestDatabase } from '#/shared/testing/drop-test-database'
 import { ensureTestDatabase } from '#/shared/testing/test-db-setup'
 import {
   acquireTestLease,
@@ -303,7 +304,7 @@ describe('typed-confirmation recovery receipt discovery (PostgreSQL)', () => {
     } finally {
       await freshLease?.release()
       await lease?.release()
-      await maintenance.pool.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
+      await dropTestDatabase(maintenance.pool, database)
     }
   }
 

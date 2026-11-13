@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { Client } from 'pg'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
+import { dropTestDatabase } from '#/shared/testing/drop-test-database'
 import { testEnvironment } from '#/shared/testing/test-environment'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { buildConcurrentIndex } from './concurrent-index-migration'
@@ -75,7 +76,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await lease?.release()
-  if (name) await maintenance.pool.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`)
+  if (name) await dropTestDatabase(maintenance.pool, name)
   await maintenance?.release()
   if (folder) rmSync(folder, { recursive: true, force: true })
 })
