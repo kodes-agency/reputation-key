@@ -8,17 +8,14 @@
 // the prop was dropped somewhere between InboxPageV2 and the case toolbar.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import { InboxDetailPanel } from '#/contexts/reputation/inbox/ui/inbox-detail-panel'
-import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
-import { mockServerFn } from '../../../.storybook/mocks/mock-action'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { InboxDetailPanel as BareInboxDetailPanel } from '#/contexts/reputation/inbox/ui/inbox-detail-panel'
+import { withInboxDetailPaneEnv } from '#/contexts/reputation/inbox/ui/inbox-detail-pane-story'
+import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
+import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
+import { withRole } from '../../../../../.storybook/AuthedRouterDecorator'
 import type { Action } from '#/components/hooks/use-action'
 import type { InboxDetailState } from './use-inbox-detail'
-import type {
-  addInboxNoteFn,
-  getInboxItemDetailFn,
-  getInboxItemHistoryFn,
-} from '#/contexts/inbox/server/inbox'
+import type { InboxServerFns } from '#/components/inbox/types'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
 // Mirrors the server fns' { data } payloads (same as the detail-content
@@ -88,15 +85,15 @@ const detailFns = {
   // (the revision-conflict retry) cannot run.
   getInboxItemDetail: mockServerFn(async () => {
     throw new Error('Story action only')
-  }) as unknown as typeof getInboxItemDetailFn,
+  }) as unknown as InboxServerFns['getInboxItemDetail'],
   addInboxNote: mockServerFn(async () => ({
     ok: true,
-  })) as unknown as typeof addInboxNoteFn,
+  })) as unknown as InboxServerFns['addInboxNote'],
   getInboxItemHistory: mockServerFn(async () => ({
     inboxItemId: item.id,
     entries: [],
     truncated: false,
-  })) as unknown as typeof getInboxItemHistoryFn,
+  })) as unknown as InboxServerFns['getInboxItemHistory'],
 }
 
 const item = makeInboxItem({
@@ -136,6 +133,8 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
     ...overrides,
   }
 }
+
+const InboxDetailPanel = withInboxDetailPaneEnv(BareInboxDetailPanel)
 
 const meta: Meta<typeof InboxDetailPanel> = {
   title: 'Inbox/Detail Panel',

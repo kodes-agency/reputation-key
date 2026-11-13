@@ -12,17 +12,12 @@ import {
   useHeldReplyDetail,
 } from '#/contexts/reputation/replies/ui/use-reply-confirmation-hold'
 import { useOnDemandReviewAnalysis } from './use-on-demand-review-analysis'
-import {
-  useInboxComposerController,
-  type ComposerFocusBox,
-} from '#/components/inbox/use-inbox-composer-controller'
-import type { InboxDetailState } from '../../../../components/inbox/use-inbox-detail'
-import type { InboxAssignmentOption } from '#/components/inbox/inbox-owner-view'
-import type { InboxCurrentUser } from './inbox-case-toolbar-props'
+import { useInboxComposerController } from '#/components/inbox/use-inbox-composer-controller'
+import type { InboxDetailState } from './use-inbox-detail'
 import type { NoteDraft } from '#/components/inbox/composer-policy'
 import { DetailComposerRegion, DetailThreadRegion } from './inbox-detail-regions'
 import { inboxDetailFeedbackPresentation } from './inbox-detail-feedback'
-import type { InboxDetailFns } from '#/components/inbox/types'
+import { useInboxDetailPane } from './inbox-detail-pane-context'
 type InboxItem = NonNullable<InboxDetailState['currentItem']>
 
 // `ReplyEditTarget` and `ComposerMode` are this pane's state and reach their
@@ -53,23 +48,6 @@ export type DetailContentProps = Readonly<{
    * non-null fallback item while the state's is `InboxItem | null`.
    */
   detailState: InboxDetailState
-  detailFns: InboxDetailFns
-  /**
-   * The signed-in viewer. The toolbar's owner control reads `name` for the
-   * viewer's own initials (plan v2.1 row 4); the thread still takes only the id
-   * (`note-message.tsx` says `You` by comparing it), so it gets
-   * `currentUser?.id` below rather than a second prop threaded from the page.
-   */
-  currentUser?: InboxCurrentUser
-  assignmentOptions?: ReadonlyArray<InboxAssignmentOption>
-  /**
-   * Filled in with this pane's "set the mode and take the caret" callback while
-   * it is mounted. The `r` / `n` shortcuts are bound on `window` by the page,
-   * which is above the pane and cannot reach `mode` — and the pane is below the
-   * page, so it cannot reach the binding. A box passed down and written from
-   * here is the shorter of the two wires, and it re-subscribes nothing.
-   */
-  composerFocusRef?: ComposerFocusBox
 }>
 
 /**
@@ -82,14 +60,13 @@ export type DetailContentProps = Readonly<{
  * inside that (`reply-composer.tsx`), so the column's own content never
  * exceeds it: nothing can scroll the header or the toolbar out of the pane.
  */
-export function InboxDetailContent({
-  currentItem,
-  detailState,
-  detailFns,
-  currentUser,
-  assignmentOptions = [],
-  composerFocusRef,
-}: DetailContentProps) {
+export function InboxDetailContent({ currentItem, detailState }: DetailContentProps) {
+  const {
+    detailFns,
+    currentUser,
+    assignmentOptions = [],
+    composerFocusRef,
+  } = useInboxDetailPane()
   const {
     notes,
     notesUnavailable,

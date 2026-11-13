@@ -8,6 +8,10 @@ import { useInboxPage, type InboxPageNav } from './use-inbox-page'
 import { moveToInboxQueue, replaceInboxSearch } from './inbox-navigation'
 import type { InboxServerFns } from './types'
 import { useRef, useState } from 'react'
+import {
+  InboxDetailPaneProvider,
+  type InboxDetailPaneEnv,
+} from '../../contexts/reputation/inbox/ui/inbox-detail-pane-context'
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels'
 import { useHydrated } from '#/components/hooks/use-hydrated'
 import type { InboxSearchParams } from './inbox-search-schema'
@@ -177,76 +181,82 @@ export function InboxPageV2({
       />
     )
 
+  const paneEnv: InboxDetailPaneEnv = {
+    detailFns: inboxFns,
+    currentUser: ctx.user,
+    assignmentOptions,
+    composerFocusRef: s.composerFocusRef,
+  }
+
   if (s.isCompactLayout) {
     return (
-      <div className="flex h-full w-full flex-col overflow-hidden">
-        <InboxListPanel
-          {...listPanelProps}
-          scopeControl={propertySelect('header')}
-          queueBar={
-            <InboxQueueBar
-              queue={s.queue}
-              counts={s.queueCounts}
-              viewer={s.queueViewer}
-              onQueueChange={changeQueue}
-            />
-          }
-        />
-        <InboxDetailSheet
-          open={!!s.selectedItem}
-          onOpenChange={(o) => {
-            if (!o) s.closeDetail()
-          }}
-          item={s.selectedItem}
-          detailState={s.detailState}
-          detailFns={inboxFns}
-          currentUser={ctx.user}
-          assignmentOptions={assignmentOptions}
-          composerFocusRef={s.composerFocusRef}
-        />
-        <InboxShortcutsDialog open={s.shortcutsOpen} onOpenChange={s.setShortcutsOpen} />
-      </div>
+      <InboxDetailPaneProvider value={paneEnv}>
+        <div className="flex h-full w-full flex-col overflow-hidden">
+          <InboxListPanel
+            {...listPanelProps}
+            scopeControl={propertySelect('header')}
+            queueBar={
+              <InboxQueueBar
+                queue={s.queue}
+                counts={s.queueCounts}
+                viewer={s.queueViewer}
+                onQueueChange={changeQueue}
+              />
+            }
+          />
+          <InboxDetailSheet
+            open={!!s.selectedItem}
+            onOpenChange={(o) => {
+              if (!o) s.closeDetail()
+            }}
+            item={s.selectedItem}
+            detailState={s.detailState}
+          />
+          <InboxShortcutsDialog
+            open={s.shortcutsOpen}
+            onOpenChange={s.setShortcutsOpen}
+          />
+        </div>
+      </InboxDetailPaneProvider>
     )
   }
 
   return (
-    <div className="flex h-full min-w-0">
-      <InboxQueueRail
-        queue={s.queue}
-        counts={s.queueCounts}
-        viewer={s.queueViewer}
-        scopeControl={propertySelect('rail')}
-        onQueueChange={changeQueue}
-        onOpenShortcuts={() => s.setShortcutsOpen(true)}
-      />
-      <Group
-        key={defaultLayout ? 'saved-layout' : 'default-layout'}
-        orientation="horizontal"
-        defaultLayout={defaultLayout}
-        onLayoutChanged={onLayoutChanged}
-        className="h-full min-w-0 flex-1"
-      >
-        <Panel
-          id={INBOX_PANEL_IDS.list}
-          defaultSize={400}
-          minSize={320}
-          maxSize="50%"
-          style={CLIP_PANEL_CONTENT}
-        >
-          <InboxListPanel {...listPanelProps} />
-        </Panel>
-        <ResizeHandle />
-        <InboxDetailPane
-          selectedItem={s.selectedItem}
-          detailState={s.detailState}
-          onClose={s.closeDetail}
-          detailFns={inboxFns}
-          currentUser={ctx.user}
-          assignmentOptions={assignmentOptions}
-          composerFocusRef={s.composerFocusRef}
+    <InboxDetailPaneProvider value={paneEnv}>
+      <div className="flex h-full min-w-0">
+        <InboxQueueRail
+          queue={s.queue}
+          counts={s.queueCounts}
+          viewer={s.queueViewer}
+          scopeControl={propertySelect('rail')}
+          onQueueChange={changeQueue}
+          onOpenShortcuts={() => s.setShortcutsOpen(true)}
         />
-      </Group>
-      <InboxShortcutsDialog open={s.shortcutsOpen} onOpenChange={s.setShortcutsOpen} />
-    </div>
+        <Group
+          key={defaultLayout ? 'saved-layout' : 'default-layout'}
+          orientation="horizontal"
+          defaultLayout={defaultLayout}
+          onLayoutChanged={onLayoutChanged}
+          className="h-full min-w-0 flex-1"
+        >
+          <Panel
+            id={INBOX_PANEL_IDS.list}
+            defaultSize={400}
+            minSize={320}
+            maxSize="50%"
+            style={CLIP_PANEL_CONTENT}
+          >
+            <InboxListPanel {...listPanelProps} />
+          </Panel>
+          <ResizeHandle />
+          <InboxDetailPane
+            selectedItem={s.selectedItem}
+            detailState={s.detailState}
+            onClose={s.closeDetail}
+          />
+        </Group>
+        <InboxShortcutsDialog open={s.shortcutsOpen} onOpenChange={s.setShortcutsOpen} />
+      </div>
+    </InboxDetailPaneProvider>
   )
 }

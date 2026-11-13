@@ -14,7 +14,7 @@ import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
 import { GOOGLE_REVIEW_LINK_COPY } from './google-review-link'
 import { InboxDetailCopyMenu } from './inbox-detail-copy-menu'
-import type { InboxDetailState } from '../../../../components/inbox/use-inbox-detail'
+import type { InboxDetailState } from './use-inbox-detail'
 
 type Detail = NonNullable<InboxDetailState['detail']>
 

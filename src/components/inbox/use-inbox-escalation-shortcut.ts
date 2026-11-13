@@ -7,7 +7,7 @@ import {
   itemCommandFence,
 } from '../../contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 import { INBOX_SOURCE_HANDLE_PERMISSION } from './inbox-owner-control'
-import type { InboxDetailState } from './use-inbox-detail'
+import type { InboxDetailState } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 
 type CanPermission = (permission: Permission) => boolean
 
