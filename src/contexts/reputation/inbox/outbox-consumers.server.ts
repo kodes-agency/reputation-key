@@ -354,8 +354,8 @@ export async function handleInboxReplyPublished(
  * Stamp the firstReplySubmittedAt milestone on the associated inbox item.
  * Milestone only — this consumer never touches `inbox_items.status`; exact
  * current observed Google truth (review.reply.observed) owns close/reopen.
- * The milestone update is idempotent because a set milestone is never
- * overwritten.
+ * The earliest submission time wins, so out-of-order delivery converges and a
+ * duplicate or later event changes nothing.
  */
 export async function handleInboxReplySubmitted(
   deps: InboxConsumerDeps,
@@ -368,11 +368,14 @@ export async function handleInboxReplySubmitted(
     unbrand(reviewId(payload.reviewId)),
     orgId,
   )
-  if (!item || item.firstReplySubmittedAt) {
+  const submittedAt = event.occurredAt ? new Date(event.occurredAt) : deps.clock()
+  if (
+    !item ||
+    (item.firstReplySubmittedAt && item.firstReplySubmittedAt <= submittedAt)
+  ) {
     await deps.commandStore.recordReceipt(event.eventId, ON_REPLY_SUBMITTED, 'applied')
     return { status: 'applied' }
   }
-  const submittedAt = event.occurredAt ? new Date(event.occurredAt) : deps.clock()
   await deps.inboxRepo.stampReplyMilestones(
     item.id,
     item.organizationId,

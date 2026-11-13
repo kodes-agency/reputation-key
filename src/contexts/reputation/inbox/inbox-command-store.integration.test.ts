@@ -993,6 +993,120 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     expect(purposes?.slice().sort()).toEqual(['actor', 'assignee'])
   })
 
+  describe('manual reopen authority races', () => {
+    const seedClosedAssigned = async () => {
+      await seedReviewRevisionOne()
+      const closed = makeItem({ status: 'closed', closedAt: NOW, assignedTo: USER_A })
+      await createAtomicInboxCommandStore(db).createItem(closed, null, {
+        materialReviewRevision: 1,
+      })
+      const command = {
+        item: closed,
+        expected: { cycleNumber: 1, materialReviewRevision: 1, stateRevision: 1 },
+        reason: 'other' as const,
+        explanation: 'A new guest message needs a response.',
+        fact: inboxItemStatusChanged({
+          inboxItemId: closed.id,
+          organizationId: closed.organizationId,
+          propertyId: closed.propertyId,
+          oldStatus: 'closed',
+          newStatus: 'open',
+          userId: USER_B,
+          occurredAt: NOW,
+        }),
+        now: NOW,
+      }
+      return { closed, command }
+    }
+    const readItem = async (id: string) =>
+      (
+        await pool.query(
+          `SELECT status, assigned_to, command_revision::int AS command_revision,
+                  (SELECT count(*)::int FROM inbox_handling_cycles c
+                   WHERE c.inbox_item_id = item.id) AS cycle_count
+             FROM inbox_items item WHERE item.id = $1`,
+          [id],
+        )
+      ).rows[0]
+    const purposesOf = (authorize: InboxCommandAuthority) =>
+      vi
+        .mocked(authorize)
+        .mock.calls.map((call) =>
+          call[1].requirements
+            .map((requirement: { purpose: string }) => requirement.purpose)
+            .sort(),
+        )
+
+    it('refuses with forbidden and changes nothing when the actor loses authority after the item was read', async () => {
+      const { closed, command } = await seedClosedAssigned()
+      const authorize: InboxCommandAuthority = vi.fn(async () => ({
+        allowed: false as const,
+        reason: 'grant_revoked',
+      }))
+      const store = createProductionInboxCommandStore(db, authorize, () => NOW)
+
+      await expect(store.reopenReviewCycle(command)).rejects.toMatchObject({
+        code: 'forbidden',
+      })
+
+      expect(purposesOf(authorize)).toEqual([['actor', 'assignee'], ['actor']])
+      expect(await readItem(closed.id)).toEqual({
+        status: 'closed',
+        assigned_to: USER_A,
+        command_revision: 1,
+        cycle_count: 1,
+      })
+    })
+
+    it('reopens and unassigns when only the assignee lost eligibility', async () => {
+      const { closed, command } = await seedClosedAssigned()
+      const authorize: InboxCommandAuthority = vi.fn(async (_tx, input) =>
+        input.requirements.some(
+          (requirement: { purpose: string }) => requirement.purpose === 'assignee',
+        )
+          ? { allowed: false as const, reason: 'assignee_assignment_denied' }
+          : { allowed: true as const },
+      )
+      const store = createProductionInboxCommandStore(db, authorize, () => NOW)
+
+      await store.reopenReviewCycle(command)
+
+      expect(purposesOf(authorize)).toEqual([
+        ['actor', 'assignee'],
+        ['actor'],
+        ['assignee'],
+      ])
+      expect(await readItem(closed.id)).toMatchObject({
+        status: 'open',
+        assigned_to: null,
+        cycle_count: 2,
+      })
+    })
+
+    it('answers revision_conflict and keeps the item closed when the assignee authority changes mid-command', async () => {
+      const { closed, command } = await seedClosedAssigned()
+      const authorize: InboxCommandAuthority = vi.fn(async (_tx, input) => {
+        const asksAssignee = input.requirements.some(
+          (requirement: { purpose: string }) => requirement.purpose === 'assignee',
+        )
+        if (!asksAssignee) return { allowed: true as const }
+        return { allowed: false as const, reason: 'authority_changed' }
+      })
+      const store = createProductionInboxCommandStore(db, authorize, () => NOW)
+
+      await expect(store.reopenReviewCycle(command)).rejects.toMatchObject({
+        code: 'revision_conflict',
+      })
+
+      expect(await readItem(closed.id)).toEqual({
+        status: 'closed',
+        assigned_to: USER_A,
+        command_revision: 1,
+        cycle_count: 1,
+      })
+    })
+  })
+
   it('answers not_found, not a revision conflict, when a reopen names another source', async () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)
