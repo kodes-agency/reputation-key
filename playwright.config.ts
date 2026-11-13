@@ -97,13 +97,9 @@ export default defineConfig({
       // identically inside a shard — declaration order, one browser — so this
       // only constrains where --shard may cut.
       //
-      // It must cut on file boundaries. These journeys depend on the order they
-      // are declared in, and measured against the inherited `fullyParallel:
-      // true`, `--shard=N/4` put auth-and-shell.spec.ts in shards 1 AND 2 and
-      // guest-portal.spec.ts in 2 AND 3, running the back half of a file
-      // without its front half. `--shard=N/3` happened to align to files, but
-      // that was arithmetic luck: one added test would have moved the cut
-      // silently, and the symptom would have been a CI flake, not an error.
+      // It cuts on file boundaries so a file's shared fixture (its beforeAll)
+      // is set up once, in one shard. Each journey seeds or resets what it
+      // reads, so any one of them also runs alone with --grep.
       fullyParallel: false,
       use: { ...devices['Desktop Chrome'] },
     },

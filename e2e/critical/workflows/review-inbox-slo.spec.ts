@@ -48,6 +48,7 @@ test.describe('Critical workflow: review arrival → inbox projection SLO', () =
     // And start from a quiescent worker: the SLO is arrival-to-projection
     // latency, not latency while another spec's events are still draining.
     await waitForQueuesIdle()
+    await gbpStubControl.reset()
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 

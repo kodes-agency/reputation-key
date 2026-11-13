@@ -70,8 +70,6 @@ type ProviderScenario = Readonly<{
 }>
 
 test.describe('Critical workflow: reply lifecycle', () => {
-  test.describe.configure({ mode: 'serial' })
-
   test.beforeEach(async () => {
     // Stale provider syncs from an earlier spec retry against a stub scope that
     // has moved on, and burn the shared reviews quota this one needs.
