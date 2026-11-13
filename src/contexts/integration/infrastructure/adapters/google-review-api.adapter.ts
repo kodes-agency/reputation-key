@@ -5,7 +5,10 @@ import {
   type GoogleReviewApiPort,
   type GoogleReviewPageRequest,
 } from '#/contexts/review/application/public-api'
-import type { GoogleReviewHeadRequest } from '#/contexts/review/application/ports/google-review-api.port'
+import type {
+  GoogleReviewHeadContinuation,
+  GoogleReviewHeadRequest,
+} from '#/contexts/review/application/ports/google-review-api.port'
 import { REVIEW_LIST_NEWEST_UPDATED_FIRST } from '#/shared/google-provider-control/review-route-descriptors'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -299,9 +302,17 @@ const HEAD_REQUEST_KEYS = [
 ] as const
 
 /** Request-shape validation for the head read; every failure is the same refusal. */
+const newHeadContinuation = (): GoogleReviewHeadContinuation =>
+  Object.freeze({}) as GoogleReviewHeadContinuation
+
 function assertValidHeadRequest(input: GoogleReviewHeadRequest): void {
   if (
-    !exactKeys(input, HEAD_REQUEST_KEYS) ||
+    !exactKeys(
+      input,
+      input.continuation === undefined
+        ? HEAD_REQUEST_KEYS
+        : [...HEAD_REQUEST_KEYS, 'continuation'],
+    ) ||
     !isSafeScopeId(input.organizationId) ||
     !isCanonicalUuid(input.propertyId) ||
     !isCanonicalUuid(input.connectionId) ||
@@ -505,12 +516,26 @@ export const createGoogleReviewApiAdapter = (
   }
 
   /**
-   * Page 1 of the list, newest-updated first, and nothing else: no run, no
-   * cursor published or redeemed, no continuation. A page that is not really in
-   * that order is reported, never returned.
+   * Google's page tokens for the head pages that have a next one. They live in
+   * memory against an opaque object the caller hands back, are never stored or
+   * logged, and go when the object does.
+   */
+  const headPageTokens = new WeakMap<object, string>()
+
+  /**
+   * A page of the list, newest-updated first: the first, or the one after the
+   * page whose continuation is given. No run, no cursor published or redeemed.
+   * A page that is not really in that order is reported, never returned.
    */
   const readReviewsHead: GoogleReviewApiPort['readReviewsHead'] = async (input) => {
     assertValidHeadRequest(input)
+    const pageToken =
+      input.continuation === undefined
+        ? undefined
+        : headPageTokens.get(input.continuation)
+    if (input.continuation !== undefined && pageToken === undefined) {
+      throw invalidRequest()
+    }
     const context = await resolveProviderContext(input)
     const raw = await requestJson(
       'reviews.head',
@@ -519,18 +544,25 @@ export const createGoogleReviewApiAdapter = (
         accessToken: context.accessToken,
         locationName: input.locationName,
         orderBy: REVIEW_LIST_NEWEST_UPDATED_FIRST,
+        ...(pageToken === undefined ? {} : { pageToken }),
       },
       context,
     )
     await assertAuthorizationCurrent(input, context.cursorAuthorization)
     const page = parseReviewsPage(raw, input.locationName, deps.logger)
     if (!isNewestUpdatedFirst(page.reviews)) return { status: 'order_violation' }
+    const next = page.nextPageToken
+    const continuation = next === undefined ? undefined : newHeadContinuation()
+    if (continuation !== undefined && next !== undefined) {
+      headPageTokens.set(continuation, next)
+    }
     return {
       status: 'ok',
       reviews: page.reviews,
       totalReviewCount: page.totalReviewCount,
       averageRating: page.averageRating,
-      hasMore: page.nextPageToken !== undefined,
+      hasMore: next !== undefined,
+      ...(continuation === undefined ? {} : { continuation }),
     }
   }
 

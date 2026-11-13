@@ -28,10 +28,23 @@ export type GoogleReviewPage = Readonly<{
   nextCursorRef: string | null
 }>
 
+declare const headContinuationBrand: unique symbol
+
+/**
+ * The way on from one head page to the next. The adapter keeps Google's page
+ * token in memory against this object and nowhere else: it is not a cursor
+ * reference, is never stored, logged or serialized, and means nothing to any
+ * other process or after the check ends.
+ */
+export type GoogleReviewHeadContinuation = Readonly<{
+  [headContinuationBrand]: true
+}>
+
 /**
  * Google's newest page: `reviews.list` page 1 ordered `updateTime desc`, which
- * Google documents as always accurate. No cursor reference exists for it and it
- * can never be continued: `hasMore` only says Google had more to give.
+ * Google documents as always accurate. It has no cursor reference; `hasMore`
+ * says Google had more to give, and `continuation`, present only then, reads the
+ * next page within the same check.
  */
 export type GoogleReviewHeadResult =
   | Readonly<{
@@ -42,6 +55,8 @@ export type GoogleReviewHeadResult =
       averageRating: number | null
       /** Google had a further page. */
       hasMore: boolean
+      /** Present exactly when `hasMore`. */
+      continuation?: GoogleReviewHeadContinuation
     }>
   /**
    * Google did not honor `orderBy`: a review lacked an updateTime, or one was
@@ -149,6 +164,8 @@ export type GoogleReviewHeadRequest = Readonly<{
   connectionId: GoogleConnectionId
   sourceEpoch: number
   locationName: string
+  /** The previous page's continuation: asks for the page after it. */
+  continuation?: GoogleReviewHeadContinuation
 }>
 
 export type GoogleReviewGetRequest = Readonly<{
@@ -195,8 +212,9 @@ export type GoogleReplyPublicationRequest = Readonly<{
 export type GoogleReviewApiPort = Readonly<{
   listReviewsPage(input: GoogleReviewPageRequest): Promise<GoogleReviewPage>
   /**
-   * One call for Google's newest-updated reviews, with no run, no cursor and no
-   * continuation. Throws a `GoogleReviewApiError` like every other read.
+   * One call for Google's newest-updated reviews, or for the page after a
+   * previous one when given its continuation. No run and no stored cursor.
+   * Throws a `GoogleReviewApiError` like every other read.
    */
   readReviewsHead(input: GoogleReviewHeadRequest): Promise<GoogleReviewHeadResult>
   getReview(input: GoogleReviewGetRequest): Promise<GoogleReviewGetResult>
