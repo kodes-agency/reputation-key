@@ -25,7 +25,7 @@ import {
   type InboxRevisionConflictResult,
 } from '#/contexts/inbox/application/public-api'
 import { inboxCachePolicy } from '#/components/inbox/inbox-cache-policy'
-import { withFreshCommandRevision } from '../../../../components/inbox/use-inbox-detail'
+import { withFreshCommandRevision } from './use-inbox-detail'
 
 export type AddInboxNoteInput = Parameters<AddInboxNoteFn>[0]
 

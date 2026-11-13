@@ -23,7 +23,10 @@ import { installInboxCacheHarness, type ListFilters } from './inbox-cache-test-h
 import { createInboxItemStatusObserver } from '../../contexts/reputation/inbox/ui/inbox-item-status-observer'
 import type { InboxServerFns } from './types'
 import { useFeedbackHandlingMutations } from '../../contexts/reputation/inbox/ui/use-feedback-handling-mutations'
-import { useInboxDetail, type InboxDetailState } from './use-inbox-detail'
+import {
+  useInboxDetail,
+  type InboxDetailState,
+} from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 
 vi.mock('@tanstack/react-router', () => ({
   useRouter: () => ({ navigate: vi.fn() }),

@@ -157,6 +157,22 @@ function ownsArrowKeys(target: unknown): boolean {
   return element?.closest?.(ARROW_KEY_OWNERS) != null
 }
 
+const LIST_ROW_SELECTOR = '[data-inbox-list-row]'
+
+const CONTROL_SELECTOR =
+  'button,a[href],summary,select,[role="button"],[role="link"],[role="menuitem"],[role="switch"],[role="checkbox"],[role="tab"]'
+
+/**
+ * Enter belongs to the list. On a focused control anywhere else, such as a
+ * button in the detail pane, it only presses that control; reopening the
+ * selected row as well would act twice on one keystroke.
+ */
+function isControlOutsideList(target: unknown): boolean {
+  const element = target as HTMLElement | null
+  if (element?.closest?.(LIST_ROW_SELECTOR) != null) return false
+  return element?.closest?.(CONTROL_SELECTOR) != null
+}
+
 /**
  * An absent callback leaves the keystroke alone — no `preventDefault`, so a
  * key this page cannot act on still reaches the browser.
@@ -282,6 +298,7 @@ export function handleInboxShortcut(
       selectPrevious(input)
       break
     case 'Enter':
+      if (isControlOutsideList(event.target)) return
       if (input.selectedItem) {
         const item = input.selectedItem
         runShortcut(event, () => input.handleRowClick(item))

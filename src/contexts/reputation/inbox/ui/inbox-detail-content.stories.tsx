@@ -10,35 +10,30 @@
 // needs the Actions it reads on first render.
 import { Button } from '#/components/ui/button'
 import type { Meta, StoryObj } from '@storybook/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentProps } from 'react'
 import { toast } from 'sonner'
 import { expect, fireEvent, userEvent, waitFor, within } from 'storybook/test'
 import { Toaster } from '#/components/ui/sonner'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
-import { InboxDetailContent } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
+import { InboxDetailContent as BareInboxDetailContent } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
+import { withInboxDetailPaneEnv } from '#/contexts/reputation/inbox/ui/inbox-detail-pane-story'
 import { openConfirmation } from '#/components/inbox/reply-editor.stories.play'
-import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
-import { playInThemes } from '../../../.storybook/play-in-themes'
-import { mockServerFn } from '../../../.storybook/mocks/mock-action'
-import { scriptReplyCommand } from '../../../.storybook/stubs/review-reply-server'
+import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
+import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
+import { scriptReplyCommand } from '../../../../../.storybook/stubs/review-reply-server'
 import {
   draftStreamResponse,
   scriptReplySuggestionStream,
-} from '../../../.storybook/stubs/ai-reply-suggestion-stream'
+} from '../../../../../.storybook/stubs/ai-reply-suggestion-stream'
 import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
-import { withRole, withPermissions } from '../../../.storybook/AuthedRouterDecorator'
-import type {
-  ComposerFocusBox,
-  DetailContentProps,
-} from '#/contexts/reputation/inbox/ui/inbox-detail-content'
-import type {
-  addInboxNoteFn,
-  getInboxItemDetailFn,
-  getInboxItemHistoryFn,
-} from '#/contexts/inbox/server/inbox'
-import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
-import type { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
+import {
+  withRole,
+  withPermissions,
+} from '../../../../../.storybook/AuthedRouterDecorator'
+import type { ComposerFocusBox } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
+import type { InboxServerFns } from '#/components/inbox/types'
 import { fn } from 'storybook/test'
 import { ON_DEMAND_ANALYSIS_DWELL_MILLIS } from '#/contexts/reputation/inbox/ui/use-on-demand-review-analysis'
 import type {
@@ -173,21 +168,23 @@ const notes: ReadonlyArray<InboxNoteView> = [
 // mockServerFn + cast bridges the server-fn brand (same as bulk-actions stories).
 const detailFns = {
   getInboxItemDetail: mockServerFn(
-    async ({ data }: Parameters<typeof getInboxItemDetailFn>[0]) =>
+    async ({ data }: Parameters<InboxServerFns['getInboxItemDetail']>[0]) =>
       data.inboxItemId === feedbackItem.id ? feedbackDetail : reviewDetail,
-  ) as unknown as typeof getInboxItemDetailFn,
+  ) as unknown as InboxServerFns['getInboxItemDetail'],
   addInboxNote: mockServerFn(async () => ({
     ok: true,
-  })) as unknown as typeof addInboxNoteFn,
+  })) as unknown as InboxServerFns['addInboxNote'],
   getInboxItemHistory: mockServerFn(
-    async ({ data }: Parameters<typeof getInboxItemHistoryFn>[0]) => ({
+    async ({ data }: Parameters<InboxServerFns['getInboxItemHistory']>[0]) => ({
       inboxItemId: data.inboxItemId,
       entries: [],
       truncated: false,
     }),
-  ) as unknown as typeof getInboxItemHistoryFn,
+  ) as unknown as InboxServerFns['getInboxItemHistory'],
   generateReplySuggestion: mockServerFn(
-    async ({ data }: Parameters<typeof generateReplySuggestionFn>[0]) => ({
+    async ({
+      data,
+    }: Parameters<NonNullable<InboxServerFns['generateReplySuggestion']>>[0]) => ({
       status: 'ready' as const,
       profileVersion: 'reply-draft-v3' as const,
       replyText:
@@ -199,7 +196,7 @@ const detailFns = {
       baseReplyStateRevision: 0,
       concreteLanguageTag: 'bg-Cyrl',
     }),
-  ) as unknown as typeof generateReplySuggestionFn,
+  ) as unknown as NonNullable<InboxServerFns['generateReplySuggestion']>,
 }
 
 // The strip locks on `isHeaderCommandPending`, which reads all six item
@@ -274,6 +271,9 @@ const mkDetailState = (overrides: Partial<InboxDetailState> = {}): InboxDetailSt
   ...overrides,
 })
 
+const InboxDetailContent = withInboxDetailPaneEnv(BareInboxDetailContent)
+type PaneProps = ComponentProps<typeof InboxDetailContent>
+
 const meta: Meta<typeof InboxDetailContent> = {
   title: 'Inbox/Detail Content',
   component: InboxDetailContent,
@@ -330,8 +330,9 @@ export const WaitingAnalysisIsRequestedAfterDwell: Story = {
     }),
     detailFns: {
       ...detailFns,
-      requestReviewAnalysisNow:
-        requestReviewAnalysisNow as unknown as typeof requestReviewAnalysisNowFn,
+      requestReviewAnalysisNow: requestReviewAnalysisNow as unknown as NonNullable<
+        InboxServerFns['requestReviewAnalysisNow']
+      >,
     },
   },
   play: async () => {
@@ -1038,7 +1039,7 @@ const nextReviewItem: InboxItem = makeInboxItem({
  * of selection by design, so nothing about them can be seen from a story whose
  * `currentItem` never changes.
  */
-function PaneAcrossTwoSelections(args: DetailContentProps) {
+function PaneAcrossTwoSelections(args: PaneProps) {
   const [selected, setSelected] = useState(0)
   const item = selected === 0 ? reviewItem : nextReviewItem
   return (
@@ -1188,7 +1189,7 @@ const giveThePaneItsNextRead = () => window.dispatchEvent(new Event(NEXT_READ_EV
 function PaneAcrossReads({
   reads,
   ...args
-}: DetailContentProps & Readonly<{ reads: readonly [PaneRead, ...PaneRead[]] }>) {
+}: PaneProps & Readonly<{ reads: readonly [PaneRead, ...PaneRead[]] }>) {
   const [step, setStep] = useState(0)
   useEffect(() => {
     const next = () => setStep((current) => current + 1)

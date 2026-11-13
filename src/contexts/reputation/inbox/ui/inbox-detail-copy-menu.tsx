@@ -15,7 +15,7 @@ import {
   type GoogleReviewLink,
 } from './google-review-link'
 import type { GoogleReviewCheck } from './use-google-review-check'
-import type { InboxDetailState } from '../../../../components/inbox/use-inbox-detail'
+import type { InboxDetailState } from './use-inbox-detail'
 
 async function copyText(text: string, label: string): Promise<void> {
   try {

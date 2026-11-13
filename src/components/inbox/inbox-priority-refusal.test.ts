@@ -19,7 +19,10 @@ import type {
   InboxRevisionConflictResult,
 } from '#/contexts/inbox/application/public-api'
 import type { InboxServerFns } from './types'
-import { useInboxDetail, type InboxDetailState } from './use-inbox-detail'
+import {
+  useInboxDetail,
+  type InboxDetailState,
+} from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 
 vi.mock('@tanstack/react-router', () => ({
   useRouter: () => ({ navigate: vi.fn() }),
