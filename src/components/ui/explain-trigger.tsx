@@ -28,7 +28,7 @@ function ExplainTrigger({
       className={cn(
         'cursor-help rounded focus-ring',
         EXPLAIN_UNDERLINE,
-        touch && 'max-md:min-h-(--control-touch)',
+        touch && 'max-md:min-h-(--control-touch) max-md:min-w-(--control-touch)',
         className,
       )}
       {...props}

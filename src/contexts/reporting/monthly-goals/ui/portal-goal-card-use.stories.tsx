@@ -22,6 +22,7 @@ import {
   CARD_SCHEDULED,
   SEAVIEW,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const setMock = fn<PortalGoalCommands['setMonthlyPortalGoalFn']>(async () => ({
   programId: 'program-monthly',
@@ -122,18 +123,15 @@ export const Ready: Story = {
 }
 
 export const ReadyOnANarrowPhone: Story = {
-  play: async ({ canvasElement }) => expectReadyNovember(within(canvasElement)),
+  play: playInThemes(async ({ canvasElement }) =>
+    expectReadyNovember(within(canvasElement)),
+  ),
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
 export const ReadyOnADesktop: Story = {
   ...ReadyOnANarrowPhone,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const ReadyLight: Story = {
-  ...ReadyOnANarrowPhone,
-  parameters: { theme: 'light' },
 }
 
 /** On or before the 20th, this month: it counts from Oct 1 with what already counts. */

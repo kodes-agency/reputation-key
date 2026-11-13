@@ -11,6 +11,7 @@ import {
   PREVIEW_DRAFT_ONE_LANGUAGE,
   previewReader,
 } from './__fixtures__/portal-preview-fixtures'
+import { Button } from '#/components/ui/button'
 import { PortalPreviewPane } from './portal-preview-pane'
 import type { PreviewPartSection } from './preview-parts'
 
@@ -38,9 +39,9 @@ function PaneWithSection({
   return (
     <div>
       {hasSectionButton ? (
-        <button type="button" onClick={() => setActive('private-note')}>
+        <Button type="button" variant="outline" onClick={() => setActive('private-note')}>
           Go to Private note
-        </button>
+        </Button>
       ) : null}
       <PortalPreviewPane
         portalId="p-1"
@@ -64,7 +65,7 @@ const meta = {
   parameters: { layout: 'centered' },
   decorators: [
     (Story) => (
-      <div style={{ width: COLUMN_WIDTH, padding: 24 }}>
+      <div style={{ width: '100%', maxWidth: COLUMN_WIDTH, padding: 24 }}>
         <Story />
       </div>
     ),

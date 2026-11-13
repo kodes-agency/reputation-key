@@ -18,13 +18,16 @@ function RadioGroup({
 
 function RadioGroupItem({
   className,
+  touch = false,
   ...props
-}: React.ComponentProps<typeof RadioGroupPrimitive.Item>) {
+}: React.ComponentProps<typeof RadioGroupPrimitive.Item> & { touch?: boolean }) {
   return (
     <RadioGroupPrimitive.Item
       data-slot="radio-group-item"
       className={cn(
         'aspect-square size-4 shrink-0 rounded-full border border-input text-primary shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:ring-destructive/40',
+        touch &&
+          "max-md:relative max-md:after:absolute max-md:after:inset-[calc((1rem-var(--control-touch))/2-1px)] max-md:after:content-['']",
         className,
       )}
       {...props}

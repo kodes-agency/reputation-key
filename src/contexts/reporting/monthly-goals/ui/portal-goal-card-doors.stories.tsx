@@ -23,6 +23,7 @@ import {
   CARD_SCANS_ONLY,
   SEAVIEW,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const setMock = fn<PortalGoalCommands['setMonthlyPortalGoalFn']>(async () => ({
   programId: 'program-monthly',
@@ -140,7 +141,7 @@ export const ScansOnlyPrivateRatings: Story = {
 /** The first weeks: a number of their own, the box empty and Set waiting for it. */
 export const GettingReadyOwnNumber: Story = {
   args: { card: CARD_GETTING_READY },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('button', { name: /^Use /u })).toBeNull()
     const sheet = await openThrough(canvasElement, 'Set my own number')
@@ -148,12 +149,7 @@ export const GettingReadyOwnNumber: Story = {
     await expect(sheet.getByRole('button', { name: 'Set goal' })).toBeDisabled()
     await userEvent.type(sheet.getByRole('spinbutton'), '12')
     await expect(sheet.getByRole('button', { name: 'Set 12 for October' })).toBeEnabled()
-  },
-}
-
-export const GettingReadyOwnNumberLight: Story = {
-  ...GettingReadyOwnNumber,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** A recommendation that cannot be read: a number of their own all the same. */

@@ -22,7 +22,7 @@ export function GlossaryTerm({ term, children, ariaLabel }: Props) {
 
   return (
     <Popover>
-      <ExplainTrigger aria-label={ariaLabel ?? `What ${label.toLowerCase()} means`}>
+      <ExplainTrigger touch aria-label={ariaLabel ?? `What ${label.toLowerCase()} means`}>
         {label}
       </ExplainTrigger>
       <PopoverContent aria-label={entry.term} className="max-w-xs text-sm">

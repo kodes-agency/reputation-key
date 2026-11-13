@@ -62,6 +62,7 @@ export function PrintDownloadButton({
     <Button
       type="button"
       size={size}
+      wrap
       className={className}
       disabled={printState.print === null || unavailableReason !== null}
       pending={printState.isWorking}

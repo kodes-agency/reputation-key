@@ -34,6 +34,7 @@ import {
   expectAnsweredOnTheCard,
   expectRunningCardUnderTheStrip,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.play'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const changeNowMock = fn<PortalGoalCheckInCommands['changeMonthlyPortalGoalNowFn']>(
   async () => ({ changed: true }),
@@ -219,17 +220,12 @@ export const CheckIn320: Story = {
 
 export const CheckInOnAPhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-  play: async ({ canvasElement }) => expectCheckIn(within(canvasElement)),
+  play: playInThemes(async ({ canvasElement }) => expectCheckIn(within(canvasElement))),
 }
 
 export const CheckInOnADesktop: Story = {
   ...CheckInOnAPhone,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const CheckInLight: Story = {
-  ...CheckInOnAPhone,
-  parameters: { theme: 'light' },
 }
 
 /** The sums behind 45, for a whole 31-day December. */

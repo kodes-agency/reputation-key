@@ -16,6 +16,10 @@
 /** The row's one way in: the name, accent ink, underlined on hover. */
 export const ROW_NAME_LINK = 'rounded-sm underline-offset-4 hover:underline focus-ring'
 
+/** A phone tap target for a link that stands on its own line: `max-md:` only, so a desktop table row keeps its line height. */
+export const PHONE_LINK_TOUCH =
+  'max-md:inline-block max-md:min-h-(--control-touch) max-md:min-w-(--control-touch) max-md:content-center'
+
 /** A figure or a note in a row that opens something: the text's ink, never the accent. */
 export const ROW_FIGURE_LINK =
   'rounded-sm text-foreground underline-offset-4 hover:underline focus-ring'

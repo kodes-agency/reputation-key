@@ -26,7 +26,7 @@ import {
   missingTextAction,
   type PortalLanguageChange,
 } from './portal-languages-rules'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 
 type Props = Readonly<{
   propertyId: string
@@ -190,13 +190,13 @@ function MissingTextAction({
     )
   }
   return (
-    <InlineLink
+    <TouchInlineLink
       to="/properties/$propertyId/portals/$portalId"
       params={{ propertyId, portalId }}
       search={{ tab: 'page', section: action.section }}
       className="min-h-8 py-1"
     >
       Write it in {action.section === 'welcome' ? 'Welcome' : 'Linktree'}
-    </InlineLink>
+    </TouchInlineLink>
   )
 }

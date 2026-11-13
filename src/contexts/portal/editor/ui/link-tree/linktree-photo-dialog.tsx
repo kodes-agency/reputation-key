@@ -134,7 +134,7 @@ function PhotoDialogBody({
             ref={input}
             type="file"
             accept={PORTAL_IMAGE_ACCEPT}
-            className="sr-only"
+            className="hidden"
             tabIndex={-1}
             aria-label="Photo file"
             onChange={choose}
