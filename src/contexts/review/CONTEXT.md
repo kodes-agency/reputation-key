@@ -728,7 +728,9 @@ completed-listing gaps and rollback. Configure web and worker alike.
    resend still needs a manager's new cycle. Nothing else authorizes one: the
    persisted machine has no `authorize` from `ambiguous`, and the store's
    authorization write refuses an uncertain Reply whether it is called as an
-   approval or as a retry.
+   approval or as a retry. A `reviews.reply` permit is kept while its attempt may
+   have dispatched, so the retention exclusion in the retention sweep must list
+   every such state; a state missing there reads as never dispatched after 30 days.
 10. A stale observation or event cannot confirm a newer Reply cycle. Application
     agreement alone is not closure authority.
 11. Count or average drift during or between reputation scans terminally fails the

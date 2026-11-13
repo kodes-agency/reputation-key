@@ -41,7 +41,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
  * is still sending, awaiting an outcome or ambiguous. A settled, confirmed or
  * rejected attempt is no longer read, and neither is a reply that is gone.
  */
-const UNSETTLED_REPLY_PERMIT_EXCLUSION = `NOT (
+export const UNSETTLED_REPLY_PERMIT_EXCLUSION = `NOT (
   authorization_execution_permits.route_key = 'reviews.reply'
   AND (
     EXISTS (
@@ -215,8 +215,8 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
   },
   {
     // One permit per outbound Google API call. A reply's permit is the only
-    // proof that a publication attempt never left RepKey, and it is read for as
-    // long as the reply's current attempt, or an attempt record, is still
+    // record that a publication attempt may have left RepKey (its absence is
+    // the proof that it did not), and it is read for as long as the reply's current attempt, or an attempt record, is still
     // uncertain; the state decides that, never the permit's age. The rule keeps
     // such a permit at any age and removes every other permit after 30 days.
     subject: 'authorization_execution_permits.expired',

@@ -27,7 +27,7 @@ import type { Database } from '#/shared/db'
  *  12: + review_provider_snapshot_runs.superseded, the bounded deletion of
  *      snapshot runs and members outside the keep rule.
  *  13: + authorization_execution_permits.expired, the 30-day deletion of
- *      finished Google API permits that no reply's dispatch evidence reads.
+ *      Google API permits that no reply's dispatch evidence reads.
  */
 const RETENTION_POLICY_VERSION = 13
 

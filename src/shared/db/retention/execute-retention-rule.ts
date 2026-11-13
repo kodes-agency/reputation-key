@@ -179,6 +179,11 @@ async function deleteWithDependents(
 }
 
 function assertDependentsSupported(rule: RetentionRule): void {
+  if (rule.skipLocked && (rule.operation === 'redact' || rule.dependents?.length)) {
+    throw new Error(
+      `Retention rule '${rule.subject}' sets skipLocked, which only a plain delete rule supports`,
+    )
+  }
   if (!rule.dependents?.length) return
   if (rule.operation === 'redact' || keyCount(rule) !== 1) {
     throw new Error(

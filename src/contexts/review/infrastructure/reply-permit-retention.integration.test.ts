@@ -1,7 +1,8 @@
-// Google permit retention against real PostgreSQL. The sweep ages out finished
-// permits after 30 days, except a `reviews.reply` permit whose publication
-// attempt is still uncertain: that permit is the only proof a reply attempt
-// never left RepKey, and the resend decision reads it whatever its age.
+// Google permit retention against real PostgreSQL. The sweep ages out permits
+// after 30 days, except a `reviews.reply` permit whose publication attempt is
+// still uncertain: that permit is the only record the attempt may have left
+// RepKey (its absence proves it did not), and the resend decision reads it
+// whatever its age.
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -41,7 +42,12 @@ const STARTED_AT = new Date('2026-09-14T14:22:43.000Z')
 const SWEEP_AT = new Date('2026-11-13T03:00:00.000Z')
 const DAY_MS = 24 * 60 * 60 * 1000
 const SUBJECT = 'authorization_execution_permits.expired'
-const rule = RETENTION_RULES.find((candidate) => candidate.subject === SUBJECT)!
+const productionRule = RETENTION_RULES.find((candidate) => candidate.subject === SUBJECT)!
+// Other suites leave aged permits in the shared database; sweep only this Organization's.
+const rule = {
+  ...productionRule,
+  extraWhere: `(${productionRule.extraWhere}) AND authorization_execution_permits.organization_id = '${ORG_A}'`,
+}
 
 let pool: Pool
 
