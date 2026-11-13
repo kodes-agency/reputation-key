@@ -22,7 +22,7 @@ import type {
   HandlingCycleCreationAnchor,
   InboxCommandStore,
 } from '#/contexts/inbox/application/ports/inbox-command-store.port'
-import { cancelPrivateFeedbackTarget } from '#/contexts/inbox/infrastructure/response-target.store'
+import { cancelPrivateFeedbackTarget } from '#/contexts/reputation/inbox/response-targets/store.server'
 import {
   assertObservationMatchesItem,
   assertReviewProjectionCommand,

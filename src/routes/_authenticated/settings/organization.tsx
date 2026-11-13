@@ -1,9 +1,9 @@
 import { OrganizationReadRegion } from '#/components/features/organization/organization-read-region'
-import { ResponseTargetSettingsCard } from '#/components/features/organization/response-target-settings-card'
+import { ResponseTargetSettingsCard } from '#/contexts/reputation/response-targets/ui/settings-card'
 import {
   GoogleReviewTargetSummary,
   PrivateFeedbackTargetSummary,
-} from '#/components/features/organization/response-target-analytics-summary'
+} from '#/contexts/reputation/response-targets/ui/analytics-summary'
 import { tenantScope, type TenantScope } from '#/shared/queries/tenant-scope'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute } from '@tanstack/react-router'

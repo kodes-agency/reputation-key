@@ -556,7 +556,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   ),
   job(
     'release-response-target-reminders',
-    'src/contexts/inbox/infrastructure/jobs/release-response-target-reminders.job.ts',
+    'src/contexts/reputation/inbox/response-targets/release-reminders.job.server.ts',
     {
       queue: 'background',
       capability: 'inbox.use',

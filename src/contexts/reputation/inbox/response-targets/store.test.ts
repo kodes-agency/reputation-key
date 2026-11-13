@@ -6,10 +6,10 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { ReviewCycleTargetAnchor } from '../application/ports/review-response-target-authority.port'
-import type { HandlingCycle } from '../domain/types'
-import { isInboxError } from '../domain/errors'
-import { resolveReviewCycleTargetProvenance } from './response-target.store'
+import type { ReviewCycleTargetAnchor } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
+import type { HandlingCycle } from '#/contexts/inbox/domain/types'
+import { isInboxError } from '#/contexts/inbox/domain/errors'
+import { resolveReviewCycleTargetProvenance } from './store.server'
 
 const OPENED_AT = new Date('2026-08-28T10:00:00.000Z')
 const SOURCE_AT = new Date('2026-01-03T10:00:00.000Z')

@@ -1,9 +1,12 @@
-import { isAnsweringGoogleReply, type GoogleReplyReading } from './rules'
+import {
+  isAnsweringGoogleReply,
+  type GoogleReplyReading,
+} from '#/contexts/inbox/domain/rules'
 import {
   isSupersededReminder,
   type ResponseTargetKind,
   type ResponseTargetReminderKind,
-} from './response-target'
+} from '../../../inbox/domain/response-target'
 
 /**
  * How long a Google-review reminder may be held back while Google cannot be

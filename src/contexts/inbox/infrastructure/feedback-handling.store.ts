@@ -39,7 +39,7 @@ import {
 import { assertManagerHandlingPermitted } from '../domain/handling-outcome-authority'
 import { inboxItemFromRow } from './mappers/inbox.mapper'
 import { transitionInsert } from './review-handling-cycle.store'
-import { completePrivateFeedbackTarget } from './response-target.store'
+import { completePrivateFeedbackTarget } from '../../reputation/inbox/response-targets/store.server'
 
 type OutcomeRow = typeof inboxFeedbackHandlingOutcomes.$inferSelect
 type HeadRow = typeof inboxHandlingCycleHeads.$inferSelect

@@ -3,7 +3,7 @@ import type { Job } from 'bullmq'
 import {
   createReleaseResponseTargetRemindersHandler,
   JOB_NAME,
-} from './release-response-target-reminders.job'
+} from './release-reminders.job.server'
 import { JOB_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 
 describe('release-response-target-reminders job', () => {
@@ -12,7 +12,7 @@ describe('release-response-target-reminders job', () => {
       expect.objectContaining({
         queue: 'background',
         processor:
-          'src/contexts/inbox/infrastructure/jobs/release-response-target-reminders.job.ts',
+          'src/contexts/reputation/inbox/response-targets/release-reminders.job.server.ts',
         schedule: 'every:300000',
         capability: 'inbox.use',
         action: 'system:inbox.update',

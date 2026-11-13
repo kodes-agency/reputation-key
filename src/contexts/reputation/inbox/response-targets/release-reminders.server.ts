@@ -5,16 +5,16 @@ import {
   planReminderRelease,
   type ReminderGoogleCheckOutcome,
   type ReminderReplyHead,
-} from '../../domain/reminder-release'
+} from './reminder-release.server'
 import type {
   GoogleReviewCheckOutcome,
   GoogleReviewCheckPort,
-} from '../ports/google-review-check.port'
-import type { ReplyLookupPort } from '../ports/reply-lookup.port'
+} from '#/contexts/inbox/application/ports/google-review-check.port'
+import type { ReplyLookupPort } from '#/contexts/inbox/application/ports/reply-lookup.port'
 import type {
   DueReminderCandidate,
   ResponseTargetStore,
-} from '../ports/response-target.store'
+} from '#/contexts/inbox/application/ports/response-target.store'
 
 export const RESPONSE_TARGET_REMINDER_RELEASE_LIMIT = 100
 /** Google reads one tick may spend; the rest wait for the next tick. */
@@ -60,16 +60,13 @@ const NO_COUNTS: ReminderReleaseCounts = Object.freeze({
 const add = (
   total: ReminderReleaseCounts,
   delta: Partial<ReminderReleaseCounts>,
-): ReminderReleaseCounts => ({
-  released: total.released + (delta.released ?? 0),
-  checked: total.checked + (delta.checked ?? 0),
-  heldLocal: total.heldLocal + (delta.heldLocal ?? 0),
-  heldAfterRead: total.heldAfterRead + (delta.heldAfterRead ?? 0),
-  deferred: total.deferred + (delta.deferred ?? 0),
-  unavailable: total.unavailable + (delta.unavailable ?? 0),
-  skippedNoProvider: total.skippedNoProvider + (delta.skippedNoProvider ?? 0),
-  failed: total.failed + (delta.failed ?? 0),
-})
+): ReminderReleaseCounts => {
+  const sum = { ...total }
+  for (const key of Object.keys(delta) as Array<keyof ReminderReleaseCounts>) {
+    sum[key] += delta[key] ?? 0
+  }
+  return sum
+}
 
 export type ReleaseDueResponseTargetRemindersDeps = Readonly<{
   targetStore: Pick<
@@ -81,7 +78,6 @@ export type ReleaseDueResponseTargetRemindersDeps = Readonly<{
   clock: () => Date
   logger: Pick<LoggerPort, 'warn'>
 }>
-export type ReleaseDueResponseTargetRemindersInput = void
 export type ReleaseDueResponseTargetReminders = ReturnType<
   typeof releaseDueResponseTargetReminders
 >

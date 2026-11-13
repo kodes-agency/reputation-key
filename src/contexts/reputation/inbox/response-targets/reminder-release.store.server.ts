@@ -20,10 +20,10 @@ import type {
   ReminderSlotReleaseResult,
   ResponseTargetStore,
   ResponseTargetView,
-} from '../application/ports/response-target.store'
-import { inboxError } from '../domain/errors'
-import { inboxResponseTargetReminderDue } from '../domain/events'
-import { isSupersededReminder } from '../domain/response-target'
+} from '#/contexts/inbox/application/ports/response-target.store'
+import { inboxError } from '#/contexts/inbox/domain/errors'
+import { inboxResponseTargetReminderDue } from '#/contexts/inbox/domain/events'
+import { isSupersededReminder } from '../../../inbox/domain/response-target'
 
 type ReminderReleaseStore = Pick<
   ResponseTargetStore,

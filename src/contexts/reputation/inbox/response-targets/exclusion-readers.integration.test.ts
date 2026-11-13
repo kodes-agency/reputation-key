@@ -13,8 +13,8 @@ import {
   seedRestatedRevisionItem,
   seedScope,
 } from '#/shared/testing/restated-revision-fixtures'
-import { completeGoogleReviewTarget } from './google-review-target-completion'
-import { createResponseTargetStore } from './response-target.store'
+import { completeGoogleReviewTarget } from '#/contexts/inbox/infrastructure/google-review-target-completion'
+import { createResponseTargetStore } from './store.server'
 
 const ORG = organizationId('org-target-exclusion-readers')
 const PROPERTY = propertyId('e8c20000-0000-4000-8000-000000000001')

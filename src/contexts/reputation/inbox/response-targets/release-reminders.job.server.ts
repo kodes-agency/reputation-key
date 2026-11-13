@@ -4,7 +4,7 @@ import { trace } from '#/shared/observability/trace'
 import type {
   ReleaseDueResponseTargetReminders,
   ReminderReleaseCounts,
-} from '../../application/use-cases/release-response-target-reminders'
+} from './release-reminders.server'
 
 export const JOB_NAME = 'release-response-target-reminders' as const
 

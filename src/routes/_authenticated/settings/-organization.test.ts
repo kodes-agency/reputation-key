@@ -33,7 +33,7 @@ vi.mock('#/components/features/organization', () => ({
   OrganizationSettingsPage: ({ responseTargets }: { responseTargets: ReactNode }) =>
     createElement('main', null, 'Organization identity form', responseTargets),
 }))
-vi.mock('#/components/features/organization/response-target-settings-card', () => ({
+vi.mock('#/contexts/reputation/response-targets/ui/settings-card', () => ({
   ResponseTargetSettingsCard: ({
     googleReviewSummary,
     privateFeedbackSummary,
@@ -49,7 +49,7 @@ vi.mock('#/components/features/organization/response-target-settings-card', () =
       privateFeedbackSummary,
     ),
 }))
-vi.mock('#/components/features/organization/response-target-analytics-summary', () => ({
+vi.mock('#/contexts/reputation/response-targets/ui/analytics-summary', () => ({
   GoogleReviewTargetSummary: () => createElement('p', null, 'Google performance ready'),
   PrivateFeedbackTargetSummary: () =>
     createElement('p', null, 'Feedback performance ready'),
