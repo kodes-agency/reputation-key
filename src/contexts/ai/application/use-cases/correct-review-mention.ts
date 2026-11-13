@@ -11,7 +11,7 @@ import {
   collectVocabularyHintWords,
   managerCauseRefusal,
 } from '#/shared/review-analysis-v3-cause-rules'
-import { REVIEW_CAUSE_COMMON_WORDS } from '#/shared/review-analysis-v3-normalizer'
+import { REVIEW_CAUSE_COMMON_WORDS } from '#/shared/analysis/normalizer'
 import { VOCABULARY_HINT_SETS } from '#/shared/review-vocabulary-hints'
 import {
   requireAiPropertyReadAccess,

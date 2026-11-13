@@ -16,12 +16,14 @@ describe('scheduled retention activation', () => {
       const execute = vi.fn()
       const guestSweep = vi.fn()
       const reviewSweep = vi.fn()
+      const snapshotRunSweep = vi.fn()
       const importSweep = vi.fn()
       const handler = createScheduledRetentionSweepHandler({
         db: { execute } as unknown as Database,
         clock: () => new Date('2026-11-08T00:00:00Z'),
         guestContactRequestRetentionSweep: guestSweep,
         reviewObservationRetentionSweep: reviewSweep,
+        reviewSnapshotRunRetentionSweep: snapshotRunSweep,
         googleImportLifecycleSweep: importSweep,
       })
 
@@ -31,6 +33,7 @@ describe('scheduled retention activation', () => {
       expect(apply).not.toHaveBeenCalled()
       expect(guestSweep).not.toHaveBeenCalled()
       expect(reviewSweep).not.toHaveBeenCalled()
+      expect(snapshotRunSweep).not.toHaveBeenCalled()
       expect(importSweep).not.toHaveBeenCalled()
     },
   )

@@ -24,8 +24,10 @@ import {
   resolveInboxResponsibleRecipients,
   resolveResponsibleRecipients,
 } from '../application/responsible-recipients'
-import type { NotificationPayload } from '../domain/notification-payload'
-import type { NotificationGuestVoiceLine } from '../domain/notification-payload-guest-voice'
+import type {
+  NotificationGuestVoiceLine,
+  NotificationPayload,
+} from '../domain/notification-payload'
 import type { NotificationType } from '../domain/notification-types'
 import type { InboxFanoutDeps } from './inbox.server'
 import { goalMonthMarker } from '../infrastructure/goal-month-marker'

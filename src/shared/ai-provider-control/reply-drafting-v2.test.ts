@@ -17,7 +17,7 @@ import {
 } from '#/shared/ai-reply-provenance'
 import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
 import { REPLY_DRAFTING_V2_OPERATION_PROFILE } from '#/shared/reply/profile'
-import { REPLY_DRAFTING_V2_DYNAMIC_PROMPT_BYTES } from '#/shared/reply-drafting-v2-request'
+import { REPLY_DRAFTING_V2_DYNAMIC_PROMPT_BYTES } from '#/shared/reply/request'
 import { aiGatewayRequestMaxBytes } from '#/contexts/ai/infrastructure/adapters/ai-inprocess.adapter'
 
 const KEYS = generateKeyPairSync('ed25519')

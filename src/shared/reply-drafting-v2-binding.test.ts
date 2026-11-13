@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { isReplyDraftingV2Binding } from './domain/reply-drafting-v2'
 import { replyDraftingV2BindingSchema } from './reply-drafting-v2-binding'
-import { resolveReplyDraftingV2Options } from './reply-drafting-v2-request'
+import { resolveReplyDraftingV2Options } from '#/shared/reply/request'
 
 const ROOT = {
   options: resolveReplyDraftingV2Options({ languageCode: 'en-Latn', variation: 0 }),

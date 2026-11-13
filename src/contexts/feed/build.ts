@@ -23,7 +23,10 @@ import type {
 } from './application/ports/cross-context-lookups.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
-import { createNotificationWorkState } from './notify/settle.server'
+import {
+  createNotificationWorkState,
+  type NotificationWorkStateDeps,
+} from './notify/settle.server'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
@@ -88,6 +91,8 @@ type NotificationBuildInput = Readonly<{
   /** Guest-owned source attribution; Notification never reads Guest tables. */
   feedbackPortalLookup: FeedbackPortalLookupPort
   googleConnectionProperties: GoogleConnectionPropertyLookup
+  /** Integration-owned status of the connection a reconnect notice is about. */
+  googleConnectionStatus: NotificationWorkStateDeps['googleConnectionStatus']
   /** Integration-owned answer to who asked for a Property's Google import. */
   propertyImportInitiators: PropertyImportInitiatorLookup
   /** Goal-owned exact closed-and-achieved result lookup. */
@@ -171,6 +176,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     portalHealthLookup: input.portalHealthLookup,
     destinationLookup: input.destinationLookup,
     responsibleManagers: input.responsibleManagers,
+    googleConnectionStatus: input.googleConnectionStatus,
   })
   // Asked again immediately before every Property-scoped email is sent.
   const recipientStanding = createNotificationRecipientStanding({

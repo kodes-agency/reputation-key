@@ -70,3 +70,14 @@ the observation text comparison needs. Serving, AI freshness, sync and lifecycle
 reads use the content row. Only a provider fetch can renew its expiry. The Review retains its connection
 for the database publication guard and its first-fetch history for re-observation
 after erasure; neither is served as provider content.
+
+## Inbox commands
+
+`inbox/command-store.server.ts` builds the atomic Inbox command store from
+cohorts that share one runtime (`command-runtime.server.ts`: the transaction
+authority check and the single-row transition runner): `assignment-commands`
+(assign, bulk assign, release and manual reopen), `status-commands` (bulk
+reopen, escalation and priority), `note-commands` and `source-commands`
+(create, source projection, withdrawal, transition, reply observation and
+receipts). Helpers shared with the other Inbox stores stay in
+`contexts/inbox/infrastructure/`.

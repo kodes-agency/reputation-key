@@ -26,7 +26,7 @@ import { isInboxError } from '../domain/errors'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
-} from './inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxCommandAuthority } from './adapters/inbox-command-authority.adapter'
 import { createFeedbackHandlingStore } from './feedback-handling.store'
 
@@ -537,6 +537,199 @@ describe.sequential('A grant-only PropertyManager works the Inbox (D3)', () => {
     })
 
     expect(handled.item.status).toBe('closed')
+  })
+
+  // Race: the assignee's grant is revoked while an owner's bulk reopen waits on
+  // it. The reopen still lands, the item comes back open without an assignee,
+  // and one unassignment fact names the person who lost authority. Its
+  // non-revoked twin keeps the assignee.
+  it('keeps the assignee when a bulk reopen finds their grant intact', async () => {
+    const closed = await closeItem(
+      await openCycleItem(ITEM_A, PROPERTY_A, FEEDBACK_A),
+      '4e000000-0000-4000-8000-000000000044',
+    )
+    await getPool().query(`UPDATE inbox_items SET assigned_to = $2 WHERE id = $1`, [
+      closed.id,
+      MANAGER,
+    ])
+    const bulkId = '4e000000-0000-4000-8000-000000000096'
+
+    const result = await commandStore().bulkUpdateStatus(
+      [{ ...closed, assignedTo: MANAGER }],
+      [
+        inboxItemBulkStatusChanged({
+          inboxItemId: closed.id,
+          organizationId: ORG,
+          propertyId: closed.propertyId,
+          userId: OWNER,
+          oldStatus: 'closed',
+          newStatus: 'open',
+          bulkId,
+          source: 'web',
+          occurredAt: NOW,
+        }),
+      ],
+      { reason: 'new_information', explanation: null },
+    )
+
+    expect(result.updated).toBe(1)
+    await expect(itemRow(ITEM_A)).resolves.toMatchObject({
+      status: 'open',
+      assigned_to: MANAGER,
+    })
+  })
+
+  it('reopens unassigned when the assignee grant is revoked while the reopen waits', async () => {
+    const closed = await closeItem(
+      await openCycleItem(ITEM_A, PROPERTY_A, FEEDBACK_A),
+      '4e000000-0000-4000-8000-000000000045',
+    )
+    await getPool().query(`UPDATE inbox_items SET assigned_to = $2 WHERE id = $1`, [
+      closed.id,
+      MANAGER,
+    ])
+    await getPool().query(`DELETE FROM outbox_events WHERE organization_id = $1`, [ORG])
+    const bulkId = '4e000000-0000-4000-8000-000000000095'
+    const revoker = await getPool().connect()
+    let revocationOpen = false
+    let command: Promise<unknown> | null = null
+
+    try {
+      await revoker.query('BEGIN')
+      revocationOpen = true
+      await revoker.query(
+        `SELECT id FROM property_access_grant
+         WHERE organization_id = $1 AND property_id = $2::uuid
+           AND user_id = $3 AND revoked_at IS NULL
+         FOR UPDATE`,
+        [ORG, PROPERTY_A, MANAGER],
+      )
+      command = createAtomicInboxCommandStore(
+        db,
+        authorityForSession(ASSIGN_SESSION),
+        () => NOW,
+      ).bulkUpdateStatus(
+        [{ ...closed, assignedTo: MANAGER }],
+        [
+          inboxItemBulkStatusChanged({
+            inboxItemId: closed.id,
+            organizationId: ORG,
+            propertyId: closed.propertyId,
+            userId: OWNER,
+            oldStatus: 'closed',
+            newStatus: 'open',
+            bulkId,
+            source: 'web',
+            occurredAt: NOW,
+          }),
+        ],
+        { reason: 'new_information', explanation: null },
+      )
+      void command.catch(() => undefined)
+      await waitForSessionLock(ASSIGN_SESSION)
+      await revoker.query(
+        `UPDATE property_access_grant SET revoked_at = $4
+         WHERE organization_id = $1 AND property_id = $2::uuid
+           AND user_id = $3 AND revoked_at IS NULL`,
+        [ORG, PROPERTY_A, MANAGER, NOW],
+      )
+      await revoker.query('COMMIT')
+      revocationOpen = false
+
+      await expect(command).resolves.toMatchObject({ updated: 1 })
+      await expect(itemRow(ITEM_A)).resolves.toMatchObject({
+        status: 'open',
+        assigned_to: null,
+      })
+      const facts = await factTypes()
+      expect(facts.filter((type) => type === 'inbox.inbox_item.unassigned')).toHaveLength(
+        1,
+      )
+    } finally {
+      if (revocationOpen) await revoker.query('ROLLBACK').catch(() => undefined)
+      revoker.release()
+      await command?.catch(() => undefined)
+    }
+  })
+
+  // Race: one of the departing member's two grants is revoked while a release
+  // waits on it. The batch denies, so each key is decided on its own: only the
+  // revoked Property's assignment is cleared. Its non-revoked twin keeps both.
+  it('keeps every assignment when the release batch finds both grants intact', async () => {
+    await openCycleItem(ITEM_A, PROPERTY_A, FEEDBACK_A)
+    await openCycleItem(ITEM_B, PROPERTY_B, FEEDBACK_B)
+    await getPool().query(
+      `UPDATE inbox_items SET assigned_to = $2 WHERE organization_id = $1`,
+      [ORG, MANAGER],
+    )
+
+    const result = await commandStore().releaseIneligibleAssignmentsForUser({
+      organizationId: ORG,
+      userId: MANAGER,
+      actorId: OWNER,
+      at: NOW,
+    })
+
+    expect(result).toEqual({ released: 0 })
+    await expect(itemRow(ITEM_A)).resolves.toMatchObject({ assigned_to: MANAGER })
+    await expect(itemRow(ITEM_B)).resolves.toMatchObject({ assigned_to: MANAGER })
+  })
+
+  it('releases only the revoked Property when a grant is revoked while the release batch waits', async () => {
+    await openCycleItem(ITEM_A, PROPERTY_A, FEEDBACK_A)
+    await openCycleItem(ITEM_B, PROPERTY_B, FEEDBACK_B)
+    await getPool().query(
+      `UPDATE inbox_items SET assigned_to = $2 WHERE organization_id = $1`,
+      [ORG, MANAGER],
+    )
+    await getPool().query(`DELETE FROM outbox_events WHERE organization_id = $1`, [ORG])
+    const revoker = await getPool().connect()
+    let revocationOpen = false
+    let command: Promise<unknown> | null = null
+
+    try {
+      await revoker.query('BEGIN')
+      revocationOpen = true
+      await revoker.query(
+        `SELECT id FROM property_access_grant
+         WHERE organization_id = $1 AND property_id = $2::uuid
+           AND user_id = $3 AND revoked_at IS NULL
+         FOR UPDATE`,
+        [ORG, PROPERTY_A, MANAGER],
+      )
+      command = createAtomicInboxCommandStore(
+        db,
+        authorityForSession(ASSIGN_SESSION),
+        () => NOW,
+      ).releaseIneligibleAssignmentsForUser({
+        organizationId: ORG,
+        userId: MANAGER,
+        actorId: OWNER,
+        at: NOW,
+      })
+      void command.catch(() => undefined)
+      await waitForSessionLock(ASSIGN_SESSION)
+      await revoker.query(
+        `UPDATE property_access_grant SET revoked_at = $4
+         WHERE organization_id = $1 AND property_id = $2::uuid
+           AND user_id = $3 AND revoked_at IS NULL`,
+        [ORG, PROPERTY_A, MANAGER, NOW],
+      )
+      await revoker.query('COMMIT')
+      revocationOpen = false
+
+      await expect(command).resolves.toEqual({ released: 1 })
+      await expect(itemRow(ITEM_A)).resolves.toMatchObject({ assigned_to: null })
+      await expect(itemRow(ITEM_B)).resolves.toMatchObject({ assigned_to: MANAGER })
+      const facts = await factTypes()
+      expect(facts.filter((type) => type === 'inbox.inbox_item.unassigned')).toHaveLength(
+        1,
+      )
+    } finally {
+      if (revocationOpen) await revoker.query('ROLLBACK').catch(() => undefined)
+      revoker.release()
+      await command?.catch(() => undefined)
+    }
   })
 
   it('lets the manager reopen closed items across both granted Properties in one bulk command', async () => {

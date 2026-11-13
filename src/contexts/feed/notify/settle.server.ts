@@ -11,17 +11,20 @@
 // row read. It stamps `resolvedAt` instead.
 
 import {
+  googleConnectionId,
   inboxItemId,
   portalApprovedDestinationId,
   portalId,
   propertyId,
   reviewId,
+  type GoogleConnectionId,
   type InboxItemId,
   type NotificationId,
   type OrganizationId,
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
+import type { GoogleConnectionStatus } from '#/contexts/integration/application/public-api'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { NotificationCategory, NotificationType } from '../domain/notification-types'
 import type { EscalationResolutionLookupPort } from '../application/ports/escalation-resolution-lookup.port'
@@ -216,6 +219,13 @@ export type NotificationWorkStateDeps = Readonly<{
     ResponsibleManagerLookupPort,
     'findForProperty' | 'findForPortal'
   >
+  /** Integration-owned: the status of the Google connection a notice is about. */
+  googleConnectionStatus: Readonly<{
+    findStatus: (
+      organizationId: OrganizationId,
+      connectionId: GoogleConnectionId,
+    ) => Promise<GoogleConnectionStatus | null>
+  }>
 }>
 
 /** `null`: the owner could not say, so the notice is neither held nor retired. */
@@ -362,8 +372,25 @@ const portalStillUnstaffed: WorkCheck = async (deps, { organizationId, resourceI
     .length === 0
 
 /**
+ * A reconnect request stands until the connection is healthy again; an
+ * unknown connection or an answer that cannot be had keeps the notice, so a
+ * failing lookup errs toward notifying.
+ */
+const connectionStillBroken: WorkCheck = async (deps, { organizationId, resourceId }) => {
+  try {
+    const status = await deps.googleConnectionStatus.findStatus(
+      organizationId,
+      googleConnectionId(resourceId),
+    )
+    return status === null ? null : status !== 'active'
+  } catch {
+    return null
+  }
+}
+
+/**
  * Every type whose work Feed can ask about. A type absent here reports news or
- * asks for work no owner answers for (a Google reconnect), and always passes.
+ * asks for work no owner answers for, and always passes.
  */
 const WORK_CHECKS: Readonly<Partial<Record<NotificationType, WorkCheck>>> = {
   'inbox.escalated': stillEscalated,
@@ -385,11 +412,21 @@ const WORK_CHECKS: Readonly<Partial<Record<NotificationType, WorkCheck>>> = {
   'portal.responsibility_needed': portalStillUnstaffed,
 }
 
+/**
+ * Asked only before a notice is written or sent, never when a fact retires
+ * one: a deliberate disconnect settles the request though the connection is
+ * not healthy.
+ */
+const SEND_TIME_CHECKS: Readonly<Partial<Record<NotificationType, WorkCheck>>> = {
+  ...WORK_CHECKS,
+  'integration.reauthorization_required': connectionStillBroken,
+}
+
 const check = (
   deps: NotificationWorkStateDeps,
   subject: NotificationWorkSubject,
 ): Promise<NotificationWorkDecision | null> => {
-  const ask = WORK_CHECKS[subject.type]
+  const ask = SEND_TIME_CHECKS[subject.type]
   return ask ? ask(deps, subject) : Promise.resolve(null)
 }
 

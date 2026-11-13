@@ -5,7 +5,7 @@
 // writes the same bytes to the same key.
 
 import { createHash } from 'node:crypto'
-import type { BackupErasureLedgerContext } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import type { ErasureJournalContext } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type { ErasureJournalTargetKind } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
   journalBeforeErasure,
@@ -25,12 +25,12 @@ export type RightsJournal = Readonly<{
   /** Why an apply of these contexts cannot be journaled, or null when it can. */
   check: (
     plan: RightsRequestPlan,
-    contexts: ReadonlyArray<BackupErasureLedgerContext>,
+    contexts: ReadonlyArray<ErasureJournalContext>,
   ) => string | null
   /** The journal entry ids, one per context, in write order. */
   entryIds: (
     plan: RightsRequestPlan,
-    contexts: ReadonlyArray<BackupErasureLedgerContext>,
+    contexts: ReadonlyArray<ErasureJournalContext>,
   ) => ReadonlyArray<string>
   /**
    * Writes every entry, then calls erase; a rejected write means erase never
@@ -39,14 +39,14 @@ export type RightsJournal = Readonly<{
    */
   run: <T>(
     plan: RightsRequestPlan,
-    contexts: ReadonlyArray<BackupErasureLedgerContext>,
-    planContexts: ReadonlyArray<BackupErasureLedgerContext>,
+    contexts: ReadonlyArray<ErasureJournalContext>,
+    planContexts: ReadonlyArray<ErasureJournalContext>,
     erase: () => Promise<T>,
   ) => Promise<T>
   /** Writes one entry naming the batch's rows, then calls erase. */
   runBatch: <T>(
     plan: RightsRequestPlan,
-    context: BackupErasureLedgerContext,
+    context: ErasureJournalContext,
     targets: RightsJournalTargets,
     erase: () => Promise<T>,
   ) => Promise<T>
@@ -64,7 +64,7 @@ export function derivedUuid(seed: string): string {
 
 function seedOf(
   plan: RightsRequestPlan,
-  context: BackupErasureLedgerContext | '',
+  context: ErasureJournalContext | '',
   kind: string,
   targets?: RightsJournalTargets,
 ): string {
@@ -102,7 +102,7 @@ function guestResponseEntry(
 
 export function rightsJournalEntry(
   plan: RightsRequestPlan,
-  context: BackupErasureLedgerContext,
+  context: ErasureJournalContext,
   targets?: RightsJournalTargets,
 ): ErasureJournalEntry | { error: string } {
   const effectiveErasureAt = plan.verifiedAt ?? plan.receivedAt
@@ -134,7 +134,7 @@ export function rightsJournalEntry(
 
 function entriesOf(
   plan: RightsRequestPlan,
-  contexts: ReadonlyArray<BackupErasureLedgerContext>,
+  contexts: ReadonlyArray<ErasureJournalContext>,
 ): ReadonlyArray<ErasureJournalEntry> {
   return contexts.map((context) => {
     const entry = rightsJournalEntry(plan, context)
@@ -147,8 +147,8 @@ function entriesOf(
 // place in the apply order would be ambiguous.
 function orderedEntriesOf(
   plan: RightsRequestPlan,
-  contexts: ReadonlyArray<BackupErasureLedgerContext>,
-  planContexts: ReadonlyArray<BackupErasureLedgerContext>,
+  contexts: ReadonlyArray<ErasureJournalContext>,
+  planContexts: ReadonlyArray<ErasureJournalContext>,
 ): ReadonlyArray<ErasureJournalEntry> {
   if (new Set(planContexts).size !== planContexts.length) {
     throw new Error('a lifecycle context is journaled twice in one apply')

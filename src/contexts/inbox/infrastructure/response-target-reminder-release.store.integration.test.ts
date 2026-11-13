@@ -19,7 +19,7 @@ import { releaseDueResponseTargetReminders } from '../application/use-cases/rele
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
-} from './inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { completeGoogleReviewTarget } from './google-review-target-completion'
 import { createResponseTargetStore } from './response-target.store'
 import { createReviewHandlingCycleStore } from './review-handling-cycle.store'

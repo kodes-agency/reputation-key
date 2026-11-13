@@ -1,6 +1,6 @@
 import { invalidReplyRewriteParent, replyV2InsertionValues } from './reply-rewrite-parent'
 import { createHash } from 'node:crypto'
-import { and, eq, exists, gt, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, eq, exists, gt, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   aiOperations,
@@ -70,6 +70,16 @@ const AI_ERROR_CODES: ReadonlySet<string> = new Set([
   'output_truncated',
   'policy_unavailable',
 ] satisfies readonly AiErrorCode[])
+
+/**
+ * A stored row of a command the product no longer runs (the database still admits
+ * it). It is known history, not corruption: no claim or recovery adopts it.
+ */
+class RetiredOperationCommandError extends Error {
+  constructor() {
+    super('AI operation command is retired')
+  }
+}
 
 function failCorrupt(message: string): never {
   throw new Error(`Invalid durable AI operation: ${message}`)
@@ -149,7 +159,7 @@ function parseIdentity(row: OperationRow): AiOperationIdentity {
       ),
     }
   } else if (row.command === 'trend') {
-    failCorrupt('command is retired')
+    throw new RetiredOperationCommandError()
   } else {
     failCorrupt('command is unknown')
   }
@@ -638,6 +648,7 @@ export const createAiOperationStoreAdapter = (
           .where(
             and(
               eq(aiOperations.id, input.operationId),
+              ne(aiOperations.command, 'trend'),
               input.organizationId === null
                 ? isNull(aiOperations.organizationId)
                 : eq(aiOperations.organizationId, input.organizationId),
@@ -794,7 +805,8 @@ export const createAiOperationStoreAdapter = (
           candidates.push(
             recoveryCandidate(mapOperation(row.operation), row.persistedAnalysisStatus),
           )
-        } catch {
+        } catch (error) {
+          if (error instanceof RetiredOperationCommandError) continue
           // The reason stays out of the report: a parse failure can quote the
           // stored value. The row's own identifiers are enough to find it.
           unreadable.push({

@@ -1,0 +1,360 @@
+// Audit records outlive an erasure: the event stays, the person does not. Every
+// user id, email address, name, IP address and free-text note in an erased
+// Organization's or Property's audit rows is replaced by a pseudonym. The same
+// person gets the same pseudonym throughout one erasure, so the history still
+// reads as "one person did these things", and a replay with the same key writes
+// the same values again. The pseudonyms are keyed with a server-side secret, so
+// the ids, emails and addresses they hide cannot be recovered by hashing guesses.
+// Operators name no customer and stay: an operator handle (`ops:<name>`)
+// wherever it appears, and the user id of a platform operator on the operator
+// console's own records (`platform.*` actions and the `operatorUserId`
+// detail). So do service ids such as `system`.
+//
+// The secret may rotate. Pseudonyms only need to agree within one erasure,
+// which rewrites its whole scope in one transaction, and each erasure already
+// has its own key (the journal entry id is part of it). A replay after a
+// restore rewrites the restored rows of that scope in one transaction too, so
+// a rotated secret gives that copy other, but still consistent, pseudonyms;
+// rows an earlier run already pseudonymised are left as they are. No pseudonym
+// is stored or compared anywhere else.
+
+import { createHmac } from 'node:crypto'
+import { sql } from 'drizzle-orm'
+import type { Tx } from '#/shared/db'
+import { OPERATOR_ACTOR_PREFIX, operatorHandleOf } from '#/shared/domain/operator-actor'
+
+const PREFIX = 'pseudonym:'
+const KEY_PURPOSE = 'audit-pseudonym:v1:'
+const BATCH = 500
+
+/** The operator console writes these `audit_logs` actions; their user id is the operator's. */
+const OPERATOR_LOG_ACTION_PREFIX = 'platform.'
+
+/** Resource types whose id is a person's user id. */
+const PERSON_RESOURCE_TYPES: ReadonlySet<string> = new Set(['member', 'user'])
+
+/** Detail keys whose string value names, addresses or describes a person. */
+const PERSON_DETAIL_KEYS: ReadonlySet<string> = new Set([
+  'actorId',
+  'changeReason',
+  'displayName',
+  'email',
+  'followingReason',
+  'initiatorUserId',
+  'ipAddress',
+  'memberUserId',
+  'name',
+  'note',
+  'reason',
+  'userId',
+])
+
+/** Detail keys whose value is an operator's id; it names no customer and stays. */
+const OPERATOR_DETAIL_KEYS: ReadonlySet<string> = new Set([
+  'operatorId',
+  'operatorUserId',
+])
+
+/** An email address anywhere in a string; a pseudonym never contains `@`. */
+const EMAIL_IN_TEXT = /[^\s@"'<>(),;:]+@[^\s@"'<>(),;:]+/gu
+
+export type AuditPseudonymScope = Readonly<{
+  organizationId: string
+  /**
+   * Set for a Property erasure: only that Property's audit events, and the
+   * `audit_logs` rows whose details name it, change.
+   */
+  propertyId?: string
+}>
+
+/**
+ * Why an erasure or a replay that pseudonymises refuses: the setting that holds
+ * the secret is named, its value never is.
+ */
+export const AUDIT_PSEUDONYM_SECRET_MISSING =
+  'AUDIT_PSEUDONYM_SECRET is not set; audit records cannot be pseudonymised'
+
+/**
+ * The HMAC key for one erasure: derived from a server secret and the journal
+ * entry id. The id alone is stored beside the data, so it cannot be the key; the
+ * secret is what a replay needs again. Without one, nothing is pseudonymised.
+ */
+export function auditPseudonymKey(secret: string | undefined, entryId: string): string {
+  if (secret === undefined || secret.length === 0) {
+    throw new Error(AUDIT_PSEUDONYM_SECRET_MISSING)
+  }
+  return createHmac('sha256', secret).update(`${KEY_PURPOSE}${entryId}`).digest('hex')
+}
+
+type Pseudonymise = (value: string) => string
+
+function pseudonymiser(key: string): Pseudonymise {
+  return (value) =>
+    value.startsWith(PREFIX)
+      ? value
+      : `${PREFIX}${createHmac('sha256', key).update(value).digest('hex').slice(0, 32)}`
+}
+
+export type AuditEventRow = Readonly<{
+  id: string
+  actor_type: string
+  actor_id: string | null
+  resource_type: string
+  resource_id: string | null
+  source_aggregate_id: string | null
+}>
+
+export type AuditLogRow = Readonly<{
+  id: string
+  user_id: string
+  action: string
+  ip_address: string | null
+  details: unknown
+}>
+
+/** An operator's handle is one token; free text that merely starts with the prefix is not one. */
+const isOperatorHandle = (value: string) =>
+  operatorHandleOf(value) !== null && !/\s/u.test(value)
+
+const isPersonValue = (value: string | null, people: ReadonlySet<string>) =>
+  value !== null &&
+  !value.startsWith(PREFIX) &&
+  !isOperatorHandle(value) &&
+  people.has(value)
+
+/** `system`, operator handles and the operator console's operator name no customer. */
+const isKeptLogUser = (row: AuditLogRow) =>
+  row.user_id === 'system' ||
+  isOperatorHandle(row.user_id) ||
+  row.action.startsWith(OPERATOR_LOG_ACTION_PREFIX)
+
+/** audit_logs has no Property column: its goal rows carry the Property in details. */
+function logScope(scope: AuditPseudonymScope) {
+  const property = scope.propertyId
+    ? sql` AND details->>'propertyId' = ${scope.propertyId}`
+    : sql``
+  return sql`organization_id = ${scope.organizationId}${property}`
+}
+
+/** The user ids the scope's audit rows name. */
+async function peopleOf(tx: Tx, scope: AuditPseudonymScope): Promise<Set<string>> {
+  const property = scope.propertyId ? sql` AND property_id = ${scope.propertyId}` : sql``
+  const result = await tx.execute(sql`
+    SELECT actor_id AS id FROM audit_events
+      WHERE organization_id = ${scope.organizationId}${property}
+        AND actor_type = 'user' AND actor_id IS NOT NULL
+    UNION SELECT resource_id FROM audit_events
+      WHERE organization_id = ${scope.organizationId}${property}
+        AND resource_type IN ('member', 'user') AND resource_id IS NOT NULL
+    UNION SELECT user_id FROM audit_logs
+      WHERE ${logScope(scope)}
+        AND user_id <> 'system'
+        AND user_id NOT LIKE ${`${OPERATOR_ACTOR_PREFIX}%`}
+        AND action NOT LIKE ${`${OPERATOR_LOG_ACTION_PREFIX}%`}
+  `)
+  return new Set(
+    result.rows
+      .map((row) => String((row as { id: string }).id))
+      .filter((id) => !id.startsWith(PREFIX) && !isOperatorHandle(id)),
+  )
+}
+
+function pseudonymisedEvent(
+  row: AuditEventRow,
+  people: ReadonlySet<string>,
+  pseudonym: Pseudonymise,
+): AuditEventRow {
+  const actorId =
+    row.actor_type === 'user' && row.actor_id !== null && !isOperatorHandle(row.actor_id)
+      ? pseudonym(row.actor_id)
+      : row.actor_id
+  const resourceId =
+    row.resource_id !== null &&
+    !isOperatorHandle(row.resource_id) &&
+    (PERSON_RESOURCE_TYPES.has(row.resource_type) || people.has(row.resource_id))
+      ? pseudonym(row.resource_id)
+      : row.resource_id
+  const aggregateId = isPersonValue(row.source_aggregate_id, people)
+    ? pseudonym(row.source_aggregate_id as string)
+    : row.source_aggregate_id
+  return {
+    ...row,
+    actor_id: actorId,
+    resource_id: resourceId,
+    source_aggregate_id: aggregateId,
+  }
+}
+
+function pseudonymisedText(
+  value: string,
+  people: ReadonlySet<string>,
+  pseudonym: Pseudonymise,
+  personalKey: boolean,
+): string {
+  if (value.startsWith(PREFIX) || isOperatorHandle(value)) return value
+  if (personalKey || people.has(value)) return pseudonym(value)
+  return value.replace(EMAIL_IN_TEXT, (email) => pseudonym(email))
+}
+
+function pseudonymisedDetails(
+  value: unknown,
+  people: ReadonlySet<string>,
+  pseudonym: Pseudonymise,
+  key?: string,
+): unknown {
+  if (typeof value === 'string') {
+    if (key !== undefined && OPERATOR_DETAIL_KEYS.has(key)) return value
+    const personalKey = key !== undefined && PERSON_DETAIL_KEYS.has(key)
+    return pseudonymisedText(value, people, pseudonym, personalKey)
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => pseudonymisedDetails(item, people, pseudonym, key))
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      // A key can name a person too (a map keyed by user id or email).
+      Object.entries(value).map(([entryKey, entry]) => [
+        pseudonymisedText(entryKey, people, pseudonym, false),
+        pseudonymisedDetails(entry, people, pseudonym, entryKey),
+      ]),
+    )
+  }
+  return value
+}
+
+function pseudonymisedLog(
+  row: AuditLogRow,
+  people: ReadonlySet<string>,
+  pseudonym: Pseudonymise,
+): AuditLogRow {
+  return {
+    ...row,
+    user_id: isKeptLogUser(row) ? row.user_id : pseudonym(row.user_id),
+    ip_address: row.ip_address === null ? null : pseudonym(row.ip_address),
+    details: pseudonymisedDetails(row.details, people, pseudonym),
+  }
+}
+
+export type AuditRowPseudonymiser = Readonly<{
+  event: (row: AuditEventRow) => AuditEventRow
+  log: (row: AuditLogRow) => AuditLogRow
+}>
+
+/**
+ * The per-row rewrite of one erasure: `key` from `auditPseudonymKey`, `people`
+ * the user ids the scope's audit rows name. Pure, so a replay that sees the
+ * same rows and key writes the same values.
+ */
+export function auditRowPseudonymiser(
+  key: string,
+  people: ReadonlySet<string>,
+): AuditRowPseudonymiser {
+  const pseudonym = pseudonymiser(key)
+  return Object.freeze({
+    event: (row: AuditEventRow) => pseudonymisedEvent(row, people, pseudonym),
+    log: (row: AuditLogRow) => pseudonymisedLog(row, people, pseudonym),
+  })
+}
+
+async function rewriteEvents(
+  tx: Tx,
+  scope: AuditPseudonymScope,
+  rewrite: AuditRowPseudonymiser,
+): Promise<number> {
+  const property = scope.propertyId ? sql` AND property_id = ${scope.propertyId}` : sql``
+  let changed = 0
+  let after = '00000000-0000-0000-0000-000000000000'
+  for (;;) {
+    const page = (
+      await tx.execute(sql`
+        SELECT id::text AS id, actor_type, actor_id, resource_type, resource_id,
+               source_aggregate_id
+        FROM audit_events
+        WHERE organization_id = ${scope.organizationId}${property}
+          AND id > ${after}::uuid
+        ORDER BY id LIMIT ${BATCH}
+      `)
+    ).rows as AuditEventRow[]
+    if (page.length === 0) return changed
+    after = page.at(-1)!.id
+    const updates = page
+      .map(rewrite.event)
+      .filter((row, index) => JSON.stringify(row) !== JSON.stringify(page[index]))
+    if (updates.length === 0) continue
+    await tx.execute(sql`
+      UPDATE audit_events AS event
+      SET actor_id = next.actor_id,
+          resource_id = next.resource_id,
+          source_aggregate_id = next.source_aggregate_id
+      FROM jsonb_to_recordset(${JSON.stringify(updates)}::jsonb)
+        AS next(id uuid, actor_id text, resource_id text, source_aggregate_id text)
+      WHERE event.organization_id = ${scope.organizationId} AND event.id = next.id
+    `)
+    changed += updates.length
+  }
+}
+
+async function rewriteLogs(
+  tx: Tx,
+  scope: AuditPseudonymScope,
+  rewrite: AuditRowPseudonymiser,
+): Promise<number> {
+  let changed = 0
+  let after = ''
+  for (;;) {
+    const page = (
+      await tx.execute(sql`
+        SELECT id, user_id, action, ip_address, details
+        FROM audit_logs
+        WHERE ${logScope(scope)} AND id > ${after}
+        ORDER BY id LIMIT ${BATCH}
+      `)
+    ).rows as AuditLogRow[]
+    if (page.length === 0) return changed
+    after = page.at(-1)!.id
+    const updates = page
+      .map(rewrite.log)
+      .filter((row, index) => JSON.stringify(row) !== JSON.stringify(page[index]))
+    if (updates.length === 0) continue
+    await tx.execute(sql`
+      UPDATE audit_logs AS log
+      SET user_id = next.user_id,
+          ip_address = next.ip_address,
+          details = next.details
+      FROM jsonb_to_recordset(${JSON.stringify(updates)}::jsonb)
+        AS next(id text, user_id text, ip_address text, details jsonb)
+      WHERE log.organization_id = ${scope.organizationId} AND log.id = next.id
+    `)
+    changed += updates.length
+  }
+}
+
+/**
+ * Pseudonymises the scope's audit rows inside the caller's transaction and
+ * returns the rows changed. `key` must be the same for an erasure and its
+ * replay.
+ */
+export async function pseudonymiseAuditRecords(
+  tx: Tx,
+  scope: AuditPseudonymScope,
+  key: string,
+): Promise<number> {
+  const rewrite = auditRowPseudonymiser(key, await peopleOf(tx, scope))
+  const events = await rewriteEvents(tx, scope, rewrite)
+  return events + (await rewriteLogs(tx, scope, rewrite))
+}
+
+export async function countAuditRecords(
+  tx: Tx,
+  scope: AuditPseudonymScope,
+): Promise<Readonly<{ events: number; logs: number }>> {
+  const property = scope.propertyId ? sql` AND property_id = ${scope.propertyId}` : sql``
+  const result = await tx.execute(sql`
+    SELECT
+      (SELECT count(*)::int FROM audit_events
+        WHERE organization_id = ${scope.organizationId}${property}) AS events,
+      (SELECT count(*)::int FROM audit_logs WHERE ${logScope(scope)}) AS logs
+  `)
+  const row = result.rows[0] as { events: number; logs: number }
+  return { events: Number(row.events), logs: Number(row.logs) }
+}

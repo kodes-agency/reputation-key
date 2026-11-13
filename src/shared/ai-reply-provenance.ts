@@ -1,7 +1,7 @@
 import {
   REPLY_DRAFTING_V2_VERSIONS,
   REPLY_DRAFTING_V2_LANGUAGES,
-} from './reply-drafting-v2-schema'
+} from '#/shared/reply/schema'
 import { replyVoiceChoicesSchema } from './reply-drafting-v2-binding'
 import { createHash, sign, verify, type KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'

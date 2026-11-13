@@ -3,9 +3,8 @@
 // Split out of ./notification-templates.ts, which lists these renderers in its
 // table. They are named exports, not one record the table spreads: a spread of
 // an imported object moved this whole copy into first paint's chunk (+6 KB
-// gzip against a budget with about 100 B to spare). This module is a leaf: it
-// imports nothing from that one, so its copy type is restated structurally
-// below and the one helper it shares is local.
+// gzip against a budget with about 100 B to spare). This module imports only the
+// shared phrase joiners, so its copy type is restated structurally below.
 //
 // Every account notice belongs to the Organization, not to a Property, and is
 // mandatory, so it has no preferences link and its footer is the only place it
@@ -17,6 +16,7 @@
 // Account Admin changed their access, the inviter hears that someone joined:
 // the payload has no field a person's name could ride in.
 import { SUPPORT_EMAIL } from '#/shared/domain/support-contact'
+import { facts } from './notification-copy-kit'
 import type { NotificationMemberRole, NotificationPayload } from './notification-payload'
 
 /** What an account renderer returns; assignable to the templates' own copy type. */
@@ -39,10 +39,6 @@ type AccountNoticeInput = Readonly<{
   summary?: string
   actionLabel?: string
 }>
-
-/** Joins non-empty facts with a middot for the compact metadata line. */
-const facts = (...parts: ReadonlyArray<string>): string =>
-  parts.filter((part) => part !== '').join(' · ')
 
 /**
  * An account notice: its summary is its title, in the facts line's case, unless

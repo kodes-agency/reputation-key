@@ -45,11 +45,11 @@ import {
   replyDraftingV2OutputSchema,
   REPLY_DRAFTING_V2_VERSIONS,
   REPLY_DRAFTING_V2_LANGUAGES,
-} from '#/shared/reply-drafting-v2-schema'
+} from '#/shared/reply/schema'
 import {
   buildReplyDraftingV2Payload,
   replyDraftingV2DeveloperMessage,
-} from '#/shared/reply-drafting-v2-request'
+} from '#/shared/reply/request'
 import { frameReplyDraftingV2 } from '#/shared/reply-drafting-v2-frame'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
 import { digestRenderedReply, signAiReplyProvenance } from '#/shared/ai-reply-provenance'
@@ -158,7 +158,7 @@ function acceptedBody(
   request: ReplySuggestionGatewayRequestV1,
   deps: Dependencies,
   concrete: ConcreteReplyLanguage,
-  draft: import('#/shared/reply-drafting-v2-schema').ReplyDraftingV2Output,
+  draft: import('#/shared/reply/schema').ReplyDraftingV2Output,
 ): AcceptedGatewayResult | null {
   const frame = request.replyV2Frame!
   const rendered = frameReplyDraftingV2(draft.replyText, frame)

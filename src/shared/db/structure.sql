@@ -7704,6 +7704,7 @@ CREATE TABLE "public"."review_provider_subjects" (
     "unlink_expires_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "unlisted_hold_runs_left" integer,
     CONSTRAINT "review_provider_subjects_controls_safe" CHECK (((("source_epoch" >= 0) AND ("source_epoch" <= 2147483647)) AND (("last_source_revision" >= 0) AND ("last_source_revision" <= '9007199254740991'::bigint)))),
     CONSTRAINT "review_provider_subjects_hmac_length_valid" CHECK ((("octet_length"("locator_hmac") = 32) AND ("octet_length"("verifier_hmac") = 32))),
     CONSTRAINT "review_provider_subjects_missing_pair_valid" CHECK ((("first_missing_at" IS NULL) = ("first_missing_snapshot_run_id" IS NULL))),
@@ -12188,6 +12189,13 @@ CREATE INDEX "review_provider_snapshot_runs_completed_property_idx" ON "public".
 --
 
 CREATE UNIQUE INDEX "review_provider_subject_one_active_idx" ON "public"."review_provider_subject_hmac_key_versions" USING "btree" ("state") WHERE (("state")::"text" = 'active'::"text");
+
+
+--
+-- Name: review_provider_subjects_last_seen_run_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "review_provider_subjects_last_seen_run_idx" ON "public"."review_provider_subjects" USING "btree" ("last_seen_snapshot_run_id");
 
 
 --

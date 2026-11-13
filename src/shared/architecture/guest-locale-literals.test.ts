@@ -44,9 +44,7 @@ const ALLOWLIST: ReadonlyArray<
     why: 'story data that pins a Property to its first two languages, whatever else is offered',
   },
   {
-    match: (p) =>
-      p === 'src/shared/reply-drafting-v2-lint.ts' ||
-      p === 'src/shared/reply-drafting-v2-request.ts',
+    match: (p) => p === 'src/shared/reply/lint.ts' || p === 'src/shared/reply/request.ts',
     why: 'three-language AI body policy and fixed apology/example books (en/es/bg); not the guest locale set',
   },
 ]

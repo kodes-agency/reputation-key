@@ -202,21 +202,21 @@ describe('re-reading a review Google has not changed', () => {
   it('writes no row and moves the newest row’s content clock to the new fetch', async () => {
     await recordedRead(readAt(0), 1)
 
-    await quietRead(readAt(6), 2)
-    await quietRead(readAt(12), 3)
+    await quietRead(readAt(30), 2)
+    await quietRead(readAt(60), 3)
 
     const rows = await observations()
     expect(rows.map((row) => [row.sequence, row.comparison])).toEqual([
       [1, 'initial_material_revision'],
     ])
     expect(rows[0]!.observedAt).toEqual(fetchedAt(0))
-    expect(rows[0]!.contentExpiresAt).toEqual(expiresAt(12))
-    expect(rows[0]!.updatedAt).toEqual(fetchedAt(12))
+    expect(rows[0]!.contentExpiresAt).toEqual(expiresAt(60))
+    expect(rows[0]!.updatedAt).toEqual(fetchedAt(60))
     expect(await storedReview()).toEqual({
       sequence: 1,
-      lastFetchedAt: fetchedAt(12),
-      contentExpiresAt: expiresAt(12),
-      sourceClock: expiresAt(12),
+      lastFetchedAt: fetchedAt(60),
+      contentExpiresAt: expiresAt(60),
+      sourceClock: expiresAt(60),
     })
   })
 
@@ -230,11 +230,11 @@ describe('re-reading a review Google has not changed', () => {
   it('refreshes in place on the recorded path too', async () => {
     await recordedRead(readAt(0), 1)
 
-    const reread = await recordedRead(readAt(6), 2)
+    const reread = await recordedRead(readAt(30), 2)
 
     expect(reread.sourceRevision).toBe(1)
     expect(await sequences()).toEqual([[1, 1, 'initial_material_revision']])
-    expect((await observations())[0]!.contentExpiresAt).toEqual(expiresAt(6))
+    expect((await observations())[0]!.contentExpiresAt).toEqual(expiresAt(30))
   })
 
   it('answers a replayed key from the row it wrote, without moving the clock', async () => {
@@ -251,8 +251,8 @@ describe('re-reading a review Google reports differently', () => {
   it('writes a row when only the translation changed', async () => {
     await recordedRead(readAt(0), 1)
 
-    await quietRead(readAt(6, { translatedText: 'Chambre calme' }), 2)
-    await quietRead(readAt(12, { translatedText: 'Chambre calme' }), 3)
+    await quietRead(readAt(30, { translatedText: 'Chambre calme' }), 2)
+    await quietRead(readAt(60, { translatedText: 'Chambre calme' }), 3)
 
     expect(await sequences()).toEqual([
       [1, 1, 'initial_material_revision'],
@@ -261,8 +261,8 @@ describe('re-reading a review Google reports differently', () => {
     const [first, second] = await observations()
     // The superseded copy keeps the clock of the last fetch that returned it.
     expect(first!.contentExpiresAt).toEqual(expiresAt(0))
-    expect(second!.contentExpiresAt).toEqual(expiresAt(12))
-    expect(await lifecycleFindings(fetchedAt(12))).toEqual([[]])
+    expect(second!.contentExpiresAt).toEqual(expiresAt(60))
+    expect(await lifecycleFindings(fetchedAt(60))).toEqual([[]])
   })
 
   it('writes a row when only Google’s updateTime moved', async () => {
@@ -284,15 +284,15 @@ describe('re-reading a review Google reports differently', () => {
       sourceUpdatedAt: fetchedAt(5),
     }
 
-    const edited = await recordedRead(readAt(6, edit), 2)
-    await quietRead(readAt(12, edit), 3)
+    const edited = await recordedRead(readAt(30, edit), 2)
+    await quietRead(readAt(60, edit), 3)
 
     expect(edited.sourceRevision).toBe(2)
     expect(await sequences()).toEqual([
       [1, 1, 'initial_material_revision'],
       [2, 2, 'material_change'],
     ])
-    expect((await observations())[1]!.contentExpiresAt).toEqual(expiresAt(12))
+    expect((await observations())[1]!.contentExpiresAt).toEqual(expiresAt(60))
   })
 
   it('writes a row when Google shows a review whose content was erased', async () => {
