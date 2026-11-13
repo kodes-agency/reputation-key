@@ -1,12 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import { createInMemoryDashboardRepository } from '#/shared/testing/in-memory-dashboard-repo'
+import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { AttentionSignalsPort } from '../ports/attention-signals.port'
 import { getDashboardData } from './get-dashboard-data'
 import { getPropertyOverview } from './get-property-overview'
 import type { GetReviewInboxItemIds } from '#/contexts/inbox/application/use-cases/get-review-inbox-item-ids'
-import type { MetricKPIValue } from '../../domain/dashboard-types'
+import { getDb } from '#/shared/db'
+import { createServingStats } from '#/contexts/review/infrastructure/serving-stats'
+import {
+  recordedDashboardRepo,
+  seedDashboardProperty,
+  seedDashboardReview,
+} from '../../infrastructure/testing/dashboard-fixtures'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
 const ORG = organizationId('org-overview')
@@ -30,52 +36,37 @@ const allTime = {
 /** An Inbox that opens none of the reviews, for the tests that are not about links. */
 const NO_INBOX_ITEMS = { getReviewInboxItemIds: async () => new Map() }
 
-const metricKpi = (value: number, priorValue: number, trend: number): MetricKPIValue => ({
-  value,
-  priorValue,
-  trend,
-  evidence: {
-    current: {
-      state: 'ready',
-      definitionVersionId: 'overview-current',
-      sampleCount: value,
-      minimumSample: 1,
-    },
-    prior: {
-      state: 'ready',
-      definitionVersionId: 'overview-prior',
-      sampleCount: priorValue,
-      minimumSample: 1,
-    },
-  },
+const ORG_B = organizationId('org-overview-b')
+
+const { getPool } = setupIntegrationDb({
+  orgA: ORG,
+  orgB: ORG_B,
+  tables: ['replies', 'reviews', 'metric_readings', 'properties'],
 })
+
+const seedProperty = () =>
+  seedDashboardProperty(getPool(), { id: PROPERTY, organizationId: ORG })
+
+const review = (daysBefore: number, rating: number, text?: string) =>
+  seedDashboardReview(getPool(), {
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    now: NOW,
+    rating,
+    daysBefore,
+    text,
+  })
 
 describe('getPropertyOverview', () => {
   it('reuses the dashboard KPI snapshot when deriving attention signals', async () => {
-    const repo = createInMemoryDashboardRepository()
-    repo.kpisOverride = {
-      reviews: { value: 12, priorValue: 10, trend: 20 },
-      avgRating: {
-        value: 4,
-        priorValue: 4.4,
-        comparison: -0.4,
-        sampleCount: 12,
-        priorSampleCount: 10,
-        evidence: {
-          definitionVersionId: null,
-          state: 'ready',
-          verifiedThrough: NOW,
-          latestActivity: NOW,
-          computedAt: NOW,
-          completeness: 1,
-          availabilityReason: null,
-          correctionHead: null,
-          sampleCount: 12,
-        },
-      },
-      scans: metricKpi(100, 80, 25),
-      feedback: metricKpi(20, 15, 33),
-    }
+    const { repo, calls } = recordedDashboardRepo(
+      getDb(),
+      createServingStats({ db: getDb(), clock: () => NOW }),
+    )
+    await seedProperty()
+    // Ten Reviews a window is the smallest sample a rating comparison is shown for.
+    for (let day = 1; day <= 10; day += 1) await review(day, 3)
+    for (let day = 35; day <= 44; day += 1) await review(day, 5)
     const attention: AttentionSignalsPort = {
       getAttentionCounts: async () => ({
         overdue: 99,
@@ -111,7 +102,8 @@ describe('getPropertyOverview', () => {
 
     const result = await getOverview(last30Days, ADMIN)
 
-    expect(result.dashboard.kpis).toBe(repo.kpisOverride)
+    expect(result.dashboard.kpis.reviews).toEqual({ value: 10, priorValue: 10, trend: 0 })
+    expect(result.dashboard.kpis.avgRating).toMatchObject({ value: 3, priorValue: 5 })
     expect(result.signals).toEqual({
       overdue: 3,
       itemsToTriage: 4,
@@ -120,12 +112,15 @@ describe('getPropertyOverview', () => {
       ratingDrop: true,
       needsAttention: 6,
     })
-    expect(repo.calls.filter((call) => call === 'getKPIs')).toHaveLength(1)
+    expect(calls.filter((call) => call === 'getKPIs')).toHaveLength(1)
   })
 
   it('leads the all-time read with Google’s own number and count, and reads them only there', async () => {
     // Arrange
-    const repo = createInMemoryDashboardRepository()
+    const { repo } = recordedDashboardRepo(
+      getDb(),
+      createServingStats({ db: getDb(), clock: () => NOW }),
+    )
     const google = {
       shows: 4.3,
       reviewCount: 812,
@@ -164,7 +159,10 @@ describe('getPropertyOverview', () => {
   })
 
   it('refuses a manager with no grant on the Property before anything is read', async () => {
-    const repo = createInMemoryDashboardRepository()
+    const { repo, calls } = recordedDashboardRepo(
+      getDb(),
+      createServingStats({ db: getDb(), clock: () => NOW }),
+    )
     const getAttentionCounts = vi.fn<AttentionSignalsPort['getAttentionCounts']>()
     const getGoogleReviewTargetCountsByProperty = vi.fn(async () => new Map())
     const googleNumbers = vi.fn(async () => null)
@@ -186,7 +184,7 @@ describe('getPropertyOverview', () => {
       _tag: 'DashboardError',
       code: 'forbidden',
     })
-    expect(repo.calls).toEqual([])
+    expect(calls).toEqual([])
     expect(getAttentionCounts).not.toHaveBeenCalled()
     expect(getGoogleReviewTargetCountsByProperty).not.toHaveBeenCalled()
     expect(googleNumbers).not.toHaveBeenCalled()
@@ -196,7 +194,10 @@ describe('getPropertyOverview', () => {
   // dashboard.fleet_read: the attention band (reply targets past due, items to
   // triage, escalations) is not theirs to read, grant or no grant.
   it('refuses a Member granted the Property before anything is read', async () => {
-    const repo = createInMemoryDashboardRepository()
+    const { repo, calls } = recordedDashboardRepo(
+      getDb(),
+      createServingStats({ db: getDb(), clock: () => NOW }),
+    )
     const getAttentionCounts = vi.fn<AttentionSignalsPort['getAttentionCounts']>()
     const getGoogleReviewTargetCountsByProperty = vi.fn(async () => new Map())
     const grantsHere = async () => [PROPERTY]
@@ -215,13 +216,16 @@ describe('getPropertyOverview', () => {
       _tag: 'DashboardError',
       code: 'forbidden',
     })
-    expect(repo.calls).toEqual([])
+    expect(calls).toEqual([])
     expect(getAttentionCounts).not.toHaveBeenCalled()
     expect(getGoogleReviewTargetCountsByProperty).not.toHaveBeenCalled()
   })
 
   it('serves a manager granted the Property', async () => {
-    const repo = createInMemoryDashboardRepository()
+    const { repo } = recordedDashboardRepo(
+      getDb(),
+      createServingStats({ db: getDb(), clock: () => NOW }),
+    )
     const grantsHere = async () => [PROPERTY]
     const getOverview = getPropertyOverview({
       getDashboardData: getDashboardData({ repo, propertyAccess: grantsHere }),
@@ -249,26 +253,21 @@ describe('getPropertyOverview', () => {
 })
 
 describe('getPropertyOverview recent reviews', () => {
-  const REVIEW_WITH_ITEM = reviewId('60000000-0000-4000-8000-00000000000a')
-  const REVIEW_WITHOUT_ITEM = reviewId('60000000-0000-4000-8000-00000000000b')
   const ITEM = inboxItemId('70000000-0000-4000-8000-00000000000a')
 
-  const recentReview = (id: ReturnType<typeof reviewId>) => ({
-    id,
-    rating: 2,
-    snippet: 'The room was not ready.',
-    reviewedAt: new Date('2026-08-24T10:00:00.000Z'),
-    replyStatus: 'none' as const,
-  })
+  // Two Reviews, the newer first: the Overview lists them by when they were reviewed.
+  const seedTwoReviews = async () => {
+    await seedProperty()
+    const withItem = reviewId(await review(1, 2, 'The room was not ready.'))
+    const withoutItem = reviewId(await review(2, 2, 'The room was not ready.'))
+    return { withItem, withoutItem }
+  }
 
-  const overviewWith = (
-    getReviewInboxItemIds: GetReviewInboxItemIds,
-    reviews = [recentReview(REVIEW_WITH_ITEM), recentReview(REVIEW_WITHOUT_ITEM)],
-  ) => {
-    const repo = {
-      ...createInMemoryDashboardRepository(),
-      getRecentReviews: async () => reviews,
-    }
+  const overviewWith = (getReviewInboxItemIds: GetReviewInboxItemIds) => {
+    const { repo } = recordedDashboardRepo(
+      getDb(),
+      createServingStats({ db: getDb(), clock: () => NOW }),
+    )
     return getPropertyOverview({
       getDashboardData: getDashboardData({ repo, propertyAccess: async () => null }),
       propertyAccess: async () => null,
@@ -290,29 +289,29 @@ describe('getPropertyOverview recent reviews', () => {
 
   it('gives each recent review the Inbox item that opens it, in one lookup', async () => {
     // Arrange
-    const lookup = vi.fn<GetReviewInboxItemIds>(
-      async () => new Map([[REVIEW_WITH_ITEM, ITEM]]),
-    )
+    const { withItem, withoutItem } = await seedTwoReviews()
+    const lookup = vi.fn<GetReviewInboxItemIds>(async () => new Map([[withItem, ITEM]]))
 
     // Act
     const result = await overviewWith(lookup)(allTime, ADMIN)
 
     // Assert: the item id is carried; a review the reader has no item for reads null.
     expect(result.dashboard.recentReviews.map((r) => [r.id, r.inboxItemId])).toEqual([
-      [REVIEW_WITH_ITEM, ITEM],
-      [REVIEW_WITHOUT_ITEM, null],
+      [withItem, ITEM],
+      [withoutItem, null],
     ])
     expect(lookup).toHaveBeenCalledOnce()
     expect(lookup).toHaveBeenCalledWith(
-      { propertyId: PROPERTY, reviewIds: [REVIEW_WITH_ITEM, REVIEW_WITHOUT_ITEM] },
+      { propertyId: PROPERTY, reviewIds: [withItem, withoutItem] },
       ADMIN,
     )
   })
 
   it('asks the Inbox nothing when there is no recent review to open', async () => {
+    await seedProperty()
     const lookup = vi.fn<GetReviewInboxItemIds>(async () => new Map())
 
-    const result = await overviewWith(lookup, [])(allTime, ADMIN)
+    const result = await overviewWith(lookup)(allTime, ADMIN)
 
     expect(result.dashboard.recentReviews).toEqual([])
     expect(lookup).not.toHaveBeenCalled()
