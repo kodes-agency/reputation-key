@@ -121,6 +121,8 @@ export function contactRequestLifecycle(
   }
 
   return {
+    isEnabled: deps.isEnabled,
+
     submit: async (input: SubmitContactRequestInput) => {
       requireEnabled()
       const submittedAt = deps.clock()

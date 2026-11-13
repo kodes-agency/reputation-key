@@ -1,6 +1,6 @@
 // Bounded retention through the owning cleanup seams and static registry.
 // Evidence records counts and failures; one failed subject cannot block others.
-// The worker entry point stays inactive until the approved activation release.
+// The worker entry point erases only expired Contact Request material until the approved activation release.
 
 import type { Job } from 'bullmq'
 import type { Database } from '#/shared/db'
@@ -501,6 +501,25 @@ async function sweepRedactedMaterial(
   }
 }
 
+async function sweepGuestContactRequests(
+  deps: RetentionSweepDeps,
+  batchSize: number,
+  failures: RetentionSweepFailure[],
+  logger: RetentionSweepLogger,
+): Promise<void> {
+  const guestSweep = deps.guestContactRequestRetentionSweep
+  if (!guestSweep) return
+  await sweepRedactedMaterial(
+    deps,
+    guestSweep,
+    batchSize,
+    failures,
+    logger,
+    GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
+    'Contact Request',
+  )
+}
+
 async function sweepSnapshotRuns(
   deps: RetentionSweepDeps,
   sweep: NonNullable<RetentionSweepDeps['reviewSnapshotRunRetentionSweep']>,
@@ -649,18 +668,7 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
       const logger = getLogger()
       const failures: RetentionSweepFailure[] = []
 
-      const guestSweep = deps.guestContactRequestRetentionSweep
-      if (guestSweep) {
-        await sweepRedactedMaterial(
-          deps,
-          guestSweep,
-          batchSize,
-          failures,
-          logger,
-          GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
-          'Contact Request',
-        )
-      }
+      await sweepGuestContactRequests(deps, batchSize, failures, logger)
 
       const observationSweep = deps.reviewObservationRetentionSweep
       if (observationSweep) {
@@ -698,14 +706,30 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
   }
 }
 
-/** The worker uses this entry point; isolated restore retains explicit apply. */
+/**
+ * The worker uses this entry point; isolated restore retains explicit apply.
+ * While scheduled retention is inactive, only expired Contact Request material
+ * is erased: guests were promised it goes within a day of its 30-day expiry.
+ */
 export const createScheduledRetentionSweepHandler = (deps: RetentionSweepDeps) => {
   const apply = createRetentionSweepHandler(deps)
   return async (job: Job) => {
-    if (!SCHEDULED_RETENTION_ACTIVE) {
-      getLogger().info({ mode: 'inactive' }, 'scheduled retention is inactive')
-      return { mode: 'inactive' } as const
-    }
-    return apply(job)
+    if (SCHEDULED_RETENTION_ACTIVE) return apply(job)
+    await trace('job.retentionSweep', async () => {
+      const failures: RetentionSweepFailure[] = []
+      await sweepGuestContactRequests(deps, deps.batchSize ?? 500, failures, getLogger())
+      if (failures.length > 0) {
+        throw new Error(
+          `retention sweep: ${failures.length} rule(s) failed: ${failures
+            .map((f) => f.subject)
+            .join(', ')}`,
+        )
+      }
+    })
+    getLogger().info(
+      { mode: 'contact_requests_only' },
+      'scheduled retention is inactive; expired Contact Request material erased',
+    )
+    return { mode: 'inactive' } as const
   }
 }

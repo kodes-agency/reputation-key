@@ -209,3 +209,32 @@ export const createGuestFeedbackErasureReplayer = (): BackupErasureReplayer => (
     return feedback.length + flagged.length
   },
 })
+
+/** Re-withdraw the named contact requests: the sealed details go, the audit stays. */
+export const createGuestContactRequestErasureReplayer = (): BackupErasureReplayer => ({
+  context: 'guest',
+  subjectClass: 'privacy_subject',
+  targetKind: 'guest_contact_request',
+  reErase: async (tx: Tx, entry: BackupErasureLedgerEntry): Promise<number> => {
+    const ids = journaledIds(entry, 'guest_contact_request')
+    const withdrawn = await tx
+      .update(guestContactRequests)
+      .set({
+        status: 'withdrawn',
+        consentGranted: false,
+        encryptedContact: null,
+        withdrawnAt: entry.effectiveErasureAt,
+        purgedAt: null,
+        updatedAt: entry.effectiveErasureAt,
+      })
+      .where(
+        and(
+          eq(guestContactRequests.organizationId, entry.organizationId),
+          inArray(guestContactRequests.id, ids),
+          eq(guestContactRequests.status, 'active'),
+        ),
+      )
+      .returning({ id: guestContactRequests.id })
+    return withdrawn.length
+  },
+})

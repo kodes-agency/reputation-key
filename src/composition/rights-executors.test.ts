@@ -215,6 +215,10 @@ describe('journal keys the rights command can write', () => {
     const written = [
       guestResponse,
       { ...guestResponse, journalTargets: { kind: 'guest_feedback', ids: ['response'] } },
+      {
+        ...guestResponse,
+        journalTargets: { kind: 'guest_contact_request', ids: ['request'] },
+      },
     ] as const
     for (const entry of written) {
       expect(registered).toContain(

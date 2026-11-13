@@ -16,6 +16,7 @@ import {
   withdrawGuestResponseFn,
   startNewGuestResponseFn,
 } from './public'
+import { submitContactRequestFn, withdrawContactRequestFn } from './contact-requests'
 
 // ── Server-fn gates (source-pinned) ───────────────────────────────
 //
@@ -384,6 +385,8 @@ const mocks = vi.hoisted(() => ({
   logError: vi.fn(),
   headers: vi.fn(),
   trackSecondary: vi.fn(),
+  contactSubmit: vi.fn(),
+  contactWithdraw: vi.fn(),
 }))
 
 // Outside a Start build `createServerFn` discards what the handler returns, so the
@@ -430,6 +433,11 @@ vi.mock('#/composition', () => ({
   getContainer: () => ({
     clock: () => NOW,
     rateLimiter: { check: mocks.rateLimiterCheck },
+    guestContactRequests: {
+      isEnabled: () => true,
+      submit: mocks.contactSubmit,
+      withdraw: mocks.contactWithdraw,
+    },
     guestPublicApi: {
       requests: {
         getPublicPortal: mocks.getPublicPortal,
@@ -697,5 +705,73 @@ describe('published direct Google journey', () => {
       submitGuestResponseFn({ data: { ...data, rating: 3, responseConsent: true } }),
     ).resolves.toEqual({ rating: 3 })
     expect(mocks.submit).toHaveBeenCalledOnce()
+  })
+})
+
+describe('contact request endpoints', () => {
+  const contactData = {
+    token: 'pt_live',
+    csrfNonce: CSRF_NONCE,
+    email: 'guest@example.com',
+    consent: true,
+  }
+
+  it('answers a denied policy decision like a missing request, and stores nothing', async () => {
+    mocks.decidePublicExecution.mockResolvedValue({ allowed: false })
+    await expect(submitContactRequestFn({ data: contactData })).rejects.toMatchObject({
+      status: 404,
+      code: 'unavailable',
+    })
+    await expect(
+      withdrawContactRequestFn({ data: { token: 'pt_live', csrfNonce: CSRF_NONCE } }),
+    ).rejects.toMatchObject({ status: 404, code: 'unavailable' })
+    expect(mocks.contactSubmit).not.toHaveBeenCalled()
+    expect(mocks.contactWithdraw).not.toHaveBeenCalled()
+  })
+
+  it.each([true, false])(
+    'asserts contact consent exactly as the guest sent it (%s)',
+    async (consent) => {
+      mocks.contactSubmit.mockResolvedValue({ status: 'submitted' })
+      await submitContactRequestFn({ data: { ...contactData, consent } })
+      expect(mocks.decidePublicExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          capability: 'portal.guest_contact',
+          consentAssertions: expect.objectContaining({ contact: consent }),
+        }),
+      )
+    },
+  )
+
+  it('binds withdrawal to the response capability, not the contact one', async () => {
+    mocks.contactWithdraw.mockResolvedValue({ status: 'withdrawn' })
+    await expect(
+      withdrawContactRequestFn({ data: { token: 'pt_live', csrfNonce: CSRF_NONCE } }),
+    ).resolves.toEqual({ status: 'withdrawn' })
+    expect(mocks.decidePublicExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'public:portal.response.contact.withdraw',
+        capability: 'portal.guest_response',
+        requiredPublicConsents: ['response'],
+      }),
+    )
+  })
+
+  it('sets the private response headers on success and on a malformed request', async () => {
+    mocks.contactWithdraw.mockResolvedValue({ status: 'withdrawn' })
+    await withdrawContactRequestFn({ data: { token: 'pt_live', csrfNonce: CSRF_NONCE } })
+    expect(mocks.setResponseHeader).toHaveBeenCalledWith(
+      'Cache-Control',
+      'private, no-store',
+    )
+
+    mocks.setResponseHeader.mockClear()
+    await expect(
+      submitContactRequestFn({ data: { token: 'pt_live' } as never }),
+    ).rejects.toMatchObject({ name: 'ZodError' })
+    expect(mocks.setResponseHeader).toHaveBeenCalledWith(
+      'Cache-Control',
+      'private, no-store',
+    )
   })
 })

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lte } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -7,6 +8,8 @@ import {
   guestResponsePrivateFeedback,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
+import { journalBeforeErasure } from '#/shared/db/lifecycle/erasure-journal.server'
+import type { GuestWithdrawalJournal } from '../infrastructure/guest-withdrawal-journal.server'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { portalPublicationSnapshots } from '#/shared/db/schema/portal-publication.schema'
 import type { ContactRequestEncryption } from './contact-request-encryption.server'
@@ -111,6 +114,14 @@ const checkpointPayload = (checkpoint: PurgeCheckpoint): PurgeCheckpointPayload 
   completedThrough: checkpoint.completedThrough?.toISOString() ?? null,
   processedCount: checkpoint.processedCount,
 })
+
+const withdrawalTarget = (input: Parameters<ContactRequestRepository['withdraw']>[0]) =>
+  and(
+    eq(guestContactRequests.responseId, input.responseId),
+    eq(guestContactRequests.organizationId, input.scope.organizationId),
+    eq(guestContactRequests.propertyId, input.scope.propertyId),
+    eq(guestContactRequests.portalId, input.scope.portalId),
+  )
 
 const purgeExpiredContactRequests = (
   db: Database,
@@ -244,9 +255,12 @@ export const createContactRequestRetentionRepository = (
 
 export const createContactRequestRepository = (
   db: Database,
-  encryption: ContactRequestEncryption,
+  /** Absent without a sealing key: nothing can be stored or shown, but guests can still withdraw. */
+  encryption: ContactRequestEncryption | undefined,
+  journal?: GuestWithdrawalJournal,
 ): ContactRequestRepository => ({
   create: async (input) => {
+    if (!encryption) return { outcome: 'contact_disabled' as const }
     const sealed = encryption.seal(
       {
         email: input.email,
@@ -480,7 +494,7 @@ export const createContactRequestRepository = (
         return { outcome: exists ? ('unavailable' as const) : ('not_found' as const) }
       }
 
-      if (!request.encryptedContact || !request.encryptionKeyId) {
+      if (!encryption || !request.encryptedContact || !request.encryptionKeyId) {
         return { outcome: 'unavailable' as const }
       }
 
@@ -510,47 +524,64 @@ export const createContactRequestRepository = (
       return { outcome: 'revealed' as const, ...contact }
     }),
 
-  withdraw: async (input) =>
-    db.transaction(async (tx) => {
-      const [request] = await tx
-        .select({ status: guestContactRequests.status })
-        .from(guestContactRequests)
-        .where(
-          and(
-            eq(guestContactRequests.responseId, input.responseId),
-            eq(guestContactRequests.organizationId, input.scope.organizationId),
-            eq(guestContactRequests.propertyId, input.scope.propertyId),
-            eq(guestContactRequests.portalId, input.scope.portalId),
-          ),
-        )
-        .for('update')
-        .limit(1)
-      if (!request) return { outcome: 'not_found' as const }
-      if (request.status !== 'active') return { outcome: 'unavailable' as const }
-      const updated = await tx
-        .update(guestContactRequests)
-        .set({
-          status: 'withdrawn',
-          consentGranted: false,
-          encryptedContact: null,
-          withdrawnAt: input.at,
-          purgedAt: null,
-          updatedAt: input.at,
-        })
-        .where(
-          and(
-            eq(guestContactRequests.responseId, input.responseId),
-            eq(guestContactRequests.organizationId, input.scope.organizationId),
-            eq(guestContactRequests.propertyId, input.scope.propertyId),
-            eq(guestContactRequests.portalId, input.scope.portalId),
-            eq(guestContactRequests.status, 'active'),
-          ),
-        )
-        .returning({ id: guestContactRequests.id })
-      return {
-        outcome: updated[0] ? ('withdrawn' as const) : ('unavailable' as const),
-      }
-    }),
+  withdraw: async (input) => {
+    const erase = () =>
+      db.transaction(async (tx) => {
+        const [request] = await tx
+          .select({ status: guestContactRequests.status })
+          .from(guestContactRequests)
+          .where(withdrawalTarget(input))
+          .for('update')
+          .limit(1)
+        if (!request) return { outcome: 'not_found' as const }
+        if (request.status !== 'active') return { outcome: 'unavailable' as const }
+        const updated = await tx
+          .update(guestContactRequests)
+          .set({
+            status: 'withdrawn',
+            consentGranted: false,
+            encryptedContact: null,
+            withdrawnAt: input.at,
+            purgedAt: null,
+            updatedAt: input.at,
+          })
+          .where(and(withdrawalTarget(input), eq(guestContactRequests.status, 'active')))
+          .returning({ id: guestContactRequests.id })
+        return {
+          outcome: updated[0] ? ('withdrawn' as const) : ('unavailable' as const),
+        }
+      })
+    if (!journal) return erase()
+
+    // Replay honors accepted intents even if the deletion transaction fails, so
+    // a request that cannot be withdrawn must never produce an intent.
+    const [active] = await db
+      .select({ id: guestContactRequests.id })
+      .from(guestContactRequests)
+      .where(and(withdrawalTarget(input), eq(guestContactRequests.status, 'active')))
+      .limit(1)
+    if (!active) return erase()
+    const id = journal.idGen()
+    return journalBeforeErasure(
+      {
+        id,
+        recordedBeforeErasure: true,
+        subjectClass: 'privacy_subject',
+        organizationId: input.scope.organizationId,
+        propertyId: input.scope.propertyId,
+        subjectRef: createHash('sha256').update(input.responseId).digest('hex'),
+        context: 'guest',
+        closureLineageId: id,
+        lifecycleRevision: 1,
+        effectiveErasureAt: input.at,
+        erasedRowCount: 0,
+        evidenceRef: 'guest_contact_request',
+        journalTargets: { kind: 'guest_contact_request', ids: [active.id] },
+      },
+      journal,
+      erase,
+    )
+  },
 
   purgeExpired: (input) => purgeExpiredContactRequests(db, input),
 })
