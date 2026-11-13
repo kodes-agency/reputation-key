@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import {
   parseCiImageDigestMap,
   verifyDispatchedCiImageDigestMap,
@@ -145,6 +145,14 @@ exit 1
 }
 
 describe('image publication ownership', () => {
+  beforeAll(() => {
+    if (spawnSync('jq', ['--version']).error) {
+      throw new Error(
+        'These tests run the workflow scripts, which call jq, and jq is not installed. Install jq and run them again.',
+      )
+    }
+  })
+
   it.each([
     ['pull_request', mainRef, [], []],
     ['pull_request', 'refs/pull/1/merge', [], []],

@@ -9,7 +9,18 @@ const revision = '088ef5e353e8cd70efd3a49f56c4e815f14fc65d'
 const compatibilityRevision = 'dc00ff7df760fe559cbdf1d94660c85662d6698b'
 
 function source(path: string, sourceRevision = revision): string {
-  return execFileSync('git', ['show', `${sourceRevision}:${path}`], { encoding: 'utf8' })
+  try {
+    return execFileSync('git', ['show', `${sourceRevision}:${path}`], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+  } catch (error) {
+    throw new Error(
+      `This test reads ${path} at revision ${sourceRevision}, which this clone does not have. ` +
+        'Clone with full history, or run `git fetch --unshallow`.',
+      { cause: error },
+    )
+  }
 }
 
 export const previousJournal = JSON.parse(source('drizzle/meta/_journal.json')) as {
