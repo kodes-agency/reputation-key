@@ -55,6 +55,7 @@ export type BackupErasureLedgerAppend = Readonly<{
 export const ERASURE_JOURNAL_TARGET_KINDS = [
   'guest_response',
   'guest_feedback',
+  'guest_contact_request',
   'staff_participant',
   'purge_batch',
 ] as const

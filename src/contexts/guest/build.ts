@@ -97,14 +97,15 @@ type GuestContextDeps = Readonly<{
 
 export const buildGuestContext = (deps: GuestContextDeps) => {
   const guestResponseRepo = createGuestResponseRepository(deps.db, deps.clock)
+  const withdrawalJournal = createGuestWithdrawalJournal({
+    logger: deps.logger,
+    idGen: deps.idGen,
+    config: deps.withdrawalJournalConfig,
+  })
   const guestResponseCommandStore = createAtomicGuestResponseCommandStore(
     deps.db,
     deps.clock,
-    createGuestWithdrawalJournal({
-      logger: deps.logger,
-      idGen: deps.idGen,
-      config: deps.withdrawalJournalConfig,
-    }),
+    withdrawalJournal,
   )
   const guestObservationStore = createAtomicGuestObservationStore(deps.db)
   const guestNetworkPressureStore = createGuestNetworkPressureStore(deps.db, deps.idGen)
@@ -141,30 +142,27 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     accountAdminAuthority: deps.identityAccountAdminAuthority,
     staff: deps.staffApi,
   })
-  const contactRequestRepo = (() => {
-    const key = deps.contactRequests.encryptionKey
-    if (!key) return undefined
-    return createContactRequestRepository(
+  const contactRequestKey = deps.contactRequests.encryptionKey
+  const contactRequests = contactRequestLifecycle({
+    repo: createContactRequestRepository(
       deps.db,
-      createContactRequestEncryption({
-        activeKeyId: CONTACT_REQUEST_KEY_ID,
-        keys: { [CONTACT_REQUEST_KEY_ID]: key },
-        generateIv: deps.contactRequests.generateIv,
-      }),
-    )
-  })()
-  const contactRequests = contactRequestRepo
-    ? contactRequestLifecycle({
-        repo: contactRequestRepo,
-        policy: deps.executionPolicy,
-        managerAuthority: contactRequestManagerAuthority,
-        responseAuthority: contactRequestResponseAuthority,
-        isEnabled: () => deps.contactRequests.enabled,
-        clock: deps.clock,
-        idGen: deps.idGen,
-        revealAuditIdGen: deps.idGen,
-      })
-    : undefined
+      contactRequestKey
+        ? createContactRequestEncryption({
+            activeKeyId: CONTACT_REQUEST_KEY_ID,
+            keys: { [CONTACT_REQUEST_KEY_ID]: contactRequestKey },
+            generateIv: deps.contactRequests.generateIv,
+          })
+        : undefined,
+      withdrawalJournal,
+    ),
+    policy: deps.executionPolicy,
+    managerAuthority: contactRequestManagerAuthority,
+    responseAuthority: contactRequestResponseAuthority,
+    isEnabled: () => deps.contactRequests.enabled && contactRequestKey !== undefined,
+    clock: deps.clock,
+    idGen: deps.idGen,
+    revealAuditIdGen: deps.idGen,
+  })
   const contactRequestRetention = contactRequestRetentionSweep({
     repo: createContactRequestRetentionRepository(deps.db),
     clock: deps.clock,
@@ -263,8 +261,8 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     observationLoss: Object.freeze({
       read: (asOf: Date) => guestObservationLossMonitor.read(asOf),
     }),
-    /** Contact requests are off until the launch switch is on. `commands` is
-     * absent without a sealing key; the retention sweep always runs. */
+    /** Contact requests are off until the launch switch is on and a sealing key
+     * is set. Withdrawal and the retention sweep always run. */
     contactRequestReadiness: Object.freeze({
       commands: contactRequests,
       retentionSweep: contactRequestRetention,

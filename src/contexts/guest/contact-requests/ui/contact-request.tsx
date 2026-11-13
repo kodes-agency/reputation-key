@@ -8,7 +8,7 @@ import type { ContactRequestContact } from '../contracts'
 /** The words the manager reads. Held here until the approved copy is final. */
 export const MANAGER_CONTACT_REQUEST_COPY = Object.freeze({
   title: 'This guest asked to be contacted',
-  body: 'Details are hidden until you reveal them. Revealing is recorded with your name and time. Use them only to answer this feedback.',
+  body: 'Details are hidden until you reveal them. Each reveal records your user id, the time, the purpose and why you had access. Account admins are organization owners with organization-wide access; other managers see requests only for Portals they created or manage. Use the details only to answer this feedback. They are hidden after 30 days and erased within a day after; the request record and reveal log stay after the email and name are erased.',
   reveal: 'Reveal contact',
   revealing: 'Revealing…',
   revealFailed:

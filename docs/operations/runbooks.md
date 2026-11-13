@@ -2587,6 +2587,39 @@ control state, never review text, local frame text, drafts, or provenance tokens
 Escalate to the incident commander if evidence, consent epochs or provider
 accounting diverges.
 
+## 35. Switch-On of Contact Requests (`CONTACT_REQUESTS_ENABLED`, `CONTACT_REQUEST_ENCRYPTION_KEY`)
+
+**Trigger/Symptoms.** An approved launch of guest contact requests, or a guest
+or manager report that the form or Reveal answers "unavailable".
+
+**Impact.** Both settings are read at startup; restart web to apply a change.
+`CONTACT_REQUESTS_ENABLED` accepts exactly `true` or `false` and defaults to
+`false`. `portal.guest_contact` stays safety-blocked until its own release, so
+the switch alone shows nothing. Withdrawal, the daily contact-only purge and the
+erasure replay run whether the switch is on or off, and need no key.
+`CONTACT_REQUEST_ENCRYPTION_KEY` is 64 hex characters (AES-256-GCM). Never create
+it as an empty value: set it to a real key or leave it unset. There is one key
+version, `v1`. Rotating or removing the key makes every open request unrevealable
+(Reveal answers unavailable) until it is expired or withdrawn; it does not
+re-seal stored details.
+
+**Prerequisites/Diagnostics.** The approved guest copy, Privacy Notice and manager
+text; the per-Portal notice evidence in the publication snapshot; the key set in
+the web service only; the erasure journal bucket healthy (a failed journal write
+refuses a withdrawal). Never print the key.
+
+**Recovery.** Set `CONTACT_REQUESTS_ENABLED=false` and restart web: guests and
+managers get the same 404, stored details stay sealed and expire. Details past 30
+days are hidden at once and erased by the next daily retention run, which logs
+`mode: contact_requests_only` while scheduled retention is inactive; check its
+`guest_contact_requests.expired_material` evidence row, and treat
+`retention_capped` or `retention_failed` as owing work.
+
+**Verification/Evidence.** Submit and withdraw a synthetic request, confirm the
+journal entry precedes the update, reveal one as an account admin and confirm the
+audit row holds the user id, time, purpose and basis. Record ids and counts only,
+never contact details.
+
 ## Staff scan-target switch — 2026-11-01
 
 `STAFF_SCAN_TARGETS_ENABLED` accepts exactly `true` or `false`, defaults to `false`, and is non-secret. Web reads it at startup, as a strict boolean. Restart web to apply a change. Off refuses new targets on a personal Portal or a Group holding one and returns no staff targets; existing manager history is retained. It does not enable `staff.accounts`, which is separately `controlled_beta` under ADR 0076 and the published staff documents (2026-11-02). Migration 0093 follows the skip-rating migration 0092.

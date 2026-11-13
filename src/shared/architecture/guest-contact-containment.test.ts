@@ -47,10 +47,14 @@ const untouchedRepository = new Proxy(
   },
 ) as Parameters<typeof contactRequestLifecycle>[0]['repo']
 
+const untouched = (name: string) => () => {
+  throw new Error(`${name} was reached`)
+}
+
 const switchedOff = contactRequestLifecycle({
   repo: untouchedRepository,
-  policy: { decide: async () => ({ allowed: true }) as never },
-  managerAuthority: { resolve: async () => 'account_admin' },
+  policy: { decide: untouched('policy.decide') as never },
+  managerAuthority: { resolve: untouched('managerAuthority.resolve') as never },
   responseAuthority: { authorize: async () => '10000000-0000-4000-8000-000000000004' },
   isEnabled: () => false,
   clock: () => new Date('2026-08-26T09:00:00.000Z'),
@@ -161,6 +165,27 @@ describe('Contact Request containment', () => {
         'contactRequestId',
         'encryptedContact',
         'contactDetails',
+      ]),
+    ).toEqual([])
+  })
+
+  it('keeps logging, analytics and browser storage out of the endpoints and both screens', () => {
+    const surfaces = [
+      'src/contexts/guest/server/contact-requests.ts',
+      'src/contexts/guest/page/ui/contact-request.tsx',
+      'src/contexts/guest/contact-requests/ui/contact-request.tsx',
+    ].map((path) => join(ROOT, path))
+
+    expect(
+      markerViolations(surfaces, [
+        'console.',
+        'getLogger',
+        'logger',
+        'captureException',
+        'sendBeacon',
+        'localStorage',
+        'sessionStorage',
+        'trackEvent',
       ]),
     ).toEqual([])
   })

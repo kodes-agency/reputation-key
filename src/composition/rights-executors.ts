@@ -19,6 +19,7 @@ import type {
   BackupErasureReplayer,
 } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
+  createGuestContactRequestErasureReplayer,
   createGuestFeedbackErasureReplayer,
   createGuestResponseErasureReplayer,
 } from '#/contexts/guest/infrastructure/adapters/guest-response-erasure-replayer.adapter'
@@ -174,6 +175,7 @@ export function composeRightsReplayers(
     createGuestPropertyErasureReplayer(),
     createGuestResponseErasureReplayer(),
     createGuestFeedbackErasureReplayer(),
+    createGuestContactRequestErasureReplayer(),
     ...createReportingRightsReplayers(now),
     createRetiredReadingsReplayer(),
     ...createPortalErasureReplayers(),

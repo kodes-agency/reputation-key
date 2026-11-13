@@ -14,7 +14,7 @@ import {
 /** The words the guest reads. Held here until the approved copy joins the language packs. */
 export const CONTACT_REQUEST_COPY = Object.freeze({
   heading: 'Want the property to get back to you about this?',
-  body: "Share your email and, if you like, your name. Only the property's managers can see it, only to follow up on your feedback. It is deleted after 30 days, or sooner if you withdraw it here.",
+  body: 'Share your email and, if you like, your name. Only managers of this property who can see your feedback can read it, and only to follow up on it. It is hidden after 30 days and erased within a day after that. You can withdraw it here while this page is open and your session lasts, up to 24 hours; after that, use the contact route in the Privacy Notice.',
   emailLabel: 'Email',
   nameLabel: 'Name (optional)',
   consentLabel: 'I agree the property may contact me about this feedback.',
@@ -23,7 +23,7 @@ export const CONTACT_REQUEST_COPY = Object.freeze({
   emailRequired: 'Enter an email address the property can reach you on.',
   consentRequired: 'Tick the box to share your contact details.',
   sendFailed: 'We could not send your details. Please try again.',
-  sent: 'Thank you. The property will get back to you about your feedback.',
+  sent: 'Thank you. The property will get back to you about your feedback. You can withdraw your details here for up to 24 hours.',
   withdraw: 'Withdraw my contact details',
   withdrawing: 'Withdrawing…',
   withdrawFailed: 'We could not withdraw your details. Please try again.',
