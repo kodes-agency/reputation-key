@@ -85,8 +85,11 @@ export function createOutboxDelivery(db: Database, clock: Clock) {
     after: AwaitingReceiptsCursor | null,
     pageSize: number,
   ) => {
+    // The first page starts at -infinity so the planner reads it as a range on
+    // the publication index, as it does every later page, rather than as an
+    // IS NOT NULL filter it may price as a scan of most of the table.
     const from = (at: Date | undefined) =>
-      at ? sql`o.published_at >= ${at}` : sql`o.published_at IS NOT NULL`
+      at ? sql`o.published_at >= ${at}` : sql`o.published_at >= '-infinity'::timestamptz`
     const nextMillisecond = after ? new Date(after.publishedAt.getTime() + 1) : undefined
     return (
       await tx.execute<{ id: string; publishedAtMs: number }>(sql`
