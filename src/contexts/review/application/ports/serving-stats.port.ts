@@ -1,10 +1,10 @@
-// Review context — ReviewServingStats port (BQC-5.5).
+// Review context — ReviewServingStats port.
 //
 // The review-owned governed interface for AGGREGATE serving reads over
 // review/reply content (the dashboard's review stats). Every read applies THE
 // source-eligibility rule (ADR 0031: a successful-fetch clock exists and has
 // not passed; clock-less rows fail closed) in SQL, with `now` injected by the
-// composition clock — never DB now() (BQC-5.3). A reply of an expired review
+// composition clock — never DB now(). A reply of an expired review
 // is not servable either (the review side of the join is eligibility-gated).
 //
 // Composition wires the review-infrastructure implementation into foreign

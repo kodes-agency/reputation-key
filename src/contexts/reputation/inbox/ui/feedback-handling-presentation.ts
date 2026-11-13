@@ -186,7 +186,7 @@ export type FeedbackHandlingDeadlineResult =
 // A quiet qualifier, never a verdict. `not_measured` is NOT a miss: it means
 // the cycle carried no measured handling target at all — either no target row
 // was written for it, or the row's `performanceEligibility` excluded it
-// (`stopPrivateFeedbackTarget`, response-target.store.ts) — so the clause has
+// (`stopPrivateFeedbackTarget`, store.server.ts) — so the clause has
 // to report the absence of a measurement rather than a failed one. 'timing
 // result' is the phrase the correction dialog already uses for this field.
 const DEADLINE_CLAUSES = {

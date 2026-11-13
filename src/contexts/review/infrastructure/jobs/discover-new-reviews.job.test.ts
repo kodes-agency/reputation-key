@@ -703,7 +703,7 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
 
 // With head checks on, a skipped look is not empty: the sweep hands the
 // Property a one-call check of Google's newest page and wakes it again at the
-// ladder interval, instead of #909's single wake-up near the six-hour deadline.
+// ladder interval, rather than one wake-up near the six-hour deadline.
 describe('discover-new-reviews sweep: head checks on skipped looks', () => {
   const HOUR = 60 * MINUTE
   const ago = (ms: number) => new Date(NOW.getTime() - ms)

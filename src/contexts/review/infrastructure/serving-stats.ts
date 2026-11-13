@@ -1,11 +1,11 @@
-// Review context — ReviewServingStats implementation (BQC-5.5).
+// Review context — ReviewServingStats implementation.
 //
 // Review-owned governed aggregate serving reads over reviews, replies and
 // Google's reply truth (the current reply observation). The SQL moved here
 // from the dashboard review-stats adapter, with ONE behavior change (the point
 // of the move): EVERY review-content read now applies THE source-eligibility
 // predicate — `contentExpiresAt IS NOT NULL AND contentExpiresAt > now` with
-// `now` INJECTED from the composition clock (BQC-5.3 — never DB now()). This
+// `now` INJECTED from the composition clock (never DB now()). This
 // mirrors isContentEligibleForRead (application/source-content-lifecycle,
 // ADR 0031): clock-less rows fail closed. The reply joins apply the same
 // eligibility on the review side — a reply of an expired review is not
@@ -349,7 +349,7 @@ export const createServingStats = (deps: {
         .leftJoinLateral(repKeyReply, sql`true`)
         .leftJoin(googleReplyObservationHeads, liveGoogleReplyHead(organizationId))
         .leftJoin(googleReplyObservations, headObservation(organizationId))
-        // BQC-5.5: a reply of an expired review is not servable.
+        // A reply of an expired review is not servable.
         .where(
           servingPeriodWhere(
             organizationId,

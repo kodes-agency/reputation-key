@@ -56,7 +56,7 @@ describe('reply publication helpers', () => {
     )
   })
 
-  // BQC-3.3: provider outcome classification for the publish job.
+  // Provider outcome classification for the publish job.
   describe('classifyPublicationFailure', () => {
     const gbpError = (status: number) =>
       Object.assign(new Error('Failed to reach Google review API'), {

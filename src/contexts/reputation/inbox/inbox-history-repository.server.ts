@@ -1,4 +1,4 @@
-// Inbox context — Drizzle Handling History read model (IBX-01-T5).
+// Inbox context — Drizzle Handling History read model.
 //
 // Six append-only tables, one story. Each source is read with an explicit
 // LIMIT and an organization_id predicate, then merged by the pure domain

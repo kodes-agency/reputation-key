@@ -1,4 +1,4 @@
-// Inbox context — review source-metadata lookup port (BQC-3.4).
+// Inbox context — review source-metadata lookup port.
 //
 // Serves projection-owned metadata (never content): the durable
 // review.updated consumer refreshes sourceDate/platform from it, and the

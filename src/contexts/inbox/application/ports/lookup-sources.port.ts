@@ -1,4 +1,4 @@
-// Inbox context — cross-context lookup SOURCES (BQC-5.2).
+// Inbox context — cross-context lookup SOURCES.
 //
 // Narrow structural types for the foreign-owned read pieces the inbox build
 // adapts into its lookup ports. The composition root supplies the owning
@@ -142,7 +142,7 @@ export type ReviewSourceRow = Readonly<{
   sourceRevision?: number
 }>
 
-/** Review-owned review-metadata reads (satisfied by the review repository, BQC-3.4). */
+/** Review-owned review-metadata reads (satisfied by the review repository). */
 export type ReviewSourceLookupSource = Readonly<{
   findById: (id: ReviewId, orgId: OrganizationId) => Promise<ReviewSourceRow | null>
   findByIds: (

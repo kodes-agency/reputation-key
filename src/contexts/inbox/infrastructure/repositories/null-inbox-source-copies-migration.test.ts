@@ -1,4 +1,4 @@
-// BQC-1.2 — bounded null-backfill integration test (real PostgreSQL).
+// Bounded null-backfill integration test (real PostgreSQL).
 //
 // The current public inbox_items table has a validated content-free CHECK, so
 // a legacy Review copy cannot be created there. A connection-local temporary

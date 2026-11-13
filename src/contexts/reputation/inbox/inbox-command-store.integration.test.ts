@@ -1,5 +1,5 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-// BQC-3.4 — inbox command store + rebuild integration tests (real Postgres).
+// Inbox command store + rebuild integration tests (real Postgres).
 //
 // Crash-boundary proofs on the real database:
 //   1. applySourceCreatedOnce commits item + created fact + receipt in ONE

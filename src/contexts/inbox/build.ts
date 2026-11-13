@@ -41,7 +41,10 @@ import type {
 import type { InboxPublicApi } from './application/public-api'
 import type { GetInboxResponseTarget } from './application/use-cases/get-response-targets'
 import type { RebuildInboxProjection } from '#/contexts/reputation/inbox/rebuild-inbox-projection.server'
-import type { ReleaseDueResponseTargetReminders } from './application/use-cases/release-response-target-reminders'
+import {
+  createReleaseResponseTargetRemindersHandler,
+  JOB_NAME as RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
+} from '../reputation/inbox/response-targets/release-reminders.job.server'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createInboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.server'
 import { createInboxHistoryRepository } from '#/contexts/reputation/inbox/inbox-history-repository.server'
@@ -52,9 +55,9 @@ import {
 } from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewHandlingCycleStore } from './infrastructure/review-handling-cycle.store'
 import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
-import { createResponseTargetStore } from './infrastructure/response-target.store'
+import { createResponseTargetStore } from '../reputation/inbox/response-targets/store.server'
 import { createRestatedRevisionTargetExclusionStore } from './infrastructure/restated-revision-target-exclusion.store'
-import { createResponseTargetPolicyStore } from './infrastructure/response-target-policy.store'
+import { createResponseTargetPolicyStore } from '../reputation/inbox/response-targets/policy.store.server'
 import { registerInboxConsumers } from '#/contexts/reputation/inbox/outbox-consumers.server'
 import { registerInboxPropertyLifecycleConsumers } from './infrastructure/property-lifecycle-outbox-consumers'
 import { registerGuestFeedbackConsumer } from './infrastructure/guest-feedback-outbox-consumers'
@@ -125,10 +128,12 @@ export type InboxContextApi = Readonly<{
   /** ARC-03-T12: the named member-authority capability. Replaces the root's
    * `inbox.internal.commandStore` reach-through. */
   assignments: InboxAssignmentRuntime
-  /** ARC-03-T12: the scheduled reminder release Inbox contributes to the
-   * worker. Replaces the root's `inbox.internal.useCases` destructure. */
+  /** The scheduled reminder release Inbox contributes to the worker. */
   runtime: Readonly<{
-    releaseDueResponseTargetReminders: ReleaseDueResponseTargetReminders
+    releaseResponseTargetRemindersJob: Readonly<{
+      name: string
+      handler: ReturnType<typeof createReleaseResponseTargetRemindersHandler>
+    }>
   }>
   internal: Readonly<{
     repos: Readonly<{
@@ -270,7 +275,13 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     worker: Object.freeze({ registerOutboxConsumers }),
     assignments: createInboxAssignmentRuntime(commandStore),
     runtime: Object.freeze({
-      releaseDueResponseTargetReminders: useCases.releaseDueResponseTargetReminders,
+      releaseResponseTargetRemindersJob: Object.freeze({
+        name: RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
+        handler: createReleaseResponseTargetRemindersHandler({
+          release: useCases.releaseDueResponseTargetReminders,
+          logger: input.logger,
+        }),
+      }),
     }),
     internal: {
       repos: {

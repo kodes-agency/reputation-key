@@ -241,6 +241,7 @@ describe('runReviewHeadCheck: a dark head check', () => {
         averageDifference: 0,
         hasMore: true,
         countDrop: 'cleared',
+        pages: 1,
         orderViolation: false,
         durationMs: 1_250,
       },

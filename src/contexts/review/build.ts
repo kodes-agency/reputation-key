@@ -198,7 +198,7 @@ export const wireReviewSourceContentLifecycle = (
   })
 
 export type ReviewContextApi = Readonly<{
-  /** BQC-1.4: the governed read interface for review content. */
+  /** The governed read interface for review content. */
   publicApi: EligibleReads &
     Readonly<{
       replyObservationAuthority: ReviewReplyObservationAuthority
@@ -251,7 +251,7 @@ export type ReviewContextApi = Readonly<{
     refreshProviderSubjectKeys: () => Promise<void>
   }>
   /**
-   * ARC-03-T12: narrow cross-context read lookups Review publishes. They
+   * Narrow cross-context read lookups Review publishes. They
    * satisfy the Inbox-owned lookup source contracts and the Dashboard's review
    * stats dep port. Each is a frozen object of named reads, so neither the
    * type nor the runtime value hands another context a repository write.
@@ -283,7 +283,7 @@ export type ReviewContextApi = Readonly<{
         runReviewSourceContentLifecycle: RunReviewSourceContentLifecycle
       }>
     /**
-     * BQC-5.5: review-owned governed aggregate serving reads (ADR 0031
+     * Review-owned governed aggregate serving reads (ADR 0031
      * eligibility enforced here). Composition passes this to foreign
      * consumers (dashboard) as their review-stats dep port.
      */
@@ -391,7 +391,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         ...(options?.delayMs === undefined ? {} : { delay: options.delayMs }),
         removeOnComplete: { count: 100 },
         removeOnFail: { count: 50 },
-        // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue.
+        // Attempts/backoff+jitter/timeout from the job catalogue.
         ...jobEnqueueOptions('sync-property-reviews'),
       },
     )
@@ -427,12 +427,12 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         'publish-reply',
         { ...data, ...execution },
         {
-          // BQC-3.3: saga idempotency key as BullMQ jobId — a duplicate enqueue
+          // Saga idempotency key as BullMQ jobId — a duplicate enqueue
           // of the same approval cycle is deduped by the queue.
           jobId: options?.idempotencyKey,
           removeOnComplete: { count: 100 },
           removeOnFail: { count: 50 },
-          // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue
+          // Attempts/backoff+jitter/timeout from the job catalogue
           // (event-job-catalogue.ts publish-reply: 5 attempts, exponential
           // from 30 s; job-policy.ts 0.5 jitter, so the first retry lands
           // 15-30 s later; 120 s timeout). Only a retryable failure spends
@@ -471,7 +471,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     },
   }
 
-  // BQC-3.3: atomic reply state and outbox writes for the reply command family.
+  // Atomic reply state and outbox writes for the reply command family.
   const replyCommandStore = createAtomicReplyCommandStore(
     input.db,
     input.clock,
@@ -508,7 +508,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     idGen: () => replyId(input.idGen()),
     staffPublicApi: input.staffPublicApi,
   }
-  // BQC-3.8: disconnect cancels in-flight publications before/with the
+  // Disconnect cancels in-flight publications before/with the
   // source-content purge (the guarded store tolerates the race). Delivered by
   // the durable review.on-google-account-disconnected consumer.
   const cancelPublications = cancelPublicationsForConnection({
@@ -648,7 +648,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         clock: input.clock,
       }),
     })
-  // BQC-5.5: governed aggregate serving reads — eligibility in SQL,
+  // Governed aggregate serving reads — eligibility in SQL,
   // clock-injected. Wired into the dashboard build by composition. ONE
   // instance: two constructions would open two independent read paths.
   const servingStats = createServingStats({ db: input.db, clock: input.clock })
@@ -759,7 +759,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     worker: Object.freeze({
       registerOutboxConsumers,
       /**
-       * ARC-03-T12: Review-owned worker contributions. The root used to reach
+       * Review-owned worker contributions. The root used to reach
        * `registerWorkerJobs` and the subject keyring out of the context-private
        * hatch; both are worker capabilities and belong here.
        */
@@ -775,7 +775,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       },
     }),
     /**
-     * ARC-03-T12: narrow cross-context read lookups Review publishes for the
+     * Narrow cross-context read lookups Review publishes for the
      * Inbox projection. Named reads, not the repositories: the repositories are
      * object literals of arrow functions, so detaching these methods is safe,
      * and a spread of a lookup can no longer carry a write across the boundary.

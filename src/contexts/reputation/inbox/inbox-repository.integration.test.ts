@@ -318,7 +318,7 @@ describe('inbox repository — CRUD', () => {
     expect(found).not.toBeNull()
     expect(found!.id).toBe(item.id)
     expect(found!.status).toBe('open')
-    // BQC-1.2: denormalized content columns are never written nor read back —
+    // Denormalized content columns are never written nor read back —
     // rating/snippet/reviewerName resolve live via the review lookup.
     expect(found!.rating).toBeNull()
     expect(found!.snippet).toBeNull()
@@ -906,10 +906,10 @@ describe('inbox repository — detail view', () => {
     expect(detail).not.toBeNull()
     expect(detail!.item.id).toBe(item.id)
     expect(detail!.item.sourceType).toBe('review')
-    // BQC-1.2: the stub lookup reports not_found — typed status, no content.
+    // The stub lookup reports not_found — typed status, no content.
     expect(detail!.reviewContentStatus).toBe('not_found')
     expect(detail!.reviewText).toBeNull()
-    // BQC-1.2: an ineligible source may not leak a translation either.
+    // An ineligible source may not leak a translation either.
     expect(detail!.reviewTranslatedText).toBeNull()
   })
 

@@ -47,7 +47,7 @@ import {
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
 import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
-import { createResponseTargetStore } from './response-target.store'
+import { createResponseTargetStore } from '../../reputation/inbox/response-targets/store.server'
 import {
   handleInboxReplyObserved,
   handleInboxReviewCreated,

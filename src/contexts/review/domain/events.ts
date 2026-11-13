@@ -63,8 +63,8 @@ export type ReviewCreated = Readonly<{
    * through its background lane instead of fanning it out (ADR 0058).
    */
   observationOrigin?: ReviewObservationOrigin
-  // BQR-4.2 / ADR 0030: identifier-only — no raw reviewer/text on the bus.
-  // BQC-1.2: rating removed — raw content resolves via authorized read.
+  // Identifier-only: no raw reviewer or text on the bus (ADR 0030). Raw content
+  // resolves through an authorized read.
   occurredAt: Date
   correlationId: string | null
 }>
@@ -93,8 +93,8 @@ export type ReviewUpdated = Readonly<{
   sourceRevision: number
   analysisSequence: number
   observationOrigin?: ReviewObservationOrigin
-  // BQR-4.2 / ADR 0030: identifier-only — no raw reviewer/text on the bus.
-  // BQC-1.2: rating removed — raw content resolves via authorized read.
+  // Identifier-only: no raw reviewer or text on the bus (ADR 0030). Raw content
+  // resolves through an authorized read.
   occurredAt: Date
   correlationId: string | null
 }>
@@ -400,7 +400,7 @@ export const reviewReplyPublishFailed = (
   }
 }
 
-// BQC-3.8: a publication in flight (requested/authorized/sending) was
+// A publication in flight (requested/authorized/sending) was
 // cancelled by policy or by Google account disconnect. The reply returns to
 // draft and must be re-approved before any new publish.
 export type ReviewReplyUpdated = Readonly<{

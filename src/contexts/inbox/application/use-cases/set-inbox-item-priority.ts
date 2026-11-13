@@ -7,7 +7,7 @@
 // escalates, never notifies and never touches a Response Target. The command
 // writes the level, one Handling History row and one audit-only fact.
 //
-// Two managers at once (plan D-7, owner P-8): an unrelated change in between (a
+// Two managers at once: an unrelated change in between (a
 // note, an assignment) is absorbed by the client's one revision retry, but a
 // change to the priority ITSELF is refused with `priority_changed`, which the
 // retry does not replay — nobody's choice is overwritten unseen. A colleague

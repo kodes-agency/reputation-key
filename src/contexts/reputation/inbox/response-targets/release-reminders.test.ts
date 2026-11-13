@@ -1,17 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { inboxItemId, organizationId, propertyId } from '#/shared/domain/ids'
-import type { GoogleReviewCheckOutcome } from '../ports/google-review-check.port'
-import type { GoogleReplyHead } from '../ports/reply-lookup.port'
+import type { GoogleReviewCheckOutcome } from '#/contexts/inbox/application/ports/google-review-check.port'
+import type { GoogleReplyHead } from '#/contexts/inbox/application/ports/reply-lookup.port'
 import type {
   DueReminderCandidate,
   ReminderSlotReleaseResult,
-} from '../ports/response-target.store'
+} from '#/contexts/inbox/application/ports/response-target.store'
 import {
   RESPONSE_TARGET_REMINDER_GOOGLE_READ_CAP,
   RESPONSE_TARGET_REMINDER_RELEASE_LIMIT,
   RESPONSE_TARGET_REMINDER_TICK_BUDGET_MS,
   releaseDueResponseTargetReminders,
-} from './release-response-target-reminders'
+} from './release-reminders.server'
 
 const MINUTE = 60_000
 const START = new Date('2026-09-01T08:00:00.000Z')

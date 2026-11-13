@@ -1,4 +1,4 @@
-// Review context — BQC-3.2 dispatch-time scope resolver for publish-reply.
+// Review context — dispatch-time scope resolver for publish-reply.
 //
 // The publish-reply envelope carries replyId + organizationId only; the
 // delayed execution gate needs the property scope to authorize

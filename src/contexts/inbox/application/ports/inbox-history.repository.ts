@@ -1,4 +1,4 @@
-// Inbox context — Handling History read port (IBX-01-T5).
+// Inbox context — Handling History read port.
 //
 // Inbox owns this read. Recent Activity is a convenience feed and is never
 // evidence that an Inbox command committed, so the manager-facing history is

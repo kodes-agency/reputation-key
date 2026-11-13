@@ -1,9 +1,9 @@
 // Inbox context — leaving the Response Targets of restated revisions out of
 // every count (migration 0069; docs/operations/inbox-response-targets.md).
 //
-// Google restated 62 Reviews on 2026-10-23 without moving their `updateTime`,
-// Review minted a revision for each, and Inbox opened a Handling Cycle for it
-// with a Response Target whose clock started at the old `updateTime`. Cycles
+// When Google restates a Review without moving its `updateTime`, Review mints
+// a revision, and Inbox opens a Handling Cycle for it with a Response Target
+// whose clock starts at the old `updateTime`. Cycles
 // and completed targets are immutable history (ADR 0055), so the repair is an
 // append-only row beside the target: `inbox_response_target_exclusions`. Every
 // counting reader skips a cycle that has one; the target still closes with its

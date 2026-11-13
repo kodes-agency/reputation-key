@@ -16,8 +16,8 @@ export const isValidRating = (n: number): n is StarRating =>
  * Calculate expiresAt from reviewedAt using the 30-day retention window.
  * If the review is already past 30 days, returns `now` (expire immediately).
  *
- * @deprecated ADR 0031 / BQR-3: prefer `contentExpiresAt` from last successful
- * fetch. Kept for expand-phase dual clock until BQR-3.2 switches job readers.
+ * @deprecated Prefer `contentExpiresAt`, derived from the last successful fetch
+ * (ADR 0031). This reviewed-at clock remains only for rows without one.
  */
 export const calculateExpiresAt = (reviewedAt: Date, now: Date): Date => {
   const maxRetentionWindow = 30 * 24 * 60 * 60 * 1000
@@ -27,7 +27,7 @@ export const calculateExpiresAt = (reviewedAt: Date, now: Date): Date => {
 
 /**
  * Stable SHA-256 of normalized, policy-controlled source fields.
- * Used to detect content-changing fetches vs mere refreshes (BQR-3.1/3.4).
+ * Used to detect content-changing fetches vs mere refreshes.
  */
 export function computeReviewContentHash(
   fields: Readonly<{
@@ -56,7 +56,7 @@ export function computeReviewContentHash(
  *  reply command checks its own start there before this table is consulted.
  *  `draft → draft` is an explicit self-transition covering in-place edits of an existing draft
  *  (text changes without a status change).
- *  `publish_failed → published` exists ONLY for the BQC-3.3 reconciliation path
+ *  `publish_failed → published` exists ONLY for the reconciliation path
  *  (reconcileReplyPublication): the provider confirms the reply already exists,
  *  healing an ambiguous publish outcome. It never skips approval.
  *  `approved → draft` is deliberately absent. No reply command makes that

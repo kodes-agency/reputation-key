@@ -1,12 +1,12 @@
-// BQC-3.8 §6 — revocation/suspension BETWEEN enqueue and send denies the
-// side effect: the publish-reply job authorizes through the BQC-3.2 delayed
+// Revocation/suspension BETWEEN enqueue and send denies the
+// side effect: the publish-reply job authorizes through the delayed
 // execution gate at dispatch against CURRENT policy — a stale allow sitting
 // in the queue never overrides a current deny.
 //
 // Focused companion to the 3.2 fixture tests (src/shared/jobs/
-// delayed-execution-gate.test.ts), driven by the same shared BQC-2.5
-// contract fixtures (execution ownership: BQC-2 IMPLEMENTS the contract,
-// BQC-3 INTEGRATES it). The publish handler itself is never reached on a
+// delayed-execution-gate.test.ts), driven by the same shared
+// contract fixtures (the shared jobs layer implements the contract, this
+// context integrates it). The publish handler itself is never reached on a
 // deny — the gated dispatch closure quarantines/completes before invocation.
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -26,7 +26,7 @@ import {
 
 const PROP = 'd4000000-0000-4000-8000-000000000051'
 
-/** Install the REAL BQC-2.5 policy against a fixture env (3.2 test idiom). */
+/** Install the REAL policy against a fixture env (3.2 test idiom). */
 function installRealPolicy(env: CapabilityPolicyEnv) {
   resetCapabilityPolicyStore()
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))

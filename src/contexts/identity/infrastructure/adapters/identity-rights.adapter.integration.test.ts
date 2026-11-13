@@ -30,7 +30,7 @@ describeRightsIsolation({
     { table: 'invitation', hasProperty: false, organizationColumn: 'organizationId' },
     { table: 'member', hasProperty: false, organizationColumn: 'organizationId' },
   ],
-  executor: (db) => createIdentityRightsExecutor(db),
+  executor: (db) => createIdentityRightsExecutor(db, () => new Date()),
   replayers: [identityPropertyErasureReplayer, identityOrganizationErasureReplayer],
   async seedProperty(query, organizationId, propertyId) {
     await query(

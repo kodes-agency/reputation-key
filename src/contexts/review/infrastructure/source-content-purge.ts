@@ -1,4 +1,4 @@
-// Review context — source-content lifecycle compatibility adapter (BQC-1.7 / REV-01).
+// Review context — source-content lifecycle compatibility adapter.
 //
 // Ordinary composition reports connection/Property/Organization scopes through
 // the checkpointed Review authority. A separately constructed, approved

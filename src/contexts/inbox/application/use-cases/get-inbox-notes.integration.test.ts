@@ -92,7 +92,7 @@ afterAll(async () => {
 const addNote = (note: InboxNote) => noteRepo.create(note, note.organizationId)
 
 /**
- * IBX-01-T6: a counting directory double. Every test asserts the lookup happens
+ * A counting directory double. Every test asserts the lookup happens
  * exactly once per request, so an N+1 regression fails loudly rather than
  * quietly costing one query per note.
  */

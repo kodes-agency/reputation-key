@@ -540,8 +540,8 @@ async function recordOutOfOrderObservation(
  * same observation digest (every provider value it stores, `updateTime`
  * included). Each snapshot pass reads every review twice, so writing a row for
  * such a read stored one more copy of the review's text per pass: 3.4M rows for
- * 12,599 reviews on the beta by 2026-10-23, 99.3% of them a repeat of the row
- * before (ADR 0055, note 2026-10-24).
+ * 12,599 reviews on the beta, 99.3% of them a repeat of the row
+ * before (ADR 0055).
  */
 async function rereadsHeadObservation(
   tx: Tx,

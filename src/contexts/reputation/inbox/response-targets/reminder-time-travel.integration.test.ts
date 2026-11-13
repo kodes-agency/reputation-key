@@ -35,17 +35,17 @@ import { propertyArchived, propertyRestored } from '#/contexts/property/domain/e
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { buildInboxContext, type InboxContextBuildInput } from '../build'
-import type { ReviewLookupPort } from '../application/ports/review-lookup.port'
-import { releaseDueResponseTargetReminders } from '../application/use-cases/release-response-target-reminders'
-import type { InboxItem } from '../domain/types'
-import { inboxItemStatusChanged } from '../domain/events'
+import { buildInboxContext, type InboxContextBuildInput } from '#/contexts/inbox/build'
+import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
+import { releaseDueResponseTargetReminders } from './release-reminders.server'
+import type { InboxItem } from '#/contexts/inbox/domain/types'
+import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
 import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
-import { createResponseTargetStore } from './response-target.store'
+import { createResponseTargetStore } from './store.server'
 
 const ORG = organizationId('org-reminder-time-travel-000000001')
 const PROPERTY = propertyId('6c000000-0000-4000-8000-000000000001')
@@ -107,7 +107,7 @@ const makeItem = (): InboxItem => ({
 function createTimeTraveller() {
   let current = OPENED_AT
   // These are private-feedback timelines, which never reach Google: the
-  // pre-check is exercised in response-target-reminder-release.store.integration.test.ts.
+  // pre-check is exercised in reminder-release.store.integration.test.ts.
   const releaseDue = releaseDueResponseTargetReminders({
     targetStore: createResponseTargetStore(db),
     replyLookup: { getGoogleReplyHeadsByReviewIds: async () => new Map() },

@@ -47,7 +47,7 @@ const sampleRow: ReplyRow = {
   submittedAt: null,
   approvedAt: null,
   publishedAt,
-  // BQC-3.8 (migration 0015): publication state machine overlay columns.
+  // Migration 0015: publication state machine overlay columns.
   publicationState: 'published',
   publicationCycle: 2,
   publicationAttempts: 1,

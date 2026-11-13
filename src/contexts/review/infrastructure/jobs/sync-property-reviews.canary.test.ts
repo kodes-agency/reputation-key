@@ -1,4 +1,4 @@
-// BQC-7.3 — seeded protected canaries never appear in logs.
+// Seeded protected canaries never appear in logs.
 //
 // The sync-property-reviews job's invalid-identity branch is the canary class:
 // it USED to dump the raw job payload (provider-derived locationName) into

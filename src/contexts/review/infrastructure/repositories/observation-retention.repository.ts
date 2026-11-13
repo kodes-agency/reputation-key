@@ -1,11 +1,11 @@
-// Review — retention of `review_source_observations` (ADR 0055, note 2026-10-24 (b)).
+// Review — retention of `review_source_observations` (ADR 0055).
 //
 // Two operations, both bounded and content-free in what they return:
 //
 // - The repeat prune removes the rows the old writer stored for a read that
-//   found nothing new. Until 2026-10-24 every read wrote a full-text row, so a
-//   review nobody touched held one copy of its text per pass: 3,400,389 of the
-//   beta's 3,425,776 rows. A repeat is an `unchanged` row that is not the
+//   found nothing new. That writer stored a full-text row for every read, so a
+//   review nobody touched held one copy of its text per pass (on the beta,
+//   3,400,389 of 3,425,776 rows). A repeat is an `unchanged` row that is not the
 //   Review's newest and whose previous applied row (the nearest earlier one that
 //   is not `out_of_order_ignored`) has the same source epoch, material revision,
 //   observation digest and content state. Every reader keeps its answer: the
@@ -36,7 +36,7 @@ import type {
 /**
  * Reviews read per repeat batch. A Review's rows are scattered over the whole
  * heap (each pass appended one row per Review), so a batch reads best as one
- * sequential pass over the table: measured on the beta on 2026-10-24, every
+ * sequential pass over the table: measured on the beta, every
  * Review in one statement took 8 s, 2,000 Reviews took 37 s and 100 Reviews,
  * read through the index, about 50 s. One batch covers the beta today.
  */

@@ -1,4 +1,4 @@
-// Tests for review source content lifecycle (PRE17B / ADR 0031).
+// Tests for review source content lifecycle (ADR 0031).
 
 import { describe, it, expect } from 'vitest'
 import {

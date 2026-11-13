@@ -88,8 +88,8 @@ describe('snapshotCountAgreement', () => {
   })
 
   it('accepts the gap Sentry saw: 86 counted, 84 listed over two pages', () => {
-    // JAVASCRIPT-TANSTACKSTART-REACT-4, closed beta, 2026-10-19: earlier runs
-    // that day had gaps of 1 and completed; this one had 2 and failed.
+    // Gaps of 1 complete; a real run showed a gap of 2 over two pages and must
+    // complete too.
     expect(snapshotCountAgreement({ expected: 86, unique: 84, pages: 2 })).toEqual({
       kind: 'gap',
       expected: 86,

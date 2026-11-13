@@ -1,5 +1,4 @@
-// Inbox context — the manager Handling History record and its ordering rule
-// (IBX-01-T5).
+// Inbox context — the manager Handling History record and its ordering rule.
 //
 // Handling work is written to six append-only tables — cycle openings, cycle
 // transitions, assignment decisions, escalation decisions, priority decisions

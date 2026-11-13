@@ -14,7 +14,7 @@ import type {
   GoogleReviewTargetAnalytics,
   PrivateFeedbackTargetAnalytics,
   ResponseTargetStore,
-} from '../application/ports/response-target.store'
+} from '#/contexts/inbox/application/ports/response-target.store'
 
 type AnalyticsStore = Pick<
   ResponseTargetStore,
@@ -23,12 +23,29 @@ type AnalyticsStore = Pick<
   | 'getGoogleReviewTargetCountsByProperty'
 >
 
+/** Every target with its handling-cycle head and cycle, as `target`, `head` and `cycle`. */
+const targetCycles = sql`FROM ${inboxHandlingCycleResponseTargets} target
+  INNER JOIN ${inboxHandlingCycleHeads} head
+    ON head.inbox_item_id = target.inbox_item_id
+  INNER JOIN inbox_handling_cycles cycle
+    ON cycle.inbox_item_id = target.inbox_item_id
+   AND cycle.cycle_number = target.cycle_number`
+
+/** Restricts a target query to the given Properties; null means every Property. */
+const targetPropertyFilter = (propertyIds: readonly PropertyId[] | null) =>
+  propertyIds === null
+    ? sql``
+    : sql`AND target.property_id IN (${sql.join(
+        propertyIds.map((id) => sql`${id}`),
+        sql`, `,
+      )})`
+
 /**
  * The counting readers of the Response Target tables: the two analytics and the
  * per-Property overdue figures. A Google review cycle with a row in
  * `inbox_response_target_exclusions` is left out of every Google figure (it
  * stays a row in the table, and its target still closes with the cycle).
- * Split out of response-target.store.ts for the file-length ratchet.
+ * Split out of store.server.ts for the file-length ratchet.
  */
 export const createResponseTargetAnalyticsStore = (db: Database): AnalyticsStore => ({
   getPrivateFeedbackAnalytics: async ({ organizationId: orgId, propertyIds, now }) =>
@@ -45,13 +62,7 @@ export const createResponseTargetAnalyticsStore = (db: Database): AnalyticsStore
           averageTimeToFirstHandlingMinutes: null,
         }
       }
-      const propertyFilter =
-        propertyIds === null
-          ? sql``
-          : sql`AND target.property_id IN (${sql.join(
-              propertyIds.map((id) => sql`${id}`),
-              sql`, `,
-            )})`
+      const propertyFilter = targetPropertyFilter(propertyIds)
       const rows = await db.execute<{
         measured_cycle_count: number
         active_count: number
@@ -84,12 +95,7 @@ export const createResponseTargetAnalyticsStore = (db: Database): AnalyticsStore
             extract(epoch FROM (target.completion_at - target.start_at)) / 60
           ) FILTER (WHERE target.result IN ('on_time', 'late'))::real
             AS average_time_to_first_handling_minutes
-        FROM ${inboxHandlingCycleResponseTargets} target
-        INNER JOIN ${inboxHandlingCycleHeads} head
-          ON head.inbox_item_id = target.inbox_item_id
-        INNER JOIN inbox_handling_cycles cycle
-          ON cycle.inbox_item_id = target.inbox_item_id
-         AND cycle.cycle_number = target.cycle_number
+        ${targetCycles}
         WHERE target.organization_id = ${orgId}
           AND target.target_kind = 'private_feedback_handling'
           AND target.performance_eligibility = 'measured'
@@ -125,13 +131,7 @@ export const createResponseTargetAnalyticsStore = (db: Database): AnalyticsStore
           averageTimeToResponseMinutes: null,
         }
       }
-      const propertyFilter =
-        propertyIds === null
-          ? sql``
-          : sql`AND target.property_id IN (${sql.join(
-              propertyIds.map((id) => sql`${id}`),
-              sql`, `,
-            )})`
+      const propertyFilter = targetPropertyFilter(propertyIds)
       const rows = await db.execute<{
         measured_cycle_count: number
         active_count: number
@@ -180,12 +180,7 @@ export const createResponseTargetAnalyticsStore = (db: Database): AnalyticsStore
             extract(epoch FROM (target.completion_at - target.start_at)) / 60
           ) FILTER (WHERE target.result IN ('on_time', 'late'))::real
             AS average_time_to_response_minutes
-        FROM ${inboxHandlingCycleResponseTargets} target
-        INNER JOIN ${inboxHandlingCycleHeads} head
-          ON head.inbox_item_id = target.inbox_item_id
-        INNER JOIN inbox_handling_cycles cycle
-          ON cycle.inbox_item_id = target.inbox_item_id
-         AND cycle.cycle_number = target.cycle_number
+        ${targetCycles}
         WHERE target.organization_id = ${orgId}
           AND target.target_kind = 'google_review_response'
           AND ${notExcludedFromResponseTargetReporting(aliasedResponseTargetKey('target'))}
@@ -239,12 +234,7 @@ export const createResponseTargetAnalyticsStore = (db: Database): AnalyticsStore
               AND head.status = 'open'
               AND target.due_at <= ${now}
           )::integer AS overdue_count
-        FROM ${inboxHandlingCycleResponseTargets} target
-        INNER JOIN ${inboxHandlingCycleHeads} head
-          ON head.inbox_item_id = target.inbox_item_id
-        INNER JOIN inbox_handling_cycles cycle
-          ON cycle.inbox_item_id = target.inbox_item_id
-         AND cycle.cycle_number = target.cycle_number
+        ${targetCycles}
         WHERE target.organization_id = ${orgId}
           AND target.target_kind = 'google_review_response'
           AND target.performance_eligibility = 'measured'

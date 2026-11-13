@@ -1,5 +1,5 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-// REV-01 source-content erasure against real PostgreSQL.
+// source-content erasure against real PostgreSQL.
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'

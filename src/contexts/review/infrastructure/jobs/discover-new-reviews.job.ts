@@ -1,6 +1,6 @@
 // Review context — BullMQ job handler for discovering NEW Google reviews.
 //
-// The refresh sweep (refresh-expiring-reviews, BQC-1.5) only ever revisits
+// The refresh sweep (refresh-expiring-reviews) only ever revisits
 // reviews already stored, and only inside the 5-day window before their
 // 30-day content TTL. A connected property therefore got synced once at
 // import and then not again for ~25 days: a brand-new review had no path

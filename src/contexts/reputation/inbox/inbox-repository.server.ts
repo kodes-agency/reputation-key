@@ -308,7 +308,7 @@ export const createInboxRepository = (
 
         const items = sliced.map((row) => {
           const item = inboxItemFromRow(row)
-          // BQC-1.2: rating/snippet/reviewerName come only from the live
+          // Rating/snippet/reviewerName come only from the live
           // eligible lookup — expired/missing content renders as nulls.
           const review =
             row.sourceType === 'review' ? reviewSnippets.get(row.sourceId) : undefined
@@ -474,7 +474,7 @@ export const createInboxRepository = (
         )
 
         if (item.sourceType === 'review') {
-          // BQC-1.2: content comes only from the eligibility-enforcing lookup
+          // Content comes only from the eligibility-enforcing lookup
           // (`reviewItemDetail`): expired/missing yields a typed status.
           const result = await ports.reviewLookup.getReviewSnippetById(
             reviewId(item.sourceId),
@@ -570,7 +570,7 @@ const buildFilterConditions = (
   if (replyStageConditions === null) return null
   conditions.push(...replyStageConditions)
   if (filters.platform) conditions.push(eq(inboxItems.platform, filters.platform))
-  // BQC-1.2: rating range and free-text search are applied via
+  // Rating range and free-text search are applied via
   // reviewLookup.findEligibleReviewIds at the call site — never against
   // denormalized copies.
   if (filters.sourceDateFrom)

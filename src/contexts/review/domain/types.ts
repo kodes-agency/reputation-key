@@ -61,7 +61,7 @@ export type Review = Readonly<{
   expiresAt: Date
   sentimentLabel: SentimentLabel
   sentimentScore: number | null
-  // PRE17B / BQR-1.1: Source content lifecycle (migration 0006)
+  // Source content lifecycle (ADR 0031)
   sourceCreatedAt: Date | null
   sourceUpdatedAt: Date | null
   firstFetchedAt: Date | null
@@ -139,14 +139,14 @@ export type Reply = Readonly<{
   submittedAt: Date | null
   approvedAt: Date | null
   publishedAt: Date | null
-  // BQC-3.8: durable publication state machine overlay (migration 0015).
+  // Durable publication state machine overlay (migration 0015).
   // All four are null/0 when no publication workflow is active (drafts,
   // pre-0015 legacy rows). See domain/reply-publication-workflow.ts.
   publicationState: PersistedPublicationState | null
   /**
    * Monotonic authorization cycle. Queue jobs and durable publication intents
    * carry this value so delivery from an older approval/edit/retry cycle can
-   * never claim the current reply. Zero is the pre-RPL-01 legacy generation.
+   * never claim the current reply. Zero is the legacy generation from before the cycle existed.
    */
   publicationCycle: number
   publicationAttempts: number
@@ -159,7 +159,7 @@ export type Reply = Readonly<{
 /**
  * Default source-lifecycle fields when constructing or refreshing a review.
  *
- * BQR-3.1 / ADR 0031:
+ * ADR 0031:
  * - `lastFetchedAt` is the successful fetch instant (`now`). Stored, it means a
  *   fetch within the last day: a re-read less than a day after the stored clock
  *   leaves it and the expiry unmoved.
@@ -167,7 +167,7 @@ export type Reply = Readonly<{
  *   publication time; the observation writer keeps the stored one for a re-read
  *   under a day later.
  * - `contentHash` is supplied by the caller from current source fields so
- *   unchanged vs content-changed refreshes can be distinguished (BQR-3.4).
+ *   unchanged vs content-changed refreshes can be distinguished.
  */
 export function defaultReviewLifecycle(args: {
   reviewedAt: Date
