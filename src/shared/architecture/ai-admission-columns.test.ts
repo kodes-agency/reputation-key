@@ -1,8 +1,8 @@
 // The four admission handshake columns of `ai_operations` and the keys that fed
-// them are history: nothing reads or writes the columns, and no configuration
-// carries the keys. Only the schema declares the columns. Whole-row statements
-// name every declared column, so dropping them takes two steps: a deploy that
-// removes the schema declarations, then the migration.
+// them are history: nothing declares, reads or writes the columns, and no
+// configuration carries the keys. The database still holds the columns until
+// the migration drops them; whole-row statements name every declared column,
+// so the schema stopped declaring them first.
 //
 // This reads source text. Test code is walked too, because a test that seeds
 // the columns would keep a writer alive. The names are assembled from fragments
@@ -60,12 +60,11 @@ describe('AI admission handshake columns', () => {
     // A broken walk would make the assertion below vacuously pass.
     expect(files.length).toBeGreaterThan(500)
     expect(existsSync(join(ROOT, SCHEMA))).toBe(true)
-    expect(NAMES.test(readFileSync(join(ROOT, SCHEMA), 'utf8'))).toBe(true)
   })
 
-  it('names the columns and their keys nowhere outside the schema', () => {
+  it('names the columns and their keys nowhere, schema included', () => {
     const named = files
-      .filter((file) => file !== SCHEMA && file !== relative(ROOT, __filename))
+      .filter((file) => file !== relative(ROOT, __filename))
       .filter((file) => NAMES.test(readFileSync(join(ROOT, file), 'utf8')))
     expect(named).toEqual([])
   })
