@@ -6,7 +6,19 @@
 
 Guest-facing interactions on public Portal pages: diagnostic and qualified scans,
 private star ratings, optional feedback, destination actions, response integrity,
-and the separately consented Contact Request, which stays off until its launch switch is on.
+and the separately consented Contact Request, which stays off until its launch switch is on
+(`CONTACT_REQUESTS_ENABLED`; the switch goes once the launch is approved).
+
+## Where things live
+
+| Feature                                                                    | Code                                                       |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Response lifecycle, command store, repository, browser-safe view           | `responses/`                                               |
+| Contact Request: sealing, authority, repository, lifecycle, manager screen | `contact-requests/`                                        |
+| Guest page and response screens                                            | `page/ui/`, `src/components/features/guest/public-portal/` |
+| Public endpoints, session, rate limits                                     | `server/`                                                  |
+| Ceilings, receipts, retention, reconciliation                              | `application/`, `infrastructure/`                          |
+| Composition                                                                | `build.ts`                                                 |
 
 ## Boundaries
 
@@ -197,7 +209,7 @@ Linktree taps are unchanged. Legacy schema versions 1 and 2 ignore the switch.
 11. Signed-session correctness is never replaced by network pressure: session bindings and destination/Qualified Scan receipts remain the dedupe and mutation authorities. Rating and private-feedback admission fail closed when either pressure store is unavailable; qualified-scan observation reports a retryable failure; an approved destination URL remains available when observation fails, without recording analytics.
 12. True fail-open observation loss is durable and visible across replicas/process restarts through one global Cache Redis hash: a continuity epoch plus five-minute `scan`/`review_link` counters in a trailing 24-hour window, pruned on every access with a 24-hour-plus-one-bucket key TTL. Coverage and counters share the same evictable unit, so reset/eviction cannot silently remove one counter while leaving evidence that the window is complete. The key, fields, logs, and alerts contain no tenant, Portal, destination, session, network pseudonym, content, or analytics identity. If the monitor is absent, unreadable, reset, or still warming through its first full window, OperationsSnapshot marks `guest.observationLoss` degraded and the alert reports completeness as unknown rather than zero. Private rating is explicitly `not_applicable_durable`/zero here because its canonical response fact and outbox row commit atomically; retryable rating commands are never reclassified as analytics loss.
 13. Missing historical lineage fails closed rather than adding a second reading or leaving a stale one.
-14. `scan_events` is purged as **row deletes only**: it is the live visit record, and it is physical-drop-blocked, so the rows are guest content and must go while the table must not. No phase issues a DROP or TRUNCATE. The legacy `ratings` and `feedback` tables are empty, nothing writes or reads them, and no runtime code references them; only the schema and migrations still name them. Current-response consent checks and private-feedback expiry are unaffected.
+14. `scan_events` is purged as **row deletes only**: it is the live visit record, and it is physical-drop-blocked, so the rows are guest content and must go while the table must not. No phase issues a DROP or TRUNCATE. The legacy `ratings` and `feedback` tables no longer exist: migration 0157 dropped them (it refuses to run over a row), and guest responses live in the `guest_response*` tables. Current-response consent checks and private-feedback expiry are unaffected.
 
 ## Verification
 
@@ -207,8 +219,8 @@ PostgreSQL integration tests cover receipt atomicity, exact deadlines, replay,
 withdrawal/reveal serialization, outbox readiness, and tenant fences.
 
 Public Portal UI lives in `src/components/features/guest/public-portal/immersive/`.
-`public-portal/language-packs/load-guest-copy.ts` loads one immutable template
-pack for the selected locale. `guest-copy.ts` defines the browser-safe copy
+`src/components/features/guest/public-portal/language-packs/load-guest-copy.ts` loads one immutable template
+pack for the selected locale. `guest-copy.ts` in the same folder defines the browser-safe copy
 contract; locale module names are plain while stored pack IDs retain their
 versions. Frozen copy from snapshot schemas 1 and 2 lives only in test fixtures.
 The response phone stories leave feedback validation, rating correction and
@@ -218,6 +230,24 @@ and accessibility checks.
 Manager relationships are freshly resolved immediately before a Guest operation; the documented cross-transaction revocation interval must be accepted or replaced by a transactional permit before activation.
 
 `portal.guest_contact` stays safety-blocked, and `CONTACT_REQUESTS_ENABLED` is off by default; both must change before a guest can submit or a manager can reveal. The code lives in `contact-requests/` (`contracts.ts`, sealing, authority, repository, lifecycle and the manager screen), the guest form in `page/ui/contact-request.tsx`, the endpoints in `server/contact-requests.ts`. A guest acts only on the response their signed session holds; a manager needs the permission and a current basis (account admin, Portal creator or responsible manager) read fresh at each call; every reveal writes an audit row with the actor, purpose and basis, never the contact. Details are sealed with `CONTACT_REQUEST_ENCRYPTION_KEY` (AES-256-GCM, bound to the organization, Property, Portal, request and response), are hidden from managers 30 days after submission and erased by the daily contact-only purge within a day after, and are erased at once on withdrawal. The purge runs even while scheduled retention is inactive. A guest withdraws through the same signed session as a response withdrawal, so only for up to 24 hours; the form says so. Withdrawal binds to `portal.guest_response` (never `portal.guest_contact`), needs no sealing key, and is journaled in the erasure journal under `guest_contact_request` before the update; the guest erasure replayer repeats it after a restore. Withdrawal and the purge keep working while the switch is off. A manager sees the same 404 for a switched-off feature, a missing request and a foreign response. Turning it on needs the approved guest notice, the Privacy Notice change, the manager handling text and the per-Portal notice evidence in the publication snapshot, which publication does not write yet, so `create` answers `contact_disabled` for every published Portal. Phone stays excluded.
+
+## Retention duties
+
+- **Contact Request material**: hidden from managers 30 days after submission; the
+  daily contact-only purge erases it within a day after, whether or not scheduled
+  retention is on, and writes the `guest_contact_requests.expired_material` evidence
+  row. Withdrawal erases at once and journals first.
+- **Session records**: the session binding is deleted once expired; legacy `session_id`
+  columns clear a day after each row; destination-action and Qualified Scan receipts
+  follow the shared 30-day receipt rule.
+- **Network pressure and admission records**: seven days.
+- **Visits** (`guest_qualified_scans`, `scan_events`): 24 UTC calendar months, as row
+  deletes only. Rating facts follow their `retention_deadline`.
+- **Legacy tables**: `ratings` and `feedback` were dropped by migration 0157; no purge
+  exists for them.
+
+The operator side is in `docs/operations/runbooks.md` (switch-on of contact requests,
+retention duties) and `docs/operations/erasure-journal.md`.
 
 ## Own-Organization visits — 2026-11-01 (ADR 0076)
 
