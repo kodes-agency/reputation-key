@@ -8,18 +8,15 @@ import {
 } from '#/shared/ai-operation-profile'
 import { openAiPairingOf } from '#/shared/ai-openai-provider-attestation'
 import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
-import { REPLY_DRAFTING_V2_PROMPT } from '#/shared/reply-drafting-v2-prompt'
-import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply-drafting-v2-schema'
+import { REPLY_DRAFTING_V2_PROMPT } from '#/shared/reply/prompt'
+import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply-drafting-v2-contract'
 import {
   REPLY_DRAFTING_V2_DYNAMIC_PROMPT_BYTES,
   REPLY_DRAFTING_V2_EXAMPLES_DIGEST,
   REPLY_DRAFTING_V2_ROUTE_MAX_BYTES,
-} from '#/shared/reply-drafting-v2-request'
-import {
-  REPLY_BODY_LINT_DIGEST,
-  REPLY_BODY_LINT_VERSION,
-} from '#/shared/reply-drafting-v2-lint'
+} from '#/shared/reply/request'
+import { REPLY_BODY_LINT_DIGEST, REPLY_BODY_LINT_VERSION } from '#/shared/reply/lint'
 import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from '#/shared/ai-reply-language-verifier'
 import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '#/shared/ai-language-script-consistency'
 

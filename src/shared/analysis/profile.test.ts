@@ -11,8 +11,8 @@ import {
   REVIEW_URGENT_REASONS_V3,
   REVIEW_STRENGTHS_V3,
 } from '#/shared/review-analysis-v3'
-import { REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS } from '#/shared/review-analysis-v3-artifacts'
-import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/review-analysis-v3-prompt'
+import { REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS } from '#/shared/analysis/artifacts'
+import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/analysis/prompt'
 import { REVIEW_GENERIC_THING_WORDS } from '#/shared/review-generic-things'
 import {
   REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,

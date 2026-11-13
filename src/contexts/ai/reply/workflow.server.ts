@@ -2,7 +2,7 @@ import type {
   GenerateReplySuggestionDependencies,
   GenerateReplySuggestionInput,
 } from '../application/reply-suggestion-contract'
-import { resolveReplyDraftingV2Options } from '#/shared/reply-drafting-v2-request'
+import { resolveReplyDraftingV2Options } from '#/shared/reply/request'
 import type { AiExecutionBinding } from '../domain/types'
 import { aiRequestFingerprint } from '../application/ai-workflow-support'
 import type { AiAdmissionPort } from '../application/ports/ai-admission.port'

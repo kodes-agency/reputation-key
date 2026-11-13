@@ -3,7 +3,7 @@ import {
   acceptReplyDraftingV2,
   hasSpanishReplyCommitment,
 } from './reply-drafting-v2-contract'
-import { replyDraftingV2OutputSchema } from './reply-drafting-v2-schema'
+import { replyDraftingV2OutputSchema } from '#/shared/reply/schema'
 import * as leakage from './ai-reply-output-leakage'
 
 const BODY =

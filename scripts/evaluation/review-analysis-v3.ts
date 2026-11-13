@@ -15,8 +15,8 @@ import { fileURLToPath } from 'node:url'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
-} from '#/shared/review-analysis-v3-normalizer'
-import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/review-analysis-v3-prompt'
+} from '#/shared/analysis/normalizer'
+import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/analysis/prompt'
 import { REVIEW_ATTENTION_V2_DIGEST } from '#/shared/review-analysis-v3'
 import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/analysis/profile'
 import {

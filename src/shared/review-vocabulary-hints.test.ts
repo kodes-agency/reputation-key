@@ -426,14 +426,14 @@ describe('hints are request context, not analysis semantics', () => {
   })
 
   it('leaves the logical artifacts of an analysis, and so its runtime digest, alone when a hint changes', async () => {
-    const before = await import('./review-analysis-v3-artifacts')
+    const before = await import('#/shared/analysis/artifacts')
     const hintsBefore = await import('./review-vocabulary-hints')
 
     const edited = structuredClone(catalogue)
     edited.sets[0]?.hints.staff_service.push('valet')
     vi.resetModules()
     vi.doMock('./review-vocabulary-hints-v1.json', () => ({ default: edited }))
-    const after = await import('./review-analysis-v3-artifacts')
+    const after = await import('#/shared/analysis/artifacts')
     const hintsAfter = await import('./review-vocabulary-hints')
 
     expect(hintsAfter.REVIEW_VOCABULARY_HINTS_CATALOGUE_DIGEST).not.toBe(

@@ -26,7 +26,7 @@ import {
   draftStreamResponse,
   scriptReplySuggestionStream,
 } from '../../../.storybook/stubs/ai-reply-suggestion-stream'
-import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply-drafting-v2-schema'
+import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import { withRole, withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import type {
   ComposerFocusBox,

@@ -342,7 +342,7 @@ the rule the live display will run on the original text) and a names flag. No qu
 name or sentence text is stored.
 
 Every provider's answer passes one normalizer before it is stored
-(`review-analysis-v3-normalizer.ts`, `review-analysis-normalization-v1`). Only an answer
+(`analysis/normalizer.ts`, `review-analysis-normalization-v1`). Only an answer
 that is not an object, has no `mentions` array or has no valid sentiment fails an answer
 already paid for; any other fault is repaired, or the mention is dropped and counted, and
 the result carries closed, content-free flags. A cause that holds a person, brand or
@@ -1056,8 +1056,8 @@ Re-verified map items 1–6 on the supplied stacked base `af57b9c36` (current im
 
 | Map item                                   | Authority                                                                                                                                                                                                      |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 — profile/prompt/schema/provenance       | `src/shared/reply/profile.ts:25`, `src/shared/reply-drafting-v2-schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                                         |
-| 2 — numbered input/options/binding         | `src/shared/reply-drafting-v2-request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                        |
+| 1 — profile/prompt/schema/provenance       | `src/shared/reply/profile.ts:25`, `src/shared/reply/schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                                                     |
+| 2 — numbered input/options/binding         | `src/shared/reply/request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                                    |
 | 3 — effort/output/reservation bounds       | `src/shared/reply/profile.ts:25`, `src/shared/db/ai/ai-budget.ts:97`                                                                                                                                           |
 | 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/infrastructure/adapters/reply-rewrite-parent.ts:16`                                             |
 | 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                 |

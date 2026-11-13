@@ -4,7 +4,7 @@ import {
   AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA,
   AI_ROUTE_OUTPUT_JSON_SCHEMAS,
 } from './ai-route-output-schemas'
-import { replyDraftingV2OutputSchema } from './reply-drafting-v2-schema'
+import { replyDraftingV2OutputSchema } from '#/shared/reply/schema'
 import {
   REVIEW_ANALYSIS_V3_MAX_MENTIONS,
   REVIEW_ANALYSIS_V3_MAX_SENTENCE_REFS,

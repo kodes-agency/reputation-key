@@ -23,12 +23,12 @@ import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from './ai-language-scr
 import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from './ai-zh-orthography-verifier'
 import { AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST } from './ai-reply-output-leakage'
 import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from './ai-reply-template-catalogue'
-import { resolveReplyDraftingV2Options } from './reply-drafting-v2-request'
+import { resolveReplyDraftingV2Options } from '#/shared/reply/request'
 import type { ReviewAnalysisV3GatewayResult } from './review-analysis-v3-request'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
-} from './review-analysis-v3-normalizer'
+} from '#/shared/analysis/normalizer'
 import { OPENAI_PROVIDER_ATTESTATION_V1 } from './ai-openai-provider-attestation'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 as AI_PROVIDER_DEPLOYMENT_PROFILE } from './ai-provider-deployment-profile'
 import { providerRequestProfileOf } from './ai-provider-attestations'

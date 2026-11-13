@@ -3,8 +3,8 @@ import {
   lintReplyDraftingV2Body,
   hasReplyAvoidanceTerm,
   type LintInput,
-} from './reply-drafting-v2-lint'
-import { REPLY_BODY_RULES } from './domain/reply-body-lint-policy'
+} from '#/shared/reply/lint'
+import { REPLY_BODY_RULES } from '#/shared/domain/reply-body-lint-policy'
 
 const BASE: LintInput = {
   body: '',
