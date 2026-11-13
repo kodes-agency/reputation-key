@@ -158,11 +158,11 @@ async function expectClimbCard(page: Page, propertyId: string): Promise<void> {
 }
 
 test.describe('Critical workflow: the Google rating goal card (round 5)', () => {
-  test.describe.configure({ mode: 'serial' })
-
   let propertyId = ''
 
-  test.beforeAll(async () => {
+  // Every journey starts from its own freshly seeded Property with no goal, so
+  // each runs alone and in any order.
+  test.beforeEach(async () => {
     await cleanUp()
     propertyId = await seedRatedProperty()
   })
@@ -187,7 +187,11 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
 
   test('manager-one sees the card; manager-zero and the staff Member are refused it', async ({
     browser,
+    page,
   }) => {
+    await signIn(page)
+    await page.goto(`/properties/${propertyId}/goals`)
+    await setGoalAsOwner(page, propertyId)
     const oneContext = await browser.newContext({ baseURL: BASE_ORIGIN })
     const onePage = await oneContext.newPage()
     await signIn(
@@ -223,6 +227,8 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
     page,
   }) => {
     await signIn(page)
+    await page.goto(`/properties/${propertyId}/goals`)
+    await setGoalAsOwner(page, propertyId)
     await page.goto(`/properties/${propertyId}/goals`)
     await expectClimbCard(page, propertyId)
     await assertNoAxeViolations(page, 'Goals page with the rating goal card')
@@ -268,7 +274,10 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
   test('a low review since the set opens in the Inbox; an expired one is not named', async ({
     page,
   }) => {
-    // Now: after the goal the first journey set.
+    await signIn(page)
+    await page.goto(`/properties/${propertyId}/goals`)
+    await setGoalAsOwner(page, propertyId)
+    // Now: after the goal was set.
     const now = new Date()
     const { reviewId } = await seedReview({
       organizationId: seed.organizationId,
@@ -301,7 +310,6 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
       [seed.organizationId, propertyId, STARS.length + 1],
     )
 
-    await signIn(page)
     await page.goto(`/properties/${propertyId}/goals/google-rating`)
     await waitForHydration(page)
     const moved = page
@@ -346,6 +354,9 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
     page,
     browser,
   }) => {
+    await signIn(page)
+    await page.goto(`/properties/${propertyId}/goals`)
+    await setGoalAsOwner(page, propertyId)
     // Set 15 days ago: last week began after the set, so this week asks.
     await dbQuery(
       `UPDATE property_rating_goals
@@ -369,7 +380,6 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
         .getByRole('button', { name: 'Keep 1 a day' }),
     ).toBeVisible()
 
-    await signIn(page)
     await page.goto(`/properties/${propertyId}/goals`)
     // The server-rendered buttons are clickable before React hydrates, and a
     // press in that window sends nothing: wait it out after every load.

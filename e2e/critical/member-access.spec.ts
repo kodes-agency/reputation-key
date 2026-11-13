@@ -77,6 +77,13 @@ test.describe('Critical workflow: Members access', () => {
     await expect(managerRow.getByText('No properties')).toBeVisible()
     await expect(managerRow.getByText('Sees an empty app')).toBeVisible()
 
+    // Notices the manager already holds, so the wait below can only be met by this grant's.
+    const priorManager = await getUserByEmail(seed.zeroPropertyManagerEmail)
+    if (!priorManager) throw new Error('the seeded zero-property manager is missing')
+    const noticesBefore = new Set(
+      (await getNotificationsForUser(priorManager.id)).map((row) => String(row.id)),
+    )
+
     // Grant the seeded Property through the sheet.
     await openEditAccess(page, managerRow)
     const sheet = page.getByRole('dialog', {
@@ -115,7 +122,9 @@ test.describe('Critical workflow: Members access', () => {
       await waitFor(
         async () =>
           (await getNotificationsForUser(zero.id)).find(
-            (row) => row.type === 'account.organization_property_access_changed',
+            (row) =>
+              row.type === 'account.organization_property_access_changed' &&
+              !noticesBefore.has(String(row.id)),
           ) ?? null,
         {
           timeoutMs: 30_000,

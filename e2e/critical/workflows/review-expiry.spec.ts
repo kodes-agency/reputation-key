@@ -22,6 +22,8 @@ import { requireE2eSeedState } from '../../helpers/seed-state'
 import {
   e2eRunId,
   cleanupE2eData,
+  drainFixtureQueue,
+  waitForQueuesIdle,
   seedProperty,
   seedReview,
   seedReviewInboxItemWithCycle,
@@ -39,6 +41,9 @@ const seed = requireE2eSeedState()
 
 test.describe('Critical workflow: review expiry and the report-only purge', () => {
   test.beforeEach(async () => {
+    // Start from a quiescent worker: the purge waits below read the whole queue.
+    await drainFixtureQueue()
+    await waitForQueuesIdle()
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 

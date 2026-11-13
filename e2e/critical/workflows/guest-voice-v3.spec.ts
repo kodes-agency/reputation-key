@@ -21,6 +21,8 @@ import {
 } from '../../helpers/fixtures'
 
 const PREFIX = 'e2e-gv3-'
+/** Its own prefix: tearing down a fixture clears every row under its prefix. */
+const URGENT_PREFIX = 'e2e-gv3u-'
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 const seedState = requireE2eSeedState()
 
@@ -69,7 +71,7 @@ const RAILING = mentionOf({
   sentences: [1],
 })
 
-/** The review that is found Urgent later in the spec, and the Inbox item made for it. */
+/** A review the shared fixture holds as a serious complaint; no journey changes it. */
 const LATE_URGENT_REVIEW = 12
 
 async function seedReviews(fixture: V3Fixture): Promise<void> {
@@ -110,7 +112,6 @@ async function seedReviews(fixture: V3Fixture): Promise<void> {
       mentions: [],
     })
   }
-  // Seen first as a serious complaint; it is found Urgent in the third journey.
   await seed.addReview({
     index: LATE_URGENT_REVIEW,
     rating: 1,
@@ -123,12 +124,8 @@ async function seedReviews(fixture: V3Fixture): Promise<void> {
 }
 
 test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 analyses', () => {
-  test.describe.configure({ mode: 'serial' })
-
   let fixture: V3Fixture
   let small: V3Fixture
-  /** The Inbox item of each review that has one, by the review's index. */
-  const inboxItems = new Map<number, string>()
 
   test.beforeAll(async () => {
     test.setTimeout(120_000)
@@ -146,12 +143,12 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
     })
     await seedSmallCheckIn(small)
     for (const index of [101, 102, 103]) await small.openInboxItem(index)
-    // The four air conditioning reviews and the one found Urgent later are in the Inbox.
+    // The four air conditioning reviews and the serious complaint are in the Inbox.
+    let handled = ''
     for (const index of [1, 2, 3, 4, LATE_URGENT_REVIEW]) {
-      inboxItems.set(index, await fixture.openInboxItem(index))
+      const itemId = await fixture.openInboxItem(index)
+      if (index === 4) handled = itemId
     }
-    const handled = inboxItems.get(4)
-    if (!handled) throw new Error('Missing handled fixture item')
     await closeInboxItemBySourceAuthority({
       organizationId: fixture.organizationId,
       inboxItemId: handled,
@@ -342,58 +339,81 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
   test('an Urgent finding raises one content-free alert and the Inbox says why', async ({
     page,
   }) => {
-    test.setTimeout(150_000)
-    const { manager, organizationId, seed } = fixture
-    const reviewId = fixture.reviewIdOf(LATE_URGENT_REVIEW)
-    const itemId = inboxItems.get(LATE_URGENT_REVIEW)
-    if (itemId === undefined)
-      throw new Error('The Inbox item of the late Urgent review is missing')
-
-    const urgent = {
-      index: LATE_URGENT_REVIEW,
-      rating: 1,
-      reviewedAt: daysAgo(0),
-      sentiment: 'negative',
-      attention: 'urgent',
-      urgentReason: 'safety',
-      mentions: [RAILING],
-    } as const
-    await seed.reanalyze({ ...urgent, sequence: 13 })
-
-    const alert = await waitFor(
-      async () =>
-        (await getNotificationsForUser(manager.userId)).find(
-          (row) => row.type === 'review.ai_urgent_detected' && row.resource_id === itemId,
-        ) ?? null,
-      {
-        timeoutMs: 90_000,
-        description: 'the Urgent alert for the Property’s responsible manager',
-      },
-    )
-    expect(String(alert.title)).toMatch(/^An urgent review needs you/)
-    // ADR 0046 r.8: the alert says that an urgent review needs the manager and nothing of
-    // why. The reason is read in the app.
-    expect(
-      JSON.stringify([alert.title, alert.body, alert.payload]),
-      'the alert must carry no reason, topic or word of the review',
-    ).not.toMatch(/safety|health|discriminat|legal|railing|balcony|loose/i)
-
-    // The same revision found Urgent again is the same alert: one fact, however often it is found.
-    await seed.reanalyze({ ...urgent, sequence: 14 })
-    const facts = await findOutboxEvents({
-      eventType: 'ai.review_analysis.urgent_detected',
-      organizationId,
-      payloadFragment: reviewId,
+    test.setTimeout(180_000)
+    // Its own Property: finding a review Urgent changes what the check-in shows, so the
+    // journeys above never read this one.
+    await cleanupE2eData({
+      organizationId: seedState.organizationId,
+      prefix: URGENT_PREFIX,
     })
-    expect(facts).toHaveLength(1)
-
-    await signIn(page, manager.email, manager.password, BASE_ORIGIN)
-    await page.goto(`/inbox?itemId=${itemId}`)
-    await expect(page.getByText(/The guest reports a risk to safety/)).toBeVisible({
-      timeout: 20_000,
+    const urgentFixture = await setUpV3Fixture({
+      organizationId: seedState.organizationId,
+      prefix: URGENT_PREFIX,
+      label: 'urgent-finding',
     })
-    await expect(page.getByRole('list', { name: 'Review topics' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Not right?' })).toBeVisible()
-    await assertNoAxeViolations(page, 'Inbox item with a v3 reading')
+    try {
+      const { manager, organizationId, seed } = urgentFixture
+      await seed.addReview({
+        index: LATE_URGENT_REVIEW,
+        rating: 1,
+        reviewedAt: daysAgo(0),
+        sentiment: 'negative',
+        attention: 'high',
+        mentions: [RAILING],
+      })
+      await seed.seal()
+      const itemId = await urgentFixture.openInboxItem(LATE_URGENT_REVIEW)
+      const reviewId = urgentFixture.reviewIdOf(LATE_URGENT_REVIEW)
+
+      const urgent = {
+        index: LATE_URGENT_REVIEW,
+        rating: 1,
+        reviewedAt: daysAgo(0),
+        sentiment: 'negative',
+        attention: 'urgent',
+        urgentReason: 'safety',
+        mentions: [RAILING],
+      } as const
+      await seed.reanalyze({ ...urgent, sequence: 13 })
+
+      const alert = await waitFor(
+        async () =>
+          (await getNotificationsForUser(manager.userId)).find(
+            (row) =>
+              row.type === 'review.ai_urgent_detected' && row.resource_id === itemId,
+          ) ?? null,
+        {
+          timeoutMs: 90_000,
+          description: 'the Urgent alert for the Property’s responsible manager',
+        },
+      )
+      expect(String(alert.title)).toMatch(/^An urgent review needs you/)
+      // ADR 0046 r.8: the alert says that an urgent review needs the manager and nothing of
+      // why. The reason is read in the app.
+      expect(
+        JSON.stringify([alert.title, alert.body, alert.payload]),
+        'the alert must carry no reason, topic or word of the review',
+      ).not.toMatch(/safety|health|discriminat|legal|railing|balcony|loose/i)
+
+      // The same revision found Urgent again is the same alert: one fact, however often it is found.
+      await seed.reanalyze({ ...urgent, sequence: 14 })
+      const facts = await findOutboxEvents({
+        eventType: 'ai.review_analysis.urgent_detected',
+        organizationId,
+        payloadFragment: reviewId,
+      })
+      expect(facts).toHaveLength(1)
+
+      await signIn(page, manager.email, manager.password, BASE_ORIGIN)
+      await page.goto(`/inbox?itemId=${itemId}`)
+      await expect(page.getByText(/The guest reports a risk to safety/)).toBeVisible({
+        timeout: 20_000,
+      })
+      await expect(page.getByRole('list', { name: 'Review topics' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Not right?' })).toBeVisible()
+      await assertNoAxeViolations(page, 'Inbox item with a v3 reading')
+    } finally {
+      await urgentFixture.tearDown()
+    }
   })
 })
