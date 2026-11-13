@@ -13,14 +13,9 @@ export type E2eSeedState = Readonly<{
   staffPassword: string
   managerName: string
   staffName: string
-  candidateAName: string
-  candidateBName: string
-  candidateAParticipationId: string
-  candidateBParticipationId: string
   organizationId: string
   managerUserId: string
   organizationName: string
-  lockedOrganizationId: string
   // The Org B manager whose org is locked — the identity the promoted-route
   // denial journey signs in as. Absent from the contract until now, so
   // `seed.lockedManagerEmail` read as `undefined` and that spec signed in as
@@ -36,7 +31,6 @@ export type E2eSeedState = Readonly<{
   p1PropertyId: string
   p2PropertyId: string
   p3PropertyId: string
-  boundedPropertyIds: readonly string[]
   portalId: string
   portalToken: string
   p2PortalId: string
@@ -46,11 +40,7 @@ export type E2eSeedState = Readonly<{
   directPortalId: string
   directPortalToken: string
   portalGroupId: string
-  emailQueueFixtureIds: readonly string[]
   portalLinkId: string
-  managerParticipationId: string
-  staffParticipationId: string
-  reviewCount: 100
 }>
 
 /** Path relative to repo root (CI cwd and local playwright cwd). */
@@ -69,14 +59,9 @@ export function readE2eSeedState(): E2eSeedState | null {
       'staffPassword',
       'managerName',
       'staffName',
-      'candidateAName',
-      'candidateBName',
-      'candidateAParticipationId',
-      'candidateBParticipationId',
       'organizationId',
       'managerUserId',
       'organizationName',
-      'lockedOrganizationId',
       'lockedManagerEmail',
       'lockedManagerPassword',
       'propertyId',
@@ -98,22 +83,9 @@ export function readE2eSeedState(): E2eSeedState | null {
       'directPortalToken',
       'portalGroupId',
       'portalLinkId',
-      'managerParticipationId',
-      'staffParticipationId',
     ] as const
     if (
       raw.version !== 'beta-local-1' ||
-      raw.reviewCount !== 100 ||
-      !Array.isArray(raw.boundedPropertyIds) ||
-      raw.boundedPropertyIds.length !== 7 ||
-      !raw.boundedPropertyIds.every(
-        (propertyId) => typeof propertyId === 'string' && propertyId.length > 0,
-      ) ||
-      !Array.isArray(raw.emailQueueFixtureIds) ||
-      raw.emailQueueFixtureIds.length !== 3 ||
-      !raw.emailQueueFixtureIds.every(
-        (fixtureId) => typeof fixtureId === 'string' && fixtureId.length > 0,
-      ) ||
       requiredStrings.some(
         (field) => typeof raw[field] !== 'string' || raw[field].length === 0,
       )
