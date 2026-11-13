@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { GoogleImportLoadingRows } from '#/contexts/integration/imports/ui/google-import-loading-rows'
+import { GoogleImportLoadingRows } from './google-import-loading-rows'
 
 type Props = Readonly<{
   accounts: readonly ImportAccountDto[]

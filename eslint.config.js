@@ -101,10 +101,7 @@ const SELECTABLE_BUTTONS = [
   // The radio cards keep their roving focus and card geometry rather than action-button styling.
   ['src/contexts/identity/feedback/ui/beta-feedback-choice.tsx', 'picker-tile'],
   // The selectable account rows keep their multiline identity and active border.
-  [
-    'src/components/features/integration/google-import-manager/google-import-account-list.tsx',
-    'picker-tile',
-  ],
+  ['src/contexts/integration/imports/ui/google-import-account-list.tsx', 'picker-tile'],
   // The upload tile shares the icon radios’ grid geometry but opens the photo dialog.
   ['src/contexts/portal/editor/ui/link-tree/linktree-icon-picker.tsx', 'picker-tile'],
   // The disclosure occupies only the tile’s text, beside its separate move and menu controls.
