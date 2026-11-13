@@ -540,7 +540,10 @@ describe('contact requests through the public commands', () => {
         },
         manager('manager-1'),
       ),
-    ).rejects.toThrow('Contact Request data is unavailable')
+    ).rejects.toMatchObject({
+      _tag: 'ContactRequestError',
+      code: 'unavailable',
+    })
     expect(await rowCount('guest_contact_request_reveal_audits')).toBe(0)
   })
 })

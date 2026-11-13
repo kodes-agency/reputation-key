@@ -75,13 +75,25 @@ Existing behavioural tests cited in the contract remain part of the proof.
 
 ### Contact request privacy check
 
-Before `CONTACT_REQUESTS_ENABLED` is turned on, the guest copy, the Privacy Notice
-and the manager text must each say that details are hidden 30 days after
-submission and erased within a day after, that a guest can withdraw only while the
-24-hour session lasts, that account admins are organization owners with
-organization-wide access, that a reveal records the user id, time, purpose and
-basis, and that the request record and reveal audit outlive the erased email and
-name. Withdraw a synthetic request and confirm its erasure journal entry exists
+Before `CONTACT_REQUESTS_ENABLED` is turned on, compare the three texts with the
+approved wording in [the contact request launch text](../legal/contact-request-launch-text.md)
+and confirm each point is carried by the text named for it:
+
+1. Details are hidden 30 days after submission and erased within a day after:
+   the guest body, the manager body and Privacy Notice sections 6 and 7.
+2. A guest can withdraw on the page only while it stays open and the 24-hour
+   session lasts: the guest body, the after-sending line and Privacy Notice
+   section 7.
+3. Account admins are organization owners with organization-wide access: the
+   manager body and Privacy Notice section 4.
+4. A reveal records the user id, time, purpose and basis: the manager body and
+   Privacy Notice section 4.
+5. The request record and the reveal log outlive the erased email and name, and
+   are kept until the response row is deleted: the manager body and Privacy
+   Notice section 6.
+
+The guest copy does not carry points 3 to 5; the Privacy Notice carries all five.
+Then withdraw a synthetic request and confirm its erasure journal entry exists
 before the row changes. Record ids only, never contact details.
 
 ## Provider and notice commitments

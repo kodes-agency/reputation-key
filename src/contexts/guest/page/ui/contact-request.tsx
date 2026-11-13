@@ -23,7 +23,7 @@ export const CONTACT_REQUEST_COPY = Object.freeze({
   emailRequired: 'Enter an email address the property can reach you on.',
   consentRequired: 'Tick the box to share your contact details.',
   sendFailed: 'We could not send your details. Please try again.',
-  sent: 'Thank you. The property will get back to you about your feedback. You can withdraw your details here for up to 24 hours.',
+  sent: 'Thank you. The property will get back to you about your feedback. You can withdraw your details here for up to 24 hours, while this page stays open.',
   withdraw: 'Withdraw my contact details',
   withdrawing: 'Withdrawing…',
   withdrawFailed: 'We could not withdraw your details. Please try again.',
