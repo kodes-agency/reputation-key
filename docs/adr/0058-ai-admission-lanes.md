@@ -434,3 +434,11 @@ retry and a repeated click reuse it, and any finished answer rotates it.
   reservation for the stored permit and attempt. New reply provenance names the
   execution permit and attempt; adoption still accepts a token bound to the
   request binding HMAC of a row admitted earlier.
+
+- **2026-11-13** — The four handshake columns of `ai_operations`
+  (`admission_nonce`, `request_binding_key_id`, `request_binding_hmac`,
+  `grant_kid`) are dropped (migration 0156), so admission is permit-only. The
+  provenance keys for browser-held tokens stay. The retired key variables and
+  the two unused key-inventory entries remain declared: retiring the entries
+  needs a new deployment profile version, and merchant consent is recorded
+  against that version, so it waits for a real profile change.

@@ -10,7 +10,7 @@ import {
   type AiPropertyAccess,
 } from '../ai-property-read-access'
 
-export type ReadAiInsightsDependencies = Readonly<{
+export type ReadReviewAnalysisDependencies = Readonly<{
   propertyAccess: AiPropertyAccess
   authorization: AiAuthorizationPort
   outputs: AiOutputStorePort
@@ -24,7 +24,7 @@ export type ReadAiInsightsDependencies = Readonly<{
   reviewAnalysisProfileVersion: string
 }>
 
-export function createReadReviewAnalysis(dependencies: ReadAiInsightsDependencies): (
+export function createReadReviewAnalysis(dependencies: ReadReviewAnalysisDependencies): (
   input: Readonly<{
     organizationId: OrganizationId
     propertyId: PropertyId

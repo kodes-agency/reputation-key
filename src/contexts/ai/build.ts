@@ -26,7 +26,7 @@ import {
   createGenerateReplySuggestion,
   type GenerateReplySuggestionDependencies,
 } from './reply/generate-suggestion.server'
-import { createReadReviewAnalysis } from './application/use-cases/read-ai-insights'
+import { createReadReviewAnalysis } from './application/use-cases/read-review-analysis'
 import type { AiPropertyAccess } from './application/ai-property-read-access'
 import { createReadGuestVoiceDetail } from './guest-voice/get-detail.server'
 import { createReadGuestVoiceV2 } from './guest-voice/get-guest-voice.server'

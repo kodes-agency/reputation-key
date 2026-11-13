@@ -492,8 +492,8 @@ input to it.
 Cost follows the provider. A reservation is `maximumCostMicrosWith(adapter pricing, profile,
 payload bytes)` from the tokens the provider's pairing reserves; a settlement is
 `settledCostMicrosWith` over the price list of the provider recorded on the operation
-(`AI_PROVIDER_PRICE_CATALOGUES`; none recorded means OpenAI). The gateway checks the signed
-receipt against the same list, a provider with no list or no pairing is refused, and nothing
+(`AI_PROVIDER_PRICE_CATALOGUES`; none recorded means OpenAI). The gateway checks the settlement
+the authority returns against the same list, a provider with no list or no pairing is refused, and nothing
 falls back to OpenAI's.
 
 ### Anthropic adapter (dark)
@@ -781,11 +781,34 @@ no longer holds a figure provisional; a newer sequence still waits.
 Reply Draft provider output remains session-ephemeral until an explicit,
 atomically revalidated adoption creates Review-owned draft content.
 
-Property Trends is retired. The served merchant notice
+Admission is typed and permit-only. The PostgreSQL authority mints a single-use
+admission in process; no signed grant, request-binding HMAC or nonce exists, and
+`ai_operations` no longer has the four handshake columns (nonce, request-binding
+key id and HMAC, grant key id; migration 0156). Settlement is
+`settle(permit, outcome)` against the open reservation for the stored permit and
+attempt. New reply provenance names the execution permit and attempt; provenance
+tokens bound to an earlier request-binding HMAC are still read for rows admitted
+before the change, and the browser provenance keys stay. The key-inventory
+variable `AI_KEY_INVENTORY_PROFILE` and its inventory entries remain: retiring
+the two unused entries needs a new deployment profile version, and consent is
+recorded against that version, so it waits for a real profile change.
+
+Property Trends is retired. Its schedule, jobs, readers and tables are gone. What
+remains is recorded data and fences: the `ai.property_trend.generation_requested`
+event type is decoded only while outbox rows exist, `property_trends` stays a
+readable capability value in recorded consent, epochs and control heads, and the
+control-head CHECK constraints still admit its scope. The served merchant notice
 `merchant-ai-notice-2026-11-06.v2` removes its processing promise and marks
 `property_trends` alone as materially changed. The previous notice stays in
 force for analysis and drafting, so this retirement advances neither live
 capability epoch and cannot erase or replay their results (ADR 0075).
+
+Two version vocabularies meet on the Guest voice page and are kept apart. The display
+generation ("Guest voice 2.0", `readGuestVoiceV2`, `guest-voice-v2-*` read models) is a
+transient page shape computed on every read and stored nowhere. The analysis storage
+versions (`review-analysis-v3`, the stored `ready_v3` rows and contributions, the
+statistics version) are what is recorded and compared; their strings never change with
+the page. Renaming a display file or type never changes a recorded string.
 
 Guest voice 2.0 (`readGuestVoiceV2`, v3 contract section 9) is the Guest voice page, and since the
 switch-on (2026-10-30) the only one: the route reads it once. A Property whose reviews have a v3

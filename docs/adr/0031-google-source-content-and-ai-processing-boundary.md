@@ -81,8 +81,8 @@ deleted on 2026-10-13 (`docs/BETA.md` §2).
 The approval that requirement asks for is decided in two other places:
 
 - the capability's fate in `src/shared/governance/capability-fate.ts`:
-  `ai.analyze`, `ai.generate_reply` and `ai.detect_trends` are controlled beta,
-  and `gbp.ai.cross_property_summary` and `gbp.reply.auto_publish` are
+  `ai.analyze` and `ai.generate_reply` are controlled beta, `ai.detect_trends`
+  is disabled (Property Trends is retired), and `gbp.ai.cross_property_summary` and `gbp.reply.auto_publish` are
   permanently denied (`docs/BETA.md` §2 and §4);
 - the Property's Merchant AI Authorization, whose capability set is the most an
   operation may use (`AiMerchantAuthorizationSnapshot.capabilities`, AI CONTEXT
@@ -237,3 +237,7 @@ subject to the owner's go and completed release verification.
 ## Amended 2026-11-13 — the cache clock moves at most once a day
 
 A successful Google read still restarts the 30-day clock, but the stored clock (`content_expires_at` on the cached content and on the newest observation, with `last_fetched_at`) moves only when the read would set it at least one day later than it already is. Both tables take one decision per read, so the newest observation and the content row keep the same expiry. A re-read inside that day rewrites neither expiry. `last_fetched_at` therefore means a fetch within the last day, and a copy never outlives 30 days from a real fetch.
+
+## Amended 2026-11-13 — Property Trends has ended
+
+Property Trends no longer runs: its schedule, jobs, readers and tables are gone, and the capability is disabled in `capability-fate.ts`. Recorded consent, epochs and control heads still carry `property_trends` as a readable value, and the retired event type is decoded only while outbox rows exist. Review analysis and reply drafting are the two live AI capabilities, and Guest voice reads completed review analysis.
