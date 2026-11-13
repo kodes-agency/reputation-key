@@ -4,13 +4,13 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import type { Database } from '#/shared/db'
 import { organizationId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { createContactRequestEncryptionAdapter } from '../adapters/contact-request-encryption.adapter'
+import { createContactRequestEncryption } from './contact-request-encryption.server'
 import {
   createContactRequestRepository,
   createContactRequestRetentionRepository,
-} from './contact-request.repository'
-import type { ContactRequestManagerAuthorityBasis } from '../../application/ports/contact-request-manager-authority.port'
-import { contactRequestRetentionSweep } from '../../application/use-cases/contact-request-retention'
+} from './contact-request.repository.server'
+import type { ContactRequestManagerAuthorityBasis } from './contracts'
+import { contactRequestRetentionSweep } from './contact-request-lifecycle.server'
 import {
   createRetentionSweepHandler,
   GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
@@ -153,7 +153,7 @@ afterEach(async () => {
 })
 
 const encryption = () =>
-  createContactRequestEncryptionAdapter({
+  createContactRequestEncryption({
     activeKeyId: 'v1',
     keys: { v1: '44'.repeat(32) },
     generateIv: () => randomBytes(12),
@@ -280,7 +280,7 @@ describe('Contact Request repository', () => {
 
     const masked = await repository().findMasked({
       scope: createInput().scope,
-      contactRequestId: REQUEST_A,
+      responseId: RESPONSE_A,
       authorization: managerAuthorization(),
       asOf: NOW,
     })
@@ -438,7 +438,6 @@ describe('Contact Request repository', () => {
     await expect(
       repository().withdraw({
         scope: createInput().scope,
-        contactRequestId: REQUEST_A,
         responseId: RESPONSE_A,
         at: withdrawnAt,
       }),
@@ -446,7 +445,6 @@ describe('Contact Request repository', () => {
     await expect(
       repository().withdraw({
         scope: createInput().scope,
-        contactRequestId: REQUEST_A,
         responseId: RESPONSE_A,
         at: new Date(NOW.getTime() + 2),
       }),
@@ -454,7 +452,7 @@ describe('Contact Request repository', () => {
     await expect(
       repository().findMasked({
         scope: createInput().scope,
-        contactRequestId: REQUEST_A,
+        responseId: RESPONSE_A,
         authorization: managerAuthorization(CREATOR, 'portal_creator', withdrawnAt),
         asOf: withdrawnAt,
       }),
@@ -503,7 +501,6 @@ describe('Contact Request repository', () => {
       }),
       repository().withdraw({
         scope: createInput().scope,
-        contactRequestId: REQUEST_A,
         responseId: RESPONSE_A,
         at,
       }),
@@ -603,7 +600,7 @@ describe('Contact Request repository', () => {
     await expect(
       repository().findMasked({
         scope: createInput().scope,
-        contactRequestId: REQUEST_A,
+        responseId: RESPONSE_A,
         authorization: managerAuthorization(),
         asOf: NOW,
       }),

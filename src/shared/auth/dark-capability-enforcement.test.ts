@@ -39,6 +39,15 @@ describe('BQR-0: Dark context capability enforcement', () => {
     if (files.length === 0) continue
 
     describe(`${context} server functions`, () => {
+      if (context === 'guest') {
+        it('binds every guest session through the public execution policy', () => {
+          const binding = readFileSync(
+            join(SERVER_DIR, context, 'server', 'guest-public-binding.server.ts'),
+            'utf-8',
+          )
+          expect(binding).toContain('decidePublicExecution(')
+        })
+      }
       for (const file of files) {
         const basename = file.split('/').pop()!
         const content = readFileSync(file, 'utf-8')
@@ -50,7 +59,8 @@ describe('BQR-0: Dark context capability enforcement', () => {
           content.includes('requireExecutionAllowed') ||
           content.includes('requirePortalResourceScope') ||
           content.includes('requireMatchingPortalResourceScopes') ||
-          content.includes('decidePublicExecution')
+          content.includes('decidePublicExecution') ||
+          content.includes('resolveBoundSession')
 
         it(`${basename} enforces capability via the ExecutionPolicy seam or assert*Capability`, () => {
           expect(

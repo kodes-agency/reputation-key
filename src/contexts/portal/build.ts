@@ -115,7 +115,7 @@ import {
   listPortalResponsibleManagers,
   updatePortalResponsibleManagers,
 } from './application/use-cases/portal-responsible-managers'
-import { getPortalContactRequestManagerAuthorityFacts } from './application/use-cases/portal-contact-request-authority'
+import { getPortalContactRequestManagerAuthorityFacts } from './publication/contact-request-authority.server'
 import { createPortalRatingFacts } from './application/portal-rating-facts'
 import { createGoalReadinessFacts } from './application/goal-readiness-facts'
 import { createPortalWorkflowFactStore } from './infrastructure/portal-workflow-fact-store'

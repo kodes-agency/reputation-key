@@ -42,6 +42,7 @@ export type ServerFunctionPolicyExemption = Readonly<{
 
 const GUEST_SCANS = 'src/contexts/guest/server/guest-scans.ts'
 const GUEST_PUBLIC = 'src/contexts/guest/server/public.ts'
+const GUEST_CONTACT = 'src/contexts/guest/server/contact-requests.ts'
 const REGISTRATION = 'src/contexts/identity/server/organizations.registration.ts'
 const PLATFORM_CHANGES = 'src/contexts/identity/server/platform-console-changes.ts'
 const GOOGLE_PERFORMANCE = 'src/contexts/integration/server/google-performance.ts'
@@ -123,6 +124,14 @@ export const SERVER_FUNCTION_POLICY_EXEMPTIONS: readonly ServerFunctionPolicyExe
     guestResponse('selectGoogleReviewFn', 'the Google review selection'),
     guestResponse('selectSecondaryLinkFn', 'the link selection'),
     guestResponse('withdrawGuestResponseFn', 'the response withdrawal'),
+    {
+      ...guestResponse('submitContactRequestFn', 'the contact request'),
+      file: GUEST_CONTACT,
+    },
+    {
+      ...guestResponse('withdrawContactRequestFn', 'the contact withdrawal'),
+      file: GUEST_CONTACT,
+    },
     {
       file: 'src/contexts/identity/server/invitation-preview.ts',
       name: 'getInvitationPreview',

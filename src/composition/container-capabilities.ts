@@ -72,6 +72,7 @@ export function buildContainerCapabilities({
     opsQueues,
     operationsSnapshot,
     guestContactRequestRetentionSweep: guest.contactRequestReadiness.retentionSweep,
+    guestContactRequests: guest.contactRequestReadiness.commands,
     reviewObservationRetentionSweep:
       review.maintenance.observationRetention.sweepExpiredSupersededCopies,
     reviewSnapshotRunRetentionSweep:

@@ -22,7 +22,11 @@ import {
 // Source assertions supplement the production-handler admission tests below.
 
 describe('guest response server-fn gates', () => {
-  const source = readFileSync(new URL('./public.ts', import.meta.url), 'utf8')
+  // The session binding and rate limiting live beside the server functions that call them.
+  const source = [
+    readFileSync(new URL('./guest-public-binding.server.ts', import.meta.url), 'utf8'),
+    readFileSync(new URL('./public.ts', import.meta.url), 'utf8'),
+  ].join('\n')
   const responseDtoSource = readFileSync(
     new URL('../application/dto/guest-response-form.dto.ts', import.meta.url),
     'utf8',

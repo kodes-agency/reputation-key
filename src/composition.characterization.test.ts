@@ -55,6 +55,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'goalPublicApi',
   'goalWorkerRuntime',
   'guestContactRequestRetentionSweep',
+  'guestContactRequests',
   'guestPublicApi',
   'handleResendEvent',
   'idGen',

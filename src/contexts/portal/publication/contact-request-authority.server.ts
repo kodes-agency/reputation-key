@@ -2,9 +2,9 @@ import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/applicat
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { OrganizationId, PortalId } from '#/shared/domain/ids'
 import { userId } from '#/shared/domain/ids'
-import { listEligiblePortalManagers } from '../portal-manager-eligibility'
-import type { PortalRepository } from '../ports/portal.repository'
-import type { PortalResponsibleManagerRepository } from '../ports/portal-responsible-manager.repository'
+import { listEligiblePortalManagers } from '../application/portal-manager-eligibility'
+import type { PortalRepository } from '../application/ports/portal.repository'
+import type { PortalResponsibleManagerRepository } from '../application/ports/portal-responsible-manager.repository'
 
 export type PortalContactRequestManagerAuthorityFacts = Readonly<{
   propertyId: import('#/shared/domain/ids').PropertyId

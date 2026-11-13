@@ -42,9 +42,8 @@ const FORMAT_OWNERS = [
     'src',
     'contexts',
     'guest',
-    'infrastructure',
-    'adapters',
-    'contact-request-encryption.adapter.ts',
+    'contact-requests',
+    'contact-request-encryption.server.ts',
   ),
   join(
     'src',
