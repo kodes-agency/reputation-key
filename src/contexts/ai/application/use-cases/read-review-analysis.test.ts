@@ -13,8 +13,8 @@ import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import type { AiMerchantAuthorizationSnapshot } from '../ports/ai-authorization.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import type { AiPropertyProfileResult, ReviewAnalysisReadV1 } from '../../domain/types'
-import type { ReadAiInsightsDependencies } from './read-ai-insights'
-import { createReadReviewAnalysis } from './read-ai-insights'
+import type { ReadReviewAnalysisDependencies } from './read-review-analysis'
+import { createReadReviewAnalysis } from './read-review-analysis'
 
 /**
  * Both reads are admission gates in front of the output store: they decide
@@ -179,7 +179,7 @@ function createHarness(
     processingProfiles: { readForAi, refreshForAi: vi.fn() },
     nowEpochMillis: options.clock ?? (() => NOW),
     reviewAnalysisProfileVersion: REVIEW_ANALYSIS_PROFILE.profileVersion,
-  } as unknown as ReadAiInsightsDependencies
+  } as unknown as ReadReviewAnalysisDependencies
 
   return {
     readReviewAnalysis: createReadReviewAnalysis(dependencies),

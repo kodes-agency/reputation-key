@@ -142,3 +142,7 @@ The move advances only the drafting epoch. Analysis and trends epochs and the
 analysis watermark remain unchanged, so it neither replays analysis nor interrupts
 its alerts or trends, and analysis stored under the 10-30 notice stays visible.
 Disabled Properties remain disabled.
+
+## Property Trends ended (2026-11-13)
+
+Property Trends is retired, so the trend reads and scheduling named above no longer exist. The capability value stays in recorded consent, epochs and control heads so earlier authorizations remain readable, and the notice that removed its processing promise advanced neither live epoch. Everything else here applies to review analysis and reply drafting.
