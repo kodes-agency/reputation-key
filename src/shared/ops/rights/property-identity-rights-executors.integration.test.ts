@@ -295,7 +295,7 @@ const propertyApply = (tenant: Tenant) =>
 function propertyExecutors(): ReadonlyArray<RightsExecutor> {
   return [
     createGoogleRightsExecutor({ db, now: () => NOW }),
-    createIdentityRightsExecutor(db),
+    createIdentityRightsExecutor(db, () => new Date()),
     createPropertyRightsExecutor(db, () => NOW),
   ]
 }

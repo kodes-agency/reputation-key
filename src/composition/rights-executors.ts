@@ -137,7 +137,7 @@ export function composeRightsExecutors(
     }),
     createAiRightsExecutor(deps.db, now),
     createActivityRightsExecutor(deps.db, deps.auditPseudonymSecret),
-    createIdentityRightsExecutor(deps.db),
+    createIdentityRightsExecutor(deps.db, now),
     createPropertyRightsExecutor(deps.db, now),
     notification,
     createStaffParticipantRightsExecutor({ db: deps.db, journal: deps.journal, now }),
