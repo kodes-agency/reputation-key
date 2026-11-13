@@ -4,9 +4,9 @@
 // composes THE serving-eligibility predicate (ADR 0031, clock-injected) and
 // joins the Property on its current binding epoch, so a review observed under
 // an earlier binding never counts. No review content leaves this module, and
-// the week sums behind the goal's chart never leave it either (round 5). The
+// the week sums behind the goal's chart never leave it either . The
 // low reviews leave as an id, stars and a creation time only (the owner's
-// exception for the tracking page, ADR 0067, 2026-10-17).
+// exception for the tracking page, ADR 0067).
 
 import { and, count, desc, eq, gte, lte, sql, sum, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'

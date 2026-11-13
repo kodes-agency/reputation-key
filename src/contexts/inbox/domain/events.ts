@@ -226,8 +226,8 @@ export type InboxNoteAdded = Readonly<{
   occurredAt: Date
   correlationId: string | null
 }>
-// BQC-3.4: events carry the note ID, never the note text — notes remain
-// context-owned content (BQC-3.4 / ADR 0030); readers fetch via the note repo.
+// Events carry the note ID, never the note text — notes remain
+// context-owned content (ADR 0030); readers fetch via the note repo.
 export const inboxNoteAdded = (
   args: InboxItemFactInput<InboxNoteAdded>,
 ): InboxNoteAdded => {

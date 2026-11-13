@@ -329,7 +329,7 @@ export const getInboxNotesDto = z.object({
   inboxItemId: z.uuid(),
 })
 
-// GET inbox item Handling History (IBX-01-T5). Validated at the boundary so a
+// GET inbox item Handling History. Validated at the boundary so a
 // non-UUID id is rejected before the use case, and therefore before any store.
 export const getInboxItemHistoryDto = z.object({
   inboxItemId: z.uuid(),

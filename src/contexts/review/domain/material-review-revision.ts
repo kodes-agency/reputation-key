@@ -42,8 +42,8 @@ export type PreviousReviewMaterial = Readonly<{
   /**
    * The stored original as today's provider parser reads it. It differs from
    * `originalText` only when the text was stored by a parser that did not yet
-   * know a provider envelope (Google's original-first translation envelope,
-   * 2026-10-23), so a match under it is a format transition, not a guest edit.
+   * know a provider envelope (Google's original-first translation envelope),
+   * so a match under it is a format transition, not a guest edit.
    */
   rereadOriginalText?: string | null
 }>
@@ -198,7 +198,7 @@ function providerUpdateTimeUnmoved(times: ProviderUpdateTimes | undefined): bool
  * transition must never be presented as a guest edit.
  *
  * A guest edit moves Google's `updateTime`. A difference in rating or text
- * while it stands still is Google restating the review (2026-10-23: a new
+ * while it stands still is Google restating the review (for example a new
  * wrapper around translated text), so it keeps the revision and adopts the
  * incoming digests, and is returned as `normalization_shadow_match` with the
  * same mechanics and `providerRestatement: true` (ADR 0055 says why there is no

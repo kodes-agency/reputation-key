@@ -59,7 +59,7 @@ describe('createInboxItem', () => {
       const item = result.value
       expect(item.id).toBe(inboxItemId('item-1'))
       expect(item.status).toBe('open')
-      // BQC-1.2: raw source content is never stored — always null.
+      // Raw source content is never stored — always null.
       expect(item.rating).toBeNull()
       expect(item.snippet).toBeNull()
       expect(item.reviewerName).toBeNull()

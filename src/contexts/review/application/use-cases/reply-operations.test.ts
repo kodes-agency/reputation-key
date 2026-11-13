@@ -170,7 +170,7 @@ function makeReplyCommandStoreFake(
   return {
     submitReply: transition,
     rejectReply: transition,
-    // BQC-3.8: authorize mirrors the production write — guarded status update
+    // Authorize mirrors the production write — guarded status update
     // + the new publication-cycle fields — with the same domain pre-check.
     markPublicationAuthorized: async (reply, updates, facts, now) => {
       if (!nextPublicationState(reply.publicationState, 'authorize')) return null

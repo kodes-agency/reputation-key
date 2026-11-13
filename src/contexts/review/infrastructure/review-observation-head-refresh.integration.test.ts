@@ -12,8 +12,8 @@ import { createReviewRepository } from './repositories/review.repository'
 import { createReviewSourceContentLifecycleStore } from './repositories/source-content-lifecycle-store.repository'
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 
-// Each snapshot pass reads every review of a Property twice. Until 2026-10-24
-// each read wrote a full-text `review_source_observations` row, so a review
+// Each snapshot pass reads every review of a Property twice. The old writer
+// stored a full-text `review_source_observations` row for each read, so a review
 // nobody touched collected one copy of its text per pass: 3.4M rows for 12,599
 // reviews on the beta, 99.3% of them a repeat of the row before. A re-read that
 // matches the newest row now moves that row's 30-day content clock and writes

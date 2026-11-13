@@ -8,7 +8,7 @@ import { reviewIdentityValues } from '#/contexts/reputation/application/public-a
 //   page; without one, and for findByOrganizationId, the read is every live Review —
 //   the Inbox repair command's source list is "all review sources" and a cap would
 //   make its report look complete.
-//   BQC-8.3: the system-level lifecycle sweeps (refresh-expiring, purge-expired)
+//   The system-level lifecycle sweeps (refresh-expiring, purge-expired)
 //          use keyset-bounded batch queries (findExpiringBatchAcrossTenants,
 //          findExpiredBatchBeforeAcrossTenants) with caller-supplied limits —
 //          the one-shot 5,000-row scans were removed (not cursor-safe at scale).
@@ -751,7 +751,7 @@ export const createReviewRepository = (
   },
 
   /**
-   * BQC-1.2: eligible content filter for cross-context list queries.
+   * Eligible content filter for cross-context list queries.
    * Eligibility predicate lives here (defense in depth): a live Review with
    * a non-null contentExpiresAt strictly in the future. Text search escapes LIKE
    * wildcards. This returns the complete eligible id set because the inbox
@@ -786,7 +786,7 @@ export const createReviewRepository = (
   },
 
   /**
-   * BQC-1.5: keyset-bounded batch (contentExpiresAt ASC, id ASC).
+   * Keyset-bounded batch (contentExpiresAt ASC, id ASC).
    * Cursor predicate is a strict row-tuple greater-than, so concurrent
    * inserts behind the cursor never cause skips or repeats.
    */
@@ -803,11 +803,11 @@ export const createReviewRepository = (
   },
 
   /**
-   * BQC-8.3: keyset-bounded batch of expired rows (contentExpiresAt ASC,
+   * Keyset-bounded batch of expired rows (contentExpiresAt ASC,
    * id ASC), exclusive `contentExpiresAt < date` boundary. Same keyset
    * contract as findExpiringBatchAcrossTenants: the strict row-tuple
    * cursor predicate never skips or repeats as the cursor advances.
-   * BQR-3.2 / ADR 0031: no post-expiry grace — purge as soon as the
+   * ADR 0031: no post-expiry grace — purge as soon as the
    * fetch clock expires.
    */
   findExpiredBatchBeforeAcrossTenants: async (date, cursor, limit) => {
@@ -822,7 +822,7 @@ export const createReviewRepository = (
   },
 
   /**
-   * BQC-8.3: exact purge-eligible count (exclusive boundary) — the restore
+   * Exact purge-eligible count (exclusive boundary) — the restore
    * drill's dry-run/zero-remaining probe. A COUNT, not a bounded scan.
    */
   countExpiredBeforeAcrossTenants: async (date: Date) => {

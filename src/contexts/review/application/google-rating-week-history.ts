@@ -1,11 +1,10 @@
 // Review context — the exact average at each week's end (pure).
 //
-// The rating goal's chart draws the exact average over time (round 5, PLAN-D
-// E14). The read sums each Property-local week since an instant and every
+// The rating goal's chart draws the exact average over time (ADR 0067). The read sums each Property-local week since an instant and every
 // current review there is, in one statement; this works back from today: the
 // average at the end of the last week is every review's, and each earlier
 // week ends where the later weeks' reviews are taken away again. The week
-// sums stay here: what leaves is counts and averages only (ADR 0067, round 5).
+// sums stay here: what leaves is counts and averages only (ADR 0067).
 
 import type {
   GoogleRatingHistory,

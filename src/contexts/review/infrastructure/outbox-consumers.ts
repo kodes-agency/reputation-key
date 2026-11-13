@@ -45,7 +45,7 @@ export type ReplyPublicationDeliveryDeps = Readonly<{
 export type ReplyPublicationConsumerDeps = ReplyPublicationDeliveryDeps &
   Readonly<{
     logger: ReviewOutboxLogger
-    /** BQC-3.8: disconnect cancellation of in-flight reply publications. */
+    /** Disconnect cancellation of in-flight reply publications. */
     cancelPublicationsForConnection: CancelPublicationsForConnection
     /** Archive cancellation of one Property's unsendable reply publications. */
     cancelPublicationsForProperty: CancelPublicationsForProperty

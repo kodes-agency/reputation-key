@@ -1,4 +1,4 @@
-// Real-schema proof for the bounded actor directory (IBX-01-T6). The whole
+// Real-schema proof for the bounded actor directory. The whole
 // value of this adapter is the organization fence and what it refuses to
 // return, so it is tested against `member`/`user` rather than a stub.
 

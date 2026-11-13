@@ -141,7 +141,7 @@ export type InboxRepository = Readonly<{
   ): Promise<number>
   findDetailById(id: InboxItemId, orgId: OrganizationId): Promise<InboxItemDetail | null>
   /**
-   * BQC-3.4: lightweight keyset scan of review-sourced items for projection
+   * Lightweight keyset scan of review-sourced items for projection
    * rebuild — no enrichment lookups, ordered by id, resuming AFTER `cursor`.
    */
   scanReviewItems(

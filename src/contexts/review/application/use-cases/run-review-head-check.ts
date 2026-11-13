@@ -14,8 +14,10 @@
 // A persisting check that stored all of the page keeps the Property's head cover
 // fresh, which is what lets a reconciliation window wider than a day skip the
 // full listing. A page on which every review changed, with more pages behind
-// it, renews nothing and asks the sweep for a full read instead: the changes may
-// run past the one page this check reads.
+// it, may hide changes past it, so a persisting check reads the next page, one
+// read generation per page, up to three pages. If the last page it reads still
+// changed throughout with more behind it, or a further page cannot be read and
+// stored, the cover is not renewed and the sweep is asked for a full read.
 //
 // Dark or persisting, a check also watches Google's total. A total below the
 // stored live count means a review deleted on Google that RepKey still shows:
@@ -45,6 +47,7 @@ import {
   GOOGLE_CONNECTION_UNUSABLE_CODE,
   GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
   type GoogleReviewApiPort,
+  type GoogleReviewHeadContinuation,
 } from '../ports/google-review-api.port'
 import type {
   ReviewHeadCheckOutcome,
@@ -162,18 +165,41 @@ const UNAVAILABLE: ReviewHeadPersistence = {
 /** What a check did with the Property's head cover. */
 type HeadCover = 'renewed' | 'full_read_requested'
 
+/** Pages a persisting check reads at most: the first and two continuations. */
+const MAX_HEAD_PAGES = 3
+
+type PageRead = Readonly<{
+  result: RunReviewHeadCheckResult
+  continuation: GoogleReviewHeadContinuation | undefined
+}>
+
+/** What a check read: the last page it kept, and whether earlier pages left nothing unstored. */
+type HeadRead = Readonly<{
+  result: RunReviewHeadCheckResult
+  pages: number
+  earlierPagesStored: boolean
+}>
+
 /**
  * Only a persisting check that stored the page acts on the cover. A whole page
  * changed with more behind it asks for a full read whatever it stored; otherwise
  * the cover is renewed only when every review that differed was written.
  */
-const coverAction = (result: RunReviewHeadCheckResult): HeadCover | null => {
+const coverAction = (
+  result: RunReviewHeadCheckResult,
+  earlierPagesStored: boolean,
+): HeadCover | null => {
   if (result.status !== 'compared') return null
   const persistence = result.persistence ?? null
   if (persistence === null || persistence.outcome !== 'stored') return null
   if (headPageOverflowed(result.comparison)) return 'full_read_requested'
-  return persistence.failed === 0 ? 'renewed' : null
+  return persistence.failed === 0 && earlierPagesStored ? 'renewed' : null
 }
+
+const storedWhole = (result: RunReviewHeadCheckResult): boolean =>
+  result.status === 'compared' &&
+  result.persistence?.outcome === 'stored' &&
+  result.persistence.failed === 0
 
 /** What a compared check did about Google's total: a drop's step, or cleared. */
 type CountDropOutcome = CountDropStep | 'cleared'
@@ -184,6 +210,7 @@ const logLine = (
   persistence: ReviewHeadPersistence | null,
   cover: HeadCover | null,
   countDrop: CountDropOutcome | null,
+  pages: number,
   durationMs: number,
 ) => ({
   event: 'review_head_check',
@@ -209,6 +236,7 @@ const logLine = (
   totalDifference: comparison?.totalDifference ?? null,
   averageDifference: comparison?.averageDifference ?? null,
   hasMore: comparison?.hasMore ?? null,
+  pages,
   countDrop,
   orderViolation: outcome === 'order_violation',
   durationMs,
@@ -222,15 +250,19 @@ export const createRunReviewHeadCheck = (
     input: RunReviewHeadCheckInput,
     now: Date,
     persist: RunReviewHeadCheckDeps['persist'],
-  ): Promise<RunReviewHeadCheckResult> => {
+    continuation?: GoogleReviewHeadContinuation,
+  ): Promise<PageRead> => {
     const head = await translatedGoogleReviewApi(deps.googleReviewApi).readReviewsHead({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       connectionId: input.connectionId,
       sourceEpoch: input.sourceEpoch,
       locationName: input.locationName,
+      ...(continuation === undefined ? {} : { continuation }),
     })
-    if (head.status === 'order_violation') return { status: 'order_violation' }
+    if (head.status === 'order_violation') {
+      return { result: { status: 'order_violation' }, continuation: undefined }
+    }
     const persistDeps = persisting(input) ? persist : undefined
     // The instant Google's numbers were read, and the reply read generation,
     // taken right after the provider's response and once for the page: no later
@@ -255,38 +287,87 @@ export const createRunReviewHeadCheck = (
       storedAverage: baseline.storedAverageRating,
       hasMore: head.hasMore,
     })
+    const next = head.continuation
     if (persistDeps === undefined) {
-      return { status: 'compared', comparison, persistence: null }
+      return {
+        result: { status: 'compared', comparison, persistence: null },
+        continuation: next,
+      }
     }
     if (replyReadGeneration === null) {
-      return { status: 'compared', comparison, persistence: UNAVAILABLE }
+      return {
+        result: { status: 'compared', comparison, persistence: UNAVAILABLE },
+        continuation: next,
+      }
     }
+    const persistence = await persistReviewHeadPage(
+      {
+        ...persistDeps,
+        repository: deps.repository,
+        logger: deps.logger,
+        clock: deps.clock,
+      },
+      {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        connectionId: input.connectionId,
+        sourceEpoch: input.sourceEpoch,
+        locationName: input.locationName,
+        reviews: head.reviews,
+        copies: baseline.copies,
+        googleTotal: head.totalReviewCount,
+        googleAverage: head.averageRating,
+        replyReadGeneration,
+        readAt,
+        now,
+      },
+    )
     return {
-      status: 'compared',
-      comparison,
-      persistence: await persistReviewHeadPage(
-        {
-          ...persistDeps,
-          repository: deps.repository,
-          logger: deps.logger,
-          clock: deps.clock,
-        },
-        {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          connectionId: input.connectionId,
-          sourceEpoch: input.sourceEpoch,
-          locationName: input.locationName,
-          reviews: head.reviews,
-          copies: baseline.copies,
-          googleTotal: head.totalReviewCount,
-          googleAverage: head.averageRating,
-          replyReadGeneration,
-          readAt,
-          now,
-        },
-      ),
+      result: { status: 'compared', comparison, persistence },
+      continuation: next,
     }
+  }
+
+  /**
+   * The first page, then, only while a persisting check stored a page on which
+   * everything changed and Google has more, up to three pages. A further page
+   * that cannot be read or stored is dropped and the page before it, which still
+   * reads as overflowed, stands: the check then asks for a full read.
+   */
+  const readPages = async (
+    input: RunReviewHeadCheckInput,
+    now: Date,
+  ): Promise<HeadRead> => {
+    const first = await compare(input, now, deps.persist)
+    const mayContinue = persisting(input) && deps.persist !== undefined
+    let kept = first
+    let pages = 1
+    let earlierPagesStored = true
+    while (
+      mayContinue &&
+      pages < MAX_HEAD_PAGES &&
+      kept.continuation !== undefined &&
+      kept.result.status === 'compared' &&
+      kept.result.persistence?.outcome === 'stored' &&
+      headPageOverflowed(kept.result.comparison)
+    ) {
+      pages++
+      let next: PageRead
+      try {
+        next = await compare(input, now, deps.persist, kept.continuation)
+      } catch {
+        break
+      }
+      if (
+        next.result.status !== 'compared' ||
+        next.result.persistence?.outcome !== 'stored'
+      ) {
+        break
+      }
+      earlierPagesStored &&= storedWhole(kept.result)
+      kept = next
+    }
+    return { result: kept.result, pages, earlierPagesStored }
   }
 
   const allocateGeneration = async (
@@ -302,12 +383,17 @@ export const createRunReviewHeadCheck = (
   const readOutcome = async (
     input: RunReviewHeadCheckInput,
     now: Date,
-  ): Promise<RunReviewHeadCheckResult> => {
+  ): Promise<HeadRead> => {
+    const closed = (result: RunReviewHeadCheckResult): HeadRead => ({
+      result,
+      pages: 0,
+      earlierPagesStored: true,
+    })
     try {
       if (await deps.repository.hasOutstandingFailure(input.propertyId)) {
-        return { status: 'skipped_outstanding_failure' }
+        return closed({ status: 'skipped_outstanding_failure' })
       }
-      return await compare(input, now, deps.persist)
+      return await readPages(input, now)
     } catch (error) {
       const status = failureOutcome(error)
       // A closed code only: a provider message or a driver error can carry an
@@ -318,7 +404,7 @@ export const createRunReviewHeadCheck = (
           'Review head check failed',
         )
       }
-      return { status }
+      return closed({ status })
     }
   }
 
@@ -421,8 +507,12 @@ export const createRunReviewHeadCheck = (
 
   return async (input) => {
     const startedAt = deps.clock()
-    const result = await readOutcome(input, startedAt)
-    const cover = await keepCover(input, coverAction(result), startedAt)
+    const { result, pages, earlierPagesStored } = await readOutcome(input, startedAt)
+    const cover = await keepCover(
+      input,
+      coverAction(result, earlierPagesStored),
+      startedAt,
+    )
     const countDrop = await watchCount(input, result, startedAt)
     const completedAt = deps.clock()
     await record(input, result, startedAt, completedAt)
@@ -433,6 +523,7 @@ export const createRunReviewHeadCheck = (
         result.status === 'compared' ? (result.persistence ?? null) : null,
         cover,
         countDrop,
+        pages,
         completedAt.getTime() - startedAt.getTime(),
       ),
       'Review head check finished',

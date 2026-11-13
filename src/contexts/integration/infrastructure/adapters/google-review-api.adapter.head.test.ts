@@ -386,4 +386,80 @@ describe('GoogleReviewApiAdapter.readReviewsHead', () => {
     expect(authorizeProviderCall).not.toHaveBeenCalled()
     expect(execute).not.toHaveBeenCalled()
   })
+
+  describe('continuation', () => {
+    const TOKEN = 'provider-next-page-token'
+
+    it('hands back an opaque continuation that never carries the page token', async () => {
+      const { api, info, warn } = createAdapter(
+        jsonAnswer({ ...newestFirstPage(), nextPageToken: TOKEN }),
+      )
+
+      const head = await api.readReviewsHead(headInput())
+
+      if (head.status !== 'ok') throw new Error('expected an ok page')
+      expect(head.hasMore).toBe(true)
+      expect(head.continuation).toBeDefined()
+      expect(JSON.stringify(head)).not.toContain(TOKEN)
+      expect(Object.keys(head.continuation ?? {})).toEqual([])
+      expect(JSON.stringify([info.mock.calls, warn.mock.calls])).not.toContain(TOKEN)
+    })
+
+    it('has no continuation on the last page', async () => {
+      const { api } = createAdapter(jsonAnswer(newestFirstPage()))
+
+      const head = await api.readReviewsHead(headInput())
+
+      expect(head).not.toHaveProperty('continuation')
+    })
+
+    it('reads the next page from the same route with the page token and the ordering', async () => {
+      const execute = vi
+        .fn()
+        .mockResolvedValueOnce(
+          (await jsonAnswer({ ...newestFirstPage(), nextPageToken: TOKEN })()) as never,
+        )
+        .mockResolvedValueOnce(
+          (await jsonAnswer({
+            reviews: [providerReview(REVIEW_NAMES[2]!, '2026-10-18T10:00:00.000Z')],
+            totalReviewCount: 12,
+            averageRating: 4.6,
+          })()) as never,
+        )
+      const { api, cursors } = createAdapter(execute)
+      const first = await api.readReviewsHead(headInput())
+      if (first.status !== 'ok') throw new Error('expected an ok page')
+
+      const second = await api.readReviewsHead({
+        ...headInput(),
+        continuation: first.continuation!,
+      })
+
+      expect(execute).toHaveBeenCalledTimes(2)
+      expect(execute).toHaveBeenLastCalledWith(
+        {
+          routeKey: 'reviews.list',
+          accessToken: 'access-token',
+          locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+          orderBy: 'updateTime desc',
+          pageToken: TOKEN,
+        },
+        expect.objectContaining({ authorization }),
+      )
+      expect(second).toMatchObject({ status: 'ok', hasMore: false })
+      expect(cursors.publishNext).not.toHaveBeenCalled()
+      expect(cursors.redeem).not.toHaveBeenCalled()
+    })
+
+    it('refuses a continuation it did not hand out, before any provider call', async () => {
+      const execute = jsonAnswer(newestFirstPage())
+      const { api, authorizeProviderCall } = createAdapter(execute)
+
+      await expect(
+        api.readReviewsHead({ ...headInput(), continuation: {} as never }),
+      ).rejects.toMatchObject({ code: 'invalid_request' })
+      expect(authorizeProviderCall).not.toHaveBeenCalled()
+      expect(execute).not.toHaveBeenCalled()
+    })
+  })
 })

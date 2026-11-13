@@ -1,4 +1,4 @@
-// Review context — refresh sweep run repository port (BQC-1.5).
+// Review context — refresh sweep run repository port.
 // One row per sweep run: resume cursor, counts, oldest due expiry,
 // failures, terminal state. Content-free operational state only.
 

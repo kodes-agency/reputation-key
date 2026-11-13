@@ -296,7 +296,7 @@ const failForProviderError = async (
       ? error.failure
       : null,
   )
-  // BQC-7.3 bans tenant identifiers in logs; runId is the approved execution
+  // The log schema bans tenant identifiers; runId is the approved execution
   // identity and resolves the property through the run row.
   if (code === 'provider_failure') {
     deps.logger.error(

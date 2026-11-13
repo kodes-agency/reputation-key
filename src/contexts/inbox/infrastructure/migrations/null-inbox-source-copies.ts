@@ -1,10 +1,10 @@
-// BQC-1.2 — bounded null-backfill of inbox raw source copies.
+// Bounded null-backfill of inbox raw source copies.
 //
 // Migrates legacy denormalized copies (snippet / reviewer_name / rating) to
 // NULL in bounded batches. Predicate-driven: idempotent and resumable by
 // construction — re-running simply finds no remaining copies. Runs AFTER
 // reads already resolve via the eligibility-enforcing review lookup
-// (cutover order BQC-1 §7: eligible reads first, cleanup second).
+// (cutover order: eligible reads first, cleanup second).
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'

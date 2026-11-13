@@ -1,4 +1,4 @@
-// Inbox context — bounded actor display-name resolution (IBX-01-T6).
+// Inbox context — bounded actor display-name resolution.
 //
 // Manager history and notes are unreadable when every author renders as an
 // eight-character id fragment. This port resolves a BOUNDED batch of user ids

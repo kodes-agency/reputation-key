@@ -1,4 +1,4 @@
-// Inbox context — get Handling History use case (IBX-01-T5/T6).
+// Inbox context — get Handling History use case.
 //
 // One ordered manager-facing record of how an Inbox Item was handled, merged
 // from Inbox's own append-only tables. Two authorization decisions live here

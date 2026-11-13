@@ -31,7 +31,7 @@ export function nextPublicationCycle(current: number): number {
   return current + 1
 }
 
-// ── BQC-3.3: provider outcome classification ─────────────────────────
+// ── Provider outcome classification ─────────────────────────
 //
 // The publish job sends at most one PUT per attempt. What happened on Google
 // after a failure determines whether retrying is safe, pointless, or dangerous:
@@ -73,7 +73,7 @@ export type PersistedPublicationState =
 /** The current persisted state; NULL = no publication workflow active. */
 export type PublicationStateInput = PersistedPublicationState | null
 
-/** Events that drive persisted-state transitions (BQC-3.8). */
+/** Events that drive persisted-state transitions. */
 export type PublicationStateEvent =
   | 'authorize' // approval / retry re-authorization — a new publication cycle
   | 'claim' // a fresh authorization grants exactly one provider-write attempt
@@ -124,7 +124,7 @@ const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
 }
 
 /**
- * The single authority for persisted publication transitions (BQC-3.8).
+ * The single authority for persisted publication transitions.
  * Returns the next state, or null when the event does not apply to the
  * current state (the store treats null like a guard miss — no write, no fact).
  *
@@ -154,8 +154,8 @@ export function nextPublicationState(
 
 /**
  * Default delay before an ambiguous publication becomes reconcile-due
- * (BQC-3.8), used by markPublicationAmbiguous when the caller passes no
- * ladder time. Measured from now, it is never earlier than the ladder's first
+ * (used by markPublicationAmbiguous when the caller passes no
+ * ladder time). Measured from now, it is never earlier than the ladder's first
  * rung (fifteen minutes from an attempt start that is at or before now).
  */
 export const AMBIGUOUS_RECONCILE_DELAY_MS = 15 * 60 * 1000

@@ -1,4 +1,4 @@
-// Shared SET-clause builder for reply guarded updates (BQC-3.3).
+// Shared SET-clause builder for reply guarded updates.
 //
 // Used by every guarded reply write (reputation/replies/store.server.ts: the reply
 // repository's draft save and the atomic ReplyCommandStore), so they all apply
@@ -51,7 +51,7 @@ export function buildReplySetClause(
   if (updates.rejectionReason !== undefined)
     setClause.rejectionReason = updates.rejectionReason
   if (updates.publishedAt !== undefined) setClause.publishedAt = updates.publishedAt
-  // BQC-3.8: publication state machine fields.
+  // Publication state machine fields.
   if (updates.publicationState !== undefined)
     setClause.publicationState = updates.publicationState
   if (updates.publicationCycle !== undefined)
