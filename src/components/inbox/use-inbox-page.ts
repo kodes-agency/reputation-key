@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useRef, useState } from 'react'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import { useInboxCompactLayout } from '#/components/inbox/use-inbox-compact-layout'
-import { useInboxDetail } from '#/components/inbox/use-inbox-detail'
+import { useInboxDetail } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 import { useInboxState } from '#/components/inbox/use-inbox-state'
 import { useInboxKeyboardShortcuts } from '#/components/inbox/use-inbox-keyboard-shortcuts'
 import { useInboxVisitStamp } from '#/components/inbox/use-inbox-visit-stamp'

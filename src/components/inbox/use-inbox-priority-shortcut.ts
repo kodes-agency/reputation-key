@@ -3,7 +3,7 @@ import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { Permission } from '#/shared/domain/permissions'
 import { isHeaderCommandPending } from './inbox-header-command-pending'
 import { isTriageShortcutAllowed } from './use-inbox-escalation-shortcut'
-import type { InboxDetailState } from './use-inbox-detail'
+import type { InboxDetailState } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 
 /**
  * The `p` shortcut (owner P-7): it opens the open item's Priority menu, gated

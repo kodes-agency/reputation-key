@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import type { InboxDetailState } from '../../../../components/inbox/use-inbox-detail'
+import type { InboxDetailState } from './use-inbox-detail'
 import { InboxDetailCopyMenu } from './inbox-detail-copy-menu'
 import { BackIconButton } from '#/components/ui/back-icon-button'
 import { IconButton } from '#/components/ui/icon-button'

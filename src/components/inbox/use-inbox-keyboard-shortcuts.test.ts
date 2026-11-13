@@ -390,3 +390,61 @@ describe('list navigation', () => {
     expect(preventDefault).not.toHaveBeenCalled()
   })
 })
+
+describe('Enter — scoped to the list', () => {
+  /** A target whose `closest` answers by which selector list it is asked. */
+  function targetIn(region: 'list-row' | 'detail-button') {
+    return {
+      tagName: 'BUTTON',
+      closest: (selector: string) => {
+        if (selector.includes('data-inbox-list-row')) {
+          return region === 'list-row' ? {} : null
+        }
+        if (selector.includes('button')) return {}
+        return null
+      },
+    }
+  }
+
+  it('opens the selected item from a control inside the list', () => {
+    const spies = makeSpies()
+    const { event, preventDefault } = fakeEvent('Enter', { target: targetIn('list-row') })
+
+    handleInboxShortcut(event, makeInput(spies))
+
+    expect(spies.handleRowClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the selected item when nothing is focused', () => {
+    const spies = makeSpies()
+
+    handleInboxShortcut(fakeEvent('Enter').event, makeInput(spies))
+
+    expect(spies.handleRowClick).toHaveBeenCalledWith(ITEMS[0])
+  })
+
+  it('leaves Enter on a detail-pane button to that button', () => {
+    const spies = makeSpies()
+    const { event, preventDefault } = fakeEvent('Enter', {
+      target: targetIn('detail-button'),
+    })
+
+    handleInboxShortcut(event, makeInput(spies))
+
+    expectNoAction(spies)
+    expect(preventDefault).not.toHaveBeenCalled()
+  })
+
+  it('leaves Enter in a text field to the field', () => {
+    const spies = makeSpies()
+    const { event, preventDefault } = fakeEvent('Enter', {
+      target: { tagName: 'TEXTAREA' },
+    })
+
+    handleInboxShortcut(event, makeInput(spies))
+
+    expectNoAction(spies)
+    expect(preventDefault).not.toHaveBeenCalled()
+  })
+})

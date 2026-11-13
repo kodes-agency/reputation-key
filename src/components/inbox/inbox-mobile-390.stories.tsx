@@ -52,14 +52,15 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
-import { InboxDetailSheet } from '../../contexts/reputation/inbox/ui/inbox-detail-sheet'
+import { InboxDetailSheet as BareInboxDetailSheet } from '../../contexts/reputation/inbox/ui/inbox-detail-sheet'
+import { withInboxDetailPaneEnv } from '#/contexts/reputation/inbox/ui/inbox-detail-pane-story'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { playInThemes } from '../../../.storybook/play-in-themes'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { InboxHistoryEntry } from '../../contexts/reputation/inbox/ui/inbox-thread-model'
 import type { InboxDetailFns } from './types'
-import type { InboxDetailState } from './use-inbox-detail'
+import type { InboxDetailState } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import type {
   addInboxNoteFn,
@@ -585,6 +586,8 @@ function expectNoRawIds(): void {
  * pane, and `reply.manage` mounts the reply surface. A narrower role would make
  * the pane fit by having less in it.
  */
+const InboxDetailSheet = withInboxDetailPaneEnv(BareInboxDetailSheet)
+
 const meta: Meta<typeof InboxDetailSheet> = {
   title: 'Inbox/Mobile 390',
   component: InboxDetailSheet,

@@ -18,7 +18,7 @@ import { GOOGLE_CHECK_COPY } from './google-check-copy'
 import { InboxDetailCopyMenu } from './inbox-detail-copy-menu'
 import type { InboxServerFns } from '#/components/inbox/types'
 import { useGoogleReviewCheck } from './use-google-review-check'
-import type { InboxDetailState } from '../../../../components/inbox/use-inbox-detail'
+import type { InboxDetailState } from './use-inbox-detail'
 
 type Detail = NonNullable<InboxDetailState['detail']>
 

@@ -16,11 +16,8 @@ import { InboxDetailPending } from './inbox-detail-pending'
 import { InboxDetailContent } from './inbox-detail-content'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { InboxDetailHeader } from './inbox-detail-header'
-import type { ComposerFocusBox } from './inbox-detail-content'
-import type { InboxAssignmentOption } from '#/components/inbox/inbox-owner-view'
-import { isCaseToolbarShown, type InboxCurrentUser } from './inbox-case-toolbar-props'
-import type { InboxDetailState } from '../../../../components/inbox/use-inbox-detail'
-import type { InboxDetailFns } from '#/components/inbox/types'
+import { isCaseToolbarShown } from './inbox-case-toolbar-props'
+import type { InboxDetailState } from './use-inbox-detail'
 import { RegionError } from '#/components/ui/region-error'
 
 type Props = Readonly<{
@@ -28,28 +25,9 @@ type Props = Readonly<{
   onOpenChange: (open: boolean) => void
   item: InboxItem | null
   detailState: InboxDetailState
-  detailFns: InboxDetailFns
-  currentUser?: InboxCurrentUser
-  assignmentOptions?: ReadonlyArray<InboxAssignmentOption>
-  /**
-   * Threaded for symmetry with the desktop panel. The shortcuts that read it
-   * are inert on mobile (`handleInboxShortcut` returns early), and this surface
-   * and the desktop panel are never mounted at the same time, so whichever one
-   * is mounted registers and the other cannot overwrite it.
-   */
-  composerFocusRef?: ComposerFocusBox
 }>
 
-export function InboxDetailSheet({
-  open,
-  onOpenChange,
-  item,
-  detailState,
-  detailFns,
-  currentUser,
-  assignmentOptions,
-  composerFocusRef,
-}: Props) {
+export function InboxDetailSheet({ open, onOpenChange, item, detailState }: Props) {
   // The sheet is dismissed by dropping `itemId` from the search, so `item` goes
   // null in the SAME commit that turns `open` false. Returning null on `item`
   // alone tore the Radix dialog out of the tree while it was still open: the
@@ -141,10 +119,6 @@ export function InboxDetailSheet({
           <InboxDetailContent
             currentItem={detailState.currentItem}
             detailState={detailState}
-            detailFns={detailFns}
-            currentUser={currentUser}
-            assignmentOptions={assignmentOptions}
-            composerFocusRef={composerFocusRef}
           />
         )}
       </SheetContent>

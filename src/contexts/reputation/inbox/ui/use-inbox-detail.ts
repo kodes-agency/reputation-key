@@ -23,15 +23,6 @@ import {
   useGoogleReviewCheck,
   type GoogleReviewCheck,
 } from '#/contexts/reputation/inbox/ui/use-google-review-check'
-import type {
-  updateInboxStatusFn,
-  escalateInboxItemFn,
-  resolveEscalationFn,
-  assignInboxItemFn,
-  setInboxItemPriorityFn,
-  markFeedbackHandledFn,
-  correctFeedbackHandlingOutcomeFn,
-} from '#/contexts/inbox/server/inbox'
 import type { InboxServerFns } from '#/components/inbox/types'
 import type { InboxPriorityMenuBox } from '#/contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 import {
@@ -137,20 +128,20 @@ export type InboxDetailState = Readonly<{
   notesUnavailable: boolean
   isLoading: boolean
   currentItem: InboxItem | null
-  updateStatus: Action<Parameters<typeof updateInboxStatusFn>[0], InboxItem>
-  escalate: Action<Parameters<typeof escalateInboxItemFn>[0], InboxItem>
-  resolveEscalation: Action<Parameters<typeof resolveEscalationFn>[0], InboxItem>
-  assign: Action<Parameters<typeof assignInboxItemFn>[0], InboxItem>
+  updateStatus: Action<Parameters<InboxServerFns['updateInboxStatus']>[0], InboxItem>
+  escalate: Action<Parameters<InboxServerFns['escalateInboxItem']>[0], InboxItem>
+  resolveEscalation: Action<Parameters<InboxServerFns['resolveEscalation']>[0], InboxItem>
+  assign: Action<Parameters<InboxServerFns['assignInboxItem']>[0], InboxItem>
   /** Sets or clears the manager priority (ADR 0071). */
-  setPriority: Action<Parameters<typeof setInboxItemPriorityFn>[0], InboxItem>
+  setPriority: Action<Parameters<InboxServerFns['setInboxItemPriority']>[0], InboxItem>
   /** Where the Priority menu keeps its opener for the `p` shortcut. */
   priorityMenu?: InboxPriorityMenuBox
   markFeedbackHandled: Action<
-    Parameters<typeof markFeedbackHandledFn>[0],
+    Parameters<InboxServerFns['markFeedbackHandled']>[0],
     FeedbackHandlingCommandResult
   >
   correctFeedbackHandlingOutcome: Action<
-    Parameters<typeof correctFeedbackHandlingOutcomeFn>[0],
+    Parameters<InboxServerFns['correctFeedbackHandlingOutcome']>[0],
     FeedbackHandlingCommandResult
   >
   onReplyMutated: (change: InboxReplyCacheChange) => void

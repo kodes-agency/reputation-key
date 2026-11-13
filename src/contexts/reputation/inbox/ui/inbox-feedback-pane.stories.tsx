@@ -24,19 +24,18 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { feedbackId, userId } from '#/shared/domain/ids'
 import { FeedbackHandlingPrimary } from '#/contexts/reputation/inbox/ui/feedback-handling-primary'
-import { InboxDetailContent } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
-import { playInThemes } from '../../../.storybook/play-in-themes'
-import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
-import { mockServerFn } from '../../../.storybook/mocks/mock-action'
-import { withRole, withPermissions } from '../../../.storybook/AuthedRouterDecorator'
+import { InboxDetailContent as BareInboxDetailContent } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
+import { withInboxDetailPaneEnv } from '#/contexts/reputation/inbox/ui/inbox-detail-pane-story'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
+import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
+import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
+import {
+  withRole,
+  withPermissions,
+} from '../../../../../.storybook/AuthedRouterDecorator'
 import type { InboxHistoryEntry } from '#/contexts/reputation/inbox/ui/inbox-thread-model'
-import type { InboxDetailFns } from '#/components/inbox/types'
+import type { InboxDetailFns, InboxServerFns } from '#/components/inbox/types'
 import type { InboxDetailState } from './use-inbox-detail'
-import type {
-  addInboxNoteFn,
-  getInboxItemDetailFn,
-  getInboxItemHistoryFn,
-} from '#/contexts/inbox/server/inbox'
 import type {
   FeedbackHandlingState,
   InboxItem,
@@ -340,17 +339,17 @@ function detailFns(entries: readonly InboxHistoryEntry[]): InboxDetailFns {
     // member of the bundle, so it answers honestly rather than throwing.
     getInboxItemDetail: mockServerFn(async () =>
       detailFor(openItem, OPEN_CYCLE),
-    ) as unknown as typeof getInboxItemDetailFn,
+    ) as unknown as InboxServerFns['getInboxItemDetail'],
     addInboxNote: mockServerFn(async () => ({
       ok: true,
-    })) as unknown as typeof addInboxNoteFn,
+    })) as unknown as InboxServerFns['addInboxNote'],
     getInboxItemHistory: mockServerFn(
-      async ({ data }: Parameters<typeof getInboxItemHistoryFn>[0]) => ({
+      async ({ data }: Parameters<InboxServerFns['getInboxItemHistory']>[0]) => ({
         inboxItemId: data.inboxItemId,
         entries,
         truncated: false,
       }),
-    ) as unknown as typeof getInboxItemHistoryFn,
+    ) as unknown as InboxServerFns['getInboxItemHistory'],
   }
 }
 
@@ -663,6 +662,8 @@ const mkDetailState = (overrides: Partial<InboxDetailState> = {}): InboxDetailSt
  * holding neither handling permission is `FeedbackAsReaderReadsButCannotHandle`
  * below, which is the same pane with the action taken out.
  */
+const InboxDetailContent = withInboxDetailPaneEnv(BareInboxDetailContent)
+
 const meta: Meta<typeof InboxDetailContent> = {
   title: 'Inbox/Detail Content/Feedback',
   component: InboxDetailContent,
