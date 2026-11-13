@@ -12,7 +12,7 @@
 // e2e/.seed-state.json aside and re-running a single spec still produces the
 // throw from helpers/seed-state.ts followed by "No tests found"; this test never
 // gets to run. What it does cover: `full`-project specs that never import seed
-// state, a file that is present but fails the 35-field shape check, and naming
+// state, a file that is present but fails the shape check, and naming
 // the remedy once in a place a reader will find it. Making the explosion itself
 // go away means making that module-scope call lazy in ~12 specs, which is a
 // bigger change than the debt it buys.
@@ -25,7 +25,7 @@ import { E2E_SEED_STATE_PATH, readE2eSeedState } from '../helpers/seed-state'
 
 test('seed state is present', () => {
   // The non-throwing variant: a null return means absent OR failing the
-  // 35-field shape check, and both have the same remedy.
+  // shape check, and both have the same remedy.
   expect(
     readE2eSeedState(),
     `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +

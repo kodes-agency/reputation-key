@@ -53,11 +53,7 @@ import {
   portalResponsibilities,
   portalGroupMemberships,
 } from '../src/shared/db/schema/people-access.schema'
-import {
-  notifications,
-  notificationEmailQueue,
-  notificationPreferences,
-} from '../src/shared/db/schema/notification.schema'
+import { notificationPreferences } from '../src/shared/db/schema/notification.schema'
 import {
   grantPropertyAccess,
   hasActiveGrant,
@@ -89,11 +85,6 @@ const managerName = process.env.E2E_TEST_NAME ?? 'E2E Beta Manager'
 const staffEmail = process.env.E2E_STAFF_EMAIL ?? 'staff@example.com'
 const staffPassword = process.env.E2E_STAFF_PASSWORD ?? 'password123'
 const staffName = process.env.E2E_STAFF_NAME ?? 'E2E Beta Staff'
-const candidateAEmail = 'candidate-a@example.com'
-const candidateBEmail = 'candidate-b@example.com'
-const candidatePassword = 'password123'
-const candidateAName = 'E2E Candidate A'
-const candidateBName = 'E2E Candidate B'
 const onePropertyManagerEmail = 'manager-one@example.com'
 const zeroPropertyManagerEmail = 'manager-zero@example.com'
 const boundedManagerPassword = 'password123'
@@ -144,21 +135,11 @@ const IDS = {
   effectiveGroupMember: '11111111-1111-4111-8111-111111111123',
   managerParticipation: '11111111-1111-4111-8111-111111111112',
   staffParticipation: '11111111-1111-4111-8111-111111111113',
-  candidateAParticipation: '11111111-1111-4111-8111-111111111126',
-  candidateBParticipation: '11111111-1111-4111-8111-111111111127',
   managerParticipant: '11111111-1111-4111-8111-111111111150',
   staffParticipant: '11111111-1111-4111-8111-111111111151',
-  candidateAParticipant: '11111111-1111-4111-8111-111111111152',
-  candidateBParticipant: '11111111-1111-4111-8111-111111111153',
   portalResponsibility: '11111111-1111-4111-8111-111111111116',
   notificationPreference: '11111111-1111-4111-8111-111111111125',
   notificationPreferenceInApp: '11111111-1111-4111-8111-111111111126',
-  p1Notification: '11111111-1111-4111-8111-111111111130',
-  p2Notification: '22222222-2222-4222-8222-222222222131',
-  p3Notification: '33333333-3333-4333-8333-333333333132',
-  p1EmailQueue: '11111111-1111-4111-8111-111111111133',
-  p2EmailQueue: '22222222-2222-4222-8222-222222222134',
-  p3EmailQueue: '33333333-3333-4333-8333-333333333135',
 } as const
 
 const BOUNDED_PROPERTIES = Array.from({ length: 7 }, (_, index) => ({
@@ -826,8 +807,6 @@ async function ensurePeopleFixtures(input: {
   propertyId: string
   managerUserId: string
   staffUserId: string
-  candidateAUserId: string
-  candidateBUserId: string
 }): Promise<void> {
   const db = getDb()
 
@@ -841,8 +820,6 @@ async function ensurePeopleFixtures(input: {
       [
         { id: IDS.managerParticipant, displayName: managerName },
         { id: IDS.staffParticipant, displayName: staffName },
-        { id: IDS.candidateAParticipant, displayName: candidateAName },
-        { id: IDS.candidateBParticipant, displayName: candidateBName },
       ].map((participant) => ({
         ...participant,
         organizationId: input.organizationId,
@@ -874,28 +851,6 @@ async function ensurePeopleFixtures(input: {
         propertyId: input.propertyId,
         userId: input.staffUserId,
         displayName: staffName,
-        status: 'active',
-        startedAt: FIXTURE_AT,
-        createdBy: input.managerUserId,
-      },
-      {
-        id: IDS.candidateAParticipation,
-        staffParticipantId: IDS.candidateAParticipant,
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        userId: input.candidateAUserId,
-        displayName: candidateAName,
-        status: 'active',
-        startedAt: FIXTURE_AT,
-        createdBy: input.managerUserId,
-      },
-      {
-        id: IDS.candidateBParticipation,
-        staffParticipantId: IDS.candidateBParticipant,
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        userId: input.candidateBUserId,
-        displayName: candidateBName,
         status: 'active',
         startedAt: FIXTURE_AT,
         createdBy: input.managerUserId,
@@ -967,77 +922,6 @@ async function ensureNotificationPreferences(input: {
         notificationPreferences.channel,
       ],
       set: { enabled: true, updatedAt: new Date() },
-    })
-}
-
-async function ensureDueEmailFixture(input: {
-  notificationId: string
-  emailQueueId: string
-  organizationId: string
-  propertyId: string
-  userId: string
-  label: string
-}): Promise<void> {
-  const db = getDb()
-  await db
-    .insert(notifications)
-    .values({
-      id: input.notificationId,
-      userId: input.userId,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      type: 'review.created',
-      category: 'workflow_collaboration',
-      priority: 'normal',
-      status: 'unread',
-      resourceType: 'inbox_item',
-      resourceId: `e2e-${input.label}-inbox-item`,
-      eventId: `e2e-${input.label}-email-event`,
-      title: `${input.label} due email fixture`,
-      body: null,
-      createdAt: FIXTURE_AT,
-    })
-    .onConflictDoUpdate({
-      target: notifications.id,
-      set: { status: 'unread', updatedAt: FIXTURE_AT },
-    })
-  await db
-    .insert(notificationEmailQueue)
-    .values({
-      id: input.emailQueueId,
-      notificationId: input.notificationId,
-      userId: input.userId,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      category: 'workflow_collaboration',
-      cadence: 'daily',
-      status: 'pending',
-      priority: 'normal',
-      idempotencyKey: `e2e-${input.label}-daily-email`,
-      notBefore: FIXTURE_AT,
-      nextAttemptAt: FIXTURE_AT,
-      retryCount: 0,
-      createdAt: FIXTURE_AT,
-    })
-    .onConflictDoUpdate({
-      target: notificationEmailQueue.id,
-      set: {
-        status: 'pending',
-        providerMessageId: null,
-        providerState: null,
-        lastErrorClass: null,
-        suppressionReason: null,
-        notBefore: FIXTURE_AT,
-        nextAttemptAt: FIXTURE_AT,
-        attemptedAt: null,
-        acceptedAt: null,
-        deliveredAt: null,
-        bouncedAt: null,
-        sentAt: null,
-        failedAt: null,
-        retryCount: 0,
-        updatedAt: FIXTURE_AT,
-      },
     })
 }
 
@@ -1118,16 +1002,6 @@ async function main(): Promise<void> {
     password: staffPassword,
     name: staffName,
   })
-  const candidateAUserId = await ensureCredentialUser({
-    email: candidateAEmail,
-    password: candidatePassword,
-    name: candidateAName,
-  })
-  const candidateBUserId = await ensureCredentialUser({
-    email: candidateBEmail,
-    password: candidatePassword,
-    name: candidateBName,
-  })
   const onePropertyManagerUserId = await ensureCredentialUser({
     email: onePropertyManagerEmail,
     password: boundedManagerPassword,
@@ -1148,18 +1022,6 @@ async function main(): Promise<void> {
   await ensureMembership({
     id: 'e2e-org-a-staff-member',
     userId: staffUserId,
-    organizationId: orgAId,
-    role: 'member',
-  })
-  await ensureMembership({
-    id: 'e2e-org-a-candidate-a-member',
-    userId: candidateAUserId,
-    organizationId: orgAId,
-    role: 'member',
-  })
-  await ensureMembership({
-    id: 'e2e-org-a-candidate-b-member',
-    userId: candidateBUserId,
     organizationId: orgAId,
     role: 'member',
   })
@@ -1226,8 +1088,6 @@ async function main(): Promise<void> {
   }
   await grantAccess(LOCKED_ORG_ID, p3Id, lockedManagerUserId)
   await grantAccess(orgAId, p1Id, staffUserId)
-  await grantAccess(orgAId, p1Id, candidateAUserId)
-  await grantAccess(orgAId, p1Id, candidateBUserId)
   await grantAccess(orgAId, p1Id, onePropertyManagerUserId)
 
   const p1Portal = await ensurePortal(orgAId, p1Id, P1_PORTAL_FIXTURE)
@@ -1291,8 +1151,6 @@ async function main(): Promise<void> {
     propertyId: p1Id,
     managerUserId,
     staffUserId,
-    candidateAUserId,
-    candidateBUserId,
   })
   await ensureNotificationPreferences({
     organizationId: orgAId,
@@ -1316,30 +1174,6 @@ async function main(): Promise<void> {
     ...boundedIds,
   ])
 
-  await ensureDueEmailFixture({
-    notificationId: IDS.p1Notification,
-    emailQueueId: IDS.p1EmailQueue,
-    organizationId: orgAId,
-    propertyId: p1Id,
-    userId: managerUserId,
-    label: 'p1',
-  })
-  await ensureDueEmailFixture({
-    notificationId: IDS.p2Notification,
-    emailQueueId: IDS.p2EmailQueue,
-    organizationId: orgAId,
-    propertyId: p2Id,
-    userId: managerUserId,
-    label: 'p2',
-  })
-  await ensureDueEmailFixture({
-    notificationId: IDS.p3Notification,
-    emailQueueId: IDS.p3EmailQueue,
-    organizationId: LOCKED_ORG_ID,
-    propertyId: p3Id,
-    userId: lockedManagerUserId,
-    label: 'p3',
-  })
   writeSeedState({
     version: 'beta-local-1',
     email: managerEmail,
@@ -1348,14 +1182,9 @@ async function main(): Promise<void> {
     staffPassword,
     managerName,
     staffName,
-    candidateAName,
-    candidateBName,
-    candidateAParticipationId: IDS.candidateAParticipation,
-    candidateBParticipationId: IDS.candidateBParticipation,
     organizationId: orgAId,
     managerUserId,
     organizationName,
-    lockedOrganizationId: LOCKED_ORG_ID,
     lockedManagerEmail,
     lockedManagerPassword,
     propertyId: p1Id,
@@ -1367,7 +1196,6 @@ async function main(): Promise<void> {
     p1PropertyId: p1Id,
     p2PropertyId: p2Id,
     p3PropertyId: p3Id,
-    boundedPropertyIds: boundedIds,
     portalId: p1Portal.portalId,
     portalToken: p1Portal.portalToken,
     p2PortalId: p2Portal.portalId,
@@ -1378,10 +1206,6 @@ async function main(): Promise<void> {
     directPortalToken: directPortal.portalToken,
     portalGroupId: IDS.p1Group,
     portalLinkId: IDS.p1Link,
-    managerParticipationId: IDS.managerParticipation,
-    staffParticipationId: IDS.staffParticipation,
-    emailQueueFixtureIds: [IDS.p1EmailQueue, IDS.p2EmailQueue, IDS.p3EmailQueue],
-    reviewCount: 100,
   })
   const clearedLimits = await clearGuestRateLimitCounters()
   console.log(
