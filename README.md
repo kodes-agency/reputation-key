@@ -13,8 +13,10 @@ for changes, [triage](docs/triage.md) for the work queue, and
 ## Quick Start
 
 Needs Node 22.23.4 (`.nvmrc`; `engines` rejects other versions), pnpm (the
-version in `package.json` through `corepack enable`), Docker with Compose, and
-`openssl`. Any Node version manager that reads `.nvmrc` works.
+version in `package.json` through `corepack enable`), Docker with Compose,
+`openssl` and `jq`. Any Node version manager that reads `.nvmrc` works. Clone
+with full history (no `--depth`): a test reads earlier revisions, and a shallow
+clone fails it until `git fetch --unshallow`.
 
 ```bash
 pnpm install
@@ -30,7 +32,9 @@ No `.env` file is needed: the committed `e2e/stack.env` carries the local
 configuration. `pnpm local:down` removes the services and their volumes.
 
 `pnpm verify` runs the checks CI runs on every change: lint and static checks,
-typecheck, formatting and the unit tests.
+typecheck, formatting and the unit tests. Typecheck alone peaks near 6 GB of
+memory, so give the machine, or the Docker or VM allotment, at least 8 GB; a
+4 GB container gets killed.
 
 Optional extras, none needed for setup: `local.env` (see "Local stacks" below),
 `orca.yaml` (setup script for the Orca app) and `.mcp.json` (the shadcn MCP

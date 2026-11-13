@@ -31,7 +31,7 @@ record(
   'docker daemon reachable',
   dockerUp
     ? `server ${docker.stdout.trim()}`
-    : 'start Docker Desktop — compose builds fail with an EOF rpc error while it is down',
+    : 'start Docker (Docker Desktop, or the docker service on Linux) — compose builds fail with an EOF rpc error while it is down',
 )
 
 // ── ports ──────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ if (dockerUp) {
     gib >= 6
       ? `${gib.toFixed(1)} GiB`
       : `${gib.toFixed(1)} GiB is not enough for postgres + redis + 6 services and their builds — ` +
-          'raise it in Docker Desktop > Settings > Resources (8 GiB is comfortable)',
+          'raise it in Docker Desktop > Settings > Resources, or give the VM more memory (8 GiB is comfortable)',
   )
 
   const df = spawnSync('docker', ['system', 'df', '--format', '{{.Type}}\t{{.Size}}'], {
