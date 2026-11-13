@@ -2598,15 +2598,23 @@ or manager report that the form or Reveal answers "unavailable".
 the switch alone shows nothing. Withdrawal, the daily contact-only purge and the
 erasure replay run whether the switch is on or off, and need no key.
 `CONTACT_REQUEST_ENCRYPTION_KEY` is 64 hex characters (AES-256-GCM). Never create
-it as an empty value: set it to a real key or leave it unset. There is one key
-version, `v1`. Rotating or removing the key makes every open request unrevealable
-(Reveal answers unavailable) until it is expired or withdrawn; it does not
-re-seal stored details.
+it as an empty value: set it to a real key or leave it unset. Set both variables
+on the web service only. The worker parses the same settings and refuses to boot
+with the switch on and no key, and it needs neither: the daily purge and the
+erasure replay run without them. There is one key version, `v1`. Rotating or
+removing the key makes every open request unrevealable until it is expired or
+withdrawn; it does not re-seal stored details. Reveal then answers the same 404 as
+for a missing request, writes no reveal record and raises no error event, so a
+wrong key shows only as managers reporting "unavailable".
 
 **Prerequisites/Diagnostics.** The approved guest copy, Privacy Notice and manager
 text; the per-Portal notice evidence in the publication snapshot; the key set in
 the web service only; the erasure journal bucket healthy (a failed journal write
-refuses a withdrawal). Never print the key.
+refuses a withdrawal). Never print the key. The operator can only erase the whole
+response, which takes the email and name with it. The email is stored only
+sealed, so a response cannot be found by searching for an address: a guest who
+asks after the 24-hour window must identify the response as the Privacy Notice's
+rights section describes.
 
 **Recovery.** Set `CONTACT_REQUESTS_ENABLED=false` and restart web: guests and
 managers get the same 404, stored details stay sealed and expire. Details past 30
