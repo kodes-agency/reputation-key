@@ -19,11 +19,11 @@ import type { MatchedIssue } from './use-matched-issue'
 import type { MatchedTopic } from './use-matched-topic'
 
 /**
- * The dashboard settled on Praise / Complaint (plan rows 6, 11) but neither
- * shared table says that: `ASPECT_POLARITY_LABELS` still says Positive /
+ * The dashboard says Praise / Complaint but neither
+ * shared table does: `ASPECT_POLARITY_LABELS` says Positive /
  * Negative, and `ASPECT_POLARITY_OPTIONS` pluralises ("Complaints") because it
  * labels a filter spanning many reviews. One chip describes one mention, so the
- * word is singular and the map lives here until the shared table catches up.
+ * word is singular and the map lives here.
  */
 const POLARITY_WORD: Readonly<Record<ReviewAspectPolarity, string>> = Object.freeze({
   positive: 'Praise',
@@ -32,7 +32,7 @@ const POLARITY_WORD: Readonly<Record<ReviewAspectPolarity, string>> = Object.fre
 })
 
 /**
- * Direction colour never carries meaning alone (plan row 11, dashboard row 10):
+ * Direction colour never carries meaning alone:
  * every tinted chip also prints its arrow and its polarity word. A neutral
  * mention gets no tint and no arrow, because there is no direction to show.
  */
@@ -93,17 +93,16 @@ function matchedLine(matched: MatchedTopic): string {
 }
 
 /**
- * What the review is about, in the dashboard's vocabulary. The sentiment chip
- * the old analysis panel led with is gone: a chip per mentioned topic already
- * says which way each one points, and one summary word over the top of them
- * only disagreed with the detail underneath it.
+ * What the review is about, in the dashboard's vocabulary. There is no overall
+ * sentiment chip: a chip per mentioned topic already says which way each one
+ * points, and one summary word over them would only disagree with the detail.
  *
- * The "Needs attention" pill is gone too (owner P-5, 2026-10-28). It showed the
- * AI's urgent-or-high, so it contradicted a manager's Low a few centimetres
- * away, and the same words are the open-feedback status in the toolbar. The
- * toolbar's Priority control now says the level; when a person's level and the
- * current suggestion disagree, one muted line here says what the review's
- * signals suggest (copy C-10).
+ * There is no "Needs attention" pill either: it would show the AI's
+ * urgent-or-high and contradict a manager's Low a few centimetres away, and
+ * the same words are the open-feedback status in the toolbar. The toolbar's
+ * Priority control says the level; when a person's level and the current
+ * suggestion disagree, one muted line here says what the review's signals
+ * suggest.
  */
 export function TopicChips({
   analysis,

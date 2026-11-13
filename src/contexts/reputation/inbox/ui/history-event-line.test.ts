@@ -4,7 +4,7 @@ import { presentFeedbackHandlingOutcomeEvent } from './feedback-handling-present
 import { historyEventLine, type HistoryEventLine } from './history-event-line'
 import type { InboxHistoryEntry } from './inbox-thread-model'
 
-// The parts contract of plan v2.1 row 11, per kind, with every guard the
+// The parts contract per kind, with every guard the
 // varchar casts in `inbox-history-repository.server.ts` make reachable on a cached
 // client. The words asserted here are the words a reader sees: the node joins
 // actor, verb and object with single spaces and adds nothing else to them.
@@ -109,8 +109,8 @@ function spoken(line: HistoryEventLine | null): string {
 const lineFor = (detail: Detail, over: Partial<InboxHistoryEntry> = {}) =>
   historyEventLine(entry(detail, over))
 
-// Every sentence this build can write, in both leads: `alone` is v1's sentence
-// verbatim, `led` is what follows `Maria Petrova `.
+// Every sentence this build can write, in both leads: `alone` is the actor-less sentence,
+// `led` is what follows `Maria Petrova `.
 const REOPEN_WORDS = [
   ['guest_follow_up_still_needed', 'guest follow-up still needed'],
   ['internal_follow_up_still_needed', 'internal follow-up still needed'],

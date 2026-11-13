@@ -21,7 +21,7 @@ export type GuestReviewDisclosure = Readonly<{
 }>
 
 /**
- * Plan row 8, as amended by review (see `presentGuestReviewBody`). Five shapes,
+ * The body arrangement (see `presentGuestReviewBody`). Five shapes,
  * and the render site reads exactly one of them:
  *
  * - `no_text` — nothing to print. Covers a rating-only review AND content the
@@ -29,7 +29,7 @@ export type GuestReviewDisclosure = Readonly<{
  *   because `GuestMessage` already prints the right sentence from
  *   `detail.reviewContentStatus` (`expired` vs `not_found` vs silence).
  * - `original_only` — the guest's words, no disclosure at all.
- * - `original_first` — today's arrangement: the guest's words as the body, the
+ * - `original_first` — the guest's words as the body, the
  *   machine translation behind `Google translation`.
  * - `translation_first` — the translation as the body, the guest's words behind
  *   `Original in <language>`, and an attribution line above it.
@@ -115,8 +115,8 @@ export type GuestReviewBodyInput = Readonly<{
  * whichever way the disclosure points. An action label (`Show original`) goes
  * on reading "show" while the original is on screen, and native `<details>`
  * announces it as "Show original, expanded" — a name promising to reveal what
- * the same announcement says is revealed. v1's `Translated by Google` was a
- * noun phrase for this reason, and the repo's other flex-summary disclosure
+ * the same announcement says is revealed. A noun phrase such as
+ * `Translated by Google` avoids this, and the repo's other flex-summary disclosure
  * (`property-guest-voice-page.tsx:52`, "What is in this figure") is one too.
  */
 const TRANSLATION_LABEL = 'Google translation'
@@ -174,18 +174,12 @@ function isContentGone(status: ReviewContentStatus): boolean {
 
 /**
  * True only when BOTH languages are known and they differ. Unknown is not
- * different, and that distinction is the whole of the review fix.
- *
- * Plan row 8 as first written compared with `equivalentReplyLanguageTags` and
- * promoted the translation whenever that answered false — but it answers false
- * whenever EITHER side is null (`reply-language-options.ts:51`), and in
- * production the review side is always null: the only review source,
- * `google-review-api.adapter.ts:450`, hard-codes `languageCode: null`, and
- * `google-review-comment.ts:7` measured `reviews.language_code` NULL for all
- * 256 rows. So every translated review flipped to translation-first — a
- * Bulgarian guest's Bulgarian sentence folded away at a Bulgarian property,
- * under Google's ENGLISH rendering of it — and the "same language keeps
- * today's arrangement" half of the row could never run.
+ * different. `equivalentReplyLanguageTags` answers false whenever EITHER side
+ * is null (`reply-language-options.ts:51`), and in production the review side
+ * is always null: the only review source, `google-review-api.adapter.ts:450`,
+ * hard-codes `languageCode: null` (`google-review-comment.ts:7`). Promoting on
+ * that answer would fold a Bulgarian guest's Bulgarian sentence away at a
+ * Bulgarian property, under Google's ENGLISH rendering of it.
  *
  * Both sides must canonicalize. `parseCanonicalReplyLanguageTag` needs a
  * `<lang>-<Script>` group (`reply-language-catalogue.ts:81-96`), so a raw
@@ -195,11 +189,10 @@ function isContentGone(status: ReviewContentStatus): boolean {
  * keeps this function honest for a caller that is not the use case.
  *
  * What this still does NOT prove is that the reader can read the translation:
- * its language is recorded nowhere (see `GuestReviewBodyView`), and on this
- * repo's own measurement it is English (`google-review-comment.ts:8-10`). That
- * is why the attribution line names the source language and never claims a
- * target, and it is the question row 8 must answer before a review-language
- * signal is ever written — the moment one is, this branch goes live.
+ * its language is recorded nowhere (see `GuestReviewBodyView`), and in practice
+ * it is English (`google-review-comment.ts:8-10`). That is why the attribution
+ * line names the source language and never claims a target, and why this
+ * branch goes live the moment a review-language signal is written.
  */
 function provenForeignToProperty(input: GuestReviewBodyInput): boolean {
   const review = input.reviewLanguageTag ?? null
@@ -215,15 +208,15 @@ function provenForeignToProperty(input: GuestReviewBodyInput): boolean {
 }
 
 /**
- * Which of the guest's two texts is the body (plan row 8, amended). The guest's
+ * Which of the guest's two texts is the body. The guest's
  * own words lead unless the review is PROVABLY in a language other than the
  * one the property replies in; only then is Google's rendering promoted, with
  * the original one click away and never discarded.
  *
- * The default direction matters more than the promotion. Before row 8 the pane
- * always led with the original; keeping that whenever the evidence is missing
- * means the worst this rule can do on unknown data is what v1 already did,
- * rather than put machine text in a guest's mouth.
+ * The default direction matters more than the promotion: leading with the
+ * original whenever the evidence is missing means the worst this rule can do on
+ * unknown data is show the guest's own words, rather than put machine text in a
+ * guest's mouth.
  */
 export function presentGuestReviewBody(input: GuestReviewBodyInput): GuestReviewBodyView {
   if (isContentGone(input.reviewContentStatus)) return { kind: 'no_text' }

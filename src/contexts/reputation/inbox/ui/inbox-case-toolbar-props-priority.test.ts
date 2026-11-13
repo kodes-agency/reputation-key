@@ -1,5 +1,5 @@
 // The Priority member's half of the toolbar's prop bag (ADR 0071), in a file of
-// its own: `inbox-case-toolbar-props.test.ts` stands near the 300 counted lines
+// its own: `inbox-case-toolbar-props.test.ts` is near the 300 counted lines
 // ESLint `max-lines` allows under `src/components`.
 import { describe, expect, it, vi } from 'vitest'
 import {

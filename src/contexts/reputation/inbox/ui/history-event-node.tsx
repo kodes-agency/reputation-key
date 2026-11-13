@@ -25,7 +25,7 @@ import { formatExactTime, formatRelativeTime } from '#/components/inbox/utils'
 import type { InboxHistoryEntry } from './inbox-thread-model'
 import type { ReactNode } from 'react'
 
-/** A person named in the line — the actor or the assignee (plan v2.1 row 11). */
+/** A person named in the line — the actor or the assignee. */
 const PERSON_CLASS = 'font-medium text-foreground'
 
 function eventIcon(entry: InboxHistoryEntry): ReactNode {
@@ -69,7 +69,7 @@ function eventIcon(entry: InboxHistoryEntry): ReactNode {
 
 /**
  * One Handling History entry as a node on the thread's rail — an event, not a
- * message, so it takes the 24 px indicator (row 9) and one line of 13 px text.
+ * message, so it takes the 24 px indicator and one line of 13 px text.
  *
  * The node owns its whole `TimelineItem`, not only the content, because the
  * rail forbids an item around nothing (`ui/timeline.tsx`: an empty item still
@@ -89,14 +89,13 @@ function eventIcon(entry: InboxHistoryEntry): ReactNode {
  *
  * `wrap-anywhere` because the two names in the line are not ours to shorten: a
  * display name is whatever the member typed, and one without a space (an email
- * address used as a name) does not break at `whitespace`. Measured in Chromium
- * against `pnpm storybook` with a 300-character actor, the line pushed the
- * thread 1204 px past its 720 px pane at a 1440 px viewport, 1566 px past its
- * 358 px pane at 390 and 1636 px past its 288 px pane at 320; with it, zero. Ordinary words still break only at their spaces.
+ * address used as a name) does not break at `whitespace`. A 300-character
+ * actor would push the thread 1204 px past its 720 px pane at a 1440 px
+ * viewport, 1566 px past its 358 px pane at 390 and 1636 px past its 288 px
+ * pane at 320. Ordinary words still break only at their spaces.
  *
- * Row 11 asks for the time in the tertiary text colour. It is not: in this
- * repo's tokens `--text-tertiary` on `--surface` measures 2.67:1 light and
- * 3.13:1 dark (oklch → sRGB relative luminance), and 13 px text needs 4.5:1
+ * The time is not in the tertiary text colour: `--text-tertiary` on
+ * `--surface` is 2.67:1 light and 3.13:1 dark, and 13 px text needs 4.5:1
  * (WCAG 1.4.3). The time takes the verb's `text-muted-foreground` (6.53:1 light,
  * 7.04:1 dark) and its rank comes from its place — last, after a separator.
  */
@@ -147,7 +146,7 @@ export function HistoryEventNode({
                 It speaks the same promise `note-message.tsx` puts in a note's
                 accessible name (`…, not visible to the guest`), so the rail
                 makes one promise for both kinds of private text. It keeps a
-                lock where the note has none: row 12 removed the note's lock
+                lock where the note has none: the note's lock is omitted
                 because the note's own box — its label, its dashed edge — already
                 marks it, while this glyph is the only thing marking a manager's
                 words that sit in the event column rather than in a note. It carries its words as an

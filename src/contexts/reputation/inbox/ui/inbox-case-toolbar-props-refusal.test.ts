@@ -1,6 +1,6 @@
 // A refused toolbar command, in a file of its own: the suite for the rest of
-// the selector, `inbox-case-toolbar-props.test.ts`, stands at the edge of the
-// 300 counted lines ESLint `max-lines` allows under `src/components`.
+// the selector, `inbox-case-toolbar-props.test.ts`, is at the edge of the 300
+// counted lines ESLint `max-lines` allows under `src/components`.
 //
 // The fixtures are the smallest input `buildInboxCaseToolbarProps` reads,
 // repeated rather than imported from the base suite: a test file exporting
@@ -44,7 +44,7 @@ function makeInput(overrides: Partial<InboxCaseToolbarInput>): InboxCaseToolbarI
 
 describe('a refused toolbar command', () => {
   // The toolbar hands the strip `() => void`, so the promise has nowhere to go
-  // and a bare `void` left every refusal unhandled. What TELLS the manager is
+  // and a bare `void` leaves every refusal unhandled. What TELLS the manager is
   // the command's `errorMessage` toast; this pins that nothing escapes.
   //
   // A plain function, not `vi.fn()`: a spy attaches its own handler to the

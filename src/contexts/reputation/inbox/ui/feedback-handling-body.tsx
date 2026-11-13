@@ -15,10 +15,9 @@ type CloseReason = NonNullable<FeedbackHandlingState['closeReason']>
  * button; it is a state whose button can never exist, and the blank where it
  * would be needs a reason or it reads as a bug.
  *
- * `source_ineligible` no longer falls through to the generic sentence, which
+ * `source_ineligible` does not fall through to the generic sentence, which
  * ends `Reopen it if more follow-up is needed` — advice the server refuses for
- * exactly these two reasons. That was a bug in the deleted card, ported no
- * further.
+ * exactly these two reasons.
  *
  * The withdrawn sentence is verbatim: `inbox-handling-cycle.spec.ts:369-377`
  * asserts it, and it is the one true thing to say about that state.
@@ -53,7 +52,7 @@ const noOutcomeSentence = (closeReason: FeedbackHandlingState['closeReason']): s
  * The action, at the foot of region 4 and right-aligned under the note form's
  * own submit, so the two read as one column of controls.
  *
- * `variant="default"` — row 10's word "primary", literally. This is the action
+ * `variant="default"`: the primary action, the one
  * the manager opened the item to take. Whether `Add note` is demoted to
  * `outline` beside it is NOT this file's call: `InboxNotesThread` is shared
  * with review items, where the note submit is the only action in note mode and
@@ -95,19 +94,14 @@ type Props = Readonly<{
 /**
  * What a handling cycle offers, as one node at the foot of the composer.
  *
- * This was the body of a bordered section with an icon band, a heading, a
- * subtitle and a badge — the last of finding 1's six section grammars. All of
- * that chrome is gone and what it held is redistributed: the badge is the case
- * strip's status chip, and the `Current outcome` box and the `Outcome history`
- * list are `handling_outcome` rows in the thread, where they interleave with
- * the assignment and escalation events that happened around them instead of
- * duplicating them in a side list. The card's subtitle ("Record the manager
- * outcome while keeping the guest's rating unchanged.") is deleted rather than
- * moved: it explained the card to itself, the button's verb carries the first
- * half, and the dialog's own description carries the rest at the moment it
- * matters. Row 8's rule is that explanations render by exception.
+ * No section chrome: the badge is the case strip's status chip, and the
+ * current outcome and the outcome history are `handling_outcome` rows in the
+ * thread, where they interleave with the assignment and escalation events
+ * around them instead of duplicating them in a side list. There is no subtitle:
+ * the button's verb says what the action does, and the dialog's own description
+ * carries the rest at the moment it matters. Explanations render by exception.
  *
- * What is left is four states and, by exception, the one sentence a state needs
+ * There are four states and, by exception, the one sentence a state needs
  * when it has no action. Which action a state offers is `feedbackHandlingAction`
  * and lives next door, because the host that pairs this node with the note form
  * has to ask the same question to place the region's accent; the branch order
@@ -120,7 +114,7 @@ export function FeedbackHandlingBody({
   onCorrect,
 }: Props): ReactNode {
   // No permission, no foot at all — not a disabled button, and not an
-  // explanation of an affordance this reader never had (row 8). Production
+  // explanation of an affordance this reader never had. Production
   // cannot reach this: the server null-gates `detail.feedbackHandling` on the
   // same permission pair, so a caller without it arrives with no state and the
   // pane passes no slot. A Storybook fixture can, and there the region still

@@ -1,7 +1,6 @@
 // What the empty To handle queue offers beside its explanation of where private
 // feedback comes from: a way to set up the page it comes from, for someone who
-// may create one, and only where the scope has none (ADR 0057, amended
-// 2026-10-28). It is mounted only while that empty state shows, so the question
+// may create one, and only where the scope has none (ADR 0057). It is mounted only while that empty state shows, so the question
 // "does this scope have a Portal?" is asked only then.
 import { Link } from '@tanstack/react-router'
 import { skipToken, useQuery } from '@tanstack/react-query'

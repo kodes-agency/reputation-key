@@ -1,4 +1,4 @@
-// A review's v3 reading in the Inbox: the specific causes it names as chips, the
+// A review's reading in the Inbox: the specific causes it names as chips, the
 // sentences it cites underlined in the guest's own words, the chips an issue link was
 // about, and "Not right?" — a manager's corrections, which take effect as they are clicked.
 //

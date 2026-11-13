@@ -1,7 +1,7 @@
 // What the Inbox underlines in a review: the stretches of the guest's own words that a v3
 // reading cites. The analysis stores no sentence, only the numbers of the sentences that
 // state a mention (`review-sentences-v1`). The pane holds the review's words, so it cuts
-// them with the same rule and marks the sentences cited; a number the words no longer
+// them with the same rule and marks the sentences cited; a number the words do not
 // reach (the review changed since) marks nothing. Pure, so each case is tested without
 // rendering anything.
 import type {
@@ -86,7 +86,7 @@ function citedSentences(
     const sense = senseOfMention(mention)
     const isMatched = matched.has(mention.mentionOrdinal)
     for (const number of mention.sentenceNumbers) {
-      // A number the words no longer reach (the review changed since) cites nothing.
+      // A number the words do not reach (the review changed since) cites nothing.
       if (number < 1 || number > sentenceCount) continue
       cited.set(number, citedAlso(cited.get(number), sense, isMatched))
     }

@@ -1,13 +1,9 @@
-// The case toolbar's prop bag, built from the pane's raw inputs (plan v2.1,
-// PR 2, rows 3–5).
+// The case toolbar's prop bag, built from the pane's raw inputs.
 //
-// Why this is a module of its own and not four lines inside the pane: row 5
-// moves escalation out of the header and into the toolbar, so `escalate`,
-// `resolveEscalation` and the one pending predicate all have to reach the
-// toolbar from `inbox-detail-content.tsx` — and that file was at 296 counted
-// lines against the 300 `max-lines` limit when PR 2 started. It could not take
-// the wiring inline. The plan names this extraction by file
-// (`docs/plan/inbox-detail-v2.md`, PR 2).
+// Why this is a module of its own and not lines inside the pane: `escalate`,
+// `resolveEscalation` and the one pending predicate all reach the toolbar from
+// `inbox-detail-content.tsx`, which is at the `max-lines` limit and cannot take
+// the wiring inline.
 //
 // Pure on purpose: no React, no JSX, no `.tsx` import. The unit project runs in
 // node with no jsdom (`vitest.config.ts`, project `unit`), so every derivation
@@ -17,13 +13,13 @@
 //
 // What is deliberately NOT here:
 //
-// - Permissions. Each control keeps reading `usePermissions()` itself, as the
-//   strip and the assignee chip did before PR 2 (`inbox-case-toolbar.tsx`,
-//   `StatusMember`; `inbox-owner-control.tsx`, `InboxOwnerControl`),
-//   because the gate and the menu it gates have to be read in one place — the
-//   owner menu's choices depend on `inbox.manage` (`buildChoices`), and a
-//   second copy of the `inbox.write ∧ SOURCE_HANDLE_PERMISSION` pair up here
-//   would be a second place for it to drift.
+// - Permissions. Each control reads `usePermissions()` itself
+//   (`inbox-case-toolbar.tsx`, `StatusMember`; `inbox-owner-control.tsx`,
+//   `InboxOwnerControl`), because the gate and the menu it gates have to be
+//   read in one place — the owner menu's choices depend on `inbox.manage`
+//   (`buildChoices`), and a second copy of the
+//   `inbox.write ∧ SOURCE_HANDLE_PERMISSION` pair up here would be a second
+//   place for it to drift.
 // - Labels and initials. `feedbackHandlingStatusLabel` and the owner's name
 //   resolution belong to the controls that print them; duplicating either here
 //   would give the toolbar two answers to "what does this say".
@@ -41,25 +37,20 @@ import type { InboxDetailState } from './use-inbox-detail'
 
 /**
  * The signed-in viewer, as the route context already carries it
- * (`routes/_authenticated.tsx:165-168`: `id`, `name`, `email`, `image`). Row
- * 4's owner control needs `name` to print the viewer's own initials when the
- * item is theirs; until PR 2 the page forwarded only `ctx.user?.id`
- * (`inbox-page-v2.tsx`, both the sheet and the panel branch). The page now
- * hands over `ctx.user` itself — `InboxCtx['user']` was widened to match — and
- * the pane passes it down unreshaped to the toolbar and, as `currentUser.id`,
- * to the thread.
+ * (`routes/_authenticated.tsx:165-168`: `id`, `name`, `email`, `image`). The
+ * owner control needs `name` to print the viewer's own initials when the item
+ * is theirs, so the page hands over `ctx.user` itself and the pane passes it
+ * down unreshaped to the toolbar and, as `currentUser.id`, to the thread.
  *
  * The ONE definition of the viewer for the whole pane. It lives in this pure
  * module rather than beside the owner control that reads `name`, because the
  * page, the panel, the sheet and the pane all name it too, and a `.ts` with no
  * React in it is the lowest point every one of them can import a type from.
- * Two builders drew it twice during PR 2 (here and `inbox-owner-control.tsx`);
- * the owner control now imports this one.
  *
  * `name` and `image` are optional and nullable: a surface that only has the id
  * (a story, a test) still compiles, and the owner control degrades to the
  * person glyph rather than drawing a wrong disc. `image` is carried because
- * the route has it and row 4 names it; no control reads it yet.
+ * the route has it; no control reads it yet.
  */
 export type InboxCurrentUser = Readonly<{
   id: string
@@ -172,11 +163,9 @@ export type InboxCaseToolbarProps = Readonly<{
 }>
 
 /**
- * The revision fence every item command carries. Before PR 2 the same
- * three-line literal was written three times — in the header's escalation
- * button, in `use-inbox-page.ts` for the `e` shortcut, and as the pane's
- * `expected` for its reopen dialog. All three now call this: the escalation
- * member through the bound commands below, the shortcut and the pane directly.
+ * The revision fence every item command carries. The escalation member calls
+ * it through the bound commands below; the `e` shortcut (`use-inbox-page.ts`)
+ * and the pane's reopen dialog call it directly.
  */
 export type InboxItemCommandFence = Readonly<{
   inboxItemId: InboxItem['id']
@@ -191,8 +180,7 @@ export function itemCommandFence(item: InboxItem): InboxItemCommandFence {
 }
 
 /**
- * The predicate the header's escalation button computed inline before PR 2.
- * The toolbar member reads it through the props below and the `e` shortcut
+ * Whether the item has a raised, unresolved escalation. The toolbar member reads it through the props below and the `e` shortcut
  * calls it directly (`use-inbox-keyboard-shortcuts.ts`, `runEscalation`), so
  * the button and the key cannot disagree about which command a press issues.
  */
@@ -217,25 +205,21 @@ export type InboxDetailBranchState = Pick<
  * Both surfaces branch on it before rendering the content: `InboxDetailPanel`
  * and `InboxDetailSheet` show the error block (with `Try again`) or skeletons when
  * it is false, and mount the content otherwise. The HEADER renders in all three
- * branches.
- * That difference only started to matter in PR 2: while Escalate / Resolve
- * lived in the header, the button existed during a first load and after a
- * failed one; row 5 moved it into the toolbar, which is inside the content, so
- * in those branches there is no escalation control on screen at all.
+ * branches, but the toolbar is inside the content, so in the loading and error
+ * branches there is no escalation control on screen at all.
  *
  * The `e` shortcut (`use-inbox-page.ts`) promises parity with that control — a
  * key must never reach past a control the pane has taken away — so it asks
  * this predicate too. Without it, `e` on an uncached item's first open
  * (`use-inbox-detail.ts`, `isLoading` is `detailQuery.isLoading ||
- * notesQuery.isLoading`) or on a pane stuck on the detail error issued
- * `escalate` from a pane that showed no Escalate button.
+ * notesQuery.isLoading`) or on a pane stuck on the detail error would issue
+ * `escalate` from a pane that shows no Escalate button.
  *
  * Both surfaces call THIS predicate rather than restating the condition inline,
  * so the key and the button read one condition and cannot drift apart.
- * `!state.error` rather than `=== null` on purpose: it is
- * the truthiness the two surfaces tested inline before they called this, and
- * the two disagree on an empty error string — which would have shown a pane
- * whose shortcut was refused.
+ * `!state.error` rather than `=== null` on purpose: the two disagree on an
+ * empty error string, and `=== null` would show a pane whose shortcut was
+ * refused.
  */
 export function isCaseToolbarShown(state: InboxDetailBranchState): boolean {
   return !state.error && !state.isLoading && state.currentItem !== null
@@ -271,7 +255,7 @@ export function buildInboxCaseToolbarProps(
     prioritySuggestion: prioritySuggestion(detail?.analysis),
     priorityMenu: input.priorityMenu,
     // Each `.catch`ed, not merely `void`ed: an `Action` is `mutateAsync` and
-    // rejects on refusal, so a bare `void` made every refused command an
+    // rejects on refusal, so a bare `void` would make every refused command an
     // unhandled rejection. What TELLS the manager is the `errorMessage` toast
     // these commands carry in `use-inbox-detail.ts` — the toolbar narrows them
     // to `() => void`, so `.error` reaches no renderer here.

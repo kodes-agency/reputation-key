@@ -6,7 +6,7 @@ import { inboxKeys } from '#/shared/queries/query-keys'
 import type { InboxServerFns } from '#/components/inbox/types'
 
 // The thread mounts a moment after the pane started the read. At 0 it would
-// read again as it mounted, one more request for what the pane just fetched. A
+// read again on mount, one more request for what the pane just fetched. A
 // change to the item still reads again at once: `invalidateQueries` ignores
 // this (`inbox-cache-policy.ts`).
 const HISTORY_FRESH_MS = 3_000

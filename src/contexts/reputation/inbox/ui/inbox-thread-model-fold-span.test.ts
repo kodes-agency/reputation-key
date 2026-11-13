@@ -1,19 +1,18 @@
-// What a fold may hide, and so where its marker may stand (plan v2.1 row 13,
-// amended in PR 3's review): the folded span is the UNBROKEN run of system
+// What a fold may hide, and so where its marker may stand: the folded span is the UNBROKEN run of system
 // events directly after the review. A note, the reply, or an event that carries
 // a person's words ends the run, and a run shorter than four does not fold.
 //
-// Two findings drove it, and each has its fixture below:
+// Two constraints, each with its fixture below:
 //
-// - ORDER. Row 13 fixed the marker directly after the review and hid "all but
-//   the newest three" events. When a note or the reply sat AMONG the hidden
+// - ORDER. The marker stands directly after the review and hides "all but
+//   the newest three" events. If a note or the reply sat AMONG the hidden
 //   events, it rendered below a marker holding events newer than it — `guest ·
 //   Show 4 earlier events · note@5h · reply@7h · e5…` over e3@6h and e4@8h —
 //   and opening the fold split the revealed events around the note instead of
 //   putting them after the toggle. No single marker can stand in for events on
 //   both sides of an entry that stays visible, so the span must not contain one.
 // - WORDS. An outcome's internal note and a manual reopen's explanation are a
-//   manager's text riding on a `kind: 'event'` entry. Row 13 folds only what
+//   manager's text riding on a `kind: 'event'` entry. A fold hides only what
 //   the system recorded, so an event whose line has a `body` never folds either.
 //
 // The invariant every case asserts is `unfold(folded) === built`: putting the

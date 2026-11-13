@@ -69,8 +69,8 @@ export function FeedbackHandlingForm(props: Props) {
               </SelectTrigger>
               <SelectContent>
                 {PRIVATE_FEEDBACK_HANDLING_OUTCOMES.map((outcome) => (
-                  // A MENU ITEM, so it keeps v1's 44 px floor below `md` while
-                  // the trigger above and the footer's buttons are 36 (row 20):
+                  // A MENU ITEM, so it keeps a 44 px floor below `md` while
+                  // the trigger above and the footer's buttons are 36:
                   // five options stacked edge to edge with no gap, where a thumb
                   // that misses one records the neighbouring outcome. These
                   // options render into a Radix portal at `document.body`, so

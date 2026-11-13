@@ -1,16 +1,14 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-// Inbox context — an Inbox item whose Review Google deleted (S10-02).
+// Inbox context — an Inbox item whose Review Google deleted.
 // Real PostgreSQL behind the real Review repository.
 //
 // The snapshot sync erases a deleted Review (`provider_deleted`) and Inbox
 // closes its item with `source_ineligible`. The item stays in the list and the
-// Closed queue shows it. Every Inbox read of the Review used to go through a
-// finder that threw `invalid_row` for the erased row, so one such item made
-// the whole Closed queue page, the item's own detail, a reopen, a bulk reopen
-// and the projection rebuild fail. Each of those reads was written for an
-// absent Review: the page renders the item without content, the detail says
-// the content is not found, a reopen says the source is unavailable, a bulk
-// reopen sees a short result and a rebuild has nothing to repair.
+// Closed queue shows it. Every Inbox read of the Review treats the erased row
+// as an absent Review rather than an invalid one: the page renders the item
+// without content, the detail says the content is not found, a reopen says the
+// source is unavailable, a bulk reopen sees a short result and a rebuild has
+// nothing to repair.
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
@@ -262,8 +260,7 @@ beforeEach(async () => {
     })
   }
   // Google deletes the review: the sync erases the Review row and keeps the
-  // content clock it had (the beta's one existing tombstone has exactly this
-  // shape), and Inbox closes the item.
+  // content clock it had, and Inbox closes the item.
   await eraseKeepingContentClock(pool, {
     id: ERASED_REVIEW,
     organizationId: ORG,

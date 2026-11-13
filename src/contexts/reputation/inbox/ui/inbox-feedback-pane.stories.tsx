@@ -1,6 +1,6 @@
-// Inbox detail pane — a private-feedback item, end to end (plan row 10).
+// Inbox detail pane — a private-feedback item, end to end.
 //
-// Row 10's claim is that a feedback item is not a different pane: it is the
+// A feedback item is not a different pane: it is the
 // SAME four regions, with two words swapped and one control moved. That is only
 // observable where all four regions are mounted together, which is why these
 // stories are pane-level and not one per component — the strip's chip, the
@@ -8,13 +8,11 @@
 // `feedbackHandling` state, and component stories that fed each of them its own
 // fixture would stay green while the pane wired them to three different things.
 //
-// `feedback-handling-card.tsx` is deleted here, and its four parts went four
-// ways: the badge became the strip chip, the outcome record became
-// `handling_outcome` thread events, the action became region 4's
-// `singleModePrimarySlot`, and the description was deleted outright. Every
-// story below asserts the surviving half AND the absence of the card's own
-// chrome, because "the action still works" and "the card is really gone" are
-// two different regressions and only the first one fails loudly.
+// There is no handling card: the badge is the strip chip, the outcome record is
+// `handling_outcome` thread events, the action is region 4's
+// `singleModePrimarySlot`, and there is no description. Every story below
+// asserts the action works AND the absence of a card's chrome, because those
+// are two different regressions and only the first one fails loudly.
 //
 // The storybook Vitest project compiles NO Tailwind, so every utility class in
 // the tree is inert. Nothing below reads geometry — only content, roles,
@@ -44,9 +42,9 @@ import type {
   InboxNoteView,
 } from '#/contexts/inbox/application/public-api'
 
-// ─── the copy this PR is responsible for ─────────────────────────────────────
+// ─── the copy under test ────────────────────────────────────────────────────
 
-/** The strip chip's word for an open feedback item (row 10), spelled once: the rail's queue name. */
+/** The strip chip's word for an open feedback item, spelled once: the rail's queue name. */
 const TO_HANDLE = 'To handle'
 
 /**
@@ -56,7 +54,7 @@ const TO_HANDLE = 'To handle'
  * `activity-notification-facts.spec.ts:168-169`. (The triage spec spells the
  * button `Add Note`; Playwright's name matching is case-insensitive, so it
  * still resolves — the rendered name is `Add note`.) The "three e2e specs"
- * figure repeated across this folder is stale; see the PR report.
+ * figure repeated across this folder is stale.
  */
 const NOTE_PLACEHOLDER = 'Add a note…'
 const NOTE_SUBMIT = 'Add note'
@@ -66,13 +64,13 @@ const MARK = 'Mark as handled'
 const CORRECT = 'Correct outcome'
 
 /**
- * The deleted card's own chrome. Each of these was a visible string a manager
- * could read off the resting pane; none of them may come back, in any region.
+ * A handling card's chrome. None of these may appear on the resting pane, in
+ * any region.
  *
- * The description is the one part that was deleted rather than relocated: its
- * first clause is the button's own verb, and the rest — that the guest's rating
- * stays unchanged — belongs in the dialog that actually changes something, so
- * the resting surface carries no standing reassurance at all (row 8).
+ * The description has no counterpart: its first clause is the button's own
+ * verb, and the rest — that the guest's rating stays unchanged — belongs in the
+ * dialog that actually changes something, so the resting surface carries no
+ * standing reassurance at all.
  */
 const CARD_HEADING = 'Feedback handling'
 const CARD_OUTCOME_BOX = 'Current outcome'
@@ -88,7 +86,7 @@ const REOPENABLE_SENTENCE =
   'This feedback is closed without a manager outcome. Reopen it if more follow-up is needed.'
 /**
  * The clause the reopenable sentence ends with, on its own. `source_ineligible`
- * used to fall through to it in the deleted card — advice
+ * must not fall through to it — advice
  * `assertManualReopenPermitted` refuses for exactly that reason — so the
  * ineligible story asserts this substring is absent rather than the whole
  * sentence: a future edit to the generic wording must not quietly make that
@@ -396,12 +394,9 @@ type Canvas = ReturnType<typeof within>
 /**
  * Region 4, by its name.
  *
- * The region used to have no accessible name, so this helper derived it from
- * what it must contain — the note form's submit and the item action — by
- * climbing to their nearest common ancestor. It is `<section
- * aria-label="Composer">` now (`reply-composer.tsx`), so it is found the way a
- * screen reader finds it, which also pins that the landmark exists. The
- * containment checks stay: the action and the note form must be INSIDE it, and
+ * The region is `<section aria-label="Composer">` (`reply-composer.tsx`), so it
+ * is found the way a screen reader finds it, which also pins that the landmark
+ * exists. The containment checks: the action and the note form must be INSIDE it, and
  * no thread message may be, so "one primary in the region" below is a claim
  * about region 4 and not about the whole pane.
  */
@@ -415,9 +410,8 @@ function composerRegion(canvasElement: HTMLElement, actionName: string): HTMLEle
 }
 
 /**
- * Every accent inside the composer region, by name and in document order —
- * finding 4's rule, and the thing PR 5 could most easily break by putting the
- * item action under the note form. The hidden-panel filter is
+ * Every accent inside the composer region, by name and in document order; the
+ * item action must not sit under the note form. The hidden-panel filter is
  * `reply-composer.stories.tsx`'s verbatim, and is inert for a feedback item,
  * which renders no `tabs-content` at all.
  *
@@ -470,9 +464,8 @@ function expectSolePrimary(region: HTMLElement, name: string): void {
 }
 
 /**
- * The four regions, all of them, in every state below — row 10's actual claim,
- * and the assertion that would have caught the card's deletion taking the
- * composer with it. `offeredModes` gives a feedback item Note alone, so the
+ * The four regions, all of them, in every state below — the pane's actual claim.
+ * `offeredModes` gives a feedback item Note alone, so the
  * mode segment is absent by design rather than missing.
  */
 function expectTheFourRegions(canvas: Canvas): void {
@@ -487,7 +480,7 @@ function expectTheFourRegions(canvas: Canvas): void {
 
 /**
  * The note form, untouched. Two e2e journeys reach for exactly these two names
- * (see `NOTE_SUBMIT` above) and PR 5 moves a button into the same region, so
+ * (see `NOTE_SUBMIT` above) and the item action shares the region, so
  * the pin belongs in every state — including the three with no item action,
  * because a manager may always write a note about a feedback item, even one
  * nothing can be recorded against.
@@ -521,16 +514,16 @@ function expectNoRawIds(canvasElement: HTMLElement): void {
 /**
  * The rail's outcome and close lines for these fixtures, as a reader sees them.
  *
- * Plan v2.1 row 11 reads actor · verb · object, so a line a person caused leads
- * with the person: `historyEvent` credits Ada Lovelace, and the first outcome
- * reads `Ada Lovelace handled — Follow-up completed`, not v1's actor-less
- * `Handled — Follow-up completed` with the name tacked on after the time. The
+ * Lines read actor · verb · object, so a line a person caused leads with the
+ * person: `historyEvent` credits Ada Lovelace, and the first outcome reads
+ * `Ada Lovelace handled — Follow-up completed`, not an actor-less
+ * `Handled — Follow-up completed`. The
  * words are `outcomeLine`'s (`history-event-line.ts`), and the led forms are
  * pinned per kind in `history-event-line.test.ts`; these stories prove the pane
  * renders them.
  *
  * `CLOSED_AS_HANDLED` is a `user` transition, so it names her too. The guest's
- * and the source's closes further down name nobody and keep v1's capitalised
+ * and the source's closes further down name nobody and keep the capitalised
  * sentence, which is why those stories still look them up by plain text.
  */
 const ACTOR = 'Ada Lovelace'
@@ -539,8 +532,7 @@ const CORRECTED_LINE = `${ACTOR} corrected the outcome — Handled with the team
 const CLOSED_AS_HANDLED_LINE = `${ACTOR} closed this — the feedback was handled`
 
 /**
- * An outcome sentence in EITHER lead — v1's actor-less wording or row 11's
- * actor-led one — for the stories that assert no outcome row renders at all. A
+ * An outcome sentence in EITHER lead — actor-less or actor-led — for the stories that assert no outcome row renders at all. A
  * pattern for only one of the two would pass vacuously whenever the fixture's
  * row happens to carry the other.
  */
@@ -553,7 +545,7 @@ function normalised(text: string | null | undefined): string {
 }
 
 /**
- * Finds an event's sentence line by what a reader SEES. Row 11 builds the line
+ * Finds an event's sentence line by what a reader SEES. The line is built
  * from parts — the actor in its own weighted span, the verb phrase in another —
  * so no single element owns `Ada Lovelace handled — Follow-up completed` and a
  * plain `getByText` finds nothing. This matches the paragraph whose whole text
@@ -678,13 +670,13 @@ const meta: Meta<typeof InboxDetailContent> = {
 export default meta
 type Story = StoryObj<typeof InboxDetailContent>
 
-// ─── the four states row 10 lists ────────────────────────────────────────────
+// ─── the four handling states ────────────────────────────────────────────────
 
 /**
  * Open. The work is outstanding, so the chip says so in the feedback
  * vocabulary and the composer offers the one command that can close it.
  *
- * A note is in the fixture on purpose: with the notes list retired, an internal
+ * A note is in the fixture on purpose: an internal
  * note is a message in the same thread as the handling events, and this is the
  * only state where the whole anatomy — guest message, event, note, composer —
  * is on screen at once.
@@ -947,9 +939,8 @@ export const FeedbackWithdrawn: Story = {
     // Nor may it be talked into a reopen the server refuses for this reason.
     await expect(canvasElement.textContent ?? '').not.toContain(REOPEN_ADVICE)
 
-    // The chip reports the close and invents no judgement. It used to read a
-    // bare `Handled` here, which is the deleted card's own defect wearing a
-    // different shape: the domain refuses a manager outcome for this close
+    // The chip reports the close and invents no judgement. A bare `Handled`
+    // would be wrong here: the domain refuses a manager outcome for this close
     // FOREVER — no later cycle re-earns the right — so `Handled` asserts a
     // human decision that can never exist, while the region right below it is
     // busy saying in a sentence that none was recorded. The third word is the
@@ -975,13 +966,11 @@ export const FeedbackWithdrawn: Story = {
 
 /**
  * `source_ineligible` — the second close the domain refuses an outcome for, and
- * the one whose copy this PR changes.
+ * the one with its own copy.
  *
- * The deleted card fell through to the generic sentence here, which ends
- * `Reopen it if more follow-up is needed` — advice
- * `assertManualReopenPermitted` refuses for exactly this reason. That was a bug
- * in the card and it is not ported: the absence asserted below is the whole
- * point of the story, and `FeedbackClosedAndReopenable` beside it is what keeps
+ * The generic sentence ends `Reopen it if more follow-up is needed` — advice
+ * `assertManualReopenPermitted` refuses for exactly this reason, so it must not
+ * appear: the absence asserted below is the whole point of the story, and `FeedbackClosedAndReopenable` beside it is what keeps
  * the absence from being vacuous.
  */
 export const FeedbackSourceIneligible: Story = {
@@ -1067,7 +1056,7 @@ export const FeedbackClosedAndReopenable: Story = {
  * An outcome IS recorded, and this build has no word for its value.
  *
  * The fourth way a closed cycle ends up with nothing to name, and the one the
- * chip's own doc used to omit while calling `Handled · undefined` unreachable.
+ * chip's doc could miss by calling `Handled · undefined` unreachable.
  * It is reachable: `feedbackHandlingOutcomeLabel` is a map index over a value
  * cast straight out of a `varchar` column, and `undefined` is what a miss
  * returns. The chip's label is also its WHOLE accessible name, so an unguarded
@@ -1285,8 +1274,7 @@ export const FeedbackAsReaderReadsButCannotHandle: Story = {
  * restricted reader `handlingState` is null, `feedbackPrimary` is null, and
  * `FeedbackHandlingPrimary` never mounts — its own `can()` pair is unreachable
  * from here, and replacing that local `canHandle` with `true` leaves this story
- * green. The doc used to claim the opposite; the claim was vacuous, and the
- * pane's gate is the one worth pinning at pane level because it is the gate
+ * green. The pane's gate is the one worth pinning at pane level because it is the gate
  * that also decides the region's geometry and its accent.
  *
  * The local check is defence in depth and is covered on its own, by mounting
@@ -1307,7 +1295,7 @@ export const FeedbackActionIsPermissionGatedNotStateGated: Story = {
     const canvas = within(canvasElement)
     // The state says `Correct outcome` is the move; the permission says there
     // is no move. No button, and no explanation of an affordance this reader
-    // never had either (row 8).
+    // never had either.
     expectNoItemAction(canvas)
     await expect(canvas.queryByText(WITHDRAWN_SENTENCE)).toBeNull()
     await expect(canvas.queryByText(REOPENABLE_SENTENCE)).toBeNull()
@@ -1358,7 +1346,7 @@ export const HandlingPrimaryAloneWithoutPermission: Story = {
     const canvas = within(canvasElement)
     expectNoItemAction(canvas)
     // Not a disabled button, and not a sentence explaining an affordance this
-    // reader never had (row 8): nothing at all. The node is still non-null to
+    // reader never had: nothing at all. The node is still non-null to
     // its host, which is what buys the region its scroller either way.
     await expect(canvasElement.textContent ?? '').toBe('')
     await expect(canvas.queryAllByRole('button')).toHaveLength(0)

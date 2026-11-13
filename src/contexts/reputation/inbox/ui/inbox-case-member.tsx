@@ -1,27 +1,19 @@
 // The case toolbar's control geometry and the edge rules that keep a control's
-// own border beside a fact (plan v2.1 row 2), in one place so the three members
-// cannot drift apart. The fact itself (`Fact`) now lives in `ui/fact.tsx`.
+// own border beside a fact, in one place so the three members cannot drift
+// apart. The fact itself (`Fact`) lives in `ui/fact.tsx`, shared so the portal
+// workspace prints its facts the same way.
 //
-// Why this module exists. PR 2's first cut drew every no-move member as
-// `ButtonGroupText` with the primitive's own box — `rounded-md border bg-muted
-// shadow-xs text-sm font-medium` (`ui/button-group.tsx:47`) — and every control
-// as an outlined `Button`. At 390 px, where a control collapses to a 36 px
-// glyph square, the review measured the two looks at a fill contrast of 1.05:1
-// (light) and 1.09:1 (dark), both bordered, both shadowed, both 36 x 36: a
-// member's `GH` fact and a manager's `GH` trigger were the same square. That is
-// finding #1 of the plan ("facts and controls wear the same clothes") in grey
-// instead of in pill form. Row 2 is explicit that a fact is plain 13 px text
-// with a glyph and NO box, and row 3 that the open status is `ButtonGroupText`;
-// both hold here: a fact IS `ButtonGroupText`, with the box taken off (`Fact`,
-// in `ui/fact.tsx`, hoisted so the portal workspace prints its facts the same
-// way).
+// A fact is plain 13 px text with a glyph and NO box: `ButtonGroupText` with the
+// primitive's own box (`rounded-md border bg-muted shadow-xs`) taken off. Boxed,
+// a fact and a control are indistinguishable at 390 px, where a control collapses
+// to a 36 px glyph square (fill contrast 1.05:1 light, 1.09:1 dark).
 //
 // A control's geometry for the owner and escalation members is the Button's
 // `iconBelow="md"`: 32 px from `md` up, a glyph square below it, as wide as the
-// Button is tall there (the 44 px touch height). The
-// priority member is the same square, but by the TOOLBAR's width and not the
-// window's (`iconBelow="@lg"`): the detail pane is as narrow as 424 px of toolbar
-// on a 1280 px laptop (`inbox-priority-control.tsx`). The status control is
+// Button is tall there (the 44 px touch height). The priority member is the
+// same square, but by the TOOLBAR's width and not the window's
+// (`iconBelow="@lg"`): the detail pane is as narrow as 424 px of toolbar on a
+// 1280 px laptop (`inbox-priority-control.tsx`). The status control is
 // deliberately NOT this shape: its word is the information, so it keeps
 // `[● Closed ▾]` at every width.
 
@@ -29,7 +21,7 @@
  * Restores a control's own edge where it meets a fact. `ButtonGroup` squares
  * every inner corner and drops every non-first member's left border
  * (`ui/button-group.tsx:13`), which is right between two outlined buttons and
- * wrong beside a fact that no longer draws a box: `● Open [GH ▾]` would lose
+ * wrong beside a fact, which draws no box: `● Open [GH ▾]` would lose
  * the owner trigger's left border and both its left radii. Each selector is one
  * attribute more specific than the group's own (0,3,0 against 0,2,0), so the
  * result does not depend on the order Tailwind emits the two rules in.

@@ -1,6 +1,6 @@
 // What the empty To handle queue offers beside its explanation: "Set up a
 // feedback page", for someone who may create a Portal, only where the scope has
-// none, and asked only while that state shows (ADR 0057, amended 2026-10-28).
+// none, and asked only while that state shows (ADR 0057).
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, waitFor, within } from 'storybook/test'
 import { withPermissions } from '../../../../../.storybook/AuthedRouterDecorator'

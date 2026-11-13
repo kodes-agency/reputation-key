@@ -1,10 +1,10 @@
 // Inbox thread — the single conversation inside the detail pane's scroller,
-// drawn as ONE rail (plan v2.1 rows 9–13): the guest's review is node zero, and
+// drawn as ONE rail: the guest's review is node zero, and
 // every handling event, internal note and the reply hang off the same connector
 // below it, in the order they happened. History arrives from its own query, so
 // the thread also owns that query's pending, failed and truncated states.
 //
-// These stories are the gate for the rules a later change would break in
+// These stories pin the rules a change would break in
 // silence rather than in red: the guest leads even when a backfilled history
 // row predates the source date; the rail's children are nodes and nothing else,
 // with the query's status lines below it; a `legacy` row names no actor; an
@@ -13,16 +13,16 @@
 // draws no node and does not count towards the fold; a long history folds into
 // one toggle that keeps its focus when it opens; truncation says so exactly
 // once; the guest's star rating comes from the DETAIL payload and never from the
-// item row (plan row 7); and the guest's own words lead unless the review is
+// item row; and the guest's own words lead unless the review is
 // PROVABLY foreign to the property's reply language, with the other text always
-// one disclosure away (plan row 8, amended).
+// one disclosure away.
 //
 // The Vitest Storybook project compiles no Tailwind, so every utility class is
 // inert here. Nothing below asserts geometry or a class — only content, roles,
 // accessible names, `aria-hidden`, the primitive's `data-slot` structure,
 // document order and behaviour, which are real in this runner. The rail's
 // pixels (the 32 px column, the 2 px connector, the absent tail under the last
-// node) were measured in a real browser against `pnpm storybook`. Every rail
+// node) are real-browser measurements (`pnpm storybook`). Every rail
 // story has a 390 px twin (`…Phone`), which sets the story's own width and the
 // `mobileStaff` viewport so `max-md:` applies where Tailwind does compile.
 import { Button } from '#/components/ui/button'
@@ -76,8 +76,7 @@ const EN_TRANSLATION = 'The hotel was clean and cosy, and the breakfast was very
 const TR_ORIGINAL = 'Harika bir konaklama oldu, tekrar geleceğiz.'
 // ENGLISH, like `EN_TRANSLATION`: Google translates into the reader locale at
 // fetch time (`google-review-api.adapter.ts:454-457`), never into the
-// property's reply language. A Turkish-into-Bulgarian fixture stood here and
-// asserted a provider behaviour the ingest path cannot produce.
+// property's reply language, which the ingest path cannot produce.
 const TR_INTO_EN = 'It was a great stay, we will come again.'
 const FEEDBACK_COMMENT = 'The shower in room 402 ran cold for two mornings.'
 const INTERNAL_NOTE = 'Called the guest; they accepted a partial refund.'
@@ -108,11 +107,9 @@ const reviewItem: InboxItem = {
   // back, and that item is the pane's `item` (`use-inbox-detail.ts:232`), so
   // the pane never sees a number here.
   //
-  // The fixture said 4, which is why finding 2 — "the rating never reaches the
-  // pane" — could not be seen from these stories: with a number on the item,
-  // a pane reading `item.rating` at all draws stars whether or not the detail
-  // payload carries the field, and every rating assertion below would pass
-  // against a data path that was severed.
+  // With a number on the item, a pane reading `item.rating` at all would draw
+  // stars whether or not the detail payload carries the field, and every
+  // rating assertion below would pass against a severed data path.
   rating: null,
 }
 
@@ -121,9 +118,9 @@ const feedbackItem: InboxItem = {
   sourceDate: SOURCE_DATE,
   // What the detail read really returns, for feedback exactly as for reviews:
   // `inboxItemFromRow` sets `rating: null` on every row (`inbox.mapper.ts:37`)
-  // and `findDetailById` never writes it back. A 2 here was the one remaining
-  // fixture that could hide a pane reading `item.rating` — the story would draw
-  // `2.0` from the row whether or not `feedbackRatingValue` was read at all.
+  // and `findDetailById` never writes it back. A number here could hide a pane
+  // reading `item.rating` — the story would draw it from the row whether or not
+  // `feedbackRatingValue` was read at all.
   rating: null,
   // Private feedback carries no submitter name, and the fleet default would be
   // one — clearing it is what the real detail read returns.
@@ -139,7 +136,7 @@ const reviewDetail: InboxItemDetailResult = {
   googlePropertyReviewsUrl: null,
   reviewContentStatus: 'available',
   /**
-   * Plan row 7. The rating arrives on the detail payload, carried from the same
+   * The rating arrives on the detail payload, carried from the same
    * `ReviewSnippet` as `reviewText` and governed by the same eligibility rule.
    * 5 against the item's `rating: null` above, so a story that sees `5.0` saw a
    * number that could only have come from here.
@@ -152,7 +149,7 @@ const reviewDetail: InboxItemDetailResult = {
   /**
    * Both language fields start at "nothing is known", which is a real state —
    * a property with no reply language set, and a review Google served no
-   * language code for. Every story that exercises plan row 8 names its own.
+   * language code for. Every story that exercises the translation rule names its own.
    */
   propertyDefaultReplyLanguage: null,
   reviewReplyLanguage: null,
@@ -405,9 +402,9 @@ const replyActions = {
 
 // ─── widths ──────────────────────────────────────────────────────────────────
 
-/** The desktop pane's share of a 1440 px split, and the plan's canvas width. */
+/** The desktop pane's share of a 1440 px split, and the design canvas width. */
 const PANE_WIDTH_PX = 720
-/** The staff phone the sheet is designed at (plan row 20). */
+/** The staff phone the sheet is designed at. */
 const PHONE_WIDTH_PX = 390
 
 /**
@@ -458,8 +455,8 @@ function normalised(text: string | null | undefined): string {
 }
 
 /**
- * Finds an event's sentence line by what a reader SEES. Plan row 11 builds the
- * sentence from parts — the actor and the object in their own weighted spans,
+ * Finds an event's sentence line by what a reader SEES. The sentence is built
+ * from parts — the actor and the object in their own weighted spans,
  * the verb in another — so no single element owns `Ada Lovelace assigned this
  * to Grace Hopper` and a plain `getByText` finds nothing. This matches the
  * paragraph whose whole text starts with the sentence and then the ` · `
@@ -496,8 +493,8 @@ function expectsNoRawIds(canvasElement: HTMLElement): void {
  * exists: `StarRating` draws `aria-hidden` glyphs, prints the number, and
  * follows it with a visually hidden `out of 5 stars`, so the sentence is the
  * wrapper's text content and DOM order — there is no role and no accessible
- * name to query. (The deleted `RatingStars` was a `role="img"` carrying an
- * `aria-label`; nothing may assert that shape any more.)
+ * name to query. (It is not a `role="img"` with an
+ * `aria-label`; nothing may assert that shape.)
  *
  * `printed` is what a sighted reader sees, so a story states one string and
  * gets both halves checked: `expectRating(canvas, '5.0')` fails if the digits
@@ -515,13 +512,13 @@ function expectNoRating(canvas: Canvas): void {
 }
 
 /**
- * The disclosure half of plan row 8, asserted identically wherever there is
- * one. What must survive is the `<details>` mechanism itself: v1 chose it over
- * a Radix `Collapsible` because it leaves the folded text in the DOM while
+ * The disclosure half of the translation rule, asserted identically wherever there is
+ * one. What must survive is the `<details>` mechanism itself — a native element rather
+ * than a Radix `Collapsible` — because it leaves the folded text in the DOM while
  * closed, and the half that can be hidden is sometimes the guest's own words,
  * which find-in-page has to reach.
  *
- * Two review findings are pinned here too. The summary's name is re-read AFTER
+ * Two more rules are pinned here. The summary's name is re-read AFTER
  * the click: it is a noun phrase precisely so it stays true when the text is
  * open, and an action label (`Show original`) would still say "show" over
  * visible text. And `lang` is asserted on the folded paragraph — `null` means
@@ -705,7 +702,7 @@ export const ReviewOnly: Story = {
     await waitFor(() => expect(canvas.getByRole('status')).toBeEmptyDOMElement())
     await expect(railReading(canvasElement)).toEqual(['Guest review'])
     expectWellFormedRail(canvasElement)
-    // Node zero's disc is the reviewer's initials (row 10: no photo here).
+    // Node zero's disc is the reviewer's initials (no photo here).
     await expect(discText(railNodes(canvasElement)[0])).toBe('JD')
     await expect(canvas.queryByText('Not all handling history is shown')).toBeNull()
   },
@@ -736,7 +733,7 @@ export const GuestPhotoIsTheFirstDisc: Story = {
 }
 export const GuestPhotoIsTheFirstDiscPhone = onPhone(GuestPhotoIsTheFirstDisc)
 
-// The rail the plan draws: the review, the opening, an assignment, an
+// The full rail: the review, the opening, an assignment, an
 // escalation, a colleague's note and the reply, on ONE connector. The `opened`
 // transition is in the fixture because the server really writes one — every
 // opening produces a `cycle_opened` row AND the transition it caused, at the
@@ -772,8 +769,8 @@ export const FullRail: Story = {
     const canvas = within(canvasElement)
     await canvas.findByText(sentence('Opened from Google'))
 
-    // Row 10: the review is node zero, not a heading above the stream. Row 11:
-    // actor · verb · object. Row 12: the note. Row 9: the reply.
+    // The review is node zero, not a heading above the stream; lines read
+    // actor · verb · object; then the note, then the reply.
     await expect(railReading(canvasElement)).toEqual([
       'Guest review',
       'Opened from Google',
@@ -813,8 +810,8 @@ export const FullRail: Story = {
 }
 export const FullRailPhone = onPhone(FullRail)
 
-// All five history kinds against one item, and the two sentence shapes row 11
-// gives them: a system opening leads with its verb; a manager's act leads with
+// All five history kinds against one item, and the two sentence shapes
+// they take: a system opening leads with its verb; a manager's act leads with
 // the manager.
 const everyKind: readonly InboxHistoryEntry[] = [
   ...fullRailHistory,
@@ -915,14 +912,14 @@ export const NotesInterleavedBetweenEvents: Story = {
       discText(byName('Internal note from Unknown user, not visible to the guest')),
     ).toBe('')
 
-    // Row 12: the label says what a note is, in words, on every note — and the
+    // The label says what a note is, in words, on every note — and the
     // box prints no lock and no second privacy line. The promise that the guest
     // cannot see it is SPOKEN instead, in the article's own name — the sentence
     // the outcome row's lock speaks — so a screen reader hears "guest" on every
-    // note, where it once heard only `Internal note from You`. And the box is
+    // note. And the box is
     // dashed: a shape, not a hue, tells it from the reply's solid box when the
     // amber is lost (grayscale, glare, low vision). Class, not pixels — the
-    // Storybook project compiles no Tailwind; the edge was measured in Chromium.
+    // Storybook project compiles no Tailwind.
     const mine = canvas.getByRole('article', {
       name: 'Internal note from You, not visible to the guest',
     })
@@ -936,7 +933,7 @@ export const NotesInterleavedBetweenEvents: Story = {
       await expect(article).toHaveAccessibleName(/, not visible to the guest$/)
     }
 
-    // IBX-01-T6: a resolved name, an opaque fallback, and no id anywhere.
+    // A resolved name, an opaque fallback, and no id anywhere.
     await expect(canvas.getByText('Unknown user')).toBeVisible()
     expectsNoRawIds(canvasElement)
   },
@@ -1047,9 +1044,9 @@ export const ReplyDraftDrawsNoNode: Story = {
 }
 export const ReplyDraftDrawsNoNodePhone = onPhone(ReplyDraftDrawsNoNode)
 
-// ─── the fold (plan row 13) ──────────────────────────────────────────────────
+// ─── the fold ────────────────────────────────────────────────────────────────
 
-// Eight events and a note. Row 13: more than six system events fold all but
+// Eight events and a note. More than six system events fold all but
 // the newest three into one node placed directly after the review — here five
 // — and the note never folds. Written at 13:30, between the fifth and sixth
 // events, it lands right after the marker: after everything it followed that
@@ -1174,9 +1171,9 @@ export const SixEventsNeverFold: Story = {
 export const SixEventsNeverFoldPhone = onPhone(SixEventsNeverFold)
 
 // The same eight events with the note written at 10:30, after the second.
-// "All but the newest three" would have hidden events from both sides of it —
-// the note would have read below `Show 5 earlier events`, over three events
-// newer than itself, and opening the fold would have split them around it. The
+// "All but the newest three" would hide events from both sides of it —
+// the note would read below `Show 5 earlier events`, over three events
+// newer than itself, and opening the fold would split them around it. The
 // fold's span is the unbroken run of events after the review, and a note ends
 // it; two events is a span too short to fold (a fold hides at least four), so
 // the rail stays open and reads in the record's order, top to bottom.
@@ -1352,8 +1349,7 @@ export const TruncatedHistory: Story = {
       'Ada Lovelace closed this — the reply is confirmed on Google',
     )
 
-    // End-agnostic: nothing here may say which end was cut. `Earlier history
-    // not shown` — the wording this line used to carry — named the wrong one.
+    // End-agnostic: nothing here may say which end was cut.
     await expect(canvas.queryByText(/earlier/i)).toBeNull()
   },
 }
@@ -1421,10 +1417,9 @@ export const HistoryFailed: Story = {
 }
 export const HistoryFailedPhone = onPhone(HistoryFailed)
 
-// ─── plan row 8: which of the guest's two texts is the body ──────────────────
+// ─── which of the guest's two texts is the body ──────────────────────────────
 //
-// One rule, seen from every side it has. Before it, the pane always printed the
-// original and folded the translation away. The rule promotes Google's text to
+// One rule, seen from every side it has. It promotes Google's text to
 // the body ONLY when the review is provably in a language other than the one
 // the property replies in — both languages known, template groups different.
 // Anything less keeps the guest's own words as the body, because "unknown" is
@@ -1491,7 +1486,7 @@ export const TranslationFirst: Story = {
 
     // Both languages known and different: Google's text is the body, and it
     // is MARKED as machine text — the one thing this rearrangement must not
-    // omit, since the body is no longer the guest's own words. The line names
+    // omit, since the body is not the guest's own words. The line names
     // the SOURCE only; the translation's language is recorded nowhere, so the
     // body declares none.
     const body = canvas.getByText(TR_INTO_EN)
@@ -1560,8 +1555,7 @@ export const OriginalFirstWithNoPropertyLanguage: Story = {
 
     // The same Turkish review as `TranslationFirst`, in a property that has
     // claimed no language — so there is no reader language for it to be
-    // foreign TO, and nothing is proven. Plan row 8 as first written led with
-    // the translation here; amended, the guest's words lead.
+    // foreign TO, and nothing is proven, so the guest's words lead.
     const body = canvas.getByText(TR_ORIGINAL)
     await expect(body).toBeVisible()
     expectLang(body, 'tr-Latn-TR')
@@ -1652,7 +1646,7 @@ export const RatingOnlyReview: Story = {
 // it so the two readings of a null name sit side by side.
 const anonymousItem: InboxItem = { ...reviewItem, reviewerName: null }
 
-// BQC-1.2: the source cache expired, so the review text is gone for good. The
+// The source cache expired, so the review text is gone for good. The
 // honest unavailable line renders — never a stale copy, never the snippet.
 //
 // The name is null here for a second reason: `inbox-repository.server.ts` nulls every
@@ -1672,7 +1666,7 @@ export const ContentExpired: Story = {
       // and a replayed `inbox-cache-policy.ts` entry written while the snippet
       // was still available would carry exactly this shape.
       reviewTranslatedText: EN_TRANSLATION,
-      // BQC-1.2: the rating is provider-owned content exactly like the words,
+      // The rating is provider-owned content exactly like the words,
       // so an ineligible source asserts no score either.
       reviewRating: null,
       reviewContentStatus: 'expired',
@@ -1823,7 +1817,7 @@ export const GuestFirstDespiteBackdatedHistory: Story = {
 // A pre-cutover row proves an episode existed and nothing more. The server
 // redacts its actor, and the line redacts it again — so a fixture that still
 // carries a name (a server that forgot, a cache written before the redaction)
-// must not be able to print one. Row 11: a redacted row starts at its verb,
+// must not be able to print one. A redacted row starts at its verb,
 // capitalised.
 export const LegacyEventHasNoActor: Story = {
   args: {
@@ -2008,7 +2002,7 @@ export const AnalysisReadyWithNoSignals: Story = {
   },
 }
 
-// The "Needs attention" pill is retired (owner P-5): the review's own signals
+// There is no "Needs attention" pill: the review's own signals
 // say High here, and nobody has set a level, so the toolbar already says it —
 // the thread adds nothing, not even an empty topics list.
 export const AnalysisSuggestsWithNoLevelSet: Story = {
@@ -2027,7 +2021,7 @@ export const AnalysisSuggestsWithNoLevelSet: Story = {
 }
 
 // A manager set Low, and the review's signals now suggest Urgent: one quiet
-// line under the guest's words says so (copy C-10). It is the only place the
+// line under the guest's words says so. It is the only place the
 // thread mentions a priority, and it disappears once the two agree.
 export const AnalysisDisagreesWithTheSetLevel: Story = {
   args: {
@@ -2142,14 +2136,13 @@ export const UnknownEventKindRendersNothingPhone = onPhone(UnknownEventKindRende
 /**
  * `LedgerEntry` is shared through the rebuild's contract and still growing, so
  * both of the thread's last arms have to fail closed on a kind nobody wrote a
- * node for. `ThreadRow`'s already did; the React KEY was still reaching
- * `'guest'` through `default:`, which fails open twice — a new member compiles
+ * node for. `ThreadRow` does, and so must the React KEY: a `default:`
+ * returning `'guest'` fails open twice — a new member compiles
  * silently, and then every entry of that kind claims the one constant key
  * `'guest'`. In a list React reconciles BY key that is not a cosmetic warning:
  * duplicate keys drop rows and hand one entry's state to another's.
  *
- * The compiler refuses an out-of-union entry, which is the point of the fix and
- * also why this assertion calls the key builder directly with a cast fixture —
+ * The compiler refuses an out-of-union entry, which is also why this assertion calls the key builder directly with a cast fixture —
  * `buildThread` and `foldEarlierEvents` can only ever emit the kinds this
  * bundle knows, so no amount of rendering reaches the arm. `as unknown as
  * ThreadEntry` is the same device the enum stories above use: the state a
