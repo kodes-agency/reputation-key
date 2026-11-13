@@ -897,8 +897,10 @@ table, background job) was removed and is not coming back. The nullable
 rows still render, while the shared arbitrary-key storage stack remains live
 for Identity avatar and organization-logo uploads through `container.assetStorage`.
 The signed upload address carries no size bound, so Identity reads the stored
-size (`inspectObject`) at its finalize step, and again where an avatar's address
-is saved, and refuses and deletes an object over its 5 MB cap. The address stays
+type and size (`inspectObject`) at its finalize step, and again where an avatar's
+address is saved, and refuses and deletes an object that is not an allowed image
+type or is over its 5 MB cap. An upload that is never saved is deleted by the
+hourly `identity-pending-upload-reclaim` job (`listObjects`) once two hours old. The address stays
 valid for an hour and can replace the object after that check, so the bound that
 always holds is the read: Identity's image route asks `getObject` for at most
 5 MB and serves nothing larger. Identity stores its own address for the image

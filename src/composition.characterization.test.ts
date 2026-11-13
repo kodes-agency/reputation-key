@@ -354,6 +354,7 @@ describe('provider DI slots (BQC-6.1)', () => {
     createPresignedUploadUrl: async (key) => ({ uploadUrl: 'memory://upload', key }),
     confirmUpload: async () => {},
     deleteObject: async () => {},
+    listObjects: async () => ({ objects: [], truncated: false }),
     getObject: async () => null,
     putObject: async () => {},
   }

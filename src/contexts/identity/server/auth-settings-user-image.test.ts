@@ -121,6 +121,23 @@ describe('updateUserImageFn', () => {
     expect(mocks.updateUser).not.toHaveBeenCalled()
   })
 
+  it('refuses an uploaded avatar the store holds as another type, removes it, and saves nothing', async () => {
+    mocks.currentUserImage.mockResolvedValue(null)
+    mocks.inspectObject.mockResolvedValue({ contentType: 'text/html', sizeBytes: 1024 })
+
+    await expect(
+      save(`/api/public/identity-assets/avatars/user-1/${NEW}`),
+    ).rejects.toMatchObject({
+      name: 'IdentityError',
+      code: 'validation_error',
+      status: 400,
+      message: 'Content type text/html is not allowed',
+    })
+
+    expect(mocks.deleteObject).toHaveBeenCalledExactlyOnceWith(`avatars/user-1/${NEW}`)
+    expect(mocks.updateUser).not.toHaveBeenCalled()
+  })
+
   it('saves nothing when the upload never arrived or the store cannot be read', async () => {
     mocks.currentUserImage.mockResolvedValue(null)
     mocks.inspectObject.mockRejectedValue(new Error('NotFound'))

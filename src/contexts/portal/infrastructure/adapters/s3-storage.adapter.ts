@@ -9,6 +9,7 @@ import {
   HeadObjectCommand,
   DeleteObjectCommand,
   PutObjectCommand,
+  ListObjectsV2Command,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import {
@@ -89,6 +90,9 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
       deleteObject: async () => {
         throw portalError('upload_failed', 'S3 storage is not configured')
       },
+      listObjects: async () => {
+        throw portalError('upload_failed', 'S3 storage is not configured')
+      },
       getObject: async () => {
         throw portalError('upload_failed', 'S3 storage is not configured')
       },
@@ -159,6 +163,37 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
           withinDeadline(),
         ),
       )
+    },
+
+    listObjects: async (prefix, maxKeys, startAfter) => {
+      const objects: Array<{ key: string; lastModified: Date | null }> = []
+      let continuationToken: string | undefined
+      for (;;) {
+        const page = await trace('s3.listObjects', () =>
+          internalClient.send(
+            new ListObjectsV2Command({
+              Bucket: bucketName,
+              Prefix: prefix,
+              MaxKeys: Math.min(maxKeys - objects.length + 1, 1000),
+              ContinuationToken: continuationToken,
+              StartAfter: continuationToken ? undefined : startAfter,
+            }),
+            withinDeadline(),
+          ),
+        )
+        for (const entry of page.Contents ?? []) {
+          if (entry.Key) {
+            objects.push({ key: entry.Key, lastModified: entry.LastModified ?? null })
+          }
+        }
+        if (objects.length > maxKeys) {
+          return { objects: objects.slice(0, maxKeys), truncated: true }
+        }
+        if (!page.IsTruncated || !page.NextContinuationToken) {
+          return { objects, truncated: false }
+        }
+        continuationToken = page.NextContinuationToken
+      }
     },
 
     getObject: async (key, maxBytes) => {

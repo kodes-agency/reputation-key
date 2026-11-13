@@ -326,15 +326,17 @@ How each path works against it:
   purged organization's logo are 404. A cache that already holds an image may
   keep showing it for up to its `max-age` (one hour). Saving a new avatar or logo
   deletes the object it replaced (best effort, logged on failure).
-  **What stays in the bucket:** unreachable objects of a never-saved upload, of a
-  purged organization and of a removed user (the Organization purge and user
-  removal hold no storage and delete none). Set a bucket lifecycle rule that
-  expires `avatars/` and `organizations/` objects nothing refers to, or sweep
-  them by key, when the storage policy is decided.
+  **Never-saved uploads:** the hourly `identity-pending-upload-reclaim` job lists
+  `avatars/` and `organizations/`, and deletes an object of the two upload key
+  shapes that is more than two hours old (the signed address lasts one hour) and
+  that nothing refers to, including a purged organization's logo and a removed
+  user's photo. It reads at most 5,000 objects per prefix and deletes at most 200
+  per run, and it logs counts only.
   **The 5 MB cap is the app's, not the store's.** The signed upload address
   carries no length bound and stays valid for an hour, so the bytes a signed-in
   member sends to it can be any size the bucket accepts. The app reads the
-  stored size, and refuses and deletes an object over 5 MB, at the finalize step
+  stored type and size, and refuses and deletes an object over 5 MB or not an
+  allowed image type, at the finalize step
   of both uploads and again where an avatar's address is saved
   (`updateUserImageFn`), because a caller can skip the finalize step. A logo's
   address is saved only by its finalize step (`updateOrganization` refuses the
@@ -343,8 +345,7 @@ How each path works against it:
   hour ends, so an object over the cap can end up referenced. What holds
   whatever was sent is that nothing over the cap is served: the image route
   reads at most 5 MB and answers 404 for a larger object. An upload that is
-  never saved is not checked and stays, at whatever size, until the rule above
-  exists.
+  never saved is removed by the job above once its hour has passed.
   Values stored before this change (an `s3.<region>.amazonaws.com` address) never
   loaded; migration 0053 clears them so the UI shows initials, and the person
   uploads again (detection query in `docs/operations/operator-commands.md`).
