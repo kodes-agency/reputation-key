@@ -1225,7 +1225,7 @@ describe('runReviewProviderSnapshot', () => {
   })
 
   // A guest who posts while the main scan is between two pages moves Google's
-  // total (3,716 then 3,717 on the largest beta location, 2026-10-20). The
+  // total (a large location). The
   // store records the failure as `listing_changed` unless the Property's runs
   // keep changing (snapshot-listing-change.ts), and the use case answers with
   // whatever the store recorded.

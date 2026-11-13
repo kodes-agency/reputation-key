@@ -15,7 +15,7 @@ import { selectRevisionBindingComparisons } from '../source-epoch-carry'
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createObservationRetention } from './observation-retention.repository'
 
-// The rows the writer stored before 2026-10-24, one per read, are rebuilt here
+// The rows an earlier writer stored, one per read, are rebuilt here
 // in SQL (`appendRepeat` copies the newest row as that writer did); everything
 // Google reported differently goes through the real writer.
 

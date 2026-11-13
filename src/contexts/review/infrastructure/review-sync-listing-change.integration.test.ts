@@ -734,9 +734,9 @@ const TOTAL_GREW_MID_CONFIRMATION: Listing = {
 }
 
 describe('a Google listing that moves while a scan is reading its pages (real PostgreSQL)', () => {
-  // The largest beta location failed two runs in a row as `total_changed`
-  // (2026-10-20, expected 3,716 at page 7 and 3,717 at page 65); each was a
-  // Sentry error, an alert, a dead letter and a repair latch.
+  // A large location can grow between two pages of one scan and end a run as
+  // `total_changed`; that must not be a Sentry error, an alert, a dead letter
+  // or a repair latch.
   it('restarts the sync at once, without a failure, when the total grows between two pages, and removes nothing', async () => {
     listings = [steady([first, second, hidden])]
     await expect(sync()).resolves.toMatchObject({ thrown: null })

@@ -123,7 +123,7 @@ describe('Material Review Revision comparison', () => {
   })
 
   describe('a baseline stored before the parser knew a provider envelope', () => {
-    // What the parser stored on 2026-10-23 when Google first sent the
+    // What an older parser stored when Google sent the
     // original-first envelope: the whole envelope as the guest's text.
     const glued = 'Ок\n\n(Translated by Google)\nOk'
     const previous = {
@@ -213,7 +213,7 @@ describe('Material Review Revision comparison', () => {
 })
 
 describe('an unmoved Google updateTime', () => {
-  // Google changed how it wraps translated text on 2026-10-23 and did not move
+  // Google can change how it wraps translated text without moving
   // updateTime. A rating or text that differs while the provider's own edit
   // clock stands still is Google restating the review, not the guest editing.
   const UPDATED = new Date('2026-10-20T08:30:00.000Z')
