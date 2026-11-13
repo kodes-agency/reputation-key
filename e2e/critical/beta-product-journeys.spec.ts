@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
+import { expectPhoneLayout } from '../helpers/phone-layout'
 import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady, dismissToasts } from '../helpers/interaction'
 import { expectOneH1 } from '../helpers/page-structure'
@@ -345,6 +346,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(
       page.getByRole('heading', { name: 'E2E Guest Portal P1' }).first(),
     ).toBeVisible()
+    await expectPhoneLayout(page)
     // This portal's own English link preview, which the autosave writes. By id,
     // not by label: every language has a "Link preview" field, and so does the
     // property's wording.
@@ -513,6 +515,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(
       page.getByRole('button', { name: /use the property.s name and logo/i }),
     ).toBeVisible()
+    await expectPhoneLayout(page)
     await page.goto(
       `/properties/${propertyId}/portals/${reception.id}?tab=page&section=look`,
     )
@@ -649,9 +652,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         cadence: 'daily',
       },
     })
-    expect(emailDenial.message ?? emailDenial.code ?? '').toMatch(
-      /error|denied|forbidden|not found/i,
-    )
+    // The suspended Organization stops the email capability before any
+    // permission or Property is read.
+    expect(emailDenial.status).toBe(403)
+    expect(emailDenial.code).toBe('org_suspended')
   })
 
   test('cross-property Portal and email resources fail closed', async ({ page }) => {
@@ -681,9 +685,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       exportName: 'getPortal',
       data: { portalId: seed.p3PortalId },
     })
-    expect(portalDenial.message ?? portalDenial.code ?? '').toMatch(
-      /error|denied|forbidden|not found/i,
-    )
+    // Another Organization's Portal is not found, the answer a missing one gets.
+    expect(portalDenial.status).toBe(404)
+    expect(portalDenial.code).toBe('portal_not_found')
     const portalMutationDenial = await callServerFnExpectError(page, {
       file: 'src/contexts/portal/server/portals.ts',
       exportName: 'updatePortalSettings',
@@ -692,9 +696,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         description: 'This cross-tenant mutation must remain inert.',
       },
     })
-    expect(portalMutationDenial.message ?? portalMutationDenial.code ?? '').toMatch(
-      /error|denied|forbidden|not found/i,
-    )
+    expect(portalMutationDenial.status).toBe(404)
+    expect(portalMutationDenial.code).toBe('portal_not_found')
 
     for (const propertyId of [seed.p3PropertyId]) {
       const emailPreferenceDenial = await callServerFnExpectError(page, {
@@ -708,9 +711,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
           cadence: 'daily',
         },
       })
-      expect(emailPreferenceDenial.message ?? emailPreferenceDenial.code ?? '').toMatch(
-        /error|denied|forbidden|not found/i,
-      )
+      // No command checks the Property first: the preference row's tenant
+      // foreign key refuses it, and the request answers with the generic
+      // internal error that carries no detail.
+      expect(emailPreferenceDenial.status).toBe(500)
+      expect(emailPreferenceDenial.code).toBe('internal_error')
     }
 
     log.assertNoExternalHosts([BASE_HOST])
@@ -1155,9 +1160,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         targetSource: 'own',
       },
     })
-    expect(denied.message ?? denied.code ?? '').toMatch(
-      /error|denied|forbidden|not.?found/i,
-    )
+    // A Property of another Organization has no timezone and no subject of
+    // this Organization's: which of the two reads answers first varies.
+    expect(['not_found', 'invalid_subject']).toContain(denied.code)
+    expect([400, 404]).toContain(denied.status)
 
     // Changing a month's number is refused across the same boundary: P3 is
     // not this organization's Property, and this organization's goal cannot be
@@ -1183,9 +1189,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         targetSource: 'own',
       },
     })
-    expect(deniedMonthTarget.message ?? deniedMonthTarget.code ?? '').toMatch(
-      /error|denied|forbidden|not.?found/i,
-    )
+    // The goal is not among the other Organization's Property's goals.
+    expect(deniedMonthTarget.status).toBe(404)
+    expect(deniedMonthTarget.code).toBe('not_found')
 
     // A target the metric's own rule refuses: counts must be positive integers.
     const invalidTarget = await callServerFnExpectError(page, {
@@ -1492,30 +1498,41 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByRole('combobox', { name: 'Timezone' })).toBeVisible()
     await waitForHydration(page)
     const nameInput = page.getByLabel('Name')
-    await nameInput.fill(`${seed.managerName} Persisted`)
-    await clickWhenReady(page.getByRole('button', { name: 'Save profile' }))
-    await expect(page.getByText('Profile saved')).toBeVisible()
-    // The save is on screen before any reload: the saved name is the form's
-    // baseline, so nothing is left to reset, and the account menu holds it. (The
-    // form used to stay dirty and the shell kept the old name until a navigation.)
-    await expect(page.getByRole('button', { name: 'Reset', exact: true })).toHaveCount(0)
-    await page.getByRole('button', { name: 'Account menu' }).click()
-    await expect(page.getByRole('menu')).toContainText(`${seed.managerName} Persisted`)
-    await page.reload()
-    await expect(nameInput).toHaveValue(`${seed.managerName} Persisted`)
-    // The reloaded form is server-rendered before React hydrates: a fill in
-    // that window is reset to the loaded name and the restore then saves the
-    // CHANGED name back (or a pre-hydration click submits natively). Either way
-    // the name stays "… Persisted" for every later spec that reads it — the
-    // member invitation's "Invited by" cell among them.
-    await waitForHydration(page)
-    await nameInput.fill(seed.managerName)
-    await expect(nameInput).toHaveValue(seed.managerName)
-    await clickWhenReady(page.getByRole('button', { name: 'Save profile' }))
-    await expect(page.getByText('Profile saved')).toBeVisible()
-    // The restore is shared suite state, so it is proven, not assumed.
-    await page.reload()
-    await expect(nameInput).toHaveValue(seed.managerName)
+    // The name is shared suite state: a failure inside must not leave it changed.
+    try {
+      await nameInput.fill(`${seed.managerName} Persisted`)
+      await clickWhenReady(page.getByRole('button', { name: 'Save profile' }))
+      await expect(page.getByText('Profile saved')).toBeVisible()
+      // The save is on screen before any reload: the saved name is the form's
+      // baseline, so nothing is left to reset, and the account menu holds it. (The
+      // form used to stay dirty and the shell kept the old name until a navigation.)
+      await expect(page.getByRole('button', { name: 'Reset', exact: true })).toHaveCount(
+        0,
+      )
+      await page.getByRole('button', { name: 'Account menu' }).click()
+      await expect(page.getByRole('menu')).toContainText(`${seed.managerName} Persisted`)
+      await page.reload()
+      await expect(nameInput).toHaveValue(`${seed.managerName} Persisted`)
+      // The reloaded form is server-rendered before React hydrates: a fill in
+      // that window is reset to the loaded name and the restore then saves the
+      // CHANGED name back (or a pre-hydration click submits natively). Either way
+      // the name stays "… Persisted" for every later spec that reads it — the
+      // member invitation's "Invited by" cell among them.
+      await waitForHydration(page)
+      await nameInput.fill(seed.managerName)
+      await expect(nameInput).toHaveValue(seed.managerName)
+      await clickWhenReady(page.getByRole('button', { name: 'Save profile' }))
+      await expect(page.getByText('Profile saved')).toBeVisible()
+      // The restore is shared suite state, so it is proven, not assumed.
+      await page.reload()
+      await expect(nameInput).toHaveValue(seed.managerName)
+    } finally {
+      await callServerFn(page, {
+        file: 'src/contexts/identity/server/auth-settings.ts',
+        exportName: 'updateProfileFn',
+        data: { name: seed.managerName },
+      })
+    }
 
     await page.goto('/settings/notifications')
     // The selector is server-rendered before it hydrates: a click in that window
@@ -1641,20 +1658,25 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       contactEmail: await page.locator('#org-contact-email').inputValue(),
     }
     const changedName = `${seed.organizationName} Persisted`
-    await callServerFn(page, {
-      file: 'src/contexts/identity/server/organizations.update.ts',
-      exportName: 'updateOrganization',
-      data: { name: changedName, ...organizationFields },
-    })
-    await page.reload()
-    await expect(page.locator('#org-name')).toHaveValue(changedName)
-    await page.reload()
-    await expect(page.locator('#org-name')).toHaveValue(changedName)
-    await callServerFn(page, {
-      file: 'src/contexts/identity/server/organizations.update.ts',
-      exportName: 'updateOrganization',
-      data: { name: seed.organizationName, ...organizationFields },
-    })
+    // The organization's name is shared suite state: it is restored even when a
+    // step in between fails.
+    try {
+      await callServerFn(page, {
+        file: 'src/contexts/identity/server/organizations.update.ts',
+        exportName: 'updateOrganization',
+        data: { name: changedName, ...organizationFields },
+      })
+      await page.reload()
+      await expect(page.locator('#org-name')).toHaveValue(changedName)
+      await page.reload()
+      await expect(page.locator('#org-name')).toHaveValue(changedName)
+    } finally {
+      await callServerFn(page, {
+        file: 'src/contexts/identity/server/organizations.update.ts',
+        exportName: 'updateOrganization',
+        data: { name: seed.organizationName, ...organizationFields },
+      })
+    }
   })
 
   test('member invitation sends once, persists, renews on resend, and can be cancelled', async ({
