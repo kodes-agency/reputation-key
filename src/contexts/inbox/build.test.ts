@@ -41,7 +41,7 @@ describe('buildInboxContext', () => {
     // Export and erasure run through the rights request executors, never from
     // this build.
     expect(Object.keys(context).sort()).toEqual([
-      // ARC-03-T12: named member-authority and scheduled-release capabilities.
+      // Named member-authority and scheduled-release capabilities.
       'assignments',
       'internal',
       'lifecycle',

@@ -1003,9 +1003,9 @@ describe('publish-reply job handler', () => {
   })
 
   it('a compile refusal on attempt 1 is terminal: no readback and no second write', async () => {
-    // Incident b129e390: the executor refused to compile the body (no permit,
-    // no fetch) and the job kept the row `sending`, so attempt 2 read Google
-    // once and parked the reply as "Needs a check".
+    // The executor refused to compile the body (no permit, no fetch). The row
+    // must not stay `sending`: a second attempt would read Google once and park
+    // the reply as "Needs a check".
     const deps = makeDeps()
     deps.googleReviewApi.replyToReview.mockRejectedValue(
       reviewApiFailure('provider_unavailable', {
@@ -1235,11 +1235,11 @@ describe('publish-reply job handler', () => {
   })
 })
 
-// Incident b129e390 end to end: the publish job over the REAL review API
+// A reply with line feeds end to end: the publish job over the REAL review API
 // adapter and the REAL authorized executor (so the real route-catalogue
 // compile runs); only permit admission and the egress gateway are fakes, so
-// nothing can reach Google. The incident reply had three line feeds.
-describe('publish-reply job over the real provider adapters (incident b129e390)', () => {
+// nothing can reach Google. The reply carries three line feeds.
+describe('publish-reply job over the real provider adapters (line-feed reply)', () => {
   const ORG = '0UM0PoDLJNJ3yGCeBMERaQkQyxer9BuC'
   const IDS = {
     property: '00000000-0000-4000-8000-00000000a001',

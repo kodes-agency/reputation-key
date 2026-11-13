@@ -1022,7 +1022,7 @@ describe.sequential('reviewRepository (integration)', () => {
         await seedLifecycle(repo, suffixes[j]!, new Date(base - (12 - j) * 60 * 1000))
       }
       await seedLifecycle(repo, 'af', new Date(base + 60 * 1000)) // future
-      await seedLifecycle(repo, 'b0', null) // pre-BQR-3.1 row
+      await seedLifecycle(repo, 'b0', null) // row without a fetch clock
 
       const seen = await walkAll(repo, NOW, 5)
 

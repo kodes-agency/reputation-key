@@ -1,4 +1,4 @@
-// Review context — BQC-3.3 reply commit sequence (single source, BQC-5.9 E5).
+// Review context — reply commit sequence (single source).
 //
 // Every fact-producing reply transition runs the same sequence: the domain
 // transition check (transitionReply is the authority) → the atomic guarded
@@ -19,7 +19,7 @@ export const replyChangedConcurrently = (): ReviewError =>
   reviewError('invalid_transition', 'Reply status changed concurrently')
 
 /**
- * Run the BQC-3.3 commit sequence for a reply transition: validate the
+ * Run the commit sequence for a reply transition: validate the
  * transition, then run the guarded command-store commit. A null store
  * result (lost TOCTOU race) becomes the shared invalid_transition error.
  */

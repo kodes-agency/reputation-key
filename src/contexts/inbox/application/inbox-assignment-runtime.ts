@@ -1,8 +1,7 @@
 // Inbox context — assignment lifecycle runtime.
 //
-// ARC-03-T12: replaces the root's `inbox.internal.commandStore` reach-through
-// for eligibility reconciliation. Assignment is
-// operational metadata, never an authority: the command store re-proves each
+// The one operation eligibility reconciliation needs from the command store.
+// Assignment is operational metadata, never an authority: the command store re-proves each
 // requirement inside its own write transaction, so exposing exactly this
 // operation gives the seam everything it needs and nothing else.
 

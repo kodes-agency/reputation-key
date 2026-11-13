@@ -1,5 +1,5 @@
 // The authority contract the atomic inbox command store asks inside every
-// write transaction (BQC-3.4): which principals must hold which permissions at
+// write transaction: which principals must hold which permissions at
 // which Property, decided against the transaction's own snapshot. Types only,
 // split out of inbox-command-store.ts so the store's helper modules can name
 // the contract without importing the store back. The store re-exports them, so

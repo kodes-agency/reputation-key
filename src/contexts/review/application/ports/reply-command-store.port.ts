@@ -1,10 +1,10 @@
-// Reply command store — atomic reply/review state mutation + outbox record (BQC-3.3).
+// Reply command store — atomic reply/review state mutation + outbox record.
 //
 // Callers must not know Drizzle transaction types or outbox tables.
 // The production implementation commits the state write and its outbox_events
 // rows in one PostgreSQL transaction.
 //
-// BQC-3.8: the publication state machine (domain/reply-publication-workflow.ts)
+// The publication state machine (domain/reply-publication-workflow.ts)
 // is persisted through this store. Every external-interaction transition is a
 // guarded write (status + publication_state), so a lost TOCTOU race
 // (cancellation, a racing claim, a purge) records no fact and returns null.
@@ -51,7 +51,7 @@ export type EditPublishedReplyCommand = Readonly<{
 }>
 
 /**
- * BQC-3.8: one cancellation per reply — the guarded state write and the
+ * One cancellation per reply — the guarded state write and the
  * review.reply.publication_cancelled fact commit in the batch transaction.
  * Rows whose publication state moved on meanwhile (published / failed /
  * already cancelled / purged) are skipped without a fact.
@@ -109,7 +109,7 @@ export type ReplyCommandStore = Readonly<{
     measurement?: import('#/shared/domain/draft-measurement').DraftEditMetric,
   ): Promise<Reply | null>
   /**
-   * BQC-3.8: the approve/retry authorization write. Guarded status update +
+   * The approve/retry authorization write. Guarded status update +
    * publication_state='authorized' with attempts/error reset, a fresh
    * bounded recovery deadline, a NEW monotonic publication cycle, the optional
    * review.reply.approved lifecycle fact, and the required durable
@@ -130,7 +130,7 @@ export type ReplyCommandStore = Readonly<{
     now?: Date,
   ): Promise<Reply | null>
   /**
-   * BQC-3.8: the single-use publish-job claim — status='approved' AND
+   * The single-use publish-job claim — status='approved' AND
    * publication_state='authorized' → 'sending', attempts+1, plus a bounded
    * recovery deadline. A `sending` row can never be claimed again. Google may
    * accept a reply without echoing it in a later read, which is
@@ -170,7 +170,7 @@ export type ReplyCommandStore = Readonly<{
    */
   deferPendingPublicationObservation(reply: Reply, now?: Date): Promise<Reply | null>
   /**
-   * BQC-3.8: bounded terminal settlement — status → publish_failed +
+   * Bounded terminal settlement — status → publish_failed +
    * publication_state='terminal' + last_error_class + optional publish_failed
    * fact, one transaction. Used for confirmed no-write failures, exhausted
    * retryable work, and sweep expiry. A null event is allowed when the parent
@@ -188,7 +188,7 @@ export type ReplyCommandStore = Readonly<{
     now?: Date,
   ): Promise<Reply | null>
   /**
-   * BQC-3.8: a non-confirming provider outcome from `sending` or
+   * A non-confirming provider outcome from `sending` or
    * `pending_observation` — status → publish_failed +
    * publication_state='ambiguous' + last_error_class='ambiguous' +
    * reconcile_due_at + the optional publish_failed fact, one transaction.
@@ -240,7 +240,7 @@ export type ReplyCommandStore = Readonly<{
     now: Date,
   ): Promise<Reply | null>
   /**
-   * BQC-3.8: classified safe-to-retry failure — publication_state 'sending' →
+   * Classified safe-to-retry failure — publication_state 'sending' →
    * 'authorized' with attempts/error preserved and a fresh bounded recovery
    * deadline, so the next BullMQ attempt can claim the row. No fact. Returns
    * null when the guard misses.
@@ -258,7 +258,7 @@ export type ReplyCommandStore = Readonly<{
     command: EditPublishedReplyCommand,
   ): Promise<Reply | null>
   /**
-   * BQC-3.8: disconnect/policy cancellation — per command, the reply's open
+   * Disconnect/policy cancellation — per command, the reply's open
    * publication cycle → 'cancelled' + status → 'draft'
    * (domain `cancelledPublication`: a cancellation, never a reply command)
    * + the publication_cancelled fact, ALL in one transaction for the batch.
@@ -279,7 +279,7 @@ export type ReplyCommandStore = Readonly<{
   ): Promise<Reply | null>
   /**
    * Guarded transition → published + published fact, one transaction.
-   * BQC-3.8: also persists publication_state='published' and clears
+   * Also persists publication_state='published' and clears
    * reconcile_due_at. Starts only from a reply that was sent and not yet
    * confirmed: approved or publish_failed, in 'sending', 'pending_observation',
    * 'ambiguous' or 'terminal'. Never from a draft or a reply awaiting approval.

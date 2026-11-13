@@ -4,11 +4,11 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 //
 // A snapshot run lists a location twice, and the second (confirmation) listing
 // must return exactly the reviews the first did before the run may remove
-// anything. On the closed beta on 2026-10-19 the largest location (3,714
-// reviews, 75 pages, about three minutes a listing) failed one run in 189 as
-// `confirmation_set_changed`: a guest most likely posted while the run was
-// between its two listings. The next run completed, but the failed one became a
-// Sentry error, an alert, a dead letter and a repair latch.
+// anything. On the largest beta location (3,714 reviews, 75 pages, about three
+// minutes a listing) one run in 189 saw `confirmation_set_changed`: a guest
+// most likely posted while the run was between its two listings. The next run
+// completes, so the changed one must not become a Sentry error, an alert, a
+// dead letter or a repair latch.
 //
 // These tests drive the real sync job handler, snapshot use case, snapshot
 // repository and Review observation writer with a fake Google listing. They
@@ -18,10 +18,9 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 //
 // The same holds when the listing moves while a scan is still reading its
 // pages: Google's total (or average) differing from page to page, or one
-// review on two pages. On the closed beta on 2026-10-20 the largest location
-// (75 pages, about 15 minutes a run) failed two runs in a row as
-// `total_changed`, at page 7 and at page 65, because guests posted while it
-// was listing; the two runs after them completed.
+// review on two pages. On the largest beta location (75 pages, about 15 minutes
+// a run) guests posting while it was listing caused `total_changed` at page 7
+// and at page 65 in two runs in a row; the runs after them completed.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'

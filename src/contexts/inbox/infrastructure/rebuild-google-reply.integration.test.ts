@@ -8,7 +8,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Review closure is provider-only and its observed fact had long since given
 // up waiting for the item.
 //
-// The rules (decided 2026-10-18, recorded in the rebuild use case and the
+// The rules (recorded in the rebuild use case and the
 // Inbox CONTEXT):
 //  - firstReplyPublishedAt is the earliest of RepKey's published replies and,
 //    when the head is live, the time Google reports for that reply

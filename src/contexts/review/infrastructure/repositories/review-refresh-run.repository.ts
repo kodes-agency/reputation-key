@@ -1,4 +1,4 @@
-// Review context — Drizzle refresh sweep run repository (BQC-1.5).
+// Review context — Drizzle refresh sweep run repository.
 
 import { desc, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'

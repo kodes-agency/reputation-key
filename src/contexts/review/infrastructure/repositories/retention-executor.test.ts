@@ -1,4 +1,4 @@
-// BQC-1.6 — retention executor integration test (real PostgreSQL).
+// Retention executor integration test (real PostgreSQL).
 // Proves the id-IN-subquery pattern deletes old rows in bounded batches,
 // keeps recent rows, handles composite keys, and is safe to re-run.
 
@@ -163,7 +163,7 @@ describe('retention executor (BQC-1.6)', () => {
   })
 })
 
-// BQC-3.7 — outbox retention keys on published_at (not created_at) and the
+// Outbox retention keys on published_at (not created_at) and the
 // per-run drain is bounded by a batch cap.
 describe('outbox retention — published_at keying + per-run cap (BQC-3.7)', () => {
   const OUTBOX_RULE = {
@@ -239,7 +239,7 @@ describe('outbox retention — published_at keying + per-run cap (BQC-3.7)', () 
   })
 })
 
-// BQC-7.8 — action-audit retention at the 365d horizon, executed against the
+// Action-audit retention at the 365d horizon, executed against the
 // REAL registry entry and table. Marker-scoped counts leave unrelated rows
 // in the shared scratch database untouched.
 describe('audit-evidence retention rules (BQC-7.8, integration)', () => {

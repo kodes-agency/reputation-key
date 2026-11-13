@@ -1,4 +1,4 @@
-// Inbox context — review source-metadata lookup adapter (BQC-3.4).
+// Inbox context — review source-metadata lookup adapter.
 // Implements ReviewSourceLookupPort by delegating to the Review context's
 // repository methods, injected via deps (ADR-0008: no review-context module
 // is imported; review's Review row satisfies ReviewSourceRow structurally).

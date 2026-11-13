@@ -1,8 +1,8 @@
 // Review context — how far Google's review total may disagree with its list.
 //
 // Every page of a Google review listing carries the location's own
-// `totalReviewCount`. A snapshot run used to fail as `set_mismatch` unless the
-// unique reviews the list returned matched that total exactly, because a run
+// `totalReviewCount`. A snapshot run fails as `set_mismatch` only beyond a small
+// gap, not on any difference, because a run
 // also removes the stored Reviews that vanished from Google, and a removal is
 // only safe after a complete listing.
 //
@@ -13,16 +13,15 @@
 // is a listing RepKey cut short; it is Google counting something its list does
 // not show (or the reverse).
 //
-// The owner's decision (2026-10-18, ADR 0055 note): accept a small gap,
-// complete the run, and remove nothing. A listing that disagrees with Google's
+// The rule (ADR 0055): accept a small gap, complete the run, and remove
+// nothing. A listing that disagrees with Google's
 // total is never grounds for removing anything; removals resume on the first
 // run whose numbers agree again.
 //
-// The first tolerance, 2% of the total, was too tight for a small location: on
-// 2026-10-19 one reporting 86 listed 84 unique reviews over two pages, a gap of
-// 2 where 2% allowed 1, and its sync failed as `set_mismatch` after two earlier
-// runs that day (gaps of 1) had completed. The owner's decision of that day
-// widened it to five reviews, or 2% on a big location, still under one page.
+// The tolerance is five reviews, or 2% of the total on a big location, still
+// under one page. 2% alone was too tight for a small location: one reporting
+// 86 listed 84 unique reviews over two pages, a gap of 2 where 2% allowed 1,
+// after runs with a gap of 1 had completed.
 
 import {
   REVIEW_PROVIDER_SNAPSHOT_PAGE_SIZE,

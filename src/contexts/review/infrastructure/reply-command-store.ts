@@ -1,4 +1,4 @@
-// Atomic reply command store (BQC-3.3).
+// Atomic reply command store.
 //
 // One PostgreSQL transaction commits each reply/review state mutation with its
 // outbox row. A crash anywhere inside the transaction rolls back both, while a
@@ -15,7 +15,7 @@
 // refuses withdraws the Reply as the AI draft purge would
 // (unclaimable-publication.ts).
 //
-// BQC-3.8: the publication state machine is persisted here. Publication
+// The publication state machine is persisted here. Publication
 // transitions guard on BOTH status and publication_state; the target state
 // comes from nextPublicationState (the domain authority), never from a
 // caller-supplied literal.
@@ -93,7 +93,7 @@ const missingPublicationActorAuthority: ReplyPublicationActorAuthority = async (
 }
 
 /**
- * Domain-authority pre-check on the read state (BQC-3.8). The SQL guard is
+ * Domain-authority pre-check on the read state. The SQL guard is
  * the real TOCTOU protection; this catches an impossible transition before
  * the write is even attempted. Returns the target state or null.
  */
@@ -375,7 +375,7 @@ export const createAtomicReplyCommandStore = (
     })
   }
 
-  /** BQC-3.8: guarded publication transition + optional fact, one tx. */
+  /** Guarded publication transition + optional fact, one tx. */
   const publicationTransition = async (
     span: string,
     reply: Reply,
@@ -476,7 +476,7 @@ export const createAtomicReplyCommandStore = (
     submitReply: (...args) => submitMeasuredReply(...args),
     rejectReply: (reply, updates, event, now) =>
       transition('reply.commandStore.rejectReply', reply, 'reject', updates, event, now),
-    // BQC-3.8: publish also persists publication_state='published' and clears
+    // Publish also persists publication_state='published' and clears
     // the reconcile schedule — provider confirmation is authoritative.
     markPublished: (reply, updates, event, now) =>
       transition(
@@ -488,7 +488,7 @@ export const createAtomicReplyCommandStore = (
         now,
       ),
 
-    // BQC-3.8: authorize = approve/retry re-authorization (new publication
+    // Authorize = approve/retry re-authorization (new publication
     // cycle): guarded status update + authorized state + cycle reset + the
     // approved fact when one is supplied — one transaction. The write also
     // names the state revision of `reply`: a Reply rejected, rewritten and
@@ -535,7 +535,7 @@ export const createAtomicReplyCommandStore = (
       })
     },
 
-    // BQC-3.8/RPL-01: claim. The normal claim records no fact. If the named
+    // Claim. The normal claim records no fact. If the named
     // manager has lost current authority, or the Property is no longer active
     // at the cycle's source epoch (an Archive or Restore since approval), the
     // same transaction instead moves the cycle to draft/cancelled and records
@@ -861,7 +861,7 @@ export const createAtomicReplyCommandStore = (
       )
     },
 
-    // BQC-3.8: retryable failure — back to 'authorized' (next attempt or
+    // Retryable failure — back to 'authorized' (next attempt or
     // quarantine redrive re-claims); last_error_class/attempts preserved.
     markPublicationRetryQueued: async (reply, now) => {
       return trace('reply.commandStore.markPublicationRetryQueued', async () => {

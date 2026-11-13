@@ -3,9 +3,9 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 //
 // The read answers `policy_unavailable` for any database error, on purpose: its
 // callers retry, and the insights reader shows "preparing" (review CONTEXT.md,
-// Source content). That answer carried no cause, so on 2026-10-27 a refusal that
-// recurred on every attempt read as an unreadable policy until someone found
-// the SQLSTATE in the database log. The repository now logs one warning with the
+// Source content). That answer carries no cause, so a refusal that recurs on every attempt
+// would read as an unreadable policy until someone found the SQLSTATE in the
+// database log. The repository logs one warning with the
 // error's name and its SQLSTATE and nothing else, and still answers the same.
 
 import { DrizzleQueryError } from 'drizzle-orm'

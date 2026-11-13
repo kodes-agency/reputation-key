@@ -1,4 +1,4 @@
-// Inbox context — visible-property resolution (single source, BQC-5.9 E12).
+// Inbox context — visible-property resolution (single source).
 //
 // Authorizes the permission and resolves the caller's visible properties
 // PER PERMISSION via scopeForPermission: org-wide scope (AccountAdmin) →

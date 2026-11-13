@@ -1,4 +1,4 @@
-// Review context — eligible reads (BQC-1.4).
+// Review context — eligible reads.
 //
 // The governed query interface for review content: every cross-context
 // serving read crosses this module. Eligibility rule is

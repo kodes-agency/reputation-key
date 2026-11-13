@@ -2,7 +2,7 @@
 // Per architecture: Context A defines a port interface in its own application/ports/.
 // Composition root wires Context B's public API as the port implementation.
 //
-// BQC-1.2: this is the authorized Review lookup for inbox surfaces. It
+// This is the authorized Review lookup for inbox surfaces. It
 // enforces source eligibility — expired or clock-less content is never
 // served (ADR 0031: only a successful authorized fetch advances the clock).
 

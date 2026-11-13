@@ -1,4 +1,4 @@
-// Review context — BullMQ job handler for refreshing expiring reviews (BQC-1.5)
+// Review context — BullMQ job handler for refreshing expiring reviews
 //
 // Keyset-cursor bounded sweep, replacing the one-shot 5,000-row scan:
 // - batches ordered (contentExpiresAt, id); cursor persists per batch so a
@@ -9,7 +9,7 @@
 //   idempotent);
 // - every run persists cursor, counts, oldest due expiry, failures, and
 //   terminal state to review_refresh_runs (content-free);
-// - purge safety: only successful fetches advance the clock (BQC-1.3), so a
+// - purge safety: only successful fetches advance the clock, so a
 //   failed refresh never masquerades as a successful observation.
 //
 // The sweep enqueues NO sync of its own (ADR 0055, note of 2026-10-21 (e)).
@@ -25,7 +25,7 @@
 // its column names: `enqueued_count` counts Properties pulled forward and
 // `enqueue_failed_count` counts failed schedule updates.
 //
-// BQR-3.2 / ADR 0031: fetch-based contentExpiresAt + SourceContentPolicy.
+// ADR 0031: fetch-based contentExpiresAt + SourceContentPolicy.
 
 import type { Job } from 'bullmq'
 

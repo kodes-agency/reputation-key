@@ -351,7 +351,7 @@ export type ReviewProviderSnapshotRepository = Readonly<{
 
   /**
    * Apply confirmed provider-missing transitions in a bounded batch. The
-   * persisted `deleting` state is legacy vocabulary; SAFE-03 makes source
+   * persisted `deleting` state is legacy vocabulary; deletion makes source
    * content ineligible while preserving stable Review/Reply identity.
    */
   applyDeletionBatch(

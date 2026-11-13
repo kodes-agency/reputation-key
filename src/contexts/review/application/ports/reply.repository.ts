@@ -88,9 +88,9 @@ export type ConditionalReplyUpdate = Readonly<{
   rejectedBy?: string | null
   rejectionReason?: string | null
   publishedAt?: Date | null
-  /** BQC-3.8: publication state machine fields (migration 0015). */
+  /** Publication state machine fields (migration 0015). */
   publicationState?: PersistedPublicationState | null
-  /** RPL-01: monotonic approval/edit/retry cycle fence. */
+  /** Monotonic approval/edit/retry cycle fence. */
   publicationCycle?: number
   publicationAttempts?: number
   publicationLastErrorClass?: PublicationFailureClass | null
@@ -183,7 +183,7 @@ export type ReplyRepository = Readonly<{
     attempt: PublicationAttemptReference,
   ): Promise<Date | null>
   /**
-   * BQC-3.8: replies of the given reviews whose publication cycle was never
+   * Replies of the given reviews whose publication cycle was never
    * dispatched (requested/authorized) — the rows a disconnect may cancel. A
    * sending or pending_observation cycle may already be on Google, so it stays
    * with the worker and the reconciliation sweep, exactly as the
@@ -243,8 +243,8 @@ export type ReplyRepository = Readonly<{
 }>
 
 /**
- * The read-only reply slice Review publishes through `lookups.reply`
- * (ARC-03-T12). Other contexts get these five reads and nothing that writes.
+ * The read-only reply slice Review publishes through `lookups.reply`.
+ * Other contexts get these five reads and nothing that writes.
  */
 export type ReplyLookups = Pick<
   ReplyRepository,

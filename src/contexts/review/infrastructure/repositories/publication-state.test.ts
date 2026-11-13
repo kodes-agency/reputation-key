@@ -1,5 +1,5 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-// BQC-3.8 — publication state machine integration tests (real Postgres).
+// Publication state machine integration tests (real Postgres).
 //
 // Migration 0015 (drizzle/0015_publication-state.sql) persists the durable
 // publication overlay on replies. These tests prove on the real database:

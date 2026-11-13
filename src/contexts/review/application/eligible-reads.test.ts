@@ -1,4 +1,4 @@
-// BQC-1.4 — the governed read interface: every serving read crosses
+// The governed read interface: every serving read crosses
 // eligible-reads. Expired or clock-less content is never served (fail
 // closed); filters run against eligible rows only.
 

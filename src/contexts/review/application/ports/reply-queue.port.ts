@@ -8,7 +8,7 @@ export type PublishReplyJobData = JobEnqueueAttribution &
     organizationId: string
     /**
      * Monotonic authorization generation. Required for current producers;
-     * optional only so a bounded pre-RPL-01 in-flight job can be recognized
+     * optional only so a bounded in-flight job enqueued before the cycle existed can be recognized
      * as legacy by the worker (legacy rows have cycle 0).
      */
     publicationCycle?: number
@@ -21,7 +21,7 @@ export type PublishReplyJobData = JobEnqueueAttribution &
 
 export type AddPublishJobOptions = Readonly<{
   /**
-   * RPL-01: publication idempotency key (reply-{replyId}-v{publicationCycle}) used as
+   * Publication idempotency key (reply-{replyId}-v{publicationCycle}) used as
    * the BullMQ jobId so a duplicate enqueue of the same approval cycle is
    * deduped instead of running the provider publish twice.
    */

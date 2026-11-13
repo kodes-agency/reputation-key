@@ -1497,7 +1497,7 @@ describe('sync-property-reviews snapshot handler', () => {
 
     // Error monitoring has no fingerprint of its own here (the scrub deletes it),
     // so it groups by stack, and the existing ReviewProviderSnapshotFailure issue
-    // (JAVASCRIPT-TANSTACKSTART-REACT-4) was grouped under runSnapshotStep, the
+    // is grouped under runSnapshotStep, the
     // function that built the error before the explicit report. A helper that
     // builds it moves the frame and the report would open a new issue.
     it.each([
