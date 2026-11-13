@@ -80,6 +80,11 @@ export type RebuildInboxProjectionReport = Readonly<{
   closed: number
   /** Items that received a missing reply milestone stamp. */
   milestones: number
+  /**
+   * Canonical reviews with no item that rebuild could not materialise: no
+   * stable material revision, or item construction was rejected.
+   */
+  skipped: number
   dryRun: boolean
 }>
 
@@ -98,7 +103,13 @@ export type RebuildInboxProjection = (
   input: RebuildInboxProjectionInput,
 ) => Promise<RebuildInboxProjectionReport>
 
-type Counters = { scanned: number; created: number; closed: number; milestones: number }
+type Counters = {
+  scanned: number
+  created: number
+  closed: number
+  milestones: number
+  skipped: number
+}
 
 /** What reconcile must do for one existing item (all fields independent). */
 type ItemRepair = Readonly<{
@@ -308,6 +319,7 @@ async function materializeMissingItem(
       {},
       'rebuildInboxProjection: skipping review without a stable material revision',
     )
+    counters.skipped += 1
     return
   }
   const built = buildInboxItem({
@@ -326,6 +338,7 @@ async function materializeMissingItem(
       { err: built.error },
       'rebuildInboxProjection: skipping review — item construction failed',
     )
+    counters.skipped += 1
     return
   }
 
@@ -394,7 +407,13 @@ export const rebuildInboxProjection =
   async (input) => {
     const batchSize = Math.max(1, Math.min(input.batchSize ?? 200, 1000))
     const now = deps.clock()
-    const counters: Counters = { scanned: 0, created: 0, closed: 0, milestones: 0 }
+    const counters: Counters = {
+      scanned: 0,
+      created: 0,
+      closed: 0,
+      milestones: 0,
+      skipped: 0,
+    }
 
     const sources = await deps.reviewSourceLookup.listReviewSources(
       input.organizationId,

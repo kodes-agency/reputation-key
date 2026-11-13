@@ -65,6 +65,62 @@ export const createAssignmentCommands = (
     authorityRequirements,
     actorPrincipals,
   } = runtime
+  // The actor and the assignee are decided in one call, so a grant revoked
+  // mid-command cannot be seen half way. Only when that denies is the actor
+  // decided alone; the assignee requirement is then returned for its own check.
+  const authorizeReopen = async (
+    tx: Tx,
+    currentItem: Parameters<typeof authorityRequirements>[0],
+    principals: Parameters<typeof authorityRequirements>[1],
+    assignedTo: string | null,
+    now: Date,
+  ): Promise<InboxCommandAuthorityRequirement | null> => {
+    const actorRequirements = authorityRequirements(currentItem, principals)
+    if (assignedTo === null) {
+      await assertCommandAuthority(tx, currentItem.organizationId, now, actorRequirements)
+      return null
+    }
+    const assigneeRequirement: InboxCommandAuthorityRequirement = {
+      propertyId: currentItem.propertyId,
+      userId: assignedTo,
+      permissions: ['inbox.write', sourceCommandPermission(currentItem.sourceType)],
+      purpose: 'assignee',
+    }
+    const together = await authorizeCommand(tx, {
+      organizationId: currentItem.organizationId,
+      at: now,
+      requirements: [...actorRequirements, assigneeRequirement],
+    })
+    if (together.allowed) return null
+    await assertCommandAuthority(tx, currentItem.organizationId, now, actorRequirements)
+    return assigneeRequirement
+  }
+
+  const assigneeLostEligibility = async (
+    tx: Tx,
+    organizationId: OrganizationId,
+    requirement: InboxCommandAuthorityRequirement,
+    now: Date,
+  ): Promise<boolean> => {
+    const eligibility = await authorizeCommand(tx, {
+      organizationId,
+      at: now,
+      requirements: [requirement],
+    })
+    if (eligibility.allowed) return false
+    if (
+      eligibility.reason.includes('authority_changed') ||
+      eligibility.reason.includes('contract_mismatch')
+    ) {
+      throw inboxError(
+        'revision_conflict',
+        'Inbox assignment authority changed during reopen',
+        { authorityReason: eligibility.reason },
+      )
+    }
+    return true
+  }
+
   type ReleaseInput = Readonly<{
     organizationId: OrganizationId
     userId: UserId
@@ -408,11 +464,12 @@ export const createAssignmentCommands = (
           }
 
           const currentItem = itemFromRow(itemRow)
-          await assertCommandAuthority(
+          const pendingAssignee = await authorizeReopen(
             tx,
-            currentItem.organizationId,
+            currentItem,
+            actorPrincipals(currentItem, fact),
+            itemRow.assignedTo,
             now,
-            authorityRequirements(currentItem, actorPrincipals(currentItem, fact)),
           )
           await assertManualReopenHonest(tx, handlingCycleHeadFromRow(headRow))
           const decision = createNextHandlingCycle({
@@ -430,41 +487,21 @@ export const createAssignmentCommands = (
 
           let assignedTo = itemRow.assignedTo
           let unassignedFact: ReturnType<typeof inboxItemUnassigned> | null = null
-          if (assignedTo !== null) {
-            const eligibility = await authorizeCommand(tx, {
-              organizationId: itemRow.organizationId,
-              at: now,
-              requirements: [
-                {
-                  propertyId: itemRow.propertyId,
-                  userId: assignedTo,
-                  permissions: ['inbox.write', sourceCommandPermission(item.sourceType)],
-                  purpose: 'assignee',
-                },
-              ],
+          if (
+            assignedTo !== null &&
+            pendingAssignee !== null &&
+            (await assigneeLostEligibility(tx, item.organizationId, pendingAssignee, now))
+          ) {
+            unassignedFact = inboxItemUnassigned({
+              inboxItemId: item.id,
+              organizationId: item.organizationId,
+              propertyId: item.propertyId,
+              userId: userId(actorId),
+              previousAssignee: userId(assignedTo),
+              source: 'web',
+              occurredAt: now,
             })
-            if (!eligibility.allowed) {
-              if (
-                eligibility.reason.includes('authority_changed') ||
-                eligibility.reason.includes('contract_mismatch')
-              ) {
-                throw inboxError(
-                  'revision_conflict',
-                  'Inbox assignment authority changed during reopen',
-                  { authorityReason: eligibility.reason },
-                )
-              }
-              unassignedFact = inboxItemUnassigned({
-                inboxItemId: item.id,
-                organizationId: item.organizationId,
-                propertyId: item.propertyId,
-                userId: userId(actorId),
-                previousAssignee: userId(assignedTo),
-                source: 'web',
-                occurredAt: now,
-              })
-              assignedTo = null
-            }
+            assignedTo = null
           }
 
           const cycleFacts = await insertNextHandlingCycleDecision(
