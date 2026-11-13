@@ -22,6 +22,7 @@
 
 import type { Route } from '@playwright/test'
 import { test, expect } from '../../helpers/error-detection'
+import { expectPhoneLayout } from '../../helpers/phone-layout'
 import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import {
@@ -109,6 +110,7 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
     await expect(page.getByText('Handling Cycle Reviewer').first()).toBeVisible({
       timeout: 15_000,
     })
+    await expectPhoneLayout(page, ['appTopBar'])
 
     // CLAIM — the signed-in manager takes the work.
     const unassigned = await getInboxItemById(inboxItemId)

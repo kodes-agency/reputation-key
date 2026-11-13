@@ -21,6 +21,7 @@
 
 import type { Page } from '@playwright/test'
 import { test, expect } from '../../helpers/error-detection'
+import { expectPhoneLayout } from '../../helpers/phone-layout'
 import { signIn, registerInvitedAccount } from '../../helpers/auth'
 import { assertNoAxeViolations } from '../../helpers/a11y'
 import { waitForHydration, clickWhenReady } from '../../helpers/interaction'
@@ -41,6 +42,7 @@ async function openConsole(page: Page): Promise<void> {
   await expect(
     page.getByRole('heading', { name: 'Operator console', level: 1 }),
   ).toBeVisible()
+  await expectPhoneLayout(page, ['appTopBar'])
 }
 
 /** The console's row for one Organization, found by its heading. */

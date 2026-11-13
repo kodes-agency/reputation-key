@@ -1,6 +1,7 @@
 // H check-in and live detail journeys over synthetic dated v3 facts.
 // No integration/browser run is claimed locally; CI supplies the disposable stack.
 import { test, expect } from '../../helpers/error-detection'
+import { expectPhoneLayout } from '../../helpers/phone-layout'
 import { signIn } from '../../helpers/auth'
 import { assertNoAxeViolations } from '../../helpers/a11y'
 import { clickWhenReady } from '../../helpers/interaction'
@@ -180,6 +181,7 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
     }
     await expect(page.getByRole('link', { name: /Open the goal/u })).toHaveCount(0)
     await assertNoAxeViolations(page, 'Guest voice check-in (desktop)')
+    await expectPhoneLayout(page, ['appTopBar'])
     const opener = page
       .getByRole('button', { name: /Air conditioning.*4 guests/u })
       .first()
@@ -198,6 +200,7 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
     await expect(
       sheet.getByText('Health risk · a guest report, not a verified finding.'),
     ).toBeVisible()
+    await expectPhoneLayout(page, ['appTopBar'])
     await sheet.getByRole('button', { name: /Back to Air conditioning/u }).click()
     await expect(sheet.getByText('These guests')).toBeVisible()
     const bookmark = page.url()

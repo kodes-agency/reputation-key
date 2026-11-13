@@ -3,6 +3,7 @@
 // authorization, provider gateway, parser, lease, and Dashboard composition.
 
 import { test, expect } from '../../helpers/error-detection'
+import { expectPhoneLayout } from '../../helpers/phone-layout'
 import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { gbpStubControl, type StubScope } from '../../fixtures/gbp-stub'
@@ -148,18 +149,40 @@ async function getPerformance(
   })
 }
 
+// The production gateway allows four Performance requests per endpoint-second,
+// so a call straight after another may be answered by the limiter instead of the
+// provider: ask again until the provider's own answer arrives.
+async function expectPerformanceAnswer(
+  page: Parameters<typeof callServerFn>[0],
+  propertyId: string,
+  expected: PropertyGooglePerformanceResultV1,
+): Promise<void> {
+  await expect
+    .poll(() => getPerformance(page, propertyId), {
+      timeout: 10_000,
+      intervals: [250],
+      message: 'the provider answer reaches the Performance read',
+    })
+    .toEqual(expected)
+}
+
+type ReadyPerformance = Extract<PropertyGooglePerformanceResultV1, { status: 'ready' }>
+
+// Waits for a ready answer that shows the scope the journey has just put on the
+// provider, so an earlier scope's snapshot or a limiter answer is never read as it.
 async function waitForReadyPerformance(
   page: Parameters<typeof callServerFn>[0],
   propertyId: string,
-): Promise<Extract<PropertyGooglePerformanceResultV1, { status: 'ready' }>> {
+  shows: (ready: ReadyPerformance) => boolean = () => true,
+): Promise<ReadyPerformance> {
   return waitFor(
     async () => {
       const result = await getPerformance(page, propertyId)
-      return result.status === 'ready' ? result : null
+      return result.status === 'ready' && shows(result) ? result : null
     },
     {
       timeoutMs: 10_000,
-      intervalMs: 100,
+      intervalMs: 250,
       description: 'Performance capability snapshot refresh',
     },
   )
@@ -217,6 +240,7 @@ test.describe('Critical workflow: live Google Performance', () => {
     ).toBeVisible()
     const performanceRegion = page.getByRole('main')
     await expect(performanceRegion).toBeVisible()
+    await expectPhoneLayout(page, ['appTopBar'])
     await expect(
       performanceRegion.getByText('Website clicks', { exact: true }).first(),
     ).toBeVisible()
@@ -258,26 +282,30 @@ test.describe('Critical workflow: live Google Performance', () => {
     await signIn(page)
 
     await gbpStubControl.putScope(providerScope('partial'))
-    const partial = await waitForReadyPerformance(page, propertyId)
+    const partial = await waitForReadyPerformance(
+      page,
+      propertyId,
+      (ready) => ready.data.sourceHealth.state === 'partial',
+    )
     expect(partial.data.sourceHealth.state).toBe('partial')
     expect(partial.data.headlines.totalProfileImpressions.completeDayCount).toBe(29)
     assertNoProviderIdentifiers(partial)
 
     await gbpStubControl.putScope(providerScope('zero'))
-    const allZero = await getPerformance(page, propertyId)
-    expect(allZero.status).toBe('ready')
-    if (allZero.status === 'ready') {
-      expect(allZero.data.headlines.websiteClicks.value).toBe(0)
-      expect(allZero.data.headlines.websiteClicks.availability).toBe('ready')
-    }
+    const allZero = await waitForReadyPerformance(
+      page,
+      propertyId,
+      (ready) => ready.data.headlines.websiteClicks.value === 0,
+    )
+    expect(allZero.data.headlines.websiteClicks.availability).toBe('ready')
 
     await gbpStubControl.putScope(providerScope('no_data'))
-    const noData = await getPerformance(page, propertyId)
-    expect(noData.status).toBe('ready')
-    if (noData.status === 'ready') {
-      expect(noData.data.sourceHealth.state).toBe('no_data')
-      expect(noData.data.headlines.websiteClicks.value).toBeNull()
-    }
+    const noData = await waitForReadyPerformance(
+      page,
+      propertyId,
+      (ready) => ready.data.sourceHealth.state === 'no_data',
+    )
+    expect(noData.data.headlines.websiteClicks.value).toBeNull()
 
     await gbpStubControl.putScope(providerScope())
     await gbpStubControl.setPerformanceBehavior(LOCATION_NAME, {
@@ -291,23 +319,20 @@ test.describe('Critical workflow: live Google Performance', () => {
       retryable: true,
       retryAfterSeconds: 17,
     })
-    // The production gateway enforces four Performance requests per endpoint-second.
-    await new Promise((resolve) => setTimeout(resolve, 1_100))
 
     await gbpStubControl.setPerformanceBehavior(LOCATION_NAME, { mode: 'malformed' })
-    await expect(getPerformance(page, propertyId)).resolves.toEqual({
+    await expectPerformanceAnswer(page, propertyId, {
       status: 'error',
       errorCode: 'malformed_provider_response',
       retryable: false,
       retryAfterSeconds: null,
     })
-    await new Promise((resolve) => setTimeout(resolve, 1_100))
 
     await gbpStubControl.setPerformanceBehavior(LOCATION_NAME, {
       mode: 'oversize',
       bytes: 5 * 1024 * 1024 + 1,
     })
-    await expect(getPerformance(page, propertyId)).resolves.toEqual({
+    await expectPerformanceAnswer(page, propertyId, {
       status: 'error',
       errorCode: 'malformed_provider_response',
       retryable: false,

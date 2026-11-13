@@ -8,6 +8,7 @@
 // - Property/inbox/members use seed-state deep-links (no UI property create).
 
 import { test, expect } from '../helpers/error-detection'
+import { expectPhoneLayout } from '../helpers/phone-layout'
 import { signIn } from '../helpers/auth'
 import { expectOneH1 } from '../helpers/page-structure'
 import { openSeededProperty, SEEDED_PROPERTY_NAME } from '../helpers/property'
@@ -52,6 +53,7 @@ test.describe('Critical: properties shell', () => {
     await expect(page.getByRole('heading', { name: /^properties$/i })).toBeVisible()
     await expect(page.getByText(SEEDED_PROPERTY_NAME)).toBeVisible()
     await expectOneH1(page)
+    await expectPhoneLayout(page, ['appTopBar', 'propertyListSetupLinks'])
   })
 
   test('open seeded property detail', async ({ page }) => {
@@ -79,6 +81,7 @@ test.describe('Critical: inbox and members shell', () => {
     await expect(page).toHaveURL(/\/inbox/)
     await expect(inboxChrome(page)).toBeVisible({ timeout: 15_000 })
     await expectOneH1(page)
+    await expectPhoneLayout(page, ['appTopBar'])
   })
 
   test('settings members page loads', async ({ page }) => {
@@ -99,5 +102,6 @@ test.describe('Critical: inbox and members shell', () => {
     ).toBeVisible()
     await expect(page.getByRole('columnheader', { name: 'Properties' })).toBeVisible()
     await expect(page.getByRole('columnheader', { name: 'Person' })).toBeVisible()
+    await expectPhoneLayout(page, ['appTopBar'])
   })
 })

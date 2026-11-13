@@ -1,6 +1,7 @@
 // The manager UI is delivered by PR C; this journey joins it to the staff door.
 import { randomUUID } from 'node:crypto'
 import { test, expect } from '../helpers/error-detection'
+import { expectPhoneLayout } from '../helpers/phone-layout'
 import { signIn } from '../helpers/auth'
 import { clickWhenReady, waitForHydration } from '../helpers/interaction'
 import { requireE2eSeedState } from '../helpers/seed-state'
@@ -10,6 +11,7 @@ import {
   callServerFnGetExpectError,
   dbQuery,
   e2eRunId,
+  resetGuestRateLimits,
   waitFor,
 } from '../helpers/fixtures'
 import { mailStubControl } from '../fixtures/mail-stub'
@@ -29,6 +31,9 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
   browser,
 }) => {
   test.setTimeout(120_000)
+  // The guest scan below is counted only inside the scan budget, which earlier
+  // journeys on this stack may have used.
+  await resetGuestRateLimits()
   await signIn(page)
   // A Property of its own with a published Portal to copy, made through the real
   // commands: the shared seed's Portal is a fixture snapshot, which Add staff
@@ -116,6 +121,7 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
     await expect(
       staffPage.getByRole('heading', { name: 'Before you start' }),
     ).toHaveCount(0)
+    await expectPhoneLayout(staffPage, ['appTopBar'])
 
     const home = await callServerFnGet<{ participations: { participationId: string }[] }>(
       staffPage,
