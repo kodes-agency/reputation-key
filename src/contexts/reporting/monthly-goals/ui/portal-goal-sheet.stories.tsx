@@ -37,6 +37,7 @@ import {
   SHEET_READY,
   SHEET_SCANS_ONLY,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 type Commands = PortalGoalSheetProps['commands']
 
@@ -280,24 +281,19 @@ export const SetRecommendedOnANarrowPhone: Story = {
 }
 
 export const SetRecommendedOnATablet: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const { sheet, in: inSheet } = await openSheet(canvasElement)
     await expect(sheet).toHaveAttribute('data-portal-goal-sheet', 'dialog')
     await expectRecommendedNovember(inSheet)
     await expect(inSheet.getByText(COUNTS_SENTENCE)).toBeVisible()
     await expectLinksRow(inSheet)
-  },
+  }),
   parameters: { viewport: { defaultViewport: 'tablet' } },
 }
 
 export const SetRecommendedOnADesktop: Story = {
   ...SetRecommendedOnATablet,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const SetRecommendedLight: Story = {
-  ...SetRecommendedOnATablet,
-  parameters: { theme: 'light' },
 }
 
 /** + moves to 45, an own number; the link goes back to 40, recommended. */
@@ -999,29 +995,20 @@ export const Change320: Story = {
 /** From 820 px the change opens as a dialog, with both months and the note. */
 export const ChangeOnATablet: Story = {
   args: CHANGING,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const { sheet, in: inSheet } = await openChange(canvasElement)
     await expect(sheet).toHaveAttribute('data-portal-goal-sheet', 'dialog')
     await expect(inSheet.getByRole('radio', { name: 'From Dec 1' })).toBeChecked()
     await expect(inSheet.getByText('November stays at 40.')).toBeVisible()
     await userEvent.click(inSheet.getByRole('button', { name: 'Add a note' }))
     await expect(inSheet.getByRole('textbox', { name: 'Note' })).toBeVisible()
-  },
+  }),
   parameters: { viewport: { defaultViewport: 'tablet' } },
 }
 
 export const ChangeOnADesktop: Story = {
   ...ChangeOnATablet,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const ChangeLight: Story = {
-  args: CHANGING,
-  play: async ({ canvasElement }) => {
-    const { in: sheet } = await openChange(canvasElement)
-    await expect(sheet.getByText('November stays at 40.')).toBeVisible()
-  },
-  parameters: { theme: 'light' },
 }
 
 /** Stopped in November: "Set a goal from December" opens the set sheet on December alone. */

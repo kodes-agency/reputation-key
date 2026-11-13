@@ -52,6 +52,7 @@ export function PortalNewStartFromField({
           <RadioGroupItem
             value="property"
             id="portal-new-start-property"
+            touch
             className="mt-1"
           />
           <Label
@@ -69,6 +70,7 @@ export function PortalNewStartFromField({
             <RadioGroupItem
               value="portal"
               id="portal-new-start-portal"
+              touch
               className="mt-1"
             />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">

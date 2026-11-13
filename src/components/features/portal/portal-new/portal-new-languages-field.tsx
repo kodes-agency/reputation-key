@@ -19,7 +19,7 @@ import { languageChoices, languageNote, toggleLocale } from './portal-new-rules'
 import type { PortalNewField } from './portal-new-types'
 
 const CHIP_CLASS =
-  'inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50'
+  'inline-flex min-h-9 max-md:min-h-(--control-touch) items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50'
 
 function LanguageChip({
   locale,

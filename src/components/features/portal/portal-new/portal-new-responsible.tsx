@@ -57,7 +57,13 @@ export function PortalNewResponsible({
         {options.eligibleManagerUserIds.length > 0 ? (
           <Popover>
             <PopoverTrigger asChild>
-              <Button type="button" variant="link" size="inline" disabled={disabled}>
+              <Button
+                type="button"
+                variant="link"
+                size="inline"
+                touch
+                disabled={disabled}
+              >
                 Change
               </Button>
             </PopoverTrigger>
