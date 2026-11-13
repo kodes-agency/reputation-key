@@ -1,9 +1,9 @@
-import { REVIEW_GENERIC_THING_WORDS } from './review-generic-things'
+import { REVIEW_GENERIC_THING_WORDS } from '#/shared/review-generic-things'
 import {
   REVIEW_TOPICS_V3,
   REVIEW_TOPIC_LABELS_V3,
   type ReviewTopicV3,
-} from './review-topic-taxonomy'
+} from '#/shared/review-topic-taxonomy'
 
 // The developer message of review-analysis v3: annotation guide v3 with its
 // clarifications v3.1, v3.2 and v3.3, written for a model. The guide is the shared

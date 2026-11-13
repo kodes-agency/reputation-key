@@ -6,7 +6,7 @@ import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_FLAGS,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
-} from './review-analysis-v3-normalizer'
+} from '#/shared/analysis/normalizer'
 import {
   resolveReviewPropertyContext,
   type ReviewPropertyContext,

@@ -1,6 +1,6 @@
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
-import type { ReviewAnalysisNormalizationFlag } from '#/shared/review-analysis-v3-normalizer'
+import type { ReviewAnalysisNormalizationFlag } from '#/shared/analysis/normalizer'
 import type {
   ReviewAttentionLevelV2,
   ReviewSentimentV3,

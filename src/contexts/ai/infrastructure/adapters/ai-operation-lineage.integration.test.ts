@@ -25,7 +25,7 @@ import {
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
-} from '#/shared/review-analysis-v3-normalizer'
+} from '#/shared/analysis/normalizer'
 import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import {

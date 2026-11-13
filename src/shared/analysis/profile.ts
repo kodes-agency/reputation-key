@@ -9,8 +9,8 @@ import {
 import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
 import { MAX_AI_REVIEW_SENTENCES_V1 } from '#/shared/ai-review-source-contract'
 import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/review-analysis-v3'
-import { REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS } from '#/shared/review-analysis-v3-artifacts'
-import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/review-analysis-v3-prompt'
+import { REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS } from '#/shared/analysis/artifacts'
+import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/analysis/prompt'
 import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/review-analysis-v3-request'
 
 // The v3 operation profile, in no provider's terms. Activation (slice 3.10, the

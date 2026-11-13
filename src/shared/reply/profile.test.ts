@@ -1,12 +1,9 @@
-import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply-drafting-v2-schema'
+import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply/schema'
 import { z } from 'zod/v4'
 import { describe, expect, it } from 'vitest'
 import { REPLY_DRAFTING_V2_OPERATION_PROFILE as profile } from './profile'
 import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply-drafting-v2-contract'
-import {
-  REPLY_BODY_LINT_DIGEST,
-  lintReplyDraftingV2Body,
-} from '#/shared/reply-drafting-v2-lint'
+import { REPLY_BODY_LINT_DIGEST, lintReplyDraftingV2Body } from '#/shared/reply/lint'
 import { REPLY_DRAFTING_V2_APOLOGIES } from '#/shared/domain/reply-drafting-v2'
 import {
   REPLY_DRAFTING_V2_EXAMPLES_DIGEST,
@@ -15,8 +12,8 @@ import {
   resolveReplyDraftingV2Options,
   buildReplyDraftingV2Payload,
   validReplyDraftingV2Options,
-} from '#/shared/reply-drafting-v2-request'
-import { REPLY_DRAFTING_V2_PROMPT } from '#/shared/reply-drafting-v2-prompt'
+} from '#/shared/reply/request'
+import { REPLY_DRAFTING_V2_PROMPT } from '#/shared/reply/prompt'
 import {
   AI_RUNTIME_CAPABILITY_CATALOGUE,
   getAiRuntimeCapability,

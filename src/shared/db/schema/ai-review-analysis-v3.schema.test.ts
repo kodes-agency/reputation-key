@@ -21,7 +21,7 @@ import {
   REVIEW_STRENGTHS_V3,
   REVIEW_URGENT_REASONS_V3,
 } from '#/shared/review-analysis-v3'
-import { REVIEW_ANALYSIS_NORMALIZATION_FLAGS } from '#/shared/review-analysis-v3-normalizer'
+import { REVIEW_ANALYSIS_NORMALIZATION_FLAGS } from '#/shared/analysis/normalizer'
 import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
 import {
   aiExecutionControlHeads,

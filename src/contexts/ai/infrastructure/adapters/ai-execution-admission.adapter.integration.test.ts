@@ -19,7 +19,7 @@ import {
 } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
-import { replyDynamicDeveloperBytes } from '#/shared/reply-drafting-v2-request'
+import { replyDynamicDeveloperBytes } from '#/shared/reply/request'
 import { maximumCostMicros, settledCostMicros } from '#/shared/ai-openai-provider-profile'
 import type {
   AiAdmissionDescriptorV1,

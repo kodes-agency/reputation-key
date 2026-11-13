@@ -1,7 +1,7 @@
 import '@tanstack/react-start/server-only'
-import { digestOf } from './ai-digest'
+import { digestOf } from '#/shared/ai-digest'
 import { z } from 'zod/v4'
-import commonWordSource from './review-cause-common-words-v1.json'
+import commonWordSource from '#/shared/review-cause-common-words-v1.json'
 import {
   REVIEW_ANALYSIS_V3_MAX_MENTIONS,
   REVIEW_ANALYSIS_V3_MAX_SENTENCE_NUMBER,
@@ -24,7 +24,7 @@ import {
   type ReviewSentimentV3,
   type ReviewStrengthV3,
   type ReviewUrgentReasonV3,
-} from './review-analysis-v3'
+} from '#/shared/review-analysis-v3'
 import {
   REVIEW_NAME_TOKEN_RULES,
   collectReviewNameTokens,
@@ -32,8 +32,8 @@ import {
   normalizeReviewCausePhrase,
   reviewCauseContainsRefusedName,
   reviewCauseReproducesQuotation,
-} from './review-analysis-v3-cause-rules'
-import { REVIEW_TOPICS_V3, type ReviewTopicV3 } from './review-topic-taxonomy'
+} from '#/shared/review-analysis-v3-cause-rules'
+import { REVIEW_TOPICS_V3, type ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
 
 export const REVIEW_ANALYSIS_NORMALIZATION_VERSION =
   'review-analysis-normalization-v1' as const

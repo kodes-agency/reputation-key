@@ -1,7 +1,7 @@
 import { isReplyDraftingV2Binding } from './domain/reply-drafting-v2'
 import { z } from 'zod/v4'
 import { REPLY_BODY_RULES } from './domain/reply-body-lint-policy'
-import { replyDraftingV2OptionsSchema } from './reply-drafting-v2-schema'
+import { replyDraftingV2OptionsSchema } from '#/shared/reply/schema'
 
 export const replyBodyIssueCodeSchema = z.enum(
   Object.keys(REPLY_BODY_RULES) as [
