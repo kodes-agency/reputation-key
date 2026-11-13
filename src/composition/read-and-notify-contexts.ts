@@ -212,6 +212,10 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
         findGoogleNotificationAnchor: (connectionIdValue, orgId) =>
           input.property.publicApi.findGoogleNotificationAnchor(connectionIdValue, orgId),
       },
+      googleConnectionStatus: {
+        findStatus: (orgId, connectionIdValue) =>
+          input.integration.publicApi.connections.findStatus(orgId, connectionIdValue),
+      },
       propertyImportInitiators: {
         findPropertyImportInitiator: (orgId, pid) =>
           input.integration.publicApi.imports.findInitiator(orgId, pid),

@@ -201,6 +201,7 @@ async function writeNotices(jobs: ReadonlyArray<QueuedNotice>) {
     destinationLookup: {
       findDestinationApprovalNotificationFacts: notAskedForAnArrival,
     },
+    googleConnectionStatus: { findStatus: notAskedForAnArrival },
     responsibleManagers: {
       findForProperty: notAskedForAnArrival,
       findForPortal: notAskedForAnArrival,
