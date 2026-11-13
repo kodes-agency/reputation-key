@@ -1,69 +1,87 @@
+// Property context — Responsible Manager use cases against real PostgreSQL: the
+// Property repository, the manager assignment repository and the outbox decide
+// the outcome.
+
 import { describe, expect, it } from 'vitest'
+import { getDb } from '#/shared/db'
+import { organizationId } from '#/shared/domain/ids'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
-import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
-import type { PropertyResponsibleManager } from '../../domain/property-responsible-manager'
-import type { PropertyResponsibleManagerRepository } from '../ports/property-responsible-manager.repository'
+import { createPropertyRepository } from '../../infrastructure/repositories/property.repository'
+import { seedTestProperty } from '../../infrastructure/property-test-fixtures'
+import { createPropertyResponsibleManagerRepository } from '../../responsibility/manager-repository.server'
 import {
   listPropertyResponsibleManagers,
   updatePropertyResponsibleManagers,
 } from './property-responsible-managers'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
+const ORG_A = organizationId('org-responsible-managers-a')
+const ORG_B = organizationId('org-responsible-managers-b')
 const PROPERTY = buildTestProperty({
+  id: 'c9200000-0000-4000-8000-000000000001',
+  slug: 'responsible-managers',
+  organizationId: ORG_A,
   responsibleManagerRevision: 1,
   responsibilityNeededSince: NOW,
 })
 
-type Release = Parameters<PropertyResponsibleManagerRepository['releaseForUser']>[0]
+const { getPool } = setupIntegrationDb({
+  orgA: ORG_A,
+  orgB: ORG_B,
+  tables: ['outbox_events', 'property_responsible_managers', 'properties'],
+})
+const db = getDb()
+
+const activeUserIds = async () =>
+  (
+    await getPool().query(
+      `SELECT user_id FROM property_responsible_managers
+       WHERE organization_id = $1 AND effective_to IS NULL ORDER BY user_id`,
+      [ORG_A],
+    )
+  ).rows.map((row) => row.user_id as string)
+
+const releases = async () =>
+  (
+    await getPool().query(
+      `SELECT user_id, effective_to, end_reason, created_by FROM property_responsible_managers
+       WHERE organization_id = $1 AND end_reason IS NOT NULL`,
+      [ORG_A],
+    )
+  ).rows
+
+const recoveryFacts = async () =>
+  (
+    await getPool().query(
+      `SELECT payload FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'property.responsibility_became_needed'`,
+      [ORG_A],
+    )
+  ).rows.map((row) => row.payload as Record<string, unknown>)
 
 /**
  * `removedWhileSaving`: members whose removal commits after the save has read
  * them as eligible and before its own write commits.
  */
-const setup = (removedWhileSaving: readonly string[] = []) => {
-  const propertyRepo = createInMemoryPropertyRepo()
-  propertyRepo.seed([PROPERTY])
-  const outbox = createRecordedOutbox()
-  let active: PropertyResponsibleManager[] = []
+const setup = async (removedWhileSaving: readonly string[] = []) => {
+  clearEventSchemas()
+  registerAllEventSchemas()
+  await seedTestProperty(db, PROPERTY)
+  const realManagerRepo = createPropertyResponsibleManagerRepository(db)
   const gone = new Set<string>()
-  const releases: Release[] = []
-  const managerRepo: PropertyResponsibleManagerRepository = {
-    listActive: async () => active,
-    listActiveForUser: async () => active,
-    releaseForUser: async (input) => {
-      releases.push(input)
-      const kept = active.filter((row) => row.userId !== input.userId)
-      const released = active.length - kept.length
-      active = kept
-      return { released }
-    },
+  const managerRepo: typeof realManagerRepo = {
+    ...realManagerRepo,
     replace: async (input) => {
+      const result = await realManagerRepo.replace(input)
       removedWhileSaving.forEach((userId) => gone.add(userId))
-      const hadManagers = active.length > 0
-      active = input.managerUserIds.map((userId, index) => ({
-        id: `assignment-${index + 1}`,
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        userId,
-        effectiveFrom: input.at,
-        effectiveTo: null,
-        createdBy: input.actorId,
-        endReason: null,
-      }))
-      const becameResponsibilityNeeded = hadManagers && active.length === 0
-      if (becameResponsibilityNeeded) {
-        await outbox.record(input.responsibilityNeededEvent)
-      }
-      return {
-        assignments: active,
-        revision: input.expectedRevision + 1,
-        becameResponsibilityNeeded,
-      }
+      return result
     },
   }
-  const deps = {
-    propertyRepo,
+  return {
+    propertyRepo: createPropertyRepository(db),
     managerRepo,
     identityPublicApi: {
       listActiveManagers: async () =>
@@ -92,15 +110,17 @@ const setup = (removedWhileSaving: readonly string[] = []) => {
     },
     clock: () => NOW,
   }
-  return { deps, outbox, releases, assigned: () => active.map((row) => row.userId) }
 }
+
+const accountAdmin = () =>
+  buildTestAuthContext({ role: 'AccountAdmin', organizationId: ORG_A })
 
 describe('Property Responsible Managers', () => {
   it('lists explicit assignments separately from eligible candidates', async () => {
-    const { deps } = setup()
+    const deps = await setup()
     const result = await listPropertyResponsibleManagers(deps)(
       { propertyId: PROPERTY.id },
-      buildTestAuthContext({ role: 'AccountAdmin' }),
+      accountAdmin(),
     )
 
     expect(result.assignments).toEqual([])
@@ -124,8 +144,8 @@ describe('Property Responsible Managers', () => {
   })
 
   it('supports multiple managers and rejects a manager without a current grant', async () => {
-    const { deps } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const deps = await setup()
+    const ctx = accountAdmin()
 
     const result = await updatePropertyResponsibleManagers(deps)(
       {
@@ -135,7 +155,11 @@ describe('Property Responsible Managers', () => {
       },
       ctx,
     )
-    expect(result.assignments.map((row) => row.userId)).toEqual(['admin-1', 'manager-1'])
+    expect(result.assignments.map((row) => row.userId).sort()).toEqual([
+      'admin-1',
+      'manager-1',
+    ])
+    expect(await activeUserIds()).toEqual(['admin-1', 'manager-1'])
 
     await expect(
       updatePropertyResponsibleManagers(deps)(
@@ -150,10 +174,11 @@ describe('Property Responsible Managers', () => {
       _tag: 'PropertyError',
       code: 'responsible_manager_ineligible',
     })
+    expect(await activeUserIds()).toEqual(['admin-1', 'manager-1'])
   })
 
   it('releases a manager removed while the save committed, keeps the others and refuses the save', async () => {
-    const { deps, releases, assigned } = setup(['manager-1'])
+    const deps = await setup(['manager-1'])
 
     await expect(
       updatePropertyResponsibleManagers(deps)(
@@ -162,31 +187,28 @@ describe('Property Responsible Managers', () => {
           managerUserIds: ['admin-1', 'manager-1'],
           expectedRevision: 1,
         },
-        buildTestAuthContext({ role: 'AccountAdmin' }),
+        accountAdmin(),
       ),
     ).rejects.toMatchObject({
       _tag: 'PropertyError',
       code: 'responsible_manager_ineligible',
     })
 
-    expect(assigned()).toEqual(['admin-1'])
-    expect(releases).toEqual([
+    expect(await activeUserIds()).toEqual(['admin-1'])
+    // The clock has not moved since the assignment: an interval ends after it began.
+    // Nobody chose this gap, so nobody is left out of its notice.
+    expect(await releases()).toEqual([
       {
-        organizationId: PROPERTY.organizationId,
-        userId: 'manager-1',
-        propertyIds: [PROPERTY.id],
-        // The clock has not moved since the assignment: an interval ends
-        // after it began.
-        at: new Date(NOW.getTime() + 1),
-        endReason: 'manager_became_ineligible',
-        // Nobody chose this gap, so nobody is left out of its notice.
-        actorId: null,
+        user_id: 'manager-1',
+        effective_to: new Date(NOW.getTime() + 1),
+        end_reason: 'manager_became_ineligible',
+        created_by: expect.anything(),
       },
     ])
   })
 
   it('releases nobody when every assigned manager is still eligible after the commit', async () => {
-    const { deps, releases, assigned } = setup()
+    const deps = await setup()
 
     await updatePropertyResponsibleManagers(deps)(
       {
@@ -194,16 +216,21 @@ describe('Property Responsible Managers', () => {
         managerUserIds: ['admin-1', 'manager-1'],
         expectedRevision: 1,
       },
-      buildTestAuthContext({ role: 'AccountAdmin' }),
+      accountAdmin(),
     )
 
-    expect(assigned()).toEqual(['admin-1', 'manager-1'])
-    expect(releases).toEqual([])
+    expect(await activeUserIds()).toEqual(['admin-1', 'manager-1'])
+    expect(await releases()).toEqual([])
   })
 
   it('records recovery only when an owned Property loses its last manager', async () => {
-    const { deps, outbox } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    // Each save is a minute apart: an assignment cannot end where it began.
+    let minute = 0
+    const deps = {
+      ...(await setup()),
+      clock: () => new Date(NOW.getTime() + minute++ * 60_000),
+    }
+    const ctx = accountAdmin()
 
     await updatePropertyResponsibleManagers(deps)(
       { propertyId: PROPERTY.id, managerUserIds: ['admin-1'], expectedRevision: 1 },
@@ -218,12 +245,11 @@ describe('Property Responsible Managers', () => {
       ctx,
     )
 
-    expect(outbox.byTag('property.responsibility_became_needed')).toEqual([
+    // The admin who cleared the list is not asked to fix it (ADR 0046).
+    expect(await recoveryFacts()).toEqual([
       expect.objectContaining({
         propertyId: PROPERTY.id,
         organizationId: PROPERTY.organizationId,
-        occurredAt: NOW,
-        // The admin who cleared the list is not asked to fix it (ADR 0046).
         actorUserId: ctx.userId,
       }),
     ])
