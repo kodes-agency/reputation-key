@@ -27,6 +27,7 @@ import {
   callServerFnGet,
   waitFor,
   bailWait,
+  waitForQueuesIdle,
 } from '../../helpers/fixtures'
 
 const PREFIX = 'e2e-imp-'
@@ -136,6 +137,7 @@ test.describe('Critical workflow: Google import + initial sync', () => {
     // Stale provider syncs from an earlier spec retry against a stub scope that
     // has moved on, and burn the shared reviews quota this one needs.
     await drainFixtureQueue()
+    await waitForQueuesIdle()
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 

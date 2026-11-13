@@ -118,6 +118,7 @@ test.describe('Critical workflow: property access (operator allowlist)', () => {
         data: { propertyId: propertyBId },
       })
       expect(denial.status).toBe(403)
+      expect(denial.code).toBe('scope_denied')
     } finally {
       await context.close()
     }
