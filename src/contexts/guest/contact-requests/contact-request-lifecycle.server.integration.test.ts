@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import type { Database } from '#/shared/db'
@@ -19,6 +19,9 @@ import type {
   ContactRequestScope,
 } from './contracts'
 import { CONTACT_REQUEST_RETENTION_MS } from './contracts'
+import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
+import type { GuestWithdrawalJournal } from '../infrastructure/guest-withdrawal-journal.server'
+import { createGuestContactRequestErasureReplayer } from '../infrastructure/adapters/guest-response-erasure-replayer.adapter'
 
 const ORG_A = organizationId('cb000000-0000-4000-8000-000000000001')
 const ORG_B = organizationId('cb000000-0000-4000-8000-000000000002')
@@ -148,6 +151,8 @@ type Setup = Readonly<{
   deniedActions?: ReadonlyArray<string>
   guestCookie?: string
   keys?: Readonly<{ activeKeyId: string; keys: Record<string, string> }>
+  journal?: GuestWithdrawalJournal
+  keyless?: boolean
 }>
 
 const KEY = '44'.repeat(32)
@@ -159,7 +164,11 @@ function build(setup: Setup = {}) {
     ...(setup.keys ?? { activeKeyId: 'v1', keys: { v1: KEY } }),
     generateIv: () => randomBytes(12),
   })
-  const repo = createContactRequestRepository(db, encryption)
+  const repo = createContactRequestRepository(
+    db,
+    setup.keyless ? undefined : encryption,
+    setup.journal,
+  )
   const commands = contactRequestLifecycle({
     repo,
     policy: {
@@ -192,7 +201,7 @@ function build(setup: Setup = {}) {
     repo: createContactRequestRetentionRepository(db),
     clock: () => clock.now,
   })
-  return { clock, commands, sweep }
+  return { clock, commands, sweep, db }
 }
 
 const submitInput = (extra: Record<string, unknown> = {}) => ({
@@ -533,5 +542,131 @@ describe('contact requests through the public commands', () => {
       ),
     ).rejects.toThrow('Contact Request data is unavailable')
     expect(await rowCount('guest_contact_request_reveal_audits')).toBe(0)
+  })
+})
+
+describe('contact withdrawal and the erasure journal', () => {
+  beforeEach(async () => {
+    await clean()
+    await seed({ contactEnabled: true })
+  })
+
+  const statusOf = async () =>
+    (
+      await getPool().query<{ status: string }>(
+        'SELECT status FROM guest_contact_requests WHERE organization_id = $1',
+        [ORG_A],
+      )
+    ).rows[0]?.status
+
+  const journalOf = (put: GuestWithdrawalJournal['put']): GuestWithdrawalJournal => ({
+    idGen: randomUUID,
+    alert: vi.fn(),
+    put,
+  })
+
+  it('writes the IDs-only intent before the row changes, and records no content', async () => {
+    const seen: Array<{ key: string; bytes: string; statusAtWrite: string | undefined }> =
+      []
+    const journal = journalOf(async (key, bytes) => {
+      seen.push({ key, bytes, statusAtWrite: await statusOf() })
+    })
+    const { commands } = build({ journal })
+    await commands.submit(submitInput())
+
+    await commands.withdraw({ ...SCOPE, authority: GUEST })
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]!.statusAtWrite).toBe('active')
+    expect(await statusOf()).toBe('withdrawn')
+    const entry = decodeErasureJournalEntry(seen[0]!.bytes)
+    expect(entry.journalTargets?.kind).toBe('guest_contact_request')
+    expect(entry.organizationId).toBe(ORG_A)
+    expect(seen[0]!.bytes).not.toContain('guest@example.com')
+    expect(seen[0]!.bytes).not.toContain('Guest Name')
+  })
+
+  it('refuses the withdrawal and keeps the details when the journal write fails', async () => {
+    const { commands } = build({
+      journal: journalOf(async () => {
+        throw new Error('bucket unavailable')
+      }),
+    })
+    await commands.submit(submitInput())
+
+    await expect(commands.withdraw({ ...SCOPE, authority: GUEST })).rejects.toThrow(
+      'Erasure journal write failed',
+    )
+    expect(await statusOf()).toBe('active')
+  })
+
+  it('writes no intent for a request that is already withdrawn or missing', async () => {
+    const put = vi.fn(async () => {})
+    const { commands } = build({ journal: journalOf(put) })
+    await expect(commands.withdraw({ ...SCOPE, authority: GUEST })).rejects.toMatchObject(
+      { code: 'not_found' },
+    )
+    await commands.submit(submitInput())
+    await commands.withdraw({ ...SCOPE, authority: GUEST })
+    put.mockClear()
+
+    await expect(commands.withdraw({ ...SCOPE, authority: GUEST })).rejects.toMatchObject(
+      { code: 'unavailable' },
+    )
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it('repeats the withdrawal on a restored copy of the request', async () => {
+    const written: string[] = []
+    const { commands, db } = build({
+      journal: journalOf(async (_key, bytes) => {
+        written.push(bytes)
+      }),
+    })
+    await commands.submit(submitInput())
+    const before = (
+      await getPool().query<{ encrypted_contact: string }>(
+        'SELECT encrypted_contact FROM guest_contact_requests WHERE organization_id = $1',
+        [ORG_A],
+      )
+    ).rows[0]!.encrypted_contact
+    await commands.withdraw({ ...SCOPE, authority: GUEST })
+    // A backup taken before the withdrawal brings the sealed details back.
+    await getPool().query(
+      `UPDATE guest_contact_requests
+          SET status = 'active', consent_granted = true, encrypted_contact = $2,
+              withdrawn_at = NULL
+        WHERE organization_id = $1`,
+      [ORG_A, before],
+    )
+    const entry = decodeErasureJournalEntry(written[0]!)
+
+    const erased = await db.transaction((tx) =>
+      createGuestContactRequestErasureReplayer().reErase(tx, entry),
+    )
+
+    expect(erased).toBe(1)
+    const stored = await getPool().query<{
+      status: string
+      encrypted_contact: string | null
+    }>(
+      'SELECT status, encrypted_contact FROM guest_contact_requests WHERE organization_id = $1',
+      [ORG_A],
+    )
+    expect(stored.rows[0]).toEqual({ status: 'withdrawn', encrypted_contact: null })
+  })
+
+  it('still withdraws without a sealing key, and nothing can be stored or shown', async () => {
+    const sealed = build()
+    await sealed.commands.submit(submitInput())
+    const { commands } = build({ keyless: true })
+
+    await expect(commands.submit(submitInput())).rejects.toMatchObject({
+      code: 'contact_disabled',
+    })
+    await expect(commands.withdraw({ ...SCOPE, authority: GUEST })).resolves.toEqual({
+      status: 'withdrawn',
+    })
+    expect(await statusOf()).toBe('withdrawn')
   })
 })

@@ -73,6 +73,17 @@ Existing behavioural tests cited in the contract remain part of the proof.
 | §3 and §5 Monitoring and architecture        | Run the existing privacy-exfiltration, browser-reachability, content-free-facts, no-auto-publish, tenant-policy and command/outbox suites named in §5. In a synthetic browser session verify idle navigation sends no monitoring session record; a failure sends only the allowed scrubbed error or withheld-report count. Confirm feedback attachments and geometry follow the distinct paths described above. Do not treat a source scan as live detection of an incident.                                                                                                                                                                                                                                                                                                                                                                          |
 | Draft usage measurement after §10            | Generate, rewrite, adopt, edit, undo, reload, submit and observe publication of synthetic drafts. Verify no fallback or pre-provider refusal becomes a generation, edits clear active AI authorship, reload reports unavailable distance rather than zero, and only the saved generation/revision accepts scalars. Check transactionally recorded adoption/submission/publication, content-free rows, aggregate-only operator output, cascade retention and each authorized erasure path described in that section.                                                                                                                                                                                                                                                                                                                                   |
 
+### Contact request privacy check
+
+Before `CONTACT_REQUESTS_ENABLED` is turned on, the guest copy, the Privacy Notice
+and the manager text must each say that details are hidden 30 days after
+submission and erased within a day after, that a guest can withdraw only while the
+24-hour session lasts, that account admins are organization owners with
+organization-wide access, that a reveal records the user id, time, purpose and
+basis, and that the request record and reveal audit outlive the erased email and
+name. Withdraw a synthetic request and confirm its erasure journal entry exists
+before the row changes. Record ids only, never contact details.
+
 ## Provider and notice commitments
 
 Before first use, at a provider/account change and at a material data-use change:

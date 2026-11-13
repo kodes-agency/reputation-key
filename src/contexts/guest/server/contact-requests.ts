@@ -16,6 +16,10 @@ import {
   type ContactRequestGuestAuthority,
 } from '../contact-requests/contracts'
 import {
+  applyGuestPublicResponsePrivacy,
+  guestPublicResponseValidator,
+} from './public-response-privacy.server'
+import {
   denyWithoutEnumeration,
   rateLimit,
   resolveBoundSession,
@@ -40,13 +44,14 @@ const revealContactRequestDto = z.object({
   contactRequestId: z.uuid(),
 })
 
-const GUEST_ASSERTIONS = {
-  analytics: false,
-  response: true,
-  freeText: false,
-  contact: true,
-  media: false,
-} as const
+const guestAssertions = (contact: boolean) =>
+  ({
+    analytics: false,
+    response: true,
+    freeText: false,
+    contact,
+    media: false,
+  }) as const
 
 // Contact requests answer a guest or a manager only with what they may see.
 // A switched-off feature, a foreign response and a missing row look the same.
@@ -73,6 +78,13 @@ function commandsOrRefuse() {
   return commands ?? denyWithoutEnumeration()
 }
 
+// Managers get the same 404 for a switched-off feature as for a missing request,
+// before any permission or capability answer can tell them which it was.
+function managerCommandsOrRefuse() {
+  const commands = commandsOrRefuse()
+  return commands.isEnabled() ? commands : denyWithoutEnumeration()
+}
+
 async function guestAuthority(
   csrfNonce: string,
   headers: Headers,
@@ -81,17 +93,18 @@ async function guestAuthority(
 }
 
 export const submitContactRequestFn = createServerFn({ method: 'POST' })
-  .validator(submitContactRequestDto)
+  .validator(guestPublicResponseValidator(submitContactRequestDto))
   .handler(
     tracedHandler(
       async ({ data }) => {
+        applyGuestPublicResponsePrivacy()
         const commands = commandsOrRefuse()
         if (data.honeypot) return { status: 'submitted' as const }
         const bound = await resolveBoundSession({
           ...data,
           action: 'public:portal.response.contact.submit',
           capability: 'portal.guest_contact',
-          assertions: GUEST_ASSERTIONS,
+          assertions: guestAssertions(data.consent === true),
           requiredConsents: ['response', 'contact'],
         })
         await rateLimit(
@@ -119,16 +132,17 @@ export const submitContactRequestFn = createServerFn({ method: 'POST' })
   )
 
 export const withdrawContactRequestFn = createServerFn({ method: 'POST' })
-  .validator(guestResponseMutationDto)
+  .validator(guestPublicResponseValidator(guestResponseMutationDto))
   .handler(
     tracedHandler(
       async ({ data }) => {
+        applyGuestPublicResponsePrivacy()
         const commands = commandsOrRefuse()
         const bound = await resolveBoundSession({
           ...data,
           action: 'public:portal.response.contact.withdraw',
-          capability: 'portal.guest_contact',
-          assertions: GUEST_ASSERTIONS,
+          capability: 'portal.guest_response',
+          assertions: guestAssertions(false),
           requiredConsents: ['response'],
         })
         await rateLimit(
@@ -156,14 +170,15 @@ export const getContactRequestFn = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const commands = commandsOrRefuse()
+        const commands = managerCommandsOrRefuse()
         const ctx = await resolveTenantContext(await headersFromContext())
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
         try {
-          return await commands.getMasked(
+          const request = await commands.getMasked(
             { organizationId: ctx.organizationId, ...data },
             ctx,
           )
+          return request ?? denyWithoutEnumeration()
         } catch (error) {
           return contactRequestFailure(error)
         }
@@ -178,7 +193,7 @@ export const revealContactRequestFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const commands = commandsOrRefuse()
+        const commands = managerCommandsOrRefuse()
         const ctx = await resolveTenantContext(await headersFromContext())
         await requireExecutionAllowed({ actor: ctx, action: 'feedback.contact_read' })
         try {
