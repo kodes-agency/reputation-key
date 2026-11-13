@@ -84,12 +84,26 @@ const stored = async (propertyId: string) => {
 }
 
 const recordedEventTypes = async () =>
-  (await db.select({ type: outboxEvents.eventType }).from(outboxEvents)).map(
-    (row) => row.type,
-  )
+  (
+    await db
+      .select({ type: outboxEvents.eventType })
+      .from(outboxEvents)
+      .where(eq(outboxEvents.organizationId, ORG_A))
+  ).map((row) => row.type)
+
+/** Events other tests in the shard leave behind must never reach an assertion. */
+const seedUnrelatedOutboxEvent = () =>
+  db.insert(outboxEvents).values({
+    eventType: 'property.archived',
+    payload: {},
+    organizationId: ORG_B,
+    sourceContext: 'property',
+    sourceAggregateId: crypto.randomUUID(),
+  })
 
 const setup = async () => {
   await seedConnection()
+  await seedUnrelatedOutboxEvent()
   clearEventSchemas()
   registerAllEventSchemas()
   return {
