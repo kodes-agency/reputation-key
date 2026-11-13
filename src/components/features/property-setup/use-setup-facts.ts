@@ -25,6 +25,52 @@ export type SetupFactsState =
       notice: MerchantAiNoticeDto
     }>
 
+/** One fresh read per imported property; the import just created them. */
+function usePerProperty<TData>(
+  properties: readonly SetupImportedProperty[],
+  read: (propertyId: string) => Readonly<{
+    queryKey: readonly unknown[]
+    queryFn: () => Promise<TData>
+  }>,
+) {
+  return useQueries({
+    queries: properties.map((property) => ({
+      ...read(property.propertyId),
+      staleTime: 0,
+    })),
+  })
+}
+
+type SetupRead = Readonly<{
+  data: unknown
+  isError: boolean
+  isFetching: boolean
+  errorUpdateCount: number
+  refetch: () => unknown
+}>
+
+/**
+ * Loading until every read has data. Data outlives a failed background
+ * refetch, so once everything has loaded the step stays ready; an error only
+ * matters before that, and its retry reads only what failed.
+ */
+export function settleSetupReads(
+  reads: readonly SetupRead[],
+):
+  | Readonly<{ status: 'loading' }>
+  | Extract<SetupFactsState, { status: 'error' }>
+  | Readonly<{ status: 'ready' }> {
+  if (reads.every((read) => read.data !== undefined)) return { status: 'ready' }
+  if (!reads.some((read) => hasFailed(read))) return { status: 'loading' }
+  return {
+    status: 'error',
+    retry: () => {
+      for (const read of reads) if (read.isError) void read.refetch()
+    },
+    retrying: isRetrying(reads),
+  }
+}
+
 /**
  * Everything the setup questions depend on, read fresh: the import just
  * created these properties, so cached lists are stale by definition.
@@ -54,76 +100,36 @@ export function useSetupFacts(
     queryFn: () => fns.listMembers(),
     staleTime: 30_000,
   })
-  const managers = useQueries({
-    queries: properties.map((property) => ({
-      queryKey: propertyKeys.responsibleManagers(property.propertyId),
-      queryFn: () =>
-        fns.listPropertyResponsibleManagers({
-          data: { propertyId: property.propertyId },
-        }),
-      staleTime: 0,
-    })),
-  })
+  const managers = usePerProperty(properties, (propertyId) => ({
+    queryKey: propertyKeys.responsibleManagers(propertyId),
+    queryFn: () => fns.listPropertyResponsibleManagers({ data: { propertyId } }),
+  }))
+  const experiences = usePerProperty(properties, (propertyId) => ({
+    queryKey: portalKeys.propertyExperience(propertyId),
+    queryFn: () => fns.getPropertyPortalExperience({ data: { propertyId } }),
+  }))
+  const setups = usePerProperty(properties, (propertyId) => ({
+    queryKey: propertyKeys.setup(propertyId),
+    queryFn: () => fns.getPropertySetup({ data: { propertyId } }),
+  }))
+  const replyLibraries = usePerProperty(properties, (propertyId) => ({
+    queryKey: reviewKeys.replyLibrary(propertyId),
+    queryFn: () => fns.getReplyLibrary({ data: { propertyId } }),
+  }))
 
-  const experiences = useQueries({
-    queries: properties.map((property) => ({
-      queryKey: portalKeys.propertyExperience(property.propertyId),
-      queryFn: () =>
-        fns.getPropertyPortalExperience({ data: { propertyId: property.propertyId } }),
-      staleTime: 0,
-    })),
-  })
-  const setups = useQueries({
-    queries: properties.map((property) => ({
-      queryKey: propertyKeys.setup(property.propertyId),
-      queryFn: () => fns.getPropertySetup({ data: { propertyId: property.propertyId } }),
-      staleTime: 0,
-    })),
-  })
-  const replyLibraries = useQueries({
-    queries: properties.map((property) => ({
-      queryKey: reviewKeys.replyLibrary(property.propertyId),
-      queryFn: () => fns.getReplyLibrary({ data: { propertyId: property.propertyId } }),
-      staleTime: 0,
-    })),
-  })
-
-  const singles = [list, overview, notice, members]
-  const managerStates = managers.map((read) => read.data)
-  const experienceStates = experiences.map((read) => read.data)
-  const setupStates = setups.map((read) => read.data)
-  const replyLibraryStates = replyLibraries.map((read) => read.data)
-  // Data outlives a failed background refetch, so once everything has loaded
-  // the step stays ready; an error only matters before that.
-  if (
-    !list.data ||
-    !overview.data ||
-    !notice.data ||
-    !members.data ||
-    managerStates.some((state) => state === undefined) ||
-    experienceStates.some((state) => state === undefined) ||
-    setupStates.some((state) => state === undefined) ||
-    replyLibraryStates.some((state) => state === undefined)
-  ) {
-    if (
-      singles.some((read) => hasFailed(read)) ||
-      managers.some((read) => hasFailed(read)) ||
-      experiences.some((read) => hasFailed(read)) ||
-      setups.some((read) => hasFailed(read)) ||
-      replyLibraries.some((read) => hasFailed(read))
-    ) {
-      return {
-        status: 'error',
-        retry: () => {
-          for (const read of singles) if (read.isError) void read.refetch()
-          for (const read of managers) if (read.isError) void read.refetch()
-          for (const read of experiences) if (read.isError) void read.refetch()
-          for (const read of setups) if (read.isError) void read.refetch()
-          for (const read of replyLibraries) if (read.isError) void read.refetch()
-        },
-        retrying: isRetrying(singles, managers, experiences, setups, replyLibraries),
-      }
-    }
+  const settled = settleSetupReads([
+    list,
+    overview,
+    notice,
+    members,
+    ...managers,
+    ...experiences,
+    ...setups,
+    ...replyLibraries,
+  ])
+  if (settled.status !== 'ready') return settled
+  // Ready means every read has data; this narrows the single reads for the types.
+  if (!list.data || !overview.data || !notice.data || !members.data) {
     return { status: 'loading' }
   }
 
@@ -135,10 +141,10 @@ export function useSetupFacts(
   )
   const facts = properties.flatMap((imported, index): SetupPropertyFacts[] => {
     const property = propertyById.get(imported.propertyId)
-    const managerState = managerStates[index]
-    const experience = experienceStates[index]
-    const setup = setupStates[index]
-    const replyLibrary = replyLibraryStates[index]
+    const managerState = managers[index]?.data
+    const experience = experiences[index]?.data
+    const setup = setups[index]?.data
+    const replyLibrary = replyLibraries[index]?.data
     // Removed since the import finished: nothing left to set up.
     if (!property || !managerState || !experience || !setup || !replyLibrary) return []
     const ai = aiById.get(imported.propertyId)
