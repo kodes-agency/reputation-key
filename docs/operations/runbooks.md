@@ -2618,8 +2618,7 @@ rights section describes.
 
 **Recovery.** Set `CONTACT_REQUESTS_ENABLED=false` and restart web: guests and
 managers get the same 404, stored details stay sealed and expire. Details past 30
-days are hidden at once and erased by the next daily retention run, which logs
-`mode: contact_requests_only` while scheduled retention is inactive; check its
+days are hidden at once and erased by the next daily retention run; check its
 `guest_contact_requests.expired_material` evidence row, and treat
 `retention_capped` or `retention_failed` as owing work.
 
