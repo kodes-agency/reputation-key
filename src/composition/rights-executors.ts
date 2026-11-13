@@ -10,10 +10,14 @@ import {
   createAiRightsExecutor,
 } from '#/contexts/ai/infrastructure/adapters/ai-rights.adapter'
 import {
+  activityReplayRefusal,
   createActivityErasureReplayers,
   createActivityRightsExecutor,
 } from '#/contexts/feed/infrastructure/adapters/activity-rights.adapter'
-import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
+import type {
+  BackupErasureLedgerEntry,
+  BackupErasureReplayer,
+} from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
   createGuestFeedbackErasureReplayer,
   createGuestResponseErasureReplayer,
@@ -23,14 +27,17 @@ import {
   createGuestPropertyErasureReplayer,
 } from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
 import {
-  createIdentityPropertyRightsExecutor,
-  createStaffOrganizationRightsExecutor,
+  createIdentityRightsExecutor,
+  createStaffRightsExecutor,
+  identityOrganizationErasureReplayer,
   identityPropertyErasureReplayer,
   staffOrganizationErasureReplayer,
+  staffPropertyErasureReplayer,
 } from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
 import {
   createPropertyRightsExecutor,
   propertyErasureReplayer,
+  propertyOrganizationErasureReplayer,
 } from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
 import {
   createGuestRightsExecutor,
@@ -64,6 +71,10 @@ import {
 } from '#/shared/ops/rights/review-inbox-rights-executors'
 import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
 import type { RightsJournal } from '#/shared/ops/rights/rights-journal'
+import {
+  createWorkItemsRightsExecutor,
+  workItemsErasureReplayer,
+} from '#/shared/ops/rights/work-items-rights-executor'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
 
 export type RightsExecutorsDeps = Readonly<{
@@ -71,12 +82,24 @@ export type RightsExecutorsDeps = Readonly<{
   journal: RightsJournal
   runNotification: NotificationRightsExecutorDeps['run']
   portalObjectStore: Pick<StoragePort, 'deleteObject'>
+  /**
+   * Server-side secret the audit pseudonyms are keyed with (AUDIT_PSEUDONYM_SECRET).
+   * A replay under a rotated secret writes other pseudonyms, consistent within
+   * the replayed scope. Absent, a Property or Organization erasure refuses at
+   * preflight, before anything changes, and a restore refuses an Activity entry.
+   */
+  auditPseudonymSecret: string | undefined
   /** The named operator for guest-response erasure; absent means that apply is denied. */
   operator?: GuestRightsExecutorDeps['operator']
   now?: () => Date
 }>
 
-/** A final warning runs the notification executor alone. */
+/**
+ * A final warning runs the notification executor alone. Staff runs before
+ * Portal because Staff rows reference Portals, and after Guest and Reporting
+ * because their rows reference Staff participations. Property tombstones and
+ * the platform's work items come last.
+ */
 export function composeRightsExecutors(
   deps: RightsExecutorsDeps,
   finalWarning: boolean,
@@ -106,24 +129,36 @@ export function composeRightsExecutors(
     createReportingRightsExecutor(deps.db, now),
     // Staff rows reference Portals, and Guest and Reporting rows reference Staff;
     // restore replay repeats this order.
-    createStaffOrganizationRightsExecutor(deps.db),
+    createStaffRightsExecutor(deps.db),
     createPortalRightsExecutor({
       db: deps.db,
       objectStore: deps.portalObjectStore,
       now,
     }),
     createAiRightsExecutor(deps.db, now),
-    createActivityRightsExecutor(deps.db),
-    createIdentityPropertyRightsExecutor(deps.db),
+    createActivityRightsExecutor(deps.db, deps.auditPseudonymSecret),
+    createIdentityRightsExecutor(deps.db),
     createPropertyRightsExecutor(deps.db, now),
     notification,
     createStaffParticipantRightsExecutor({ db: deps.db, journal: deps.journal, now }),
+    createWorkItemsRightsExecutor(deps.db),
   ]
+}
+
+/**
+ * Why a restore cannot replay these journal entries with this configuration,
+ * or null. The restore asks before it changes anything.
+ */
+export function rightsReplayRefusal(
+  entries: ReadonlyArray<Pick<BackupErasureLedgerEntry, 'context'>>,
+  deps: Pick<RightsExecutorsDeps, 'auditPseudonymSecret'>,
+): string | null {
+  return activityReplayRefusal(entries, deps.auditPseudonymSecret)
 }
 
 /** One replayer per journaled (context, subject class), for restore replay. */
 export function composeRightsReplayers(
-  deps: Pick<RightsExecutorsDeps, 'db' | 'now'> &
+  deps: Pick<RightsExecutorsDeps, 'db' | 'now' | 'auditPseudonymSecret'> &
     Readonly<{ notificationReplayers: ReadonlyArray<BackupErasureReplayer> }>,
 ): ReadonlyArray<BackupErasureReplayer> {
   const now = deps.now ?? (() => new Date())
@@ -143,11 +178,15 @@ export function composeRightsReplayers(
     createRetiredReadingsReplayer(),
     ...createPortalErasureReplayers(),
     ...createAiErasureReplayers(now),
-    ...createActivityErasureReplayers(),
+    ...createActivityErasureReplayers(deps.auditPseudonymSecret),
     identityPropertyErasureReplayer,
+    identityOrganizationErasureReplayer,
     staffOrganizationErasureReplayer,
+    staffPropertyErasureReplayer,
     propertyErasureReplayer,
+    propertyOrganizationErasureReplayer,
     createStaffParticipantErasureReplayer(),
+    workItemsErasureReplayer,
     ...deps.notificationReplayers,
   ]
 }

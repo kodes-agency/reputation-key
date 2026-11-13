@@ -571,8 +571,9 @@ export const reviewProviderSnapshotRuns = pgTable(
  * import queued before admission fixed it writes it when its run starts or
  * joins an active one), and read for every later provider observation: a
  * Review first seen in the epoch whose Google publication time is at or
- * before the cutoff is history, whichever run observes it. Snapshot runs are
- * swept 30 days after they end, so the cutoff cannot live on the run.
+ * before the cutoff is history, whichever run observes it. The retention
+ * sweep deletes all but a Property's latest snapshot runs, so the cutoff
+ * cannot live on the run.
  */
 export const reviewProviderHistoryCutoffs = pgTable(
   'review_provider_history_cutoffs',
@@ -617,6 +618,13 @@ export const reviewProviderSubjects = pgTable(
     state: varchar('state', { length: 24 }).notNull(),
     lastObservedAt: timestamp('last_observed_at', { withTimezone: true }).notNull(),
     lastSeenSnapshotRunId: uuid('last_seen_snapshot_run_id'),
+    /**
+     * Completed runs still to wait before a Review a direct read found
+     * although the listing left it out may become a removal candidate again;
+     * null when a listing saw it last. Kept here, not counted from the runs,
+     * because the retention sweep deletes the run that found it.
+     */
+    unlistedHoldRunsLeft: integer('unlisted_hold_runs_left'),
     firstMissingAt: timestamp('first_missing_at', { withTimezone: true }),
     firstMissingSnapshotRunId: uuid('first_missing_snapshot_run_id'),
     unlinkedAt: timestamp('unlinked_at', { withTimezone: true }),
@@ -650,6 +658,9 @@ export const reviewProviderSubjects = pgTable(
       columns: [t.lastSeenSnapshotRunId],
       foreignColumns: [reviewProviderSnapshotRuns.id],
     }).onDelete('set null'),
+    // Deleting a snapshot run sets the mappings it saw last to null; this
+    // finds them without reading every mapping.
+    index('review_provider_subjects_last_seen_run_idx').on(t.lastSeenSnapshotRunId),
     uniqueIndex('review_provider_subjects_review_unique').on(
       t.organizationId,
       t.propertyId,

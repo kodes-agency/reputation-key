@@ -29,6 +29,7 @@ import {
   GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT,
   GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
   RETENTION_RULES,
+  REVIEW_SNAPSHOT_RUN_RETENTION_SUBJECT,
   REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT,
 } from './retention-sweep.job'
 import { getTableConfig } from 'drizzle-orm/pg-core'
@@ -402,6 +403,69 @@ describe('retention sweep job (BQC-1.6)', () => {
         outcome: 'completed',
       },
     )
+  })
+
+  it('records the snapshot run clean-up as bounded deletion evidence, capped when it stops short', async () => {
+    ;(executeRetentionRule as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      batches: 1,
+      rowsDeleted: 2,
+    })
+    const reviewSnapshotRunRetentionSweep = vi.fn(async () => ({
+      batches: 100,
+      runs: 40,
+      members: 24_000,
+      capped: true,
+    }))
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [RULE_A],
+      reviewSnapshotRunRetentionSweep,
+    })
+
+    await handler({} as never)
+
+    expect(reviewSnapshotRunRetentionSweep).toHaveBeenCalledTimes(1)
+    expect(openRetentionRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      REVIEW_SNAPSHOT_RUN_RETENTION_SUBJECT,
+      5_000,
+      NOW,
+    )
+    expect(closeRetentionRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      `run-${REVIEW_SNAPSHOT_RUN_RETENTION_SUBJECT}`,
+      {
+        finishedAt: NOW,
+        batches: 100,
+        rowsDeleted: 24_040,
+        outcome: 'failed',
+        errorCode: 'retention_capped',
+      },
+    )
+    expect(executeRetentionRule).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps ordinary retention running and fails the job when the snapshot run clean-up fails', async () => {
+    ;(executeRetentionRule as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      batches: 1,
+      rowsDeleted: 2,
+    })
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [RULE_A],
+      reviewSnapshotRunRetentionSweep: vi.fn(async () => {
+        throw new Error('snapshot store unavailable')
+      }),
+    })
+
+    await expect(handler({} as never)).rejects.toThrow(
+      REVIEW_SNAPSHOT_RUN_RETENTION_SUBJECT,
+    )
+    expect(executeRetentionRule).toHaveBeenCalledTimes(1)
   })
 
   it('keeps ordinary retention running and fails the job when the Review sweep fails', async () => {

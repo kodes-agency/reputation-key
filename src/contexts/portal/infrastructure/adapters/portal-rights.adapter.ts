@@ -7,8 +7,10 @@
 // Uploaded images live in the object store, which no transaction can roll back:
 // the objects are removed first, outside the database transaction, because the
 // rows are the only record of their keys, and removing an object that is
-// already gone is not an error. A refusal is probed with a rolled-back run of
-// the same deletes before any object is touched.
+// already gone is not an error. Command preflight only reads: rows of other
+// contexts that reference these Portals (scans, guest responses, Staff) are
+// still there until their executors apply earlier in the same run. Apply
+// probes the deletes with a rolled-back run before any object is touched.
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -146,6 +148,21 @@ async function erasureRefusal(
   }
 }
 
+/** The read-only refusal command preflight gives before any executor applies. */
+async function readinessRefusal(
+  db: Database,
+  scope: PortalRightsScope,
+): Promise<string | null> {
+  try {
+    await db.transaction((tx) => assertReady(tx, scope), {
+      accessMode: 'read only',
+    })
+    return null
+  } catch (error) {
+    return errorMessage(error)
+  }
+}
+
 async function readCounts(
   db: Database,
   scope: PortalRightsScope,
@@ -186,7 +203,7 @@ export function createPortalRightsExecutor(
       if (plan.scope === 'property' && !plan.propertyId) {
         return { ok: false, error: '--property is required' }
       }
-      const refusal = await erasureRefusal(deps.db, scopeOf(plan))
+      const refusal = await readinessRefusal(deps.db, scopeOf(plan))
       return refusal ? { ok: false, error: refusal } : { ok: true }
     },
     async report(plan) {

@@ -55,6 +55,7 @@ async function main(): Promise<void> {
               {
                 db: getDb(),
                 journal,
+                auditPseudonymSecret: env.AUDIT_PSEUDONYM_SECRET,
                 portalObjectStore: createS3StorageAdapter({
                   accessKey: env.AWS_S3_ACCESS_KEY,
                   secretKey: env.AWS_S3_SECRET_ACCESS_KEY,

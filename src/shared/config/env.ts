@@ -235,6 +235,18 @@ const baseEnvSchema = z.object({
     .string()
     .min(32)
     .regex(/^[a-f0-9]+$/, 'Must be hex characters'),
+  // Audit pseudonym secret — dedicated key, independent of ENCRYPTION_KEY. A
+  // Property or Organization erasure keys the pseudonyms it writes into the
+  // audit records with it, and a restore replay needs the same value to write
+  // the same ones again. Only `pnpm ops rights-request` and
+  // `pnpm ops restore-verify` read it, and they refuse an erasure or a replay
+  // that pseudonymises while it is unset; no other process needs it.
+  // Generate: openssl rand -hex 32. Keep it: another value makes a later
+  // replay write other pseudonyms (still one per person).
+  AUDIT_PSEUDONYM_SECRET: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/, 'Must be 64 lowercase hex characters (32 bytes)')
+    .optional(),
   // Versioned, audience-separated HMAC keyrings. First entry is active;
   // retained entries verify only. Format: v2:<64-hex>,v1:<64-hex>.
   GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS: z.string().optional(),

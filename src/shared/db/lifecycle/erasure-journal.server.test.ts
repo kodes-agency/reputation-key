@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { journalBeforeErasure, type ErasureJournalEntry } from './erasure-journal.server'
+import {
+  decodeErasureJournalEntry,
+  encodeErasureJournalEntry,
+  journalBeforeErasure,
+  type ErasureJournalEntry,
+} from './erasure-journal.server'
 
 const entry: ErasureJournalEntry = {
   id: '30000000-0000-4000-8000-00000000000a',
@@ -57,6 +62,12 @@ it('waits for durable journal acceptance before opening the deletion transaction
   expect(transactionOpened).toBe(false)
   accept()
   await expect(pending).resolves.toBe(7)
+})
+
+it('carries the platform context, which only the journal records', () => {
+  const platform: ErasureJournalEntry = { ...entry, context: 'platform' }
+
+  expect(decodeErasureJournalEntry(encodeErasureJournalEntry(platform))).toEqual(platform)
 })
 
 it('refuses unknown content fields before any bucket or deletion work', async () => {

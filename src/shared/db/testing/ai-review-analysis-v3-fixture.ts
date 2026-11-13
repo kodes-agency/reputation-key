@@ -68,7 +68,14 @@ export type AiAnalysisFixtureInput = Readonly<{
   now: Date
 }>
 
-async function controlHeads(db: Database) {
+// The deployment profile a stored row recorded: operations stored under the retired
+// review-analysis-v2 profile carry the first deployment profile and its provider control.
+const DEPLOYMENT_PROFILE_BY_ANALYSIS_PROFILE: Record<AiAnalysisFixtureProfile, string> = {
+  'review-analysis-v2': 'private-beta-global-v1',
+  'review-analysis-v3': 'private-beta-global-v2',
+}
+
+async function controlHeads(db: Database, deploymentProfile: string) {
   const heads = await db
     .select({
       scopeKey: aiExecutionControlHeads.scopeKey,
@@ -83,7 +90,7 @@ async function controlHeads(db: Database) {
   }
   return {
     global: find('global'),
-    provider: find('provider:private-beta-global-v2'),
+    provider: find(`provider:${deploymentProfile}`),
     capability: find('capability:review_analysis'),
   }
 }
@@ -126,8 +133,6 @@ export async function installAiAnalysisFixture(
     profileVersion: 1,
     sourceEpoch: SOURCE_EPOCH,
   })
-  const controls = await controlHeads(db)
-
   return Object.freeze({
     organizationId,
     propertyId,
@@ -135,6 +140,8 @@ export async function installAiAnalysisFixture(
       const reviewId = randomUUID()
       const operationId = randomUUID()
       const isV3 = seed.profile === 'review-analysis-v3'
+      const deploymentProfile = DEPLOYMENT_PROFILE_BY_ANALYSIS_PROFILE[seed.profile]
+      const controls = await controlHeads(db, deploymentProfile)
       const attention = seed.attention ?? 'high'
       const contentExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
       await db.insert(reviews).values({
@@ -204,7 +211,7 @@ export async function installAiAnalysisFixture(
         evaluatedLanguage: 'en',
         propertyProfileVersion: PROPERTY_PROFILE_VERSION,
         routingPolicyVersion: 1,
-        providerDeploymentProfileVersion: 'private-beta-global-v2',
+        providerDeploymentProfileVersion: deploymentProfile,
         operationProfileVersion: seed.profile,
         capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
         sourcePolicyId: 'google-business-profile-source-policy-v1',

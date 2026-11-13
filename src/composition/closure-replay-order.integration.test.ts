@@ -142,17 +142,18 @@ async function journalClosure(closed: Closed): Promise<BackupErasureLedgerEntry[
   const recorder = recordingJournalStore()
   // Apply is withheld, so the database stays as a restore to before the
   // closure would bring it back; the journal bytes depend only on the plan and
-  // the executor order. Preflight is withheld too: the Portal probe runs its
-  // deletes before the executors ahead of it have erased what references them.
+  // the executor order. Preflight runs: it only reads, so the Portal rows that
+  // Guest, Reporting and Staff rows still reference do not refuse it.
   const executors = composeRightsExecutors(
     {
       db,
       journal: createRightsJournal(undefined),
       runNotification: vi.fn(),
       portalObjectStore: { deleteObject: async () => {} },
+      auditPseudonymSecret: 'audit-pseudonym-test-secret',
     },
     false,
-  ).map(({ preflight: _preflight, ...executor }) => ({
+  ).map((executor) => ({
     ...executor,
     apply: async () => ({ ok: true as const, lines: [] }),
   }))
@@ -186,6 +187,7 @@ function replayers(): readonly BackupErasureReplayer[] {
   return composeRightsReplayers({
     db,
     now: () => RIGHTS_FIXTURE_AT,
+    auditPseudonymSecret: 'audit-pseudonym-test-secret',
     notificationReplayers: createNotificationRightsReplayers(),
   })
 }

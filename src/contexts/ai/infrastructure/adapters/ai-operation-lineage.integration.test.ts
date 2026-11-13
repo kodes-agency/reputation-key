@@ -249,10 +249,66 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
     expect(claimed?.providerLineage).toBeNull()
     expect(claimed?.normalization).toBeNull()
     expect(claimed?.binding).toMatchObject({
-      providerDeploymentProfileVersion: 'private-beta-global-v2',
+      providerDeploymentProfileVersion: 'private-beta-global-v1',
       operationProfileVersion: 'review-analysis-v2',
       capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
     })
+    const [v1Head] = await db
+      .select({ controlId: aiExecutionControlHeads.controlId })
+      .from(aiExecutionControlHeads)
+      .where(eq(aiExecutionControlHeads.scopeKey, 'provider:private-beta-global-v1'))
+    expect(claimed?.binding.stopFence.providerControlId).toBe(v1Head!.controlId)
+    // The digests a stored row recorded read back byte for byte: nothing recomputes
+    // them from the profiles this build serves.
+    expect(claimed?.binding).toMatchObject({
+      noticeDigest: 'c'.repeat(64),
+      sourceCanonicalizerDigest: 'e'.repeat(64),
+    })
+  })
+
+  // The database still admits the retired trend command. A stored row is read as that
+  // known command on the claim and idempotency paths, not as an invalid operation.
+  it('treats a stored trend row as a retired command: never claimed for execution, named as retired on a claim', async () => {
+    const request = await analysisRequest()
+    await claim(request, {
+      providerLineage: OPENAI_LINEAGE,
+      normalization: NORMALIZATION,
+    })
+    await db
+      .update(aiOperations)
+      .set({
+        command: 'trend',
+        operationProfileVersion: 'property-trend-v1',
+        capability: 'property_trends',
+        systemPrincipal: 'property_trend_coordinator',
+        reviewId: null,
+        originEventId: null,
+        subjectHmac: null,
+        subjectHmacKeyVersion: null,
+        sourceRevision: null,
+        reviewedAtEpochMillis: null,
+        analysisSequence: null,
+        dueLocalDate: '2026-10-29',
+        terminalAnalysisSequence: 0,
+        aggregateRevision: 0,
+      })
+      .where(eq(aiOperations.organizationId, ORGANIZATION_ID))
+    const [row] = await db
+      .select({ id: aiOperations.id })
+      .from(aiOperations)
+      .where(eq(aiOperations.organizationId, ORGANIZATION_ID))
+
+    await expect(
+      operations().claimExecution({
+        operationId: row!.id as AiOperationId,
+        organizationId: ORGANIZATION_ID,
+        expectedAttempt: 1,
+        nowEpochMillis: NOW.getTime(),
+      }),
+    ).resolves.toBeNull()
+    await expect(
+      claim(request, { providerLineage: OPENAI_LINEAGE, normalization: NORMALIZATION }),
+    ).rejects.toThrow(/^AI operation command is retired$/)
   })
 
   it('claims no new operation under the retired review-analysis-v2 profile', async () => {
