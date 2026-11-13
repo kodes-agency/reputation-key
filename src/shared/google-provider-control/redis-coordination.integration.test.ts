@@ -5,7 +5,7 @@ import {
   createRedisGoogleInFlightCoordinator,
   createRedisGoogleQuotaCoordinator,
 } from './quota-coordinator'
-import { createFakeGoogleCoordinationRedis } from '#/shared/testing/fake-google-coordination-redis'
+import { useGoogleCoordinationRedis } from '#/shared/testing/google-coordination-redis'
 
 const fingerprint = (character: string) => character.repeat(64)
 const quotaKey = {
@@ -36,9 +36,11 @@ const discoveryPolicy: GoogleQuotaPolicy = {
 }
 
 describe('Redis Google provider coordination', () => {
+  const testRedis = useGoogleCoordinationRedis()
+
   it('paces quota globally across coordinator instances sharing one Redis port', async () => {
     let nowMs = 1_000
-    const redis = createFakeGoogleCoordinationRedis()
+    const redis = testRedis.create()
     const create = () =>
       createRedisGoogleQuotaCoordinator({
         redis,
@@ -66,7 +68,7 @@ describe('Redis Google provider coordination', () => {
   })
 
   it('acquires every policy bucket atomically and preserves global tokens on denial', async () => {
-    const redis = createFakeGoogleCoordinationRedis()
+    const redis = testRedis.create()
     const policy: GoogleQuotaPolicy = {
       ...discoveryPolicy,
       buckets: [
@@ -100,7 +102,7 @@ describe('Redis Google provider coordination', () => {
       ok: false,
       code: 'deadline_exceeded',
     })
-    const endpointBucket = [...redis.quotas.values()].find(({ binding }) =>
+    const endpointBucket = (await redis.quotaBuckets()).find(({ binding }) =>
       binding.includes('endpoint'),
     )
     expect(endpointBucket?.tokens).toBe(9_000_000)
@@ -108,7 +110,7 @@ describe('Redis Google provider coordination', () => {
 
   it('refills every bucket only up to capacity after intervening consumption', async () => {
     let nowMs = 1_000
-    const redis = createFakeGoogleCoordinationRedis()
+    const redis = testRedis.create()
     const policy: GoogleQuotaPolicy = {
       ...discoveryPolicy,
       buckets: [
@@ -148,7 +150,7 @@ describe('Redis Google provider coordination', () => {
   })
 
   it('keeps quota spent when an unanswered acquisition is replayed', async () => {
-    const storage = createFakeGoogleCoordinationRedis()
+    const storage = testRedis.create()
     let replay = true
     const quota = createRedisGoogleQuotaCoordinator({
       redis: {
@@ -180,7 +182,7 @@ describe('Redis Google provider coordination', () => {
   })
 
   it('does not partially debit on a bucket binding collision', async () => {
-    const redis = createFakeGoogleCoordinationRedis()
+    const redis = testRedis.create()
     const policy: GoogleQuotaPolicy = {
       ...discoveryPolicy,
       buckets: [
@@ -201,20 +203,19 @@ describe('Redis Google provider coordination', () => {
       policy,
     })
     await quota.acquire(quotaKey, 1, 10_000)
-    const buckets = [...redis.quotas.values()]
-    const collision = buckets[1]
-    if (!collision) throw new Error('expected second bucket')
-    collision.binding = 'different-binding'
+    await redis.rebindBucket(1, 'different-binding')
     await expect(quota.acquire(quotaKey, 1, 10_000)).resolves.toEqual({
       ok: false,
       code: 'key_collision',
       retryAfterMs: 0,
     })
-    expect(buckets.map((bucket) => bucket.tokens)).toEqual([1_000_000, 1_000_000])
+    expect((await redis.quotaBuckets()).map((bucket) => bucket.tokens)).toEqual([
+      1_000_000, 1_000_000,
+    ])
   })
 
   it('fails closed when Redis is down and rejects invalid costs', async () => {
-    const redis = createFakeGoogleCoordinationRedis()
+    const redis = testRedis.create()
     const quota = createRedisGoogleQuotaCoordinator({
       redis,
       nowMs: () => 1_000,
@@ -238,7 +239,7 @@ describe('Redis Google provider coordination', () => {
 
   it('requires the tenant dimensions named by the frozen policy', async () => {
     const quota = createRedisGoogleQuotaCoordinator({
-      redis: createFakeGoogleCoordinationRedis(),
+      redis: testRedis.create(),
       nowMs: () => 1_000,
       policyId: 'google-discovery-read-v1',
       policy: GOOGLE_QUOTA_POLICIES['google-discovery-read-v1'],
@@ -254,7 +255,7 @@ describe('Redis Google provider coordination', () => {
   })
 
   it('refuses a request class outside its policy before touching Redis', async () => {
-    const redis = createFakeGoogleCoordinationRedis()
+    const redis = testRedis.create()
     const coordinator = createRedisGoogleInFlightCoordinator({
       redis,
       nowMs: () => 1_000,
@@ -266,14 +267,13 @@ describe('Redis Google provider coordination', () => {
     await expect(
       coordinator.acquire({ ...quotaKey, requestClass: 'identity' }, 5_000),
     ).resolves.toEqual({ ok: false, code: 'invalid_request', retryAfterMs: 0 })
-    expect(redis.bindings.size).toBe(0)
-    expect(redis.leases.size).toBe(0)
+    await expect(redis.inFlightKeyCount()).resolves.toBe(0)
   })
 
   it('expires semaphore leases and allows another replica to proceed', async () => {
     let nowMs = 1_000
     let sequence = 0
-    const redis = createFakeGoogleCoordinationRedis()
+    const redis = testRedis.create()
     const create = () =>
       createRedisGoogleInFlightCoordinator({
         redis,
@@ -303,7 +303,7 @@ describe('Redis Google provider coordination', () => {
   it('waits at most two seconds for an expiring provider semaphore lease', async () => {
     let nowMs = 1_000
     let sequence = 0
-    const redis = createFakeGoogleCoordinationRedis()
+    const redis = testRedis.create()
     const policy = { ...discoveryPolicy, maxWaitMs: 2_000 }
     const create = () =>
       createRedisGoogleInFlightCoordinator({
@@ -339,7 +339,7 @@ describe('Redis Google provider coordination', () => {
     const setup = (afterSleep: () => Promise<void> = async () => undefined) => {
       let nowMs = 1_000
       let sequence = 0
-      const redis = createFakeGoogleCoordinationRedis()
+      const redis = testRedis.create()
       const create = () =>
         createRedisGoogleInFlightCoordinator({
           redis,
@@ -400,7 +400,7 @@ describe('Redis Google provider coordination', () => {
   })
 
   it('reserves cleanup quota independently from refresh quota', async () => {
-    const redis = createFakeGoogleCoordinationRedis()
+    const redis = testRedis.create()
     const policy = {
       ...discoveryPolicy,
       buckets: [{ ...discoveryPolicy.buckets[0]!, capacity: 1 }],
@@ -431,7 +431,7 @@ describe('Redis Google provider coordination', () => {
   })
 
   it('fails closed without exposing Redis errors', async () => {
-    const redis = createFakeGoogleCoordinationRedis()
+    const redis = testRedis.create()
     redis.fail = true
     const quota = createRedisGoogleQuotaCoordinator({
       redis,

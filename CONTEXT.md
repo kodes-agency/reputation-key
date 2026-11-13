@@ -264,7 +264,6 @@ decisions now live in that ADR, so an old citation can be followed:
 | Tenant cache                | `src/shared/auth/middleware.ts`                                     |
 | Import protection deny list | `vite.config.ts` (`importProtection.client.files`)                  |
 | Clock type                  | `src/shared/domain/clock.ts`                                        |
-| Simulation container        | `src/shared/testing/simulation-container.server.ts`                 |
 | In-memory queue             | `src/shared/testing/in-memory-queue.ts`                             |
 
 ### Personal Portals (ADR 0076)

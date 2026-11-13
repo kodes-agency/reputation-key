@@ -3,8 +3,7 @@
 //
 // Each context's build.ts owns its private wiring and exposes only NAMED
 // CAPABILITY GROUPS (docs/standards.md 3.1). ARC-03-T11/T12: the root reads no
-// context's private hatch — the single exception is the simulation runtime,
-// guarded by its option and absent from every application container. The root
+// context's private hatch. The root
 // imports no individual use case, event handler or business rule; job/consumer
 // registration stays owned by BQC-3 (bootstrap.ts + worker/). Cohesive
 // sub-graphs live in src/composition/: one <context>-wiring.ts per context
@@ -224,10 +223,7 @@ export function createOperatorContainerGraph(options?: CreateContainerOptions) {
 }
 
 type BuiltContainer = ReturnType<typeof createContainer>
-export type Container = Omit<BuiltContainer, 'simulationRuntime'>
-export type SimulationContainer = BuiltContainer & {
-  simulationRuntime: NonNullable<BuiltContainer['simulationRuntime']>
-}
+export type Container = BuiltContainer
 /**
  * The process's one complete Application Container claim.
  *
@@ -235,7 +231,7 @@ export type SimulationContainer = BuiltContainer & {
  * production build bundles the composition module twice. The occupancy record
  * must therefore be process-level rather than module-level too.
  */
-export type ProcessContainerKind = 'web' | 'worker' | 'operator' | 'simulation'
+export type ProcessContainerKind = 'web' | 'worker' | 'operator'
 
 const PROCESS_CONTAINER_KEY = Symbol.for('repkey.composition.deployable-container')
 type ProcessContainerStore = {
