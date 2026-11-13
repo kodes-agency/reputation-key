@@ -13,23 +13,33 @@ import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
-import { notificationEmailQueue, notifications, properties } from '#/shared/db/schema'
+import {
+  notificationEmailQueue,
+  notificationPreferences,
+  notifications,
+  properties,
+} from '#/shared/db/schema'
 import {
   notificationEmailId,
   notificationId,
+  notificationPreferenceId,
   organizationId,
   propertyId,
   userId,
 } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { buildFakeInsertNotificationDeps } from '../../application/use-cases/test-fixtures'
+import { createFakeJobLogger } from '../jobs/test-fixtures'
+import { upsert as upsertPreference } from '../../preferences/notification-preferences.server'
 import {
   insertNotification,
   type InsertNotificationInput,
 } from '../../application/use-cases/insert-notification'
 import type { NotificationType } from '../../domain/notification-types'
-import { createNotificationRepository } from './notification.repository'
-import { createNotificationEmailRepository } from './notification-email.repository'
+import {
+  findNotificationById,
+  settleUnreadForResource,
+} from '../../notify/notification-rows.server'
+import { writeNotification } from '../../notify/write.server'
 
 const ORG = organizationId('notification-settled-repeat-org')
 const PROPERTY = propertyId('87000000-0000-4000-8000-000000000001')
@@ -60,29 +70,44 @@ describe.sequential('a notice asked for again after settlement (real PostgreSQL)
       .delete(notificationEmailQueue)
       .where(eq(notificationEmailQueue.organizationId, ORG))
     await db.delete(notifications).where(eq(notifications.organizationId, ORG))
+    await db
+      .delete(notificationPreferences)
+      .where(eq(notificationPreferences.organizationId, ORG))
   }
 
-  const insertWith = (inApp: boolean) => {
-    const deps = buildFakeInsertNotificationDeps()
+  // The reader's own rows for the Property: email always on and immediate,
+  // in-app as given. A row per channel is how the preference is really read.
+  const preferIn = async (inApp: boolean) => {
+    for (const channel of ['in_app', 'email'] as const) {
+      await upsertPreference(db, {
+        id: notificationPreferenceId(randomUUID()),
+        userId: MANAGER,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        category: 'workflow_collaboration',
+        channel,
+        enabled: channel === 'email' || inApp,
+        cadence: 'immediate',
+        createdAt: SETTLED_AT,
+        updatedAt: SETTLED_AT,
+      })
+    }
+  }
+
+  const insertWith = async (inApp: boolean) => {
+    await preferIn(inApp)
     return insertNotification({
-      ...deps,
-      notificationRepo: createNotificationRepository(db),
-      emailRepo: createNotificationEmailRepository(db),
-      preferenceRepo: {
-        ...deps.preferenceRepo,
-        resolveForDelivery: async (_user, _org, _property, _category, channel) => ({
-          enabled: channel === 'email' || inApp,
-          cadence: 'immediate',
-        }),
-      },
+      db,
       clock: () => SETTLED_AT,
       idGen: () => notificationId(randomUUID()),
       emailIdGen: () => notificationEmailId(randomUUID()),
+      logger: createFakeJobLogger(),
+      ratingForRouting: async () => null,
     })
   }
 
   const settle = (type: NotificationType = 'inbox.escalated') =>
-    createNotificationRepository(db).settleUnreadForResource({
+    settleUnreadForResource(db, {
       organizationId: ORG,
       types: [type],
       resourceId: ITEM,
@@ -128,7 +153,7 @@ describe.sequential('a notice asked for again after settlement (real PostgreSQL)
   })
 
   it('emails a second escalation raised after the first was resolved', async () => {
-    const insert = insertWith(true)
+    const insert = await insertWith(true)
     const first = await insert(escalation('settled-repeat-escalated-1'))
     await settle()
 
@@ -148,7 +173,7 @@ describe.sequential('a notice asked for again after settlement (real PostgreSQL)
   })
 
   it('still folds a repeat into a row whose work is waiting', async () => {
-    const insert = insertWith(true)
+    const insert = await insertWith(true)
     const first = await insert(escalation('settled-repeat-waiting-1'))
 
     const second = await insert(escalation('settled-repeat-waiting-2'))
@@ -159,12 +184,11 @@ describe.sequential('a notice asked for again after settlement (real PostgreSQL)
   })
 
   it('gives a racing repeat its own row instead of reviving the settled one', async () => {
-    const repo = createNotificationRepository(db)
-    const insert = insertWith(true)
+    const insert = await insertWith(true)
     const first = await insert(escalation('settled-repeat-race-1'))
     await settle()
 
-    const raced = await repo.insert({
+    const raced = await writeNotification(db, {
       ...first!,
       id: notificationId(randomUUID()),
       eventId: 'settled-repeat-race-2',
@@ -172,13 +196,15 @@ describe.sequential('a notice asked for again after settlement (real PostgreSQL)
 
     expect(raced.id).not.toBe(first?.id)
     expect(raced.resolvedAt).toBeNull()
-    expect((await repo.findById(first!.id, ORG))?.resolvedAt).not.toBeNull()
+    expect((await findNotificationById(db, first!.id, ORG))?.resolvedAt).not.toBeNull()
   })
 
   it('settles an email-only anchor, so its queued email is not sent for done work', async () => {
     // A Response Target reminder: Collaboration's in-app channel may be off.
     const halfway = 'inbox.response_target_halfway'
-    await insertWith(false)(escalation('settled-repeat-email-only', halfway))
+    await (
+      await insertWith(false)
+    )(escalation('settled-repeat-email-only', halfway))
 
     const settled = await settle(halfway)
 

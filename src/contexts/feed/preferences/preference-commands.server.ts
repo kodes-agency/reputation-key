@@ -11,7 +11,8 @@ import type {
   NotificationCategory,
   NotificationChannel,
 } from '../domain/notification-types'
-import type { createNotificationPreferenceRepository } from '../infrastructure/repositories/notification-preference.repository'
+import type { Database } from '#/shared/db'
+import * as store from './notification-preferences.server'
 import {
   muteNotificationCategory,
   undoNotificationCategoryMute,
@@ -19,14 +20,14 @@ import {
 } from './mute-category.server'
 
 type Dependencies = Readonly<{
-  prefRepo: ReturnType<typeof createNotificationPreferenceRepository>
+  db: Database
   clock: () => Date
   idGen: () => string
 }>
 
 /** The writes behind the settings screens and the bell's mute and Undo. */
 export const createPreferenceCommands = (input: Dependencies) => {
-  const { prefRepo } = input
+  const { db } = input
   return {
     updatePreference: async (
       userId: string,
@@ -56,7 +57,7 @@ export const createPreferenceCommands = (input: Dependencies) => {
         () => now,
       )
       if (result.isErr()) throw result.error
-      if (!applyToAllProperties) return prefRepo.upsert(result.value)
+      if (!applyToAllProperties) return store.upsert(db, result.value)
       // "Make this my default" is a statement about the person, not one
       // Property: it becomes the default every Property without its own row
       // inherits. Other Properties' own rows stay (D7).
@@ -73,7 +74,7 @@ export const createPreferenceCommands = (input: Dependencies) => {
         () => now,
       )
       if (categoryDefault.isErr()) throw categoryDefault.error
-      await prefRepo.saveCategoryDefault(categoryDefault.value, propertyId)
+      await store.saveCategoryDefault(db, categoryDefault.value, propertyId)
       return result.value
     },
     /** Resets one Property's own settings for a category to the person's default. */
@@ -83,7 +84,8 @@ export const createPreferenceCommands = (input: Dependencies) => {
       propertyId: string,
       category: ConfigurableNotificationCategory,
     ) =>
-      prefRepo.resetPropertyCategory(
+      store.resetPropertyCategory(
+        db,
         userId as UserId,
         orgId as OrganizationId,
         propertyId,
@@ -107,8 +109,8 @@ export const createPreferenceCommands = (input: Dependencies) => {
         {
           newId: () => notificationPreferenceId(input.idGen()),
           clock: input.clock,
-          findPropertyPreference: prefRepo.findPropertyPreference,
-          upsertEnabled: prefRepo.upsertEnabled,
+          findPropertyPreference: (...args) => store.findPropertyPreference(db, ...args),
+          upsertEnabled: (preference) => store.upsertEnabled(db, preference),
         },
       ),
     /** The bell's Undo for a mute: puts back what the mute replaced. */
@@ -132,8 +134,9 @@ export const createPreferenceCommands = (input: Dependencies) => {
         {
           newId: () => notificationPreferenceId(input.idGen()),
           clock: input.clock,
-          upsertEnabled: prefRepo.upsertEnabled,
-          deletePropertyPreference: prefRepo.deletePropertyPreference,
+          upsertEnabled: (preference) => store.upsertEnabled(db, preference),
+          deletePropertyPreference: (...args) =>
+            store.deletePropertyPreference(db, ...args),
         },
       ),
   } as const

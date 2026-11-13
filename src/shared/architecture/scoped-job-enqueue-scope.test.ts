@@ -39,7 +39,7 @@ import {
 import { gateJob } from '#/shared/jobs/delayed-execution-gate'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
-import { createImmediateEmailEnqueue } from '#/contexts/feed/email/send-emails.server'
+import { createImmediateEmailEnqueue } from '#/contexts/feed/infrastructure/jobs/send-emails.job'
 import { createGoogleImportQueue } from '#/contexts/integration/infrastructure/google-import-queue'
 import { buildReviewContext } from '#/contexts/review/build'
 

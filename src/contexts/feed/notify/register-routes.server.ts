@@ -13,8 +13,6 @@ import type { ResponsibleManagerLookupPort } from '../application/ports/responsi
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { EscalationResolutionLookupPort } from '../application/ports/escalation-resolution-lookup.port'
-import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
-import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
 import { createGroupedReopenStore } from '../infrastructure/repositories/notification-grouped-reopen.repository'
 import { createActivePropertyLookup } from '../infrastructure/repositories/active-property'
 import { registerNotificationConsumers } from '../infrastructure/notification-outbox-consumers'
@@ -60,8 +58,6 @@ export type NotificationRouteDeps = Readonly<{
   replyApproval: ReplyApprovalAuthorityPort
   inboxItemLookup: InboxItemLookupPort
   escalationResolutions: EscalationResolutionLookupPort
-  notificationRepo: NotificationRepositoryPort
-  emailRepo: NotificationEmailRepositoryPort
   workState: ReturnType<typeof createNotificationWorkState>
   monthlyResultFacts: MonthlyResultNotificationFactsLookup
   googleConnectionProperties: GoogleConnectionPropertyLookup
@@ -86,8 +82,6 @@ export const registerNotificationRoutes = (
     replyApproval,
     inboxItemLookup,
     escalationResolutions,
-    notificationRepo,
-    emailRepo,
     workState,
     monthlyResultFacts,
     googleConnectionProperties,
@@ -117,10 +111,7 @@ export const registerNotificationRoutes = (
   registerWorkflowNotificationConsumers(consumerRegistry, {
     ...fanoutReads,
     ...notices,
-    retireMovedAssignment: createRetireMovedAssignment({
-      notifications: notificationRepo,
-      emails: emailRepo,
-    }),
+    retireMovedAssignment: createRetireMovedAssignment({ db }),
   })
   registerBulkAssignmentNotificationConsumer(consumerRegistry, {
     ...notices,
@@ -140,7 +131,7 @@ export const registerNotificationRoutes = (
     escalationResolutions,
     responsibleManagers: responsibleManagers,
     userLookup,
-    notifications: notificationRepo,
+    db,
     inboxItemLookup,
   })
   registerHandlingCycleNotificationConsumers(consumerRegistry, {
@@ -150,9 +141,8 @@ export const registerNotificationRoutes = (
   // The counterpart of the routes above: the facts that finish the work
   // they announced retire their notices and cancel the mail behind them.
   registerNotificationSettlementConsumers(consumerRegistry, {
-    notifications: notificationRepo,
+    db,
     groupedReopens: createGroupedReopenStore(db),
-    emails: emailRepo,
     inboxItemLookup,
     workState,
     clock: clock,

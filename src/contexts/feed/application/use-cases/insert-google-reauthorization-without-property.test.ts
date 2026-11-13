@@ -1,11 +1,10 @@
 // `integration.reauthorization_required` anchors on a Property so it can be
 // mailed. With no active Property to anchor on it falls back to the
-// Organization: in the bell, never by email, rather than to nobody.
+// Organization: in the bell, never by email, rather than to nobody. The write
+// itself is proved against the database in insert-notification.integration.test.ts.
 import { describe, expect, it } from 'vitest'
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { createNotification } from '../../domain/notification-constructors'
-import { insertNotification } from './insert-notification'
-import { buildFakeInsertNotificationDeps } from './test-fixtures'
 
 const NOW = new Date('2026-09-28T10:00:00.000Z')
 const CONNECTION = '00000000-0000-4000-8000-0000000000e2'
@@ -61,21 +60,5 @@ describe('Google reauthorization notice without a Property', () => {
     )
 
     expect(result.isOk()).toBe(true)
-  })
-
-  it('lands in the bell with no Property preference to consult and no email', async () => {
-    const deps = buildFakeInsertNotificationDeps()
-
-    const result = await insertNotification(deps)(reauthorization)
-
-    expect(deps.preferenceRepo.resolveForDelivery).not.toHaveBeenCalled()
-    expect(result).toMatchObject({
-      propertyId: null,
-      type: 'integration.reauthorization_required',
-      resourceType: 'integration',
-    })
-    expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
-    expect(deps.emailRepo.insert).not.toHaveBeenCalled()
-    expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
   })
 })

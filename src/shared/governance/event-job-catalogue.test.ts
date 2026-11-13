@@ -197,11 +197,11 @@ const UNSCANNED_JOB_PRODUCERS: Readonly<
   // addImmediateEmailJob chooses the job name per email, for the insert
   // path, the orphan sweep and the quiet-hours release alike.
   'urgent-email': {
-    module: 'src/contexts/feed/email/send-emails.server.ts',
+    module: 'src/contexts/feed/infrastructure/jobs/send-emails.job.ts',
     evidence: 'immediateEmailDispatch(target.propertyId)',
   },
   'mandatory-email': {
-    module: 'src/contexts/feed/email/send-emails.server.ts',
+    module: 'src/contexts/feed/infrastructure/jobs/send-emails.job.ts',
     evidence: 'immediateEmailDispatch(target.propertyId)',
   },
 }

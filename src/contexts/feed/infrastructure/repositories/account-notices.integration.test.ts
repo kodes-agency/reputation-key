@@ -11,8 +11,8 @@ import { notificationId, organizationId, userId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createNotification } from '../../domain/notification-constructors'
 import type { NotificationPayload } from '../../domain/notification-payload'
+import { writeNotification } from '../../notify/write.server'
 import { renderNotification } from '../../domain/notification-templates'
-import { createNotificationRepository } from './notification.repository'
 
 const ORG_A = organizationId('b7400000-0000-4000-8000-000000000001')
 const ORG_B = organizationId('b7400000-0000-4000-8000-000000000002')
@@ -25,8 +25,7 @@ const { getPool } = setupIntegrationDb({
   tables: ['notifications'],
 })
 
-const repository = () =>
-  createNotificationRepository(drizzle(getPool()) as unknown as Database)
+const db = () => drizzle(getPool()) as unknown as Database
 
 const TYPES = [
   'account.organization_property_access_changed',
@@ -76,7 +75,8 @@ const refusal = (
 
 describe.each(TYPES)('%s against PostgreSQL', (type) => {
   it('inserts with no Property, as a mandatory notice pointing at the Organization', async () => {
-    const stored = await repository().insert(
+    const stored = await writeNotification(
+      db(),
       build(type, { organizationName: 'Riverside Group' }),
     )
 
@@ -98,11 +98,13 @@ describe.each(TYPES)('%s against PostgreSQL', (type) => {
   })
 
   it('folds a repeat into the one unread row, the newest facts winning', async () => {
-    const first = await repository().insert(
+    const first = await writeNotification(
+      db(),
       build(type, { organizationName: 'Riverside Group' }),
     )
 
-    const repeat = await repository().insert(
+    const repeat = await writeNotification(
+      db(),
       build(type, { organizationName: 'Riverside Hospitality' }),
     )
 

@@ -42,7 +42,6 @@ import {
   currentRouteDeps,
   dispatch,
 } from '#/shared/testing/notification-route-test-harness'
-import { createNotificationRepository } from './repositories/notification.repository'
 
 const ORG_A = organizationId('notification-acceptance-a')
 const ORG_B = organizationId('notification-acceptance-b')
@@ -139,7 +138,7 @@ describe.sequential(
         recordedAt: source!.createdAt,
       })
       const outbox = createOutboxRepository(db)
-      const result = await dispatch(fact, currentRouteDeps(), {
+      const result = await dispatch(fact, currentRouteDeps(db), {
         outbox,
         envelope,
         noticeWriter: realWriter(),
@@ -162,7 +161,7 @@ describe.sequential(
     it('redelivery preserves one notice, one email intent and the durable receipts', async () => {
       const { fact, row } = await produce(ORG_A)
       const outbox = createOutboxRepository(db)
-      await dispatch(fact, currentRouteDeps(), {
+      await dispatch(fact, currentRouteDeps(db), {
         outbox,
         noticeWriter: realWriter(),
       })
@@ -196,7 +195,7 @@ describe.sequential(
       const b = await produce(ORG_B)
       const other = await produce(ORG_A, OTHER_USER)
       const reads = createNotificationFeedReads({
-        repo: createNotificationRepository(db),
+        db,
         propertyAccess: async () => null,
         clock: () => NOW,
       })

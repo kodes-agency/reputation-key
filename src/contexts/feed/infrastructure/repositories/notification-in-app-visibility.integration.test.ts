@@ -17,11 +17,12 @@ import {
   notifications,
   properties,
 } from '#/shared/db/schema'
+import { organizationId, userId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { copyCategoryDefaultsToPreferences } from '../../preferences/copy-category-defaults.server'
-import { createNotificationRepository } from './notification.repository'
+import { readNotificationFeedHead } from '../../notify/notification-feed.server'
 
-const ORG = 'in-app-vis-org'
+const ORG = organizationId('in-app-vis-org')
 const OTHER_ORG = 'in-app-vis-other-org'
 const READER = 'in-app-vis-reader'
 const BARE = 'in-app-vis-bare'
@@ -142,9 +143,8 @@ describe.sequential('in-app visibility of notices (real PostgreSQL)', () => {
   }
 
   const listedFor = async (user: string): Promise<string[]> => {
-    const repo = createNotificationRepository(db)
-    const head = await repo.readFeedHead({
-      userId: user,
+    const head = await readNotificationFeedHead(db, {
+      userId: userId(user),
       organizationId: ORG,
       visiblePropertyIds: null,
       filter: 'all',
@@ -209,9 +209,8 @@ describe.sequential('in-app visibility of notices (real PostgreSQL)', () => {
 
   it('counts the same unread notices in every state', async () => {
     const unread = async () => {
-      const repo = createNotificationRepository(db)
-      const head = await repo.readFeedHead({
-        userId: READER,
+      const head = await readNotificationFeedHead(db, {
+        userId: userId(READER),
         organizationId: ORG,
         visiblePropertyIds: null,
         filter: 'unread',

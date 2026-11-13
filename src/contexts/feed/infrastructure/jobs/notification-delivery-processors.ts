@@ -3,30 +3,23 @@
 // outbound transport, the signed-link helpers and the scheduled-scope
 // authorizers.
 
+import type { Database } from '#/shared/db'
+import type { EmailAddressKeys } from '../../domain/notification-email-queue-types'
 import type { Job } from 'bullmq'
 import type { Pool } from 'pg'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { OneClickUnsubscribeTarget } from '../../application/one-click-unsubscribe-token'
-import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
-import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
-import type { NotificationPreferenceRepositoryPort } from '../../application/ports/notification-preference-repository.port'
 import { createNotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import { createNotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
-import {
-  createImmediateEmailEnqueue,
-  createQuietHoursRelease,
-} from '../../email/send-emails.server'
+import { createImmediateEmailEnqueue, createQuietHoursRelease } from './send-emails.job'
 import type { NotificationWorkState } from '../../application/ports/notification-work-state.port'
-import type { ImmediateEmailJobQueue } from '../../email/send-emails.server'
+import type { ImmediateEmailJobQueue } from './send-emails.job'
 import {
   createSendEmailsHandler,
   type SendEmailsDeps,
   type SendEmailJobData,
-} from '../../email/send-emails.server'
-export {
-  MANDATORY_EMAIL_JOB_NAME,
-  URGENT_EMAIL_JOB_NAME,
-} from '../../email/send-emails.server'
+} from './send-emails.job'
+export { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } from './send-emails.job'
 import {
   createDigestNotificationJobHandler,
   type DigestDeps,
@@ -34,9 +27,8 @@ import {
 
 /** What Feed's build already holds for every processor. */
 export type NotificationDeliveryParts = Readonly<{
-  notificationRepo: NotificationRepositoryPort
-  emailRepo: NotificationEmailRepositoryPort
-  preferenceRepo: NotificationPreferenceRepositoryPort
+  db: Database
+  emailAddressKeys: EmailAddressKeys
   userLookup: SendEmailsDeps['userLookup']
   recipientStanding: SendEmailsDeps['isRecipientEligible']
   workState: SendEmailsDeps['workState'] & Pick<NotificationWorkState, 'isWaitingMany'>
@@ -77,13 +69,12 @@ export const createNotificationDeliveryProcessors = (
     worker.pool,
   )
   const urgentEmailHandler = createSendEmailsHandler({
-    emailRepo: parts.emailRepo,
-    notifRepo: parts.notificationRepo,
+    db: parts.db,
+    emailAddressKeys: parts.emailAddressKeys,
     userLookup: parts.userLookup,
     emailSender: worker.emailSender,
     logger: parts.logger,
     clock: parts.clock,
-    preferenceRepo: parts.preferenceRepo,
     resolvePropertyScope,
     resolveOrganizationScope,
     authorizeScope: worker.authorizeUrgentScope,
@@ -99,14 +90,13 @@ export const createNotificationDeliveryProcessors = (
 
   const digestHandler = createDigestNotificationJobHandler({
     pool: worker.pool,
-    emailRepo: parts.emailRepo,
-    notifRepo: parts.notificationRepo,
+    db: parts.db,
+    emailAddressKeys: parts.emailAddressKeys,
     userLookup: parts.userLookup,
     emailSender: worker.emailSender,
     logger: parts.logger,
     clock: parts.clock,
     batchIdGen: () => crypto.randomUUID(),
-    preferenceRepo: parts.preferenceRepo,
     resolveOrganizationScope,
     resolvePropertyScope,
     authorizeScope: worker.authorizeDigestScope,

@@ -22,8 +22,15 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { createNotification } from '../../domain/notification-constructors'
 import { SETTLED_EMAIL_REASON } from '../../domain/notification-actionable'
 import type { NotificationType } from '../../domain/notification-types'
-import { createNotificationRepository } from './notification.repository'
-import { createNotificationEmailRepository } from './notification-email.repository'
+import { readNotificationFeedHead } from '../../notify/notification-feed.server'
+import { writeNotification } from '../../notify/write.server'
+import {
+  cancelQueuedEmailsForNotifications,
+  findNotificationById,
+  settleUnreadForReader,
+  settleUnreadForResource,
+} from '../../notify/notification-rows.server'
+import { findNotificationEmailById } from '../../email/notification-email-queue.server'
 
 const ORG = organizationId('notification-settlement-org')
 const PROPERTY = propertyId('86000000-0000-4000-8000-000000000001')
@@ -96,7 +103,7 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
   })
 
   const feedHead = (recipient: ReturnType<typeof userId>) =>
-    createNotificationRepository(db).readFeedHead({
+    readNotificationFeedHead(db, {
       userId: recipient,
       organizationId: ORG,
       visiblePropertyIds: null,
@@ -105,11 +112,13 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
     })
 
   it('settles every recipient waiting on the same work, in one write', async () => {
-    const repo = createNotificationRepository(db)
-    await repo.insert(notice('86000000-0000-4000-8000-000000000011', APPROVER))
-    await repo.insert(notice('86000000-0000-4000-8000-000000000012', SECOND_APPROVER))
+    await writeNotification(db, notice('86000000-0000-4000-8000-000000000011', APPROVER))
+    await writeNotification(
+      db,
+      notice('86000000-0000-4000-8000-000000000012', SECOND_APPROVER),
+    )
 
-    const settled = await repo.settleUnreadForResource({
+    const settled = await settleUnreadForResource(db, {
       organizationId: ORG,
       types: ['reply.pending_approval'],
       resourceId: ITEM,
@@ -129,15 +138,16 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
 
   // D3: an assignment takes over only its own reader's arrival notice.
   it("settles one reader's notices about the item and leaves everybody else's", async () => {
-    const repo = createNotificationRepository(db)
-    await repo.insert(
+    await writeNotification(
+      db,
       notice('86000000-0000-4000-8000-000000000031', APPROVER, 'review.created'),
     )
-    await repo.insert(
+    await writeNotification(
+      db,
       notice('86000000-0000-4000-8000-000000000032', SECOND_APPROVER, 'review.created'),
     )
 
-    const settled = await repo.settleUnreadForReader({
+    const settled = await settleUnreadForReader(db, {
       organizationId: ORG,
       userId: APPROVER,
       types: ['review.created', 'review.updated', 'feedback.created'],
@@ -152,7 +162,7 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
       [
         '86000000-0000-4000-8000-000000000031',
         '86000000-0000-4000-8000-000000000032',
-      ].map((id) => repo.findById(notificationId(id), ORG)),
+      ].map((id) => findNotificationById(db, notificationId(id), ORG)),
     )
     expect(stored.map((row) => row?.resolvedAt?.toISOString() ?? null)).toEqual([
       SETTLED_AT.toISOString(),
@@ -164,7 +174,6 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
   // a guest concern (unrated feedback is Action needed), and never an
   // email-only anchor, whose email may be the reader's only word of the item.
   it('retires only the unread arrival when asked for in-app arrival rows', async () => {
-    const repo = createNotificationRepository(db)
     const arrival = notice(
       '86000000-0000-4000-8000-000000000041',
       APPROVER,
@@ -185,11 +194,11 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
       'urgent_operational',
       'arrivals',
     ])
-    await repo.insert(arrival)
-    await repo.insert(concern)
-    await repo.insert(anchor)
+    await writeNotification(db, arrival)
+    await writeNotification(db, concern)
+    await writeNotification(db, anchor)
 
-    const settled = await repo.settleUnreadForReader({
+    const settled = await settleUnreadForReader(db, {
       organizationId: ORG,
       userId: APPROVER,
       types: ['review.created', 'review.updated', 'feedback.created'],
@@ -203,29 +212,28 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
   })
 
   it('leaves the row unread, because read is not resolved', async () => {
-    const repo = createNotificationRepository(db)
     const waiting = notice('86000000-0000-4000-8000-000000000013', APPROVER)
-    await repo.insert(waiting)
+    await writeNotification(db, waiting)
 
-    await repo.settleUnreadForResource({
+    await settleUnreadForResource(db, {
       organizationId: ORG,
       types: ['reply.pending_approval'],
       resourceId: ITEM,
       resolvedAt: SETTLED_AT,
     })
 
-    const stored = await repo.findById(waiting.id, ORG)
+    const stored = await findNotificationById(db, waiting.id, ORG)
     expect(stored).toMatchObject({ status: 'unread', readAt: null })
   })
 
   it('takes the settled notice out of the bell count and the Unread tab', async () => {
-    const repo = createNotificationRepository(db)
-    await repo.insert(notice('86000000-0000-4000-8000-000000000014', APPROVER))
-    await repo.insert(
+    await writeNotification(db, notice('86000000-0000-4000-8000-000000000014', APPROVER))
+    await writeNotification(
+      db,
       notice('86000000-0000-4000-8000-000000000015', APPROVER, 'inbox.escalated'),
     )
 
-    await repo.settleUnreadForResource({
+    await settleUnreadForResource(db, {
       organizationId: ORG,
       types: ['reply.pending_approval'],
       resourceId: ITEM,
@@ -238,17 +246,16 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
   })
 
   it('keeps the settled notice readable in the feed, with its marker', async () => {
-    const repo = createNotificationRepository(db)
-    await repo.insert(notice('86000000-0000-4000-8000-000000000016', APPROVER))
+    await writeNotification(db, notice('86000000-0000-4000-8000-000000000016', APPROVER))
 
-    await repo.settleUnreadForResource({
+    await settleUnreadForResource(db, {
       organizationId: ORG,
       types: ['reply.pending_approval'],
       resourceId: ITEM,
       resolvedAt: SETTLED_AT,
     })
 
-    const all = await createNotificationRepository(db).readFeedHead({
+    const all = await readNotificationFeedHead(db, {
       userId: APPROVER,
       organizationId: ORG,
       visiblePropertyIds: null,
@@ -262,8 +269,8 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
   })
 
   it('leaves another resource, and another type, still waiting', async () => {
-    const repo = createNotificationRepository(db)
-    await repo.insert(
+    await writeNotification(
+      db,
       notice(
         '86000000-0000-4000-8000-000000000017',
         APPROVER,
@@ -271,11 +278,12 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
         OTHER_ITEM,
       ),
     )
-    await repo.insert(
+    await writeNotification(
+      db,
       notice('86000000-0000-4000-8000-000000000018', APPROVER, 'inbox.escalated'),
     )
 
-    const settled = await repo.settleUnreadForResource({
+    const settled = await settleUnreadForResource(db, {
       organizationId: ORG,
       types: ['reply.pending_approval'],
       resourceId: ITEM,
@@ -287,23 +295,23 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
   })
 
   it('settles nothing a second time, so a redelivered fact is a no-op', async () => {
-    const repo = createNotificationRepository(db)
-    await repo.insert(notice('86000000-0000-4000-8000-000000000019', APPROVER))
+    await writeNotification(db, notice('86000000-0000-4000-8000-000000000019', APPROVER))
     const input = {
       organizationId: ORG,
       types: ['reply.pending_approval'] as const,
       resourceId: ITEM,
       resolvedAt: SETTLED_AT,
     }
-    await repo.settleUnreadForResource(input)
+    await settleUnreadForResource(db, input)
 
-    const again = await repo.settleUnreadForResource({
+    const again = await settleUnreadForResource(db, {
       ...input,
       resolvedAt: new Date('2026-09-24T01:00:00.000Z'),
     })
 
     expect(again).toEqual([])
-    const stored = await repo.findById(
+    const stored = await findNotificationById(
+      db,
       notificationId('86000000-0000-4000-8000-000000000019'),
       ORG,
     )
@@ -346,9 +354,9 @@ describe.sequential('cancelling the mail behind settled work (real PostgreSQL)',
       slug: 'notification-settlement-email',
       timezone: 'UTC',
     })
-    const repo = createNotificationRepository(db)
-    await repo.insert(notice(QUEUED, APPROVER))
-    await repo.insert(
+    await writeNotification(db, notice(QUEUED, APPROVER))
+    await writeNotification(
+      db,
       notice(ACCEPTED, SECOND_APPROVER, 'reply.pending_approval', OTHER_ITEM),
     )
     await db
@@ -371,9 +379,8 @@ describe.sequential('cancelling the mail behind settled work (real PostgreSQL)',
   })
 
   it('cancels the pending email and leaves one the provider already holds', async () => {
-    const emails = createNotificationEmailRepository(db)
-
-    const cancelled = await emails.cancelQueuedForNotifications(
+    const cancelled = await cancelQueuedEmailsForNotifications(
+      db,
       [notificationId(QUEUED), notificationId(ACCEPTED)],
       ORG,
       SETTLED_EMAIL_REASON,
@@ -381,12 +388,14 @@ describe.sequential('cancelling the mail behind settled work (real PostgreSQL)',
     )
 
     expect(cancelled).toBe(1)
-    const pending = await emails.findById(
+    const pending = await findNotificationEmailById(
+      db,
       notificationEmailId('86000000-0000-4000-8000-000000000041'),
       ORG,
       PROPERTY,
     )
-    const accepted = await emails.findById(
+    const accepted = await findNotificationEmailById(
+      db,
       notificationEmailId('86000000-0000-4000-8000-000000000042'),
       ORG,
       PROPERTY,

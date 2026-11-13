@@ -6,7 +6,8 @@ import {
 } from '#/shared/domain/ids'
 import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-lookup.port'
 import type { UserLookupPort } from './ports/notification-user-lookup.port'
-import type { NotificationRepositoryPort } from './ports/notification-repository.port'
+import type { NotificationDb } from '../notify/notification-feed-sql.server'
+import { findRecipientsOfNotice } from '../notify/notification-rows.server'
 import type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup.port'
 import {
   findScopeResponsibleManagers,
@@ -16,7 +17,7 @@ import {
 export type EscalationResolutionRecipientDeps = Readonly<{
   responsibleManagers: ResponsibleManagerLookupPort
   userLookup: Pick<UserLookupPort, 'findByRole'>
-  notifications: Pick<NotificationRepositoryPort, 'findRecipientsOfNotice'>
+  db: NotificationDb
   /** Which scope owns the item, so the resolution follows the escalation. */
   inboxItemLookup: Pick<InboxItemLookupPort, 'findInboxItemFacts'>
 }>
@@ -112,7 +113,8 @@ async function adminsTold(
   input: ResolutionInput,
 ): Promise<readonly UserId[]> {
   const [told, admins] = await Promise.all([
-    deps.notifications.findRecipientsOfNotice(
+    findRecipientsOfNotice(
+      deps.db,
       input.organizationId,
       'inbox.escalated',
       input.inboxItemId,

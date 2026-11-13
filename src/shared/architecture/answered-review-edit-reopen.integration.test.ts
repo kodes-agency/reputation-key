@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -33,8 +33,9 @@ import { handleNotificationInboxItemCreated } from '#/contexts/feed/infrastructu
 import type { QueuedNotice } from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
 import { insertNotification } from '#/contexts/feed/application/use-cases/insert-notification'
 import { createNotificationWorkState } from '#/contexts/feed/notify/settle.server'
-import { resolveCategoryPreference } from '#/contexts/feed/domain/notification-preference-resolution'
-import { buildFakeInsertNotificationDeps } from '#/contexts/feed/application/use-cases/test-fixtures'
+import { buildInsertNotificationDeps } from '#/contexts/feed/application/use-cases/test-fixtures'
+import { notificationPreferences, notifications } from '#/shared/db/schema'
+import { eq } from 'drizzle-orm'
 
 // End to end, the guest edits a Google review the team had already answered,
 // and the owner reply stays live on Google. A reply written for revision 1
@@ -177,22 +178,23 @@ const notAskedForAnArrival = async (): Promise<never> => {
  * waits. Returns the notices written.
  */
 async function writeNotices(jobs: ReadonlyArray<QueuedNotice>) {
-  const insert = buildFakeInsertNotificationDeps()
+  const db = getDb()
   // The manager follows arrivals in the app. They are off by default (ADR 0046,
   // amended 2026-09-30), and a notice nobody asked for would make the two
   // "writes nothing" cases below pass without the answered-first rule.
-  vi.mocked(insert.preferenceRepo.resolveForDelivery).mockImplementation(
-    async (_userId, _orgId, _propertyId, category, channel) =>
-      resolveCategoryPreference({
-        category,
-        channel,
-        property:
-          category === 'arrivals' && channel === 'in_app'
-            ? { enabled: true, cadence: 'daily' }
-            : null,
-        personalDefault: null,
-      }),
-  )
+  await db
+    .insert(notificationPreferences)
+    .values({
+      userId: SCOPE.managerUserId,
+      organizationId: SCOPE.organizationId,
+      propertyId: SCOPE.propertyId,
+      category: 'arrivals',
+      channel: 'in_app',
+      enabled: true,
+      cadence: 'daily',
+    })
+    .onConflictDoNothing()
+  const insert = buildInsertNotificationDeps(db)
   const workState = createNotificationWorkState({
     inboxItemLookup: feedDeps().deps.inboxItemLookup,
     escalationResolutions: { findEscalationResolutionFacts: notAskedForAnArrival },
@@ -218,7 +220,10 @@ async function writeNotices(jobs: ReadonlyArray<QueuedNotice>) {
     })
     if (waiting !== false) await write(notice, audience)
   }
-  return vi.mocked(insert.notificationRepo.insert).mock.calls.map(([notice]) => notice)
+  return db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.organizationId, SCOPE.organizationId))
 }
 
 /** Answered at revision 1, then edited by the guest with the reply still live. */

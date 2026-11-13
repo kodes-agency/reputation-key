@@ -17,11 +17,15 @@ import {
   getAccessiblePropertyIdsForPermission,
   type PropertyAccessLookup,
 } from '#/shared/domain/property-access'
-import type {
-  NotificationFeedQuery,
-  NotificationFeedScope,
-  NotificationRepositoryPort,
-} from './ports/notification-repository.port'
+import type { NotificationDb } from '../notify/notification-feed-sql.server'
+import {
+  markAllNotificationsDismissed,
+  markAllNotificationsRead,
+  readNotificationFeedHead,
+  readNotificationFeedPage,
+  type NotificationFeedQuery,
+  type NotificationFeedScope,
+} from '../notify/notification-feed.server'
 import type { NotificationListFilter } from './notification-list-filter'
 import type { NotificationFeedCursor } from './notification-page'
 
@@ -36,10 +40,7 @@ type FeedPageRequest = Readonly<{
 }>
 
 export type NotificationFeedReadsDeps = Readonly<{
-  repo: Pick<
-    NotificationRepositoryPort,
-    'readFeedHead' | 'readFeedPage' | 'markAllRead' | 'markAllDismissed'
-  >
+  db: NotificationDb
   /** Identity-owned current Property access; null means every Property. */
   propertyAccess: PropertyAccessLookup
   clock: () => Date
@@ -71,13 +72,13 @@ export const createNotificationFeedReads = (deps: NotificationFeedReadsDeps) => 
   return {
     /** The polled first page, with the badge count from the same snapshot. */
     getFeedHead: async (ctx: AuthContext, request: FeedPageRequest) =>
-      deps.repo.readFeedHead(await readerQuery(ctx, request)),
+      readNotificationFeedHead(deps.db, await readerQuery(ctx, request)),
     /** A keyset page below the head, continuing strictly after `before`. */
     getNotifications: async (
       ctx: AuthContext,
       request: FeedPageRequest & Readonly<{ before: NotificationFeedCursor | null }>,
     ) =>
-      deps.repo.readFeedPage({
+      readNotificationFeedPage(deps.db, {
         ...(await readerQuery(ctx, request)),
         before: request.before,
       }),
@@ -86,9 +87,19 @@ export const createNotificationFeedReads = (deps: NotificationFeedReadsDeps) => 
       ctx: AuthContext,
       filter: NotificationListFilter,
       propertyId: PropertyFilter = null,
-    ) => deps.repo.markAllRead(await readerScope(ctx, propertyId), filter, deps.clock()),
+    ) =>
+      markAllNotificationsRead(
+        deps.db,
+        await readerScope(ctx, propertyId),
+        filter,
+        deps.clock(),
+      ),
     /** "Clear all": every row the reader's feed shows, and none it hides. */
     dismissAll: async (ctx: AuthContext, propertyId: PropertyFilter = null) =>
-      deps.repo.markAllDismissed(await readerScope(ctx, propertyId), deps.clock()),
+      markAllNotificationsDismissed(
+        deps.db,
+        await readerScope(ctx, propertyId),
+        deps.clock(),
+      ),
   } as const
 }

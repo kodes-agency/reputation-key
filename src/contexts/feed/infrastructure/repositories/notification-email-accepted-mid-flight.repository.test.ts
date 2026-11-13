@@ -23,8 +23,14 @@ import {
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createNotification } from '../../domain/notification-constructors'
 import { SETTLED_EMAIL_REASON } from '../../domain/notification-actionable'
-import { createNotificationRepository } from './notification.repository'
-import { createNotificationEmailRepository } from './notification-email.repository'
+import { writeNotification } from '../../notify/write.server'
+import { cancelQueuedEmailsForNotifications } from '../../notify/notification-rows.server'
+import {
+  findNotificationEmailById,
+  findProviderMessageRecipients,
+  freezeProviderRequest,
+  markNotificationEmailAccepted,
+} from '../../email/notification-email-queue.server'
 
 const ORG = organizationId('notification-accepted-mid-flight-org')
 const PROPERTY = propertyId('88000000-0000-4000-8000-000000000001')
@@ -85,7 +91,7 @@ describe.sequential('an acceptance that lands on a retired row (real PostgreSQL)
       () => STARTED_AT,
     )
     if (built.isErr()) throw built.error
-    await createNotificationRepository(db).insert(built.value)
+    await writeNotification(db, built.value)
     await db.insert(notificationEmailQueue).values({
       id: EMAIL,
       notificationId: NOTICE,
@@ -108,8 +114,9 @@ describe.sequential('an acceptance that lands on a retired row (real PostgreSQL)
     await lease?.release()
   })
 
-  const settle = (emails: ReturnType<typeof createNotificationEmailRepository>) =>
-    emails.cancelQueuedForNotifications(
+  const settle = () =>
+    cancelQueuedEmailsForNotifications(
+      db,
       [notificationId(NOTICE)],
       ORG,
       SETTLED_EMAIL_REASON,
@@ -117,13 +124,17 @@ describe.sequential('an acceptance that lands on a retired row (real PostgreSQL)
     )
 
   it('keeps the message id of a send cancelled while the provider call ran', async () => {
-    const emails = createNotificationEmailRepository(db)
-    await emails.freezeProviderRequest(EMAIL, ORG, PROPERTY, EMAIL_REQUEST, STARTED_AT)
-    await settle(emails)
+    await freezeProviderRequest(db, EMAIL, ORG, PROPERTY, EMAIL_REQUEST, STARTED_AT)
+    await settle()
 
-    await emails.markAccepted(EMAIL, ORG, PROPERTY, MESSAGE, ACCEPTED_AT)
+    await markNotificationEmailAccepted(db, EMAIL, ORG, PROPERTY, MESSAGE, ACCEPTED_AT)
 
-    const stored = await emails.findById(notificationEmailId(EMAIL), ORG, PROPERTY)
+    const stored = await findNotificationEmailById(
+      db,
+      notificationEmailId(EMAIL),
+      ORG,
+      PROPERTY,
+    )
     expect(stored).toMatchObject({
       status: 'cancelled',
       suppressionReason: SETTLED_EMAIL_REASON,
@@ -132,16 +143,20 @@ describe.sequential('an acceptance that lands on a retired row (real PostgreSQL)
       acceptedAt: ACCEPTED_AT,
     })
     // What a bounce or complaint webhook reads to suppress the address.
-    expect(await emails.findProviderMessageRecipients(MESSAGE)).toHaveLength(1)
+    expect(await findProviderMessageRecipients(db, MESSAGE)).toHaveLength(1)
   })
 
   it('records nothing on a row that was retired before any attempt began', async () => {
-    const emails = createNotificationEmailRepository(db)
-    await settle(emails)
+    await settle()
 
-    await emails.markAccepted(EMAIL, ORG, PROPERTY, MESSAGE, ACCEPTED_AT)
+    await markNotificationEmailAccepted(db, EMAIL, ORG, PROPERTY, MESSAGE, ACCEPTED_AT)
 
-    const stored = await emails.findById(notificationEmailId(EMAIL), ORG, PROPERTY)
+    const stored = await findNotificationEmailById(
+      db,
+      notificationEmailId(EMAIL),
+      ORG,
+      PROPERTY,
+    )
     expect(stored).toMatchObject({ status: 'cancelled', providerMessageId: null })
   })
 })

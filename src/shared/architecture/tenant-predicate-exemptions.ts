@@ -194,14 +194,14 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/notification-email.repository.ts',
+    file: 'src/contexts/feed/email/notification-email-queue.server.ts',
     symbol: 'recordProviderState',
     reason:
       'A signed provider webhook names a message only by the id the provider assigned at acceptance, before tenant scope is known; the id is unique per send and the update returns each moved row with its tenant identifiers.',
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/notification-email.repository.ts',
+    file: 'src/contexts/feed/email/notification-email-queue.server.ts',
     symbol: 'findProviderMessageRecipients',
     reason:
       'A retried provider webhook re-applies a suppression for the message the provider id names, before tenant scope is known; the read returns each row with its tenant identifiers.',
@@ -404,7 +404,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/notification-delivery-lag.repository.ts',
+    file: 'src/contexts/feed/notify/delivery-lag.server.ts',
     symbol: 'readSendableImmediateEmailRows',
     reason:
       'The notification delivery-lag gauge lists the Organization and Property of every immediate email in its window across tenants, then reads statuses and instants, no content, for the ones the beta gate allows: an allowed Property, or an allowed Organization where the email has none.',
@@ -418,21 +418,21 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/notification-email.repository.ts',
-    symbol: 'findDueOrganizationScopes',
+    file: 'src/contexts/feed/email/notification-email-queue.server.ts',
+    symbol: 'findDueEmailOrganizationScopes',
     reason:
       'The immediate-email sweep enumerates the Organizations that hold due Organization-level email, identifiers only and capped, so each one is then worked under its own scope.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/notification-email.repository.ts',
-    symbol: 'findDueRecipients',
+    file: 'src/contexts/feed/email/notification-email-queue.server.ts',
+    symbol: 'findDueEmailRecipients',
     reason:
       'The email sweeps intentionally enumerate due recipients and open digest batches across tenants, capped, and return only each recipient with its Organization.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/notification.repository.ts',
+    file: 'src/contexts/feed/notify/notification-feed-sql.server.ts',
     symbol: 'mayBecomeUnread',
     reason:
       'The fragment looks for an unread sibling of the notification row being changed and ties it to that row on Organization; the statement that embeds it owns the tenant scope.',
@@ -688,6 +688,55 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     symbol: 'withdrawAiDrafts',
     reason:
       'The existing AI control transition may withdraw stale AI drafts across tenants; Property, authorization and Review callers supply tenant predicates. Every affected Reply is correlated to its own Review tenant, and effects stay in the caller transaction.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/feed/infrastructure/jobs/delivery-seed.ts',
+    symbol: 'readEmail',
+    reason:
+      "Test support reads one queue row by the id the fixture minted, inside the suite's own rolled-back transaction.",
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/feed/infrastructure/jobs/digest-job-test-deps.ts',
+    symbol: 'setEmail',
+    reason:
+      "Test support edits one queue row by the id the fixture minted, inside the suite's own rolled-back transaction.",
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/feed/infrastructure/jobs/digest-retry-seed.ts',
+    symbol: 'loseWorkerMidCall',
+    reason:
+      "Test support rewinds one digest batch by the id the fixture minted, inside the suite's own rolled-back transaction.",
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/feed/infrastructure/jobs/digest-retry-seed.ts',
+    symbol: 'neverStarted',
+    reason:
+      "Test support rewinds one digest batch by the id the fixture minted, inside the suite's own rolled-back transaction.",
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/feed/infrastructure/jobs/send-emails-test-deps.ts',
+    symbol: 'setEmail',
+    reason:
+      "Test support edits one queue row by the id the fixture minted, inside the suite's own rolled-back transaction.",
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/feed/infrastructure/jobs/send-emails-test-deps.ts',
+    symbol: 'setNotice',
+    reason:
+      "Test support edits one notice by the id the fixture minted, inside the suite's own rolled-back transaction.",
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/feed/infrastructure/notification-settlement-test-db.ts',
+    symbol: 'settledAt',
+    reason:
+      "Test support reads one notice by the id the fixture minted, inside the suite's own rolled-back transaction.",
     category: 'LEGITIMATE-GLOBAL',
   },
 ] as const

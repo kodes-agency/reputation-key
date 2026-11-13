@@ -11,9 +11,12 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { organizationId, userId } from '#/shared/domain/ids'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { NotificationListFilter } from '../../application/notification-list-filter'
-import { createNotificationRepository } from './notification.repository'
+import {
+  markAllNotificationsRead,
+  readNotificationFeedHead,
+} from '../../notify/notification-feed.server'
 
 const ORG = 'org-notification-mark-all-read'
 const USER = 'user-notification-mark-all-read'
@@ -128,7 +131,8 @@ beforeEach(async () => {
 })
 
 const markAllRead = (filter: NotificationListFilter) =>
-  createNotificationRepository(getDb()).markAllRead(
+  markAllNotificationsRead(
+    getDb(),
     {
       userId: userId(USER),
       organizationId: organizationId(ORG),
@@ -189,15 +193,14 @@ describe.sequential('"Mark all read" scoped to the filter (real PostgreSQL)', ()
   )
 
   it("counts the unread rows the reader's filter holds in the head's snapshot", async () => {
-    const repo = createNotificationRepository(getDb())
     const head = (
       filter: NotificationListFilter,
       visiblePropertyIds: ReadonlyArray<string> | null = null,
     ) =>
-      repo.readFeedHead({
-        userId: USER,
-        organizationId: ORG,
-        visiblePropertyIds,
+      readNotificationFeedHead(getDb(), {
+        userId: userId(USER),
+        organizationId: organizationId(ORG),
+        visiblePropertyIds: visiblePropertyIds && visiblePropertyIds.map(propertyId),
         limit: 1,
         filter,
       })

@@ -26,8 +26,10 @@ import {
   digestMemberSet,
   digestProviderRequest,
 } from '../digest-batch-identity'
-import { createNotificationEmailRepository } from './notification-email.repository'
 import { createOneClickUnsubscribeRepository } from './one-click-unsubscribe.repository'
+import { recordEmailUnsubscribeScope } from '../../email/notification-unsubscribe-scope.server'
+import { markNotificationEmailAccepted } from '../../email/notification-email-queue.server'
+import { prepareDigestBatch } from '../../email/notification-digest-batch.server'
 
 const ORG = organizationId('one-click-unsubscribe-retention-org')
 const USER = userId('one-click-unsubscribe-retention-user')
@@ -160,9 +162,15 @@ describe.sequential(
         .sort()
 
     it('still unsubscribes from an urgent email whose queue row retention deleted', async () => {
-      const emailRepo = createNotificationEmailRepository(db)
-      await emailRepo.recordEmailUnsubscribeScope(URGENT, ORG, NOW)
-      await emailRepo.markAccepted(URGENT, ORG, PROPERTY_A, 'resend-retention-1', NOW)
+      await recordEmailUnsubscribeScope(db, URGENT, ORG, NOW)
+      await markNotificationEmailAccepted(
+        db,
+        URGENT,
+        ORG,
+        PROPERTY_A,
+        'resend-retention-1',
+        NOW,
+      )
       await runRetention()
 
       await expect(
@@ -175,10 +183,9 @@ describe.sequential(
     })
 
     it('still unsubscribes from a digest whose batch and rows retention deleted', async () => {
-      const emailRepo = createNotificationEmailRepository(db)
       const memberIds = [DAILY_A, DAILY_B]
       const memberDigest = digestMemberSet(memberIds)
-      await emailRepo.prepareDigestBatch({
+      await prepareDigestBatch(db, {
         id: BATCH,
         organizationId: ORG,
         userId: USER,

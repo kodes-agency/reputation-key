@@ -5,13 +5,10 @@
 
 import { z } from 'zod/v4'
 import type { FrozenEmailRequest } from '../domain/notification-types'
+import { copyFrozenRequestBase, frozenRequestBaseShape } from './frozen-request-base'
 
 const frozenEmailRequestSchema = z.object({
-  to: z.string().min(1),
-  subject: z.string(),
-  html: z.string(),
-  text: z.string(),
-  headers: z.record(z.string(), z.string()),
+  ...frozenRequestBaseShape,
   replyTo: z.string().min(1).nullable(),
 })
 
@@ -22,10 +19,6 @@ export const readFrozenEmailRequest = (stored: unknown): FrozenEmailRequest | nu
 
 /** Exactly the fields that are stored, and nothing else. */
 export const frozenEmailRequest = (request: FrozenEmailRequest): FrozenEmailRequest => ({
-  to: request.to,
-  subject: request.subject,
-  html: request.html,
-  text: request.text,
-  headers: { ...request.headers },
+  ...copyFrozenRequestBase(request),
   replyTo: request.replyTo,
 })

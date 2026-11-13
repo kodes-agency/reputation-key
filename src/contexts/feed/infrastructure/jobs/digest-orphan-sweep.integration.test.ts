@@ -22,7 +22,6 @@ import {
 } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createNoticeWriter, type Notice } from '../../notify/consumers.server'
-import { createNotificationEmailRepository } from '../repositories/notification-email.repository'
 import { createDigestNotificationJobHandler } from './digest-notification.job'
 import { createFakeJobLogger, waitingWorkState } from './test-fixtures'
 
@@ -121,11 +120,9 @@ describe.sequential(
       const authorizeScope = vi.fn(async (org: string) => org === ORG)
       // Mandatory mail is authorized under its own action (ADR 0046).
       const authorizeMandatoryScope = vi.fn(async (org: string) => org === ORG)
-      const emailRepo = createNotificationEmailRepository(db)
       await createDigestNotificationJobHandler({
         pool: lease.pool,
-        // The daily leg belongs to other suites; only the sweep is under test.
-        emailRepo: { ...emailRepo, findDueRecipients: async () => [] },
+        db,
         authorizeScope,
         authorizeMandatoryScope,
         enqueueImmediate,

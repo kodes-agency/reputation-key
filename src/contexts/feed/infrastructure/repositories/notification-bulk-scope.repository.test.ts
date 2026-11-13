@@ -13,7 +13,10 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { createNotificationRepository } from './notification.repository'
+import {
+  markAllNotificationsDismissed,
+  markAllNotificationsRead,
+} from '../../notify/notification-feed.server'
 
 const ORG = 'org-notification-bulk-scope'
 const USER = 'user-notification-bulk-scope'
@@ -118,7 +121,7 @@ beforeEach(async () => {
 
 describe.sequential('bulk actions follow what the feed shows (real PostgreSQL)', () => {
   it('"Mark all read" leaves hidden rows unread', async () => {
-    await createNotificationRepository(getDb()).markAllRead(SCOPE, 'all', AT)
+    await markAllNotificationsRead(getDb(), SCOPE, 'all', AT)
 
     expect(await statuses()).toEqual({
       [SHOWN]: 'read',
@@ -129,7 +132,7 @@ describe.sequential('bulk actions follow what the feed shows (real PostgreSQL)',
   })
 
   it('"Clear all" leaves hidden rows in place', async () => {
-    await createNotificationRepository(getDb()).markAllDismissed(SCOPE, AT)
+    await markAllNotificationsDismissed(getDb(), SCOPE, AT)
 
     expect(await statuses()).toEqual({
       [SHOWN]: 'dismissed',

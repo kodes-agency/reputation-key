@@ -12,7 +12,7 @@ import { notifications, properties } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createActivePropertyLookup } from './active-property'
-import { createNotificationRepository } from './notification.repository'
+import { settleUnreadForProperty } from '../../notify/notification-rows.server'
 
 const ORG = 'notification-property-archive-org'
 const ARCHIVED = '89000000-0000-4000-8000-000000000001'
@@ -85,7 +85,7 @@ describe.sequential('an archived Property (real PostgreSQL)', () => {
   })
 
   it('settles its waiting work and nothing else', async () => {
-    const settled = await createNotificationRepository(db).settleUnreadForProperty({
+    const settled = await settleUnreadForProperty(db, {
       organizationId: ORG,
       propertyId: ARCHIVED,
       types: ['reply.pending_approval', 'inbox.escalated'],

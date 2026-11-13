@@ -13,7 +13,11 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { createNotificationEmailRepository } from './notification-email.repository'
+import {
+  forgetEmailAddress,
+  isEmailAddressSuppressed,
+  suppressEmailAddress,
+} from '../../email/notification-email-suppression.server'
 
 const ADDRESS = 'suppression-keys-test@example.com'
 const AT = new Date('2026-09-25T08:00:00.000Z')
@@ -25,11 +29,21 @@ describe.sequential('email suppression across key changes (real PostgreSQL)', ()
   let lease: TestLease
   let db: Database
 
-  const store = (emailAddressKey: string, retiredEmailAddressKeys: string[] = []) =>
-    createNotificationEmailRepository(db, { emailAddressKey, retiredEmailAddressKeys })
+  const keys = (emailAddressKey: string, retiredEmailAddressKeys: string[] = []) => ({
+    emailAddressKey,
+    retiredEmailAddressKeys,
+  })
+  const suppress = (emailAddressKey: string, reason: 'bounced' | 'complained') =>
+    suppressEmailAddress(db, keys(emailAddressKey), ADDRESS, reason, AT)
+  const isSuppressed = (emailAddressKey: string, retired: string[] = []) =>
+    isEmailAddressSuppressed(db, keys(emailAddressKey, retired), ADDRESS)
 
   const forgetEverywhere = () =>
-    store(DEDICATED_KEY, [AUTH_SECRET, ROTATED_AUTH_SECRET]).forgetAddress(ADDRESS)
+    forgetEmailAddress(
+      db,
+      keys(DEDICATED_KEY, [AUTH_SECRET, ROTATED_AUTH_SECRET]),
+      ADDRESS,
+    )
 
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL)
@@ -44,29 +58,25 @@ describe.sequential('email suppression across key changes (real PostgreSQL)', ()
   })
 
   it('still refuses an address stored under the auth secret once the dedicated key is adopted', async () => {
-    await store(AUTH_SECRET).suppressAddress(ADDRESS, 'bounced', AT)
+    await suppress(AUTH_SECRET, 'bounced')
 
-    await expect(
-      store(DEDICATED_KEY, [AUTH_SECRET]).isAddressSuppressed(ADDRESS),
-    ).resolves.toBe(true)
+    await expect(isSuppressed(DEDICATED_KEY, [AUTH_SECRET])).resolves.toBe(true)
   })
 
   it('keeps refusing it after the auth secret rotates', async () => {
-    await store(AUTH_SECRET).suppressAddress(ADDRESS, 'complained', AT)
-    await store(DEDICATED_KEY, [AUTH_SECRET]).isAddressSuppressed(ADDRESS)
+    await suppress(AUTH_SECRET, 'complained')
+    await isSuppressed(DEDICATED_KEY, [AUTH_SECRET])
 
-    await expect(
-      store(DEDICATED_KEY, [ROTATED_AUTH_SECRET]).isAddressSuppressed(ADDRESS),
-    ).resolves.toBe(true)
+    await expect(isSuppressed(DEDICATED_KEY, [ROTATED_AUTH_SECRET])).resolves.toBe(true)
   })
 
   it('forgets an address under every key it may be stored under', async () => {
-    await store(AUTH_SECRET).suppressAddress(ADDRESS, 'bounced', AT)
-    await store(DEDICATED_KEY).suppressAddress(ADDRESS, 'bounced', AT)
+    await suppress(AUTH_SECRET, 'bounced')
+    await suppress(DEDICATED_KEY, 'bounced')
 
-    await store(DEDICATED_KEY, [AUTH_SECRET]).forgetAddress(ADDRESS)
+    await forgetEmailAddress(db, keys(DEDICATED_KEY, [AUTH_SECRET]), ADDRESS)
 
-    await expect(store(AUTH_SECRET).isAddressSuppressed(ADDRESS)).resolves.toBe(false)
-    await expect(store(DEDICATED_KEY).isAddressSuppressed(ADDRESS)).resolves.toBe(false)
+    await expect(isSuppressed(AUTH_SECRET)).resolves.toBe(false)
+    await expect(isSuppressed(DEDICATED_KEY)).resolves.toBe(false)
   })
 })

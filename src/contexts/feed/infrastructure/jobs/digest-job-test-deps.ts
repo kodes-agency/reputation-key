@@ -1,200 +1,117 @@
-// The digest job's collaborators as test doubles, shared by the digest job's
-// focused test files so each one builds its recipient, rows and ports the same
-// way. Every double answers "deliverable" until a test says otherwise.
+// The digest job against real PostgreSQL, shared by its focused test files.
+// Queue rows, notifications, settings, preferences, batches and the refused-
+// address list are real rows in a transaction the suite holds open and rolls
+// back. Only the edges the job does not own are doubles: the mail provider,
+// the identity lookup, the Property and Organization scope resolvers, access
+// and work-state checks, the clock and the id generator. Every double answers
+// "deliverable" until a test says otherwise.
 
 import { vi } from 'vitest'
 import type { Job } from 'bullmq'
-import { createDigestNotificationJobHandler } from './digest-notification.job'
+import { eq } from 'drizzle-orm'
+import type { Pool } from 'pg'
+import type { Database } from '#/shared/db'
+import { notificationDigestBatches, notificationEmailQueue } from '#/shared/db/schema'
 import {
-  buildNotification,
-  buildNotificationEmail,
-  createFakeJobLogger,
-  waitingWorkState,
-} from './test-fixtures'
-import type { NotificationId, PropertyId } from '#/shared/domain/ids'
-import type {
-  Notification,
-  NotificationEmail,
-  PersonalDeliveryWindow,
-} from '../../domain/notification-types'
-import type { NotificationDigestBatch } from '../../application/ports/notification-email-repository.port'
+  holdTransaction,
+  type HeldTransaction,
+} from '#/shared/db/testing/held-transaction'
+import {
+  createDigestNotificationJobHandler,
+  type DigestDeps,
+} from './digest-notification.job'
+import { createFakeJobLogger, waitingWorkState } from './test-fixtures'
+import {
+  emailIdOf,
+  readEmail,
+  seedEmailPreferenceIfAbsent,
+  seedNotice,
+  seedUserSettings,
+  stableUuid,
+  type SeededNotice,
+} from './delivery-seed'
+import { seedProperty } from '#/shared/db/testing/notification-test-db'
 import type { EmailSendRequest } from '../../application/ports/email-sender.port'
 import type { NotificationDeliveryOutcome } from '../../domain/notification-delivery-policy'
 
-export const ORG = 'org-1'
-export const USER = 'user-1'
+export const ORG = 'digest-job-org'
+export const USER = 'digest-job-user-1'
+export const USER_2 = 'digest-job-user-2'
 export const PROP_A = '11111111-1111-4111-8111-111111111111'
 export const PROP_B = '22222222-2222-4222-8222-222222222222'
-export const BASE_URL = 'https://app.example.com'
+const BASE_URL = 'https://app.example.com'
 // 08:00 UTC — inside the digest window for a UTC recipient.
 export const NOW = new Date('2026-07-11T08:00:00.000Z')
 export const HOUR = 60 * 60_000
-export const DAY = 24 * HOUR
+const EMAIL_ADDRESS_KEYS = { emailAddressKey: 'digest-job-test-address-key' }
 
-export const entryFor = (property: string, user = USER): NotificationEmail =>
-  buildNotificationEmail({
-    id: `email-${property}-${user}`,
-    notificationId: `notification-${property}-${user}`,
-    userId: user,
-    organizationId: ORG,
-    propertyId: property,
-    category: 'recognition',
-    cadence: 'daily',
-  })
+const PROPERTY_NAMES: Record<string, string> = {
+  [PROP_A]: 'Riverside',
+  [PROP_B]: 'Hillcrest',
+}
 
-export const notificationFor = (entry: NotificationEmail): Notification =>
-  buildNotification({
-    id: entry.notificationId as string,
-    userId: entry.userId as string,
-    organizationId: entry.organizationId as string,
-    propertyId: entry.propertyId as string,
-    type: 'goal.completed',
-    category: 'recognition',
-    resourceType: 'goal',
-    resourceId: `goal-${entry.propertyId as string}`,
-    payload: {
-      propertyName: (entry.propertyId as string) === PROP_A ? 'Riverside' : 'Hillcrest',
-      goalName: 'Reply within 24h',
-    },
-  })
-
-type PropertyScope = Readonly<{
-  organizationId: string
-  propertyId: string
-  timezone: string
+export type DigestEntryOptions = Readonly<{
+  property: string
+  user?: string
+  status?: string
+  createdAt?: Date
+  notBefore?: Date | null
+  type?: string
+  category?: string
+  resourceType?: string
+  resolvedAt?: Date | null
+  withNotification?: boolean
 }>
 
-export const activeScope = (property: string): PropertyScope | null => ({
-  organizationId: ORG,
-  propertyId: property,
-  timezone: 'UTC',
-})
+export type DigestEntry = SeededNotice &
+  Readonly<{ property: string; user: string; name: string }>
 
 export type DigestTestOptions = Readonly<{
   now?: Date
-  recipients?: ReadonlyArray<Readonly<{ organizationId: string; userId: string }>>
-  dueByUser?: readonly NotificationEmail[]
-  userTimezone?: string | null
   orgTimezone?: string | null
-  immediateOrphans?: readonly NotificationEmail[]
-  organizationOrphans?: readonly NotificationEmail[]
-  openBatch?: NotificationDigestBatch | null
-  batchEntries?: readonly NotificationEmail[]
   activeUnsubscribeKeyVersion?: string
 }>
 
-export function baseDeps(options: DigestTestOptions = {}) {
+export type DigestTestDeps = ReturnType<typeof digestDeps>
+
+const outcomeAccepted = (now: Date): NotificationDeliveryOutcome => ({
+  kind: 'accepted',
+  providerMessageId: crypto.randomUUID(),
+  acceptedAt: now,
+})
+
+/** The job's collaborators over `db`; every non-database edge is a double. */
+function digestDeps(held: HeldTransaction, options: DigestTestOptions = {}) {
   const now = options.now ?? NOW
-  const due = options.dueByUser ?? [entryFor(PROP_A), entryFor(PROP_B)]
+  let batchSerial = 0
   const send = vi.fn(
-    async (_params: EmailSendRequest): Promise<NotificationDeliveryOutcome> => ({
-      kind: 'accepted' as const,
-      providerMessageId: crypto.randomUUID(),
-      acceptedAt: now,
-    }),
+    async (_params: EmailSendRequest): Promise<NotificationDeliveryOutcome> =>
+      outcomeAccepted(now),
   )
   return {
-    pool: {
-      query: vi.fn(async () => ({
-        rows: [
-          { organization_id: ORG, property_id: PROP_A },
-          { organization_id: ORG, property_id: PROP_B },
-        ],
-      })),
-    },
-    emailRepo: {
-      findDueRecipients: vi.fn(
-        async () => options.recipients ?? [{ organizationId: ORG, userId: USER }],
-      ),
-      findDueByUser: vi.fn(async () => due),
-      findDueByProperty: vi.fn(async () => options.immediateOrphans ?? []),
-      findDueOrganizationScopes: vi.fn(async () => [
-        ...new Set(
-          (options.organizationOrphans ?? []).map((entry) => entry.organizationId),
-        ),
-      ]),
-      findDueByOrganization: vi.fn(async () => options.organizationOrphans ?? []),
-      markSuppressed: vi.fn(async () => {}),
-      markDelayed: vi.fn(async () => {}),
-      markAccepted: vi.fn(async (_id: string) => {}),
-      markFailed: vi.fn(async () => {}),
-      isAddressSuppressed: vi.fn(async (_address: string) => false),
-      findOpenDigestBatch: vi.fn(async () => options.openBatch ?? null),
-      findDigestBatchEntries: vi.fn(async () => options.batchEntries ?? due),
-      prepareDigestBatch: vi.fn(async (input) => ({
-        batch: {
-          id: input.id,
-          organizationId: input.organizationId,
-          userId: input.userId,
-          localDate: input.localDate,
-          sequence: 1,
-          memberDigest: input.memberDigest,
-          contentDigest: input.contentDigest,
-          providerIdempotencyKey: input.providerIdempotencyKey,
-          unsubscribeKeyVersion: input.unsubscribeKeyVersion,
-          providerRequest: input.providerRequest,
-          state: 'prepared' as const,
-          retryCount: 0,
-          everyAttemptRefused: false,
-          possiblyAcceptedSince: null,
-          createdAt: input.preparedAt,
-          updatedAt: input.preparedAt,
-        },
-        created: true,
-      })),
-      startDigestAttempt: vi.fn(async () => true),
-      settleDigestBatch: vi.fn(async () => true),
-    },
-    preferenceRepo: {
-      resolveForDelivery: vi.fn(async () => ({
-        enabled: true,
-        cadence: 'daily' as const,
-      })),
-      // ADR 0046 r.4, amended 2026-09-23: ONE window for the whole digest,
-      // the person's own. The digest passes no Property, so no Property
-      // override can split it.
-      resolveDeliveryWindow: vi.fn(async (): Promise<PersonalDeliveryWindow> => ({
-        quietHoursStart: null,
-        quietHoursEnd: null,
-        urgentBypassEnabled: false,
-      })),
-      getUserSettings: vi.fn(async () =>
-        options.userTimezone === undefined
-          ? { timezone: 'UTC' }
-          : options.userTimezone === null
-            ? null
-            : { timezone: options.userTimezone },
-      ),
-    },
-    notifRepo: {
-      findByIdsForProperty: vi.fn(
-        async (ids: readonly NotificationId[], _org: unknown, property: PropertyId) =>
-          new Map(
-            ids.map((id) => [
-              id as string,
-              notificationFor(entryFor(property as string)),
-            ]),
-          ),
-      ),
-    },
+    // The held connection, so raw queries see the rows the suite wrote.
+    pool: held.client as unknown as Pool,
+    db: held.db,
+    emailAddressKeys: EMAIL_ADDRESS_KEYS,
     userLookup: {
-      getEmail: vi.fn(async (): Promise<string | null> => 'manager@example.com'),
-      getName: vi.fn(async (): Promise<string | null> => 'Alex'),
+      getEmail: vi.fn(
+        async (_user?: unknown): Promise<string | null> => 'manager@example.com',
+      ),
+      getName: vi.fn(async (_user?: unknown): Promise<string | null> => 'Alex'),
     },
     emailSender: { send },
-    resolveOrganizationScope: vi.fn(async () => ({
-      timezone: options.orgTimezone ?? 'UTC',
-      propertyNames: new Map([
-        [PROP_A, 'Riverside'],
-        [PROP_B, 'Hillcrest'],
-      ]),
+    resolveOrganizationScope: vi.fn(async (_org?: string) => ({
+      timezone: options.orgTimezone === undefined ? 'UTC' : options.orgTimezone,
+      propertyNames: new Map(Object.entries(PROPERTY_NAMES)),
     })),
     logger: createFakeJobLogger(),
     clock: () => now,
-    batchIdGen: vi.fn(() => '86000000-0000-4000-8000-000000000099'),
-    resolvePropertyScope: vi.fn(async (_org: string, property: string) =>
-      activeScope(property),
-    ),
+    batchIdGen: vi.fn(() => stableUuid('digest-batch', String(++batchSerial))),
+    resolvePropertyScope: vi.fn(async (org: string, property: string) => ({
+      organizationId: org,
+      propertyId: property,
+      timezone: 'UTC',
+    })) as DigestDeps['resolvePropertyScope'] & ReturnType<typeof vi.fn>,
     authorizeScope: vi.fn(async (_org: string, _property?: string) => true),
     authorizeMandatoryScope: vi.fn(async (_org: string) => true),
     isRecipientEligible: vi.fn(
@@ -209,11 +126,113 @@ export function baseDeps(options: DigestTestOptions = {}) {
       (target: { kind: string; id: string }, keyVersion: string) =>
         `${BASE_URL}/api/notifications/unsubscribe?token=${keyVersion}-${target.kind}-${target.id}`,
     ),
-    enqueueImmediate: vi.fn(async () => {}),
+    enqueueImmediate: vi.fn(async (_target: unknown) => {}),
   }
 }
 
-export const runHandler = (deps: ReturnType<typeof baseDeps>) =>
-  createDigestNotificationJobHandler(
-    deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
-  )({} as Job<void>)
+const runDigest = (deps: DigestTestDeps) =>
+  createDigestNotificationJobHandler(deps as unknown as DigestDeps)({} as Job<void>)
+
+export type DigestWorld = Readonly<{
+  held: HeldTransaction
+  db: Database
+  /** The rows seeded for Riverside and Hillcrest, in that order. */
+  entries: readonly DigestEntry[]
+  entry: (options: DigestEntryOptions) => Promise<DigestEntry>
+  deps: (options?: DigestTestOptions) => DigestTestDeps
+  run: (deps: DigestTestDeps) => Promise<void>
+  email: (entry: DigestEntry) => ReturnType<typeof readEmail>
+  batches: () => Promise<(typeof notificationDigestBatches.$inferSelect)[]>
+  setEmail: (
+    entry: DigestEntry,
+    values: Partial<typeof notificationEmailQueue.$inferInsert>,
+  ) => Promise<void>
+  rollBack: () => Promise<void>
+}>
+
+/**
+ * A recipient due for a digest of two Properties, in UTC by default. Pass
+ * `userTimezone: null` for a recipient who never chose a timezone.
+ */
+export async function openDigestWorld(
+  options: Readonly<{
+    userTimezone?: string | null
+    entries?: boolean
+    now?: Date
+  }> = {},
+): Promise<DigestWorld> {
+  const held = await holdTransaction()
+  const { db } = held
+  const now = options.now ?? NOW
+  for (const [id, name] of Object.entries(PROPERTY_NAMES)) {
+    await seedProperty(db, { id, organizationId: ORG, name })
+  }
+  const timezone = options.userTimezone === undefined ? 'UTC' : options.userTimezone
+  for (const user of [USER, USER_2]) {
+    if (timezone !== null) {
+      await seedUserSettings(db, { userId: user, organizationId: ORG, timezone })
+    }
+  }
+
+  const entry = async (entryOptions: DigestEntryOptions): Promise<DigestEntry> => {
+    const user = entryOptions.user ?? USER
+    const name = `${entryOptions.property}-${user}`
+    const category = entryOptions.category ?? 'recognition'
+    await seedEmailPreferenceIfAbsent(db, {
+      userId: user,
+      organizationId: ORG,
+      propertyId: entryOptions.property,
+      category,
+      enabled: true,
+      cadence: 'daily',
+      ...(category === 'low_ratings' ? { maxRating: 2 } : {}),
+    })
+    const seeded = await seedNotice(db, {
+      name,
+      organizationId: ORG,
+      userId: user,
+      propertyId: entryOptions.property,
+      createdAt: entryOptions.createdAt ?? new Date(now.getTime() - HOUR),
+      type: entryOptions.type ?? 'goal.completed',
+      category,
+      resourceType: entryOptions.resourceType ?? 'goal',
+      resourceId: `goal-${entryOptions.property}`,
+      payload: {
+        propertyName: PROPERTY_NAMES[entryOptions.property],
+        goalName: 'Reply within 24h',
+      },
+      title: 'Goal 61ed98fc-1c2b-4d6e-9f00-000000000001',
+      resolvedAt: entryOptions.resolvedAt,
+      withNotification: entryOptions.withNotification,
+      email: {
+        cadence: 'daily',
+        status: entryOptions.status,
+        notBefore: entryOptions.notBefore,
+      },
+    })
+    return { ...seeded, property: entryOptions.property, user, name }
+  }
+
+  const entries =
+    options.entries === false
+      ? []
+      : [await entry({ property: PROP_A }), await entry({ property: PROP_B })]
+
+  return {
+    held,
+    db,
+    entries,
+    entry,
+    deps: (depsOptions) => digestDeps(held, { now, ...depsOptions }),
+    run: runDigest,
+    email: (target) => readEmail(db, emailIdOf(target.name)),
+    batches: () => db.select().from(notificationDigestBatches),
+    setEmail: async (target, values) => {
+      await db
+        .update(notificationEmailQueue)
+        .set(values)
+        .where(eq(notificationEmailQueue.id, target.emailId))
+    },
+    rollBack: () => held.rollBack(),
+  }
+}

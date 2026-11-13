@@ -14,7 +14,8 @@ import { notifications, properties } from '#/shared/db/schema'
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createNotification } from '../../domain/notification-constructors'
-import { createNotificationRepository } from './notification.repository'
+import { findRecipientsOfNotice } from '../../notify/notification-rows.server'
+import { writeNotification } from '../../notify/write.server'
 
 const ORG = organizationId('notification-recipients-of-notice-org')
 const PROPERTY = propertyId('87000000-0000-4000-8000-000000000001')
@@ -69,9 +70,9 @@ describe.sequential('who was told a notice (real PostgreSQL)', () => {
 
   beforeEach(async () => {
     await db.delete(notifications).where(eq(notifications.organizationId, ORG))
-    const repo = createNotificationRepository(db)
     // Told about the first escalation only.
-    await repo.insert(
+    await writeNotification(
+      db,
       escalatedNotice(
         '87000000-0000-4000-8000-000000000011',
         EARLIER_ADMIN,
@@ -79,14 +80,16 @@ describe.sequential('who was told a notice (real PostgreSQL)', () => {
       ),
     )
     // Told about both: the second arrival coalesced into the unread first row.
-    await repo.insert(
+    await writeNotification(
+      db,
       escalatedNotice(
         '87000000-0000-4000-8000-000000000012',
         REPEATED_ADMIN,
         FIRST_ESCALATION,
       ),
     )
-    await repo.insert(
+    await writeNotification(
+      db,
       escalatedNotice(
         '87000000-0000-4000-8000-000000000013',
         REPEATED_ADMIN,
@@ -94,7 +97,8 @@ describe.sequential('who was told a notice (real PostgreSQL)', () => {
       ),
     )
     // Told about the current escalation only.
-    await repo.insert(
+    await writeNotification(
+      db,
       escalatedNotice(
         '87000000-0000-4000-8000-000000000014',
         CURRENT_MANAGER,
@@ -109,7 +113,8 @@ describe.sequential('who was told a notice (real PostgreSQL)', () => {
   })
 
   it('counts only the notices that arrived since the current escalation', async () => {
-    const told = await createNotificationRepository(db).findRecipientsOfNotice(
+    const told = await findRecipientsOfNotice(
+      db,
       ORG,
       'inbox.escalated',
       ITEM,
@@ -120,12 +125,7 @@ describe.sequential('who was told a notice (real PostgreSQL)', () => {
   })
 
   it('reads every notice ever held when nothing bounds it', async () => {
-    const told = await createNotificationRepository(db).findRecipientsOfNotice(
-      ORG,
-      'inbox.escalated',
-      ITEM,
-      null,
-    )
+    const told = await findRecipientsOfNotice(db, ORG, 'inbox.escalated', ITEM, null)
 
     expect([...told].sort()).toEqual(
       [CURRENT_MANAGER, EARLIER_ADMIN, REPEATED_ADMIN].sort(),

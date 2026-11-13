@@ -12,7 +12,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { organizationId, userId } from '#/shared/domain/ids'
 import { NOTIFICATION_SETTINGS_CATEGORIES } from '../domain/notification-delivery-policy'
 import type { NotificationCategoryDefault } from '../domain/notification-types'
-import { createNotificationPreferenceRepository } from '../infrastructure/repositories/notification-preference.repository'
+import * as store from './notification-preferences.server'
 import {
   copyCategoryDefaultsToPreferences,
   countCategoryDefaultsToCopy,
@@ -186,13 +186,12 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
   // Every answer the product reads: delivery resolution for each user,
   // Property, category and channel, and each person's defaults as listed.
   const resolveEverything = async () => {
-    const repo = createNotificationPreferenceRepository(db)
     const resolved: Record<string, unknown> = {}
     for (const [user, org, property] of PLACES) {
       for (const category of NOTIFICATION_SETTINGS_CATEGORIES) {
         for (const channel of ['in_app', 'email']) {
           resolved[`${user}/${org}/${property}/${category}/${channel}`] =
-            await repo.resolveForDelivery(user, org, property, category, channel)
+            await store.resolveForDelivery(db, user, org, property, category, channel)
         }
       }
     }
@@ -203,14 +202,14 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
       [NONE, ORG_A],
       [ONLY_A, ORG_A],
     ] as const) {
-      const rows = await repo.findCategoryDefaults(userId(user), organizationId(org))
+      const rows = await store.findCategoryDefaults(db, userId(user), organizationId(org))
       listed[`${user}/${org}`] = rows
         .map((row) => ({ ...row }))
         .sort((a, b) =>
           `${a.category}${a.channel}`.localeCompare(`${b.category}${b.channel}`),
         )
     }
-    const own = await repo.findByUser(userId(BOTH), organizationId(ORG_A))
+    const own = await store.findByUser(db, userId(BOTH), organizationId(ORG_A))
     return {
       resolved,
       listed,
@@ -329,7 +328,6 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
   it('reads a newer answer in the earlier table over a stale copy, with no rerun', async () => {
     await seed()
     await copyCategoryDefaultsToPreferences(db)
-    const repo = createNotificationPreferenceRepository(db)
     // A previous release saves a default and writes only the earlier table.
     await db
       .update(notificationCategoryDefaults)
@@ -342,16 +340,20 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
       )
 
     await expect(
-      repo.resolveForDelivery(ONLY_A, ORG_A, P2, 'guest_voice', 'email'),
+      store.resolveForDelivery(db, ONLY_A, ORG_A, P2, 'guest_voice', 'email'),
     ).resolves.toMatchObject({ enabled: false })
-    const listed = await repo.findCategoryDefaults(userId(ONLY_A), organizationId(ORG_A))
+    const listed = await store.findCategoryDefaults(
+      db,
+      userId(ONLY_A),
+      organizationId(ORG_A),
+    )
     expect(listed).toHaveLength(1)
     expect(listed[0]).toMatchObject({ enabled: false, cadence: 'daily' })
 
     // After the copy the two agree again.
     await copyCategoryDefaultsToPreferences(db)
     await expect(
-      repo.resolveForDelivery(ONLY_A, ORG_A, P2, 'guest_voice', 'email'),
+      store.resolveForDelivery(db, ONLY_A, ORG_A, P2, 'guest_voice', 'email'),
     ).resolves.toMatchObject({ enabled: false })
   })
 
@@ -362,7 +364,6 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
   })
 
   it('lands a save through the settings path in both places', async () => {
-    const repo = createNotificationPreferenceRepository(db)
     const answer: NotificationCategoryDefault = {
       userId: userId(BOTH),
       organizationId: organizationId(ORG_A),
@@ -374,8 +375,12 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
       createdAt: CREATED,
       updatedAt: CREATED,
     }
-    await repo.saveCategoryDefault(answer, P1)
-    await repo.saveCategoryDefault({ ...answer, maxRating: 4, updatedAt: CHANGED }, P1)
+    await store.saveCategoryDefault(db, answer, P1)
+    await store.saveCategoryDefault(
+      db,
+      { ...answer, maxRating: 4, updatedAt: CHANGED },
+      P1,
+    )
 
     const earlier = await db
       .select()
@@ -403,8 +408,7 @@ describe.sequential('category defaults as preference rows (real PostgreSQL)', ()
   it('keeps Organization defaults out of the per-Property rows', async () => {
     await seed()
     await copyCategoryDefaultsToPreferences(db)
-    const repo = createNotificationPreferenceRepository(db)
-    const own = await repo.findByUser(userId(BOTH), organizationId(ORG_A))
+    const own = await store.findByUser(db, userId(BOTH), organizationId(ORG_A))
     expect(own).toHaveLength(2)
     expect(own.every((row) => row.propertyId !== null)).toBe(true)
     const nullRows = await db

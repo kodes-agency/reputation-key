@@ -511,7 +511,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
     { retryAttempts: 5, retryBackoff: 'exponential:30000' },
   ),
-  job('urgent-email', 'src/contexts/feed/email/send-emails.server.ts', {
+  job('urgent-email', 'src/contexts/feed/infrastructure/jobs/send-emails.job.ts', {
     queue: 'default',
     capability: 'notification.send_email',
     action: 'system:notification.email_urgent',
@@ -519,7 +519,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     registration: 'enabled',
   }),
   // The same processor, under the capability a mandatory notice carries.
-  job('mandatory-email', 'src/contexts/feed/email/send-emails.server.ts', {
+  job('mandatory-email', 'src/contexts/feed/infrastructure/jobs/send-emails.job.ts', {
     queue: 'default',
     capability: 'notification.send_mandatory_email',
     action: 'system:notification.email_mandatory',
