@@ -1,4 +1,4 @@
-// OBS-01 — publish one accepted beta report to the public issue tracker.
+// Publish one accepted beta report to the public issue tracker.
 //
 // The report's own words never travel here. `buildBetaFeedbackIssue` renders
 // controlled triage vocabulary plus monitoring links, and this command only
@@ -21,7 +21,9 @@ import {
   buildBetaFeedbackIssue,
   issueNumberFromUrl,
 } from '../../src/contexts/identity/application/beta-feedback-issue'
+import { runCommandEntrypoint } from './command-entrypoint'
 import { runOperatorCommand } from './operator-command'
+import { findNamedFeedbackRecord } from './feedback-record'
 
 const COMMAND = 'ops:feedback-issue'
 const USAGE = `pnpm ops feedback-issue <reference> --operator <id> --ticket <ref> [--apply]`
@@ -53,18 +55,10 @@ async function main(): Promise<void> {
       usage: USAGE,
     },
     async (context, args, io) => {
-      const reference = args.positionals[0]
-      if (!reference) {
-        io.err(`a feedback reference is required\nusage: ${USAGE}`)
-        return 2
-      }
-
       const repository = BetaFeedbackTriageRepository.create(getDb())
-      const record = await repository.find(reference)
-      if (!record) {
-        io.err(`no beta feedback record for ${reference}`)
-        return 2
-      }
+      const record = await findNamedFeedbackRecord(repository, args, io, USAGE)
+      if (record === 2) return 2
+      const { reference } = record
       if (record.triageState !== 'accepted') {
         io.err(
           `only an accepted report may be published; ${reference} is ${record.triageState}. ` +
@@ -129,7 +123,4 @@ async function main(): Promise<void> {
   process.exit(result.exitCode)
 }
 
-main().catch((error) => {
-  console.error(`${COMMAND} failed`, error)
-  process.exit(1)
-})
+void runCommandEntrypoint(COMMAND, main)

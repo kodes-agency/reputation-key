@@ -219,24 +219,11 @@ export class BetaFeedbackTriageRepository implements BetaFeedbackSubmissionStore
       now: Date
     }>,
   ): Promise<BetaFeedbackTriageRecord> {
-    const rows = await this.db
-      .update(betaFeedbackTriage)
-      .set({
-        deliveryState: 'delivered',
-        providerReference: input.providerReference,
-        deliveryFailureCode: null,
-        revision: input.expectedRevision + 1,
-        updatedAt: input.now,
-      })
-      .where(
-        and(
-          eq(betaFeedbackTriage.reference, input.reference),
-          eq(betaFeedbackTriage.deliveryState, 'prepared'),
-          eq(betaFeedbackTriage.revision, input.expectedRevision),
-        ),
-      )
-      .returning()
-    return record(requireUpdated(rows, 'delivery'))
+    return this.settleDelivery(input, 'delivery', {
+      deliveryState: 'delivered',
+      providerReference: input.providerReference,
+      deliveryFailureCode: null,
+    })
   }
 
   async markFailed(
@@ -247,12 +234,26 @@ export class BetaFeedbackTriageRepository implements BetaFeedbackSubmissionStore
       now: Date
     }>,
   ): Promise<BetaFeedbackTriageRecord> {
+    return this.settleDelivery(input, 'failure', {
+      deliveryState: 'failed',
+      providerReference: null,
+      deliveryFailureCode: input.failureCode,
+    })
+  }
+
+  /** Moves a prepared report to its delivery outcome, once, at the expected revision. */
+  private async settleDelivery(
+    input: Readonly<{ reference: string; expectedRevision: number; now: Date }>,
+    operation: string,
+    outcome: Pick<
+      typeof betaFeedbackTriage.$inferInsert,
+      'deliveryState' | 'providerReference' | 'deliveryFailureCode'
+    >,
+  ): Promise<BetaFeedbackTriageRecord> {
     const rows = await this.db
       .update(betaFeedbackTriage)
       .set({
-        deliveryState: 'failed',
-        providerReference: null,
-        deliveryFailureCode: input.failureCode,
+        ...outcome,
         revision: input.expectedRevision + 1,
         updatedAt: input.now,
       })
@@ -264,7 +265,7 @@ export class BetaFeedbackTriageRepository implements BetaFeedbackSubmissionStore
         ),
       )
       .returning()
-    return record(requireUpdated(rows, 'failure'))
+    return record(requireUpdated(rows, operation))
   }
 
   async find(reference: string): Promise<BetaFeedbackTriageRecord | null> {

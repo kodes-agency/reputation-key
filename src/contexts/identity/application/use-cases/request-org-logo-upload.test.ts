@@ -32,6 +32,7 @@ const mockStorage = {
   }),
   confirmUpload: async () => {},
   deleteObject: async () => {},
+  listObjects: async () => ({ objects: [], truncated: false }),
   getObject: async () => null,
   putObject: async () => {},
 }

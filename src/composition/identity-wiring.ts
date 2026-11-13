@@ -132,6 +132,8 @@ export function wireIdentity(
     authSession,
     // Late-bound: the shared object store is built with Portal, below.
     deleteAssetObject: (key) => getPortal().uploads.storage.deleteObject(key),
+    listAssetObjects: (prefix, maxKeys, startAfter) =>
+      getPortal().uploads.storage.listObjects(prefix, maxKeys, startAfter),
     sendEmail: options?.email ?? sendInvitationEmail,
     baseUrl: env.BETTER_AUTH_URL,
     invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
