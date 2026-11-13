@@ -17,6 +17,14 @@
 // it, renews nothing and asks the sweep for a full read instead: the changes may
 // run past the one page this check reads.
 //
+// Dark or persisting, a check also watches Google's total. A total below the
+// stored live count means a review deleted on Google that RepKey still shows:
+// the first check that sees it only stamps it, a check at least 15 minutes
+// later that still sees it asks the sweep for a full read (the sweep runs at
+// most one per six hours), a check that sees the counts level clears it, and
+// 72 hours after the first sighting the checks stop asking and the
+// sync.count-drop-persistent alert counts the Property instead.
+//
 // It never throws. Every provider error, an order violation, a failed read of
 // the stored copies and a failed write end as a closed outcome or a count the
 // job returns normally, so a head check can never fail its job, spend a retry,
@@ -28,7 +36,9 @@ import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/do
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   compareHead,
+  countDropStep,
   headPageOverflowed,
+  type CountDropStep,
   type HeadComparison,
 } from '../../domain/head-check'
 import {
@@ -165,11 +175,15 @@ const coverAction = (result: RunReviewHeadCheckResult): HeadCover | null => {
   return persistence.failed === 0 ? 'renewed' : null
 }
 
+/** What a compared check did about Google's total: a drop's step, or cleared. */
+type CountDropOutcome = CountDropStep | 'cleared'
+
 const logLine = (
   outcome: ReviewHeadCheckOutcome,
   comparison: HeadComparison | null,
   persistence: ReviewHeadPersistence | null,
   cover: HeadCover | null,
+  countDrop: CountDropOutcome | null,
   durationMs: number,
 ) => ({
   event: 'review_head_check',
@@ -195,6 +209,7 @@ const logLine = (
   totalDifference: comparison?.totalDifference ?? null,
   averageDifference: comparison?.averageDifference ?? null,
   hasMore: comparison?.hasMore ?? null,
+  countDrop,
   orderViolation: outcome === 'order_violation',
   durationMs,
 })
@@ -366,10 +381,49 @@ export const createRunReviewHeadCheck = (
     }
   }
 
+  /**
+   * Stamp, confirm or clear a drop in Google's total. Best-effort like the
+   * cover: a failed write is logged, and the next check, at most one discovery
+   * interval later, tries again.
+   */
+  const watchCount = async (
+    input: RunReviewHeadCheckInput,
+    result: RunReviewHeadCheckResult,
+    startedAt: Date,
+  ): Promise<CountDropOutcome | null> => {
+    if (result.status !== 'compared') return null
+    try {
+      if (result.comparison.totalDifference >= 0) {
+        await deps.repository.clearCountDrop({ propertyId: input.propertyId })
+        return 'cleared'
+      }
+      const firstSeenAt = await deps.repository.recordCountDrop({
+        propertyId: input.propertyId,
+        seenAt: startedAt,
+      })
+      if (firstSeenAt === null) return null
+      const step = countDropStep({ firstSeenAt, now: startedAt })
+      if (step === 'confirmed') {
+        await deps.repository.requestFullRead({
+          propertyId: input.propertyId,
+          requestedAt: deps.clock(),
+        })
+      }
+      return step
+    } catch {
+      deps.logger.warn(
+        { event: 'review_head_check_count_drop_not_recorded' },
+        'Review head check could not record a drop in the review total',
+      )
+      return null
+    }
+  }
+
   return async (input) => {
     const startedAt = deps.clock()
     const result = await readOutcome(input, startedAt)
     const cover = await keepCover(input, coverAction(result), startedAt)
+    const countDrop = await watchCount(input, result, startedAt)
     const completedAt = deps.clock()
     await record(input, result, startedAt, completedAt)
     deps.logger.info(
@@ -378,6 +432,7 @@ export const createRunReviewHeadCheck = (
         result.status === 'compared' ? result.comparison : null,
         result.status === 'compared' ? (result.persistence ?? null) : null,
         cover,
+        countDrop,
         completedAt.getTime() - startedAt.getTime(),
       ),
       'Review head check finished',

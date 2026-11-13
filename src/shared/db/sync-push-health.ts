@@ -19,6 +19,9 @@ import { reviewSourceContents } from './schema/review-source-content.schema'
 //     as the discovery sweep applies it.
 //   - Is every Property's newest page covered? Only when the window is wider
 //     than a day: Properties no persisting head check covered for a day.
+//   - Does Google still count fewer reviews than a Property shows, 72 hours
+//     after a head check first saw it? Read with the reconciliation age, from
+//     the same discovery state row.
 //
 // It is its own health signal (`syncPush`), so a slow query here degrades only
 // this section and cannot blind the `sync` signals the sweep alerts hold on.
@@ -39,6 +42,8 @@ import {
 } from '#/shared/db/schema/review-sync.schema'
 import { propertyIsSyncable, propertySyncableSince } from '#/shared/db/syncable-property'
 import {
+  COUNT_DROP_CHECKED_FRESH_MS,
+  COUNT_DROP_PERSISTENT_AFTER_MS,
   DISCOVERY_LOOK_MAX_GAP_MS,
   HEAD_COVERAGE_ALERT_AFTER_MS,
   HEAD_COVERAGE_FRESH_MS,
@@ -97,6 +102,16 @@ export type SyncPushHealth = Readonly<{
     /** How long the longest-uncovered one has gone; null when none is. */
     oldestUncoveredAgeMs: number | null
   }>
+  countDrop: Readonly<{
+    /**
+     * Syncable Properties whose head checks first saw Google's total below the
+     * stored live count 72 hours ago or more, and one of which still saw it in
+     * the last seven hours.
+     */
+    persistentCount: number
+    /** How long the oldest such drop has lasted; null when none has. */
+    oldestAgeMs: number | null
+  }>
 }>
 
 /**
@@ -132,9 +147,10 @@ export const ZERO_SYNC_PUSH_HEALTH: SyncPushHealth = {
     oldestAgeMs: null,
   },
   headCoverage: INACTIVE_HEAD_COVERAGE,
+  countDrop: { persistentCount: 0, oldestAgeMs: null },
 }
 
-/** Each Property's discovery state row: it carries the head cover. */
+/** Each Property's discovery state row: it carries the head cover and the count drop. */
 const syncStateOfProperty = and(
   eq(reviewSyncState.propertyId, sql`${properties.id}::text`),
   eq(reviewSyncState.source, 'google'),
@@ -304,11 +320,16 @@ async function readPushHealth(db: Database): Promise<SyncPushHealth['push']> {
  * day after the listing, or, when the cover lapsed later than that, the lapse
  * plus the longest gap between two looks (the look that notices the lapse is
  * the one that lists in full).
+ *
+ * The same pass counts the Properties whose drop in Google's total has lasted
+ * 72 hours (`count_drop_seen_at`) and that a head check still saw recently
+ * (`count_drop_checked_at`): head checks stop asking for full reads then. An
+ * old sighting nothing has confirmed since raises nothing.
  */
 async function readReconciliationAge(
   db: Database,
   reconcileWithinHours: number,
-): Promise<SyncPushHealth['reconciliation']> {
+): Promise<Pick<SyncPushHealth, 'reconciliation' | 'countDrop'>> {
   const facts = reviewGoogleReputationSnapshotFacts
   const newestFact = sql`(
     SELECT ${facts.evaluatedAt} FROM ${facts}
@@ -335,19 +356,36 @@ async function readReconciliationAge(
             + ${coverLapseNoticedMs}::float8
         ))`
   const overdue = sql`${ageMs} > ${limitMs}`
+  const dropAgeMs = sql`EXTRACT(EPOCH FROM (NOW() - ${reviewSyncState.countDropSeenAt})) * 1000`
+  const dropPersistent = sql`(
+    ${dropAgeMs} >= ${COUNT_DROP_PERSISTENT_AFTER_MS}::float8
+    AND EXTRACT(EPOCH FROM (NOW() - ${reviewSyncState.countDropCheckedAt})) * 1000
+      <= ${COUNT_DROP_CHECKED_FRESH_MS}::float8
+  )`
   const [row] = await db
     .select({
       overdue: sql<number>`count(*) FILTER (WHERE ${overdue})::int`,
       oldestAgeMs: sql<number | null>`max(${ageMs}) FILTER (WHERE ${overdue})`,
+      countDrops: sql<number>`count(*) FILTER (WHERE ${dropPersistent})::int`,
+      oldestDropAgeMs: sql<
+        number | null
+      >`max(${dropAgeMs}) FILTER (WHERE ${dropPersistent})`,
     })
     .from(properties)
     .innerJoin(googleConnections, eq(googleConnections.id, properties.googleConnectionId))
     .leftJoin(reviewSyncState, syncStateOfProperty)
     .where(propertyIsSyncable)
   return {
-    overdueAfterMs: coveredLimitMs,
-    overdueCount: row?.overdue ?? 0,
-    oldestAgeMs: row?.oldestAgeMs == null ? null : Math.round(Number(row.oldestAgeMs)),
+    reconciliation: {
+      overdueAfterMs: coveredLimitMs,
+      overdueCount: row?.overdue ?? 0,
+      oldestAgeMs: row?.oldestAgeMs == null ? null : Math.round(Number(row.oldestAgeMs)),
+    },
+    countDrop: {
+      persistentCount: row?.countDrops ?? 0,
+      oldestAgeMs:
+        row?.oldestDropAgeMs == null ? null : Math.round(Number(row.oldestDropAgeMs)),
+    },
   }
 }
 
@@ -396,9 +434,14 @@ export async function readSyncPushHealth(
   reconcileWithinHours = 6,
 ): Promise<SyncPushHealth> {
   const push = gbpPushEnabled ? await readPushHealth(db) : EMPTY_PUSH
+  const { reconciliation, countDrop } = await readReconciliationAge(
+    db,
+    reconcileWithinHours,
+  )
   return {
     push,
-    reconciliation: await readReconciliationAge(db, reconcileWithinHours),
+    reconciliation,
     headCoverage: await readHeadCoverage(db, reconcileWithinHours),
+    countDrop,
   }
 }

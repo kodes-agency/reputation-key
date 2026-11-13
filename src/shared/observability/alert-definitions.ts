@@ -36,12 +36,14 @@ import {
   unreadyJobFacts,
 } from './alert-snapshot-facts'
 import {
+  readCountDropPersistent,
   readHeadCoverage,
   readPushMissed,
   readPushSilent,
   readReconciliationAge,
 } from './alert-sync-push'
 import {
+  COUNT_DROP_PERSISTENT_AFTER_MS,
   HEAD_COVERAGE_ALERT_AFTER_MS,
   PUSH_ALERT_WINDOW_MS,
   RECONCILIATION_OVERDUE_AFTER_MS,
@@ -709,6 +711,17 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     threshold: HEAD_COVERAGE_ALERT_AFTER_MS,
     blindedBy: ['health.syncPush', 'health.sync'],
     read: readHeadCoverage,
+  }),
+  // Head checks ask for full reads about a drop in Google's total for 72 hours;
+  // a drop that outlasts them is counted here instead of read again.
+  define({
+    name: 'sync.count-drop-persistent',
+    severity: 'P2',
+    runbook: 'runbooks.md §13',
+    windowMs: COUNT_DROP_PERSISTENT_AFTER_MS,
+    threshold: COUNT_DROP_PERSISTENT_AFTER_MS,
+    blindedBy: ['health.syncPush', 'health.sync'],
+    read: readCountDropPersistent,
   }),
 
   // ── Review Analysis coverage and first-enablement backfill ──

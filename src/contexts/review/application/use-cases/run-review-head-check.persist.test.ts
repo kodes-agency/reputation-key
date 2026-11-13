@@ -146,6 +146,8 @@ function setup(options: Options = {}) {
     requestFullRead: vi.fn(async () => {
       if (options.coverWrite) throw options.coverWrite
     }),
+    recordCountDrop: vi.fn(async ({ seenAt }: { seenAt: Date }) => seenAt),
+    clearCountDrop: vi.fn(async () => undefined),
   } satisfies ReviewHeadCheckRepository
   const persist = vi.fn(
     async (call: Parameters<ReviewProviderObservationWriter['persist']>[0]) => {
