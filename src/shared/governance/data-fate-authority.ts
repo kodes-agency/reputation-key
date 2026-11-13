@@ -272,7 +272,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'active_authority',
     authority: 'SAFE-04/GGL-01',
     exitCriteria:
-      "A Property's finished permits are deleted with the Property; Organization closure scrubs the initiator and correlation of the rest.",
+      "A Property's finished permits are deleted with the Property; Organization closure scrubs the initiator and correlation of the rest. The retention sweep (authorization_execution_permits.expired) deletes permits older than 30 days, except a reviews.reply permit whose reply publication attempt is still uncertain.",
   }),
   ...rows({
     schemaFile: 'google-import.schema.ts',

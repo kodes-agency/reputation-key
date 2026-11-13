@@ -34,6 +34,40 @@ const GOOGLE_IMPORT_LIFECYCLE_BATCH_SIZE = 100
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
+ * Excludes a `reviews.reply` permit whose reply publication may still need it
+ * as dispatch evidence: the reply's current attempt is uncertain
+ * (`approved` sending or pending observation, `publish_failed` ambiguous, or
+ * terminal ambiguity), or an attempt record for that exact cycle and attempt
+ * is still sending, awaiting an outcome or ambiguous. A settled, confirmed or
+ * rejected attempt is no longer read, and neither is a reply that is gone.
+ */
+const UNSETTLED_REPLY_PERMIT_EXCLUSION = `NOT (
+  authorization_execution_permits.route_key = 'reviews.reply'
+  AND (
+    EXISTS (
+      SELECT 1 FROM replies r
+      WHERE r.organization_id = authorization_execution_permits.organization_id
+        AND r.id::text = authorization_execution_permits.authorization_vector->>'replyId'
+        AND r.publication_cycle::text = authorization_execution_permits.authorization_vector->>'publicationCycle'
+        AND r.publication_attempts::text = authorization_execution_permits.authorization_vector->>'publicationAttemptNumber'
+        AND (
+          (r.status::text = 'approved' AND r.publication_state IN ('sending', 'pending_observation'))
+          OR (r.status::text = 'publish_failed' AND r.publication_state = 'ambiguous')
+          OR (r.status::text = 'publish_failed' AND r.publication_state = 'terminal' AND r.publication_last_error_class = 'ambiguous')
+        )
+    )
+    OR EXISTS (
+      SELECT 1 FROM reply_publication_attempts a
+      WHERE a.organization_id = authorization_execution_permits.organization_id
+        AND a.reply_id::text = authorization_execution_permits.authorization_vector->>'replyId'
+        AND a.publication_cycle::text = authorization_execution_permits.authorization_vector->>'publicationCycle'
+        AND a.attempt_number::text = authorization_execution_permits.authorization_vector->>'publicationAttemptNumber'
+        AND a.outcome IN ('sending', 'provider_outcome_pending', 'ambiguous')
+    )
+  )
+)`
+
+/**
  * BQC-7.8: significant actions in audit_logs retain a 365-day horizon:
  * long enough for the beta audit window plus investigation lag and bounded
  * so the table does not grow forever. retention_runs remains
@@ -178,6 +212,20 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     tsColumn: 'published_at',
     olderThanMs: 30 * DAY_MS,
     extraWhere: SETTLED_OUTBOX_EVENTS_WHERE,
+  },
+  {
+    // One permit per outbound Google API call. A reply's permit is the only
+    // proof that a publication attempt never left RepKey, and it is read for as
+    // long as the reply's current attempt, or an attempt record, is still
+    // uncertain; the state decides that, never the permit's age. The rule keeps
+    // such a permit at any age and removes every other permit after 30 days.
+    subject: 'authorization_execution_permits.expired',
+    table: 'authorization_execution_permits',
+    keyColumns: ['id'],
+    tsColumn: 'created_at',
+    olderThanMs: 30 * DAY_MS,
+    skipLocked: true,
+    extraWhere: UNSETTLED_REPLY_PERMIT_EXCLUSION,
   },
   {
     subject: 'review_sync_runs',
