@@ -5,7 +5,7 @@
 // whatever its age.
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Pool } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
@@ -31,6 +31,12 @@ import { reviewReplyApproved, reviewReplyPublicationRequested } from '../domain/
 import { createReviewRepository } from './repositories/review.repository'
 import { createReplyRepository } from './repositories/reply.repository'
 import { createAtomicReplyCommandStore } from './reply-command-store'
+
+// Retention ships on; this file holds the branch a release that switched it off again
+// would run, alongside the apply handler it runs while on.
+vi.mock('#/shared/db/retention/scheduled-retention-activation', () => ({
+  SCHEDULED_RETENTION_ACTIVE: false,
+}))
 
 const ORG_A = organizationId('org-permit-retention-aaaa-1111111111')
 const PROP_A = propertyId('a93f0000-0000-0000-0000-000000000001')

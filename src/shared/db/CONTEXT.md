@@ -336,12 +336,14 @@ A table with one owner is written only from the owner's files: `eslint-rules/sch
 
 ## Verification
 
-The worker's daily retention entry point ships inactive. Only an owner-approved
-release may set `retention/scheduled-retention-activation.ts` to active, after a
-read-only trial, command-level erasure replay proof and verification that all
-backups, including Manual, meet the 30-day ceiling. The data restore rehearsal
-alone does not authorize activation. Queue data and operator enqueue confirmation
-cannot override this switch. The isolated restore command retains direct apply.
+The worker's daily retention entry point is active. An owner-approved release set
+`retention/scheduled-retention-activation.ts` to active after a read-only per-rule
+trial, a check that all backups, including Manual, meet the 30-day ceiling, and a
+check that no reply in an uncertain publication state would lose its permit. Its
+deletions are age-based, so they need no replay after a restore: the next run
+deletes again what the restore brought back. Only another owner-approved release
+may switch it off. Queue data and operator enqueue confirmation cannot override
+this switch. The isolated restore command retains direct apply.
 
 Worker, trial and restore use the composed retention registry. Each static rule is
 bounded to 100 batches of 500 rows by default and resumes from remaining eligible

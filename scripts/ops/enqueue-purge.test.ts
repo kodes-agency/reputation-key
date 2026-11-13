@@ -34,6 +34,9 @@ vi.mock('../../src/shared/jobs/queue', () => ({
   createJobQueue: () => ({ add: fakes.add, close: fakes.close }),
 }))
 vi.mock('../../src/shared/jobs/job-policy', () => ({ jobEnqueueOptions: () => ({}) }))
+// Retention ships on; a test that needs the switch off sets it here.
+const activation = vi.hoisted(() => ({ SCHEDULED_RETENTION_ACTIVE: true }))
+vi.mock('../../src/shared/db/retention/scheduled-retention-activation', () => activation)
 vi.mock('./operator-command', () => ({
   runDatabaseOperatorCommand: async (
     _spec: unknown,
@@ -50,6 +53,7 @@ describe('purge operator command', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     fakes.dryRun = true
+    activation.SCHEDULED_RETENTION_ACTIVE = true
     vi.spyOn(process, 'exit').mockImplementation(() => undefined as never)
   })
   afterEach(() => {
@@ -148,7 +152,26 @@ describe('purge operator command', () => {
     expect(process.exit).toHaveBeenCalledWith(1)
   })
 
-  it('refuses retention apply while scheduled retention ships inactive', async () => {
+  it('enqueues the bounded retention apply while scheduled retention is on', async () => {
+    fakes.dryRun = false
+    process.argv = [
+      'node',
+      'enqueue-purge.ts',
+      'retention',
+      '--operator',
+      'operator',
+      '--apply',
+      '--yes',
+      'ops:purge',
+    ]
+    await main()
+    expect(fakes.add).toHaveBeenCalledWith('retention-sweep', {}, {})
+    expect(fakes.err).not.toHaveBeenCalled()
+    expect(process.exit).toHaveBeenCalledWith(0)
+  })
+
+  it('refuses retention apply while scheduled retention is off', async () => {
+    activation.SCHEDULED_RETENTION_ACTIVE = false
     fakes.dryRun = false
     process.argv = [
       'node',
@@ -166,7 +189,8 @@ describe('purge operator command', () => {
     expect(process.exit).toHaveBeenCalledWith(1)
   })
 
-  it('keeps the composed-registry trial available while apply is inactive', async () => {
+  it('keeps the composed-registry trial available while apply is off', async () => {
+    activation.SCHEDULED_RETENTION_ACTIVE = false
     process.argv = ['node', 'enqueue-purge.ts', 'retention', '--operator', 'operator']
     await main()
     expect(JSON.parse(fakes.out.mock.calls[0]![0])).toMatchObject({

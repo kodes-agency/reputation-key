@@ -2,7 +2,7 @@
 // leaves, how small each batch stays, that a snapshot run in progress is
 // never waited on, and that every reader of runs answers as before.
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { organizationId, propertyId } from '#/shared/domain/ids'
@@ -24,6 +24,12 @@ import {
   createSnapshotRunRetention,
   SNAPSHOT_MEMBERS_PER_BATCH,
 } from './snapshot-run-retention.repository'
+
+// Retention ships on; this file holds the branch a release that switched it off again
+// would run, alongside the apply handler it runs while on.
+vi.mock('#/shared/db/retention/scheduled-retention-activation', () => ({
+  SCHEDULED_RETENTION_ACTIVE: false,
+}))
 
 const ORG = organizationId('snapshot-run-retention-org')
 const PROPERTY_A = propertyId('77000000-0000-4000-8000-00000000a001')
