@@ -61,6 +61,10 @@ test.describe('Critical a11y: axe page scans', () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 
+  test.afterEach(async () => {
+    await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
+  })
+
   test('properties list (/dashboard, 2 properties) is axe-clean', async ({ page }) => {
     // The fleet view only renders with 2+ properties (1 → deep-dive redirect).
     // Grant the seeded manager access explicitly: these tests assert on fleet
@@ -220,6 +224,10 @@ test.describe('Critical a11y: axe page scans', () => {
 
 test.describe('Critical a11y: keyboard', () => {
   test.beforeEach(async () => {
+    await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
+  })
+
+  test.afterEach(async () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 
@@ -462,6 +470,10 @@ test.describe('Critical a11y: zoom reflow', () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 
+  test.afterEach(async () => {
+    await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
+  })
+
   /**
    * style.zoom scrollbar assertion at 200%/400% (the slice-plan mechanism).
    * Content-visibility under emulated zoom is NOT asserted here — style.zoom
@@ -596,6 +608,10 @@ test.describe('Critical a11y: zoom reflow', () => {
 
 test.describe('Critical a11y: mobile viewport (390×844)', () => {
   test.beforeEach(async () => {
+    await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
+  })
+
+  test.afterEach(async () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 

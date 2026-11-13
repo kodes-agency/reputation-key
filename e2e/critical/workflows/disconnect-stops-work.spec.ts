@@ -24,6 +24,7 @@
 
 import type { Page } from '@playwright/test'
 import { test, expect } from '../../helpers/error-detection'
+import { expectPhoneLayout } from '../../helpers/phone-layout'
 import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { gbpStubControl, type StubReview } from '../../fixtures/gbp-stub'
@@ -45,6 +46,7 @@ import {
   seedProperty,
   waitFor,
   waitForFixtureJobSettled,
+  waitForQueuesIdle,
 } from '../../helpers/fixtures'
 
 const PREFIX = 'e2e-dis-'
@@ -146,6 +148,7 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     // A sync left over from an earlier spec would spend the shared reviews
     // quota this one needs for its own.
     await drainFixtureQueue()
+    await waitForQueuesIdle()
     await gbpStubControl.reset()
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
@@ -200,13 +203,14 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
       },
     })
     // GBP does not expose a review language. Configure the Property's supported
-    // manual-reply language so the imported reviews can be drafted.
-    await dbQuery(
-      `UPDATE properties
-       SET default_reply_language = 'en-Latn', updated_at = now()
-       WHERE organization_id = $1 AND id = $2::uuid`,
-      [seed.organizationId, propertyId],
-    )
+    // manual-reply language, through the Property's own command, so the imported
+    // reviews can be drafted.
+    await signIn(page)
+    await callServerFn(page, {
+      file: 'src/contexts/property/server/properties.ts',
+      exportName: 'updateProperty',
+      data: { propertyId, defaultReplyLanguage: 'en-Latn' },
+    })
     // The reviews arrive through the real sync, so each carries the source
     // revision, observation and Handling Cycle a publication is bound to.
     await enqueueReviewSync({
@@ -217,8 +221,6 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     })
     const controlReviewId = await arrivedReviewId(propertyId, CONTROL_REVIEW)
     const heldReviewId = await arrivedReviewId(propertyId, HELD_REVIEW)
-
-    await signIn(page)
 
     // ── Control: while connected, an approved reply reaches the provider. ──
     await approveReply(page, controlReviewId, CONTROL_TEXT)
@@ -338,5 +340,6 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     // The connection reads as disconnected where a manager looks for it.
     await page.goto('/settings/integrations')
     await expect(page.getByText('Disconnected').first()).toBeVisible({ timeout: 15_000 })
+    await expectPhoneLayout(page)
   })
 })

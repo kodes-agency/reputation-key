@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
+import { expectPhoneLayout } from '../helpers/phone-layout'
 import { waitForHydration } from '../helpers/interaction'
 import { signIn } from '../helpers/auth'
 import { requireE2eSeedState } from '../helpers/seed-state'
@@ -14,6 +15,7 @@ import {
   refreshPortalDestinationApproval,
   resetGuestRateLimits,
   waitFor,
+  waitForQueuesIdle,
 } from '../helpers/fixtures'
 import { settleGuestConsent } from '../helpers/guest-consent'
 import { expectPortalUnavailable } from '../helpers/guest-unavailable'
@@ -76,6 +78,7 @@ test.describe('Critical: public Portal basics', () => {
     await expect(page.getByRole('radio', { name: ratingName(1) })).toBeVisible()
     await expect(page.getByRole('radio', { name: ratingName(5) })).toBeVisible()
     await expect(seededTile(page)).toBeVisible()
+    await expectPhoneLayout(page)
     // The seeded portal is a v3 publication, so it wears the self-hosted guest
     // fonts and contacts no font CDN at all. The seed no longer publishes an
     // earlier design, so the legacy guest surface has no browser spec: its fonts
@@ -500,7 +503,8 @@ test.describe('Critical: public Portal basics', () => {
         responseConsent: true,
       },
     })
-    expect(crossProperty.message ?? '').toMatch(/error|request|completed/i)
+    expect(crossProperty.status).toBe(404)
+    expect(crossProperty.code).toBe('unavailable')
 
     // Neither refusal may leave a mark: the guest still sees their own rated
     // response, with no private feedback attached.
@@ -534,18 +538,24 @@ test.describe('Critical: public Portal basics', () => {
       )
 
     // Scans reach `metric_readings` through the outbox, so a reading from an
-    // earlier test in this file can land after this one has started (main run
-    // for d911d146: expected 6, received 7 after the reload). A count only
-    // means something once it has held still for two relay ticks.
+    // earlier test in this file can land after this one has started. A count
+    // only means something once every scan fact is relayed and the workers have
+    // nothing left to project.
     const settledScanCount = async () => {
-      let last = await countScans()
-      for (let attempt = 0; attempt < 10; attempt += 1) {
-        await page.waitForTimeout(2_000)
-        const next = await countScans()
-        if (next === last) return next
-        last = next
-      }
-      throw new Error('portal.scan readings did not settle within 20s')
+      await waitFor(
+        async () => {
+          const rows = await dbQuery<{ n: string }>(
+            `SELECT count(*)::text AS n FROM outbox_events
+             WHERE event_type = 'guest.scan.recorded' AND organization_id = $1
+               AND published_at IS NULL`,
+            [seed.organizationId],
+          )
+          return Number(rows[0]?.n ?? '0') === 0
+        },
+        { timeoutMs: 20_000, description: 'portal scan facts relayed' },
+      )
+      await waitForQueuesIdle(20_000)
+      return countScans()
     }
     const before = await settledScanCount()
     await context.clearCookies()
