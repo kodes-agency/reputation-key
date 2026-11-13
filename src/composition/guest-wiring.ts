@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { buildGuestContext } from '#/contexts/guest/build'
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
@@ -18,6 +18,14 @@ export function wireGuest(
     identityAccountAdminAuthority: identity.publicApi.accountAdminAuthority,
     staffApi: identity.publicApi.people,
     logger,
+    executionPolicy: identity.policy.executionPolicy,
+    contactRequests: {
+      enabled: env.CONTACT_REQUESTS_ENABLED,
+      generateIv: () => randomBytes(12),
+      ...(env.CONTACT_REQUEST_ENCRYPTION_KEY === undefined
+        ? {}
+        : { encryptionKey: env.CONTACT_REQUEST_ENCRYPTION_KEY }),
+    },
     sessionSecret: env.GUEST_SESSION_SALT,
     publicOrigin: new URL(env.BETTER_AUTH_URL).origin,
     secureCookies: env.NODE_ENV === 'production',

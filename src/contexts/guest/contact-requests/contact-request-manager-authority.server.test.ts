@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { propertyId, userId } from '#/shared/domain/ids'
-import { createContactRequestManagerAuthorityAdapter } from './contact-request-manager-authority.adapter'
+import { createContactRequestManagerAuthority } from './contact-request-authority.server'
 
 const SCOPE = Object.freeze({
   organizationId: 'org-contact-manager',
@@ -66,7 +66,7 @@ const setup = (overrides?: {
     ),
   }
   return {
-    authority: createContactRequestManagerAuthorityAdapter({
+    authority: createContactRequestManagerAuthority({
       portal,
       managerFacts: identity,
       accountAdminAuthority: identity,

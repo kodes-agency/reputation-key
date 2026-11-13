@@ -19,7 +19,7 @@ import type {
 import type { GuestSurface } from '../domain/portal-publication-snapshot'
 import type { PortalAccessArtifactChannel } from '../domain/portal-access-artifact'
 import type { PortalHealthReason, PortalHealthStatus } from '../domain/portal-health'
-import type { PortalContactRequestManagerAuthorityFacts } from './use-cases/portal-contact-request-authority'
+import type { PortalContactRequestManagerAuthorityFacts } from '../publication/contact-request-authority.server'
 import type { GoalReadinessFacts } from './goal-readiness-facts'
 import type { AiReplyBrandProfile } from '#/shared/ai-reply-brand-profile'
 import type { Tx } from '#/shared/outbox/commit'

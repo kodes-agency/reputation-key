@@ -1,32 +1,31 @@
-import {
-  contactRequestContactSchema,
-  contactRequestPurposeSchema,
-} from '../dto/contact-request.dto'
-import type { ContactRequestRepository } from '../ports/contact-request.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { contactRequestError } from '../../domain/errors'
-import {
-  contactRequestPolicyInput,
-  type ContactRequestExecutionPolicyPort,
-  type ContactRequestPolicyAction,
-  type ContactRequestPolicyPurpose,
-} from '../ports/contact-request-execution-policy.port'
-import type { ContactRequestResponseAuthorityPort } from '../ports/contact-request-response-authority.port'
-import type { ContactRequestGuestAuthority } from '../ports/contact-request-response-authority.port'
+import type { ExecutionPolicy } from '#/shared/auth/execution-policy'
+import { contactRequestError } from '../domain/errors'
 import type {
-  ContactRequestManagerAuthorityBasis,
-  ContactRequestManagerAuthorityPort,
-} from '../ports/contact-request-manager-authority.port'
+  ContactRequestAuthorityAction,
+  ContactRequestManagerAuthority,
+  ContactRequestResponseAuthority,
+} from './contact-request-authority.server'
+import type { ContactRequestRepository } from './contact-request.repository.server'
 import {
   CONTACT_REQUEST_RETENTION_MS,
+  contactRequestContactSchema,
+  contactRequestPolicyInput,
+  contactRequestPurposeSchema,
   type ContactRequestAccessPurpose,
+  type ContactRequestGuestAuthority,
+  type ContactRequestManagerAuthorityBasis,
+  type ContactRequestPolicyAction,
+  type ContactRequestPolicyPurpose,
   type ContactRequestPurpose,
   type ContactRequestScope,
-} from '../../domain/contact-request'
+} from './contracts'
+
+const MAX_PURGE_BATCH = 1_000
+const MAX_RETENTION_BATCHES = 100
 
 export type SubmitContactRequestInput = ContactRequestScope &
   Readonly<{
-    responseId: string
     email: string
     name?: string
     consent?: boolean
@@ -34,12 +33,17 @@ export type SubmitContactRequestInput = ContactRequestScope &
     authority: ContactRequestGuestAuthority
   }>
 
+const isBatchSize = (value: number): boolean =>
+  Number.isSafeInteger(value) && value >= 1 && value <= MAX_PURGE_BATCH
+
 export function contactRequestLifecycle(
   deps: Readonly<{
     repo: ContactRequestRepository
-    policy: ContactRequestExecutionPolicyPort
-    managerAuthority: ContactRequestManagerAuthorityPort
-    responseAuthority: ContactRequestResponseAuthorityPort
+    policy: Pick<ExecutionPolicy, 'decide'>
+    managerAuthority: ContactRequestManagerAuthority
+    responseAuthority: ContactRequestResponseAuthority
+    /** The launch switch. Withdrawal and expiry run whether it is on or off. */
+    isEnabled: () => boolean
     clock: () => Date
     idGen: () => string
     revealAuditIdGen: () => string
@@ -50,6 +54,32 @@ export function contactRequestLifecycle(
     propertyId: input.propertyId,
     portalId: input.portalId,
   })
+
+  const requireEnabled = (): void => {
+    if (!deps.isEnabled()) {
+      throw contactRequestError('contact_disabled', 'Contact requests are not available')
+    }
+  }
+
+  const requireGuestResponse = async (
+    action: ContactRequestAuthorityAction,
+    input: ContactRequestScope & Readonly<{ authority: ContactRequestGuestAuthority }>,
+    at: Date,
+  ): Promise<string> => {
+    const responseId = await deps.responseAuthority.authorize({
+      action,
+      scope: scopeOf(input),
+      authority: input.authority,
+      at,
+    })
+    if (responseId === null) {
+      throw contactRequestError(
+        'not_authorized',
+        'Contact Request response authority denied',
+      )
+    }
+    return responseId
+  }
 
   const requireManagerPolicy = async (
     scope: ContactRequestScope,
@@ -92,20 +122,9 @@ export function contactRequestLifecycle(
 
   return {
     submit: async (input: SubmitContactRequestInput) => {
+      requireEnabled()
       const submittedAt = deps.clock()
-      const authorized = await deps.responseAuthority.authorize({
-        action: 'submit',
-        scope: scopeOf(input),
-        responseId: input.responseId,
-        authority: input.authority,
-        at: submittedAt,
-      })
-      if (!authorized) {
-        throw contactRequestError(
-          'not_authorized',
-          'Contact Request response authority denied',
-        )
-      }
+      const responseId = await requireGuestResponse('submit', input, submittedAt)
       if (input.consent !== true) {
         throw contactRequestError(
           'consent_required',
@@ -132,7 +151,7 @@ export function contactRequestLifecycle(
       const result = await deps.repo.create({
         id: deps.idGen(),
         scope: scopeOf(input),
-        responseId: input.responseId,
+        responseId,
         purpose: parsedPurpose.data,
         consent: true,
         ...parsedContact.data,
@@ -147,10 +166,12 @@ export function contactRequestLifecycle(
       }
       return { status: 'submitted' as const }
     },
+
     getMasked: async (
-      input: ContactRequestScope & Readonly<{ contactRequestId: string }>,
+      input: ContactRequestScope & Readonly<{ responseId: string }>,
       ctx: AuthContext,
     ) => {
+      requireEnabled()
       const at = deps.clock()
       await requireManagerPolicy(
         scopeOf(input),
@@ -159,12 +180,10 @@ export function contactRequestLifecycle(
         'view_contact_request',
         at,
       )
-      // Resolve owning-context relationships immediately before the Guest
-      // operation. See the port's documented cross-transaction race posture.
       const basis = await requireManagerAuthority(scopeOf(input), ctx, at)
       const request = await deps.repo.findMasked({
         scope: scopeOf(input),
-        contactRequestId: input.contactRequestId,
+        responseId: input.responseId,
         authorization: { actorId: ctx.userId, basis, checkedAt: at },
         asOf: at,
       })
@@ -179,6 +198,7 @@ export function contactRequestLifecycle(
           }
         : null
     },
+
     reveal: async (
       input: ContactRequestScope &
         Readonly<{
@@ -187,6 +207,7 @@ export function contactRequestLifecycle(
         }>,
       ctx: AuthContext,
     ) => {
+      requireEnabled()
       if (input.accessPurpose === undefined) {
         throw contactRequestError(
           'access_purpose_required',
@@ -201,15 +222,11 @@ export function contactRequestLifecycle(
         input.accessPurpose,
         at,
       )
-      const authorityBasis = await requireManagerAuthority(scopeOf(input), ctx, at)
+      const basis = await requireManagerAuthority(scopeOf(input), ctx, at)
       const result = await deps.repo.reveal({
         scope: scopeOf(input),
         contactRequestId: input.contactRequestId,
-        authorization: {
-          actorId: ctx.userId,
-          basis: authorityBasis,
-          checkedAt: at,
-        },
+        authorization: { actorId: ctx.userId, basis, checkedAt: at },
         auditId: deps.revealAuditIdGen(),
         accessPurpose: input.accessPurpose,
         at,
@@ -222,32 +239,15 @@ export function contactRequestLifecycle(
         ...(result.name === undefined ? {} : { name: result.name }),
       }
     },
+
     withdraw: async (
-      input: ContactRequestScope &
-        Readonly<{
-          contactRequestId: string
-          responseId: string
-          authority: ContactRequestGuestAuthority
-        }>,
+      input: ContactRequestScope & Readonly<{ authority: ContactRequestGuestAuthority }>,
     ) => {
       const at = deps.clock()
-      const authorized = await deps.responseAuthority.authorize({
-        action: 'withdraw',
-        scope: scopeOf(input),
-        responseId: input.responseId,
-        authority: input.authority,
-        at,
-      })
-      if (!authorized) {
-        throw contactRequestError(
-          'not_authorized',
-          'Contact Request response authority denied',
-        )
-      }
+      const responseId = await requireGuestResponse('withdraw', input, at)
       const result = await deps.repo.withdraw({
         scope: scopeOf(input),
-        contactRequestId: input.contactRequestId,
-        responseId: input.responseId,
+        responseId,
         at,
       })
       if (result.outcome !== 'withdrawn') {
@@ -258,14 +258,9 @@ export function contactRequestLifecycle(
       }
       return { status: 'withdrawn' as const }
     },
+
     purgeExpired: async (input: Readonly<{ batchSize: number }>) => {
-      if (!Number.isSafeInteger(input.batchSize) || input.batchSize < 1) {
-        throw contactRequestError(
-          'invalid_batch_size',
-          'Contact Request purge batch is invalid',
-        )
-      }
-      if (input.batchSize > 1_000) {
+      if (!isBatchSize(input.batchSize)) {
         throw contactRequestError(
           'invalid_batch_size',
           'Contact Request purge batch is invalid',
@@ -286,5 +281,54 @@ export function contactRequestLifecycle(
         completedThrough: result.completedThrough?.toISOString() ?? null,
       }
     },
+  }
+}
+
+export type ContactRequestRetentionSweepResult = Readonly<{
+  batches: number
+  processed: number
+  capped: boolean
+  completedThrough: Date | null
+}>
+
+/** Bounded sweep over expired contact material; runs whether or not the launch switch is on. */
+export const contactRequestRetentionSweep = (
+  deps: Readonly<{
+    repo: Pick<ContactRequestRepository, 'purgeExpired'>
+    clock: () => Date
+    maxBatches?: number
+  }>,
+) => {
+  const maxBatches = deps.maxBatches ?? MAX_RETENTION_BATCHES
+  if (!Number.isSafeInteger(maxBatches) || maxBatches < 1 || maxBatches > 100) {
+    throw new Error('Contact Request retention bounds are invalid')
+  }
+
+  return async (
+    input: Readonly<{ batchSize: number }>,
+  ): Promise<ContactRequestRetentionSweepResult> => {
+    if (!isBatchSize(input.batchSize)) {
+      throw new Error('Contact Request retention bounds are invalid')
+    }
+
+    const through = deps.clock()
+    let batches = 0
+    let processed = 0
+    let completedThrough: Date | null = null
+
+    while (batches < maxBatches) {
+      const result = await deps.repo.purgeExpired({
+        through,
+        batchSize: input.batchSize,
+      })
+      completedThrough = result.completedThrough
+      if (result.processed === 0) {
+        return { batches, processed, capped: false, completedThrough }
+      }
+      batches += 1
+      processed += result.processed
+    }
+
+    return { batches, processed, capped: true, completedThrough }
   }
 }
