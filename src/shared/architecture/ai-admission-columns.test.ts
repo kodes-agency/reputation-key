@@ -1,8 +1,6 @@
 // The four admission handshake columns of `ai_operations` and the keys that fed
-// them are history: nothing declares, reads or writes the columns, and no
-// configuration carries the keys. The database still holds the columns until
-// the migration drops them; whole-row statements name every declared column,
-// so the schema stopped declaring them first.
+// them are history: the columns are dropped, nothing declares, reads or writes
+// them, and no configuration carries the keys.
 //
 // This reads source text. Test code is walked too, because a test that seeds
 // the columns would keep a writer alive. The names are assembled from fragments
@@ -17,7 +15,7 @@ const WALKED = ['src', 'scripts', 'services', 'e2e', '.railway'] as const
 const WALKED_FILES = ['.env.example', '.gitleaks.toml'] as const
 
 const SCHEMA = join('src', 'shared', 'db', 'schema', 'ai.schema.ts')
-// Generated from the migrations, which declare the columns by definition.
+// Generated from the migrations.
 const GENERATED = [join('src', 'shared', 'db', 'structure.sql')] as const
 
 const NAMES = new RegExp(
