@@ -94,6 +94,8 @@ export {
   executorErrorToReviewApiError,
   isGoogleReviewApiError,
   isProviderCallFailure,
+  isReplyPreReadRefusal,
+  REPLY_PRE_READ_REFUSAL_OPERATION,
   reviewApiError,
   translatedGoogleReviewApi,
 } from './google-review-api-error'

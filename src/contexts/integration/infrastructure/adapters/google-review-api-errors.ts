@@ -7,8 +7,10 @@ import {
   executorErrorToReviewApiError,
   isGoogleReviewApiError,
   isProviderCallFailure,
+  REPLY_PRE_READ_REFUSAL_OPERATION,
   reviewApiError,
 } from '#/contexts/review/application/public-api'
+import { createGoogleCallError } from '../../domain/google-call-error'
 import type { GoogleReviewCursorFailureCode } from '../google-review-cursor-store'
 
 // The review API adapter's own faults: a cursor-store fault, an authorizer
@@ -57,25 +59,37 @@ export function replyAuthorizationRefusal(refusal: unknown): GoogleReviewApiErro
 }
 
 /**
- * The review-sync authorizer refused the read RepKey makes before it publishes
- * a reply. Like the write's refusal, it sent nothing and keeps its closed code
- * as not-sent evidence; unlike the write's, an authorizer that could not decide
- * (`runtime_unavailable`: a database or token outage) or that failed without
- * any closed code is transient, so it is the retryable `provider_unavailable`,
- * not a terminal refusal. A read proves
- * nothing about what Google holds, so retrying it is always safe.
+ * The refusal of the read RepKey makes before it publishes a reply, as the one
+ * Google call error the write path also throws. It was raised before any
+ * provider call, so it says `not_sent` and keeps the authorizer's closed code
+ * as evidence; the Review use case decides whether it is the reconnect case.
+ * An authorizer that could not decide (`runtime_unavailable`: a database or
+ * token outage) or that failed without any closed code (a connection pool or
+ * socket error from the connection lookup, say) refused nothing: it is an
+ * upstream failure, which a read can always retry. A process with no authorizer
+ * says nothing about dispatch.
  */
-export function replyPreReadAuthorizationRefusal(refusal: unknown): GoogleReviewApiError {
-  const executionCode = contentFreeCode(errorField(refusal, 'code'))
-  // A failure with no closed code (a connection pool or socket error from the
-  // connection lookup, say) is not a refusal at all: it decided nothing.
-  if (executionCode !== null && executionCode !== 'runtime_unavailable') {
-    return replyAuthorizationRefusal(refusal)
+export function replyPreReadRefusal(refusal: unknown): unknown {
+  const operation = REPLY_PRE_READ_REFUSAL_OPERATION
+  if (isGoogleReviewApiError(refusal)) {
+    if (refusal.code === 'authorization_changed') {
+      return createGoogleCallError(operation, 'permission_denied', {
+        dispatch: 'not_sent',
+      })
+    }
+    if (refusal.code === 'provider_unavailable') {
+      return createGoogleCallError(operation, 'upstream_error', {})
+    }
+    return refusal
   }
-  return reviewApiError('provider_unavailable', true, {
-    failure: { ...NOT_SENT, executionCode },
-    failureLabel: executionCode ?? 'unclassified',
-  })
+  const executionCode = contentFreeCode(errorField(refusal, 'code'))
+  const evidence = {
+    dispatch: 'not_sent',
+    ...(executionCode === null ? {} : { executionCode }),
+  } as const
+  return executionCode !== null && executionCode !== 'runtime_unavailable'
+    ? createGoogleCallError(operation, 'permission_denied', evidence)
+    : createGoogleCallError(operation, 'upstream_error', evidence)
 }
 
 /**

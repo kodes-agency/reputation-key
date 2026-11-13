@@ -568,6 +568,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   // internal to the worker, so it is not part of the context's use cases.
   const readReviewBeforePublishUseCase = readReviewBeforePublish({
     googleReviewApi: input.googleReviewApi,
+    connectionStatus: input.googleConnectionStatus,
+    logger: input.logger,
     propertySourceEpoch: propertySourceEpochLookup,
     observationWriter,
     subjectKeyService: providerSubjectKeys,

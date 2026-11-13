@@ -1,7 +1,5 @@
 import {
-  isGoogleReviewApiError,
   reviewApiError,
-  type GoogleReviewApiError,
   type GoogleReviewApiPort,
   type GoogleReviewPageRequest,
 } from '#/contexts/review/application/public-api'
@@ -42,7 +40,7 @@ import {
   isAcceptedNonJsonWrite,
   readFailure,
   replyAuthorizationRefusal,
-  replyPreReadAuthorizationRefusal,
+  replyPreReadRefusal,
 } from './google-review-api-errors'
 import {
   googleReviewCursorAuthorization,
@@ -650,53 +648,15 @@ export const createGoogleReviewApiAdapter = (
   }
 
   /**
-   * A read refused while its connection waits for an AccountAdmin to
-   * reconnect Google is the reconnect case, not a changed approval, so the
-   * publish job can tell its author so. An unreadable connection keeps the
-   * refusal as it was; both codes are terminal.
-   */
-  const withReauthorizationCause = async (
-    input: Pick<GoogleReplyPublicationInput, 'organizationId' | 'connectionId'>,
-    refusal: GoogleReviewApiError,
-  ): Promise<GoogleReviewApiError> => {
-    if (refusal.code !== 'authorization_changed') return refusal
-    let status: string | null
-    try {
-      const connection = await deps.connectionRepo.findById(
-        input.organizationId,
-        input.connectionId,
-      )
-      status = connection?.status ?? null
-    } catch {
-      deps.logger.warn(
-        { event: 'google_reply_refusal_connection_unreadable' },
-        'Google reply refusal kept its code; the connection could not be read',
-      )
-      return refusal
-    }
-    if (status !== 'reauth_required') return refusal
-    return reviewApiError(
-      'reauthorization_required',
-      false,
-      refusal.failure === undefined ? {} : { failure: refusal.failure },
-    )
-  }
-
-  /**
    * `resolveProviderContext` for the read before a reply is published: its
-   * refusals leave in the write path's vocabulary (see
+   * refusals leave as the write path's Google call error (see
    * `GoogleReviewGetRequest.forReplyPublication`).
    */
   const resolveReplyPreReadContext: typeof resolveProviderContext = async (input) => {
     try {
       return await resolveProviderContext(input)
     } catch (error) {
-      throw await withReauthorizationCause(
-        input,
-        isGoogleReviewApiError(error)
-          ? (error as GoogleReviewApiError)
-          : replyPreReadAuthorizationRefusal(error),
-      )
+      throw replyPreReadRefusal(error)
     }
   }
 
