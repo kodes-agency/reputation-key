@@ -42,6 +42,8 @@ function build(
     site: 'pending' | 'approved' | 'disabled' | 'quarantined' | null
     /** Whether a live Portal is left to decide the site in; true unless said. */
     sitePortal: boolean
+    /** The Google connection's status; null when unknown, a function to fail. */
+    connection: string | null | (() => never)
   }> = {},
 ) {
   const deps = {
@@ -98,6 +100,12 @@ function build(
               otherPortalCount: 0,
             },
       ),
+    },
+    googleConnectionStatus: {
+      findStatus: vi.fn(async () => {
+        const status = overrides.connection ?? null
+        return typeof status === 'function' ? status() : status
+      }),
     },
     responsibleManagers: {
       findForProperty: vi.fn(async () => (overrides.managers ?? []).map(userId)),
@@ -350,6 +358,49 @@ describe('which of a settling fact’s types are finished', () => {
   it('settles a type it cannot check', async () => {
     await expect(
       build().finished({
+        organizationId: ORG,
+        resourceId: 'connection-1',
+        types: ['integration.reauthorization_required'],
+      }),
+    ).resolves.toEqual(['integration.reauthorization_required'])
+  })
+})
+
+describe('a Google reconnect notice at send time', () => {
+  const reconnect = {
+    organizationId: ORG,
+    type: 'integration.reauthorization_required' as const,
+    resourceId: 'connection-1',
+  }
+
+  it('stops waiting once the connection is healthy again', async () => {
+    await expect(build({ connection: 'active' }).isWaiting(reconnect)).resolves.toBe(
+      false,
+    )
+    await expect(
+      build({ connection: 'active' }).isWaitingMany([reconnect]),
+    ).resolves.toEqual([false])
+  })
+
+  it('keeps waiting while the connection is still broken', async () => {
+    await expect(
+      build({ connection: 'reauth_required' }).isWaiting(reconnect),
+    ).resolves.toBe(true)
+  })
+
+  it('keeps waiting when the connection is unknown or the lookup fails', async () => {
+    await expect(build({ connection: null }).isWaiting(reconnect)).resolves.toBe(true)
+    const failing = build({
+      connection: () => {
+        throw new Error('integration unavailable')
+      },
+    })
+    await expect(failing.isWaiting(reconnect)).resolves.toBe(true)
+  })
+
+  it('still settles on a deliberate disconnect while the connection is not healthy', async () => {
+    await expect(
+      build({ connection: 'disconnected' }).finished({
         organizationId: ORG,
         resourceId: 'connection-1',
         types: ['integration.reauthorization_required'],
