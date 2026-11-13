@@ -111,10 +111,17 @@ export const ThreePropertiesOneCeremony: Story = {
     await expect(acknowledgement).toHaveAccessibleDescription(
       /^Hotel Berlin Mitte, Casa Lisboa, Athens Rooms\. Required to enable AI features/,
     )
+    const readsBeforeSave = fns.listProperties.mock.calls.length
     await userEvent.click(acknowledgement)
     await userEvent.click(cta)
 
     await expect(canvas.findByText('Setup saved')).resolves.toBeVisible()
+    // Saving refreshes the facts; the answered questions stay on screen
+    // instead of collapsing into "Nothing left to ask".
+    await waitFor(() =>
+      expect(fns.listProperties.mock.calls.length).toBeGreaterThan(readsBeforeSave),
+    )
+    await expect(canvas.queryByText('Nothing left to ask')).toBeNull()
     await expect(fns.enableMerchantAiForProperties).toHaveBeenCalledOnce()
     await expect(fns.enableMerchantAiForProperties).toHaveBeenCalledWith({
       data: expect.objectContaining({
