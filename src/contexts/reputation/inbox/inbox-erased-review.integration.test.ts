@@ -420,6 +420,7 @@ describe.sequential('an Inbox item whose Review Google deleted', () => {
       created: 1,
       closed: 0,
       milestones: 0,
+      skipped: 0,
       dryRun: false,
     })
     await expect(
