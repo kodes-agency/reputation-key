@@ -11,6 +11,33 @@
 // worker process per run), so repeated suite runs never hit unique
 // constraints and parallel files never collide on the shared seeded org.
 // `cleanupE2eData` deletes prefix-scoped rows in FK-safe order.
+//
+// What stays SQL, and why. A journey creates what it can through the product's
+// own commands: invitations through `inviteMember`, a Property's reply language
+// through `updateProperty`, an imported Property through the import commands
+// (failure-recovery), Portals through the Portal commands. The helpers below
+// stay raw SQL because no command reaches the state they build:
+//   seedGoogleConnection      the tokens come from a Google OAuth consent screen
+//                             that no test can drive
+//   seedProperty              a Property bound to a Google location and a
+//                             connection the journey already owns, under a
+//                             run-scoped location id. The import commands list
+//                             an account's locations and make their own
+//                             Properties; only failure-recovery and
+//                             google-import-sync go that way, because they
+//                             prove the import itself
+//   seedMemberUserWithGrant   an account made by accepting an invitation gets a
+//                             Better Auth id, which the assignment commands'
+//                             uuid check refuses; the helper makes the uuid id
+//                             and the grant those commands need
+//   seedReview, seedPrivateFeedbackInboxItem, seedInboxHandlingCycle and the
+//   inbox/reply seeds         reviews arrive from the provider sync and from
+//                             guests; these build states the sync cannot reach on
+//                             demand (an ambiguous send, a lapsed content expiry,
+//                             a review already in a closed cycle)
+//   close/reopen/withdraw...  the source-authority transitions run on events no
+//                             browser fires
+//   get*, find*, wait*        read-only assertions
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '../../test-fixtures/generated/google-provider-identifiers-v1'
 import { Pool } from 'pg'
@@ -173,6 +200,7 @@ export async function waitForQueuesIdle(timeoutMs = 10_000): Promise<void> {
     if (counts.every((count) => count === 0)) return
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
+  throw new Error(`the background queues were not idle within ${timeoutMs} ms`)
 }
 
 // ── DB access ─────────────────────────────────────────────────────────

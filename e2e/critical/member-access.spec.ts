@@ -21,6 +21,7 @@
 
 import type { Locator, Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
+import { expectPhoneLayout } from '../helpers/phone-layout'
 import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady } from '../helpers/interaction'
 import { requireE2eSeedState } from '../helpers/seed-state'
@@ -94,6 +95,7 @@ test.describe('Critical workflow: Members access', () => {
     await sheet.getByRole('checkbox', { name: seed.propertyName, exact: true }).click()
     await expect(sheet.getByText(/^Gives .+ access to /)).toBeVisible()
     await expect(sheet.getByText(/^We tell .+ in the app and by email\.$/)).toBeVisible()
+    await expectPhoneLayout(page)
     await clickWhenReady(sheet.getByRole('button', { name: 'Save access' }))
     await expect(page.getByText('Access updated')).toBeVisible()
     await expect(sheet).toHaveCount(0)
@@ -219,6 +221,7 @@ test.describe('Critical workflow: Members access', () => {
         data: { invitationId: 'e2e-not-an-invitation' },
       })
       expect(resend.status).toBe(403)
+      expect(resend.code).toBe('permission_denied')
       const access = await callServerFnExpectError(page, {
         file: MEMBER_ACCESS_FILE,
         exportName: 'setMemberPropertyAccess',
@@ -229,6 +232,7 @@ test.describe('Critical workflow: Members access', () => {
         },
       })
       expect(access.status).toBe(403)
+      expect(access.code).toBe('permission_denied')
     } finally {
       await context.close()
     }
