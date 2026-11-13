@@ -1,7 +1,7 @@
-// BQC-5.5 — ReviewServingStats is a family of serving reads: EVERY
+// ReviewServingStats is a family of serving reads: EVERY
 // review-content read (aggregates included) excludes expired and clock-less
 // content in SQL (ADR 0031). Eligibility compares against the injected clock,
-// never DB now() (BQC-5.3).
+// never DB now().
 //
 // Moved from dashboard/infrastructure/repositories/review-stats-eligibility
 // .test.ts (getRecentReviews case) and extended to the aggregate reads that

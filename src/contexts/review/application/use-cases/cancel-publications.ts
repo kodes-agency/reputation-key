@@ -1,4 +1,4 @@
-// Review context — cancel in-flight reply publications for a Google connection (BQC-3.8).
+// Review context — cancel in-flight reply publications for a Google connection.
 //
 // Triggered by integration.google_account.disconnected (and available to
 // future policy cancellations): every reply of the connection's reviews whose

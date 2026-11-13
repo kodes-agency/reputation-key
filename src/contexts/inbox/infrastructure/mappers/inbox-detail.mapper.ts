@@ -6,7 +6,7 @@ import type { ReviewSnippetResult } from '../../application/ports/review-lookup.
 import type { InboxItem, InboxItemDetail } from '../../domain/types'
 
 /**
- * A Review item's detail. BQC-1.2: content comes only from the
+ * A Review item's detail. Content comes only from the
  * eligibility-enforcing lookup; expired/missing yields a typed status, never
  * stale fields, and every content field below is null with it.
  */

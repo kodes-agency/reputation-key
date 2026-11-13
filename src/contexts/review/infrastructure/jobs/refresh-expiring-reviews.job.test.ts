@@ -1,4 +1,4 @@
-// Unit tests for refresh expiring reviews job handler (BQC-1.5).
+// Unit tests for refresh expiring reviews job handler.
 // Tests: keyset cursor batches, budget stop + resume, pull-forward failure
 // semantics (never acknowledged as success), run-state persistence,
 // oldest-due alerting, and that the sweep enqueues no sync of its own: it

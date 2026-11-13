@@ -1,6 +1,6 @@
 // Review context — new-review discovery repository port.
 //
-// The refresh sweep (BQC-1.5) can only ever revisit reviews ALREADY stored,
+// The refresh sweep can only ever revisit reviews ALREADY stored,
 // so a connected property with no stored review — or one whose newest review
 // is nowhere near its 30-day content TTL — is never polled again after the
 // import one-shot. This port is the discovery side of that gap: it selects

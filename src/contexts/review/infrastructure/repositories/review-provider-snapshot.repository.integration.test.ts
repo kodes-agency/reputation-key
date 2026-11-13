@@ -1462,7 +1462,7 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     it.each([
       { expected: 82, unique: 81, pages: 2, case: 'one review fewer than Google counts' },
       { expected: 19, unique: 20, pages: 1, case: 'one review more than Google counts' },
-      // JAVASCRIPT-TANSTACKSTART-REACT-4: 86 counted, 84 unique over 2 pages,
+      // A real run: 86 counted, 84 unique over 2 pages,
       // a gap of 2 that the 2% rule failed.
       {
         expected: 86,

@@ -1,11 +1,11 @@
 // Review source content lifecycle — implements Google's 30-day retention
-// policy (PRE17B / ADR 0031).
+// policy (ADR 0031).
 //
 // Calculates content expiry timestamps, identifies reviews due for refresh
 // or purge, and classifies content status against the SourceContentPolicy.
 //
-// BQR-3.1: write paths use calculateContentExpiry + computeReviewContentHash.
-// BQR-3.2: jobs use classifyReviewsForRefresh / checkContentStatus.
+// Write paths use calculateContentExpiry + computeReviewContentHash; jobs use
+// classifyReviewsForRefresh / checkContentStatus.
 
 import type { SourceContentPolicy } from '#/shared/domain/source-content-policy'
 import {
@@ -20,7 +20,7 @@ export { computeReviewContentHash, contentRefreshDueThreshold }
 const DEFAULT_POLICY = createGoogleSourceContentPolicy()
 
 /**
- * BQC-1.2: the read-time eligibility rule (ADR 0031). Content is servable
+ * The read-time eligibility rule (ADR 0031). Content is servable
  * only while a successful-fetch clock exists and has not passed. Clock-less
  * rows fail closed — local reads, scheduler touches, copies, backups, and
  * model calls never extend the clock.

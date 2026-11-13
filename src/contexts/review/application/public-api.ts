@@ -72,7 +72,7 @@ export type {
 } from './ports/google-review-api.port'
 export type { TargetedGoogleReviewReferenceResolver } from './ports/targeted-google-review-reference.port'
 // Review owns the queue payload contract; Integration enqueues through it, so
-// the port types are part of the public surface. ARC-03 forbids exposing
+// the port types are part of the public surface. The context boundary forbids exposing
 // repositories and stores, not the queue contract another context must satisfy.
 export type {
   ReviewQueuePort,
@@ -99,7 +99,7 @@ export {
 } from './google-review-api-error'
 export { collectReviewSourceContentLifecycleReport } from './use-cases/collect-source-content-lifecycle-report'
 export { REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE } from './use-cases/run-source-content-lifecycle'
-// BQC-1.7: lifecycle purge port consumed by integration + property use cases.
+// Lifecycle purge port consumed by integration + property use cases.
 export type { SourceContentPurge } from './ports/source-content-purge.port'
 export type { ReviewReplyObservationAuthority } from './ports/reply-observation-authority.port'
 export type {
@@ -133,7 +133,7 @@ export type {
   ReplyPublicationCheckResult,
 } from './use-cases/check-reply-publication'
 
-// BQC-5.5: review-owned governed aggregate serving reads (ADR 0031
+// Review-owned governed aggregate serving reads (ADR 0031
 // eligibility enforced at the owner, clock-injected). The dashboard build
 // depends on this type; composition wires the infrastructure implementation.
 export type { ReviewServingStats } from './ports/serving-stats.port'

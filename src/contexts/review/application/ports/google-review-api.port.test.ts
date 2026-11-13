@@ -1,4 +1,4 @@
-// ARC-03-T9 contract test — Integration/Review seam.
+// Contract test — Integration/Review seam.
 //
 // Review owns this contract; Integration implements it. The invariant the seam
 // exists to enforce: Review never sees a provider pagination token. It receives

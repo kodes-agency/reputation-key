@@ -57,7 +57,7 @@ export type ReplyEntityView = Readonly<{
   submittedAt: Date | null
   approvedAt: Date | null
   publishedAt: Date | null
-  // BQC-3.8: publication state machine overlay (migration 0015).
+  // Publication state machine overlay (migration 0015).
   publicationState: ReplyPublicationState | null
   publicationAttempts: number
   /** Exact durable publication authorization cycle; zero before first authorization. */
@@ -129,7 +129,7 @@ export type ReplyLookupPort = Readonly<{
     orgId: OrganizationId,
   ): Promise<ReplyView | null>
   /**
-   * BQC-3.4: earliest reply milestones per review, for projection rebuild:
+   * Earliest reply milestones per review, for projection rebuild:
    * RepKey's replies, legacy `google_sync` rows, and the reply Google shows
    * now (at the time Google reports for it, else when RepKey read it). Keyed
    * by reviewId; reviews with no reply anywhere are absent from the map.

@@ -20,7 +20,7 @@ import { lockReplyTruthScope } from './reply-truth-serialization'
  * writer (`FOR UPDATE` then `UPDATE`), but it lets the foreign-key checks of
  * rows referencing the Property (metric readings, AI settlements,
  * notifications) through. As `FOR UPDATE` it queued them behind every review
- * import (closed beta, 2026-09-29). `FOR SHARE` would not be safe: a caller
+ * import. `FOR SHARE` would not be safe: a caller
  * that later needed exclusivity would upgrade across the Reply-truth lock.
  */
 export async function lockReviewSourceMutationScope(

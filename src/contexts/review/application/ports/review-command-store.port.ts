@@ -1,4 +1,4 @@
-// Review command store — atomic business write + outbox record (BQR-2.3).
+// Review command store — atomic business write + outbox record.
 //
 // Callers must not know Drizzle transaction types or outbox tables.
 // The production implementation commits each Review write with its

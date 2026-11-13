@@ -1,5 +1,5 @@
 // ReviewGoogleRatingReads for the rating goal's tracking page, against real
-// PostgreSQL (round 5, PLAN-D D-2, D-2b and D-3): the exact average at the end of
+// PostgreSQL (ADR 0067): the exact average at the end of
 // each Property-local week, Google's own number over time, the low reviews
 // since a goal was set (the owner's per-review exception), and last week's
 // count with its star sum only from ten reviews. The same reviews

@@ -70,7 +70,7 @@ export const REVISION_CONFLICT_MESSAGE = 'Inbox item changed; reload current sta
 
 /**
  * A colleague changed the priority itself after this manager's pane read it
- * (copy C-9). Its own code, not `revision_conflict`: the client's one automatic
+ * Its own code, not `revision_conflict`: the client's one automatic
  * retry replays a revision conflict with the fresh revision, which would let a
  * second manager overwrite the first without ever seeing their choice.
  */

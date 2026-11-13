@@ -1,11 +1,11 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
-// BQC-3.3 — reply command store integration tests (real Postgres).
+// Reply command store integration tests (real Postgres).
 //
 // Crash-boundary proof on the real database:
 //   1. Outbox insert failure (unregistered event type → toOutboxEvent throws)
 //      rolls back the state write — no state/outbox split is observable.
 //   2. Happy path commits state row AND outbox row with the same eventId.
-//   3. SAFE-03 quarantines the legacy purge command before it can erase the
+//   3. quarantines the legacy purge command before it can erase the
 //      stable Review row or RepKey-owned Reply history.
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
@@ -244,7 +244,7 @@ describe.sequential('replyCommandStore (integration)', () => {
     )
 
     // Deliberately omit the request-path queue call: this is the exact
-    // commit→direct-admission interruption boundary RPL-01 must recover.
+    // commit→direct-admission interruption boundary must recover.
     expect(authorized).toMatchObject({
       status: 'approved',
       publicationState: 'authorized',
@@ -603,7 +603,7 @@ describe.sequential('replyCommandStore (integration)', () => {
     expect(outbox.rows).toHaveLength(1)
     expect(outbox.rows[0].id).toBe(event.eventId)
     expect(outbox.rows[0].event_type).toBe('review.reply.submitted')
-    // Identifier-only payload on the real pipeline (BQC-3.7: correlationId is
+    // Identifier-only payload on the real pipeline (correlationId is
     // envelope-grade metadata re-attached post-validation — an identifier).
     expect(Object.keys(outbox.rows[0].payload).sort()).toEqual([
       'correlationId',
