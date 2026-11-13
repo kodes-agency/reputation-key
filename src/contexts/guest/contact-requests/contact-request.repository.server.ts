@@ -12,9 +12,13 @@ import { journalBeforeErasure } from '#/shared/db/lifecycle/erasure-journal.serv
 import type { GuestWithdrawalJournal } from '../infrastructure/guest-withdrawal-journal.server'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { portalPublicationSnapshots } from '#/shared/db/schema/portal-publication.schema'
-import type { ContactRequestEncryption } from './contact-request-encryption.server'
+import {
+  ContactRequestEncryptionError,
+  type ContactRequestEncryption,
+} from './contact-request-encryption.server'
 import type {
   ContactRequestAccessPurpose,
+  ContactRequestContact,
   ContactRequestManagerAuthorization,
   ContactRequestPurpose,
   ContactRequestScope,
@@ -498,17 +502,27 @@ export const createContactRequestRepository = (
         return { outcome: 'unavailable' as const }
       }
 
-      const contact = encryption.open(
-        {
-          keyId: request.encryptionKeyId,
-          ciphertext: request.encryptedContact,
-        },
-        {
-          ...input.scope,
-          contactRequestId: input.contactRequestId,
-          responseId: request.responseId,
-        },
-      )
+      // A key that no longer opens the stored details answers like any other
+      // unavailable request; nothing is audited because nothing was shown.
+      let contact: ContactRequestContact
+      try {
+        contact = encryption.open(
+          {
+            keyId: request.encryptionKeyId,
+            ciphertext: request.encryptedContact,
+          },
+          {
+            ...input.scope,
+            contactRequestId: input.contactRequestId,
+            responseId: request.responseId,
+          },
+        )
+      } catch (error) {
+        if (error instanceof ContactRequestEncryptionError) {
+          return { outcome: 'unavailable' as const }
+        }
+        throw error
+      }
       await tx.insert(guestContactRequestRevealAudits).values({
         id: input.auditId,
         contactRequestId: input.contactRequestId,

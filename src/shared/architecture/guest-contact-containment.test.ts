@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   checkGlobalCapability,
@@ -55,12 +55,47 @@ const switchedOff = contactRequestLifecycle({
   repo: untouchedRepository,
   policy: { decide: untouched('policy.decide') as never },
   managerAuthority: { resolve: untouched('managerAuthority.resolve') as never },
+  responseAuthority: { authorize: untouched('responseAuthority.authorize') as never },
+  isEnabled: () => false,
+  clock: () => new Date('2026-08-26T09:00:00.000Z'),
+  idGen: () => 'id',
+  revealAuditIdGen: () => 'audit',
+})
+
+// Withdrawal and expiry stay open while the switch is off: only the response
+// authority answers, and the repository still must not be reached by anything else.
+const withdrawalOpen = contactRequestLifecycle({
+  repo: untouchedRepository,
+  policy: { decide: untouched('policy.decide') as never },
+  managerAuthority: { resolve: untouched('managerAuthority.resolve') as never },
   responseAuthority: { authorize: async () => '10000000-0000-4000-8000-000000000004' },
   isEnabled: () => false,
   clock: () => new Date('2026-08-26T09:00:00.000Z'),
   idGen: () => 'id',
   revealAuditIdGen: () => 'audit',
 })
+
+const SCREEN_AND_ENDPOINT_FILES = [
+  'src/contexts/guest/page/ui/contact-request.tsx',
+  'src/contexts/guest/server/contact-requests.ts',
+  'src/contexts/guest/contact-requests/ui/contact-request.tsx',
+].map((path) => join(ROOT, path))
+
+const IMPORT_SPECIFIER = /(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]/gu
+const RESOLVED_SUFFIXES = ['', '.ts', '.tsx', '/index.ts', '/index.tsx']
+
+function importedTargets(path: string): string[] {
+  const source = readFileSync(path, 'utf8')
+  return [...source.matchAll(IMPORT_SPECIFIER)].flatMap(([, specifier]) => {
+    if (specifier === undefined) return []
+    const base = specifier.startsWith('#/')
+      ? join(ROOT, 'src', specifier.slice(2))
+      : specifier.startsWith('.')
+        ? resolve(dirname(path), specifier)
+        : null
+    return base === null ? [] : RESOLVED_SUFFIXES.map((suffix) => base + suffix)
+  })
+}
 
 describe('Contact Request containment', () => {
   it('names the lifecycle and storage only in the Guest build, its server functions and the container', () => {
@@ -84,6 +119,17 @@ describe('Contact Request containment', () => {
         'getContainer().guestContactRequests',
       ]),
     ).toEqual([])
+  })
+
+  it('mounts the guest form, the submit endpoint and the manager panel nowhere', () => {
+    const importers = sourceFiles(join(ROOT, 'src')).flatMap((path) => {
+      const targets = importedTargets(path)
+      return SCREEN_AND_ENDPOINT_FILES.filter((file) => targets.includes(file)).map(
+        (file) => `${relative(ROOT, path)} imports ${relative(ROOT, file)}`,
+      )
+    })
+
+    expect(importers).toEqual([])
   })
 
   it('keeps the safety block on the capability until the launch is approved', () => {
@@ -129,12 +175,12 @@ describe('Contact Request containment', () => {
 
   it('keeps the withdrawal and expiry paths open when the launch switch is off', async () => {
     await expect(
-      switchedOff.withdraw({
+      withdrawalOpen.withdraw({
         ...SCOPE,
         authority: { signedSession: 'cookie', csrfNonce: 'nonce' },
       }),
     ).rejects.toThrow('repository.withdraw was reached')
-    await expect(switchedOff.purgeExpired({ batchSize: 1 })).rejects.toThrow(
+    await expect(withdrawalOpen.purgeExpired({ batchSize: 1 })).rejects.toThrow(
       'repository.purgeExpired was reached',
     )
   })

@@ -575,6 +575,35 @@ describe('Contact Request repository', () => {
     })
   })
 
+  it('answers a key that no longer opens the details as unavailable and records no reveal', async () => {
+    await repository().create(createInput())
+    const rotated = createContactRequestRepository(
+      drizzle(getPool()) as unknown as Database,
+      createContactRequestEncryption({
+        activeKeyId: 'v1',
+        keys: { v1: '55'.repeat(32) },
+        generateIv: () => randomBytes(12),
+      }),
+    )
+
+    await expect(
+      rotated.reveal({
+        scope: createInput().scope,
+        contactRequestId: REQUEST_A,
+        authorization: managerAuthorization(),
+        auditId: randomUUID(),
+        accessPurpose: 'respond_to_contact_request',
+        at: NOW,
+      }),
+    ).resolves.toEqual({ outcome: 'unavailable' })
+
+    const audits = await getPool().query(
+      `SELECT 1 FROM guest_contact_request_reveal_audits WHERE contact_request_id = $1`,
+      [REQUEST_A],
+    )
+    expect(audits.rowCount).toBe(0)
+  })
+
   it('denies expired reads before cleanup and advances a restart-safe bounded purge checkpoint', async () => {
     const submittedAt = new Date('2026-07-01T09:00:00.000Z')
     const secondResponse = 'ca000000-0000-4000-8000-000000000031'
@@ -685,6 +714,17 @@ describe('Contact Request repository', () => {
       submittedAt,
       expiresAt: new Date('2026-07-31T09:00:00.000Z'),
     })
+    const liveResponse = 'ca000000-0000-4000-8000-000000000033'
+    const liveRequest = 'ca000000-0000-4000-8000-000000000043'
+    const liveSubmittedAt = new Date('2026-08-25T09:00:00.000Z')
+    await seedResponse(liveResponse, liveSubmittedAt)
+    await repository().create({
+      ...createInput(),
+      id: liveRequest,
+      responseId: liveResponse,
+      submittedAt: liveSubmittedAt,
+      expiresAt: new Date('2026-09-24T09:00:00.000Z'),
+    })
     const db = drizzle(getPool()) as unknown as Database
     const guestContactRequestRetentionSweep = contactRequestRetentionSweep({
       repo: createContactRequestRetentionRepository(db),
@@ -707,6 +747,14 @@ describe('Contact Request repository', () => {
       REQUEST_A,
     ])
     expect(request.rows[0]).toEqual({ status: 'expired', encrypted_contact: null })
+    const live = await getPool().query<{
+      status: string
+      encrypted_contact: string | null
+    }>(`SELECT status, encrypted_contact FROM guest_contact_requests WHERE id = $1`, [
+      liveRequest,
+    ])
+    expect(live.rows[0]?.status).toBe('active')
+    expect(live.rows[0]?.encrypted_contact).not.toBeNull()
     const evidence = await getPool().query<{
       outcome: string
       batches: number
