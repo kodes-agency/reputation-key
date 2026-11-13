@@ -95,6 +95,14 @@ export const HEAD_COVERAGE_ALERT_AFTER_MS = 24 * 60 * 60 * 1000
  */
 export const COUNT_DROP_PERSISTENT_AFTER_MS = 72 * 60 * 60 * 1000
 
+/**
+ * The count-drop alert counts a drop only while a head check saw it this
+ * recently: the longest gap between two looks plus an hour for the start spread
+ * and the queue. A Property whose head checks stopped (every look a full
+ * listing, or checks turned off) keeps no standing alarm on an old sighting.
+ */
+export const COUNT_DROP_CHECKED_FRESH_MS = DISCOVERY_LOOK_MAX_GAP_MS + 60 * 60 * 1000
+
 /** A location is suspect after this many missed pushes in the health window. */
 const LOCATION_SUSPECT_MISSED = 1
 

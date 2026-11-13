@@ -349,11 +349,13 @@ export const createReviewHeadCheckRepository = (
 
     recordCountDrop: async ({ propertyId, seenAt }) =>
       trace('review.headCheck.recordCountDrop', async () => {
-        // Update only, as for the cover. The stamp keeps the first sighting.
+        // Update only, as for the cover. The stamp keeps the first sighting;
+        // the check stamp moves to every check that still sees the drop.
         const rows = await db
           .update(reviewSyncState)
           .set({
             countDropSeenAt: sql`COALESCE(${reviewSyncState.countDropSeenAt}, ${seenAt})`,
+            countDropCheckedAt: seenAt,
             updatedAt: sql`transaction_timestamp()`,
           })
           .where(
@@ -371,7 +373,11 @@ export const createReviewHeadCheckRepository = (
         // Most checks find no drop: write only when there is one to clear.
         await db
           .update(reviewSyncState)
-          .set({ countDropSeenAt: null, updatedAt: sql`transaction_timestamp()` })
+          .set({
+            countDropSeenAt: null,
+            countDropCheckedAt: null,
+            updatedAt: sql`transaction_timestamp()`,
+          })
           .where(
             and(
               eq(reviewSyncState.propertyId, propertyId),

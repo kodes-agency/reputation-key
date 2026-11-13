@@ -394,13 +394,13 @@ describe.sequential(
     const dropOf = async (property: string) =>
       (
         await pool.query(
-          `SELECT count_drop_seen_at, updated_at FROM review_sync_state
+          `SELECT count_drop_seen_at, count_drop_checked_at, updated_at FROM review_sync_state
             WHERE property_id = $1 AND source = 'google'`,
           [property],
         )
       ).rows.at(0)
 
-    it('keeps the first sighting of a drop and returns it to every later check', async () => {
+    it('keeps the first sighting of a drop, returns it to every later check and dates the latest check', async () => {
       await dated(PROP_A)
 
       await expect(
@@ -410,7 +410,10 @@ describe.sequential(
         repo.recordCountDrop({ propertyId: PROP_A, seenAt: NOW }),
       ).resolves.toEqual(ago(60_000))
 
-      expect(await dropOf(PROP_A)).toMatchObject({ count_drop_seen_at: ago(60_000) })
+      expect(await dropOf(PROP_A)).toMatchObject({
+        count_drop_seen_at: ago(60_000),
+        count_drop_checked_at: NOW,
+      })
     })
 
     it('clears a drop, and writes nothing when there is none to clear', async () => {
@@ -421,7 +424,10 @@ describe.sequential(
       const cleared = await dropOf(PROP_A)
       await repo.clearCountDrop({ propertyId: PROP_A })
 
-      expect(cleared).toMatchObject({ count_drop_seen_at: null })
+      expect(cleared).toMatchObject({
+        count_drop_seen_at: null,
+        count_drop_checked_at: null,
+      })
       expect(await dropOf(PROP_A)).toEqual(cleared)
     })
   },

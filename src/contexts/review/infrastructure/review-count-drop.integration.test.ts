@@ -17,6 +17,7 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { readSyncPushHealth } from '#/shared/db/sync-push-health'
 import {
   googleConnectionId,
   organizationId,
@@ -100,6 +101,8 @@ const logger: LoggerPort = {
 let listed: readonly GoogleReview[] = []
 /** Google's own total, which it updates apart from its list. */
 let googleTotal = 0
+/** A confirmation scan that lists something else, once: the listing moved. */
+let movedConfirmation: GoogleReviewPage | null = null
 /** The reviews a direct read finds on Google. Everything else is gone. */
 let readable: readonly GoogleReview[] = []
 
@@ -111,7 +114,12 @@ const listing = (): GoogleReviewPage => ({
 })
 
 const googleReviewApi: GoogleReviewApiPort = {
-  listReviewsPage: vi.fn(async () => listing()),
+  listReviewsPage: vi.fn(async ({ phase }) => {
+    const moved = phase === 'confirmation' ? movedConfirmation : null
+    if (moved === null) return listing()
+    movedConfirmation = null
+    return moved
+  }),
   readReviewsHead: vi.fn(async () => ({
     status: 'ok' as const,
     reviews: listed,
@@ -273,7 +281,7 @@ const asDate = (value: unknown): Date | null =>
 /** The discovery row's stamps and the newest completed listing. */
 async function syncState() {
   const state = await db.execute(sql`
-    SELECT full_read_requested_at, count_drop_seen_at
+    SELECT full_read_requested_at, count_drop_seen_at, count_drop_checked_at
     FROM review_sync_state WHERE property_id = ${PROPERTY} AND source = 'google'
   `)
   const fact = await db.execute(sql`
@@ -285,6 +293,7 @@ async function syncState() {
   return {
     requestedAt: asDate(state.rows[0]?.full_read_requested_at),
     dropSeenAt: asDate(state.rows[0]?.count_drop_seen_at),
+    dropCheckedAt: asDate(state.rows[0]?.count_drop_checked_at),
     listedAt: asDate(fact.rows[0]?.listed_at),
   }
 }
@@ -321,6 +330,7 @@ async function elapse(ms: number): Promise<void> {
   await db.execute(sql`
     UPDATE review_sync_state
     SET count_drop_seen_at = count_drop_seen_at - (${seconds} * interval '1 second'),
+        count_drop_checked_at = count_drop_checked_at - (${seconds} * interval '1 second'),
         full_read_requested_at = full_read_requested_at - (${seconds} * interval '1 second')
     WHERE property_id = ${PROPERTY}
   `)
@@ -415,6 +425,7 @@ beforeEach(async () => {
     VALUES (${PROPERTY}, 'google', now())
   `)
   readable = []
+  movedConfirmation = null
   vi.mocked(googleReviewApi.getReview).mockClear()
   listed = [deleted, first, second]
   googleTotal = 3
@@ -465,6 +476,80 @@ describe('a listing that records a first miss (real PostgreSQL)', () => {
       confirmed.listedAt?.getTime() ?? 0,
     )
     expect((await lookAfter(6 * HOUR_MS)).kind).toBe('skip')
+  })
+
+  it('still asks when the run that recorded the miss fails after its scan and a restart completes', async () => {
+    const id = await storedIdOf(deleted)
+    listed = [first, second]
+    googleTotal = 2
+    // The confirmation scan sees a review gone that the main scan listed, so
+    // the run that recorded the first miss ends as a listing that moved and a
+    // fresh run completes in its place.
+    movedConfirmation = { ...listing(), reviews: [first] }
+
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+
+    const runs = await db.execute(sql`
+      SELECT state FROM review_provider_snapshot_runs
+      WHERE organization_id = ${ORG} ORDER BY started_at
+    `)
+    expect(runs.rows.map((row) => row.state)).toEqual([
+      'completed',
+      'failed',
+      'completed',
+    ])
+    expect(await missedOf(id)).toBe(true)
+    const missed = await syncState()
+    expect(missed.requestedAt).toEqual(missed.listedAt)
+    expect(await lookAfter(6 * HOUR_MS)).toEqual({ kind: 'full', reason: 'requested' })
+
+    // The confirming listing removes the review and asks nothing more.
+    await elapse(6 * HOUR_MS)
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+    expect(await sourceStateOf(id)).toBe('provider_deleted')
+    expect((await lookAfter(6 * HOUR_MS)).kind).toBe('skip')
+  })
+})
+
+describe('a stale count-drop stamp on a Property no head check reaches (real PostgreSQL)', () => {
+  it('clears on the next listing that leaves the counts level and raises no alert', async () => {
+    // Syncable, so the count-drop alert would count it.
+    await db.execute(sql`
+      UPDATE properties
+      SET google_connection_id = ${CONNECTION}, gbp_account_id = 'count-drop-account',
+          gbp_location_id = 'count-drop-location', google_binding_state = 'active'
+      WHERE id = ${PROPERTY}
+    `)
+    const baseline = (await readSyncPushHealth(db, false, 6)).countDrop.persistentCount
+    // One check saw a drop 80 hours ago; every look since was a full listing.
+    await db.execute(sql`
+      UPDATE review_sync_state
+      SET count_drop_seen_at = now() - interval '80 hours',
+          count_drop_checked_at = now() - interval '80 hours'
+      WHERE property_id = ${PROPERTY}
+    `)
+
+    expect((await readSyncPushHealth(db, false, 6)).countDrop.persistentCount).toBe(
+      baseline,
+    )
+
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+
+    const after = await syncState()
+    expect(after.dropSeenAt).toBeNull()
+    expect(after.dropCheckedAt).toBeNull()
+    expect((await readSyncPushHealth(db, false, 6)).countDrop.persistentCount).toBe(
+      baseline,
+    )
+  })
+
+  it('keeps the stamp while the listing still leaves Google’s total below the stored count', async () => {
+    googleTotal = 2
+    await headCheck()
+
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+
+    expect((await syncState()).dropSeenAt).not.toBeNull()
   })
 })
 

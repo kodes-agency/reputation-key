@@ -150,32 +150,74 @@ export async function recordMissingFromListing(tx: Tx, run: RunRow): Promise<voi
 }
 
 /**
- * A run whose listing recorded a first miss asks the discovery sweep for the
- * next full read, so the listing that can confirm the miss comes six hours
- * after this one rather than a whole reconciliation window later (Google's
- * first page never shows a deletion). Called by the transaction that completes
- * the run, so the request carries the same instant as the run's verified fact;
- * the sweep counts a request made no earlier than the last listing and runs it
- * once that listing is six hours old. A later run that misses the same Review
- * again does not ask: its first miss belongs to this run. Writes nothing for a
- * Property the sweep has never looked at.
+ * A completed run asks the discovery sweep for the next full read when a
+ * stored Review has a first miss no request has followed yet, so the listing
+ * that can confirm the miss comes six hours after this one rather than a whole
+ * reconciliation window later (Google's first page never shows a deletion).
+ * The request follows the miss, not the run that recorded it: a run that
+ * recorded a first miss and then failed leaves the asking to the run that
+ * completes after it, and a later run that misses the same Review again does
+ * not ask twice, because a request already postdates the miss. Called by the
+ * transaction that completes the run, so the request carries the same instant
+ * as the run's verified fact; the sweep counts a request made no earlier than
+ * the last listing and runs it once that listing is six hours old. Writes
+ * nothing for a Property the sweep has never looked at.
  */
-export async function requestFullReadAfterFirstMiss(tx: Tx, run: RunRow): Promise<void> {
+async function requestFullReadAfterFirstMiss(tx: Tx, run: RunRow): Promise<void> {
   await tx.execute(sql`
-    UPDATE review_sync_state
-    SET full_read_requested_at = GREATEST(full_read_requested_at, transaction_timestamp()),
+    UPDATE review_sync_state st
+    SET full_read_requested_at = GREATEST(st.full_read_requested_at, transaction_timestamp()),
         updated_at = transaction_timestamp()
-    WHERE property_id = ${run.propertyId}
-      AND source = 'google'
+    WHERE st.property_id = ${run.propertyId}
+      AND st.source = 'google'
       AND EXISTS (
         SELECT 1 FROM review_provider_subjects s
         WHERE s.organization_id = ${run.organizationId}
           AND s.property_id = ${run.propertyId}
           AND s.source_epoch = ${run.sourceEpoch}
           AND s.state IN ('linked', 'source_expired')
-          AND s.first_missing_snapshot_run_id = ${run.id}
+          AND s.first_missing_at IS NOT NULL
+          AND s.first_missing_at > COALESCE(st.full_read_requested_at, '-infinity')
       )
   `)
+}
+
+/**
+ * A completed run whose Google total is no lower than the Reviews the Property
+ * now holds live clears a drop in Google's total that head checks stamped: the
+ * listing either removed the deleted Review or found nothing missing. Without
+ * this, a Property whose looks are all full listings (no head check to see the
+ * counts level) would keep an old stamp. Writes only when a stamp exists.
+ */
+async function clearCountDropAfterListing(tx: Tx, run: RunRow): Promise<void> {
+  if (run.expectedTotal == null) return
+  await tx.execute(sql`
+    UPDATE review_sync_state
+    SET count_drop_seen_at = NULL,
+        count_drop_checked_at = NULL,
+        updated_at = transaction_timestamp()
+    WHERE property_id = ${run.propertyId}
+      AND source = 'google'
+      AND count_drop_seen_at IS NOT NULL
+      AND ${run.expectedTotal} >= (
+        SELECT count(*) FROM reviews r
+        JOIN review_source_contents c
+          ON c.review_id = r.id
+         AND c.organization_id = r.organization_id
+         AND c.property_id = r.property_id
+        WHERE r.organization_id = ${run.organizationId}
+          AND r.property_id = ${run.propertyId}
+          AND r.platform = 'google'
+          AND r.source_epoch = ${run.sourceEpoch}
+          AND r.source_content_state = 'active'
+      )
+  `)
+}
+
+/** What the transaction that completes a run does for discovery after its listing. */
+export async function followCompletedListing(tx: Tx, run: RunRow): Promise<void> {
+  await requestFullReadAfterFirstMiss(tx, run)
+  await clearCountDropAfterListing(tx, run)
 }
 
 /**

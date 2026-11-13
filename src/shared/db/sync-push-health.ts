@@ -42,6 +42,7 @@ import {
 } from '#/shared/db/schema/review-sync.schema'
 import { propertyIsSyncable, propertySyncableSince } from '#/shared/db/syncable-property'
 import {
+  COUNT_DROP_CHECKED_FRESH_MS,
   COUNT_DROP_PERSISTENT_AFTER_MS,
   DISCOVERY_LOOK_MAX_GAP_MS,
   HEAD_COVERAGE_ALERT_AFTER_MS,
@@ -104,7 +105,8 @@ export type SyncPushHealth = Readonly<{
   countDrop: Readonly<{
     /**
      * Syncable Properties whose head checks first saw Google's total below the
-     * stored live count 72 hours ago or more, and have seen it since.
+     * stored live count 72 hours ago or more, and one of which still saw it in
+     * the last seven hours.
      */
     persistentCount: number
     /** How long the oldest such drop has lasted; null when none has. */
@@ -320,7 +322,9 @@ async function readPushHealth(db: Database): Promise<SyncPushHealth['push']> {
  * the one that lists in full).
  *
  * The same pass counts the Properties whose drop in Google's total has lasted
- * 72 hours (`count_drop_seen_at`): head checks stop asking for full reads then.
+ * 72 hours (`count_drop_seen_at`) and that a head check still saw recently
+ * (`count_drop_checked_at`): head checks stop asking for full reads then. An
+ * old sighting nothing has confirmed since raises nothing.
  */
 async function readReconciliationAge(
   db: Database,
@@ -353,7 +357,11 @@ async function readReconciliationAge(
         ))`
   const overdue = sql`${ageMs} > ${limitMs}`
   const dropAgeMs = sql`EXTRACT(EPOCH FROM (NOW() - ${reviewSyncState.countDropSeenAt})) * 1000`
-  const dropPersistent = sql`${dropAgeMs} >= ${COUNT_DROP_PERSISTENT_AFTER_MS}::float8`
+  const dropPersistent = sql`(
+    ${dropAgeMs} >= ${COUNT_DROP_PERSISTENT_AFTER_MS}::float8
+    AND EXTRACT(EPOCH FROM (NOW() - ${reviewSyncState.countDropCheckedAt})) * 1000
+      <= ${COUNT_DROP_CHECKED_FRESH_MS}::float8
+  )`
   const [row] = await db
     .select({
       overdue: sql<number>`count(*) FILTER (WHERE ${overdue})::int`,

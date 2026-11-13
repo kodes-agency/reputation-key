@@ -62,8 +62,10 @@ export const reviewSyncState = pgTable(
     // sweep honours it once, when the last listing is six hours old.
     fullReadRequestedAt: timestamp('full_read_requested_at', { withTimezone: true }),
     // Migration 0152: when a head check first saw Google's total below the
-    // stored live count. Cleared once a check sees it level again.
+    // stored live count, and the latest check that still saw it. Cleared once a
+    // check sees it level again or a completed listing leaves it level.
     countDropSeenAt: timestamp('count_drop_seen_at', { withTimezone: true }),
+    countDropCheckedAt: timestamp('count_drop_checked_at', { withTimezone: true }),
   },
   (t) => [
     primaryKey({ columns: [t.propertyId, t.source] }),

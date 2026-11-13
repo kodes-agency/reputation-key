@@ -43,9 +43,9 @@ import { createReviewSourceContentLifecycleStore } from './source-content-lifecy
 import {
   candidateEditedSinceListing,
   foundUnlistedBefore,
+  followCompletedListing,
   listingAgreement,
   recordMissingFromListing,
-  requestFullReadAfterFirstMiss,
   refuseRemovalWithoutExactListing,
 } from './review-provider-snapshot-listing'
 import { recordedFailureCode } from './review-provider-snapshot-listing-change'
@@ -1392,7 +1392,7 @@ export const createReviewProviderSnapshotRepository = (
       const done = more.length === 0
       if (done) {
         await recordCompletionFacts(tx, run)
-        await requestFullReadAfterFirstMiss(tx, run)
+        await followCompletedListing(tx, run)
       }
       const updated = await tx
         .update(reviewProviderSnapshotRuns)
