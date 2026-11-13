@@ -21,17 +21,30 @@ adapter; no other context reads its tables directly.
 
 ## Feature folders
 
-Server-side code for these features lives beside its tests in
-`consent/` (merchant AI authorization, notices, deferral, renewal; its settings screens are in `consent/ui/`),
-`updates/` (product updates), `feedback/` (beta feedback submission and delivery),
-`operator/` (platform console), `staff/` (staff accounts, invitations and
-address checks) and `members/` (member invitations, role changes, removal and
-Property access grants). Files there are `*.server.ts`; server functions stay under
-`server/`. The member directory screens (members, invitations, role change, removal,
-Property access), sign-in and registration, reset password, profile and security
-settings sit in `members/ui/`; routes import them from there. The staff account roster and the personal staff
-home sit in `staff/ui/accounts/` and `staff/ui/home/`. Anything a screen, route, script or another context imports, and the
-rights, erasure and export contributors, stay in the layer folders.
+Each feature's server code lives beside its tests, and its screens in a `ui/`
+folder beside it; routes import the screens from there:
+
+- `consent/` — merchant AI authorization, notices, deferral and renewal; the
+  organization AI settings screens are in `consent/ui/`.
+- `updates/` — product updates; the What's new modal, history and preferences
+  are in `updates/ui/`.
+- `feedback/` — beta feedback submission and delivery; the launcher and form are
+  in `feedback/ui/`.
+- `operator/` — the platform console and its Organization creation and
+  first-AccountAdmin invitation screens (`operator/ui/`).
+- `staff/` — staff accounts, invitations and address checks; the account roster
+  is in `staff/ui/accounts/` and the personal staff home in `staff/ui/home/`.
+- `members/` — member invitations, role changes, removal and Property access
+  grants; the member directory screens (members, invitations, role change,
+  removal, Property access), sign-in, registration, reset password, profile and
+  security settings are in `members/ui/`.
+
+Files in these folders are `*.server.ts`; server functions stay under `server/`.
+The Organization settings screens still live in
+`src/components/features/organization/`. Anything a screen, route, script or
+another context imports, and the rights, erasure and export contributors, stay
+in the layer folders. Screens take other contexts' server-function signatures as
+types only.
 
 ## Invariants
 
@@ -126,7 +139,7 @@ Unpaged callers receive the full roster; the manager directory excludes staff-on
 logins in SQL before pagination. Member-by-id reads and the exact owner count use
 the caller's Organization, independently of the session's active Organization.
 
-`updateOrganization` is composed once, in `build-organization-settings.ts`, with the
+`updateOrganization` is composed once, in `build.ts`, with the
 logo cleanup it needs (the object delete is late-bound: the object store is built
 with Portal, after Identity); its server function calls `requests.updateOrganization`
 and composes nothing. Residual gap: the logo and avatar upload requests
@@ -198,6 +211,27 @@ lifecycle facts through the durable outbox. It subscribes to no foreign events.
 `identity.organization.created` is legacy: nothing has emitted it since `/register` was
 deleted, and Recent Activity keeps projecting and replaying the facts recorded before.
 
+## Organization closure
+
+The manual rights path (`pnpm ops rights-request organization --apply`, see
+`docs/operations/rights-requests.md`) runs `deleteIdentityOrganizationRows`
+(`infrastructure/adapters/identity-organization-erasure.ts`) behind its journal
+entry, in one transaction. The order is fixed:
+
+1. Delete the Organization's AI decide-later records, Property access grants,
+   AI notice receipts, product update receipts and settings, and invitations.
+2. Tombstone the Organization row: the id stays; the name, slug, contact email
+   and logo are replaced or cleared, and `metadata` holds the closed date and
+   `closed on request`. A repeat changes nothing.
+3. Delete the members, last. The trigger that refuses to delete an
+   Organization's last owner is disabled for that one statement under a
+   five-second lock timeout and enabled again straight after; the member lock
+   keeps every other write to `member` waiting until the commit, and a failure
+   rolls the guard back with the deletes.
+
+Login identities (`user`, `session`, `account`) stay: a person may belong to
+another Organization.
+
 ## Lifecycle compatibility
 
 People rows are Identity-owned, but durable lifecycle receipt context `staff`
@@ -207,7 +241,7 @@ Portal Responsibilities, Portal Group memberships, Staff Participations, Staff u
 links, then Staff Participants; it never deletes users, memberships, sessions, or
 Property access grants.
 
-## Staff account foundation — 2026-11-01 (ADR 0076)
+## Staff accounts (ADR 0076)
 
 `staff-accounts.ts` exposes Property-scoped batch checking, Add, Remove, Rename, Resend, list and colleague settings through execution policy under `staff.accounts` (controlled beta). The session-only self door requires current membership, an active link and active personal participation. It never accepts a person id. Members keep only their own password/profile actions and `staff.self`; no manager function admits them.
 
@@ -215,10 +249,9 @@ Add reserves one operation and stable identifiers under the address lease before
 
 `staff_onboardings` and `staff_property_settings` belong to Identity's retained `staff` export and purge contribution. The former holds contact data only while unfinished. The latter defaults the colleague list off. `staff_address_leases` holds no contact data and no rows once its commands finish. The notice version and acknowledgement time live on the effective-dated login link.
 
-### Manager round 2 (2026-11-03)
+### Roster, delivery failures and email correction
 
-Staff is one account roster; standalone profile server functions and forms are
-removed. Retained participation commands still serve attribution and removal.
+Staff is one account roster; there are no standalone profile server functions or forms. Retained participation commands still serve attribution and removal.
 The roster exposes joinedAt, current Group and a delivery failure code while
 email remains gated by staff.invite. Completed onboarding can retain
 invitation_delivery_failed without retaining its contact fields; Resend clears

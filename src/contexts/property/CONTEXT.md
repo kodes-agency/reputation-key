@@ -33,9 +33,11 @@ Property lookups.
 
 ## Screens
 
-Archive and restore screens sit in `lifecycle/ui/` and Responsible Manager
-selection in `responsibility/ui/`, and the profile card in `profile/ui/`; routes
-import them from there. Screens take other contexts' server-function signatures
+Archive and restore screens sit in `lifecycle/ui/`, Responsible Manager
+selection in `responsibility/ui/` and the profile card in `profile/ui/`; routes
+import them from there. The Property list, overview, Google, reply voice and
+template screens and the setup wizard still live in
+`src/components/features/{property,property-setup}/`. Screens take other contexts' server-function signatures
 as types only.
 
 ## Model
@@ -90,7 +92,9 @@ foreign keys deliberately stop cross-owner deletion.
    The manager check runs before the transition's transaction, so the transition is fenced on `responsibleManagerRevision` as well as on `sourceEpoch` and `profileVersion`. A release or a save of the managers that commits after the check moves the revision under the Property's row lock, and the Restore is refused with `stale_property`: a release of an archived Property raises no notice (invariant 10), so a Restore committed over it would bring back an active Property with a gap nobody was told of. Asked again, Restore answers `property_restore_not_ready`. A release that commits after the Restore finds the Property active and announces the gap itself.
    Restore returns a fenced destination to `verified` when, and only when, the Google binding is still `active` (`googleReviewDestinationStateAfterLifecycleTransition`). Nothing re-reads it from Google and nothing has to: every binding change (disconnect, relink, scrub) moves the binding off `active` or replaces the destination, so an `active` binding still holding a fenced destination is the same binding (connection, account, location) that destination was accepted for. The URI and its pin are unchanged, so a Portal published against it offers the Google action again without republishing. Under any other binding the destination stays `awaiting_refresh` until a relink accepts a new one, and a Property with no destination keeps none.
 6. Property Google disconnect is a separate, idempotent action available only after Archive. It changes only the Property-owned binding generation and destination readiness; the Organization Google connection, stable Property identity, provider suffix history, and retained managerial data remain intact. Provider identity scrubbing and permanent erasure are not part of this action.
-7. An expired recovery window leaves the Property archived for support handling. There is no automatic purge, hard-delete path, or irreversible erasure in this slice; support-mediated permanent erasure remains separate LIF-01 work.
+7. An expired recovery window leaves the Property archived for support handling. There is no automatic purge and no product hard-delete path; permanent erasure
+   is the owner's manual rights request (`docs/operations/rights-requests.md`),
+   which turns the Property into a content-free `purged` tombstone.
 8. A Google review destination is accepted only from provider discovery/import,
    restricted to approved HTTPS Google hosts, and pinned to the binding generation.
    It carries no age limit and there is no background refresh: the destination
@@ -128,7 +132,7 @@ foreign keys deliberately stop cross-owner deletion.
     `manager_became_ineligible`, the gap is recorded and announced with no actor
     left out, and the save answers `responsible_manager_ineligible`; the rest
     of the selection stays saved.
-11. Responsible Manager history is owned by the Property aggregate. Its behavior at permanent erasure remains part of the future support-mediated LIF-01 workflow; normal product actions cannot erase it.
+11. Responsible Manager history is owned by the Property aggregate. The manual rights request deletes it with the Property's tombstoning; normal product actions cannot erase it.
 12. `verifyPurgeReadiness` fails closed while any Property is still `active` or
     `disconnecting`.
 13. Portal and Guest rows RESTRICT Property deletion until their own purge receipts
@@ -179,13 +183,13 @@ Unit tests stay beside domain rules, use cases, server contracts, public APIs, a
 responsibility/lifecycle behavior. PostgreSQL integration tests cover command
 atomicity, source-epoch fences, archive/restore/disconnect, denied deletion,
 closure readiness, restrictive purge order, export, and replay.
-`property-archive-restore-google-destination.integration.test.ts` runs Archive,
+`lifecycle/archive-restore-google-destination.integration.test.ts` runs Archive,
 Disconnect, Restore and relink as the product does and asserts what Portal
 publication and the guest page are then told about the Google destination.
-`property-update-overlap.integration.test.ts` overlaps two Property saves and
+`profile/update-overlap.integration.test.ts` overlaps two Property saves and
 asserts that neither undoes the other.
-`property-restore-manager-fence.integration.test.ts` releases the last
+`lifecycle/restore-manager-fence.integration.test.ts` releases the last
 Responsible Manager between Restore's check and its commit, and after it.
-`property-google-category-disconnect.integration.test.ts` exercises both public
+`profile/google-category-disconnect.integration.test.ts` exercises both public
 disconnect retries and overlaps create/relink publication with account disconnect
 in both transaction orders, including receipt replay after cleanup.
