@@ -26,11 +26,9 @@
 //                                  success (gate-denial.ts)
 
 import type { Job } from 'bullmq'
-import {
-  ENTRY_POINT_CATALOGUE,
-  type EntryPointRow,
-  type SystemAction,
-} from '#/shared/governance/entry-point-catalogue'
+import type { EntryPointRow, SystemAction } from '#/shared/domain/entry-point-types'
+import { CONSUMER_ENTRY_POINTS } from '#/shared/events/consumer-entry-points'
+import { JOB_ENTRY_POINTS, SCHEDULE_ENTRY_POINTS } from './job-definitions'
 import {
   getDelayedExecutionPolicy,
   type DelayedDecision,
@@ -134,9 +132,11 @@ export type ScopeResolver = (
 
 // ── Catalogue maps (derived at module load) ──────────────────────────
 
-const DELAYED_ROWS = ENTRY_POINT_CATALOGUE.filter(
-  (r) => r.kind === 'job' || r.kind === 'consumer' || r.kind === 'schedule',
-)
+const DELAYED_ROWS: ReadonlyArray<EntryPointRow> = [
+  ...JOB_ENTRY_POINTS,
+  ...CONSUMER_ENTRY_POINTS,
+  ...SCHEDULE_ENTRY_POINTS,
+]
 const JOB_ROW_BY_NAME = new Map(
   DELAYED_ROWS.filter((r) => r.kind === 'job').map((r) => [r.name, r]),
 )
