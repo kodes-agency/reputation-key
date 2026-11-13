@@ -397,8 +397,8 @@ const baseEnvSchema = z.object({
   //   GOOGLE_CONTENT_CAPABILITIES_ALLOWED: property.import_gbp_v2,
   //     property.read_gbp_performance, property.connect_gbp,
   //     property.publish_reply
-  //   AI_CAPABILITIES_ENABLED: review_analysis, reply_drafting,
-  //     property_trends (records RELEASE_SHA on the activation)
+  //   AI_CAPABILITIES_ENABLED: review_analysis, reply_drafting
+  //     (records RELEASE_SHA on the activation)
   GOOGLE_CONTENT_CAPABILITIES_ALLOWED: z.string().optional(),
   AI_CAPABILITIES_ENABLED: z.string().optional(),
   // Explicit test/CI execution identity that authorizes the E2E rate-limit
