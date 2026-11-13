@@ -138,8 +138,11 @@ pseudonym, but not the one the erasure wrote.
   access grants and AI decide-later records; a closure deletes them for every
   Property, plus every member's AI notice receipts and product update receipts
   and settings, and the Organization's memberships, its owners' included, and
-  invitations. Login identities stay: a person may belong to another
-  Organization.
+  invitations. The Organization row stays as a tombstone: its id, the closed
+  date and `closed on request`; the name, slug, contact email and logo
+  reference are replaced or cleared. The stored logo file is not journaled; the
+  hourly pending-upload reclaim deletes it later. Login identities stay: a
+  person may belong to another Organization.
 - **property** (`property`, `organization`): each Property becomes a
   content-free tombstone (`purged`, no name, address or Google binding) and
   its Responsible Managers are deleted. A closure tombstones every Property of

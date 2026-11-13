@@ -70,6 +70,40 @@ async function organizationRow(organizationId: string): Promise<unknown> {
   return result.rows[0]?.row
 }
 
+/** Gives an Organization personal fields, as a live one has; `name` may be any text. */
+async function fillOrganization(organizationId: string, name: string): Promise<void> {
+  await query(
+    `UPDATE organization
+     SET name = $2, slug = $3, "contactEmail" = 'owner@example.test',
+         logo = 'https://example.test/logo.png', metadata = '{"note":"Dana"}'
+     WHERE id = $1`,
+    [organizationId, name, `live-${organizationId}`],
+  )
+}
+
+async function restoreOrganizationRow(row: unknown): Promise<void> {
+  await query(
+    `UPDATE organization o SET name = r.name, slug = r.slug, "contactEmail" = r."contactEmail",
+       logo = r.logo, metadata = r.metadata
+     FROM jsonb_populate_record(null::organization, $1::jsonb) r WHERE o.id = r.id`,
+    [JSON.stringify(row)],
+  )
+}
+
+/** Polls until a backend whose statement matches the pattern waits on a lock. */
+async function waitForLockWait(statementPattern: string): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const result = await query(
+      `SELECT 1 FROM pg_stat_activity
+       WHERE wait_event_type = 'Lock' AND query ~ $1 AND pid <> pg_backend_pid()`,
+      [statementPattern],
+    )
+    if (result.rows.length > 0) return
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  throw new Error(`no backend waiting on a lock in: ${statementPattern}`)
+}
+
 async function guardEnabled(): Promise<boolean> {
   const result = await query(
     `SELECT tgenabled FROM pg_trigger
@@ -108,10 +142,8 @@ describe('Identity closure of an Organization with an owner', () => {
     const before = await members(closed)
     const neighbourBefore = await members(neighbour)
     const neighbourRow = await organizationRow(neighbour)
-    await query(
-      `UPDATE organization SET "contactEmail" = 'owner@example.test' WHERE id = $1`,
-      [closed],
-    )
+    await fillOrganization(closed, 'Seaside Hotels')
+    const closedBefore = await organizationRow(closed)
     expect(before).toHaveLength(1)
     const { store, entries } = recordingJournalStore()
 
@@ -126,10 +158,11 @@ describe('Identity closure of an Organization with an owner', () => {
     expect(await members(closed)).toEqual([])
     expect(await members(neighbour)).toEqual(neighbourBefore)
     expect(await organizationRow(neighbour)).toEqual(neighbourRow)
-    expect(await organizationRow(closed)).toMatchObject({
+    const applied = await organizationRow(closed)
+    expect(applied).toMatchObject({
       id: closed,
       name: 'closed-organization',
-      slug: `closed-${closed}`,
+      slug: `closed_${closed}`,
       contactEmail: null,
       logo: null,
       metadata: JSON.stringify({
@@ -146,6 +179,8 @@ describe('Identity closure of an Organization with an owner', () => {
       `INSERT INTO member SELECT * FROM jsonb_populate_recordset(null::member, $1::jsonb)`,
       [JSON.stringify(before)],
     )
+    await restoreOrganizationRow(closedBefore)
+    expect(await organizationRow(closed)).toEqual(closedBefore)
     const replayed = await db.transaction((tx) =>
       applyRestoreResurrectionFence(tx, {
         entries: entries(),
@@ -156,9 +191,58 @@ describe('Identity closure of an Organization with an owner', () => {
 
     expect(replayed.verified).toBe(true)
     expect(await members(closed)).toEqual([])
-    expect(await organizationRow(closed)).toMatchObject({ name: 'closed-organization' })
+    expect(await organizationRow(closed)).toEqual(applied)
     expect(await members(neighbour)).toEqual(neighbourBefore)
+    expect(await organizationRow(neighbour)).toEqual(neighbourRow)
     expect(await guardEnabled()).toBe(true)
+  })
+
+  it('tombstones an Organization a user named closed-organization, and again on replay', async () => {
+    const closed = await seedOwnedOrganization()
+    const neighbour = await seedOwnedOrganization()
+    holdRightsOrganization(closed)
+    await fillOrganization(closed, 'closed-organization')
+    const before = await members(closed)
+    const closedBefore = await organizationRow(closed)
+    const neighbourRow = await organizationRow(neighbour)
+    const { store, entries } = recordingJournalStore()
+
+    const result = await runRightsExecutor(
+      createIdentityRightsExecutor(db, () => new Date()),
+      rightsPlan('organization', closed),
+      store,
+    )
+
+    expect(result.err).toEqual([])
+    expect(result.code).toBe(0)
+    const applied = await organizationRow(closed)
+    expect(applied).toMatchObject({
+      slug: `closed_${closed}`,
+      contactEmail: null,
+      logo: null,
+      metadata: JSON.stringify({
+        closedAt: RIGHTS_FIXTURE_AT.toISOString(),
+        reason: 'closed on request',
+      }),
+    })
+
+    await query(
+      `INSERT INTO member SELECT * FROM jsonb_populate_recordset(null::member, $1::jsonb)`,
+      [JSON.stringify(before)],
+    )
+    await restoreOrganizationRow(closedBefore)
+    const replayed = await db.transaction((tx) =>
+      applyRestoreResurrectionFence(tx, {
+        entries: entries(),
+        restorePointAt: new Date(RIGHTS_FIXTURE_AT.getTime() - 86_400_000),
+        replayers: [identityOrganizationErasureReplayer],
+      }),
+    )
+
+    expect(replayed.verified).toBe(true)
+    expect(await organizationRow(closed)).toEqual(applied)
+    expect(await members(closed)).toEqual([])
+    expect(await organizationRow(neighbour)).toEqual(neighbourRow)
   })
 
   it('keeps the membership table writable for others until the closure reaches the member delete', async () => {
@@ -185,7 +269,7 @@ describe('Identity closure of an Organization with an owner', () => {
         rightsPlan('organization', closed),
         recordingJournalStore().store,
       )
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      await waitForLockWait('DELETE FROM "?invitation"?')
 
       const writer = await lease.pool.connect()
       try {
@@ -196,6 +280,9 @@ describe('Identity closure of an Organization with an owner', () => {
           [neighbour],
         )
         await writer.query('COMMIT')
+      } catch (error) {
+        await writer.query('ROLLBACK')
+        throw error
       } finally {
         writer.release()
       }

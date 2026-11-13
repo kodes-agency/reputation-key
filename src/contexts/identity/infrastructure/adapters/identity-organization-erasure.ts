@@ -16,8 +16,9 @@
 // A trigger refuses to delete an Organization's last owner, which every live
 // Organization has. A closure removes every member, so that trigger is off
 // only around the member delete, under a five-second lock timeout, and is on
-// again right after. The lock it takes keeps every other write to `member`
-// waiting meanwhile, and a failure rolls the change back with the deletes.
+// again right after. The member delete is the closure's last statement: the
+// lock it takes keeps every other write to `member` waiting until the
+// transaction commits, and a failure rolls the change back with the deletes.
 
 import { sql } from 'drizzle-orm'
 import type { Tx } from '#/shared/outbox/commit'
@@ -38,6 +39,8 @@ const LAST_OWNER_GUARD = Object.freeze({
 /** The note a closed Organization's tombstone carries. */
 export const CLOSED_ON_REQUEST = 'closed on request'
 const CLOSED_ORGANIZATION_NAME = 'closed-organization'
+/** An underscore, which the slug rule rejects, so no live Organization holds it. */
+const CLOSED_SLUG_PREFIX = 'closed_'
 
 /** No table here references another, so the order is only for reading. */
 const DELETED_TABLES: readonly string[] = Object.freeze([
@@ -101,7 +104,7 @@ async function deleteMembers(tx: Tx, organizationId: string): Promise<number> {
   return deleted
 }
 
-/** Replaces the Organization's name, slug, contact email and logo; returns the rows changed. */
+/** Replaces the Organization's name, slug, contact email, logo and metadata; returns the rows changed. */
 async function tombstoneOrganization(
   tx: Tx,
   organizationId: string,
@@ -114,12 +117,13 @@ async function tombstoneOrganization(
   const result = await tx.execute(sql`
     UPDATE organization
     SET name = ${CLOSED_ORGANIZATION_NAME},
-        slug = 'closed-' || id,
+        slug = ${CLOSED_SLUG_PREFIX}::text || id,
         "contactEmail" = NULL,
         logo = NULL,
         metadata = ${metadata}
     WHERE id = ${organizationId}
-      AND name <> ${CLOSED_ORGANIZATION_NAME}
+      AND (name, slug, "contactEmail", logo, metadata)
+        IS DISTINCT FROM (${CLOSED_ORGANIZATION_NAME}::text, ${CLOSED_SLUG_PREFIX}::text || id, NULL, NULL, ${metadata}::text)
     RETURNING 1
   `)
   return result.rows.length
@@ -138,6 +142,6 @@ export async function deleteIdentityOrganizationRows(
   for (const table of DELETED_TABLES) {
     changed += await deleteRows(tx, table, organizationId)
   }
-  changed += await deleteMembers(tx, organizationId)
-  return changed + (await tombstoneOrganization(tx, organizationId, closedAt))
+  changed += await tombstoneOrganization(tx, organizationId, closedAt)
+  return changed + (await deleteMembers(tx, organizationId))
 }
