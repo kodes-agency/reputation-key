@@ -42,7 +42,7 @@ async function openConsole(page: Page): Promise<void> {
   await expect(
     page.getByRole('heading', { name: 'Operator console', level: 1 }),
   ).toBeVisible()
-  await expectPhoneLayout(page)
+  await expectPhoneLayout(page, ['appTopBar'])
 }
 
 /** The console's row for one Organization, found by its heading. */

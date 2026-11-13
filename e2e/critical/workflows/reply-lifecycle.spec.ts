@@ -346,7 +346,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
       timeout: 15_000,
     })
     await expect(page.getByPlaceholder('Write a reply…')).toBeVisible()
-    await expectPhoneLayout(page)
+    await expectPhoneLayout(page, ['appTopBar'])
 
     // Draft. There is no Save button: the composer AUTOSAVES, so the draft is
     // proven by the row appearing, not by a click.

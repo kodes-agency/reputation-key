@@ -233,7 +233,7 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
     await page.goto(`/properties/${propertyId}/goals`)
     await expectClimbCard(page, propertyId)
     await assertNoAxeViolations(page, 'Goals page with the rating goal card')
-    await expectPhoneLayout(page)
+    await expectPhoneLayout(page, ['appTopBar'])
 
     await page.goto(`/properties/${propertyId}/goals/google-rating`)
     // "What happened" opens on a press, which sends nothing before React hydrates.
@@ -242,7 +242,7 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
     // Where the goal stands comes first: the card's headline and its ruler.
     await expect(detail.getByText('2 new reviews to 4.0', { exact: true })).toBeVisible()
     await expect(detail.getByRole('img', { name: RULER_NAME, exact: true })).toBeVisible()
-    await expectPhoneLayout(page)
+    await expectPhoneLayout(page, ['appTopBar'])
     // Then three questions, each in a band of its own.
     for (const question of [
       'Is your rating going up?',

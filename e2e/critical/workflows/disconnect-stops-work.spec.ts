@@ -340,6 +340,6 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     // The connection reads as disconnected where a manager looks for it.
     await page.goto('/settings/integrations')
     await expect(page.getByText('Disconnected').first()).toBeVisible({ timeout: 15_000 })
-    await expectPhoneLayout(page)
+    await expectPhoneLayout(page, ['appTopBar'])
   })
 })

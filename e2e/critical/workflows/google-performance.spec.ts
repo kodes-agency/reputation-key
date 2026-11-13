@@ -240,7 +240,7 @@ test.describe('Critical workflow: live Google Performance', () => {
     ).toBeVisible()
     const performanceRegion = page.getByRole('main')
     await expect(performanceRegion).toBeVisible()
-    await expectPhoneLayout(page)
+    await expectPhoneLayout(page, ['appTopBar'])
     await expect(
       performanceRegion.getByText('Website clicks', { exact: true }).first(),
     ).toBeVisible()

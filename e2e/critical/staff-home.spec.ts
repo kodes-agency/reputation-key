@@ -121,7 +121,7 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
     await expect(
       staffPage.getByRole('heading', { name: 'Before you start' }),
     ).toHaveCount(0)
-    await expectPhoneLayout(staffPage)
+    await expectPhoneLayout(staffPage, ['appTopBar'])
 
     const home = await callServerFnGet<{ participations: { participationId: string }[] }>(
       staffPage,

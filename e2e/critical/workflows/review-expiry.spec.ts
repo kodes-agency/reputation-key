@@ -107,7 +107,7 @@ test.describe('Critical workflow: review expiry and the report-only purge', () =
       timeout: 15_000,
     })
     await expect(page.getByText('Expired Retention Reviewer')).toHaveCount(0)
-    await expectPhoneLayout(page)
+    await expectPhoneLayout(page, ['appTopBar'])
     await expect(page.getByText('Expired review body — must never render.')).toHaveCount(
       0,
     )
@@ -117,7 +117,7 @@ test.describe('Critical workflow: review expiry and the report-only purge', () =
     await expect(
       page.getByText('Review content unavailable (source cache expired)').first(),
     ).toBeVisible({ timeout: 15_000 })
-    await expectPhoneLayout(page)
+    await expectPhoneLayout(page, ['appTopBar'])
     await expect(page.getByText('Expired review body — must never render.')).toHaveCount(
       0,
     )

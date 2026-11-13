@@ -515,7 +515,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(
       page.getByRole('button', { name: /use the property.s name and logo/i }),
     ).toBeVisible()
-    await expectPhoneLayout(page)
+    await expectPhoneLayout(page, ['appTopBar'])
     await page.goto(
       `/properties/${propertyId}/portals/${reception.id}?tab=page&section=look`,
     )
