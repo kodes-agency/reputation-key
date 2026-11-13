@@ -230,6 +230,17 @@ describe.sequential('rebuildInboxProjection', () => {
     expect(await events.created()).toHaveLength(0)
   })
 
+  it('reports a review it cannot materialise instead of only logging it', async () => {
+    const src = makeSource({ materialReviewRevision: null })
+    const { useCase, seed, items } = setup({ sources: [src] })
+
+    await seed()
+    const report = await useCase({ organizationId: ORG, dryRun: false })
+
+    expect(report).toMatchObject({ scanned: 1, created: 0, skipped: 1 })
+    expect(await items()).toHaveLength(0)
+  })
+
   it('creates a missing expired review open without inferring a handling outcome', async () => {
     const src = makeSource({ contentExpiresAt: new Date('2026-01-01') })
     const { useCase, seed, items, events } = setup({ sources: [src] })

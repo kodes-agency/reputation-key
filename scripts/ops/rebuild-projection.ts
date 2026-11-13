@@ -9,7 +9,7 @@
 //     --reason <text> --apply [--batch-size <n>]
 //
 // Requires DATABASE_URL. The use case is idempotent (repairs converge); the
-// report is content-free (scanned/created/closed/milestones counts).
+// report is content-free (scanned/created/closed/milestones/skipped counts).
 //
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { runOperatorCommand } from './operator-command'

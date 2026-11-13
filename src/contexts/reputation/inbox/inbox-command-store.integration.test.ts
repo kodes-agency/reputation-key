@@ -959,6 +959,67 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     })
   })
 
+  it('decides the actor and the assignee of a manual reopen in one Accounts call', async () => {
+    await seedReviewRevisionOne()
+    const seedingStore = createAtomicInboxCommandStore(db)
+    const closed = makeItem({ status: 'closed', closedAt: NOW, assignedTo: USER_A })
+    await seedingStore.createItem(closed, null, { materialReviewRevision: 1 })
+    const authorize: InboxCommandAuthority = vi.fn(async () => ({
+      allowed: true as const,
+    }))
+    const store = createProductionInboxCommandStore(db, authorize, () => NOW)
+
+    await store.reopenReviewCycle({
+      item: closed,
+      expected: { cycleNumber: 1, materialReviewRevision: 1, stateRevision: 1 },
+      reason: 'other',
+      explanation: 'A new guest message needs a response.',
+      fact: inboxItemStatusChanged({
+        inboxItemId: closed.id,
+        organizationId: closed.organizationId,
+        propertyId: closed.propertyId,
+        oldStatus: 'closed',
+        newStatus: 'open',
+        userId: USER_B,
+        occurredAt: NOW,
+      }),
+      now: NOW,
+    })
+
+    expect(authorize).toHaveBeenCalledTimes(1)
+    const purposes = vi
+      .mocked(authorize)
+      .mock.calls[0]?.[1].requirements.map((requirement) => requirement.purpose)
+    expect(purposes?.slice().sort()).toEqual(['actor', 'assignee'])
+  })
+
+  it('answers not_found, not a revision conflict, when a reopen names another source', async () => {
+    await seedReviewRevisionOne()
+    const store = createAtomicInboxCommandStore(db)
+    const closed = makeItem({ status: 'closed', closedAt: NOW })
+    await store.createItem(closed, null, { materialReviewRevision: 1 })
+
+    await expect(
+      store.reopenReviewCycle({
+        item: { ...closed, sourceId: reviewId('4d000000-0000-0000-0000-0000000000ff') },
+        // A stale expectation too: the source check must come first.
+        expected: { cycleNumber: 9, materialReviewRevision: 9, stateRevision: 9 },
+        reason: 'other',
+        explanation: 'A new guest message needs a response.',
+        fact: inboxItemStatusChanged({
+          inboxItemId: closed.id,
+          organizationId: closed.organizationId,
+          propertyId: closed.propertyId,
+          oldStatus: 'closed',
+          newStatus: 'open',
+          userId: USER_B,
+          occurredAt: NOW,
+        }),
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
   it('lets exactly one concurrent governed Review reopen advance the canonical head', async () => {
     const reviewRepo = createReviewRepository(
       db,
