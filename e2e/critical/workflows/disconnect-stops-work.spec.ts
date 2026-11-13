@@ -146,6 +146,7 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     // A sync left over from an earlier spec would spend the shared reviews
     // quota this one needs for its own.
     await drainFixtureQueue()
+    await gbpStubControl.reset()
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 

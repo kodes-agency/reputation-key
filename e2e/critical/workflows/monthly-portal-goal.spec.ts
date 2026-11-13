@@ -182,8 +182,6 @@ const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 const seed = requireE2eSeedState()
 
 test.describe('Critical workflow: the Monthly portal goal', () => {
-  test.describe.configure({ mode: 'serial' })
-
   const seeded: string[] = []
 
   test.afterAll(async ({ browser }) => {
@@ -263,9 +261,11 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
 
   test('J2 manager-zero and the staff Member are refused the monthly portal goal', async ({
     browser,
-  }) => {
-    const propertyId = seeded[0]
-    expect(propertyId).toBeTruthy()
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId } = await seedPortalGoalProperty(page, 'j2', testInfo.retry)
+    seeded.push(propertyId)
 
     // manager-one holds the Property's grant: the card is theirs to read.
     const oneContext = await browser.newContext({ baseURL: BASE_ORIGIN })
@@ -439,10 +439,10 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
 
   test("J1 (continued) a number of one's own: the sheet starts empty, and 12 can be set", async ({
     page,
-  }) => {
-    const propertyId = seeded[0]
-    if (!propertyId) throw new Error("J1's Property is not seeded")
+  }, testInfo) => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId } = await seedPortalGoalProperty(page, 'j1-own', testInfo.retry)
+    seeded.push(propertyId)
     const today = await localToday(propertyId)
     // The sheet opens on the month the card would offer: this one through the
     // 20th local day, else the next. Both branches assert what they draw.
