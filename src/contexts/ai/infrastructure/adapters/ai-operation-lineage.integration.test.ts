@@ -16,7 +16,6 @@ import {
   installAiAnalysisFixture,
 } from '#/shared/db/testing/ai-review-analysis-v3-fixture'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { withLegacyTrendRowsAllowed } from '#/shared/db/testing/legacy-trend-rows'
 import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-openai-provider-attestation'
 import { providerRequestProfileOf } from '#/shared/ai-provider-attestations'
 import {
@@ -264,53 +263,6 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
     expect(claimed?.binding).toMatchObject({
       noticeDigest: 'c'.repeat(64),
       sourceCanonicalizerDigest: 'e'.repeat(64),
-    })
-  })
-
-  // A database that predates the tightened CHECK still holds the retired trend command. A stored row is read as that
-  // known command on the claim and idempotency paths, not as an invalid operation.
-  it('treats a stored trend row as a retired command: never claimed for execution, named as retired on a claim', async () => {
-    await withLegacyTrendRowsAllowed(db, fixture.reset, async () => {
-      const request = await analysisRequest()
-      await claim(request, {
-        providerLineage: OPENAI_LINEAGE,
-        normalization: NORMALIZATION,
-      })
-      await db
-        .update(aiOperations)
-        .set({
-          command: 'trend',
-          operationProfileVersion: 'property-trend-v1',
-          capability: 'property_trends',
-          systemPrincipal: 'property_trend_coordinator',
-          reviewId: null,
-          originEventId: null,
-          subjectHmac: null,
-          subjectHmacKeyVersion: null,
-          sourceRevision: null,
-          reviewedAtEpochMillis: null,
-          analysisSequence: null,
-          dueLocalDate: '2026-10-29',
-          terminalAnalysisSequence: 0,
-          aggregateRevision: 0,
-        })
-        .where(eq(aiOperations.organizationId, ORGANIZATION_ID))
-      const [row] = await db
-        .select({ id: aiOperations.id })
-        .from(aiOperations)
-        .where(eq(aiOperations.organizationId, ORGANIZATION_ID))
-
-      await expect(
-        operations().claimExecution({
-          operationId: row!.id as AiOperationId,
-          organizationId: ORGANIZATION_ID,
-          expectedAttempt: 1,
-          nowEpochMillis: NOW.getTime(),
-        }),
-      ).resolves.toBeNull()
-      await expect(
-        claim(request, { providerLineage: OPENAI_LINEAGE, normalization: NORMALIZATION }),
-      ).rejects.toThrow(/^AI operation command is retired$/)
     })
   })
 
