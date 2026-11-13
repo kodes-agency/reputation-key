@@ -15,7 +15,11 @@ import {
 import { notificationEmailId, organizationId, userId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createFakeJobLogger } from '../jobs/test-fixtures'
-import { createNotificationEmailRepository } from '../repositories/notification-email.repository'
+import { markNotificationEmailAccepted } from '../../email/notification-email-queue.server'
+import {
+  forgetEmailAddress,
+  isEmailAddressSuppressed,
+} from '../../email/notification-email-suppression.server'
 import { createResendEventHandler, type ResendEventInput } from './resend-event-handler'
 
 const ORG = organizationId('resend-event-ordering-org')
@@ -35,17 +39,20 @@ describe.sequential('provider event ordering (real PostgreSQL)', () => {
   let lease: TestLease
   let db: Database
 
-  const repo = () =>
-    createNotificationEmailRepository(db, { emailAddressKey: ADDRESS_KEY })
+  const emailAddressKeys = { emailAddressKey: ADDRESS_KEY }
+  const forgetAddress = () => forgetEmailAddress(db, emailAddressKeys, ADDRESS)
+  const isAddressSuppressed = () =>
+    isEmailAddressSuppressed(db, emailAddressKeys, ADDRESS)
   const handle = createResendEventHandler
   const deps = () => ({
-    emailRepo: repo(),
+    db,
+    emailAddressKeys,
     userLookup: { getEmail: async () => ADDRESS },
     logger: createFakeJobLogger(),
   })
 
   const clean = async () => {
-    await repo().forgetAddress(ADDRESS)
+    await forgetAddress()
     await db
       .delete(resendWebhookDeliveries)
       .where(inArray(resendWebhookDeliveries.eventId, DELIVERY_IDS))
@@ -106,7 +113,7 @@ describe.sequential('provider event ordering (real PostgreSQL)', () => {
       createdAt: ACCEPTED,
       updatedAt: ACCEPTED,
     })
-    await repo().markAccepted(EMAIL, ORG, PROPERTY, PROVIDER_ID, ACCEPTED)
+    await markNotificationEmailAccepted(db, EMAIL, ORG, PROPERTY, PROVIDER_ID, ACCEPTED)
   })
 
   afterAll(async () => {
@@ -121,7 +128,7 @@ describe.sequential('provider event ordering (real PostgreSQL)', () => {
     const stale = await handler(bounce('order_bounce', BOUNCED))
 
     expect(stale.suppressed).toBe(0)
-    await expect(repo().isAddressSuppressed(ADDRESS)).resolves.toBe(false)
+    await expect(isAddressSuppressed()).resolves.toBe(false)
   })
 
   it('does not record a provider suppression that happened before the removal', async () => {
@@ -137,7 +144,7 @@ describe.sequential('provider event ordering (real PostgreSQL)', () => {
     })
 
     expect(result).toMatchObject({ applied: false, reason: 'out_of_order' })
-    await expect(repo().isAddressSuppressed(ADDRESS)).resolves.toBe(false)
+    await expect(isAddressSuppressed()).resolves.toBe(false)
   })
 
   it('suppresses the address for a bounce that happened after the removal', async () => {
@@ -146,7 +153,7 @@ describe.sequential('provider event ordering (real PostgreSQL)', () => {
 
     await handler(bounce('order_bounce', REMOVED))
 
-    await expect(repo().isAddressSuppressed(ADDRESS)).resolves.toBe(true)
+    await expect(isAddressSuppressed()).resolves.toBe(true)
   })
 
   it('keeps a refusal that is newer than a removal arriving late', async () => {
@@ -155,14 +162,14 @@ describe.sequential('provider event ordering (real PostgreSQL)', () => {
 
     await handler(removal('order_removed', BOUNCED))
 
-    await expect(repo().isAddressSuppressed(ADDRESS)).resolves.toBe(true)
+    await expect(isAddressSuppressed()).resolves.toBe(true)
   })
 
   it('applies a repeated delivery once', async () => {
     const handler = handle(deps())
     const first = await handler(bounce('order_repeat', BOUNCED))
     // The operator lifts the refusal; the provider then repeats the delivery.
-    await repo().forgetAddress(ADDRESS)
+    await forgetAddress()
 
     const repeat = await handler(bounce('order_repeat', BOUNCED))
 
@@ -173,7 +180,7 @@ describe.sequential('provider event ordering (real PostgreSQL)', () => {
       suppressed: 0,
       reason: 'duplicate_delivery',
     })
-    await expect(repo().isAddressSuppressed(ADDRESS)).resolves.toBe(false)
+    await expect(isAddressSuppressed()).resolves.toBe(false)
   })
 
   it('applies the retry of a delivery that failed before it was remembered', async () => {
@@ -191,6 +198,6 @@ describe.sequential('provider event ordering (real PostgreSQL)', () => {
 
     await handle(deps())(bounce('order_repeat', BOUNCED))
 
-    await expect(repo().isAddressSuppressed(ADDRESS)).resolves.toBe(true)
+    await expect(isAddressSuppressed()).resolves.toBe(true)
   })
 })

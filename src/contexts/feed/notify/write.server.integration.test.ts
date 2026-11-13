@@ -10,8 +10,8 @@ import { createNotification } from '../domain/notification-constructors'
 import { applyCoalescence } from '../domain/notification-policy'
 import { renderNotification } from '../domain/notification-templates'
 import type { NotificationPayload } from '../domain/notification-payload'
-import { createNotificationRepository } from '../infrastructure/repositories/notification.repository'
 import { writeNotification } from './write.server'
+import { saveNotificationRead, saveNotificationStatus } from './notification-rows.server'
 
 const ORG = organizationId('notification-writer-org')
 const PROPERTY = propertyId('86000000-0000-4000-8000-000000000001')
@@ -169,21 +169,11 @@ describe.sequential('notification writer (real PostgreSQL)', () => {
   })
 
   it.each([
-    [
-      'read',
-      (id: string) =>
-        createNotificationRepository(db).markRead(id as never, USER, ORG, NOW, NOW),
-    ],
+    ['read', (id: string) => saveNotificationRead(db, id as never, USER, ORG, NOW, NOW)],
     [
       'dismissed',
       (id: string) =>
-        createNotificationRepository(db).updateStatus(
-          id as never,
-          USER,
-          ORG,
-          'dismissed',
-          NOW,
-        ),
+        saveNotificationStatus(db, id as never, USER, ORG, 'dismissed', NOW),
     ],
     [
       'settled',

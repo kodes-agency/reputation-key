@@ -34,10 +34,9 @@ const DOUBLE_CAST = /\bas unknown\s+as Database\b/gu
  * remove a cast, then lower or delete its entry here in the same change.
  */
 const REMAINING_SITES: Readonly<Record<string, number>> = {
-  // Both repositories pass the transaction to read helpers typed
-  // `db: Database`; the helpers need narrowing to the query surface they use.
+  // The notice write passes the transaction to the audience and insert helpers
+  // typed `db: Database`; they need narrowing to the query surface they use.
   'src/contexts/feed/notify/notice-write.server.ts': 1,
-  'src/contexts/feed/infrastructure/repositories/notification.repository.ts': 1,
   // The repository's port types every method `tx: Database`; the port needs a
   // transaction type of its own.
   'src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts': 1,

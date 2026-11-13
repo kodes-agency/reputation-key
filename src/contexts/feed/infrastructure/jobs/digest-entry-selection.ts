@@ -10,6 +10,7 @@
 // mistaken for a lost one; a row dropped only for now (its Property inactive
 // or unauthorized, quiet hours) is held or deferred.
 
+import type { Database } from '#/shared/db'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import {
@@ -19,9 +20,12 @@ import {
   type OrganizationId,
   type UserId,
 } from '#/shared/domain/ids'
-import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
-import type { NotificationPreferenceRepositoryPort } from '../../application/ports/notification-preference-repository.port'
-import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
+import {
+  markNotificationEmailDelayed,
+  markNotificationEmailSuppressed,
+} from '../../email/notification-email-queue.server'
+import { findNotificationsByIdsForProperty } from '../../notify/notification-rows.server'
+import { resolveForDelivery } from '../../preferences/notification-preferences.server'
 import {
   createRecipientStandingMemo,
   type NotificationRecipientStanding,
@@ -47,9 +51,7 @@ const NOTIFICATION_UNAVAILABLE_REASON = 'notification_unavailable'
 
 /** What the entry filters need; a subset of the digest job's dependencies. */
 export type DigestEntryDeps = Readonly<{
-  emailRepo: Pick<NotificationEmailRepositoryPort, 'markSuppressed' | 'markDelayed'>
-  preferenceRepo: Pick<NotificationPreferenceRepositoryPort, 'resolveForDelivery'>
-  notifRepo: Pick<NotificationRepositoryPort, 'findByIdsForProperty'>
+  db: Database
   logger: LoggerPort
   /** Resolves only an active Property; `null` for any other lifecycle state. */
   resolvePropertyScope: NotificationPropertyScopeResolver
@@ -163,7 +165,8 @@ async function deferForQuietHours(
   const until = quietHoursEnd(ctx)
   if (until === null) return false
   for (const entry of entries) {
-    await deps.emailRepo.markDelayed(
+    await markNotificationEmailDelayed(
+      deps.db,
       notificationEmailId(entry.id as string),
       ctx.orgId,
       propertyId(entry.propertyId as string),
@@ -201,7 +204,8 @@ export async function partitionDeliverable(
     const propId = propertyId(entry.propertyId as string)
     const emailId = notificationEmailId(entry.id as string)
     if (!(await hasStanding(entry))) {
-      await deps.emailRepo.markSuppressed(
+      await markNotificationEmailSuppressed(
+        deps.db,
         emailId,
         ctx.orgId,
         propId,
@@ -216,7 +220,8 @@ export async function partitionDeliverable(
     }
     // Whether this Property's category is emailed at all stays per Property:
     // the Property's own row, else the person's default for the category.
-    const preference = await deps.preferenceRepo.resolveForDelivery(
+    const preference = await resolveForDelivery(
+      deps.db,
       ctx.userId,
       ctx.orgId,
       propId,
@@ -224,7 +229,8 @@ export async function partitionDeliverable(
       'email',
     )
     if (!preference.enabled) {
-      await deps.emailRepo.markSuppressed(
+      await markNotificationEmailSuppressed(
+        deps.db,
         emailId,
         ctx.orgId,
         propId,
@@ -250,7 +256,8 @@ export async function suppressAll(
   reason: string,
 ): Promise<void> {
   for (const entry of entries) {
-    await deps.emailRepo.markSuppressed(
+    await markNotificationEmailSuppressed(
+      deps.db,
       notificationEmailId(entry.id as string),
       ctx.orgId,
       propertyId(entry.propertyId as string),
@@ -281,7 +288,8 @@ export async function retireStaleEntries(
     else fresh.push(entry)
   }
   for (const entry of stale) {
-    await deps.emailRepo.markSuppressed(
+    await markNotificationEmailSuppressed(
+      deps.db,
       notificationEmailId(entry.id as string),
       ctx.orgId,
       propertyId(entry.propertyId as string),
@@ -327,7 +335,8 @@ export async function loadItems(
 
   const items: DigestItem[] = []
   for (const [rawPropertyId, group] of byProperty) {
-    const notifications = await deps.notifRepo.findByIdsForProperty(
+    const notifications = await findNotificationsByIdsForProperty(
+      deps.db,
       group.map((entry) => notificationId(entry.notificationId as string)),
       ctx.orgId,
       propertyId(rawPropertyId),
@@ -340,7 +349,8 @@ export async function loadItems(
   const loaded = new Set(items.map((item) => item.entry.id))
   const unreadable = entries.filter((entry) => !loaded.has(entry.id))
   for (const entry of unreadable) {
-    await deps.emailRepo.markSuppressed(
+    await markNotificationEmailSuppressed(
+      deps.db,
       notificationEmailId(entry.id as string),
       ctx.orgId,
       propertyId(entry.propertyId as string),
@@ -401,7 +411,8 @@ async function settledWork(
       waiting.push(current)
       continue
     }
-    await deps.emailRepo.markSuppressed(
+    await markNotificationEmailSuppressed(
+      deps.db,
       notificationEmailId(item.entry.id as string),
       ctx.orgId,
       propertyId(item.entry.propertyId as string),

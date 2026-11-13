@@ -15,7 +15,7 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, userId } from '#/shared/domain/ids'
-import { createNotificationRepository } from './notification.repository'
+import { readNotificationFeedHead } from '../../notify/notification-feed.server'
 
 const ORG = 'org-notification-arrivals-feed'
 const USER = 'user-notification-arrivals-feed'
@@ -120,7 +120,7 @@ beforeEach(async () => {
 
 describe.sequential('arrivals follow the in-app default (real PostgreSQL)', () => {
   it('leaves an email-only arrival out of the feed for a reader who never turned arrivals on in the app', async () => {
-    const head = await createNotificationRepository(getDb()).readFeedHead(QUERY)
+    const head = await readNotificationFeedHead(getDb(), QUERY)
 
     expect(head.page.notifications.map((row) => row.id)).toEqual([WORKFLOW_ROW])
   })
@@ -128,7 +128,7 @@ describe.sequential('arrivals follow the in-app default (real PostgreSQL)', () =
   it('lists arrivals once the reader turns them on in the app', async () => {
     await setDefault('arrivals', 'in_app', true)
 
-    const head = await createNotificationRepository(getDb()).readFeedHead(QUERY)
+    const head = await readNotificationFeedHead(getDb(), QUERY)
 
     expect(head.page.notifications.map((row) => row.id)).toEqual([
       ARRIVAL_ANCHOR,

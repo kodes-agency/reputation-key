@@ -13,7 +13,7 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { createNotificationEmailRepository } from './notification-email.repository'
+import { findDueEmailRecipients } from '../../email/notification-email-queue.server'
 
 const ORG = 'org-notification-due-recipients'
 const PROPERTY = '88000000-0000-4000-8000-000000000001'
@@ -112,10 +112,7 @@ beforeEach(async () => {
 
 describe.sequential('the digest sweep visit order (real PostgreSQL)', () => {
   it('visits work due at any hour, then recipients whose 08:00 is now', async () => {
-    const recipients = await createNotificationEmailRepository(getDb()).findDueRecipients(
-      'daily',
-      NOW,
-    )
+    const recipients = await findDueEmailRecipients(getDb(), 'daily', NOW)
 
     const ours = recipients
       .filter((recipient) => (recipient.organizationId as string) === ORG)

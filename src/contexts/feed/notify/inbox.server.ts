@@ -33,7 +33,7 @@ import type { UserLookupPort } from '../application/ports/notification-user-look
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import type { EscalationResolutionLookupPort } from '../application/ports/escalation-resolution-lookup.port'
-import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
+import type { Database } from '#/shared/db'
 import type { NotificationAudience } from '../application/notification-audience'
 import { resolveEscalationResolutionRecipients } from '../application/escalation-resolution-recipients'
 import { resolveResponseTargetReminderRecipients } from '../application/response-target-reminder-recipients'
@@ -664,7 +664,7 @@ export type EscalationResolutionNotificationConsumerDeps = NoticeDeliveryDeps &
     responsibleManagers: ResponsibleManagerLookupPort
     userLookup: Pick<UserLookupPort, 'findByRole'>
     /** The evidence of who was told the escalation was raised. */
-    notifications: Pick<NotificationRepositoryPort, 'findRecipientsOfNotice'>
+    db: Database
     /** Which scope the escalation went to, so the resolution follows it. */
     inboxItemLookup: Pick<InboxItemLookupPort, 'findInboxItemFacts'>
   }>

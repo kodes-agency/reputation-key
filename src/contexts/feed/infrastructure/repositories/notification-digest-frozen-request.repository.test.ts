@@ -21,12 +21,17 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import type { DigestBatchSettlement } from '../../domain/notification-email-queue-types'
 import {
   digestBatchIdempotencyKey,
   digestMemberSet,
   digestProviderRequest,
 } from '../digest-batch-identity'
-import { createNotificationEmailRepository } from './notification-email.repository'
+import {
+  findOpenDigestBatch,
+  prepareDigestBatch,
+  settleDigestBatch,
+} from '../../email/notification-digest-batch.server'
 
 const ORG = organizationId('notification-digest-frozen-request-org')
 const USER = userId('notification-digest-frozen-request-user')
@@ -80,13 +85,8 @@ describe.sequential('a digest batch frozen request (real PostgreSQL)', () => {
         .where(eq(notificationDigestBatches.id, BATCH))
     )[0]?.request
 
-  const settle = (
-    repo: ReturnType<typeof createNotificationEmailRepository>,
-    settlement: Parameters<
-      ReturnType<typeof createNotificationEmailRepository>['settleDigestBatch']
-    >[0]['settlement'],
-  ) =>
-    repo.settleDigestBatch({
+  const settle = (settlement: DigestBatchSettlement) =>
+    settleDigestBatch(db, {
       batchId: BATCH,
       organizationId: ORG,
       userId: USER,
@@ -154,9 +154,8 @@ describe.sequential('a digest batch frozen request (real PostgreSQL)', () => {
   })
 
   it('hands the frozen request back while a possibly accepted batch retries', async () => {
-    const repo = createNotificationEmailRepository(db)
-    await repo.prepareDigestBatch(batchInput())
-    await settle(repo, {
+    await prepareDigestBatch(db, batchInput())
+    await settle({
       kind: 'rejected',
       classification: 'transient',
       nextAttemptAt: new Date(NOW.getTime() + 30_000),
@@ -164,7 +163,7 @@ describe.sequential('a digest batch frozen request (real PostgreSQL)', () => {
       refusedBeforeAcceptance: false,
     })
 
-    await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toMatchObject({
+    await expect(findOpenDigestBatch(db, ORG, USER)).resolves.toMatchObject({
       state: 'retryable',
       everyAttemptRefused: false,
       providerRequest: REQUEST,
@@ -172,10 +171,9 @@ describe.sequential('a digest batch frozen request (real PostgreSQL)', () => {
   })
 
   it('drops the rendered mail once the batch is accepted', async () => {
-    const repo = createNotificationEmailRepository(db)
-    await repo.prepareDigestBatch(batchInput())
+    await prepareDigestBatch(db, batchInput())
 
-    await settle(repo, {
+    await settle({
       kind: 'accepted',
       providerMessageId: 'provider-message-1',
       acceptedAt: NOW,
@@ -185,23 +183,20 @@ describe.sequential('a digest batch frozen request (real PostgreSQL)', () => {
   })
 
   it('never hands back a stored request that no longer matches the batch', async () => {
-    const repo = createNotificationEmailRepository(db)
-    await repo.prepareDigestBatch(batchInput())
+    await prepareDigestBatch(db, batchInput())
     await db
       .update(notificationDigestBatches)
       .set({ providerRequest: { ...REQUEST, html: '<p>Something else</p>' } })
       .where(eq(notificationDigestBatches.id, BATCH))
 
-    await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toMatchObject({
+    await expect(findOpenDigestBatch(db, ORG, USER)).resolves.toMatchObject({
       providerRequest: null,
     })
   })
 
   it('refuses to freeze a request that does not match the content digest', async () => {
-    const repo = createNotificationEmailRepository(db)
-
     await expect(
-      repo.prepareDigestBatch(batchInput({ ...REQUEST, subject: 'Changed' })),
+      prepareDigestBatch(db, batchInput({ ...REQUEST, subject: 'Changed' })),
     ).rejects.toThrow('Digest batch request does not match its content digest')
   })
 })

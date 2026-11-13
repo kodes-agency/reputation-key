@@ -1,14 +1,21 @@
 // Feed notification surface — insert notification use case
 // Creates a notification, checks preferences, persists, and enqueues email if needed.
 
+import type { NotificationDb } from '../../notify/notification-feed-sql.server'
+import { resolveForDelivery } from '../../preferences/notification-preferences.server'
 import {
   createNotification,
   type CreateNotificationInput,
 } from '../../domain/notification-constructors'
 import { createNotificationEmail } from '../../domain/constructors-email'
-import type { NotificationRepositoryPort } from '../ports/notification-repository.port'
-import type { NotificationEmailRepositoryPort } from '../ports/notification-email-repository.port'
-import type { NotificationPreferenceRepositoryPort } from '../ports/notification-preference-repository.port'
+import {
+  cancelQueuedEmailsForNotifications,
+  findUnreadNotificationByUserTypeResource,
+  saveNotificationStatus,
+  settleUnreadForReader,
+} from '../../notify/notification-rows.server'
+import { writeNotification } from '../../notify/write.server'
+import { insertNotificationEmail } from '../../email/notification-email-queue.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   unbrand,
@@ -17,6 +24,7 @@ import {
 } from '#/shared/domain/ids'
 import type {
   Notification as DomainNotification,
+  NotificationEmail,
   NotificationCadence,
   NotificationCategory,
 } from '../../domain/notification-types'
@@ -43,9 +51,10 @@ export type InsertNotificationInput = Omit<CreateNotificationInput, 'id'>
 // ── Deps ────────────────────────────────────────────────────────────
 
 export type InsertNotificationDeps = Readonly<{
-  notificationRepo: NotificationRepositoryPort
-  emailRepo: NotificationEmailRepositoryPort
-  preferenceRepo: NotificationPreferenceRepositoryPort
+  /** The database client, or the transaction the notice is written on. */
+  db: NotificationDb
+  /** Told of each email-queue row written, so the caller can hand it on after commit. */
+  onEmailQueued?: (email: NotificationEmail) => void
   clock: () => Date
   idGen: () => NotificationId
   emailIdGen: () => NotificationEmailId
@@ -105,14 +114,16 @@ const resolveChannelPreferences = async (
   // the person last configured anything now inherits their default instead of
   // falling through to "urgent email, immediately".
   // Settlement lends one transaction to both channel reads.
-  const inApp = await deps.preferenceRepo.resolveForDelivery(
+  const inApp = await resolveForDelivery(
+    deps.db,
     input.userId,
     input.organizationId,
     input.propertyId,
     category,
     'in_app',
   )
-  const email = await deps.preferenceRepo.resolveForDelivery(
+  const email = await resolveForDelivery(
+    deps.db,
     input.userId,
     input.organizationId,
     input.propertyId,
@@ -185,14 +196,16 @@ const ratedPlan = async (
   if (!RATED_NOTIFICATION_TYPES.has(input.type) || input.propertyId === null) return null
   const rating = await ratingOf(deps, input)
   if (rating === null) return null
-  const inAppLow = await deps.preferenceRepo.resolveForDelivery(
+  const inAppLow = await resolveForDelivery(
+    deps.db,
     input.userId,
     input.organizationId,
     input.propertyId,
     'low_ratings',
     'in_app',
   )
-  const emailLow = await deps.preferenceRepo.resolveForDelivery(
+  const emailLow = await resolveForDelivery(
+    deps.db,
     input.userId,
     input.organizationId,
     input.propertyId,
@@ -224,14 +237,16 @@ const retireReplacedRow = async (
   existing: DomainNotification,
 ): Promise<void> => {
   const now = deps.clock()
-  await deps.notificationRepo.updateStatus(
+  await saveNotificationStatus(
+    deps.db,
     existing.id,
     existing.userId,
     existing.organizationId,
     'dismissed',
     now,
   )
-  await deps.emailRepo.cancelQueuedForNotifications(
+  await cancelQueuedEmailsForNotifications(
+    deps.db,
     [existing.id],
     existing.organizationId,
     SETTLED_EMAIL_REASON,
@@ -343,7 +358,8 @@ const enqueueEmailEntry = async (
     return
   }
 
-  const queued = await deps.emailRepo.insert(emailResult.value)
+  const queued = await insertNotificationEmail(deps.db, emailResult.value)
+  deps.onEmailQueued?.(queued)
   if (cadence === 'immediate') {
     await enqueueImmediateEmailBestEffort(deps, notification, queued.id)
   }
@@ -383,7 +399,7 @@ const settleSupersededForReader = async (
   const rule = SUPERSEDED_FOR_READER[notification.type]
   if (rule === undefined || (rule.onlyWhenShownInApp && !channels.shownInApp)) return
   const resolvedAt = deps.clock()
-  const settled = await deps.notificationRepo.settleUnreadForReader({
+  const settled = await settleUnreadForReader(deps.db, {
     organizationId: notification.organizationId,
     userId: notification.userId,
     types: rule.types,
@@ -396,7 +412,8 @@ const settleSupersededForReader = async (
     resolvedAt,
   })
   if (settled.length === 0 || (rule.keepsEmail && !channels.sendsEmail)) return
-  await deps.emailRepo.cancelQueuedForNotifications(
+  await cancelQueuedEmailsForNotifications(
+    deps.db,
     settled,
     notification.organizationId,
     SETTLED_EMAIL_REASON,
@@ -463,7 +480,8 @@ const retireWaitingRowOfAnotherCategory = async (
   notification: DomainNotification,
 ): Promise<void> => {
   if (!RATED_NOTIFICATION_TYPES.has(input.type)) return
-  const existing = await deps.notificationRepo.findUnreadByUserTypeResource(
+  const existing = await findUnreadNotificationByUserTypeResource(
+    deps.db,
     input.userId,
     input.organizationId,
     input.propertyId,
@@ -562,7 +580,8 @@ export const insertNotification =
 
     // 3. Write the notification row (in-app anchor + email FK). The writer
     // folds a repeat into the reader's waiting row (`afterFoldIntoWaitingRow`).
-    const inserted = await deps.notificationRepo.insert(
+    const inserted = await writeNotification(
+      deps.db,
       channels.inAppEnabled ? result.value : asEmailOnlyAnchor(result.value),
     )
     if (channels.inAppEnabled && inserted.coalescedCount > result.value.coalescedCount) {

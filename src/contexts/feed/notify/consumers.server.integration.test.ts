@@ -82,7 +82,7 @@ describe.sequential(
       overrides: WriterOverrides = {},
     ): RouteDeps =>
       ({
-        ...currentRouteDeps(),
+        ...currentRouteDeps(db),
         noticeWriter: createNoticeWriter(writerDeps(idGen, overrides)),
       }) as RouteDeps
 

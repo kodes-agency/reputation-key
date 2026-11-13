@@ -7,16 +7,11 @@
 // back to re-rendering and comparing, which fails closed.
 
 import { z } from 'zod/v4'
-import type { FrozenDigestRequest } from '../application/ports/notification-email-repository.port'
+import type { FrozenDigestRequest } from '../domain/notification-email-queue-types'
 import { digestProviderRequest } from './digest-batch-identity'
+import { copyFrozenRequestBase, frozenRequestBaseShape } from './frozen-request-base'
 
-const frozenDigestRequestSchema = z.object({
-  to: z.string().min(1),
-  subject: z.string(),
-  html: z.string(),
-  text: z.string(),
-  headers: z.record(z.string(), z.string()),
-})
+const frozenDigestRequestSchema = z.object(frozenRequestBaseShape)
 
 export function readFrozenDigestRequest(
   stored: unknown,
@@ -28,12 +23,5 @@ export function readFrozenDigestRequest(
 }
 
 /** Exactly the fields the content digest covers, and nothing else. */
-export const frozenDigestRequest = (
-  request: FrozenDigestRequest,
-): FrozenDigestRequest => ({
-  to: request.to,
-  subject: request.subject,
-  html: request.html,
-  text: request.text,
-  headers: { ...request.headers },
-})
+export const frozenDigestRequest = (request: FrozenDigestRequest): FrozenDigestRequest =>
+  copyFrozenRequestBase(request)

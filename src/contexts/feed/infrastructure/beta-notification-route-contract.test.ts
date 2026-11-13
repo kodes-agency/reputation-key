@@ -41,10 +41,7 @@ import {
   parseNotificationAudience,
 } from '../application/notification-audience'
 import type { NotificationType } from '../domain/notification-types'
-import {
-  MANDATORY_EMAIL_JOB_NAME,
-  URGENT_EMAIL_JOB_NAME,
-} from '../email/send-emails.server'
+import { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } from './jobs/send-emails.job'
 
 import {
   ACTOR,
@@ -61,9 +58,6 @@ import {
   PROPERTY,
   RECIPIENT,
   REVIEW,
-  SETTLED_NOTIFICATION,
-  SETTLED_RESOURCE,
-  SETTLING_FACTS,
   SNAPSHOT_RUN,
 } from '#/shared/testing/notification-route-producer-fixtures'
 import {
@@ -408,52 +402,8 @@ describe('every beta notification route queues its notice from its real producer
     ).toEqual([])
   })
 
-  for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX.filter(
-    (candidate) => candidate.settles !== undefined,
-  )) {
-    it(`${route.eventType}: ${route.consumerName} retires its notices durably`, async () => {
-      const deps = currentRouteDeps()
-
-      const { envelope, receipts, gateDenials, queued } = await dispatch(
-        (SETTLING_FACTS[route.consumerName] ?? PRODUCED_FACTS[route.eventType])!(),
-        deps,
-      )
-
-      // A settling route announces nothing; it retires the notices that
-      // asked for the work, and cancels the mail queued behind them.
-      expect(gateDenials).toEqual([])
-      expect(queued.filter((job) => (route.settles ?? []).includes(job.type))).toEqual([])
-      // An archive settles everything on its Property rather than one resource.
-      if (route.eventType === 'property.archived') {
-        expect(deps.notifications.settleUnreadForProperty).toHaveBeenCalledWith(
-          expect.objectContaining({
-            organizationId: envelope.organizationId,
-            propertyId: PROPERTY,
-            types: route.settles,
-          }),
-        )
-      } else {
-        expect(deps.notifications.settleUnreadForResource).toHaveBeenCalledWith(
-          expect.objectContaining({
-            organizationId: envelope.organizationId,
-            types: route.settles,
-            resourceId: SETTLED_RESOURCE[route.eventType] ?? ITEM,
-          }),
-        )
-      }
-      expect(deps.emails.cancelQueuedForNotifications).toHaveBeenCalledWith(
-        [SETTLED_NOTIFICATION],
-        envelope.organizationId,
-        expect.any(String),
-        expect.any(Date),
-      )
-      expect(receipts).toContainEqual({
-        eventId: envelope.eventId,
-        consumerName: route.consumerName,
-        status: 'applied',
-      })
-    })
-  }
+  // The settling routes retire notices and cancel mail in PostgreSQL; they are
+  // proved in beta-notification-route-settlement.integration.test.ts.
 
   for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX.filter(
     (candidate) => candidate.settles === undefined,

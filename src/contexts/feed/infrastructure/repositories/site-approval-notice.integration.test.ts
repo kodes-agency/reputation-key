@@ -10,7 +10,8 @@ import type { Database } from '#/shared/db'
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createNotification } from '../../domain/notification-constructors'
-import { createNotificationRepository } from './notification.repository'
+import { writeNotification } from '../../notify/write.server'
+import { settleUnreadForResource } from '../../notify/notification-rows.server'
 
 const ORG_A = organizationId('b7500000-0000-4000-8000-000000000001')
 const ORG_B = organizationId('b7500000-0000-4000-8000-000000000002')
@@ -29,8 +30,7 @@ const { getPool } = setupIntegrationDb({
   tables: ['notifications', 'properties'],
 })
 
-const repository = () =>
-  createNotificationRepository(drizzle(getPool()) as unknown as Database)
+const db = () => drizzle(getPool()) as unknown as Database
 
 const seedProperty = () =>
   getPool().query(
@@ -81,7 +81,10 @@ describe('a site waiting for approval against PostgreSQL', () => {
   it('stores for a Property, under the site, as collaboration, with what the copy needs', async () => {
     await seedProperty()
 
-    const stored = await repository().insert(noticeFor(ADMIN_1, MENU, 'menu.example.com'))
+    const stored = await writeNotification(
+      db(),
+      noticeFor(ADMIN_1, MENU, 'menu.example.com'),
+    )
 
     expect(stored).toMatchObject({
       propertyId: PROPERTY,
@@ -118,10 +121,16 @@ describe('a site waiting for approval against PostgreSQL', () => {
 
   it('gives every admin their own row, and folds a repeat for the same site into it', async () => {
     await seedProperty()
-    const first = await repository().insert(noticeFor(ADMIN_1, MENU, 'menu.example.com'))
-    await repository().insert(noticeFor(ADMIN_2, MENU, 'menu.example.com'))
+    const first = await writeNotification(
+      db(),
+      noticeFor(ADMIN_1, MENU, 'menu.example.com'),
+    )
+    await writeNotification(db(), noticeFor(ADMIN_2, MENU, 'menu.example.com'))
 
-    const repeat = await repository().insert(noticeFor(ADMIN_1, MENU, 'menu.example.com'))
+    const repeat = await writeNotification(
+      db(),
+      noticeFor(ADMIN_1, MENU, 'menu.example.com'),
+    )
 
     expect(repeat.id).toBe(first.id)
     const { rows } = await getPool().query(
@@ -137,19 +146,25 @@ describe('a site waiting for approval against PostgreSQL', () => {
 
   it('keeps one row per site: a second site is its own notice', async () => {
     await seedProperty()
-    const menu = await repository().insert(noticeFor(ADMIN_1, MENU, 'menu.example.com'))
-    const spa = await repository().insert(noticeFor(ADMIN_1, SPA_PAGE, 'spa.example.com'))
+    const menu = await writeNotification(
+      db(),
+      noticeFor(ADMIN_1, MENU, 'menu.example.com'),
+    )
+    const spa = await writeNotification(
+      db(),
+      noticeFor(ADMIN_1, SPA_PAGE, 'spa.example.com'),
+    )
 
     expect(spa.id).not.toBe(menu.id)
   })
 
   it('settles every admin’s notice for the decided site, and no other', async () => {
     await seedProperty()
-    await repository().insert(noticeFor(ADMIN_1, MENU, 'menu.example.com'))
-    await repository().insert(noticeFor(ADMIN_2, MENU, 'menu.example.com'))
-    await repository().insert(noticeFor(ADMIN_1, SPA_PAGE, 'spa.example.com'))
+    await writeNotification(db(), noticeFor(ADMIN_1, MENU, 'menu.example.com'))
+    await writeNotification(db(), noticeFor(ADMIN_2, MENU, 'menu.example.com'))
+    await writeNotification(db(), noticeFor(ADMIN_1, SPA_PAGE, 'spa.example.com'))
 
-    const settled = await repository().settleUnreadForResource({
+    const settled = await settleUnreadForResource(db(), {
       organizationId: ORG_A,
       types: ['portal.link_approval'],
       resourceId: MENU,
@@ -162,9 +177,9 @@ describe('a site waiting for approval against PostgreSQL', () => {
 
   it('settles nothing for another Organization’s site id', async () => {
     await seedProperty()
-    await repository().insert(noticeFor(ADMIN_1, MENU, 'menu.example.com'))
+    await writeNotification(db(), noticeFor(ADMIN_1, MENU, 'menu.example.com'))
 
-    const settled = await repository().settleUnreadForResource({
+    const settled = await settleUnreadForResource(db(), {
       organizationId: ORG_B,
       types: ['portal.link_approval'],
       resourceId: MENU,

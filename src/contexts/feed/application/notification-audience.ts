@@ -13,7 +13,7 @@ import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-l
 import type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup.port'
 import type { ReplyApprovalAuthorityPort } from './ports/cross-context-lookups.port'
 import type { EscalationResolutionLookupPort } from './ports/escalation-resolution-lookup.port'
-import type { NotificationRepositoryPort } from './ports/notification-repository.port'
+import type { NotificationDb } from '../notify/notification-feed-sql.server'
 import {
   goalNoticeScope,
   resolveHandlingCycleRecipients,
@@ -483,7 +483,7 @@ type Deps = Readonly<{
   escalationResolutions: EscalationResolutionLookupPort
   replyApproval: ReplyApprovalAuthorityPort
   /** The evidence of who was told an escalation was raised. */
-  notifications: Pick<NotificationRepositoryPort, 'findRecipientsOfNotice'>
+  db: NotificationDb
   portalHealthLookup: Pick<PortalPublicApi, 'findPortalHealthNotificationFacts'>
   monthlyResultFacts: MonthlyResultNotificationFactsLookup
   organizationAccountAuthority: OrganizationAccountNotificationAuthorityPort

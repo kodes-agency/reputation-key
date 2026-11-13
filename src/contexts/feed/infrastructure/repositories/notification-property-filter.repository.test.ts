@@ -12,7 +12,12 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { createNotificationRepository } from './notification.repository'
+import {
+  markAllNotificationsDismissed,
+  markAllNotificationsRead,
+  readNotificationFeedHead,
+  readNotificationFeedPage,
+} from '../../notify/notification-feed.server'
 
 const ORG = 'org-notification-property-filter'
 const USER = 'user-notification-property-filter'
@@ -138,10 +143,11 @@ beforeEach(async () => {
 
 describe.sequential('the page reads one Property at a time (real PostgreSQL)', () => {
   it('lists and counts only that Property, leaving Organization notices out', async () => {
-    const repo = createNotificationRepository(getDb())
-
-    const head = await repo.readFeedHead(query(HARBOUR))
-    const page = await repo.readFeedPage({ ...query(HARBOUR), before: null })
+    const head = await readNotificationFeedHead(getDb(), query(HARBOUR))
+    const page = await readNotificationFeedPage(getDb(), {
+      ...query(HARBOUR),
+      before: null,
+    })
 
     expect(head.page.notifications.map((row) => row.id)).toEqual([
       HARBOUR_NEWER,
@@ -156,7 +162,7 @@ describe.sequential('the page reads one Property at a time (real PostgreSQL)', (
   })
 
   it("reads another Organization's Property as empty, even for an Organization-wide reader", async () => {
-    const head = await createNotificationRepository(getDb()).readFeedHead({
+    const head = await readNotificationFeedHead(getDb(), {
       ...query(FOREIGN),
       visiblePropertyIds: null,
     })
@@ -166,14 +172,14 @@ describe.sequential('the page reads one Property at a time (real PostgreSQL)', (
   })
 
   it('reads a Property the reader can no longer access as empty', async () => {
-    const head = await createNotificationRepository(getDb()).readFeedHead(query(REVOKED))
+    const head = await readNotificationFeedHead(getDb(), query(REVOKED))
 
     expect(head.page.notifications).toEqual([])
     expect(head.unreadCount).toBe(0)
   })
 
   it('reads the whole visible feed without a Property filter', async () => {
-    const head = await createNotificationRepository(getDb()).readFeedHead(query(null))
+    const head = await readNotificationFeedHead(getDb(), query(null))
 
     expect(head.page.notifications.map((row) => row.id)).toEqual([
       HARBOUR_NEWER,
@@ -184,7 +190,8 @@ describe.sequential('the page reads one Property at a time (real PostgreSQL)', (
   })
 
   it('"Mark all read" under the filter changes only that Property', async () => {
-    await createNotificationRepository(getDb()).markAllRead(
+    await markAllNotificationsRead(
+      getDb(),
       { ...SCOPE, propertyId: propertyId(HARBOUR) },
       'all',
       AT,
@@ -202,7 +209,8 @@ describe.sequential('the page reads one Property at a time (real PostgreSQL)', (
   })
 
   it('"Dismiss all" under the filter changes only that Property', async () => {
-    await createNotificationRepository(getDb()).markAllDismissed(
+    await markAllNotificationsDismissed(
+      getDb(),
       { ...SCOPE, propertyId: propertyId(RIVERSIDE) },
       AT,
     )

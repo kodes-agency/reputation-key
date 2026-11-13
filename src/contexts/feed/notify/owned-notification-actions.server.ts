@@ -1,4 +1,5 @@
 import type { Result } from '#/shared/domain'
+import type { Database } from '#/shared/db'
 import type { UserId } from '#/shared/domain/ids'
 import {
   markNotificationRead,
@@ -9,18 +10,22 @@ import {
 import { notificationError } from '../domain/notification-errors'
 import type { NotificationError } from '../domain/notification-errors'
 import type { Notification } from '../domain/notification-types'
-import type { createNotificationRepository } from '../infrastructure/repositories/notification.repository'
+import {
+  findNotificationById,
+  saveNotificationRead,
+  saveNotificationStatus,
+  saveNotificationUnread,
+  saveRestoredNotification,
+} from './notification-rows.server'
 import { toNotificationView } from '../application/notification-view'
 
 type Dependencies = Readonly<{
-  notificationRepo: ReturnType<typeof createNotificationRepository>
+  db: Database
   clock: () => Date
 }>
 
 /** The single-notification actions behind the row menu and the bell. */
 export const createOwnedNotificationActions = (input: Dependencies) => {
-  const { notificationRepo } = input
-
   /**
    * The guard every single-notification mutation shares: load the row, prove
    * it belongs to the caller, then apply the domain transition. Returns the
@@ -41,7 +46,7 @@ export const createOwnedNotificationActions = (input: Dependencies) => {
       clock: () => Date,
     ) => Result<Notification, NotificationError>,
   ): Promise<Date | null> => {
-    const n = await notificationRepo.findById(id, orgId)
+    const n = await findNotificationById(input.db, id, orgId)
     if (!n || n.userId !== userId) {
       throw notificationError('not_found', 'Notification not found or access denied')
     }
@@ -53,7 +58,7 @@ export const createOwnedNotificationActions = (input: Dependencies) => {
     markRead: async (id: string, orgId: string, userId: UserId) => {
       const now = await applyOwnedTransition(id, orgId, userId, markNotificationRead)
       if (now === null) return // invalid transition, skip
-      await notificationRepo.markRead(id, userId, orgId, now, now)
+      await saveNotificationRead(input.db, id, userId, orgId, now, now)
     },
     /**
      * Read -> unread for the row menu. Resolves to the flipped row's browser view, or
@@ -66,13 +71,13 @@ export const createOwnedNotificationActions = (input: Dependencies) => {
     markUnread: async (id: string, orgId: string, userId: UserId) => {
       const now = await applyOwnedTransition(id, orgId, userId, markNotificationUnread)
       if (now === null) return null // invalid transition, skip
-      const flipped = await notificationRepo.markUnread(id, userId, orgId, now)
+      const flipped = await saveNotificationUnread(input.db, id, userId, orgId, now)
       return flipped === null ? null : toNotificationView(flipped)
     },
     dismiss: async (id: string, orgId: string, userId: UserId) => {
       const now = await applyOwnedTransition(id, orgId, userId, dismissNotification)
       if (now === null) return // invalid transition, skip
-      await notificationRepo.updateStatus(id, userId, orgId, 'dismissed', now)
+      await saveNotificationStatus(input.db, id, userId, orgId, 'dismissed', now)
     },
     /**
      * The undo a dismissal offers: the row comes back as it was, read or
@@ -81,13 +86,14 @@ export const createOwnedNotificationActions = (input: Dependencies) => {
      * or foreign id still throws `not_found`.
      */
     restore: async (id: string, orgId: string, userId: UserId) => {
-      const notification = await notificationRepo.findById(id, orgId)
+      const notification = await findNotificationById(input.db, id, orgId)
       if (!notification || notification.userId !== userId) {
         throw notificationError('not_found', 'Notification not found or access denied')
       }
       const restored = restoreDismissedNotification(notification, input.clock)
       if (restored.isErr()) return null
-      const row = await notificationRepo.restoreDismissed(
+      const row = await saveRestoredNotification(
+        input.db,
         id,
         userId,
         orgId,

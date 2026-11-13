@@ -6,11 +6,7 @@ import {
 } from '#/contexts/feed/infrastructure/inbox-notice-routes'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
-import {
-  type NotificationId,
-  type OrganizationId,
-  type UserId,
-} from '#/shared/domain/ids'
+import type { Database } from '#/shared/db'
 import type { DomainEvent } from '#/shared/events/events'
 import type { OutboxRepository } from '#/shared/outbox'
 import {
@@ -24,7 +20,6 @@ import type { Job } from 'bullmq'
 import { expect, vi } from 'vitest'
 import type { BetaNotificationTriggerMatrixRow } from '#/contexts/feed/application/beta-notification-trigger-matrix'
 import type { EscalationResolutionLookupPort } from '#/contexts/feed/application/ports/escalation-resolution-lookup.port'
-import type { NotificationRepositoryPort } from '#/contexts/feed/application/ports/notification-repository.port'
 import { registerAiGuestVoiceSummaryNoticeConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
 import { registerAiUrgentReviewNoticeConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
 import { registerGoalNotificationConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
@@ -69,7 +64,6 @@ import {
   RECIPIENT,
   REVIEW,
   SCHEDULED_FOR,
-  SETTLED_NOTIFICATION,
 } from './notification-route-producer-fixtures'
 /** The producer's commit, the outbox row's jsonb round trip, and the relay. */
 export function deliveredEnvelope(fact: DomainEvent): ConsumerEvent {
@@ -96,37 +90,7 @@ export type RouteDeps = Omit<
     escalationResolutions: EscalationResolutionLookupPort
     monthlyResultFacts: MonthlyResultNotificationFactsLookup
     googleConnectionProperties: GoogleConnectionPropertyLookup
-    notifications: {
-      settleUnreadForResource: ReturnType<
-        typeof vi.fn<
-          (
-            input: Parameters<NotificationRepositoryPort['settleUnreadForResource']>[0],
-          ) => Promise<ReadonlyArray<NotificationId>>
-        >
-      >
-      settleUnreadForProperty: ReturnType<
-        typeof vi.fn<
-          (
-            input: Parameters<NotificationRepositoryPort['settleUnreadForProperty']>[0],
-          ) => Promise<ReadonlyArray<NotificationId>>
-        >
-      >
-      findRecipientsOfNotice: ReturnType<
-        typeof vi.fn<() => Promise<ReadonlyArray<UserId>>>
-      >
-    }
-    emails: {
-      cancelQueuedForNotifications: ReturnType<
-        typeof vi.fn<
-          (
-            ids: ReadonlyArray<NotificationId>,
-            orgId: OrganizationId,
-            reason: string,
-            at: Date,
-          ) => Promise<number>
-        >
-      >
-    }
+    db: Database
     importInitiators: PropertyImportInitiatorLookup
     destinations: Pick<PortalPublicApi, 'findDestinationApprovalNotificationFacts'>
     workState: ReturnType<typeof waitingWorkState>
@@ -136,8 +100,36 @@ export type RouteDeps = Omit<
 /** The fakes the default deps carry; a writer in `deps` that is not one of them is real. */
 const fakeNoticeWriters = new WeakSet<object>()
 
+/** A query builder every chained call of which resolves to no rows. */
+const emptyRead = (): unknown =>
+  new Proxy(() => undefined, {
+    get: (_target, property) =>
+      property === 'then'
+        ? (resolve: (rows: ReadonlyArray<never>) => unknown) => resolve([])
+        : emptyRead(),
+    apply: () => emptyRead(),
+  })
+
+/**
+ * The database handler-less tests carry: every read finds no rows, and a write
+ * is not there to call. A test whose route writes passes a real database.
+ */
+const readsNothingDatabase = {
+  select: emptyRead,
+  selectDistinct: emptyRead,
+} as unknown as Database
+
+/**
+ * Without a database a settling route has nothing to retire: no type's work
+ * counts as finished, so the route is applied without touching a table.
+ */
+const workStateFinishingNothing = (): RouteDeps['workState'] => ({
+  ...waitingWorkState(),
+  finished: vi.fn(async () => []),
+})
+
 /** Reads that find nothing, for tests that never run a handler. */
-function inertRouteDeps(): RouteDeps {
+function inertRouteDeps(db?: Database): RouteDeps {
   const base = createNotificationConsumerDeps()
   const receipts = { insertReceipt: vi.fn(async () => {}) }
   const noticeWriter = noticeWriterOver({ add: base.addMock }, receipts)
@@ -146,6 +138,7 @@ function inertRouteDeps(): RouteDeps {
     ...base,
     receipts,
     noticeWriter,
+    db: db ?? readsNothingDatabase,
     escalationResolutions: {
       findEscalationResolutionFacts: vi.fn(async () => null),
     },
@@ -156,15 +149,9 @@ function inertRouteDeps(): RouteDeps {
     googleConnectionProperties: {
       findGoogleNotificationAnchor: vi.fn(async () => null),
     },
-    notifications: {
-      settleUnreadForResource: vi.fn(async () => []),
-      settleUnreadForProperty: vi.fn(async () => []),
-      findRecipientsOfNotice: vi.fn(async () => []),
-    },
-    emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
     importInitiators: { findPropertyImportInitiator: vi.fn(async () => null) },
     destinations: { findDestinationApprovalNotificationFacts: vi.fn(async () => null) },
-    workState: waitingWorkState(),
+    workState: db === undefined ? workStateFinishingNothing() : waitingWorkState(),
     groupedReopens: noGroupedReopens(),
   }
 }
@@ -197,8 +184,8 @@ export function registerNotificationRoutes(
 }
 
 /** Reads that find each route's subject still current, so every route has work. */
-export function currentRouteDeps(): RouteDeps {
-  const deps = inertRouteDeps()
+export function currentRouteDeps(db?: Database): RouteDeps {
+  const deps = inertRouteDeps(db)
   const item = {
     propertyId: PROPERTY,
     portalId: null,
@@ -272,12 +259,6 @@ export function currentRouteDeps(): RouteDeps {
     googleConnectionProperties: {
       findGoogleNotificationAnchor: vi.fn(async () => PROPERTY),
     },
-    notifications: {
-      settleUnreadForResource: vi.fn(async () => [SETTLED_NOTIFICATION]),
-      settleUnreadForProperty: vi.fn(async () => [SETTLED_NOTIFICATION]),
-      findRecipientsOfNotice: vi.fn(async () => []),
-    },
-    emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
     importInitiators: {
       findPropertyImportInitiator: vi.fn(async () => RECIPIENT as string),
     },

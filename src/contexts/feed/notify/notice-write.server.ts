@@ -6,11 +6,7 @@ import type { ReviewRatingForRouting } from '../application/ports/cross-context-
 import type { NotificationEmail } from '../domain/notification-types'
 import type { InsertNotificationInput } from '../application/use-cases/insert-notification'
 import { insertNotification } from '../application/use-cases/insert-notification'
-import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
 import type { NotificationAudience } from '../application/notification-audience'
-import { createNotificationRepository } from '../infrastructure/repositories/notification.repository'
-import { createNotificationEmailRepository } from '../infrastructure/repositories/notification-email.repository'
-import { createNotificationPreferenceRepository } from '../infrastructure/repositories/notification-preference.repository'
 
 export type NoticeWriteSettings = Readonly<{
   db: Database
@@ -72,22 +68,13 @@ export async function writeNoticeInTransaction(
   // Drizzle's transaction handle implements the same query surface the
   // adapters need; keep the cast at this infrastructure boundary.
   const transactionDb = tx as unknown as Database
-  const notificationRepo = createNotificationRepository(transactionDb)
-  const baseEmailRepo = createNotificationEmailRepository(transactionDb)
   let insertedEmail: NotificationEmail | null = null
-  const emailRepo: NotificationEmailRepositoryPort = {
-    ...baseEmailRepo,
-    insert: async (email) => {
-      const inserted = await baseEmailRepo.insert(email)
-      insertedEmail = inserted
-      return inserted
-    },
-  }
 
   await insertNotification({
-    notificationRepo,
-    emailRepo,
-    preferenceRepo: createNotificationPreferenceRepository(transactionDb),
+    db: transactionDb,
+    onEmailQueued: (email) => {
+      insertedEmail = email
+    },
     clock: deps.clock,
     idGen: deps.idGen,
     emailIdGen: deps.emailIdGen,
