@@ -18,7 +18,8 @@ against this file.
 ### Section 1 (amend the Guest definition, then add after the sentence on Guest private ratings and feedback)
 
 > Guests — people who open a published Portal and may submit a private rating,
-> optional private feedback, or contact details to be followed up on.
+> optional private feedback or contact details to be followed up on, or choose a
+> destination link.
 >
 > Contact details a Guest chooses to share so a manager can follow up on their
 > feedback are processed on the Guest's consent.
@@ -113,21 +114,46 @@ against this file.
 | revealedLabel (screen reader) | Contact details                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | name                          | Name                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
-## 3. Participation Agreement replacement
+## 3. Participation Agreement replacements
 
-Replaces the sentence "Contact Request remains unavailable until its separate
-release and privacy requirements are met; if activated, it is email-only." and the
-matching line in the list of capabilities:
+Three places in the Participation Agreement change.
 
-> Contact requests are unavailable until the owner switches them on, Portal by
-> Portal. Where a Portal offers them, a Guest may share an email address and an
-> optional name, and agrees by ticking a separate box that the property may contact
-> them about their feedback. Phone collection and Guest media remain outside the
-> beta.
+### Private feedback access (replaces the paragraph beginning "Portal private feedback is limited to current managers")
 
-The list item "Contact Request, only after its separate privacy/handling gate
-closes" becomes "Contact requests, only on a Portal that offers them and after
-the Privacy Notice describing them is in force".
+> Portal workflow notices go to the current managers assigned responsibility for
+> that Portal; account administrators receive them only in the explicit unowned
+> recovery state, and notices do not fan out to every Property Manager. Account
+> administrators and the property managers assigned to the Property can open a
+> Portal's private feedback. The creator is assigned initially when eligible, but
+> creation is not permanent exclusive ownership.
+
+### Contact requests (replaces the two sentences "Contact Request remains unavailable until its separate release and privacy requirements are met; if activated, it is email-only.")
+
+The sentence after it, "Phone collection and Guest media remain outside the beta.",
+stays as it is and is not repeated here.
+
+> Contact requests are optional. On a Portal that offers them, a Guest who has left
+> private feedback may share an email address and, if they like, a name, and tick a
+> separate box to agree that the property may contact them about that feedback.
+> Contact requests are switched on Portal by Portal, never for a Property as a
+> whole, and a Portal offers them only when its published version says so.
+
+### List of capabilities
+
+"Contact Request, only after its separate privacy/handling gate closes" becomes
+"Contact requests, only on a Portal that offers them and after the Privacy Notice
+describing them is in force".
+
+## 3a. Change note for the next Privacy Notice version
+
+> This version describes contact requests, which a Guest may use to share an email
+> address and an optional name so a manager can follow up on their private
+> feedback (sections 1 to 4, 6 and 7). It also corrects section 4: the line in
+> version 3.3 that Portal private feedback stays limited to responsible managers
+> is replaced. Account administrators and the property managers assigned to the
+> Property can open a Portal's private feedback; workflow notices still go to the
+> current responsible managers, with account administrators as the fallback when
+> none is eligible.
 
 ## 4. Which text carries which point
 
