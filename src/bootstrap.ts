@@ -71,10 +71,6 @@ import {
   createSweepPortalMediaHandler,
   JOB_NAME as PORTAL_MEDIA_SWEEP_JOB,
 } from '#/contexts/portal/infrastructure/jobs/sweep-portal-media.job'
-import {
-  createReleaseResponseTargetRemindersHandler,
-  JOB_NAME as RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
-} from '#/contexts/inbox/infrastructure/jobs/release-response-target-reminders.job'
 
 // BQC-5.5: the ops queue read handles are composition-owned (container.opsQueues)
 // — the per-module getOpsQueues() duplicate is gone. The health-check job
@@ -311,15 +307,10 @@ export async function bootstrap(
     reviewReconcileWithinMs: runtime.reviewReconcileWithinMs,
   })
 
-  container.jobRegistry.register(
-    RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
-    createReleaseResponseTargetRemindersHandler({
-      release: container.inboxRuntime.releaseDueResponseTargetReminders,
-      logger: container.logger,
-    }),
-  )
+  const releaseReminders = container.inboxRuntime.releaseResponseTargetRemindersJob
+  container.jobRegistry.register(releaseReminders.name, releaseReminders.handler)
   logger.info(
-    { job: RELEASE_RESPONSE_TARGET_REMINDERS_JOB },
+    { job: releaseReminders.name },
     'registered response-target reminder release job handler',
   )
 

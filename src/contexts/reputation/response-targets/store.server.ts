@@ -16,9 +16,9 @@ import { trace } from '#/shared/observability/trace'
 import type {
   ResponseTargetStore,
   ResponseTargetView,
-} from '../application/ports/response-target.store'
-import type { HandlingCycle, HandlingCycleHead } from '../domain/types'
-import type { ReviewCycleTargetAnchor } from '../application/ports/review-response-target-authority.port'
+} from '#/contexts/inbox/application/ports/response-target.store'
+import type { HandlingCycle, HandlingCycleHead } from '#/contexts/inbox/domain/types'
+import type { ReviewCycleTargetAnchor } from '#/contexts/inbox/application/ports/review-response-target-authority.port'
 import {
   buildResponseTargetSnapshot,
   classifyResponseTargetCompletion,
@@ -28,10 +28,10 @@ import {
   schedulableReminders,
   type ResponseTargetResult,
   type ResponseTargetSnapshot,
-} from '../domain/response-target'
-import { inboxError } from '../domain/errors'
-import { createResponseTargetAnalyticsStore } from './response-target-analytics.store'
-import { createReminderReleaseStore } from './response-target-reminder-release.store'
+} from '../../inbox/domain/response-target'
+import { inboxError } from '#/contexts/inbox/domain/errors'
+import { createResponseTargetAnalyticsStore } from './analytics.store.server'
+import { createReminderReleaseStore } from './reminder-release.store.server'
 
 type TargetRow = typeof inboxHandlingCycleResponseTargets.$inferSelect
 

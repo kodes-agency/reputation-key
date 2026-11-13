@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { openNextReviewCycleForTest } from './review-cycle-reopen.test-fixtures'
+import { openNextReviewCycleForTest } from '#/contexts/inbox/infrastructure/review-cycle-reopen.test-fixtures'
 import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
@@ -15,17 +15,17 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../domain/types'
-import { inboxItemStatusChanged } from '../domain/events'
+import type { InboxItem } from '#/contexts/inbox/domain/types'
+import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
-} from './inbox-command-store'
-import { createFeedbackHandlingStore } from './feedback-handling.store'
-import { createResponseTargetStore } from './response-target.store'
-import { completeGoogleReviewTarget } from './google-review-target-completion'
-import { createResponseTargetPolicyStore } from './response-target-policy.store'
-import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
+} from '#/contexts/inbox/infrastructure/inbox-command-store'
+import { createFeedbackHandlingStore } from '#/contexts/inbox/infrastructure/feedback-handling.store'
+import { createResponseTargetStore } from './store.server'
+import { completeGoogleReviewTarget } from '#/contexts/inbox/infrastructure/google-review-target-completion'
+import { createResponseTargetPolicyStore } from './policy.store.server'
+import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 
 const ORG = organizationId('org-response-target-pg-00000000001')
 const PROPERTY = propertyId('79000000-0000-4000-8000-000000000001')
@@ -1303,7 +1303,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     await seedScope({ propertyMinutes: null })
     const targets = createResponseTargetStore(db)
     await db.transaction(async (tx) => {
-      const { cancelPrivateFeedbackTarget } = await import('./response-target.store')
+      const { cancelPrivateFeedbackTarget } = await import('./store.server')
       await cancelPrivateFeedbackTarget(
         tx,
         {

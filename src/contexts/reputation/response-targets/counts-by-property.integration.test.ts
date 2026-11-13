@@ -14,7 +14,7 @@ import {
 } from '#/shared/domain/ids'
 
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { createResponseTargetStore } from './response-target.store'
+import { createResponseTargetStore } from './store.server'
 
 const ORG = organizationId('org-response-target-property-counts')
 const OVERDUE_PROPERTY = propertyId('7a100000-0000-4000-8000-000000000001')

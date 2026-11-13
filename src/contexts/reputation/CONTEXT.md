@@ -23,6 +23,19 @@ receives commands as props and reads browser-safe Inbox types through
 server implementations, wiring and contracts in their existing contexts; see
 their area maps. Server functions remain at their existing `server/` paths.
 
+`response-targets/` owns the Response Target code Inbox shares with Settings:
+the target, policy, analytics and reminder-release stores (`*.store.server.ts`),
+the reminder release decision and tick (`reminder-release.server.ts`,
+`release-reminders.server.ts`), its scheduler job, and the Organization settings
+card and analytics summary in `ui/`. The target rules themselves stay in
+`inbox/domain/response-target.ts`, which Inbox's domain and ports import; moving
+them under Reputation would make Inbox's domain depend on Reputation. These stores
+still read Inbox's ports and errors, and Inbox's build wires the stores and the
+job, so the two contexts depend on each other here until Inbox's ports move.
+The folder sits at this level because the lint feature classification covers one
+level under a context; a deeper `inbox/response-targets/ui/` is not classified.
+Server functions stay in `src/contexts/inbox/server/`.
+
 ## Reply writes
 
 `replies/store.server.ts` builds the Reply writer (`createReplyWriter`): draft

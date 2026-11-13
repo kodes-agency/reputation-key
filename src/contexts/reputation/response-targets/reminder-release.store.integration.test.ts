@@ -12,17 +12,17 @@ import {
   propertyId,
   reviewId,
 } from '#/shared/domain/ids'
-import type { InboxItem } from '../domain/types'
-import type { GoogleReplyHead } from '../application/ports/reply-lookup.port'
-import type { ReminderSlotKey } from '../application/ports/response-target.store'
-import { releaseDueResponseTargetReminders } from '../application/use-cases/release-response-target-reminders'
+import type { InboxItem } from '#/contexts/inbox/domain/types'
+import type { GoogleReplyHead } from '#/contexts/inbox/application/ports/reply-lookup.port'
+import type { ReminderSlotKey } from '#/contexts/inbox/application/ports/response-target.store'
+import { releaseDueResponseTargetReminders } from './release-reminders.server'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
-} from './inbox-command-store'
-import { completeGoogleReviewTarget } from './google-review-target-completion'
-import { createResponseTargetStore } from './response-target.store'
-import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
+} from '#/contexts/inbox/infrastructure/inbox-command-store'
+import { completeGoogleReviewTarget } from '#/contexts/inbox/infrastructure/google-review-target-completion'
+import { createResponseTargetStore } from './store.server'
+import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 
 const MINUTE = 60_000
 const ORG = organizationId('org-reminder-release-pg-0000000001')

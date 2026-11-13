@@ -65,7 +65,7 @@ import type {
   InboxAssignmentRelease,
   InboxAssignmentReleaseReason,
 } from '../domain/events'
-import { cancelPrivateFeedbackTarget } from './response-target.store'
+import { cancelPrivateFeedbackTarget } from '../../reputation/response-targets/store.server'
 import {
   assertObservationMatchesItem,
   assertReviewProjectionCommand,
