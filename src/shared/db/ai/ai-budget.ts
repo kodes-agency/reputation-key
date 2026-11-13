@@ -1,4 +1,4 @@
-import { replyDynamicDeveloperBytes } from '#/shared/reply-drafting-v2-request'
+import { replyDynamicDeveloperBytes } from '#/shared/reply/request'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {

@@ -266,6 +266,7 @@ describe('alert registry contract (BQC-7.4)', () => {
       'retention.failure',
       'security.scan',
       'source.freshness-deadline',
+      'sync.count-drop-persistent',
       'sync.failed-nonzero',
       'sync.head-coverage',
       'sync.push-missed',
@@ -547,6 +548,20 @@ const BREACHES: readonly Breach[] = [
           uncoveredCount: 2,
           oldestUncoveredAgeMs: 30 * 60 * 60 * 1000,
         },
+      }
+    },
+  },
+  {
+    name: 'sync.count-drop-persistent',
+    severity: 'P2',
+    runbook: 'runbooks.md §13',
+    threshold: 72 * 60 * 60 * 1000,
+    windowMs: 72 * 60 * 60 * 1000,
+    value: 80 * 60 * 60 * 1000,
+    apply: (s) => {
+      s.syncPush = {
+        ...s.syncPush,
+        countDrop: { persistentCount: 1, oldestAgeMs: 80 * 60 * 60 * 1000 },
       }
     },
   },

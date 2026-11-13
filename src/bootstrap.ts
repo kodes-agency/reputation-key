@@ -1,4 +1,8 @@
 import {
+  createReclaimPendingIdentityUploadsHandler,
+  JOB_NAME as IDENTITY_PENDING_UPLOAD_RECLAIM_JOB,
+} from '#/contexts/identity/infrastructure/jobs/reclaim-pending-identity-uploads.job'
+import {
   createMerchantAiStandingRenewalHandler,
   JOB_NAME as MERCHANT_AI_RENEWAL_JOB_NAME,
 } from '#/contexts/identity/infrastructure/jobs/merchant-ai-standing-renewal.job'
@@ -235,6 +239,16 @@ export async function bootstrap(
     'registered Portal media sweep job handler',
   )
 
+  // Not capability-gated, like the Portal sweep: it frees objects of uploads
+  // that were never saved, whatever the state of the upload capability.
+  container.jobRegistry.register(
+    IDENTITY_PENDING_UPLOAD_RECLAIM_JOB,
+    createReclaimPendingIdentityUploadsHandler({
+      reclaim: container.identityWorkerRuntime.reclaimPendingUploads,
+      logger: container.logger,
+    }),
+  )
+
   // Invited registration recovery accepts invitations, which creates members.
   // Its tenant-cross schedule only enumerates: each registration's own
   // Organization is decided under current policy before it is accepted.
@@ -403,6 +417,7 @@ export async function bootstrap(
       container.integrationWorkerRuntime.sweepImportLifecycle ?? undefined,
     guestContactRequestRetentionSweep: container.guestContactRequestRetentionSweep,
     reviewObservationRetentionSweep: container.reviewObservationRetentionSweep,
+    reviewSnapshotRunRetentionSweep: container.reviewSnapshotRunRetentionSweep,
   })
   container.jobRegistry.register(RETENTION_SWEEP_JOB_NAME, retentionSweepHandler)
   logger.info({ job: RETENTION_SWEEP_JOB_NAME }, 'registered retention sweep job handler')

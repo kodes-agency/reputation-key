@@ -60,13 +60,42 @@ export const UNLISTED_REVIEW_HOLD_RUNS = 28
  * found it after that run's listing left it out (the candidate it observed),
  * not a listing. A later listing of it moves `last_seen_snapshot_run_id` on.
  */
-const foundUnlistedByLastRun = sql`
+export const foundUnlistedByLastRun = sql`
   EXISTS (
     SELECT 1 FROM review_provider_deletion_candidates found
     WHERE found.run_id = s.last_seen_snapshot_run_id
       AND found.review_id = s.review_id
       AND found.state = 'observed'
   )`
+
+/** A hold counted from the runs themselves: completed runs of the epoch that
+ * started after the run that found the Review, never below zero. */
+export const legacyHoldRunsLeft = sql`
+  GREATEST(${UNLISTED_REVIEW_HOLD_RUNS} - (
+    SELECT count(*) FROM review_provider_snapshot_runs later
+    JOIN review_provider_snapshot_runs found_run
+      ON found_run.id = s.last_seen_snapshot_run_id
+    WHERE later.organization_id = s.organization_id
+      AND later.property_id = s.property_id
+      AND later.source_epoch = s.source_epoch
+      AND later.state = 'completed'
+      AND later.started_at > found_run.started_at
+  )::int, 0)`
+
+/**
+ * The completed runs this mapping's hold still has to wait, or NULL when the
+ * last thing that saw its Review was a listing (or nothing found it unlisted).
+ * The count lives on the mapping (`unlisted_hold_runs_left`) because retention
+ * deletes old runs, and with them the run that found the Review and the
+ * candidate it observed. A hold without the count (one begun before the
+ * count existed) is read from that run while the run is kept, and the
+ * retention sweep writes the count before it deletes the run.
+ */
+const holdRunsLeft = sql`
+  CASE
+    WHEN s.unlisted_hold_runs_left IS NOT NULL THEN s.unlisted_hold_runs_left
+    WHEN ${foundUnlistedByLastRun} THEN ${legacyHoldRunsLeft}
+  END`
 
 /**
  * Whether a direct read already found this Review left out of an earlier run's
@@ -84,10 +113,58 @@ export async function foundUnlistedBefore(
       AND s.property_id = ${run.propertyId}
       AND s.source_epoch = ${run.sourceEpoch}
       AND s.review_id = ${reviewId}
-      AND s.last_seen_snapshot_run_id <> ${run.id}
-      AND ${foundUnlistedByLastRun}
+      AND s.last_seen_snapshot_run_id IS DISTINCT FROM ${run.id}
+      AND (${holdRunsLeft}) IS NOT NULL
   `)
   return rows.rows.length > 0
+}
+
+/**
+ * This run's direct read found a pending candidate on Google although the
+ * run's listing left it out, and has just made the run the mapping's last
+ * sighting: the candidate is kept as observed and the hold begins. False when
+ * the candidate is no longer pending.
+ */
+export async function holdFoundUnlisted(
+  tx: Tx,
+  run: RunRow,
+  reviewId: string,
+): Promise<boolean> {
+  const observed = await tx.execute(sql`
+    UPDATE review_provider_deletion_candidates
+    SET state = 'observed', updated_at = transaction_timestamp()
+    WHERE run_id = ${run.id} AND review_id = ${reviewId} AND state = 'pending'
+  `)
+  if (observed.rowCount !== 1) return false
+  await tx.execute(sql`
+    UPDATE review_provider_subjects
+    SET unlisted_hold_runs_left = ${UNLISTED_REVIEW_HOLD_RUNS},
+        updated_at = transaction_timestamp()
+    WHERE organization_id = ${run.organizationId}
+      AND property_id = ${run.propertyId}
+      AND source_epoch = ${run.sourceEpoch}
+      AND review_id = ${reviewId}
+      AND last_seen_snapshot_run_id = ${run.id}
+  `)
+  return true
+}
+
+/**
+ * Count the completing run against every hold in its Property source epoch.
+ * Only one run of an epoch is active at a time, so every run that completes
+ * after a hold began started after the run that began it.
+ */
+export async function countRunAgainstHolds(tx: Tx, run: RunRow): Promise<void> {
+  await tx.execute(sql`
+    UPDATE review_provider_subjects
+    SET unlisted_hold_runs_left = unlisted_hold_runs_left - 1,
+        updated_at = transaction_timestamp()
+    WHERE organization_id = ${run.organizationId}
+      AND property_id = ${run.propertyId}
+      AND source_epoch = ${run.sourceEpoch}
+      AND unlisted_hold_runs_left > 0
+      AND last_seen_snapshot_run_id IS DISTINCT FROM ${run.id}
+  `)
 }
 
 /**
@@ -117,19 +194,7 @@ export async function recordMissingFromListing(tx: Tx, run: RunRow): Promise<voi
       AND s.first_missing_at IS NOT NULL
       AND s.first_missing_snapshot_run_id <> ${run.id}
       AND s.first_missing_at <= ${run.startedAt}::timestamptz - interval '15 minutes'
-      AND NOT (
-        ${foundUnlistedByLastRun}
-        AND (
-          SELECT count(*) FROM review_provider_snapshot_runs later
-          JOIN review_provider_snapshot_runs found_run
-            ON found_run.id = s.last_seen_snapshot_run_id
-          WHERE later.organization_id = s.organization_id
-            AND later.property_id = s.property_id
-            AND later.source_epoch = s.source_epoch
-            AND later.state = 'completed'
-            AND later.started_at > found_run.started_at
-        ) < ${UNLISTED_REVIEW_HOLD_RUNS}
-      )
+      AND COALESCE((${holdRunsLeft}), 0) = 0
     ON CONFLICT (run_id, review_id) DO NOTHING
   `)
   await tx.execute(sql`
@@ -147,6 +212,77 @@ export async function recordMissingFromListing(tx: Tx, run: RunRow): Promise<voi
         WHERE m.run_id = ${run.id} AND m.review_id = s.review_id AND m.main_seen
       )
   `)
+}
+
+/**
+ * A completed run asks the discovery sweep for the next full read when a
+ * stored Review has a first miss no request has followed yet, so the listing
+ * that can confirm the miss comes six hours after this one rather than a whole
+ * reconciliation window later (Google's first page never shows a deletion).
+ * The request follows the miss, not the run that recorded it: a run that
+ * recorded a first miss and then failed leaves the asking to the run that
+ * completes after it, and a later run that misses the same Review again does
+ * not ask twice, because a request already postdates the miss. Called by the
+ * transaction that completes the run, so the request carries the same instant
+ * as the run's verified fact; the sweep counts a request made no earlier than
+ * the last listing and runs it once that listing is six hours old. Writes
+ * nothing for a Property the sweep has never looked at.
+ */
+async function requestFullReadAfterFirstMiss(tx: Tx, run: RunRow): Promise<void> {
+  await tx.execute(sql`
+    UPDATE review_sync_state st
+    SET full_read_requested_at = GREATEST(st.full_read_requested_at, transaction_timestamp()),
+        updated_at = transaction_timestamp()
+    WHERE st.property_id = ${run.propertyId}
+      AND st.source = 'google'
+      AND EXISTS (
+        SELECT 1 FROM review_provider_subjects s
+        WHERE s.organization_id = ${run.organizationId}
+          AND s.property_id = ${run.propertyId}
+          AND s.source_epoch = ${run.sourceEpoch}
+          AND s.state IN ('linked', 'source_expired')
+          AND s.first_missing_at IS NOT NULL
+          AND s.first_missing_at > COALESCE(st.full_read_requested_at, '-infinity')
+      )
+  `)
+}
+
+/**
+ * A completed run whose Google total is no lower than the Reviews the Property
+ * now holds live clears a drop in Google's total that head checks stamped: the
+ * listing either removed the deleted Review or found nothing missing. Without
+ * this, a Property whose looks are all full listings (no head check to see the
+ * counts level) would keep an old stamp. Writes only when a stamp exists.
+ */
+async function clearCountDropAfterListing(tx: Tx, run: RunRow): Promise<void> {
+  if (run.expectedTotal == null) return
+  await tx.execute(sql`
+    UPDATE review_sync_state
+    SET count_drop_seen_at = NULL,
+        count_drop_checked_at = NULL,
+        updated_at = transaction_timestamp()
+    WHERE property_id = ${run.propertyId}
+      AND source = 'google'
+      AND count_drop_seen_at IS NOT NULL
+      AND ${run.expectedTotal} >= (
+        SELECT count(*) FROM reviews r
+        JOIN review_source_contents c
+          ON c.review_id = r.id
+         AND c.organization_id = r.organization_id
+         AND c.property_id = r.property_id
+        WHERE r.organization_id = ${run.organizationId}
+          AND r.property_id = ${run.propertyId}
+          AND r.platform = 'google'
+          AND r.source_epoch = ${run.sourceEpoch}
+          AND r.source_content_state = 'active'
+      )
+  `)
+}
+
+/** What the transaction that completes a run does for discovery after its listing. */
+export async function followCompletedListing(tx: Tx, run: RunRow): Promise<void> {
+  await requestFullReadAfterFirstMiss(tx, run)
+  await clearCountDropAfterListing(tx, run)
 }
 
 /**

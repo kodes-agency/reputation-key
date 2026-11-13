@@ -31,8 +31,10 @@ const REPO_SRC = join(INBOX_ROOT, '..', '..')
  * decision, not a test fix.
  */
 const FENCED_MIRROR_WRITERS: Readonly<Record<string, string>> = {
-  'contexts/inbox/infrastructure/inbox-command-store.ts':
-    'Receipt-coordinated command store: every mirror write co-commits with the Handling Cycle head, its transition row, and the outbox fact.',
+  'contexts/reputation/inbox/assignment-commands.server.ts':
+    'Assignment, release and manual reopen commands: every mirror write co-commits with the Handling Cycle head, its transition row, and the outbox fact.',
+  'contexts/reputation/inbox/source-commands.server.ts':
+    'Receipt-coordinated source commands (create, withdraw, source transition): every mirror write co-commits with the Handling Cycle head, its transition row, and the outbox fact.',
   'contexts/inbox/infrastructure/inbox-source-projection.ts':
     'Source-driven projection commands and the item row writers they share: item rows converge with the Handling Cycle head, its transition row and the outbox fact in one transaction.',
   'contexts/inbox/infrastructure/feedback-handling.store.ts':
@@ -51,7 +53,9 @@ function walk(directory: string): readonly string[] {
   })
 }
 
-const productionFiles = walk(INBOX_ROOT)
+const REPUTATION_INBOX_ROOT = join(REPO_SRC, 'contexts', 'reputation', 'inbox')
+
+const productionFiles = [...walk(INBOX_ROOT), ...walk(REPUTATION_INBOX_ROOT)]
 
 const relativeToSrc = (absolute: string): string =>
   relative(REPO_SRC, absolute).split(sep).join('/')
@@ -96,19 +100,28 @@ describe('inbox_items.status is a read-only-retained compatibility mirror', () =
         readFileSync(join(REPO_SRC, permitted), 'utf8'),
       ),
     )
-    expect(priorityWriters).toEqual([
-      'contexts/inbox/infrastructure/inbox-command-store.ts',
+    expect(priorityWriters).toEqual([])
+
+    // The one module that writes the priority is status-commands.server.ts; it
+    // reaches `inbox_items` through the shared command runtime, so the table
+    // scan above cannot see it. Name it, and fence anything that defines the
+    // writer elsewhere.
+    const setPriorityDefiners = productionFiles
+      .filter((file) => /^\s+setPriority:\s*async\b/m.test(readFileSync(file, 'utf8')))
+      .map(relativeToSrc)
+    expect(setPriorityDefiners).toEqual([
+      'contexts/reputation/inbox/status-commands.server.ts',
     ])
 
     // The columns a set or a reset writes are spelled once, and only the
-    // store's `setPriority` hands them to its compare-and-swap.
+    // command store's `setPriority` hands them to its compare-and-swap.
     const columnCallers = productionFiles
       .filter((file) => /\bmanagerPriorityColumns\(/.test(readFileSync(file, 'utf8')))
       .map(relativeToSrc)
       .sort()
     expect(columnCallers).toEqual([
-      'contexts/inbox/infrastructure/inbox-command-store.ts',
       'contexts/inbox/infrastructure/inbox-priority-history.ts',
+      'contexts/reputation/inbox/status-commands.server.ts',
     ])
   })
 

@@ -43,6 +43,7 @@ const buildFeed = (db: Database) => {
       replyStates: {} as never,
       feedbackPortalLookup: {} as never,
       googleConnectionProperties: {} as never,
+      googleConnectionStatus: {} as never,
       propertyImportInitiators: {} as never,
       monthlyResultFacts: {} as never,
       portalHealthLookup: {} as never,

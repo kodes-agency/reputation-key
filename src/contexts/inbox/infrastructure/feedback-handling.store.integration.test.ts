@@ -23,7 +23,7 @@ import { isInboxError } from '../domain/errors'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
-} from './inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createFeedbackHandlingStore } from './feedback-handling.store'
 
 const ORG = organizationId('org-feedback-handling-000000000001')

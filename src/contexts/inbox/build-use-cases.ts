@@ -43,7 +43,7 @@ import {
   getResponseTargetPolicySettings,
 } from './application/use-cases/get-response-targets'
 import { setResponseTargetPolicy } from './application/use-cases/set-response-target-policy'
-import { releaseDueResponseTargetReminders } from '../reputation/response-targets/release-reminders.server'
+import { releaseDueResponseTargetReminders } from '../reputation/inbox/response-targets/release-reminders.server'
 import { checkInboxReviewOnGoogle } from './application/use-cases/check-inbox-review-on-google'
 import type { InboxActorDirectory } from './application/ports/inbox-actor-directory.port'
 import type { InboxHistoryRepository } from './application/ports/inbox-history.repository'

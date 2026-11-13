@@ -1,20 +1,36 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { BACKUP_ERASURE_LEDGER_CONTEXTS } from '#/shared/db/schema/backup-erasure-ledger.schema'
+import { ERASURE_JOURNAL_CONTEXTS } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { createNotificationRightsReplayers } from '#/contexts/feed/rights/replayer.server'
 import {
   createRightsJournal,
   rightsJournalEntry,
 } from '#/shared/ops/rights/rights-journal'
-import { RIGHTS_REQUEST_SCOPES } from '#/shared/ops/rights/rights-request-command'
-import { composeRightsExecutors, composeRightsReplayers } from './rights-executors'
+import {
+  RIGHTS_REQUEST_SCOPES,
+  type RightsRequestPlan,
+} from '#/shared/ops/rights/rights-request-command'
+import { AUDIT_PSEUDONYM_SECRET_MISSING } from '#/contexts/feed/audit/pseudonymise.server'
+import {
+  composeRightsExecutors,
+  composeRightsReplayers,
+  rightsReplayRefusal,
+} from './rights-executors'
 
 const NOTIFICATION_REPLAYERS = createNotificationRightsReplayers()
+const rightsPlanFor = (scope: 'property' | 'organization'): RightsRequestPlan => ({
+  scope,
+  mode: 'apply',
+  organizationId: 'org',
+  batchSize: 1,
+  receivedAt: new Date('2026-08-01T00:00:00.000Z'),
+})
 const deps = {
   db: {} as Database,
   journal: createRightsJournal(undefined),
   runNotification: vi.fn(),
   portalObjectStore: { deleteObject: vi.fn() },
+  auditPseudonymSecret: 'audit-pseudonym-test-secret',
 }
 
 describe('composeRightsExecutors', () => {
@@ -29,11 +45,48 @@ describe('composeRightsExecutors', () => {
       'portal',
       'ai',
       'activity',
-      'identity-grants',
+      'identity',
       'property',
       'notification',
       'staff-participant',
+      'work-items',
     ])
+  })
+
+  it('refuses a Property or Organization erasure at preflight without the audit pseudonym secret', async () => {
+    const activity = composeRightsExecutors(
+      { ...deps, auditPseudonymSecret: undefined },
+      false,
+    ).find(({ name }) => name === 'activity')!
+
+    for (const plan of [
+      {
+        ...rightsPlanFor('property'),
+        propertyId: '30000000-0000-4000-8000-000000000002',
+      },
+      rightsPlanFor('organization'),
+    ]) {
+      expect(await activity.preflight!(plan)).toEqual({
+        ok: false,
+        error: AUDIT_PSEUDONYM_SECRET_MISSING,
+      })
+    }
+  })
+
+  it('refuses to replay an Activity entry without the audit pseudonym secret, and nothing else', () => {
+    const missing = { auditPseudonymSecret: undefined }
+
+    expect(
+      rightsReplayRefusal([{ context: 'guest' }, { context: 'activity' }], missing),
+    ).toBe(AUDIT_PSEUDONYM_SECRET_MISSING)
+    expect(
+      rightsReplayRefusal([{ context: 'guest' }, { context: 'platform' }], missing),
+    ).toBeNull()
+    expect(
+      rightsReplayRefusal([{ context: 'activity' }], {
+        auditPseudonymSecret: 'audit-pseudonym-test-secret',
+      }),
+    ).toBeNull()
   })
 
   it('runs the notification executor alone for a final warning', () => {
@@ -42,13 +95,13 @@ describe('composeRightsExecutors', () => {
     ])
   })
 
-  it('journals every executor under known lifecycle contexts', () => {
+  it('journals every executor under known journal contexts', () => {
     // The participant executor journals each batch with the ids it names.
     for (const executor of composeRightsExecutors(deps, false)) {
       if (executor.name === 'staff-participant') continue
       expect(executor.journalContexts.length).toBeGreaterThan(0)
       for (const context of executor.journalContexts) {
-        expect(BACKUP_ERASURE_LEDGER_CONTEXTS).toContain(context)
+        expect(ERASURE_JOURNAL_CONTEXTS).toContain(context)
       }
     }
   })
@@ -77,7 +130,10 @@ describe('composeRightsExecutors', () => {
       'portal',
       'ai',
       'activity',
+      'identity',
+      'property',
       'notification',
+      'work-items',
     ])
   })
 
@@ -91,10 +147,11 @@ describe('composeRightsExecutors', () => {
       'inbox',
       'guest',
       'reporting',
+      'staff',
       'portal',
       'ai',
       'activity',
-      'identity-grants',
+      'identity',
       'property',
       'notification',
     ])

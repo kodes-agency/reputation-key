@@ -31,7 +31,7 @@ import type { CurrentReviewInboxProjectionPermit } from '../application/ports/re
 import {
   cancelResponseTargetForCycle,
   insertResponseTargetForHandlingCycle,
-} from '../../reputation/response-targets/store.server'
+} from '../../reputation/inbox/response-targets/store.server'
 import {
   handlingCycleHeadFromRow,
   itemFromRow,

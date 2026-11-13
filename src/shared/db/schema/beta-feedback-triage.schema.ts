@@ -1,4 +1,4 @@
-// OBS-01 — content-free local authority for native beta-feedback triage.
+// Content-free local authority for native beta-feedback triage.
 //
 // Report text stays in the restricted US-hosted monitoring project, and a masked
 // layout first-party in beta_feedback_masked_layouts. These tables retain only

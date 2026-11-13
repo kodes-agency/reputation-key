@@ -37,7 +37,7 @@ import type {
 import type { InboxAssignmentOption } from '#/components/inbox/inbox-owner-view'
 import { isHeaderCommandPending } from '#/components/inbox/inbox-header-command-pending'
 import { prioritySuggestion } from '#/components/inbox/inbox-priority-view'
-import type { InboxDetailState } from '../../../../components/inbox/use-inbox-detail'
+import type { InboxDetailState } from './use-inbox-detail'
 
 /**
  * The signed-in viewer, as the route context already carries it

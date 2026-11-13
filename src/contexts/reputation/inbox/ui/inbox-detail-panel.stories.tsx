@@ -1,0 +1,230 @@
+// Inbox detail panel — the desktop (md+) side pane. Branches on detailState:
+// isLoading → skeleton, error → retry CTA, otherwise renders InboxDetailContent
+// (which itself is permission-gated). Stories build a mock InboxDetailState to
+// hit each branch. The panel uses `hidden md:flex`, so a desktop viewport is
+// required for it to be visible. The populated story also pins the assignment
+// thread: the member directory reaches the list panel on its own, and only the
+// page hands it to the pane, so an owner control with an empty menu here means
+// the prop was dropped somewhere between InboxPageV2 and the case toolbar.
+import type { Meta, StoryObj } from '@storybook/react'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { InboxDetailPanel as BareInboxDetailPanel } from '#/contexts/reputation/inbox/ui/inbox-detail-panel'
+import { withInboxDetailPaneEnv } from '#/contexts/reputation/inbox/ui/inbox-detail-pane-story'
+import { makeInboxItem } from '../../../../../.storybook/in-memory/inbox-container'
+import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
+import { withRole } from '../../../../../.storybook/AuthedRouterDecorator'
+import type { Action } from '#/components/hooks/use-action'
+import type { InboxDetailState } from './use-inbox-detail'
+import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxItem } from '#/contexts/inbox/application/public-api'
+
+// Mirrors the server fns' { data } payloads (same as the detail-content
+// stories): updateStatus takes a status, escalate/resolveEscalation take only
+// the id. Output is InboxItem, matching the use-case returns.
+type StatusInput = {
+  data: {
+    inboxItemId: string
+    status: 'open' | 'closed'
+    expectedCommandRevision: number
+  }
+}
+type IdInput = { data: { inboxItemId: string; expectedCommandRevision: number } }
+type AssignInput = {
+  data: {
+    inboxItemId: string
+    assignedToUserId: string | null
+    expectedCommandRevision: number
+  }
+}
+
+function makeStatusAction(
+  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
+): Action<StatusInput, InboxItem> {
+  const impl = async (_input: StatusInput): Promise<InboxItem> => item
+  return Object.assign(impl, {
+    isPending: overrides.isPending ?? false,
+    error: overrides.error ?? null,
+    isSuccess: overrides.isSuccess ?? false,
+    data: null,
+  })
+}
+
+function makeIdAction(
+  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
+): Action<IdInput, InboxItem> {
+  const impl = async (_input: IdInput): Promise<InboxItem> => item
+  return Object.assign(impl, {
+    isPending: overrides.isPending ?? false,
+    error: overrides.error ?? null,
+    isSuccess: overrides.isSuccess ?? false,
+    data: null,
+  })
+}
+
+function makeAssignAction(
+  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
+): Action<AssignInput, InboxItem> {
+  const impl = async (_input: AssignInput): Promise<InboxItem> => item
+  return Object.assign(impl, {
+    isPending: overrides.isPending ?? false,
+    error: overrides.error ?? null,
+    isSuccess: overrides.isSuccess ?? false,
+    data: null,
+  })
+}
+
+const unusedFeedbackAction = Object.assign(
+  async () => {
+    throw new Error('Story action only')
+  },
+  { isPending: false, error: null, isSuccess: false, data: null },
+)
+
+const detailFns = {
+  // Never invoked in these stories: detailState is mocked, so the only caller
+  // (the revision-conflict retry) cannot run.
+  getInboxItemDetail: mockServerFn(async () => {
+    throw new Error('Story action only')
+  }) as unknown as InboxServerFns['getInboxItemDetail'],
+  addInboxNote: mockServerFn(async () => ({
+    ok: true,
+  })) as unknown as InboxServerFns['addInboxNote'],
+  getInboxItemHistory: mockServerFn(async () => ({
+    inboxItemId: item.id,
+    entries: [],
+    truncated: false,
+  })) as unknown as InboxServerFns['getInboxItemHistory'],
+}
+
+const item = makeInboxItem({
+  id: 'rev-panel',
+  sourceType: 'review',
+  status: 'open',
+  rating: 4,
+})
+
+const VIEWER_ID = 'user-panel-viewer'
+const assignmentOptions = [
+  { userId: 'user-grace', name: 'Grace Hopper' },
+  { userId: 'user-ada', name: 'Ada Lovelace' },
+]
+
+// Faithful InboxDetailState (the useInboxDetail return shape, post-5.7) —
+// every key the hook returns, no dead keys, no casts.
+function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetailState {
+  return {
+    detail: null,
+    notes: [],
+    notesUnavailable: false,
+    isLoading: false,
+    currentItem: item,
+    updateStatus: makeStatusAction(),
+    escalate: makeIdAction(),
+    resolveEscalation: makeIdAction(),
+    assign: makeAssignAction(),
+    setPriority: makeIdAction(),
+    markFeedbackHandled: unusedFeedbackAction,
+    correctFeedbackHandlingOutcome: unusedFeedbackAction,
+    refetch: () => {},
+    retrying: false,
+    onReplyMutated: () => {},
+    error: null,
+    lastMarkedId: null,
+    ...overrides,
+  }
+}
+
+const InboxDetailPanel = withInboxDetailPaneEnv(BareInboxDetailPanel)
+
+const meta: Meta<typeof InboxDetailPanel> = {
+  title: 'Inbox/Detail Panel',
+  component: InboxDetailPanel,
+  tags: ['autodocs'],
+  parameters: {
+    layout: 'fullscreen',
+    viewport: { defaultViewport: 'desktopManager' },
+  },
+}
+export default meta
+type Story = StoryObj<typeof InboxDetailPanel>
+
+// Populated review — renders InboxDetailContent (PM grants reply.manage).
+export const Populated: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: {
+    selectedItem: item,
+    detailState: makeDetailState({
+      detail: {
+        item,
+        reviewText: 'Great location and very clean rooms.',
+        reviewTranslatedText: null,
+        reviewerProfilePhotoUrl: null,
+        googleReviewUrl: null,
+        googlePropertyReviewsUrl: null,
+        reviewContentStatus: 'available',
+        // Plan row 7: the stars come from the detail payload, not the item row.
+        reviewRating: 4,
+        feedbackComment: null,
+        feedbackRatingValue: null,
+        reply: null,
+        analysis: null,
+        feedbackHandling: null,
+        responseTarget: null,
+      },
+      notes: [],
+      notesUnavailable: false,
+    }),
+    onClose: () => {},
+    detailFns,
+    currentUser: { id: VIEWER_ID },
+    assignmentOptions,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Assignment: Unassigned' }))
+    const body = within(document.body)
+    const first = await body.findByRole('menuitem', { name: 'Assign to me' })
+    await waitFor(() => expect(first).toBeVisible())
+    // The directory arrived intact, not as the empty default.
+    await expect(body.getByRole('menuitem', { name: 'Grace Hopper' })).toBeVisible()
+
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(body.queryByRole('menuitem')).toBeNull())
+  },
+}
+
+// detailState.isLoading → the toolbar row, the conversation and the composer dock
+// as placeholders, so the pane keeps its three regions while it loads.
+export const Loading: Story = {
+  args: {
+    selectedItem: item,
+    detailState: makeDetailState({ isLoading: true, currentItem: null, detail: null }),
+    onClose: () => {},
+    detailFns,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('region', { name: 'Conversation' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
+    // The conversation sits between the toolbar row above it and the dock below.
+    const pane = canvasElement.querySelector('[aria-busy="true"]')!.parentElement!
+    expect(pane.children).toHaveLength(4)
+    expect(canvas.queryByRole('button', { name: 'Try again' })).toBeNull()
+  },
+}
+
+// detailState.error → region error + Try again (calls refetch).
+export const ErrorState: Story = {
+  args: {
+    selectedItem: item,
+    detailState: makeDetailState({
+      error: 'This item couldn’t be loaded.',
+      currentItem: item,
+      detail: null,
+    }),
+    onClose: () => {},
+    detailFns,
+  },
+}

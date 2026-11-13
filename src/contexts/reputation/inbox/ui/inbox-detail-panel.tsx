@@ -3,11 +3,8 @@ import { InboxDetailContent } from '#/contexts/reputation/inbox/ui/inbox-detail-
 import { InboxDetailPending } from '#/contexts/reputation/inbox/ui/inbox-detail-pending'
 import { InboxDetailHeader } from '#/contexts/reputation/inbox/ui/inbox-detail-header'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import type { useInboxDetail } from '#/components/inbox/use-inbox-detail'
-import type { ComposerFocusBox } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
-import type { InboxAssignmentOption } from '#/components/inbox/inbox-owner-view'
-import { isCaseToolbarShown, type InboxCurrentUser } from './inbox-case-toolbar-props'
-import type { InboxDetailFns } from '#/components/inbox/types'
+import type { useInboxDetail } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
+import { isCaseToolbarShown } from './inbox-case-toolbar-props'
 
 type DetailState = ReturnType<typeof useInboxDetail>
 
@@ -15,11 +12,6 @@ interface InboxDetailPanelProps {
   selectedItem: InboxItem
   detailState: DetailState
   onClose: () => void
-  detailFns: InboxDetailFns
-  currentUser?: InboxCurrentUser
-  assignmentOptions?: ReadonlyArray<InboxAssignmentOption>
-  /** The page's `r` / `n` shortcuts, passed through to the composer. */
-  composerFocusRef?: ComposerFocusBox
 }
 
 /**
@@ -33,10 +25,6 @@ export function InboxDetailPanel({
   selectedItem,
   detailState,
   onClose,
-  detailFns,
-  currentUser,
-  assignmentOptions,
-  composerFocusRef,
 }: InboxDetailPanelProps) {
   const currentItem = detailState.currentItem ?? selectedItem
   return (
@@ -67,14 +55,7 @@ export function InboxDetailPanel({
           <InboxDetailPending />
         )
       ) : (
-        <InboxDetailContent
-          currentItem={currentItem}
-          detailState={detailState}
-          detailFns={detailFns}
-          currentUser={currentUser}
-          assignmentOptions={assignmentOptions}
-          composerFocusRef={composerFocusRef}
-        />
+        <InboxDetailContent currentItem={currentItem} detailState={detailState} />
       )}
     </div>
   )

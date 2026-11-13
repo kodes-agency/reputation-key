@@ -23,17 +23,18 @@ receives commands as props and reads browser-safe Inbox types through
 server implementations, wiring and contracts in their existing contexts; see
 their area maps. Server functions remain at their existing `server/` paths.
 
-`response-targets/` owns the Response Target code Inbox shares with Settings:
-the target, policy, analytics and reminder-release stores (`*.store.server.ts`),
+`inbox/response-targets/` owns the Response Target server code Inbox shares with
+Settings: the target, policy, analytics and reminder-release stores (`*.store.server.ts`),
 the reminder release decision and tick (`reminder-release.server.ts`,
-`release-reminders.server.ts`), its scheduler job, and the Organization settings
-card and analytics summary in `ui/`. The target rules themselves stay in
+`release-reminders.server.ts`), and its scheduler job. The Organization settings card and analytics summary stay
+in `response-targets/ui/`. The target rules themselves stay in
 `inbox/domain/response-target.ts`, which Inbox's domain and ports import; moving
 them under Reputation would make Inbox's domain depend on Reputation. These stores
 still read Inbox's ports and errors, and Inbox's build wires the stores and the
 job, so the two contexts depend on each other here until Inbox's ports move.
-The folder sits at this level because the lint feature classification covers one
-level under a context; a deeper `inbox/response-targets/ui/` is not classified.
+The server files sit under `inbox/` so `inbox/*.server.ts` commands can use them
+without a cross-feature import; the UI sits at the feature level because a deeper
+`inbox/response-targets/ui/` is not classified by lint.
 Server functions stay in `src/contexts/inbox/server/`.
 
 ## Reply writes
@@ -83,3 +84,14 @@ the observation text comparison needs. Serving, AI freshness, sync and lifecycle
 reads use the content row. Only a provider fetch can renew its expiry. The Review retains its connection
 for the database publication guard and its first-fetch history for re-observation
 after erasure; neither is served as provider content.
+
+## Inbox commands
+
+`inbox/command-store.server.ts` builds the atomic Inbox command store from
+cohorts that share one runtime (`command-runtime.server.ts`: the transaction
+authority check and the single-row transition runner): `assignment-commands`
+(assign, bulk assign, release and manual reopen), `status-commands` (bulk
+reopen, escalation and priority), `note-commands` and `source-commands`
+(create, source projection, withdrawal, transition, reply observation and
+receipts). Helpers shared with the other Inbox stores stay in
+`contexts/inbox/infrastructure/`.

@@ -50,7 +50,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'active_authority',
     authority: 'Durable work delivery',
     exitCriteria:
-      'Retain unfinished work and settled idempotency receipts until an owning command explicitly retires them; Redis retention is never authority for deletion.',
+      'Retain unfinished work and settled idempotency receipts until an owning command explicitly retires them; Redis retention is never authority for deletion. Organization closure deletes the settled items once no work is unfinished and every outbox event is settled.',
   }),
   ...rows({
     schemaFile: 'activity.schema.ts',
@@ -190,7 +190,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'active_authority',
     authority: 'Content-free audit history',
     exitCriteria:
-      'Retain for 365 days from occurrence. Source tables and their safeguards remain until verified copying and coordinated writer/read cutover.',
+      'Retain for 365 days from occurrence. Source tables and their safeguards remain until verified copying and coordinated writer/read cutover. Organization closure and Property erasure keep the event and replace every person identifier with a pseudonym.',
   }),
   ...rows({
     schemaFile: 'audit.ts',
@@ -198,7 +198,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'feed',
     disposition: 'recoverable_archive',
     authority: 'ACT-01',
-    exitCriteria: RETAINED_HISTORY,
+    exitCriteria: `${RETAINED_HISTORY} Organization closure, and Property erasure for the rows whose details name the Property, keep the event and replace every person identifier, IP address and free-text note with a pseudonym.`,
   }),
   ...rows({
     schemaFile: 'auth.ts',
@@ -214,6 +214,8 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'SAFE-02/PPL-01',
+    exitCriteria:
+      "Organization closure deletes the Organization's memberships and invitations; the participant scope erases a person's login.",
   }),
   ...rows({
     schemaFile: 'dac.schema.ts',
@@ -258,10 +260,19 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'google-content-control.schema.ts',
-    exportNames: ['authorizationExecutionPermits', 'capabilityExecutionControl'],
+    exportNames: ['capabilityExecutionControl'],
     owner: 'integration',
     disposition: 'active_authority',
     authority: 'SAFE-04/GGL-01',
+  }),
+  ...rows({
+    schemaFile: 'google-content-control.schema.ts',
+    exportNames: ['authorizationExecutionPermits'],
+    owner: 'integration',
+    disposition: 'active_authority',
+    authority: 'SAFE-04/GGL-01',
+    exitCriteria:
+      "A Property's finished permits are deleted with the Property; Organization closure scrubs the initiator and correlation of the rest.",
   }),
   ...rows({
     schemaFile: 'google-import.schema.ts',
@@ -386,14 +397,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'AI-01',
+    exitCriteria: 'Erased with the Organization.',
   }),
   ...rows({
     schemaFile: 'merchant-ai-authorization.schema.ts',
     // The decision deferral is Merchant AI authorization state beside the
     // head: organization-scoped (so the tenant-predicate canary governs it),
-    // removed by the Property cascade on Organization purge, erased by
-    // Identity's Property Erase contributor (its only writer), and withheld
-    // from export with the rest of the authorization control plane.
+    // erased with the Property or the Organization by Identity (its only
+    // writer), and withheld from export with the rest of the authorization
+    // control plane.
     exportNames: ['merchantAiDecisionDeferrals', 'merchantAiEnablement'],
     owner: 'ai',
     disposition: 'active_authority',
@@ -478,6 +490,8 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'platform',
     disposition: 'active_authority',
     authority: 'ARC-01',
+    exitCriteria:
+      'Settled outbox events age out with the 30-day outbox retention; erasure does not delete them early. Events a restore fenced are never delivered and never age out: Organization closure deletes them, and a Property erasure leaves them until then.',
   }),
   ...rows({
     schemaFile: 'staff-accounts.schema.ts',
@@ -485,6 +499,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'ADR 0076',
+    exitCriteria: 'Erased with the Property or the Organization.',
   }),
   ...rows({
     schemaFile: 'people-access.schema.ts',
@@ -498,6 +513,8 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'PPL-01',
+    exitCriteria:
+      'Participations, responsibilities and Portal Group memberships are erased with the Property; the whole directory with the Organization; one person with the participant scope.',
   }),
   ...rows({
     schemaFile: 'policy.schema.ts',
@@ -505,6 +522,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'SAFE-02/PPL-01',
+    exitCriteria: 'Erased with the Property or the Organization.',
   }),
   ...rows({
     schemaFile: 'portal-group.schema.ts',
@@ -619,6 +637,8 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'property',
     disposition: 'active_authority',
     authority: 'PPL-01/LIF-01',
+    exitCriteria:
+      'Property erasure and Organization closure leave a content-free tombstone per Property and delete its Responsible Managers.',
   }),
   ...rows({
     schemaFile: 'recovery.schema.ts',

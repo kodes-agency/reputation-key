@@ -1,0 +1,86 @@
+import { createHash } from 'node:crypto'
+import { z } from 'zod/v4'
+import { describe, expect, it } from 'vitest'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
+import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from '#/shared/review-analysis-v3'
+import {
+  REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS,
+  REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS_DIGEST,
+} from '#/shared/analysis/artifacts'
+
+function digest(domain: string, value: unknown): string {
+  return createHash('sha256')
+    .update(domain, 'utf8')
+    .update(canonicalizeRfc8785(value), 'utf8')
+    .digest('hex')
+}
+
+function plainStoredJsonSchema(): ReturnType<typeof z.toJSONSchema> {
+  return JSON.parse(
+    JSON.stringify(
+      z.toJSONSchema(REVIEW_ANALYSIS_V3_STORED_SCHEMA, { target: 'draft-7' }),
+    ),
+  ) as ReturnType<typeof z.toJSONSchema>
+}
+
+describe('review analysis v3 logical artifacts', () => {
+  it('pins every artifact version and digest', () => {
+    expect(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS).toEqual({
+      topicTaxonomyVersion: 'review-topic-taxonomy-v3',
+      topicTaxonomyDigest:
+        '6d69e3f14e8ca3ef34b6078db763ca719c4613f11ab9bf4a4d05391a50b30eb0',
+      sentenceRulesVersion: 'review-sentences-v1',
+      sentenceRulesDigest:
+        'b7e81ba1117905c6ef567418dba1696af46fa11ab0b2a87c33100214b8fc451a',
+      normalizerVersion: 'review-analysis-normalization-v1',
+      normalizerDigest:
+        'd3f2d832717d9639c41eeefc65255f87c51e6e92d61cfeafff329af736e955fb',
+      attentionFormulaVersion: 'review-attention-v2',
+      attentionFormulaDigest:
+        '42473e84ab5b376cd06940ac4060b7e8c875100507247c91e70450d220bed687',
+      providerAnswerSchemaDigest:
+        '8c72e79976c6b784c679f671b798c41b71e78795542c7d80571e48cebde40154',
+      storedSchemaDigest:
+        '27eb2a788d851796e5e9a11ae69768f4981e7f2b1722154893cac51a9c10b685',
+    })
+    expect(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS_DIGEST).toBe(
+      'b50e8b7daa3a2aa39e098986816cbf1236f6be0f4c87c62e57a9d9b479ec4173',
+    )
+    expect(Object.isFrozen(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS)).toBe(true)
+  })
+
+  it('derives the provider-answer and stored-schema digests from closed JSON', () => {
+    expect(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS.providerAnswerSchemaDigest).toBe(
+      digest(
+        'repkey-ai-output-schema-v1\0',
+        AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v3'],
+      ),
+    )
+    expect(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS.storedSchemaDigest).toBe(
+      digest('repkey-review-analysis-v3-stored-schema-v1\0', plainStoredJsonSchema()),
+    )
+  })
+
+  it('uses the live operation-profile output-schema digest scheme', () => {
+    const profile = AI_OPERATION_PROFILES.find(
+      (candidate) => candidate.profileVersion === 'review-analysis-v3',
+    )
+    expect(profile?.outputSchemaDigest).toBe(
+      digest(
+        'repkey-ai-output-schema-v1\0',
+        AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v3'],
+      ),
+    )
+  })
+
+  it('derives the aggregate artifact digest from the pinned object', () => {
+    expect(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS_DIGEST).toBe(
+      digest(
+        'repkey-review-analysis-v3-logical-artifacts-v1\0',
+        REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS,
+      ),
+    )
+  })
+})

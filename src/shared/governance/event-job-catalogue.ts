@@ -556,7 +556,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   ),
   job(
     'release-response-target-reminders',
-    'src/contexts/reputation/response-targets/release-reminders.job.server.ts',
+    'src/contexts/reputation/inbox/response-targets/release-reminders.job.server.ts',
     {
       queue: 'background',
       capability: 'inbox.use',
@@ -635,6 +635,18 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'none',
       action: 'system:identity.merchant_ai_standing_renewal',
       schedule: 'every:600000',
+      registration: 'enabled',
+    },
+    { timeoutMs: 300_000 },
+  ),
+  job(
+    'identity-pending-upload-reclaim',
+    'src/contexts/identity/infrastructure/jobs/reclaim-pending-identity-uploads.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:identity.pending_upload_reclaim',
+      schedule: 'every:3600000,offset:2700000',
       registration: 'enabled',
     },
     { timeoutMs: 300_000 },

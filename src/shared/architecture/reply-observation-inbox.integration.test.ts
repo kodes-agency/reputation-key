@@ -19,7 +19,7 @@ import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
-} from '#/contexts/inbox/infrastructure/inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createReviewReplyObservationAuthority } from '#/contexts/reputation/reviews/reply-observation-authority.server'
@@ -39,8 +39,8 @@ import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/prop
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
-import { createResponseTargetStore } from '#/contexts/reputation/response-targets/store.server'
-import { releaseDueResponseTargetReminders } from '#/contexts/reputation/response-targets/release-reminders.server'
+import { createResponseTargetStore } from '#/contexts/reputation/inbox/response-targets/store.server'
+import { releaseDueResponseTargetReminders } from '#/contexts/reputation/inbox/response-targets/release-reminders.server'
 
 const ORG = organizationId('org-inbox-reply-observation')
 const PROPERTY = propertyId('b2000000-0000-0000-0000-000000000001')

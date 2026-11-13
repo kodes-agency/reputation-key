@@ -48,6 +48,16 @@ const actor: GoalActor = {
   role: 'PropertyManager',
 }
 
+/** Every table that references goal_programs, directly or through its children. */
+const FOREIGN_GOAL_TABLES_CHILDREN_FIRST = [
+  'goal_result_revisions',
+  'goal_month_target_changes',
+  'goal_monthly_results',
+  'goal_subject_assignments',
+  'goal_program_versions',
+  'goal_programs',
+]
+
 let held: HeldTransaction | undefined
 let db: Database
 
@@ -66,9 +76,19 @@ beforeEach(async () => {
   await client.query('SAVEPOINT scenario')
   // Maintenance reads every Program in the database, and other suites commit
   // theirs. Their rows are gone for this scenario only: the savepoint restores them.
-  await client.query('DELETE FROM goal_programs WHERE organization_id <> $1', [
-    ORGANIZATION_ID,
-  ])
+  // Their dependent rows go first, in foreign-key order. Monthly results have a
+  // delete guard, so it is off for the cleanup; the switch is transactional.
+  await client.query(
+    'ALTER TABLE goal_monthly_results DISABLE TRIGGER goal_monthly_results_guard',
+  )
+  for (const table of FOREIGN_GOAL_TABLES_CHILDREN_FIRST) {
+    await client.query(`DELETE FROM ${table} WHERE organization_id <> $1`, [
+      ORGANIZATION_ID,
+    ])
+  }
+  await client.query(
+    'ALTER TABLE goal_monthly_results ENABLE TRIGGER goal_monthly_results_guard',
+  )
   await client.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, 'Goal Property', 'goal-programs-property', 'UTC')`,

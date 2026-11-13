@@ -54,8 +54,9 @@ export const createSweepReviewProviderTombstonesHandler =
     trace('job.sweepReviewProviderTombstones', async () => {
       // Validate stale queue payloads, then drain them harmlessly. Nothing
       // seeds this sweep, and it stays quarantined until a reviewed cutover:
-      // the setup checklist, Property setup and Inbox response targets still
-      // read the completed snapshot runs sweepExpiredTombstones would delete.
+      // the setup checklist and Property setup still read the completed
+      // snapshot runs sweepExpiredTombstones would delete. Snapshot runs are
+      // bounded by the retention sweep's keep rule instead.
       parseSweepData(job.data)
       void dependencies
       return { status: 'quarantined' as const, deleted: 0, nextReviewId: null }

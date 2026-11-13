@@ -46,7 +46,7 @@ import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-s
 import { seedReviewContent } from '../testing/review-content-fixture'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createAiReviewAnalysisReceiptWriter } from './ai-review-analysis-receipt.adapter'
-import { REVIEW_ANALYSIS_NORMALIZATION_DIGEST } from '#/shared/review-analysis-v3-normalizer'
+import { REVIEW_ANALYSIS_NORMALIZATION_DIGEST } from '#/shared/analysis/normalizer'
 
 const NOW = new Date('2026-09-08T10:00:00.000Z')
 const COMPLETED_AT = new Date('2026-09-08T10:05:00.000Z')

@@ -61,7 +61,7 @@ import { createReplyRepository } from '#/contexts/review/infrastructure/reposito
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
-} from '../inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { readInboxEscalationHistory } from '../inbox-escalation-history'
 import { createReviewResponseTargetAuthority } from '#/contexts/reputation/reviews/response-target-authority.server'
 import { createReviewSourceLookupAdapter } from '../adapters/review-source-lookup.adapter'
@@ -87,6 +87,7 @@ const REVIEW_A = reviewId('4d000000-0000-0000-0000-000000000010')
 const ITEM_A = inboxItemId('4d000000-0000-0000-0000-000000000020')
 const ITEM_B = inboxItemId('4d000000-0000-0000-0000-000000000021')
 const FEEDBACK_A = feedbackId('4d000000-0000-0000-0000-000000000030')
+const FEEDBACK_B = feedbackId('4d000000-0000-0000-0000-000000000031')
 const PORTAL_A = portalId('4d000000-0000-0000-0000-000000000040')
 const NOW = new Date('2026-06-01T12:00:00.000Z')
 const CONSUMER = 'inbox.on-review-created'
@@ -397,6 +398,45 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         reason: 'eligibility_lost',
       },
     ])
+  })
+
+  it('asks Accounts once for every retained key when all still hold authority', async () => {
+    const seedingStore = createAtomicInboxCommandStore(db)
+    for (const [index, property] of [PROP_A, PROP_B].entries()) {
+      await seedingStore.createItem(
+        makeItem({
+          id: inboxItemId(`4d000000-0000-0000-0000-0000000000a${index}`),
+          propertyId: property,
+          sourceType: 'feedback',
+          sourceId: feedbackId(`4d000000-0000-0000-0000-0000000000b${index}`),
+          assignedTo: USER_A,
+        }),
+        null,
+        {
+          sourceRevision: 1,
+          openedReason: 'legacy_backfill',
+          actorType: 'system',
+          triggerEventId: null,
+          openedAt: NOW,
+        },
+      )
+    }
+    const authorize: InboxCommandAuthority = vi.fn(async () => ({
+      allowed: true as const,
+    }))
+    const store = createProductionInboxCommandStore(db, authorize, () => NOW)
+
+    await expect(
+      store.releaseIneligibleAssignmentsForUser({
+        organizationId: ORG_A,
+        userId: USER_A,
+        actorId: USER_B,
+        at: NOW,
+      }),
+    ).resolves.toEqual({ released: 0 })
+
+    expect(authorize).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(authorize).mock.calls[0]?.[1].requirements).toHaveLength(2)
   })
 
   describe('release for a removed member', () => {
@@ -2035,6 +2075,71 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       },
     ])
   })
+
+  // The head is found by its source identity before the source revision is
+  // compared: a withdrawal for another source is obsolete, never a revision
+  // conflict, and a stale revision for the right source leaves the cycle open.
+  describe.each([
+    ['another source', FEEDBACK_B, 1],
+    ['a stale source revision', FEEDBACK_A, 2],
+  ] as const)(
+    'applySourceWithdrawnOnce for %s',
+    (_label, withdrawnSourceId, revision) => {
+      it('settles the delivery as obsolete and leaves the open cycle untouched', async () => {
+        const store = createAtomicInboxCommandStore(db)
+        const item = makeItem({
+          sourceType: 'feedback',
+          sourceId: FEEDBACK_A,
+          platform: null,
+        })
+        await store.createItem(item, null, {
+          sourceRevision: 1,
+          openedReason: 'feedback_submitted',
+          actorType: 'guest',
+          triggerEventId: null,
+          openedAt: NOW,
+        })
+        const source = guestFeedbackRetracted({
+          feedbackId: withdrawnSourceId,
+          organizationId: ORG_A,
+          propertyId: PROP_A,
+          portalId: PORTAL_A,
+          supersedesSourceEventId: crypto.randomUUID(),
+          occurredAt: NOW,
+        })
+        await insertSourceEvent(source)
+        const fact = inboxItemStatusChanged({
+          inboxItemId: ITEM_A,
+          organizationId: ORG_A,
+          propertyId: PROP_A,
+          oldStatus: 'open',
+          newStatus: 'closed',
+          occurredAt: NOW,
+        })
+
+        await expect(
+          store.applySourceWithdrawnOnce({
+            eventId: source.eventId,
+            consumerName: 'inbox.on-guest-feedback-retracted',
+            item: { ...item, sourceId: withdrawnSourceId },
+            sourceRevision: revision,
+            now: NOW,
+            fact,
+          }),
+        ).resolves.toBe('obsolete')
+
+        const rows = await pool.query(
+          'SELECT status, command_revision::int AS command_revision FROM inbox_items WHERE id = $1',
+          [ITEM_A],
+        )
+        expect(rows.rows).toEqual([{ status: 'open', command_revision: 1 }])
+        const facts = await pool.query(`SELECT id FROM outbox_events WHERE id = $1`, [
+          fact.eventId,
+        ])
+        expect(facts.rows).toHaveLength(0)
+      })
+    },
+  )
 
   it('applySourceWithdrawnOnce repairs a closed compatibility row under an open cycle head', async () => {
     const store = createAtomicInboxCommandStore(db)

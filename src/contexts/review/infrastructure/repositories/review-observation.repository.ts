@@ -51,6 +51,10 @@ import { reviewSourceContents } from '#/shared/db/schema/review-source-content.s
 
 const HEX_DIGEST = /^[0-9a-f]{64}$/u
 
+/** A fetch moves the stored content clock only when it lands at least this much
+ * later, so a re-read does not rewrite the expiry rows and their indexes. */
+const EXPIRY_MOVE_MIN_MS = 24 * 60 * 60 * 1000
+
 type ReviewRow = typeof reviews.$inferSelect
 
 export type PersistedReviewObservation = Readonly<{
@@ -74,6 +78,42 @@ function providerVersion(
   }>,
 ): Date | null {
   return row.sourceUpdatedAt ?? row.sourceCreatedAt ?? row.reviewedAt
+}
+
+/**
+ * The one decision per read: whether this fetch moves the content clock. When
+ * the new expiry is under a day later than the stored one, the stored expiry
+ * and fetch time are kept; the content row and the newest observation then both
+ * keep what they hold, and a copy still never outlives 30 days from a fetch.
+ */
+function withExpiryDecision(
+  existing: ReviewHeadRow | null,
+  review: Omit<Review, 'createdAt' | 'updatedAt'>,
+): Omit<Review, 'createdAt' | 'updatedAt'> {
+  if (
+    existing?.contentExpiresAt == null ||
+    existing.lastFetchedAt == null ||
+    review.contentExpiresAt == null ||
+    review.contentExpiresAt.getTime() - existing.contentExpiresAt.getTime() >=
+      EXPIRY_MOVE_MIN_MS
+  ) {
+    return review
+  }
+  return {
+    ...review,
+    lastFetchedAt: existing.lastFetchedAt,
+    contentExpiresAt: existing.contentExpiresAt,
+  }
+}
+
+/** An observation that does not rewrite the content row carries that row's clock. */
+function withHeldExpiry(
+  existing: ReviewHeadRow,
+  review: Omit<Review, 'createdAt' | 'updatedAt'>,
+): Omit<Review, 'createdAt' | 'updatedAt'> {
+  return existing.contentExpiresAt == null
+    ? review
+    : { ...review, contentExpiresAt: existing.contentExpiresAt }
 }
 
 function fallbackObservationKey(observationDigest: string, observedAt: Date): string {
@@ -459,7 +499,7 @@ async function recordOutOfOrderObservation(
   await purgeExpiredAiDraftsForReview(tx, aiDraftScope(existing), input.replyEffects)
   await tx.insert(reviewSourceObservations).values(
     sourceObservationValues({
-      review: input.review,
+      review: withHeldExpiry(existing, input.review),
       observationSequence,
       materialRevision,
       observationKey,
@@ -548,9 +588,11 @@ async function rereadsHeadObservation(
 }
 
 /** A fetch of the same content restarts that content's 30-day clock (ADR
- * 0031), so the newest observation takes the Review's new clock, which the
- * lifecycle inspection requires it to match. Its `observed_at` stays the first
- * time this content was seen; `updated_at` is the latest fetch that returned it. */
+ * 0031) once the clock would move a day or more, so the newest observation takes
+ * the Review's clock, which the lifecycle inspection requires it to match. A
+ * re-read inside that day leaves the row untouched. Its `observed_at` stays the
+ * first time this content was seen; `updated_at` is the latest fetch that moved
+ * the clock. */
 async function refreshHeadObservation(
   tx: Tx,
   existing: ReviewHeadRow,
@@ -558,6 +600,12 @@ async function refreshHeadObservation(
   observationDigest: string,
   observedAt: Date,
 ): Promise<void> {
+  if (
+    existing.contentExpiresAt != null &&
+    observedReview.contentExpiresAt!.getTime() === existing.contentExpiresAt.getTime()
+  ) {
+    return
+  }
   const rows = await tx
     .update(reviewSourceObservations)
     .set({ contentExpiresAt: observedReview.contentExpiresAt!, updatedAt: observedAt })
@@ -662,7 +710,7 @@ export async function persistReviewObservation(
   }
 
   const observedReview = {
-    ...input.review,
+    ...withExpiryDecision(existing, input.review),
     sourceRevision: material.materialRevision,
   }
   const rereadsHead =

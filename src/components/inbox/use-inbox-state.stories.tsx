@@ -28,7 +28,7 @@ import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import type { InboxSearchParams } from './inbox-search-schema'
 import type { InboxNavigate } from './inbox-state-helpers'
 import type { InboxServerFns } from './types'
-import { useInboxDetail } from './use-inbox-detail'
+import { useInboxDetail } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 import { useInboxState } from './use-inbox-state'
 
 type DetailReply = NonNullable<InboxItemDetailResult['reply']>

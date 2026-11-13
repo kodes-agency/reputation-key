@@ -108,6 +108,8 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   // The daily retention sweep's Review subject: superseded observation copies.
   'reviewObservationRetentionSweep',
   'reviewPublicApi',
+  // The daily retention sweep's Review subject: snapshot runs outside the keep rule.
+  'reviewSnapshotRunRetentionSweep',
   // Container-owned release seam. Static policy starts no background work,
   // while queues and future process resources still share one shutdown path.
   'shutdown',
@@ -234,6 +236,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     expect(Object.keys(container.integrationPublicApi.connections).sort()).toEqual([
       'connect',
       'disconnect',
+      'findStatus',
       'list',
       'resume',
     ])
@@ -351,6 +354,7 @@ describe('provider DI slots (BQC-6.1)', () => {
     createPresignedUploadUrl: async (key) => ({ uploadUrl: 'memory://upload', key }),
     confirmUpload: async () => {},
     deleteObject: async () => {},
+    listObjects: async () => ({ objects: [], truncated: false }),
     getObject: async () => null,
     putObject: async () => {},
   }

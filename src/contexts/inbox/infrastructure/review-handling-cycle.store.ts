@@ -32,7 +32,7 @@ import { inboxError } from '../domain/errors'
 import {
   assertReviewResponseTargetAuthorityMatchesCycle,
   insertResponseTargetForHandlingCycle,
-} from '../../reputation/response-targets/store.server'
+} from '../../reputation/inbox/response-targets/store.server'
 import type { ReviewCycleTargetAnchor } from '../application/ports/review-response-target-authority.port'
 
 type HeadRow = typeof inboxHandlingCycleHeads.$inferSelect

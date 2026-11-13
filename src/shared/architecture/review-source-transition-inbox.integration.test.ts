@@ -10,7 +10,7 @@ import { createReviewSourceTransitionAuthority } from '#/contexts/reputation/rev
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
-} from '#/contexts/inbox/infrastructure/inbox-command-store'
+} from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { handleInboxReviewSourceTransitioned } from '#/contexts/reputation/inbox/outbox-consumers.server'

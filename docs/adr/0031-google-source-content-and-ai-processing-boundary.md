@@ -233,3 +233,7 @@ notice also names facts the Property chose to share; this release adds no facts
 editor or new facts storage. Consent renewal materially affects reply drafting
 alone, preserving Review Analysis/trends epochs under ADR 0074. Deployment remains
 subject to the owner's go and completed release verification.
+
+## Amended 2026-11-13 — the cache clock moves at most once a day
+
+A successful Google read still restarts the 30-day clock, but the stored clock (`content_expires_at` on the cached content and on the newest observation, with `last_fetched_at`) moves only when the read would set it at least one day later than it already is. Both tables take one decision per read, so the newest observation and the content row keep the same expiry. A re-read inside that day rewrites neither expiry. `last_fetched_at` therefore means a fetch within the last day, and a copy never outlives 30 days from a real fetch.

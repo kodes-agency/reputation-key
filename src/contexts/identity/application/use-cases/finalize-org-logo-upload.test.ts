@@ -38,6 +38,7 @@ const mockStorage = {
   confirmUpload: async () => {},
   inspectObject: async () => ({ contentType: 'image/png', sizeBytes: 1024 }),
   deleteObject: async () => {},
+  listObjects: async () => ({ objects: [], truncated: false }),
   getObject: async () => null,
   putObject: async () => {},
 }
@@ -83,6 +84,29 @@ describe('finalizeOrgLogoUpload', () => {
         message: 'Insufficient permissions to finalize organization logo upload',
       })
     }
+  })
+
+  it('refuses a stored object that is not an allowed image type, removes it and saves no logo', async () => {
+    const key = `organizations/${adminCtx.organizationId}/logo/${ASSET}`
+    const deleteObject = vi.fn(async () => {})
+    const updateOrg = vi.fn().mockResolvedValue(undefined)
+    const useCase = finalizeOrgLogoUpload(
+      deps({
+        storage: {
+          ...mockStorage,
+          inspectObject: async () => ({ contentType: 'image/svg+xml', sizeBytes: 1024 }),
+          deleteObject,
+        },
+        updateOrg,
+      }),
+    )
+
+    await expect(useCase({ key }, adminCtx)).rejects.toMatchObject({
+      code: 'validation_error',
+      message: 'Content type image/svg+xml is not allowed',
+    })
+    expect(deleteObject).toHaveBeenCalledExactlyOnceWith(key)
+    expect(updateOrg).not.toHaveBeenCalled()
   })
 
   it('rejects PropertyManager, reading no upload and persisting no logo', async () => {

@@ -1,5 +1,5 @@
 import type { ReplyDraftingV2Binding } from '#/shared/domain/reply-drafting-v2'
-import { resolveReplyDraftingV2Options } from '#/shared/reply-drafting-v2-request'
+import { resolveReplyDraftingV2Options } from '#/shared/reply/request'
 // A real-PostgreSQL fixture for tests that drive the AI reservation ledger and
 // its admission: one organization, one property with an active processing
 // profile and Merchant AI consent to reply drafting, the reply-drafting

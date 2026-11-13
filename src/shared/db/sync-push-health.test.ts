@@ -5,7 +5,8 @@ import type { Database } from '#/shared/db'
 import { readSyncPushHealth } from './sync-push-health'
 
 async function reconciliationQuery(reconcileWithinHours = 6) {
-  let selected: { overdue: SQL; oldestAgeMs: SQL } | undefined
+  let selected:
+    { overdue: SQL; oldestAgeMs: SQL; countDrops: SQL; oldestDropAgeMs: SQL } | undefined
   const where = vi.fn(async (_predicate: SQL | undefined) => [
     { overdue: 1, oldestAgeMs: 36_000_000 },
   ])
@@ -29,6 +30,7 @@ async function reconciliationQuery(reconcileWithinHours = 6) {
   return {
     health,
     overdue: new PgDialect().sqlToQuery(selected.overdue),
+    countDrops: new PgDialect().sqlToQuery(selected.countDrops),
     ...new PgDialect().sqlToQuery(predicate),
   }
 }
@@ -66,6 +68,16 @@ describe('reconciliation age selection', () => {
       expect.arrayContaining([170 * 3_600_000, 26 * 3_600_000, 15 * 3_600_000]),
     )
   })
+
+  it.each([6, 24, 168])(
+    'counts drops in Google’s total first seen 72 hours ago or more at a %ih window',
+    async (window) => {
+      const query = await reconciliationQuery(window)
+
+      expect(query.countDrops.sql).toContain('"review_sync_state"."count_drop_seen_at"')
+      expect(query.countDrops.params).toContain(72 * 3_600_000)
+    },
+  )
 
   it('does not exclude failed properties from the overdue count', async () => {
     const query = await reconciliationQuery()

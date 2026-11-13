@@ -291,6 +291,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
       'The daily retention sweep blanks superseded observation copies past their content clock across tenants, oldest clock first in bounded batches, joining each row to its Review on Organization; it returns a count only.',
     category: 'LEGITIMATE-GLOBAL',
   },
+  ...(['supersededRuns', 'deleteSupersededBatch'] as const).map((symbol) => ({
+    file: 'src/contexts/review/infrastructure/repositories/snapshot-run-retention.repository.ts',
+    symbol,
+    reason:
+      'The daily retention sweep ranks snapshot runs within each Property (partitioned by Organization and Property) across tenants, or within the one Organization it is given, and deletes the runs outside the keep rule by id with their members and the mappings that point at them; it returns counts only.',
+    category: 'LEGITIMATE-GLOBAL' as const,
+  })),
   {
     file: 'src/contexts/ai/replay/backlog-store.server.ts',
     symbol: 'claimReady',
@@ -453,14 +460,14 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/reputation/response-targets/reminder-release.store.server.ts',
+    file: 'src/contexts/reputation/inbox/response-targets/reminder-release.store.server.ts',
     symbol: 'selectDueSlots',
     reason:
       'The bounded reminder release lists, and locks the targets of, due Response Target reminders across tenants (or the one slot named by its key); every row carries its own Organization and Property, which the release and the Google check then use.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/reputation/response-targets/reminder-release.store.server.ts',
+    file: 'src/contexts/reputation/inbox/response-targets/reminder-release.store.server.ts',
     symbol: 'settleLockedSlot',
     reason:
       "Delivers or cancels one reminder slot whose target the cross-tenant release has just locked, addressed by the slot's own key (item, cycle, kind), and publishes its fact with the row's own Organization and Property.",

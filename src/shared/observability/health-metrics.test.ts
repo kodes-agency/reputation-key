@@ -415,6 +415,7 @@ describe('health checker content safety (BQC-4.3)', () => {
           oldestAgeMs: null,
         },
         headCoverage: { active: false, uncoveredCount: 0, oldestUncoveredAgeMs: null },
+        countDrop: { persistentCount: 0, oldestAgeMs: null },
       },
       workers: {
         defaultQueueName: 'default',
@@ -464,6 +465,23 @@ describe('health checker content safety (BQC-4.3)', () => {
       uncoveredCount: 3,
       oldestUncoveredAgeMs: 108_000_006,
     })
+  })
+
+  it('reads persistent count drops in the reconciliation pass, at any window', async () => {
+    const db = fakeDb([
+      [
+        {
+          overdue: 0,
+          oldestAgeMs: null,
+          countDrops: 2,
+          oldestDropAgeMs: 80 * 3_600_000.2,
+        },
+      ],
+    ])
+    const health = await createHealthChecker(db).signals.syncPush()
+
+    expect(db.select).toHaveBeenCalledTimes(1)
+    expect(health.countDrop).toEqual({ persistentCount: 2, oldestAgeMs: 288_000_016 })
   })
 
   it('surfaces the GBP push readiness fact from the composition root', async () => {

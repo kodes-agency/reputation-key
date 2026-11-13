@@ -548,6 +548,40 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     expect(deps.erasureReplay.apply).not.toHaveBeenCalled()
   })
 
+  it('refuses a journal its configuration cannot replay before any lifecycle work', async () => {
+    const refusal = vi.fn(() => 'AUDIT_PSEUDONYM_SECRET is not set')
+    const io = memoryIO()
+    const deps = depsFor({ erasureReplay: { ...replayFor(), refusal } })
+
+    expect(await runRestoreVerifyAction(ctxFor(false), deps, io)).toBe(1)
+
+    expect(refusal).toHaveBeenCalledWith([
+      expect.objectContaining({ id: JOURNAL_ENTRY.id }),
+    ])
+    expect(io.errLines.join('\n')).toMatch(
+      /REFUSED: AUDIT_PSEUDONYM_SECRET is not set; nothing was changed/,
+    )
+    expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
+    expect(deps.sweepRetentionBacklog).not.toHaveBeenCalled()
+    expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
+    expect(deps.erasureReplay.apply).not.toHaveBeenCalled()
+
+    const dryIo = memoryIO()
+    expect(
+      await runRestoreVerifyAction(
+        ctxFor(true),
+        depsFor({
+          countExpired: vi.fn().mockResolvedValue(0),
+          erasureReplay: { ...replayFor(), refusal },
+        }),
+        dryIo,
+      ),
+    ).toBe(0)
+    expect(dryIo.outLines.join('\n')).toMatch(
+      /erasure replay: apply will refuse: AUDIT_PSEUDONYM_SECRET is not set/,
+    )
+  })
+
   // Negative control: an altered export is refused before any mutation.
   it('refuses a tampered journal export before any lifecycle work', async () => {
     const tampered = JOURNAL_EXPORT.replace('org-journal', 'org-journal", "extra": "x')

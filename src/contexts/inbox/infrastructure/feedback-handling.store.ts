@@ -30,7 +30,7 @@ import { closeHandlingCycle } from '../domain/handling-cycles'
 import { inboxError } from '../domain/errors'
 import { inboxHandlingCycleClosed, inboxItemStatusChanged } from '../domain/events'
 import type { HandlingCycleHead, InboxItem } from '../domain/types'
-import type { InboxCommandAuthority } from './inbox-command-store'
+import type { InboxCommandAuthority } from '#/contexts/reputation/inbox/command-store.server'
 import {
   selectCycleCloseReason,
   selectSourceUnavailableCloseReasons,
@@ -39,7 +39,7 @@ import {
 import { assertManagerHandlingPermitted } from '../domain/handling-outcome-authority'
 import { inboxItemFromRow } from './mappers/inbox.mapper'
 import { transitionInsert } from './review-handling-cycle.store'
-import { completePrivateFeedbackTarget } from '../../reputation/response-targets/store.server'
+import { completePrivateFeedbackTarget } from '../../reputation/inbox/response-targets/store.server'
 
 type OutcomeRow = typeof inboxFeedbackHandlingOutcomes.$inferSelect
 type HeadRow = typeof inboxHandlingCycleHeads.$inferSelect

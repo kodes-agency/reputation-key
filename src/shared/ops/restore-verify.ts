@@ -146,6 +146,11 @@ export type RestoreErasureReplay = Readonly<{
   /** Local path of the erasure journal export, or null when none was given. */
   journalFile: string | null
   readFile: (path: string) => Promise<string>
+  /**
+   * Why these entries cannot be replayed with this command's configuration, or
+   * null. Apply asks before it changes anything; a dry run reports it.
+   */
+  refusal?: (entries: readonly BackupErasureLedgerEntry[]) => string | null
   /** Re-apply the entries inside one transaction of the restored database. */
   apply: (
     input: Readonly<{
@@ -419,6 +424,26 @@ function reportReplayPlan(
 }
 
 /**
+ * Reports a replay this command's configuration cannot run. True when apply
+ * must stop, which it does before any lifecycle work.
+ */
+function replayRefused(
+  ctx: OperatorContext,
+  replay: RestoreErasureReplay,
+  io: OperatorIO,
+  journal: LoadedJournal,
+): boolean {
+  const refusal = replay.refusal?.(journal.entries) ?? null
+  if (refusal === null) return false
+  if (ctx.dryRun) {
+    io.out(`erasure replay: apply will refuse: ${refusal}`)
+    return false
+  }
+  io.err(`REFUSED: ${refusal}; nothing was changed.`)
+  return true
+}
+
+/**
  * The command action (runs after the harness's policy decision allows).
  * Returns the process exit code: 1 on any refusal/failure, 0 on a clean
  * verification (or a dry-run report).
@@ -452,6 +477,7 @@ export async function runRestoreVerifyAction(
     }
   } else {
     reportReplayPlan(io, journal, recoveryTarget.restorePointAt)
+    if (replayRefused(ctx, deps.erasureReplay, io, journal)) return 1
   }
 
   if (!ctx.dryRun && deps.reviewLifecycle.kind !== 'confirmed_apply') {

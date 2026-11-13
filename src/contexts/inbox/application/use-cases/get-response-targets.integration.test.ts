@@ -20,8 +20,8 @@ import {
   seedInboxItem,
   seedInboxOrganization,
 } from '../../infrastructure/inbox-database-fixtures'
-import { createResponseTargetStore } from '../../../reputation/response-targets/store.server'
-import { createResponseTargetPolicyStore } from '../../../reputation/response-targets/policy.store.server'
+import { createResponseTargetStore } from '../../../reputation/inbox/response-targets/store.server'
+import { createResponseTargetPolicyStore } from '../../../reputation/inbox/response-targets/policy.store.server'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { InboxItem } from '../../domain/types'
 import {

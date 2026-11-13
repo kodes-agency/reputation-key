@@ -6,7 +6,7 @@ import type {
   ReplyTemplateLanguageGroup,
 } from '#/shared/ai-review-language-catalogue'
 import type { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
-import type { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply-drafting-v2-schema'
+import type { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply/schema'
 import type { ReplyDraftingV2Frame } from '#/shared/reply-drafting-v2-frame'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'

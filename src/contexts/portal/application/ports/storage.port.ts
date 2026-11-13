@@ -9,6 +9,11 @@ export class StoredObjectTooLargeError extends Error {
   }
 }
 
+export type StoredObjectSummary = Readonly<{
+  key: string
+  lastModified: Date | null
+}>
+
 export type StoragePort = Readonly<{
   createPresignedUploadUrl: (
     key: string,
@@ -26,6 +31,19 @@ export type StoragePort = Readonly<{
     key: string,
   ) => Promise<{ contentType: string | null; sizeBytes: number | null }>
   deleteObject: (key: string) => Promise<void>
+  /**
+   * The objects under a key prefix, in key order, at most `maxKeys` of them,
+   * starting after the key `startAfter` when given. `truncated` is true when the
+   * store held more than were returned.
+   */
+  listObjects: (
+    prefix: string,
+    maxKeys: number,
+    startAfter?: string,
+  ) => Promise<{
+    objects: ReadonlyArray<StoredObjectSummary>
+    truncated: boolean
+  }>
   /**
    * Read an object's bytes, or null when there is no such object. An object
    * larger than `maxBytes` is a `StoredObjectTooLargeError`, never a partial read. Portal media is

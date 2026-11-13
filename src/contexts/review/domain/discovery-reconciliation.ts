@@ -10,9 +10,11 @@
 // days) is safe only while head checks keep Google's newest page stored: a
 // Property whose newest page no persisting head check stored recently is
 // listed in full once its last listing is a day old. At a day or less the
-// cover changes nothing. A requested full read (the content refresh, or a head
-// check that found its whole page changed) runs once, when the last listing is
-// six hours old, so requests never cost more than one listing per six hours.
+// cover changes nothing. A requested full read (the content refresh, a head
+// check that found its whole page changed or confirmed a drop in Google's
+// total, or a listing that recorded a first miss) runs once, when the last
+// listing is six hours old, so requests never cost more than one listing per
+// six hours.
 
 import {
   HEAD_COVERAGE_FRESH_MS,
@@ -80,13 +82,18 @@ export type DiscoveryLookInput = Readonly<{
   interval: number
 }>
 
-/** When a pending request may run: six hours after the listing it postdates. */
+/**
+ * When a pending request may run: six hours after the last listing. A request
+ * older than that listing was served by it. One made at the listing's own
+ * instant is the listing's own request (a first miss asks for the listing that
+ * can confirm it) and still waits for the next one.
+ */
 const requestDueAt = (
   input: DiscoveryLookInput,
   lastReconciledAt: number,
 ): number | null => {
   const requestedAt = input.fullReadRequestedAt?.getTime() ?? null
-  if (requestedAt === null || requestedAt <= lastReconciledAt) return null
+  if (requestedAt === null || requestedAt < lastReconciledAt) return null
   return lastReconciledAt + FULL_READ_REQUEST_SPACING_MS
 }
 
@@ -113,7 +120,7 @@ const uncoveredDeadline = (
  * Full when skipping is off, a failure is waiting for its retry (so the retry
  * and the clearing of the failure happen exactly as they always did), nothing
  * has been reconciled in this epoch, the NEXT look would land at or past the
- * window's deadline, a request postdating the last listing has waited six
+ * window's deadline, a request no older than the last listing has waited six
  * hours since it, or (window over a day only) no head check covers the newest
  * page and the next look would land a day or more after the last listing.
  * Otherwise skip, and wake once at the instant the look becomes full:

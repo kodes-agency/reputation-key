@@ -281,6 +281,7 @@ function build(fixture: Fixture) {
       verifyPassword: async () => false,
     },
     deleteAssetObject: async () => {},
+    listAssetObjects: async () => ({ objects: [], truncated: false }),
     sendEmail: async () => {},
     baseUrl: 'http://localhost:3000',
     invitationExpiresInMs: EXPIRES_AT.getTime() - START.getTime(),

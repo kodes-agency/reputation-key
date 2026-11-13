@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { REVIEW_ANALYSIS_V3_STORED_SCHEMA } from './review-analysis-v3'
-import { normalizeReviewAnalysisV3 } from './review-analysis-v3-normalizer'
+import { normalizeReviewAnalysisV3 } from '#/shared/analysis/normalizer'
 
 const context = {
   sentences: [
