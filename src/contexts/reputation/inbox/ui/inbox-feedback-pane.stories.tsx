@@ -236,7 +236,7 @@ const CORRECTED_CYCLE: FeedbackHandlingState = {
  * row — and the union is enforced only by a DB CHECK constraint. So a value
  * added server-side lands in a manager's cached bundle with no client deploy,
  * and this fixture is that Tuesday, not a hypothetical: the cast here is the
- * same one `inbox-history.repository.ts` performs for real.
+ * same one `inbox-history-repository.server.ts` performs for real.
  */
 const WIDENED_OUTCOME = 'guest_compensated' as OutcomeFact['outcome']
 const UNREADABLE_OUTCOME = outcomeFact({ outcome: WIDENED_OUTCOME })

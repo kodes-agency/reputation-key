@@ -43,7 +43,7 @@ import {
   handleInboxReviewCreated,
   type InboxConsumerDeps,
 } from '#/contexts/reputation/inbox/outbox-consumers.server'
-import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
+import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'

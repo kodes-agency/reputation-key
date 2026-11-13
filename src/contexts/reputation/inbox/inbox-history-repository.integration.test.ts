@@ -4,7 +4,7 @@ import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { inboxItemId, organizationId } from '#/shared/domain/ids'
-import { createInboxHistoryRepository } from './inbox-history.repository'
+import { createInboxHistoryRepository } from './inbox-history-repository.server'
 
 const ORG_ID = organizationId('org-inbox-history-000000000000001')
 const OTHER_ORG_ID = organizationId('org-inbox-history-000000000000002')

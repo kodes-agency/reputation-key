@@ -3,7 +3,7 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { organizationId, userId } from '#/shared/domain/ids'
-import { createInboxViewRepository } from './inbox-view.repository'
+import { createInboxViewRepository } from './inbox-view-repository.server'
 
 const ORG_ID = organizationId('org-inbox-view-cutoff-test')
 const USER_ID = userId('user-inbox-view-cutoff-test')
