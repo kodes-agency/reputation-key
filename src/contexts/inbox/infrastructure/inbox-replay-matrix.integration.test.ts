@@ -17,6 +17,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { releaseDueSlots } from '#/contexts/reputation/inbox/response-targets/release-due-slots.test-fixtures'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
@@ -742,7 +743,7 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
     // Cycle 1 was superseded and cycle 2 closed on a confirmed reply, so no
     // slot may still be releasable however far the clock is advanced.
     await expect(
-      createResponseTargetStore(getDb()).releaseDueReminders({
+      releaseDueSlots(createResponseTargetStore(getDb()), {
         now: new Date('2027-01-01T00:00:00.000Z'),
         limit: 100,
       }),
@@ -1007,7 +1008,7 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
     ).toEqual([true, true])
     expect(state.outcomes).toEqual([])
     await expect(
-      createResponseTargetStore(getDb()).releaseDueReminders({
+      releaseDueSlots(createResponseTargetStore(getDb()), {
         now: new Date('2027-01-01T00:00:00.000Z'),
         limit: 100,
       }),

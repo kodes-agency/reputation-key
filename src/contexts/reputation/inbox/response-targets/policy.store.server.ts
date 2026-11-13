@@ -5,7 +5,8 @@ import {
   inboxResponseTargetOrganizationPolicies,
 } from '#/shared/db/schema/inbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
-import { insertOutboxRow } from '#/shared/outbox/commit'
+import type { OrganizationId, UserId } from '#/shared/domain/ids'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type {
   LowRatingResponseTarget,
@@ -125,6 +126,33 @@ const nextPolicyVersion = (
   return nextVersion
 }
 
+type PolicyChangeCommand = Readonly<{
+  organizationId: OrganizationId
+  durationMinutes: number | null
+  actorUserId: UserId
+  at: Date
+}>
+
+const recordPolicyChange = (
+  tx: Tx,
+  command: PolicyChangeCommand,
+  result: ResponseTargetPolicyWriteResult,
+): Promise<void> =>
+  insertOutboxRow(
+    tx,
+    inboxResponseTargetPolicyChanged({
+      organizationId: command.organizationId,
+      propertyId: result.propertyId,
+      targetKind: result.targetKind,
+      policyScope: result.scope,
+      durationMinutes: result.durationMinutes,
+      policyVersion: result.policyVersion,
+      userId: command.actorUserId,
+      occurredAt: command.at,
+    }),
+    { recordedAt: command.at },
+  )
+
 export const createResponseTargetPolicyStore = (
   db: Database,
 ): ResponseTargetPolicyStore => ({
@@ -219,7 +247,7 @@ export const createResponseTargetPolicyStore = (
       assertDuration(command.durationMinutes, false)
       assertExpectedVersion(command.expectedPolicyVersion)
       assertLowRating(command.targetKind, command.durationMinutes, command.lowRating)
-      const result = await db.transaction(async (tx) => {
+      return db.transaction(async (tx) => {
         const policyLockKey = JSON.stringify([command.organizationId, command.targetKind])
         await tx.execute(
           sql`SELECT pg_advisory_xact_lock(hashtextextended(${policyLockKey}, 0))`,
@@ -306,27 +334,16 @@ export const createResponseTargetPolicyStore = (
           durationMinutes: command.durationMinutes,
           policyVersion: nextVersion,
         }
-        const fact = inboxResponseTargetPolicyChanged({
-          organizationId: command.organizationId,
-          propertyId: null,
-          targetKind: command.targetKind,
-          policyScope: 'organization',
-          durationMinutes: command.durationMinutes,
-          policyVersion: nextVersion,
-          userId: command.actorUserId,
-          occurredAt: command.at,
-        })
-        await insertOutboxRow(tx, fact, { recordedAt: command.at })
+        await recordPolicyChange(tx, command, result)
         return result
       })
-      return result
     }),
 
   setPrivateFeedbackPropertyOverride: async (command) =>
     trace('inbox.responseTargetPolicy.setPropertyOverride', async () => {
       assertDuration(command.durationMinutes, true)
       assertExpectedVersion(command.expectedPolicyVersion)
-      const result = await db.transaction(async (tx) => {
+      return db.transaction(async (tx) => {
         const policyLockKey = JSON.stringify([
           command.organizationId,
           command.propertyId,
@@ -413,19 +430,8 @@ export const createResponseTargetPolicyStore = (
           durationMinutes: command.durationMinutes,
           policyVersion: nextVersion,
         }
-        const fact = inboxResponseTargetPolicyChanged({
-          organizationId: command.organizationId,
-          propertyId: command.propertyId,
-          targetKind: 'private_feedback_handling',
-          policyScope: 'property',
-          durationMinutes: command.durationMinutes,
-          policyVersion: nextVersion,
-          userId: command.actorUserId,
-          occurredAt: command.at,
-        })
-        await insertOutboxRow(tx, fact, { recordedAt: command.at })
+        await recordPolicyChange(tx, command, result)
         return result
       })
-      return result
     }),
 })
