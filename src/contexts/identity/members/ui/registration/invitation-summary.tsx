@@ -1,7 +1,7 @@
 // What an invitation link offers: who sent it, to what, as which role. Shown
 // before the invitee creates an account or accepts, so nobody joins blind.
 
-import { roleLabel } from '#/components/features/identity/shared/role-utils'
+import { roleLabel } from '#/contexts/identity/members/ui/role-utils'
 import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import { formatInvitationExpiry, invitationPropertyLines } from './invitation-copy'
 import type { InvitationDetails } from './shared-types'

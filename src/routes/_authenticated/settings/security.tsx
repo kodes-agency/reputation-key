@@ -6,7 +6,7 @@ import { changePasswordFn } from '#/contexts/identity/server/auth-settings'
 import { useQueryClient } from '@tanstack/react-query'
 import { ensureActiveOrg } from '#/shared/auth/auth.functions'
 import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
-import { SecuritySettingsForm } from '#/components/features/identity'
+import { SecuritySettingsForm } from '#/contexts/identity/members/ui/security-settings-form'
 
 export const Route = createFileRoute('/_authenticated/settings/security')({
   staticData: { page: { title: 'Security', tier: 'narrow', under: 'settings' } },

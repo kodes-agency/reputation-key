@@ -5,7 +5,7 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { ToasterDecorator } from '../../../../.storybook/ToasterDecorator'
+import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
 import type { Action } from '#/components/hooks/use-action'
 import { ProfileSettingsForm } from './profile-settings-form'
 

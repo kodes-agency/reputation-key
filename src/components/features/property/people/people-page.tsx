@@ -1,11 +1,11 @@
-import { staffRosterSummary } from '#/components/features/staff/accounts/staff-list-view'
+import { staffRosterSummary } from '#/contexts/identity/staff/ui/accounts/staff-list-view'
 import { Users } from 'lucide-react'
-import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
+import { StaffAccountsProvider } from '#/contexts/identity/staff/ui/accounts/staff-accounts-provider'
 import {
   StaffAccountsList,
   StaffAddAction,
-} from '#/components/features/staff/accounts/staff-accounts-list'
-import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
+} from '#/contexts/identity/staff/ui/accounts/staff-accounts-list'
+import { useStaffAccounts } from '#/contexts/identity/staff/ui/accounts/staff-accounts-context'
 import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'
 import { trailCrumbs } from '#/components/layout/page-identity'

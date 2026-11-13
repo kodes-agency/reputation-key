@@ -14,12 +14,10 @@ import { INVITATION_ID_MAX_LENGTH } from '#/shared/domain/ids'
 import { clearTenantCacheAfterTenantChange } from '#/shared/queries/tenant-cache-transition'
 import { useSignOut } from '#/components/hooks/use-sign-out'
 import { acceptInvitation } from '#/contexts/identity/server/organizations'
-import {
-  AcceptInvitationPage,
-  InvitationLinkPage,
-  InvitationLinkStateCard,
-  type InvitationLink,
-} from '#/components/features/identity'
+import { AcceptInvitationPage } from '#/contexts/identity/members/ui/registration/accept-invitation-page'
+import { InvitationLinkPage } from '#/contexts/identity/members/ui/registration/invitation-link-page'
+import { InvitationLinkStateCard } from '#/contexts/identity/members/ui/registration/invitation-state-card'
+import { type InvitationLink } from '#/contexts/identity/members/ui/registration/invitation-link'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { InlineLink } from '#/components/ui/inline-link'
 import { useOnSessionEnd } from '#/components/hooks/use-on-session-end'

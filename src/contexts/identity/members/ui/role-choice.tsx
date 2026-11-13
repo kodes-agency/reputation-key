@@ -4,10 +4,7 @@
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
 import { Label } from '#/components/ui/label'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
-import {
-  roleDescription,
-  roleLabel,
-} from '#/components/features/identity/shared/role-utils'
+import { roleDescription, roleLabel } from '#/contexts/identity/members/ui/role-utils'
 
 type Props = Readonly<{
   /** null while no role is chosen yet. */

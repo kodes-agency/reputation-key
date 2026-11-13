@@ -1,5 +1,5 @@
 import type { Action } from '#/components/hooks/use-action'
-import { ResponsibleManagersPanel } from '#/components/features/responsible-managers/responsible-managers-panel'
+import { ResponsibleManagersPanel } from '#/contexts/property/responsibility/ui/responsible-managers-panel'
 import type {
   PortalResponsibleManagerState,
   ResponsibleManagerMember,

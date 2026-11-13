@@ -42,7 +42,7 @@ export function StaffPersonSheet({
   const [editing, setEditing] = useState<'name' | 'email' | null>(null)
   const [repairing, setRepairing] = useState(false)
   const [removing, setRemoving] = useState(false)
-  const refresh = () => accounts.refresh().then(() => undefined)
+  const refresh = () => accounts.refresh()
   const rename = useActionMutation(
     async (displayName: string) =>
       functions.renameStaffMember({ data: { participationId, displayName } }),

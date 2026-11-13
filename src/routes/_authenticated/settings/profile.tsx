@@ -15,7 +15,7 @@ import {
   finalizeAvatarUpload,
 } from '#/contexts/identity/server/organizations'
 import { updateNotificationUserSettingsFn } from '#/contexts/feed/server/notifications'
-import { ProfileSettingsPage } from '#/components/features/identity'
+import { ProfileSettingsPage } from '#/contexts/identity/members/ui/profile-settings-page'
 import { TimezoneAndFormatCard } from '#/components/features/settings'
 import { notificationUserSettingsQuery } from '#/routes/-queries/route-queries'
 import { createKeys } from '#/shared/queries/query-keys'

@@ -192,7 +192,7 @@ const DRIZZLE_IMPORTS = {
 const COMPONENT_FEATURE_DEEP_IMPORTS = {
   group: ['#/components/features/*/*'],
   message:
-    'Import from the feature barrel (e.g., "#/components/features/identity"), not from sub-folders. See src/components/CONTEXT.md.',
+    'Import from the feature barrel (e.g., "#/components/features/guest"), not from sub-folders. See src/components/CONTEXT.md.',
 }
 // Feature UI reads through its context's server functions.
 const SERVER_IMPLEMENTATION_IMPORTS = {
@@ -453,6 +453,12 @@ export default tseslint.config(
                   },
                 },
               },
+            },
+            // Server-function signatures owned by another context are taken as
+            // types only; the route binds the implementations.
+            {
+              from: elementType('feature-ui'),
+              allow: { dependency: { kind: 'type' }, to: elementType('server') },
             },
             {
               from: elementTypes('routes', 'components'),

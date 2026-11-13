@@ -1,7 +1,7 @@
 import {
   StaffManagerStory,
   staffStoryResults,
-} from '../../../../../.storybook/staff-manager-fixtures'
+} from '../../../../../../.storybook/staff-manager-fixtures'
 import { indexOverviewResults } from '#/components/features/portal/portal-overview/portal-overview-results'
 import { usePortalSectionFolds } from '#/components/features/portal/portal-overview/use-portal-section-folds'
 import type { Meta, StoryObj } from '@storybook/react'

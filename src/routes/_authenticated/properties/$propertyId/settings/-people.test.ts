@@ -106,16 +106,19 @@ vi.mock('../-settings-queries', async () => {
       }),
   }
 })
-vi.mock('#/components/features/property/property-responsible-managers-card', () => ({
-  PropertyResponsibleManagersCard: (props: {
-    updateAction: (input: SaveInput) => Promise<unknown>
-    disabled: boolean
-  }) => {
-    page.updateAction = props.updateAction
-    page.cardDisabled = props.disabled
-    return null
-  },
-}))
+vi.mock(
+  '#/contexts/property/responsibility/ui/property-responsible-managers-card',
+  () => ({
+    PropertyResponsibleManagersCard: (props: {
+      updateAction: (input: SaveInput) => Promise<unknown>
+      disabled: boolean
+    }) => {
+      page.updateAction = props.updateAction
+      page.cardDisabled = props.disabled
+      return null
+    },
+  }),
+)
 
 import { membersQuery, responsibleManagersQuery } from '../-settings-queries'
 import { Route } from './people'

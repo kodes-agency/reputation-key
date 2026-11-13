@@ -1,5 +1,5 @@
 import { Button } from '#/components/ui/button'
-import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
+import { useStaffAccounts } from '#/contexts/identity/staff/ui/accounts/staff-accounts-context'
 // A group's "Actions" menu: on a group head in the overview and on the group's
 // page. Rename and archive open controlled dialogs, because a dialog mounted
 // inside a menu item closes with the menu.

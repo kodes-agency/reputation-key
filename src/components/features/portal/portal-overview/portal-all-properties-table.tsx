@@ -3,7 +3,7 @@
 // when it has groups). The same row, group head and header as the Portals page of
 // one Property, so a Portal reads the same in both. A folded Property stays
 // folded for the reader (`collapsed-properties-store`); a group's fold is local.
-import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
+import { StaffAccountsProvider } from '#/contexts/identity/staff/ui/accounts/staff-accounts-provider'
 import type { PortalOverviewSection } from './portal-overview-view'
 import { sectionExpanded } from './portal-staff-sections'
 import { DataTable, DataTableBody } from '#/components/ui/data-table'

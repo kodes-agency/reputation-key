@@ -11,7 +11,7 @@ export type StaffAccounts = Readonly<{
   canRemove: boolean
   canSettings: boolean
   openAdd: (groupId?: string) => void
-  refresh: () => Promise<unknown>
+  refresh: () => Promise<void>
 }>
 export const StaffAccountsContext = createContext<StaffAccounts | null>(null)
 export const useStaffAccounts = () => useContext(StaffAccountsContext)

@@ -10,7 +10,7 @@ import { StatusBadge } from '#/components/ui/status-badge'
 import { Skeleton } from '#/components/ui/skeleton'
 import { ROW_FIGURE_LINK, ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
-import { PROPERTY_LIFECYCLE_STATUS } from './property-lifecycle-model'
+import { PROPERTY_LIFECYCLE_STATUS } from '#/contexts/property/lifecycle/ui/property-lifecycle-model'
 import {
   propertySetupStepLabel,
   propertySetupStepSearch,

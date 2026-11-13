@@ -28,7 +28,9 @@ Server-side code for these features lives beside its tests in
 address checks) and `members/` (member invitations, role changes, removal and
 Property access grants). Files there are `*.server.ts`; server functions stay under
 `server/`. The member directory screens (members, invitations, role change, removal,
-Property access) sit in `members/ui/`; routes import them from there. Anything a screen, route, script or another context imports, and the
+Property access), sign-in and registration, reset password, profile and security
+settings sit in `members/ui/`; routes import them from there. The staff account roster and the personal staff
+home sit in `staff/ui/accounts/` and `staff/ui/home/`. Anything a screen, route, script or another context imports, and the
 rights, erasure and export contributors, stay in the layer folders.
 
 ## Invariants
