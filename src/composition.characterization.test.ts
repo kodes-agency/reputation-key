@@ -234,6 +234,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     expect(Object.keys(container.integrationPublicApi.connections).sort()).toEqual([
       'connect',
       'disconnect',
+      'findStatus',
       'list',
       'resume',
     ])

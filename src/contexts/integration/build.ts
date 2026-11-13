@@ -17,6 +17,8 @@ import { registerGoogleBindingFollowUpConsumers } from './infrastructure/google-
 //     supplies the review-owned queue at container assembly.
 
 import type { Database } from '#/shared/db'
+import type { GoogleConnectionId, OrganizationId } from '#/shared/domain/ids'
+import type { GoogleConnectionStatus } from './domain/types'
 import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
@@ -182,6 +184,11 @@ export type IntegrationContextApi = Readonly<{
       resume: ReturnType<typeof connectGoogleAccount>['resume']
       disconnect: ReturnType<typeof disconnectGoogleAccount>
       list: ReturnType<typeof listGoogleConnections>
+      /** The connection's current status; null when it does not exist. */
+      findStatus: (
+        orgId: OrganizationId,
+        id: GoogleConnectionId,
+      ) => Promise<GoogleConnectionStatus | null>
     }>
     oauth: Readonly<{
       getAuthorizationUrl: ReturnType<typeof getGoogleAuthUrl>
@@ -588,6 +595,8 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       resume: useCases.resumeGoogleAccountConnection,
       disconnect: useCases.disconnectGoogleAccount,
       list: useCases.listGoogleConnections,
+      findStatus: async (orgId: OrganizationId, id: GoogleConnectionId) =>
+        (await connectionRepo.findById(orgId, id))?.status ?? null,
     }),
     oauth: Object.freeze({
       getAuthorizationUrl: useCases.getGoogleAuthUrl,
