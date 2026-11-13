@@ -56,8 +56,6 @@ import { createRetireMovedAssignment } from '../../notify/settle.server'
 import { parseNotificationPayload } from '../../domain/notification-payload'
 import { createNoticeWriter } from '../../notify/consumers.server'
 import { waitingWorkState } from '../jobs/test-fixtures'
-import { createNotificationEmailRepository } from './notification-email.repository'
-import { createNotificationRepository } from './notification.repository'
 
 const SECOND_ITEM = inboxItemId('4d1f0c1e-2b7a-4c55-9a51-000000000031')
 const AFTER = new Date('2026-09-02T10:00:00.000Z')
@@ -157,12 +155,7 @@ describe.sequential('Inbox workflow delivery races (real PostgreSQL)', () => {
     return {
       ...deps,
       clock: () => now,
-      retireMovedAssignment: vi.fn(
-        createRetireMovedAssignment({
-          notifications: createNotificationRepository(db),
-          emails: createNotificationEmailRepository(db),
-        }),
-      ),
+      retireMovedAssignment: vi.fn(createRetireMovedAssignment({ db })),
     }
   }
 

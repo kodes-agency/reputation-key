@@ -557,7 +557,7 @@ export type NotificationEmailMetrics = Omit<
 
 /**
  * The digest path's transient retry budget: a digest row at this retry count
- * is never selected again (notification-email.repository's dueForCadence, the
+ * is never selected again (email/notification-email-queue.server's dueForCadence, the
  * digest batch readiness). An immediate row has no count budget; it retries
  * until its retry horizon retires it as stale. Mirrored — shared cannot import
  * the Feed context.
@@ -569,7 +569,7 @@ const STALE_REASON = 'stale'
 
 /**
  * The suppression reason on a row the PROVIDER suppressed
- * (notification-email.repository). Local suppressions (a disabled preference,
+ * (email/notification-email-queue.server). Local suppressions (a disabled preference,
  * a changed digest) also write `provider_state = 'suppressed'`, so only this
  * reason marks a provider event. Mirrored — shared cannot import Feed.
  */

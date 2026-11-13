@@ -9,7 +9,6 @@
 // user changed.
 
 import { propertyId, type OrganizationId, type UserId } from '#/shared/domain/ids'
-import type { NotificationPreferenceRepositoryPort } from '../application/ports/notification-preference-repository.port'
 import type {
   NotificationQuietHoursInput,
   NotificationUserSettingsInput,
@@ -17,6 +16,13 @@ import type {
 import { createPersonalDeliveryWindow } from '../domain/constructors-preference'
 import { DEFAULT_NOTIFICATION_LOCALE } from '../domain/notification-policy'
 import { NO_QUIET_HOURS } from '../domain/notification-preference-resolution'
+import type { Database } from '#/shared/db'
+import {
+  clearPropertyDeliveryWindow,
+  getUserSettings,
+  upsertPropertyDeliveryWindow,
+  upsertUserSettings,
+} from './notification-preferences.server'
 import type {
   EffectiveNotificationSettings,
   NotificationTimezoneSource,
@@ -32,13 +38,7 @@ import {
 } from '../infrastructure/jobs/recipient-timezone'
 
 type Deps = Readonly<{
-  preferenceRepo: Pick<
-    NotificationPreferenceRepositoryPort,
-    | 'getUserSettings'
-    | 'upsertUserSettings'
-    | 'upsertPropertyDeliveryWindow'
-    | 'clearPropertyDeliveryWindow'
-  >
+  db: Database
   resolveOrganizationScope: NotificationOrganizationScopeResolver
   clock: () => Date
 }>
@@ -83,10 +83,7 @@ export const createNotificationUserSettings = (deps: Deps) => {
     userId: UserId,
     organizationId: OrganizationId,
   ): Promise<EffectiveNotificationSettings> =>
-    effective(
-      await deps.preferenceRepo.getUserSettings(userId, organizationId),
-      organizationId,
-    )
+    effective(await getUserSettings(deps.db, userId, organizationId), organizationId)
 
   /**
    * An omitted field keeps its effective value. The column cannot hold "follow
@@ -100,7 +97,7 @@ export const createNotificationUserSettings = (deps: Deps) => {
   ): Promise<EffectiveNotificationSettings> => {
     const current = await read(userId, organizationId)
     const now = deps.clock()
-    const stored = await deps.preferenceRepo.upsertUserSettings({
+    const stored = await upsertUserSettings(deps.db, {
       userId,
       organizationId,
       locale: change.locale ?? current.locale,
@@ -134,16 +131,12 @@ export const createNotificationUserSettings = (deps: Deps) => {
     if (change.propertyId !== undefined) {
       const property = propertyId(change.propertyId)
       if (change.follow === true) {
-        await deps.preferenceRepo.clearPropertyDeliveryWindow(
-          userId,
-          organizationId,
-          property,
-        )
+        await clearPropertyDeliveryWindow(deps.db, userId, organizationId, property)
         return read(userId, organizationId)
       }
       const validated = createPersonalDeliveryWindow(windowFrom(change))
       if (validated.isErr()) throw validated.error
-      await deps.preferenceRepo.upsertPropertyDeliveryWindow({
+      await upsertPropertyDeliveryWindow(deps.db, {
         userId,
         organizationId,
         propertyId: property,
@@ -156,7 +149,7 @@ export const createNotificationUserSettings = (deps: Deps) => {
     const validated = createPersonalDeliveryWindow(windowFrom(change))
     if (validated.isErr()) throw validated.error
     const current = await read(userId, organizationId)
-    const stored = await deps.preferenceRepo.upsertUserSettings({
+    const stored = await upsertUserSettings(deps.db, {
       userId,
       organizationId,
       locale: current.locale,

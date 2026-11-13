@@ -1,0 +1,1377 @@
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import {
+  holdTransaction,
+  type HeldTransaction,
+} from '#/shared/db/testing/held-transaction'
+
+import {
+  createNotificationAudienceAuthorizer,
+  parseNotificationAudience,
+  type NotificationAudienceAuthorizationInput,
+} from './notification-audience'
+import {
+  inboxItemId,
+  organizationId,
+  portalId,
+  propertyId,
+  userId,
+} from '#/shared/domain/ids'
+
+const ORG = organizationId('org-1')
+const PROPERTY = propertyId('11111111-1111-4111-8111-111111111111')
+const PORTAL = portalId('22222222-2222-4222-8222-222222222222')
+const HEALTH_SINCE = '2026-08-27T08:00:00.000Z'
+const RECIPIENT = userId('manager-1')
+const RESPONSIBLE_MANAGER = userId('responsible-manager-1')
+const REPLACEMENT_ASSIGNEE = userId('replacement-assignee-1')
+const INBOX_ITEM = inboxItemId('33333333-3333-4333-8333-333333333333')
+const SECOND_INBOX_ITEM = inboxItemId('44444444-4444-4444-8444-444444444444')
+const RESOLVED_AT = '2026-08-27T08:00:00.000Z'
+const TARGET_SCHEDULED_FOR = '2026-08-28T08:00:00.000Z'
+
+let held: HeldTransaction
+beforeAll(async () => {
+  held = await holdTransaction()
+})
+afterAll(async () => {
+  await held?.rollBack()
+})
+
+const buildDeps = () => ({
+  userLookup: {
+    findByRole: vi.fn().mockResolvedValue([]),
+  },
+  responsibleManagers: {
+    findForProperty: vi.fn().mockResolvedValue([]),
+    findForPortal: vi.fn().mockResolvedValue([]),
+    findForPortalGroup: vi.fn().mockResolvedValue([]),
+    isEligibleForProperty: vi.fn().mockResolvedValue(false),
+  },
+  inboxItemLookup: {
+    findInboxItemFacts: vi.fn().mockResolvedValue(null),
+    findNoteAuthors: vi.fn().mockResolvedValue([]),
+    findHandlingCycleNotificationFacts: vi.fn().mockResolvedValue(null),
+    findResponseTargetReminderNotificationFacts: vi.fn().mockResolvedValue(null),
+  },
+  escalationResolutions: {
+    findEscalationResolutionFacts: vi.fn().mockResolvedValue(null),
+  },
+  replyApproval: {
+    canApproveReplies: vi.fn().mockResolvedValue(true),
+  },
+  db: held.db,
+  portalHealthLookup: {
+    findPortalHealthNotificationFacts: vi.fn().mockResolvedValue(null),
+  },
+  monthlyResultFacts: {
+    findMonthlyResultNotificationFacts: vi.fn().mockResolvedValue(null),
+    findMonthlyResultRevisionNotificationFacts: vi.fn().mockResolvedValue(null),
+  },
+  organizationAccountAuthority: {
+    isAffectedRecipient: vi.fn().mockResolvedValue(false),
+  },
+})
+
+const authorize = (overrides: Partial<NotificationAudienceAuthorizationInput> = {}) => ({
+  userId: RECIPIENT,
+  organizationId: ORG,
+  propertyId: PROPERTY,
+  audience: { kind: 'account_admin' as const },
+  ...overrides,
+})
+
+describe('notification audience authorization', () => {
+  // I5.3: an approval request is admitted by two authorities, and either can
+  // end on its own.
+  it('admits a responsible manager who may still approve replies', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience: { kind: 'reply_approver', propertyId: PROPERTY } }),
+      ),
+    ).resolves.toBe(true)
+  })
+
+  it('refuses an approver who lost the Property', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience: { kind: 'reply_approver', propertyId: PROPERTY } }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('refuses an approver whose role no longer carries reply.manage', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    deps.replyApproval.canApproveReplies.mockResolvedValue(false)
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience: { kind: 'reply_approver', propertyId: PROPERTY } }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('refuses an approver admitted for a different Property', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          audience: {
+            kind: 'reply_approver',
+            propertyId: '55555555-5555-4555-8555-555555555555',
+          },
+        }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('parses and revalidates an exact affected Organization account recipient', async () => {
+    const deps = buildDeps()
+    deps.organizationAccountAuthority.isAffectedRecipient.mockResolvedValue(true)
+    const audience = {
+      kind: 'affected_organization_user' as const,
+      eventId: 'identity-event-1',
+      eventType: 'identity.member.role_changed' as const,
+    }
+
+    expect(parseNotificationAudience(audience)).toEqual(audience)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ propertyId: null, audience }),
+      ),
+    ).resolves.toBe(true)
+    expect(deps.organizationAccountAuthority.isAffectedRecipient).toHaveBeenCalledWith({
+      eventId: 'identity-event-1',
+      eventType: 'identity.member.role_changed',
+      organizationId: ORG,
+      userId: RECIPIENT,
+    })
+  })
+
+  it('admits a property-access change as a fact that names its affected member', async () => {
+    const deps = buildDeps()
+    deps.organizationAccountAuthority.isAffectedRecipient.mockResolvedValue(true)
+    const audience = {
+      kind: 'affected_organization_user' as const,
+      eventId: 'identity-event-2',
+      eventType: 'identity.member.property_access_changed' as const,
+    }
+
+    expect(parseNotificationAudience(audience)).toEqual(audience)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ propertyId: null, audience }),
+      ),
+    ).resolves.toBe(true)
+    expect(deps.organizationAccountAuthority.isAffectedRecipient).toHaveBeenCalledWith({
+      eventId: 'identity-event-2',
+      eventType: 'identity.member.property_access_changed',
+      organizationId: ORG,
+      userId: RECIPIENT,
+    })
+  })
+
+  it('fails closed when account audience and notification scopes disagree', async () => {
+    const deps = buildDeps()
+    deps.organizationAccountAuthority.isAffectedRecipient.mockResolvedValue(true)
+    const accountAudience = {
+      kind: 'affected_organization_user' as const,
+      eventId: 'identity-event-1',
+      eventType: 'identity.member.removed' as const,
+    }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience: accountAudience }),
+      ),
+    ).resolves.toBe(false)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          propertyId: null,
+          audience: { kind: 'inbox_assignee', inboxItemId: INBOX_ITEM },
+        }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('admits every current AccountAdmin to an Organization notice that has no Property', async () => {
+    const deps = buildDeps()
+    deps.userLookup.findByRole.mockResolvedValue([RECIPIENT])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ propertyId: null, audience: { kind: 'account_admin' } }),
+      ),
+    ).resolves.toBe(true)
+    expect(deps.userLookup.findByRole).toHaveBeenCalledWith(ORG, 'AccountAdmin')
+    // No Property is invented for it: the purge-pending notice belongs to the
+    // Organization, and an Organization with no active Property still has
+    // admins who must hear that it is about to be erased.
+    expect(deps.responsibleManagers.isEligibleForProperty).not.toHaveBeenCalled()
+  })
+
+  it('refuses an Organization notice for someone who is no longer an AccountAdmin', async () => {
+    const deps = buildDeps()
+    deps.userLookup.findByRole.mockResolvedValue([RESPONSIBLE_MANAGER])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ propertyId: null, audience: { kind: 'account_admin' } }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('rejects unsupported or partial affected-user audience descriptors', () => {
+    expect(
+      parseNotificationAudience({
+        kind: 'affected_organization_user',
+        eventId: 'identity-event-1',
+        eventType: 'identity.member.invited',
+      }),
+    ).toBeNull()
+    expect(
+      parseNotificationAudience({
+        kind: 'affected_organization_user',
+        eventId: '',
+        eventType: 'identity.member.removed',
+      }),
+    ).toBeNull()
+  })
+
+  it('authorizes only a current manager for an explicitly owned scope', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForPortal.mockResolvedValue([RECIPIENT])
+    deps.userLookup.findByRole.mockResolvedValue([userId('admin-1')])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          audience: {
+            kind: 'responsible_scope',
+            scope: { kind: 'portal', portalId: PORTAL },
+          },
+        }),
+      ),
+    ).resolves.toBe(true)
+    expect(deps.userLookup.findByRole).not.toHaveBeenCalled()
+  })
+
+  it('authorizes a current AccountAdmin only when an owned scope has no eligible manager', async () => {
+    const deps = buildDeps()
+    deps.userLookup.findByRole.mockResolvedValue([RECIPIENT])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          audience: {
+            kind: 'responsible_scope',
+            scope: { kind: 'property', propertyId: PROPERTY },
+          },
+        }),
+      ),
+    ).resolves.toBe(true)
+  })
+
+  it('does not treat an AccountAdmin as fallback while a scoped manager exists', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([userId('other-manager')])
+    deps.userLookup.findByRole.mockResolvedValue([RECIPIENT])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          audience: {
+            kind: 'responsible_scope',
+            scope: { kind: 'property', propertyId: PROPERTY },
+          },
+        }),
+      ),
+    ).resolves.toBe(false)
+    expect(deps.userLookup.findByRole).not.toHaveBeenCalled()
+  })
+
+  describe('a request to choose a responsible manager', () => {
+    const propertyGap = {
+      kind: 'responsibility_gap' as const,
+      scope: { kind: 'property' as const, propertyId: PROPERTY },
+    }
+    const portalGap = {
+      kind: 'responsibility_gap' as const,
+      scope: { kind: 'portal' as const, portalId: PORTAL },
+    }
+
+    it.each([
+      ['Property', propertyGap, 'findForProperty'],
+      ['Portal', portalGap, 'findForPortal'],
+    ] as const)(
+      'reaches a current AccountAdmin only while the %s still has no manager',
+      async (_label, audience, lookup) => {
+        const deps = buildDeps()
+        deps.userLookup.findByRole.mockResolvedValue([RECIPIENT])
+        const authorizeGap = () =>
+          createNotificationAudienceAuthorizer(deps)(authorize({ audience }))
+
+        await expect(authorizeGap()).resolves.toBe(true)
+
+        // Someone chose a manager while the notice waited in the queue.
+        deps.responsibleManagers[lookup].mockResolvedValue([RESPONSIBLE_MANAGER])
+        await expect(authorizeGap()).resolves.toBe(false)
+      },
+    )
+
+    it('never reaches someone who is not an AccountAdmin', async () => {
+      const deps = buildDeps()
+      deps.userLookup.findByRole.mockResolvedValue([RESPONSIBLE_MANAGER])
+
+      await expect(
+        createNotificationAudienceAuthorizer(deps)(authorize({ audience: propertyGap })),
+      ).resolves.toBe(false)
+    })
+
+    it('fails closed when the gap names another Property', async () => {
+      const deps = buildDeps()
+      deps.userLookup.findByRole.mockResolvedValue([RECIPIENT])
+
+      await expect(
+        createNotificationAudienceAuthorizer(deps)(
+          authorize({
+            audience: {
+              ...propertyGap,
+              scope: { kind: 'property', propertyId: 'another-property' },
+            },
+          }),
+        ),
+      ).resolves.toBe(false)
+    })
+
+    it('parses only a Property or Portal gap', () => {
+      expect(parseNotificationAudience(propertyGap)).toEqual(propertyGap)
+      expect(parseNotificationAudience(portalGap)).toEqual(portalGap)
+      expect(
+        parseNotificationAudience({
+          kind: 'responsibility_gap',
+          scope: { kind: 'portal_group', portalGroupId: 'group-1' },
+        }),
+      ).toBeNull()
+      expect(
+        parseNotificationAudience({
+          kind: 'responsibility_gap',
+          scope: { kind: 'property', propertyId: '' },
+        }),
+      ).toBeNull()
+    })
+  })
+
+  it('revalidates direct AccountAdmin recovery recipients', async () => {
+    const deps = buildDeps()
+    deps.userLookup.findByRole.mockResolvedValue([RECIPIENT])
+
+    await expect(createNotificationAudienceAuthorizer(deps)(authorize())).resolves.toBe(
+      true,
+    )
+  })
+
+  it('revalidates a direct assignee or reply author against property eligibility', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience: { kind: 'property_operator' } }),
+      ),
+    ).resolves.toBe(true)
+    expect(deps.responsibleManagers.isEligibleForProperty).toHaveBeenCalledWith(
+      ORG,
+      PROPERTY,
+      RECIPIENT,
+    )
+  })
+
+  it('rejects a replaced Inbox assignee even when the old assignee remains property-eligible', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: null,
+      assignedTo: userId('replacement-manager'),
+      propertyName: 'Riverside Hotel',
+      guestRating: null,
+      sourceType: 'review',
+      createdAt: new Date('2026-08-25T10:00:00Z'),
+    })
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          audience: { kind: 'inbox_assignee', inboxItemId: INBOX_ITEM },
+        }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('authorizes the current Inbox assignee only while they remain property-eligible', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: null,
+      assignedTo: RECIPIENT,
+      propertyName: 'Riverside Hotel',
+      guestRating: null,
+      sourceType: 'review',
+      createdAt: new Date('2026-08-25T10:00:00Z'),
+    })
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          audience: { kind: 'inbox_assignee', inboxItemId: INBOX_ITEM },
+        }),
+      ),
+    ).resolves.toBe(true)
+    expect(deps.responsibleManagers.isEligibleForProperty).toHaveBeenCalledWith(
+      ORG,
+      PROPERTY,
+      RECIPIENT,
+    )
+  })
+
+  it('authorizes a grouped assignment for the items still assigned in that Property', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    deps.inboxItemLookup.findInboxItemFacts
+      .mockResolvedValueOnce({
+        propertyId: PROPERTY,
+        portalId: null,
+        assignedTo: RECIPIENT,
+        propertyName: null,
+        guestRating: null,
+        sourceType: 'review',
+        createdAt: new Date('2026-08-25T10:00:00Z'),
+      })
+      .mockResolvedValueOnce({
+        propertyId: PROPERTY,
+        portalId: null,
+        assignedTo: userId('replacement-manager'),
+        propertyName: null,
+        guestRating: null,
+        sourceType: 'review',
+        createdAt: new Date('2026-08-25T10:00:00Z'),
+      })
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          audience: {
+            kind: 'bulk_inbox_assignee',
+            inboxItemIds: [INBOX_ITEM, SECOND_INBOX_ITEM],
+          },
+        }),
+      ),
+    ).resolves.toEqual({ itemCount: 1 })
+  })
+
+  it('authorizes a grouped assignment when every item and Property permission are current', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: null,
+      assignedTo: RECIPIENT,
+      propertyName: null,
+      guestRating: null,
+      sourceType: 'review',
+      createdAt: new Date('2026-08-25T10:00:00Z'),
+    })
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          audience: {
+            kind: 'bulk_inbox_assignee',
+            inboxItemIds: [INBOX_ITEM, SECOND_INBOX_ITEM],
+          },
+        }),
+      ),
+    ).resolves.toEqual({ itemCount: 2 })
+    expect(deps.inboxItemLookup.findInboxItemFacts).toHaveBeenCalledTimes(2)
+    expect(deps.responsibleManagers.isEligibleForProperty).toHaveBeenCalledWith(
+      ORG,
+      PROPERTY,
+      RECIPIENT,
+    )
+  })
+
+  it('parses a bounded unique grouped audience and rejects duplicates', () => {
+    expect(
+      parseNotificationAudience({
+        kind: 'bulk_inbox_assignee',
+        inboxItemIds: [INBOX_ITEM, SECOND_INBOX_ITEM],
+      }),
+    ).toEqual({
+      kind: 'bulk_inbox_assignee',
+      inboxItemIds: [INBOX_ITEM, SECOND_INBOX_ITEM],
+    })
+    expect(
+      parseNotificationAudience({
+        kind: 'bulk_inbox_assignee',
+        inboxItemIds: [INBOX_ITEM, INBOX_ITEM],
+      }),
+    ).toBeNull()
+  })
+
+  it('authorizes a resolved-escalation recipient only for the exact current resolution authority', async () => {
+    const deps = buildDeps()
+    deps.escalationResolutions.findEscalationResolutionFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      assignedTo: RECIPIENT,
+      propertyName: 'Riverside Hotel',
+      isEscalated: false,
+      escalatedAt: null,
+      resolvedAt: new Date(RESOLVED_AT),
+      resolvedBy: userId('resolver-1'),
+    })
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          audience: {
+            kind: 'escalation_resolution',
+            inboxItemId: INBOX_ITEM,
+            resolvedAt: RESOLVED_AT,
+            resolvedBy: userId('resolver-1'),
+          },
+        }),
+      ),
+    ).resolves.toBe(true)
+  })
+
+  it('rejects a stale resolution after re-escalation or recipient eligibility loss', async () => {
+    const deps = buildDeps()
+    deps.escalationResolutions.findEscalationResolutionFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      assignedTo: RECIPIENT,
+      propertyName: null,
+      isEscalated: true,
+      escalatedAt: null,
+      resolvedAt: new Date(RESOLVED_AT),
+      resolvedBy: userId('resolver-1'),
+    })
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    const input = authorize({
+      audience: {
+        kind: 'escalation_resolution',
+        inboxItemId: INBOX_ITEM,
+        resolvedAt: RESOLVED_AT,
+        resolvedBy: userId('resolver-1'),
+      },
+    })
+
+    await expect(createNotificationAudienceAuthorizer(deps)(input)).resolves.toBe(false)
+
+    deps.escalationResolutions.findEscalationResolutionFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      assignedTo: RECIPIENT,
+      propertyName: null,
+      isEscalated: false,
+      escalatedAt: null,
+      resolvedAt: new Date(RESOLVED_AT),
+      resolvedBy: userId('resolver-1'),
+    })
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)
+    await expect(createNotificationAudienceAuthorizer(deps)(input)).resolves.toBe(false)
+  })
+
+  it('parses only a complete canonical escalation-resolution audience', () => {
+    expect(
+      parseNotificationAudience({
+        kind: 'escalation_resolution',
+        inboxItemId: INBOX_ITEM,
+        resolvedAt: RESOLVED_AT,
+        resolvedBy: 'resolver-1',
+      }),
+    ).toEqual({
+      kind: 'escalation_resolution',
+      inboxItemId: INBOX_ITEM,
+      resolvedAt: RESOLVED_AT,
+      resolvedBy: 'resolver-1',
+    })
+    expect(
+      parseNotificationAudience({
+        kind: 'escalation_resolution',
+        inboxItemId: INBOX_ITEM,
+        resolvedAt: 'not-a-date',
+        resolvedBy: null,
+      }),
+    ).toBeNull()
+  })
+
+  it('revalidates an exact current Handling Cycle and current scoped responsibility at delivery', async () => {
+    const deps = buildDeps()
+    deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      assignedTo: null,
+      propertyName: 'Riverside Hotel',
+      guestRating: 2,
+      sourceType: 'feedback',
+      sourceId: 'feedback-source-1',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+      currentCycleNumber: 2,
+      currentSourceRevision: 4,
+      stateRevision: 7,
+      status: 'open',
+    })
+    deps.responsibleManagers.findForPortal.mockResolvedValue([RECIPIENT])
+    const audience = {
+      kind: 'handling_cycle' as const,
+      inboxItemId: INBOX_ITEM,
+      sourceType: 'feedback' as const,
+      sourceId: 'feedback-source-1',
+      cycleNumber: 2,
+      sourceRevision: 4,
+      stateRevision: 7,
+      actorUserId: userId('another-manager'),
+    }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+    expect(deps.responsibleManagers.findForPortal).toHaveBeenCalledWith(ORG, PORTAL)
+    expect(deps.responsibleManagers.findForProperty).not.toHaveBeenCalled()
+
+    deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      assignedTo: null,
+      propertyName: null,
+      guestRating: null,
+      sourceType: 'feedback',
+      sourceId: 'feedback-source-1',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+      currentCycleNumber: 3,
+      currentSourceRevision: 4,
+      stateRevision: 8,
+      status: 'open',
+    })
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  // I15: the eligible assignee is a recipient of a cycle notice, so the send
+  // must still admit them when they are not in the responsible scope.
+  it('admits the eligible assignee of a Handling Cycle who is not responsible', async () => {
+    const deps = buildDeps()
+    deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: null,
+      assignedTo: RECIPIENT,
+      propertyName: null,
+      guestRating: null,
+      sourceType: 'review',
+      sourceId: 'review-source-1',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+      currentCycleNumber: 2,
+      currentSourceRevision: 2,
+      stateRevision: 3,
+      status: 'open',
+    })
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RESPONSIBLE_MANAGER])
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    const audience = {
+      kind: 'handling_cycle' as const,
+      inboxItemId: INBOX_ITEM,
+      sourceType: 'review' as const,
+      sourceId: 'review-source-1',
+      cycleNumber: 2,
+      sourceRevision: 2,
+      stateRevision: 3,
+      actorUserId: null,
+    }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  // I15: a note reaches whoever has written on the item before.
+  it("admits a recipient who is still one of the item's note authors", async () => {
+    const deps = buildDeps()
+    deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: null,
+      assignedTo: null,
+      propertyName: null,
+      guestRating: null,
+      sourceType: 'review',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+    })
+    deps.inboxItemLookup.findNoteAuthors.mockResolvedValue([RECIPIENT])
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    const audience = { kind: 'inbox_note_author' as const, inboxItemId: INBOX_ITEM }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.inboxItemLookup.findNoteAuthors.mockResolvedValue([RESPONSIBLE_MANAGER])
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  it('suppresses the Handling Cycle actor before any delivery-time authority lookup', async () => {
+    const deps = buildDeps()
+    const audience = {
+      kind: 'handling_cycle' as const,
+      inboxItemId: INBOX_ITEM,
+      sourceType: 'review' as const,
+      sourceId: 'review-source-1',
+      cycleNumber: 2,
+      sourceRevision: 2,
+      stateRevision: 3,
+      actorUserId: RECIPIENT,
+    }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+    expect(deps.inboxItemLookup.findHandlingCycleNotificationFacts).not.toHaveBeenCalled()
+  })
+
+  it('parses only a complete positive Handling Cycle audience', () => {
+    const valid = {
+      kind: 'handling_cycle',
+      inboxItemId: INBOX_ITEM,
+      sourceType: 'review',
+      sourceId: 'review-source-1',
+      cycleNumber: 2,
+      sourceRevision: 2,
+      stateRevision: 3,
+      actorUserId: null,
+    }
+    expect(parseNotificationAudience(valid)).toEqual(valid)
+    expect(parseNotificationAudience({ ...valid, stateRevision: 0 })).toBeNull()
+    expect(parseNotificationAudience({ ...valid, sourceType: 'unknown' })).toBeNull()
+    expect(parseNotificationAudience({ ...valid, actorUserId: '' })).toBeNull()
+  })
+
+  describe('a grouped bulk reopen', () => {
+    const cycle = (item: typeof INBOX_ITEM, stateRevision = 3) => ({
+      inboxItemId: item,
+      sourceType: 'review' as const,
+      sourceId: `review-${item}`,
+      cycleNumber: 2,
+      sourceRevision: 1,
+      stateRevision,
+    })
+    const audience = {
+      kind: 'bulk_handling_cycle' as const,
+      cycles: [cycle(INBOX_ITEM), cycle(SECOND_INBOX_ITEM)],
+      actorUserId: userId('bulk-actor'),
+    }
+    const currentHead = (item: string, stateRevision = 3) => ({
+      propertyId: PROPERTY,
+      portalId: null,
+      assignedTo: null,
+      propertyName: 'Riverside Hotel',
+      guestRating: null,
+      sourceType: 'review' as const,
+      sourceId: `review-${item}`,
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+      currentCycleNumber: 2,
+      currentSourceRevision: 1,
+      stateRevision,
+      status: 'open' as const,
+    })
+    const depsWithHeads = (stateRevisions: Readonly<Record<string, number>> = {}) => {
+      const deps = buildDeps()
+      deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockImplementation(
+        async (item: string) => currentHead(item, stateRevisions[item] ?? 3),
+      )
+      deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+      return deps
+    }
+
+    it('counts every cycle still open that the recipient is responsible for', async () => {
+      await expect(
+        createNotificationAudienceAuthorizer(depsWithHeads())(authorize({ audience })),
+      ).resolves.toEqual({ itemCount: 2 })
+    })
+
+    // Per-item reopen facts notify nobody, so one changed item must not
+    // silence the rest: the notice stands for the cycles that still stand.
+    it('still delivers once one cycle has moved on, counting only the rest', async () => {
+      const deps = depsWithHeads({ [SECOND_INBOX_ITEM]: 4 })
+
+      await expect(
+        createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+      ).resolves.toEqual({ itemCount: 1 })
+    })
+
+    it('drops the notice once every cycle in the group has moved on', async () => {
+      const deps = depsWithHeads({ [INBOX_ITEM]: 4, [SECOND_INBOX_ITEM]: 4 })
+
+      await expect(
+        createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+      ).resolves.toBe(false)
+    })
+
+    it('never delivers the grouped notice to the manager who reopened the items', async () => {
+      const deps = depsWithHeads()
+
+      await expect(
+        createNotificationAudienceAuthorizer(deps)(
+          authorize({ audience: { ...audience, actorUserId: RECIPIENT } }),
+        ),
+      ).resolves.toBe(false)
+      expect(
+        deps.inboxItemLookup.findHandlingCycleNotificationFacts,
+      ).not.toHaveBeenCalled()
+    })
+
+    it('parses only a bounded, unique, complete list of cycles', () => {
+      expect(parseNotificationAudience(audience)).toEqual(audience)
+      expect(parseNotificationAudience({ ...audience, cycles: [] })).toBeNull()
+      expect(
+        parseNotificationAudience({
+          ...audience,
+          cycles: [cycle(INBOX_ITEM), cycle(INBOX_ITEM)],
+        }),
+      ).toBeNull()
+      expect(
+        parseNotificationAudience({
+          ...audience,
+          cycles: [{ ...cycle(INBOX_ITEM), cycleNumber: 0 }],
+        }),
+      ).toBeNull()
+      expect(
+        parseNotificationAudience({
+          ...audience,
+          cycles: Array.from({ length: 101 }, (_, index) =>
+            cycle(inboxItemId(`item-${index}`)),
+          ),
+        }),
+      ).toBeNull()
+      expect(parseNotificationAudience({ ...audience, actorUserId: '' })).toBeNull()
+    })
+  })
+
+  it('revalidates an exact active Response Target reminder and current responsibility', async () => {
+    const deps = buildDeps()
+    deps.inboxItemLookup.findResponseTargetReminderNotificationFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      assignedTo: null,
+      propertyName: 'Riverside Hotel',
+      guestRating: 2,
+      sourceType: 'feedback',
+      sourceId: 'feedback-source-1',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+      currentCycleNumber: 2,
+      currentSourceRevision: 4,
+      stateRevision: 7,
+      status: 'open',
+      targetKind: 'private_feedback_handling',
+      reminderKind: 'halfway',
+      scheduledFor: new Date(TARGET_SCHEDULED_FOR),
+    })
+    deps.responsibleManagers.findForPortal.mockResolvedValue([RECIPIENT])
+    const audience = {
+      kind: 'response_target_reminder' as const,
+      inboxItemId: INBOX_ITEM,
+      sourceType: 'feedback' as const,
+      sourceId: 'feedback-source-1',
+      cycleNumber: 2,
+      sourceRevision: 4,
+      stateRevision: 7,
+      targetKind: 'private_feedback_handling' as const,
+      reminderKind: 'halfway' as const,
+      scheduledFor: TARGET_SCHEDULED_FOR,
+    }
+
+    expect(parseNotificationAudience(audience)).toEqual(audience)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+    expect(
+      deps.inboxItemLookup.findResponseTargetReminderNotificationFacts,
+    ).toHaveBeenCalledWith({
+      inboxItemId: INBOX_ITEM,
+      organizationId: ORG,
+      cycleNumber: 2,
+      targetKind: 'private_feedback_handling',
+      reminderKind: 'halfway',
+      scheduledFor: new Date(TARGET_SCHEDULED_FOR),
+    })
+    expect(deps.responsibleManagers.findForPortal).toHaveBeenCalledWith(ORG, PORTAL)
+
+    deps.inboxItemLookup.findResponseTargetReminderNotificationFacts.mockResolvedValue(
+      null,
+    )
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  it('authorizes only the current eligible assignee for an assigned halfway reminder', async () => {
+    const deps = buildDeps()
+    deps.inboxItemLookup.findResponseTargetReminderNotificationFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      assignedTo: RECIPIENT,
+      propertyName: 'Riverside Hotel',
+      guestRating: 2,
+      sourceType: 'feedback',
+      sourceId: 'feedback-source-1',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+      currentCycleNumber: 2,
+      currentSourceRevision: 4,
+      stateRevision: 7,
+      status: 'open',
+      targetKind: 'private_feedback_handling',
+      reminderKind: 'halfway',
+      scheduledFor: new Date(TARGET_SCHEDULED_FOR),
+    })
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    deps.responsibleManagers.findForPortal.mockResolvedValue([RESPONSIBLE_MANAGER])
+    const audience = {
+      kind: 'response_target_reminder' as const,
+      inboxItemId: INBOX_ITEM,
+      sourceType: 'feedback' as const,
+      sourceId: 'feedback-source-1',
+      cycleNumber: 2,
+      sourceRevision: 4,
+      stateRevision: 7,
+      targetKind: 'private_feedback_handling' as const,
+      reminderKind: 'halfway' as const,
+      scheduledFor: TARGET_SCHEDULED_FOR,
+    }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience, userId: RESPONSIBLE_MANAGER }),
+      ),
+    ).resolves.toBe(false)
+    expect(deps.responsibleManagers.findForPortal).not.toHaveBeenCalled()
+  })
+
+  it('revalidates assignment changes before delivering a halfway reminder', async () => {
+    const deps = buildDeps()
+    deps.inboxItemLookup.findResponseTargetReminderNotificationFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      assignedTo: REPLACEMENT_ASSIGNEE,
+      propertyName: 'Riverside Hotel',
+      guestRating: 2,
+      sourceType: 'feedback',
+      sourceId: 'feedback-source-1',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+      currentCycleNumber: 2,
+      currentSourceRevision: 4,
+      stateRevision: 7,
+      status: 'open',
+      targetKind: 'private_feedback_handling',
+      reminderKind: 'halfway',
+      scheduledFor: new Date(TARGET_SCHEDULED_FOR),
+    })
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    const audience = {
+      kind: 'response_target_reminder' as const,
+      inboxItemId: INBOX_ITEM,
+      sourceType: 'feedback' as const,
+      sourceId: 'feedback-source-1',
+      cycleNumber: 2,
+      sourceRevision: 4,
+      stateRevision: 7,
+      targetKind: 'private_feedback_handling' as const,
+      reminderKind: 'halfway' as const,
+      scheduledFor: TARGET_SCHEDULED_FOR,
+    }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience, userId: REPLACEMENT_ASSIGNEE }),
+      ),
+    ).resolves.toBe(true)
+  })
+
+  it('authorizes both scoped responsibility and an eligible assignee for target-passed delivery', async () => {
+    const deps = buildDeps()
+    deps.inboxItemLookup.findResponseTargetReminderNotificationFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      assignedTo: RECIPIENT,
+      propertyName: 'Riverside Hotel',
+      guestRating: 2,
+      sourceType: 'feedback',
+      sourceId: 'feedback-source-1',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+      currentCycleNumber: 2,
+      currentSourceRevision: 4,
+      stateRevision: 7,
+      status: 'open',
+      targetKind: 'private_feedback_handling',
+      reminderKind: 'target_passed',
+      scheduledFor: new Date(TARGET_SCHEDULED_FOR),
+    })
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    deps.responsibleManagers.findForPortal.mockResolvedValue([RESPONSIBLE_MANAGER])
+    const audience = {
+      kind: 'response_target_reminder' as const,
+      inboxItemId: INBOX_ITEM,
+      sourceType: 'feedback' as const,
+      sourceId: 'feedback-source-1',
+      cycleNumber: 2,
+      sourceRevision: 4,
+      stateRevision: 7,
+      targetKind: 'private_feedback_handling' as const,
+      reminderKind: 'target_passed' as const,
+      scheduledFor: TARGET_SCHEDULED_FOR,
+    }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience, userId: RESPONSIBLE_MANAGER }),
+      ),
+    ).resolves.toBe(true)
+  })
+
+  it('parses only a complete Response Target reminder audience', () => {
+    const valid = {
+      kind: 'response_target_reminder',
+      inboxItemId: INBOX_ITEM,
+      sourceType: 'review',
+      sourceId: 'review-source-1',
+      cycleNumber: 1,
+      sourceRevision: 1,
+      stateRevision: 1,
+      targetKind: 'google_review_response',
+      reminderKind: 'target_passed',
+      scheduledFor: TARGET_SCHEDULED_FOR,
+    }
+    expect(parseNotificationAudience(valid)).toEqual(valid)
+    expect(parseNotificationAudience({ ...valid, cycleNumber: 0 })).toBeNull()
+    expect(parseNotificationAudience({ ...valid, targetKind: 'unknown' })).toBeNull()
+    expect(parseNotificationAudience({ ...valid, reminderKind: 'daily' })).toBeNull()
+    expect(parseNotificationAudience({ ...valid, scheduledFor: 'not-a-date' })).toBeNull()
+  })
+
+  it('revalidates exact current Portal Health and responsibility at delivery', async () => {
+    const deps = buildDeps()
+    deps.portalHealthLookup.findPortalHealthNotificationFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      status: 'degraded',
+      reason: 'google_destination_unavailable',
+      effectiveFrom: new Date(HEALTH_SINCE),
+    })
+    deps.responsibleManagers.findForPortal.mockResolvedValue([RECIPIENT])
+    const audience = {
+      kind: 'portal_health' as const,
+      portalId: PORTAL,
+      status: 'degraded' as const,
+      reason: 'google_destination_unavailable' as const,
+      effectiveFrom: HEALTH_SINCE,
+    }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.portalHealthLookup.findPortalHealthNotificationFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      status: 'healthy',
+      reason: 'operational',
+      effectiveFrom: new Date('2026-08-27T09:00:00.000Z'),
+    })
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  // Every same-status reconcile (an unrelated property.updated, say) re-stamps
+  // the open interval's source version. That is not a new Health state, so a
+  // notice queued for the interval still stands; a later interval that merely
+  // repeats the status and reason is a different notice.
+  it('keys Portal Health delivery to the interval the fact opened', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForPortal.mockResolvedValue([RECIPIENT])
+    const audience = {
+      kind: 'portal_health' as const,
+      portalId: PORTAL,
+      status: 'unavailable' as const,
+      reason: 'publication_snapshot_unavailable' as const,
+      effectiveFrom: HEALTH_SINCE,
+    }
+    const current = (effectiveFrom: string) => ({
+      propertyId: PROPERTY,
+      status: 'unavailable' as const,
+      reason: 'publication_snapshot_unavailable' as const,
+      effectiveFrom: new Date(effectiveFrom),
+    })
+
+    deps.portalHealthLookup.findPortalHealthNotificationFacts.mockResolvedValue(
+      current(HEALTH_SINCE),
+    )
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.portalHealthLookup.findPortalHealthNotificationFacts.mockResolvedValue(
+      current('2026-08-27T11:00:00.000Z'),
+    )
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  it('parses only actionable exact-state Portal Health audiences', () => {
+    const valid = {
+      kind: 'portal_health',
+      portalId: PORTAL,
+      status: 'unavailable',
+      reason: 'public_address_unavailable',
+      effectiveFrom: HEALTH_SINCE,
+    }
+    expect(parseNotificationAudience(valid)).toEqual(valid)
+    expect(parseNotificationAudience({ ...valid, status: 'healthy' })).toBeNull()
+    expect(
+      parseNotificationAudience({ ...valid, reason: 'publication_draft' }),
+    ).toBeNull()
+    expect(parseNotificationAudience({ ...valid, effectiveFrom: 'yesterday' })).toBeNull()
+  })
+
+  it('revalidates the exact current Goal result revision and responsibility', async () => {
+    const deps = buildDeps()
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      programId: 'program-1',
+      programVersionId: 'program-version-2',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      revisionId: 'revision-2',
+      revision: 2,
+      evaluationState: 'eligible',
+      achieved: false,
+      programName: 'Guest rating average',
+      subject: { kind: 'property', propertyId: PROPERTY },
+    })
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    const audience = {
+      kind: 'goal_result_revision' as const,
+      programId: 'program-1',
+      programVersionId: 'program-version-2',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      revisionId: 'revision-2',
+      revision: 2,
+      evaluationState: 'eligible' as const,
+      achieved: false,
+    }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue(
+      null,
+    )
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  it('delivers a superseded Goal correction while the current head holds its outcome', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    const audience = {
+      kind: 'goal_result_revision' as const,
+      programId: 'program-1',
+      programVersionId: 'program-version-2',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      revisionId: 'revision-1',
+      revision: 1,
+      evaluationState: 'eligible' as const,
+      achieved: false,
+    }
+    const head = (achieved: boolean) => ({
+      programId: 'program-1',
+      programVersionId: 'program-version-2',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      revisionId: 'revision-2',
+      revision: 2,
+      evaluationState: 'eligible' as const,
+      achieved,
+      programName: 'Guest rating average',
+      subject: { kind: 'property' as const, propertyId: PROPERTY },
+    })
+
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue(
+      head(false),
+    )
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue(
+      head(true),
+    )
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  it('delivers a Goal completion only while the month is still achieved', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue({
+      programId: 'program-1',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      programName: 'Guest rating average',
+      subject: { kind: 'property', propertyId: PROPERTY },
+    })
+    const audience = {
+      kind: 'goal_completion' as const,
+      programId: 'program-1',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+    }
+
+    expect(parseNotificationAudience(audience)).toEqual(audience)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+    expect(
+      deps.monthlyResultFacts.findMonthlyResultNotificationFacts,
+    ).toHaveBeenCalledWith({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+    })
+
+    // The lookup answers null once the current head is no longer achieved.
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue(null)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  // The recheck agrees with the fan-out: a Portal-goal notice, whatever its
+  // subject, belongs to the Property's responsible managers (PROPOSAL §4.5,
+  // approved under P-8). The Portal's own manager is not asked.
+  it("rechecks a portal goal notice against the Property's responsible managers", async () => {
+    const deps = buildDeps()
+    const PORTAL_MANAGER = userId('portal-manager-1')
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    deps.responsibleManagers.findForPortal.mockResolvedValue([PORTAL_MANAGER])
+    const subject = { kind: 'portal' as const, portalId: PORTAL }
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue({
+      programId: 'program-1',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      programName: 'Reception scans',
+      subject,
+    })
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      programId: 'program-1',
+      programVersionId: 'program-version-2',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      revisionId: 'revision-2',
+      revision: 2,
+      evaluationState: 'eligible',
+      achieved: false,
+      programName: 'Reception scans',
+      subject,
+    })
+    const completion = {
+      kind: 'goal_completion' as const,
+      programId: 'program-1',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+    }
+    const revision = {
+      kind: 'goal_result_revision' as const,
+      programId: 'program-1',
+      programVersionId: 'program-version-2',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      revisionId: 'revision-2',
+      revision: 2,
+      evaluationState: 'eligible' as const,
+      achieved: false,
+    }
+    const authorizer = createNotificationAudienceAuthorizer(deps)
+
+    for (const audience of [completion, revision]) {
+      await expect(authorizer(authorize({ audience }))).resolves.toBe(true)
+      await expect(
+        authorizer(authorize({ userId: PORTAL_MANAGER, audience })),
+      ).resolves.toBe(false)
+    }
+    expect(deps.responsibleManagers.findForProperty).toHaveBeenCalledWith(ORG, PROPERTY)
+    expect(deps.responsibleManagers.findForPortal).not.toHaveBeenCalled()
+  })
+
+  it('parses only complete Goal completion audiences', () => {
+    const valid = {
+      kind: 'goal_completion',
+      programId: 'program-1',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+    }
+    expect(parseNotificationAudience(valid)).toEqual(valid)
+    expect(parseNotificationAudience({ ...valid, monthlyResultId: '' })).toBeNull()
+    expect(parseNotificationAudience({ ...valid, programId: undefined })).toBeNull()
+  })
+
+  it('parses only complete, internally consistent Goal revision audiences', () => {
+    const valid = {
+      kind: 'goal_result_revision',
+      programId: 'program-1',
+      programVersionId: 'program-version-2',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      revisionId: 'revision-2',
+      revision: 2,
+      evaluationState: 'unavailable',
+      achieved: null,
+    }
+
+    expect(parseNotificationAudience(valid)).toEqual(valid)
+    expect(parseNotificationAudience({ ...valid, revision: 0 })).toBeNull()
+    expect(
+      parseNotificationAudience({ ...valid, evaluationState: 'eligible' }),
+    ).toBeNull()
+    expect(parseNotificationAudience({ ...valid, revisionId: '' })).toBeNull()
+  })
+})

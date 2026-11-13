@@ -3,7 +3,7 @@ import { emailCorrelationId, providerEventCorrelationId } from './delivery-corre
 import {
   createImmediateEmailEnqueue,
   createQuietHoursRelease,
-} from '../email/send-emails.server'
+} from './jobs/send-emails.job'
 
 describe('delivery correlation ids', () => {
   it('builds the queue row log identity', () => {

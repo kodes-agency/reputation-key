@@ -14,12 +14,24 @@
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import { providerEventCorrelationId } from '../delivery-correlation'
+import type { Database } from '#/shared/db'
 import type {
+  EmailAddressKeys,
   EmailSuppressionReason,
-  NotificationEmailRepositoryPort,
   ProviderDeliveryState,
   ProviderStateTransition,
-} from '../../application/ports/notification-email-repository.port'
+} from '../../domain/notification-email-queue-types'
+import {
+  findProviderMessageRecipients,
+  recordProviderState,
+  suppressEmailRecipient,
+} from '../../email/notification-email-queue.server'
+import {
+  forgetEmailAddress,
+  hasAppliedProviderEvent,
+  markProviderEventApplied,
+  suppressEmailAddress,
+} from '../../email/notification-email-suppression.server'
 import type { UserLookupPort } from '../../application/ports/notification-user-lookup.port'
 
 /**
@@ -116,7 +128,9 @@ export type ResendEventResult = Readonly<{
 }>
 
 export type ResendEventDeps = Readonly<{
-  emailRepo: NotificationEmailRepositoryPort
+  db: Database
+  /** Keys the refused-address list is written under. */
+  emailAddressKeys: EmailAddressKeys
   /** The recipient's address, to key a durable suppression by. */
   userLookup: Pick<UserLookupPort, 'getEmail'>
   logger: LoggerPort
@@ -143,10 +157,20 @@ async function suppressRecipients(
     const address = await deps.userLookup.getEmail(row.userId)
     // An event from before the provider lifted the address, arriving late,
     // must not refuse it again, neither the address nor its queued rows.
-    if (address && !(await deps.emailRepo.suppressAddress(address, reason, occurredAt))) {
+    if (
+      address &&
+      !(await suppressEmailAddress(
+        deps.db,
+        deps.emailAddressKeys,
+        address,
+        reason,
+        occurredAt,
+      ))
+    ) {
       continue
     }
-    suppressed += await deps.emailRepo.suppressRecipient(
+    suppressed += await suppressEmailRecipient(
+      deps.db,
       row.userId,
       row.organizationId,
       `provider_${reason}`,
@@ -173,13 +197,20 @@ async function applySuppressionListEvent(
     correlationId: providerEventCorrelationId(input.eventId),
   }
   if (input.type === 'suppression.removed') {
-    await deps.emailRepo.forgetAddress(input.address, input.occurredAt)
+    await forgetEmailAddress(
+      deps.db,
+      deps.emailAddressKeys,
+      input.address,
+      input.occurredAt,
+    )
     deps.logger.info(fields, 'Provider lifted an address suppression; lifted here too')
     return { applied: true, rows: 0, suppressed: 0 }
   }
   // A manual addition, or an origin we do not know, is the provider's own call.
   const reason = LIST_ORIGIN_REASONS[input.origin ?? ''] ?? 'suppressed'
-  const recorded = await deps.emailRepo.suppressAddress(
+  const recorded = await suppressEmailAddress(
+    deps.db,
+    deps.emailAddressKeys,
     input.address,
     reason,
     input.occurredAt,
@@ -209,7 +240,8 @@ export async function applyResendEvent(
     return { applied: false, rows: 0, suppressed: 0, reason: 'ignored_event_type' }
   }
 
-  const moved = await deps.emailRepo.recordProviderState(
+  const moved = await recordProviderState(
+    deps.db,
     input.providerMessageId,
     state,
     input.occurredAt,
@@ -221,7 +253,7 @@ export async function applyResendEvent(
     // moves; the address must still be refused. Both writes are idempotent,
     // so re-applying them on any refusal of a message that is ours is safe.
     const owned = reason
-      ? await deps.emailRepo.findProviderMessageRecipients(input.providerMessageId)
+      ? await findProviderMessageRecipients(deps.db, input.providerMessageId)
       : []
     if (reason && owned.length > 0) {
       const suppressed = await suppressRecipients(deps, owned, reason, input.occurredAt)
@@ -286,7 +318,7 @@ export const createResendEventHandler =
   (deps: ResendEventDeps) =>
   (input: ResendEventInput): Promise<ResendEventResult> =>
     trace('notification.handleResendEvent', async () => {
-      if (await deps.emailRepo.hasAppliedProviderEvent(input.eventId)) {
+      if (await hasAppliedProviderEvent(deps.db, input.eventId)) {
         deps.logger.info(
           {
             eventType: input.type,
@@ -302,6 +334,6 @@ export const createResendEventHandler =
         } satisfies ResendEventResult
       }
       const result = await applyResendEvent(deps, input)
-      if (result.applied) await deps.emailRepo.markProviderEventApplied(input.eventId)
+      if (result.applied) await markProviderEventApplied(deps.db, input.eventId)
       return result
     })

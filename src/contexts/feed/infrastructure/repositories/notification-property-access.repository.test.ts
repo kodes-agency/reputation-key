@@ -11,11 +11,15 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { createNotificationRepository } from './notification.repository'
+import {
+  readNotificationFeedHead,
+  readNotificationFeedPage,
+} from '../../notify/notification-feed.server'
 
-const ORG = 'org-notification-property-access'
-const USER = 'user-notification-property-access'
+const ORG = organizationId('org-notification-property-access')
+const USER = userId('user-notification-property-access')
 const RIVERSIDE = '86200000-0000-4000-8000-000000000001'
 const HARBOR = '86200000-0000-4000-8000-000000000002'
 
@@ -73,7 +77,7 @@ const feedQuery = (visiblePropertyIds: readonly string[] | null) =>
   ({
     userId: USER,
     organizationId: ORG,
-    visiblePropertyIds,
+    visiblePropertyIds: visiblePropertyIds && visiblePropertyIds.map(propertyId),
     limit: 10,
     filter: 'all',
   }) as const
@@ -107,9 +111,7 @@ beforeEach(async () => {
 
 describe.sequential('notification feed Property access (real PostgreSQL)', () => {
   it('drops a Property the reader lost from the head and the unread badge', async () => {
-    const head = await createNotificationRepository(getDb()).readFeedHead(
-      feedQuery([HARBOR]),
-    )
+    const head = await readNotificationFeedHead(getDb(), feedQuery([HARBOR]))
 
     expect(head.page.notifications.map((row) => row.id)).toEqual([
       HARBOR_ROW,
@@ -119,7 +121,7 @@ describe.sequential('notification feed Property access (real PostgreSQL)', () =>
   })
 
   it('drops it from keyset pages below the head too', async () => {
-    const page = await createNotificationRepository(getDb()).readFeedPage({
+    const page = await readNotificationFeedPage(getDb(), {
       ...feedQuery([HARBOR]),
       before: null,
     })
@@ -128,14 +130,14 @@ describe.sequential('notification feed Property access (real PostgreSQL)', () =>
   })
 
   it('keeps Organization notices for a reader with no Property access left', async () => {
-    const head = await createNotificationRepository(getDb()).readFeedHead(feedQuery([]))
+    const head = await readNotificationFeedHead(getDb(), feedQuery([]))
 
     expect(head.page.notifications.map((row) => row.id)).toEqual([ACCOUNT_NOTICE])
     expect(head.unreadCount).toBe(1)
   })
 
   it('shows every Property to an Organization-wide reader', async () => {
-    const head = await createNotificationRepository(getDb()).readFeedHead(feedQuery(null))
+    const head = await readNotificationFeedHead(getDb(), feedQuery(null))
 
     expect(head.page.notifications.map((row) => row.id)).toEqual([
       RIVERSIDE_ROW,

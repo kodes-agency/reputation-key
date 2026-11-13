@@ -24,7 +24,7 @@ own source review, inbox, property, portal, identity, or goal state.
   registers every notification route.
 - The email renderer and templates (`render.server.ts`, `digest-email.server.tsx`,
   `urgent-email.server.tsx`, `notification-facts.server.tsx`) live in `email/`
-  beside `send-emails.server.ts`.
+  beside `send-emails.job.ts`.
 - The small single-answer lookups other owners provide (active Property,
   display names, feedback Portal, reply approval, reply state, review rating)
   share `application/ports/cross-context-lookups.port.ts`.
@@ -276,7 +276,7 @@ category in `notification-preference-writes.ts`: a reset waits for earlier saves
 and later edits use the inherited values or new default it established. Other
 categories remain independent. Preference reads, apply-default writes,
 resets and mute Undo share their user/Organization/Property/category scope in
-`infrastructure/repositories/notification-preference.repository.ts`. Property
+`preferences/notification-preferences.server.ts`. Property
 quiet-window reads and clearing share their recipient scope there too. Undo
 removes a mute-created row when the Property previously inherited, or restores
 only the switch when it had its own row, preserving cadence and threshold.
@@ -632,18 +632,24 @@ recipient for it). Both counts are restated at send. A closed cycle settles a gr
 reopen in-app once none of its items stands, except a row that coalesced a
 second bulk reopen.
 Notification jobs perform immediate-email and digest work. Notices are written by the notice writer, in the transaction of the step they report; the operator's manual final warning writes through its direct form, all recipients on one transaction.
-`email/send-emails.server.ts` sends immediate mail: it renders a row once, stores the
+`infrastructure/jobs/send-emails.job.ts` sends immediate mail: it renders a row once, stores the
 provider request on the row (`provider_request`) before the first attempt, and every
 retry re-checks the recipient and sends that stored request under the same key until the
 23-hour retry horizon closes the row. An attempted row without a stored request is closed,
 never re-rendered. The daily
 digest groups lines in queue order and freezes membership from those same lines.
 `digest-batch-identity.ts` owns member, request and provider-key fingerprints;
-assembly uses the email renderer's group contract. The repository retains the
+assembly uses the email renderer's group contract. `email/notification-digest-batch.server.ts` retains the
 transactional batch and member settlement boundary.
 A durable delivery is settled when its consumer's receipt is claimed, in the transaction that writes its notices: a row was written, preferences asked for none, or the recipient no longer qualified. A redelivery that finds the receipt writes nothing.
 All queue, clock, logger, identifier, capability-policy, and upstream lookup
 dependencies are provided by composition; modules do not read ambient roots.
+Notification rows (`notify/notification-rows.server.ts`, `notify/notification-feed.server.ts`),
+the email queue, refused-address list and digest batches (`email/notification-email-*.server.ts`,
+`email/notification-digest-batch.server.ts`) and preferences
+(`preferences/notification-preferences.server.ts`) are plain functions taking
+the database client first; delivery code receives the client (or the notice's
+transaction) and calls them directly.
 Immediate mail for an Organization-scoped mandatory notice is a job of its
 own name (`mandatory-email`) under its own action and core capability, so the
 beta email allowlist, which gates every other message, cannot hold an
@@ -745,4 +751,4 @@ categories, defaults and copy for invitation acceptance, review updates, reply
 outcomes, import completion, goal results and feedback outcomes through real
 producers and the dispatcher. Its preference contract round trips keep Google
 rating goals (`recognition`) independent from Portal goals (`portal_goals`);
-database persistence remains covered by the preference repository integration tests.
+database persistence remains covered by the preference store integration tests.

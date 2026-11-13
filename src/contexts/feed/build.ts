@@ -9,9 +9,11 @@ import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Queue } from 'bullmq'
 import { notificationId, notificationEmailId } from '#/shared/domain/ids'
-import { createNotificationRepository } from './infrastructure/repositories/notification.repository'
-import { createNotificationEmailRepository } from './infrastructure/repositories/notification-email.repository'
-import { createNotificationPreferenceRepository } from './infrastructure/repositories/notification-preference.repository'
+import {
+  findByUser,
+  findCategoryDefaults,
+  findPropertyDeliveryWindows,
+} from './preferences/notification-preferences.server'
 import { createOneClickUnsubscribeRepository } from './infrastructure/repositories/one-click-unsubscribe.repository'
 import { createNotificationDbUserLookupAdapter } from './infrastructure/adapters/notification-db-user-lookup.adapter'
 import type { ResponsibleManagerLookupPort } from './application/ports/responsible-manager-lookup.port'
@@ -37,7 +39,7 @@ import { createResendEventHandler } from './infrastructure/handlers/resend-event
 import { createReviewRatingForRouting } from './infrastructure/adapters/review-rating-routing.adapter'
 import { createOwnedNotificationActions } from './notify/owned-notification-actions.server'
 import { createPreferenceCommands } from './preferences/preference-commands.server'
-import { createImmediateEmailEnqueue } from './email/send-emails.server'
+import { createImmediateEmailEnqueue } from './infrastructure/jobs/send-emails.job'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import type { PropertyAccessLookup } from '#/shared/domain/property-access'
 import { createNotificationFeedReads } from './application/notification-feed-reads'
@@ -50,12 +52,12 @@ import {
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import { createNoticeWriter } from './notify/consumers.server'
 import { registerNotificationRoutes } from './notify/register-routes.server'
-import { createNotificationDeliveryLagRepository } from './infrastructure/repositories/notification-delivery-lag.repository'
 import { NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS } from './infrastructure/repositories/health-read-timeout'
 import {
   MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT,
-  type IsEmailDeliveryAllowed,
-} from './application/ports/notification-delivery-lag.repository'
+  readNotificationDeliveryLag,
+} from './notify/delivery-lag.server'
+import type { IsEmailDeliveryAllowed } from '#/shared/observability/health-metrics'
 import { createOrganizationAccountNotificationAuthority } from './infrastructure/adapters/organization-account-notification-authority.adapter'
 import { createNotificationOrganizationScopeResolver } from './infrastructure/repositories/notification-organization-scope.repository'
 import { createNotificationUserSettings } from './preferences/user-settings.server'
@@ -115,35 +117,30 @@ type NotificationBuildInput = Readonly<{
 }>
 
 const buildNotificationFeed = (input: NotificationBuildInput) => {
-  const notificationRepo = createNotificationRepository(input.db)
   const feedReads = createNotificationFeedReads({
-    repo: notificationRepo,
+    db: input.db,
     propertyAccess: input.propertyAccess,
     clock: input.clock,
   })
   const accessRemovalReader = createAccountAccessRemovalReader(input.db)
-  const deliveryLagRepo = createNotificationDeliveryLagRepository(
-    input.db,
-    input.isEmailDeliveryAllowed,
-  )
-  const emailRepo = createNotificationEmailRepository(input.db, {
+  const emailAddressKeys = {
     emailAddressKey: input.emailAddressKey,
     retiredEmailAddressKeys: input.retiredEmailAddressKeys,
-  })
-  const prefRepo = createNotificationPreferenceRepository(input.db)
+  } as const
   const oneClickUnsubscribeRepo = createOneClickUnsubscribeRepository(input.db)
   // ADR 0046 r.3: the settings page and every timestamp read the same
   // user-then-Organization zone the delivery jobs resolve. The pool is read at
   // call time: composition must not touch the database while it is built.
   const userSettings = createNotificationUserSettings({
-    preferenceRepo: prefRepo,
+    db: input.db,
     resolveOrganizationScope: (organizationId) =>
       createNotificationOrganizationScopeResolver(input.db.$client)(organizationId),
     clock: input.clock,
   })
   const userLookup = createNotificationDbUserLookupAdapter(input.db)
   const handleResendEvent = createResendEventHandler({
-    emailRepo,
+    db: input.db,
+    emailAddressKeys,
     userLookup,
     logger: input.logger,
   })
@@ -160,7 +157,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     userLookup,
     responsibleManagers: input.responsibleManagers,
     replyApproval: input.replyApproval,
-    notifications: notificationRepo,
+    db: input.db,
     inboxItemLookup,
     escalationResolutions,
     portalHealthLookup: input.portalHealthLookup,
@@ -205,13 +202,13 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   })
 
   const preferenceCommands = createPreferenceCommands({
-    prefRepo,
+    db: input.db,
     clock: input.clock,
     idGen: input.idGen,
   })
 
   const ownedActions = createOwnedNotificationActions({
-    notificationRepo,
+    db: input.db,
     clock: input.clock,
   })
 
@@ -238,7 +235,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
      */
     readNotificationDeliveryLag: () => {
       const now = input.clock().getTime()
-      return deliveryLagRepo.read({
+      return readNotificationDeliveryLag(input.db, input.isEmailDeliveryAllowed, {
         recordedAtOrAfter: new Date(now - NOTIFICATION_DELIVERY_LAG_LOOKBACK_MS),
         recordedBefore: new Date(now - NOTIFICATION_DELIVERY_LAG_GRACE_MS),
         scanLimit: NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT,
@@ -255,9 +252,9 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     markAllRead: feedReads.markAllRead,
     dismissAll: feedReads.dismissAll,
     getPreferences: async (userId: string, orgId: string) => ({
-      preferences: await prefRepo.findByUser(userId, orgId),
-      categoryDefaults: await prefRepo.findCategoryDefaults(userId, orgId),
-      propertyWindows: await prefRepo.findPropertyDeliveryWindows(userId, orgId),
+      preferences: await findByUser(input.db, userId, orgId),
+      categoryDefaults: await findCategoryDefaults(input.db, userId, orgId),
+      propertyWindows: await findPropertyDeliveryWindows(input.db, userId, orgId),
     }),
     getUserSettings: (userId: UserId, orgId: OrganizationId) =>
       userSettings.read(userId, orgId),
@@ -287,8 +284,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     replyApproval: input.replyApproval,
     inboxItemLookup,
     escalationResolutions,
-    notificationRepo,
-    emailRepo,
     workState,
     monthlyResultFacts: input.monthlyResultFacts,
     googleConnectionProperties: input.googleConnectionProperties,
@@ -316,7 +311,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     publicApi,
     worker: Object.freeze({ registerOutboxConsumers }),
     delivery: Object.freeze({
-      repos: Object.freeze({ notificationRepo, emailRepo, preferenceRepo: prefRepo }),
       handleResendEvent,
       authorizeAudience,
       recipientStanding,
@@ -327,9 +321,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       createProcessors: (worker: NotificationDeliveryWorkerInput) =>
         createNotificationDeliveryProcessors(
           {
-            notificationRepo,
-            emailRepo,
-            preferenceRepo: prefRepo,
+            db: input.db,
+            emailAddressKeys,
             userLookup,
             recipientStanding,
             workState,

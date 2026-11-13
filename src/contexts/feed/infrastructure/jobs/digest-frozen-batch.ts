@@ -18,10 +18,11 @@
 // carry an open batch past that, so such a batch is closed unsent at the retry
 // horizon immediate mail has, rather than mailed a second time.
 
-import type {
-  NotificationDigestBatch,
-  NotificationEmailRepositoryPort,
-} from '../../application/ports/notification-email-repository.port'
+import type { NotificationDigestBatch } from '../../domain/notification-email-queue-types'
+import {
+  findDigestBatchEntries,
+  settleDigestBatch,
+} from '../../email/notification-digest-batch.server'
 import type { NotificationEmail } from '../../domain/notification-types'
 import { SETTLED_EMAIL_REASON } from '../../domain/notification-actionable'
 import { isPastRetryHorizon } from '../../domain/email-freshness'
@@ -33,13 +34,7 @@ import {
   type RecipientContext,
 } from './digest-entry-selection'
 
-export type FrozenBatchDeps = DigestEntryDeps &
-  Readonly<{
-    emailRepo: Pick<
-      NotificationEmailRepositoryPort,
-      'findDigestBatchEntries' | 'settleDigestBatch'
-    >
-  }>
+export type FrozenBatchDeps = DigestEntryDeps
 
 /** A batch's retry budget; its members' counts move together. */
 const MAX_BATCH_ATTEMPTS = 5
@@ -79,7 +74,7 @@ export async function invalidateBatch(
   batch: NotificationDigestBatch,
   reason: string,
 ): Promise<void> {
-  await deps.emailRepo.settleDigestBatch({
+  await settleDigestBatch(deps.db, {
     batchId: batch.id,
     organizationId: ctx.orgId,
     userId: ctx.userId,
@@ -99,7 +94,7 @@ export async function supersedeBatch(
   batch: NotificationDigestBatch,
   expectedContentDigest: string,
 ): Promise<boolean> {
-  const superseded = await deps.emailRepo.settleDigestBatch({
+  const superseded = await settleDigestBatch(deps.db, {
     batchId: batch.id,
     organizationId: ctx.orgId,
     userId: ctx.userId,
@@ -197,11 +192,7 @@ export async function selectFrozenEntries(
     await invalidateBatch(deps, ctx, batch, RETRY_HORIZON_PASSED_REASON)
     return null
   }
-  const members = await deps.emailRepo.findDigestBatchEntries(
-    batch.id,
-    ctx.orgId,
-    ctx.userId,
-  )
+  const members = await findDigestBatchEntries(deps.db, batch.id, ctx.orgId, ctx.userId)
   const candidates = await sendableMembers(deps, ctx, batch, members)
   if (candidates === null) return null
   // Quiet hours hold a frozen batch as it stands. Deferring its members the

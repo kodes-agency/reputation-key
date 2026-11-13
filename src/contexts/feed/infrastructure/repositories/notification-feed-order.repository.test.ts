@@ -17,13 +17,17 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { organizationId, userId } from '#/shared/domain/ids'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
-import { createNotificationRepository } from './notification.repository'
+import {
+  readNotificationFeedHead,
+  readNotificationFeedPage,
+} from '../../notify/notification-feed.server'
 
-const ORG = 'org-notification-feed-order'
+const ORG = organizationId('org-notification-feed-order')
 const PROPERTY = '86100000-0000-4000-8000-000000000001'
-const USER = 'user-notification-feed-order'
+const USER = userId('user-notification-feed-order')
 
 const feedQuery = (limit: number) =>
   ({
@@ -157,7 +161,7 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
     await insertNotification({ id: newer, createdAt: '2026-08-25T11:00:00Z' })
     await insertNotification({ id: newest, createdAt: '2026-08-25T11:30:00Z' })
 
-    const head = await createNotificationRepository(getDb()).readFeedHead(feedQuery(3))
+    const head = await readNotificationFeedHead(getDb(), feedQuery(3))
 
     expect(head.page.notifications.map((row) => row.id)).toEqual([refired, newest, newer])
   })
@@ -172,14 +176,14 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
       await insertNotification({ id, createdAt: '2026-08-25T09:00:00Z' })
     }
 
-    const head = await createNotificationRepository(getDb()).readFeedHead(feedQuery(3))
+    const head = await readNotificationFeedHead(getDb(), feedQuery(3))
 
     expect(head.page.notifications.map((row) => row.id)).toEqual([...ids].reverse())
   })
 
   it('serves the polled feed head from an index in feed order, without a sort', async () => {
     const plan = await planOfCapturedQuery(
-      (db) => createNotificationRepository(db).readFeedHead(feedQuery(20)),
+      (db) => readNotificationFeedHead(db, feedQuery(20)),
       (sql) => /from "notifications"/i.test(sql) && /order by/i.test(sql),
     )
 
@@ -194,8 +198,7 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
     for (const [n, id] of ids.entries()) {
       await insertNotification({ id, createdAt: `2026-08-25T10:0${5 - n}:00Z` })
     }
-    const repo = createNotificationRepository(getDb())
-    const head = await repo.readFeedHead(feedQuery(2))
+    const head = await readNotificationFeedHead(getDb(), feedQuery(2))
     expect(head.page.notifications.map((row) => row.id)).toEqual(ids.slice(0, 2))
 
     // Above the cursor, a row arrives and a head row is dismissed.
@@ -207,11 +210,14 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
       ids[1],
     ])
 
-    const second = await repo.readFeedPage({
+    const second = await readNotificationFeedPage(getDb(), {
       ...feedQuery(2),
       before: head.page.nextCursor,
     })
-    const third = await repo.readFeedPage({ ...feedQuery(2), before: second.nextCursor })
+    const third = await readNotificationFeedPage(getDb(), {
+      ...feedQuery(2),
+      before: second.nextCursor,
+    })
 
     expect(second.notifications.map((row) => row.id)).toEqual(ids.slice(2, 4))
     expect(third.notifications.map((row) => row.id)).toEqual(ids.slice(4, 6))
@@ -226,10 +232,9 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
     const second = '86100000-0000-4000-8000-000000000042'
     await insertNotification({ id: first, createdAt: '2026-08-25T09:00:00.123456Z' })
     await insertNotification({ id: second, createdAt: '2026-08-25T09:00:00.123400Z' })
-    const repo = createNotificationRepository(getDb())
 
-    const head = await repo.readFeedHead(feedQuery(1))
-    const next = await repo.readFeedPage({
+    const head = await readNotificationFeedHead(getDb(), feedQuery(1))
+    const next = await readNotificationFeedPage(getDb(), {
       ...feedQuery(1),
       before: head.page.nextCursor,
     })
@@ -242,7 +247,7 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
   it('seeks a keyset page through the feed index instead of filtering it', async () => {
     const plan = await planOfCapturedQuery(
       (db) =>
-        createNotificationRepository(db).readFeedPage({
+        readNotificationFeedPage(db, {
           ...feedQuery(20),
           before: {
             at: '2026-08-25T09:00:00.000000Z',

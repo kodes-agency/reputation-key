@@ -1,6 +1,7 @@
 // One daily digest per recipient in their local timezone, grouped by Property.
 // Immediate-email recovery runs first on every tick.
 
+import type { Database } from '#/shared/db'
 import type { Job } from 'bullmq'
 import type { Pool } from 'pg'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -17,10 +18,23 @@ import type {
   FrozenDigestRequest,
   NotificationDigestBatch,
   NotificationEmailRecipient,
-  NotificationEmailRepositoryPort,
-} from '../../application/ports/notification-email-repository.port'
-import type { NotificationPreferenceRepositoryPort } from '../../application/ports/notification-preference-repository.port'
-import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
+} from '../../domain/notification-email-queue-types'
+import {
+  findDueEmailRecipients,
+  findDueEmailsByUser,
+} from '../../email/notification-email-queue.server'
+import {
+  findOpenDigestBatch,
+  prepareDigestBatch,
+  settleDigestBatch,
+  startDigestAttempt,
+} from '../../email/notification-digest-batch.server'
+import { isEmailAddressSuppressed } from '../../email/notification-email-suppression.server'
+import type { EmailAddressKeys } from '../../domain/notification-email-queue-types'
+import {
+  getUserSettings,
+  resolveDeliveryWindow,
+} from '../../preferences/notification-preferences.server'
 import type { UserLookupPort } from '../../application/ports/notification-user-lookup.port'
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
 import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
@@ -48,10 +62,7 @@ import {
   recipientTimezoneSource,
   resolveRecipientTimezone,
 } from './recipient-timezone'
-import {
-  sweepImmediateOrphans,
-  type ImmediateEmailEnqueue,
-} from '../../email/send-emails.server'
+import { sweepImmediateOrphans, type ImmediateEmailEnqueue } from './send-emails.job'
 import {
   authorizedEntries,
   loadItems,
@@ -71,9 +82,9 @@ export const DIGEST_JOB_NAME = 'digest-notification' as const
 
 export type DigestDeps = Readonly<{
   pool: Pool
-  emailRepo: NotificationEmailRepositoryPort
-  preferenceRepo: NotificationPreferenceRepositoryPort
-  notifRepo: NotificationRepositoryPort
+  db: Database
+  /** Keys the refused-address list is read under. */
+  emailAddressKeys: EmailAddressKeys
   userLookup: UserLookupPort
   emailSender: EmailSenderPort
   resolveOrganizationScope: NotificationOrganizationScopeResolver
@@ -110,7 +121,7 @@ async function recordOutcomes(
   outcome: Awaited<ReturnType<EmailSenderPort['send']>>,
   maxRetry: number,
 ): Promise<void> {
-  const settled = await deps.emailRepo.settleDigestBatch({
+  const settled = await settleDigestBatch(deps.db, {
     batchId: batch.id,
     organizationId: ctx.orgId,
     userId: ctx.userId,
@@ -199,7 +210,7 @@ async function dispatch(
   // Before the call, never after: an attempt that never reports back must
   // count as possibly accepted, or a later refusal would make the batch look
   // safe to re-key.
-  const started = await deps.emailRepo.startDigestAttempt({
+  const started = await startDigestAttempt(deps.db, {
     batchId: batch.id,
     organizationId: ctx.orgId,
     userId: ctx.userId,
@@ -265,11 +276,11 @@ async function resolveRecipientContext(
   const rawOrgId = recipientScope.organizationId as string
   const orgId = organizationId(rawOrgId)
   const [settings, orgScope, quietHours] = await Promise.all([
-    deps.preferenceRepo.getUserSettings(recipientScope.userId, orgId),
+    getUserSettings(deps.db, recipientScope.userId, orgId),
     deps.resolveOrganizationScope(rawOrgId),
     // No Property: a digest covers all of them, so it reads the person's own
     // window and never a Property override of it (ADR 0046 r.4).
-    deps.preferenceRepo.resolveDeliveryWindow(recipientScope.userId, orgId, null),
+    resolveDeliveryWindow(deps.db, recipientScope.userId, orgId, null),
   ])
   const sources = {
     userTimezone: settings?.timezone ?? null,
@@ -299,7 +310,7 @@ async function selectDeliverableEntries(
   openBatch: NotificationDigestBatch | null,
 ): Promise<readonly NotificationEmail[] | null> {
   if (openBatch) return selectFrozenEntries(deps, ctx, openBatch)
-  const due = await deps.emailRepo.findDueByUser(ctx.orgId, ctx.userId, 'daily', ctx.now)
+  const due = await findDueEmailsByUser(deps.db, ctx.orgId, ctx.userId, 'daily', ctx.now)
   const authorized = await authorizedEntries(deps, ctx.rawOrgId, due)
   const fresh = await retireStaleEntries(deps, ctx, authorized)
   const candidates = isDailyDigestWindow(ctx.now, ctx.timezone)
@@ -419,7 +430,7 @@ async function retryOpenBatch(
     await invalidateBatch(deps, ctx, openBatch, 'digest_membership_changed')
     return
   }
-  await deps.emailRepo.settleDigestBatch({
+  await settleDigestBatch(deps.db, {
     batchId: openBatch.id,
     organizationId: ctx.orgId,
     userId: ctx.userId,
@@ -445,7 +456,7 @@ async function prepareAndDispatchBatch(
   const memberIds = items.map((item) => notificationEmailId(item.entry.id as string))
   const memberDigest = digestMemberSet(memberIds)
   const contentDigest = digestProviderRequest(request)
-  const prepared = await deps.emailRepo.prepareDigestBatch({
+  const prepared = await prepareDigestBatch(deps.db, {
     id: batchId,
     organizationId: ctx.orgId,
     userId: ctx.userId,
@@ -479,7 +490,7 @@ async function sendUserDigest(
   recipientScope: NotificationEmailRecipient,
 ): Promise<void> {
   const ctx = await resolveRecipientContext(deps, recipientScope)
-  const openBatch = await deps.emailRepo.findOpenDigestBatch(ctx.orgId, ctx.userId)
+  const openBatch = await findOpenDigestBatch(deps.db, ctx.orgId, ctx.userId)
   const deliverable = await selectDeliverableEntries(deps, ctx, openBatch)
   if (deliverable === null) return
 
@@ -490,7 +501,7 @@ async function sendUserDigest(
   }
   // ADR 0046 r.6: an address the provider refused for good, from any
   // Organization, is never attempted again.
-  if (await deps.emailRepo.isAddressSuppressed(recipient)) {
+  if (await isEmailAddressSuppressed(deps.db, deps.emailAddressKeys, recipient)) {
     await abandonDelivery(deps, ctx, openBatch, deliverable, 'recipient_bounced')
     return
   }
@@ -546,7 +557,7 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
   return async (_job: Job<void>): Promise<void> => {
     await sweepImmediateOrphans(deps, deps.clock())
 
-    const recipients = await deps.emailRepo.findDueRecipients('daily', deps.clock())
+    const recipients = await findDueEmailRecipients(deps.db, 'daily', deps.clock())
     // A full read may have left recipients for the next tick. They are read in
     // visit order (work due at any hour, then 08:00 now), but past the cap a
     // recipient can still miss their hour, and nothing else would say so.

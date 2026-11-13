@@ -37,8 +37,11 @@ import type {
   ReplyWorkStatus,
 } from '../application/ports/cross-context-lookups.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
-import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
-import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
+import type { Database } from '#/shared/db'
+import {
+  cancelQueuedEmailsForNotifications,
+  settleUnreadForReader,
+} from './notification-rows.server'
 import type {
   GroupedReopenStorePort,
   WaitingGroupedReopen,
@@ -273,7 +276,7 @@ const replyStill =
   }
 
 /** The cycle is still its item's exact open head: nobody has handled it since. */
-export const isExactHead = (
+const isExactHead = (
   cycle: HandlingCycleRef,
   facts: HandlingCycleNotificationFacts | null,
 ): boolean =>
@@ -492,7 +495,7 @@ export const createNotificationWorkState = (
 
 export type GroupedReopenSettlementDeps = Readonly<{
   groupedReopens: GroupedReopenStorePort
-  emails: Pick<NotificationEmailRepositoryPort, 'cancelQueuedForNotifications'>
+  db: Database
   workState: Pick<NotificationWorkState, 'isWaiting'>
 }>
 
@@ -574,7 +577,8 @@ export async function settleGroupedReopens(
     resolvedAt: input.resolvedAt,
   })
   if (settled.length > 0) {
-    await deps.emails.cancelQueuedForNotifications(
+    await cancelQueuedEmailsForNotifications(
+      deps.db,
       settled,
       input.organizationId,
       SETTLED_EMAIL_REASON,
@@ -585,8 +589,7 @@ export async function settleGroupedReopens(
 }
 
 export type RetireMovedAssignmentDeps = Readonly<{
-  notifications: Pick<NotificationRepositoryPort, 'settleUnreadForReader'>
-  emails: Pick<NotificationEmailRepositoryPort, 'cancelQueuedForNotifications'>
+  db: Database
 }>
 
 export type RetireMovedAssignment = (
@@ -603,7 +606,7 @@ export type RetireMovedAssignment = (
 export const createRetireMovedAssignment =
   (deps: RetireMovedAssignmentDeps): RetireMovedAssignment =>
   async ({ organizationId, userId, inboxItemId, eventId, at }) => {
-    const settled = await deps.notifications.settleUnreadForReader({
+    const settled = await settleUnreadForReader(deps.db, {
       organizationId,
       userId,
       types: ['inbox.assigned'],
@@ -612,7 +615,8 @@ export const createRetireMovedAssignment =
       resolvedAt: at,
     })
     if (settled.length === 0) return
-    await deps.emails.cancelQueuedForNotifications(
+    await cancelQueuedEmailsForNotifications(
+      deps.db,
       settled,
       organizationId,
       SETTLED_EMAIL_REASON,

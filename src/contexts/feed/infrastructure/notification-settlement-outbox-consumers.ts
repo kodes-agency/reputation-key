@@ -27,8 +27,12 @@ import {
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { isRecordPayload, requiredString } from './outbox-payload-fields'
-import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
-import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
+import type { Database } from '#/shared/db'
+import {
+  cancelQueuedEmailsForNotifications,
+  settleUnreadForProperty,
+  settleUnreadForResource,
+} from '../notify/notification-rows.server'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import {
   settleGroupedReopens,
@@ -173,11 +177,7 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
 type SettlementRoute = (typeof NOTIFICATION_SETTLEMENT_CONSUMERS)[number]
 
 export type NotificationSettlementConsumerDeps = Readonly<{
-  notifications: Pick<
-    NotificationRepositoryPort,
-    'settleUnreadForResource' | 'settleUnreadForProperty'
-  >
-  emails: Pick<NotificationEmailRepositoryPort, 'cancelQueuedForNotifications'>
+  db: Database
   inboxItemLookup: Pick<InboxItemLookupPort, 'findInboxItemByReviewId'>
   /**
    * Whether each type's work is really finished now. A fact handled late must
@@ -297,20 +297,21 @@ async function settleResource(
 
   const settled =
     route.resource === 'property_wide'
-      ? await deps.notifications.settleUnreadForProperty({
+      ? await settleUnreadForProperty(deps.db, {
           organizationId: orgId,
           propertyId: propertyId(resourceId),
           types,
           resolvedAt,
         })
-      : await deps.notifications.settleUnreadForResource({
+      : await settleUnreadForResource(deps.db, {
           organizationId: orgId,
           types,
           resourceId,
           resolvedAt,
         })
   if (settled.length === 0) return { settled: 0, cancelled: 0 }
-  const cancelled = await deps.emails.cancelQueuedForNotifications(
+  const cancelled = await cancelQueuedEmailsForNotifications(
+    deps.db,
     settled,
     orgId,
     SETTLED_EMAIL_REASON,

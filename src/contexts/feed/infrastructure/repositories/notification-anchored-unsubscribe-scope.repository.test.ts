@@ -14,7 +14,8 @@ import {
   digestMemberSet,
   digestProviderRequest,
 } from '../digest-batch-identity'
-import { createNotificationEmailRepository } from './notification-email.repository'
+import { recordEmailUnsubscribeScope } from '../../email/notification-unsubscribe-scope.server'
+import { prepareDigestBatch } from '../../email/notification-digest-batch.server'
 
 const ORG = 'org-notification-anchored-scope'
 const USER = 'user-notification-anchored-scope'
@@ -114,11 +115,7 @@ describe.sequential('unsubscribe scopes of an anchored notice (real PostgreSQL)'
       'immediate',
     )
 
-    await createNotificationEmailRepository(getDb()).recordEmailUnsubscribeScope(
-      RECONNECT_EMAIL,
-      ORG,
-      NOW,
-    )
+    await recordEmailUnsubscribeScope(getDb(), RECONNECT_EMAIL, ORG, NOW)
 
     expect(await scopes(RECONNECT_EMAIL)).toEqual([])
   })
@@ -134,7 +131,7 @@ describe.sequential('unsubscribe scopes of an anchored notice (real PostgreSQL)'
     const memberIds = [RECONNECT_EMAIL, GOAL_EMAIL]
     const memberDigest = digestMemberSet(memberIds)
 
-    await createNotificationEmailRepository(getDb()).prepareDigestBatch({
+    await prepareDigestBatch(getDb(), {
       id: BATCH,
       organizationId: ORG,
       userId: USER,

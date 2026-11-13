@@ -12,7 +12,7 @@ import { notifications } from '#/shared/db/schema/notification.schema'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { notificationId, unbrand } from '#/shared/domain/ids'
 import type { GroupedReopenStorePort } from '../../application/ports/grouped-reopen-store.port'
-import { awaitingSettlement } from './notification.repository'
+import { awaitingSettlement } from '../../notify/notification-feed-sql.server'
 
 const GROUPED_REOPEN_TYPE = 'inbox.bulk_reopened'
 const BULK_REOPEN_FACT = 'inbox.inbox_items.bulk_reopen_completed'

@@ -1,5 +1,5 @@
 // Feed notification surface — row-to-domain mapper for notification rows
-// Extracted from notification.repository.ts to keep repository file focused on queries.
+// Shared by the notification row and feed reads.
 
 import { notifications } from '#/shared/db/schema/notification.schema'
 import { assertLiteral } from '#/shared/domain/assert'

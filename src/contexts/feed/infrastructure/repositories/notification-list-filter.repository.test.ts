@@ -2,15 +2,19 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { organizationId, userId } from '#/shared/domain/ids'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { createNotificationRepository } from './notification.repository'
+import {
+  readNotificationFeedHead,
+  readNotificationFeedPage,
+} from '../../notify/notification-feed.server'
 
-const ORG_A = 'org-notification-list-a'
+const ORG_A = organizationId('org-notification-list-a')
 const ORG_B = 'org-notification-list-b'
 const PROPERTY_A = '81000000-0000-4000-8000-000000000001'
 const PROPERTY_B = '81000000-0000-4000-8000-000000000002'
-const USER = 'user-notification-list'
-const CONCURRENT_USER = 'user-notification-feed-head-concurrent'
+const USER = userId('user-notification-list')
+const CONCURRENT_USER = userId('user-notification-feed-head-concurrent')
 const CONCURRENT_NOTIFICATION = '82000000-0000-4000-8000-000000000099'
 
 let pool: Pool
@@ -127,7 +131,7 @@ beforeEach(async () => {
 
 describe.sequential('notification list filters (real PostgreSQL)', () => {
   it('applies priority before pagination and excludes dismissed/foreign rows', async () => {
-    const page = await createNotificationRepository(getDb()).readFeedPage({
+    const page = await readNotificationFeedPage(getDb(), {
       userId: USER,
       organizationId: ORG_A,
       visiblePropertyIds: null,
@@ -143,8 +147,6 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
   })
 
   it('applies unread and category filters in the tenant query', async () => {
-    const repo = createNotificationRepository(getDb())
-
     const firstPage = {
       userId: USER,
       organizationId: ORG_A,
@@ -152,8 +154,11 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
       limit: 10,
       before: null,
     }
-    const unread = await repo.readFeedPage({ ...firstPage, filter: 'unread' })
-    const workflow = await repo.readFeedPage({
+    const unread = await readNotificationFeedPage(getDb(), {
+      ...firstPage,
+      filter: 'unread',
+    })
+    const workflow = await readNotificationFeedPage(getDb(), {
       ...firstPage,
       filter: 'workflow_collaboration',
     })
@@ -185,7 +190,6 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
     await pool.query(`UPDATE notifications SET resolved_at = NOW() WHERE id = $1`, [
       '82000000-0000-4000-8000-000000000008',
     ])
-    const repo = createNotificationRepository(getDb())
     const firstPage = {
       userId: USER,
       organizationId: ORG_A,
@@ -194,9 +198,18 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
       before: null,
     }
 
-    const needsYou = await repo.readFeedPage({ ...firstPage, filter: 'needs_you' })
-    const updates = await repo.readFeedPage({ ...firstPage, filter: 'updates' })
-    const head = await repo.readFeedHead({ ...firstPage, filter: 'needs_you' })
+    const needsYou = await readNotificationFeedPage(getDb(), {
+      ...firstPage,
+      filter: 'needs_you',
+    })
+    const updates = await readNotificationFeedPage(getDb(), {
+      ...firstPage,
+      filter: 'updates',
+    })
+    const head = await readNotificationFeedHead(getDb(), {
+      ...firstPage,
+      filter: 'needs_you',
+    })
 
     expect(needsYou.notifications.map((row) => row.id)).toEqual([
       '82000000-0000-4000-8000-000000000001',
@@ -214,7 +227,7 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
   })
 
   it('returns the first page and exact unread count with one snapshot watermark', async () => {
-    const head = await createNotificationRepository(getDb()).readFeedHead({
+    const head = await readNotificationFeedHead(getDb(), {
       userId: USER,
       organizationId: ORG_A,
       visiblePropertyIds: null,
@@ -238,7 +251,6 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
       status: 'unread',
       createdAt: '2026-08-25T10:07:00Z',
     })
-    const repo = createNotificationRepository(getDb())
     const observed = new Set<string>()
 
     // Race a committed state change against each public feed-head read. A
@@ -247,7 +259,7 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
     for (let attempt = 0; attempt < 80; attempt += 1) {
       const nextStatus = attempt % 2 === 0 ? 'read' : 'unread'
       const [head] = await Promise.all([
-        repo.readFeedHead({
+        readNotificationFeedHead(getDb(), {
           userId: CONCURRENT_USER,
           organizationId: ORG_A,
           visiblePropertyIds: null,
