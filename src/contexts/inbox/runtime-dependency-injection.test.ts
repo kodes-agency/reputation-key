@@ -9,7 +9,7 @@ describe('Inbox ARC-03 runtime dependency injection', () => {
   it('keeps context logging composition-owned', () => {
     for (const file of [
       'src/contexts/reputation/inbox/outbox-consumers.server.ts',
-      'src/contexts/inbox/infrastructure/repositories/inbox.repository.ts',
+      'src/contexts/reputation/inbox/inbox-repository.server.ts',
       'src/contexts/inbox/server/inbox-queries.ts',
     ]) {
       expect(read(file), file).not.toMatch(/\bgetLogger\s*\(/u)
@@ -26,8 +26,8 @@ describe('Inbox ARC-03 runtime dependency injection', () => {
       'src/contexts/reputation/inbox/source-commands.server.ts',
       'src/contexts/inbox/infrastructure/inbox-command-guards.ts',
       'src/contexts/inbox/infrastructure/inbox-escalation-history.ts',
-      'src/contexts/inbox/infrastructure/repositories/inbox-view.repository.ts',
-      'src/contexts/inbox/infrastructure/repositories/inbox.repository.ts',
+      'src/contexts/reputation/inbox/inbox-view-repository.server.ts',
+      'src/contexts/reputation/inbox/inbox-repository.server.ts',
     ]) {
       const source = read(file)
       expect(source, file).not.toMatch(/\bnew Date\s*\(\s*\)/u)

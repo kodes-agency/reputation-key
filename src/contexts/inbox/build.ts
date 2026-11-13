@@ -45,16 +45,16 @@ import {
   createReleaseResponseTargetRemindersHandler,
   JOB_NAME as RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
 } from '../reputation/inbox/response-targets/release-reminders.job.server'
-import { createInboxRepository } from './infrastructure/repositories/inbox.repository'
-import { createInboxNoteRepository } from './infrastructure/repositories/inbox-note.repository'
-import { createInboxHistoryRepository } from './infrastructure/repositories/inbox-history.repository'
-import { createInboxViewRepository } from './infrastructure/repositories/inbox-view.repository'
+import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
+import { createInboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.server'
+import { createInboxHistoryRepository } from '#/contexts/reputation/inbox/inbox-history-repository.server'
+import { createInboxViewRepository } from '#/contexts/reputation/inbox/inbox-view-repository.server'
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
 import { createReviewHandlingCycleStore } from './infrastructure/review-handling-cycle.store'
-import { createFeedbackHandlingStore } from './infrastructure/feedback-handling.store'
+import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
 import { createResponseTargetStore } from '../reputation/inbox/response-targets/store.server'
 import { createRestatedRevisionTargetExclusionStore } from './infrastructure/restated-revision-target-exclusion.store'
 import { createResponseTargetPolicyStore } from '../reputation/inbox/response-targets/policy.store.server'

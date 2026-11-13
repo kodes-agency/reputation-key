@@ -32,10 +32,10 @@ import type {
   InboxSourceScope,
   Cursor,
   PaginatedResult,
-} from '../../application/ports/inbox.repository'
-import type { ReviewSnippet } from '../../application/ports/review-lookup.port'
-import type { FeedbackSnippet } from '../../application/ports/feedback-lookup.port'
-import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
+} from '#/contexts/inbox/application/ports/inbox.repository'
+import type { ReviewSnippet } from '#/contexts/inbox/application/ports/review-lookup.port'
+import type { FeedbackSnippet } from '#/contexts/inbox/application/ports/feedback-lookup.port'
+import type { InboxItem, InboxStatus, SourceType } from '#/contexts/inbox/domain/types'
 import type {
   InboxItemId,
   FeedbackId,
@@ -44,15 +44,18 @@ import type {
   ReviewId,
 } from '#/shared/domain/ids'
 import { reviewId, feedbackId, inboxItemId, propertyId } from '#/shared/domain/ids'
-import { inboxItemFromRow } from '../mappers/inbox.mapper'
+import { inboxItemFromRow } from '#/contexts/inbox/infrastructure/mappers/inbox.mapper'
 import {
   findSuggestedRowLevels,
   inboxSourceIdMatchesAny,
   resolveAnalysisNarrowing,
   resolveContentNarrowing,
   type LookupPorts,
-} from './inbox-list-narrowing'
-import { feedbackItemDetail, reviewItemDetail } from '../mappers/inbox-detail.mapper'
+} from './inbox-list-narrowing.server'
+import {
+  feedbackItemDetail,
+  reviewItemDetail,
+} from '#/contexts/inbox/infrastructure/mappers/inbox-detail.mapper'
 import { trace } from '#/shared/observability/trace'
 
 type InboxItemRow = Parameters<typeof inboxItemFromRow>[0]

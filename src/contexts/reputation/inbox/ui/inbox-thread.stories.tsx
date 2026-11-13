@@ -1655,7 +1655,7 @@ const anonymousItem: InboxItem = { ...reviewItem, reviewerName: null }
 // BQC-1.2: the source cache expired, so the review text is gone for good. The
 // honest unavailable line renders — never a stale copy, never the snippet.
 //
-// The name is null here for a second reason: `inbox.repository.ts` nulls every
+// The name is null here for a second reason: `inbox-repository.server.ts` nulls every
 // snippet field for `expired` and `not_found` alike, so on an ineligible source
 // a null name means the snippet is gone, NOT that the guest posted anonymously.
 // The pane may not pick the flattering reading of an ambiguous null.
@@ -1667,7 +1667,7 @@ export const ContentExpired: Story = {
       item: anonymousItem,
       reviewText: null,
       // A translation of content the source has withdrawn. The repository
-      // nulls every snippet field for `expired` (`inbox.repository.ts:769-787`)
+      // nulls every snippet field for `expired` (`inbox-repository.server.ts:769-787`)
       // so this pairing cannot arise from a live read — but the TYPE allows it,
       // and a replayed `inbox-cache-policy.ts` entry written while the snippet
       // was still available would carry exactly this shape.

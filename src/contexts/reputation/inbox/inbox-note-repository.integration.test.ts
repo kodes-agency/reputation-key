@@ -10,7 +10,7 @@
 // cross-tenant reads below are the load-bearing assertions.
 
 import { beforeEach, describe, it, expect } from 'vitest'
-import { createInboxNoteRepository } from './inbox-note.repository'
+import { createInboxNoteRepository } from './inbox-note-repository.server'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import {
@@ -20,7 +20,7 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxNote } from '../../domain/types'
+import type { InboxNote } from '#/contexts/inbox/domain/types'
 
 const ORG_A = organizationId('org-inbox-note-aaaa-1111')
 const ORG_B = organizationId('org-inbox-note-bbbb-2222')

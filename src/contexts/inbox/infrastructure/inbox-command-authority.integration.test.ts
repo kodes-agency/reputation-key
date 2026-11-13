@@ -28,7 +28,7 @@ import {
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
 import { createInboxCommandAuthority } from './adapters/inbox-command-authority.adapter'
-import { createFeedbackHandlingStore } from './feedback-handling.store'
+import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
 
 const db = getDb()
 const ORG = organizationId('org-inbox-command-batch-authority')

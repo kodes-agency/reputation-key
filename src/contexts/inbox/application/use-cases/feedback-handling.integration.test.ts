@@ -14,7 +14,7 @@ import {
   seedInboxItem,
   seedInboxOrganization,
 } from '../../infrastructure/inbox-database-fixtures'
-import { createFeedbackHandlingStore } from '../../infrastructure/feedback-handling.store'
+import { createFeedbackHandlingStore } from '#/contexts/reputation/inbox/feedback-handling-store.server'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import {
   feedbackId,

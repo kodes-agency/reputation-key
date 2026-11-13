@@ -17,14 +17,14 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
-import type { InboxItem } from '../domain/types'
-import { inboxItemStatusChanged } from '../domain/events'
-import { isInboxError } from '../domain/errors'
+import type { InboxItem } from '#/contexts/inbox/domain/types'
+import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
+import { isInboxError } from '#/contexts/inbox/domain/errors'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
-import { createFeedbackHandlingStore } from './feedback-handling.store'
+import { createFeedbackHandlingStore } from './feedback-handling-store.server'
 
 const ORG = organizationId('org-feedback-handling-000000000001')
 const OTHER_ORG = organizationId('org-feedback-handling-000000000002')

@@ -147,7 +147,7 @@ function hasText(value: string | null | undefined): value is string {
 
 /**
  * A tag the browser will accept as `lang`, or null. The raw code is served
- * data (`inbox.repository.ts:782` copies it unvalidated from the snippet), so
+ * data (`inbox-repository.server.ts:782` copies it unvalidated from the snippet), so
  * it passes through `Intl.Locale`, which throws `RangeError` on a structurally
  * invalid tag, before it reaches an attribute.
  */
@@ -161,7 +161,7 @@ function validLanguageTag(tag: string | null | undefined): string | null {
 }
 
 /**
- * `inbox.repository.ts:769-787` nulls every snippet field when the eligibility
+ * `inbox-repository.server.ts:769-787` nulls every snippet field when the eligibility
  * lookup answers `expired` or `not_found`, so at runtime this is belt and
  * braces. The TYPE, though, lets a caller hand us a translation beside a gone
  * status — a story, or `inbox-cache-policy.ts` replaying an entry written while

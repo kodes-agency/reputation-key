@@ -1,7 +1,7 @@
 // `inbox_items.status` is a READ-ONLY-RETAINED compatibility mirror.
 //
 // Every serving read already resolves workflow status from
-// `inbox_handling_cycle_heads` (`repositories/inbox.repository.ts` builds
+// `inbox_handling_cycle_heads` (`reputation/inbox/inbox-repository.server.ts` builds
 // `effectiveInboxStatus` from the head and joins it into every active read).
 // The column itself cannot be dropped yet: physical contraction is blocked
 // until one verified release plus a restore proof, and other contexts still
@@ -37,11 +37,11 @@ const FENCED_MIRROR_WRITERS: Readonly<Record<string, string>> = {
     'Receipt-coordinated source commands (create, withdraw, source transition): every mirror write co-commits with the Handling Cycle head, its transition row, and the outbox fact.',
   'contexts/inbox/infrastructure/inbox-source-projection.ts':
     'Source-driven projection commands and the item row writers they share: item rows converge with the Handling Cycle head, its transition row and the outbox fact in one transaction.',
-  'contexts/inbox/infrastructure/feedback-handling.store.ts':
+  'contexts/reputation/inbox/feedback-handling-store.server.ts':
     'Private-feedback outcome store: closes the head and mirrors the status in one locked transaction.',
   'contexts/inbox/infrastructure/review-reply-close.ts':
     "Close on a reply Google shows, shared by the reply-observed consumer and the projection rebuild: closes the Handling Cycle head and mirrors the status in one transaction, inside Review's exact-current observation permit.",
-  'contexts/inbox/infrastructure/repositories/inbox.repository.ts':
+  'contexts/reputation/inbox/inbox-repository.server.ts':
     'Only reply milestone stamping; every read it serves resolves from the head, and the milestone seam cannot express a status.',
 }
 
@@ -156,7 +156,7 @@ describe('inbox_items.status is a read-only-retained compatibility mirror', () =
 
   it('resolves every serving read from the Handling Cycle head, not from the mirror', () => {
     const repository = readFileSync(
-      join(REPO_SRC, 'contexts/inbox/infrastructure/repositories/inbox.repository.ts'),
+      join(REPO_SRC, 'contexts/reputation/inbox/inbox-repository.server.ts'),
       'utf8',
     )
     expect(repository).toContain(

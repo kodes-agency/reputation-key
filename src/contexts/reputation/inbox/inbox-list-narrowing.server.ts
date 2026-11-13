@@ -1,7 +1,7 @@
 // Inbox context — the list's narrowing predicates that are not plain columns:
 // content (rating, search text), review analysis (issue mentions) and
 // priority, plus the AI suggestion each list row shows. Split out of
-// inbox.repository.ts when the Priority filter learned the level a person sets
+// inbox-repository.server.ts when the Priority filter learned the level a person sets
 // (ADR 0071), to keep that file within its length ratchet.
 //
 // Everything here builds a predicate or asks a lookup port; nothing writes, so
@@ -12,14 +12,14 @@
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
-import type { InboxFilters } from '../../application/ports/inbox.repository'
-import type { ReviewLookupPort } from '../../application/ports/review-lookup.port'
-import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
+import type { InboxFilters } from '#/contexts/inbox/application/ports/inbox.repository'
+import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
+import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
+import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
 import type {
   AiReviewInsightsPort,
   ReviewAttention,
-} from '../../application/ports/ai-review-insights.port'
+} from '#/contexts/inbox/application/ports/ai-review-insights.port'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { propertyId, reviewId } from '#/shared/domain/ids'
 

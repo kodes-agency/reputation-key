@@ -25,8 +25,8 @@ import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
 } from '#/contexts/reputation/inbox/command-store.server'
-import { createInboxRepository } from './repositories/inbox.repository'
-import { createInboxNoteRepository } from './repositories/inbox-note.repository'
+import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
+import { createInboxNoteRepository } from '#/contexts/reputation/inbox/inbox-note-repository.server'
 import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
 
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })

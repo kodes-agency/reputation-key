@@ -260,12 +260,12 @@ export type InboxItemDetail = Readonly<{
    * `findDetailById` never writes it back. So `detail.item.rating` is null for
    * both sources — which is why the detail pane could never draw stars. Only
    * the LIST projection re-populates `rating`, from the same eligible lookup
-   * (`inbox.repository.ts:433`). Feedback's number has its own field
+   * (`inbox-repository.server.ts:433`). Feedback's number has its own field
    * (`feedbackRatingValue` below); `reviewRating` is null for feedback.
    *
    * Optional rather than required ONLY because hand-built detail fixtures
    * predate the field (9 literal sites, 7 of them `src/components/inbox`
-   * stories). Every producer sets it — `inbox.repository.ts` `findDetailById`
+   * stories). Every producer sets it — `inbox-repository.server.ts` `findDetailById`
    * on both branches, the Storybook-only fake on both — and
    * `getInboxItemDetail` coerces a missing one to `null`, so the payload a
    * client reads always carries the key with a `number | null` value. Tighten
