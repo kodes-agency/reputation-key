@@ -23,13 +23,12 @@ type Props = Readonly<{
   /**
    * The half-typed note, held by the pane.
    *
-   * A mode switch no longer destroys this form: the composer's Reply / Note
+   * A mode switch does not destroy this form: the composer's Reply / Note
    * segment is a real Radix tab set, but both of its panels are force-mounted
    * (`reply-composer.tsx`) and the inactive one is `hidden`, so flipping to the
-   * reply box and back keeps the form instance and everything in it. That was
-   * this prop's original reason and it no longer is.
+   * reply box and back keeps the form instance and everything in it.
    *
-   * What it still carries is a change of SELECTION. The form is keyed by item,
+   * What this prop carries is a change of SELECTION. The form is keyed by item,
    * so a new item rebuilds it; the words are hoisted to
    * `inbox-detail-content.tsx`, above that boundary, where they are fenced on
    * the item they were typed about. This is read ONCE, as the form's default
@@ -47,10 +46,10 @@ type Props = Readonly<{
    * Whether this form's submit is the composer region's accent.
    *
    * `default` — the accent — is the right answer almost everywhere: in note
-   * mode on a review item there is no other action in the region, and finding
-   * 4's rule is that exactly one primary is visible. The exception is a
+   * mode on a review item there is no other action in the region, and exactly
+   * one primary is visible. The exception is a
    * feedback item, whose region also hosts `Mark as handled` / `Correct
-   * outcome` (row 10): THAT is the action the manager came for, so it takes
+   * outcome`: THAT is the action the manager came for, so it takes
    * the accent and this one steps back to `outline`.
    *
    * The caller decides, because only the caller can see both controls; it
@@ -130,14 +129,11 @@ export function InboxNotesThread({
         }
 
   return (
-    // The dock's two writing rows (plan v2.1 row 14, `composer-dock-rows.ts`):
-    // the form is the surface's column, the field is the TEXT row, `Add note`
-    // is alone in the FOOT. This form used to be a free-standing stack — a
-    // visible label, a bordered textarea and the button under it — and inside
-    // the dock that stack sat on the dashed edge and, with no scroller of its
-    // own, pushed `Add note` 53.5 px below a 320x568 viewport on a long note.
-    // Now the text row takes the whole deficit and the foot keeps the primary
-    // on screen, the same geometry the reply composer beside it has.
+    // The dock's two writing rows (`composer-dock-rows.ts`): the form is the
+    // surface's column, the field is the TEXT row, `Add note` is alone in the
+    // FOOT. The text row takes the whole deficit and the foot keeps the primary
+    // on screen on a long note at 320x568, the same geometry the reply composer
+    // beside it has.
     <form ref={formRef} onSubmit={submitHandler(form)} className={DOCK_SURFACE_CLASS}>
       <form.Field name="text">
         {(field: BaseFieldApiTextarea) => (
@@ -153,7 +149,7 @@ export function InboxNotesThread({
               ) : null}
               {/* The label stays — it is the field's accessible name, `Add a
                   note`, which `inbox-detail-content.stories.tsx` queries — but
-                  is no longer printed: the head's `Note` tab and the
+                  is not printed: the head's `Note` tab and the
                   placeholder already say it, and the reply's text row prints
                   no label either. The textarea drops its own box for the
                   dock's (`DOCK_TEXTAREA_CLASS`). */}
@@ -170,9 +166,8 @@ export function InboxNotesThread({
               />
             </div>
             {/* `justify-end`: the primary keeps the trailing edge, where
-                `Submit for approval` sits in reply mode. No `max-md:h-11` any
-                more — row 20 lowered v1's 44 px controls to 36, which is the
-                button's own default height, in the PR that touches the file. */}
+                `Submit for approval` sits in reply mode. The button keeps
+                its own default height (36 px). */}
             <div className={`${DOCK_FOOT_ROW_CLASS} justify-end`}>
               <SubmitButton
                 mutation={addNote}

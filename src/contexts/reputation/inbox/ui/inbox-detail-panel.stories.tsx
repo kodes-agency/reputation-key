@@ -109,7 +109,7 @@ const assignmentOptions = [
   { userId: 'user-ada', name: 'Ada Lovelace' },
 ]
 
-// Faithful InboxDetailState (the useInboxDetail return shape, post-5.7) —
+// Faithful InboxDetailState (the useInboxDetail return shape) —
 // every key the hook returns, no dead keys, no casts.
 function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetailState {
   return {
@@ -162,7 +162,7 @@ export const Populated: Story = {
         googleReviewUrl: null,
         googlePropertyReviewsUrl: null,
         reviewContentStatus: 'available',
-        // Plan row 7: the stars come from the detail payload, not the item row.
+        // The stars come from the detail payload, not the item row.
         reviewRating: 4,
         feedbackComment: null,
         feedbackRatingValue: null,

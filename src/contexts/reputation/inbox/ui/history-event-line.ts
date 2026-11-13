@@ -1,15 +1,13 @@
-// The words of one Handling History entry, as PARTS a renderer can weight (plan
-// v2.1 row 11). Pure: no JSX, no React, no clock — `history-event-node.tsx`
+// The words of one Handling History entry, as PARTS a renderer can weight. Pure: no JSX, no React, no clock — `history-event-node.tsx`
 // owns the icon, the time and the markup.
 //
-// Why parts and not a sentence. v1's `history-event-row.tsx` built a finished
-// string and the row tacked the actor on after it — `Assigned to Georgi Ivanov
-// · Maria Petrova · 20h ago` — so the one word that says WHO sat in the same
-// muted run as the time, and the reader had to parse the sentence to find the
-// person twice. Row 11 reads actor · verb · object: `Maria Petrova assigned this
-// to Georgi Ivanov · 20h ago`, the two people at `font-medium text-foreground`
-// and the verb muted. A renderer can only weight what it can tell apart, so the
-// builders stop concatenating.
+// Why parts and not a sentence. A finished string with the actor tacked on
+// after it (`Assigned to Georgi Ivanov · Maria Petrova · 20h ago`) leaves the
+// one word that says WHO in the same muted run as the time. The line reads
+// actor · verb · object: `Maria Petrova assigned this to Georgi Ivanov · 20h
+// ago`, the two people at `font-medium text-foreground` and the verb muted. A
+// renderer can only weight what it can tell apart, so the builders do not
+// concatenate.
 //
 // The capital is part of the contract, not of the markup. A line that has an
 // actor leads with the name, so its verb is lower case; a line without one leads
@@ -17,12 +15,10 @@
 // through `verbFor`, so no renderer ever upper- or lower-cases a string it did
 // not write — and the tests can assert the exact words a reader sees.
 //
-// The actor-less wording of every sentence is v1's, word for word. That is the
-// vocabulary the stories and e2e specs already read (`Reopened — new
-// information` is asserted verbatim by `activity-notification-facts.spec.ts`),
-// so an entry with no actor renders exactly the text it rendered before. The
-// actor-led form is that wording with its first letter lowered, EXCEPT where the
-// lowered form is not English:
+// The actor-less wording of every sentence is the vocabulary the stories and
+// e2e specs read (`Reopened — new information` is asserted verbatim by
+// `activity-notification-facts.spec.ts`). The actor-led form is that wording
+// with its first letter lowered, EXCEPT where the lowered form is not English:
 //
 //   | alone (no actor)              | led (after a name)                |
 //   | ----------------------------- | --------------------------------- |
@@ -37,7 +33,7 @@
 //
 // A transitive verb keeps its object after a name: `Maria Petrova escalated`
 // reads as something done TO her, and `Maria Petrova closed` as a shop at night.
-// The first two are row 11's example and its release; the third is a claim,
+// The first two are the example and its release; the third is a claim,
 // where the actor and the holder are one person; the last two are noun phrases,
 // which cannot take a subject (`Maria Petrova escalation resolved`). A release
 // the system made for lost eligibility has no led form at all: it never names
@@ -170,7 +166,7 @@ function lowerFirst(words: string): string {
 
 /**
  * The verb phrase in the form the line's lead demands: `alone` when nobody is
- * named (it carries the capital, and it is v1's sentence verbatim), `led` after
+ * named (it carries the capital), `led` after
  * a name. `led` defaults to `alone` with its first letter lowered, which is
  * right for every participle here (`Closed`, `Reopened`, `Escalated`,
  * `Handled`); a noun phrase passes its own.
@@ -262,10 +258,9 @@ function cycleTransitionLine(
 
 /**
  * An assignment row's `actorUserId` is the person whose command WROTE the row,
- * which is not always the person the sentence would make its subject. Row 11
- * turns the actor into the grammatical subject of the verb, where v1 only put a
- * name after the sentence (`Unassigned · Maria Petrova`), so the reason decides
- * whether that subject is true:
+ * which is not always the person the sentence would make its subject. The
+ * actor is the grammatical subject of the verb, so the reason decides whether
+ * that subject is true:
  *
  * - `eligibility_lost` is a release the SYSTEM made. The row carries whoever
  *   triggered it — the admin removing a member, on every item that member held
@@ -284,7 +279,7 @@ function cycleTransitionLine(
  *   name: two members may share a display name, and a row whose ids disagree
  *   is not one this reason's writers produce, so it falls back to the plain
  *   assignment, which stays true whoever the two are. Alone, a claim keeps
- *   v1's `Assigned to <holder>`, which still says who holds it.
+ *   `Assigned to <holder>`, which still says who holds it.
  */
 function assignmentLine(
   detail: DetailOf<'assignment'>,
@@ -316,7 +311,7 @@ function assignmentLine(
   }
   // A null display name means the member left the Organization OR simply has no
   // name set, so the placeholder must not claim either one — it stays opaque.
-  // 'Unknown user' is the established copy (IBX-01-T6, note-message.tsx,
+  // 'Unknown user' is the established copy (note-message.tsx,
   // inbox-actor-directory.port.ts:16), and the same unresolved person must not
   // read one way on their note and another way on their assignment row. The raw
   // id is never a fallback.
@@ -386,8 +381,7 @@ function outcomeLine(
 }
 
 /**
- * A person's priority decision (ADR 0071, copy C-14 alone and C-15 after a
- * name): set, changed, or reset to the suggestion. Only a person writes these
+ * A person's priority decision (ADR 0071): set, changed, or reset to the suggestion. Only a person writes these
  * rows, so the line names whoever the server resolved; an AI change is never
  * a row at all. A level this build cannot spell is silence, as everywhere in
  * this file — never `Priority set to undefined`.
@@ -436,9 +430,8 @@ function priorityLine(
 export function historyEventLine(entry: InboxHistoryEntry): HistoryEventLine | null {
   // `redactLegacyActor` already nulls a backfilled row's name on the server;
   // this repeats it so a row cached before the redaction, or a server that
-  // forgot, still cannot print one. An empty name is no name: v1's row tested
-  // the actor for truthiness, and a line that led with `''` would open on a
-  // lower-case verb after nothing.
+  // forgot, still cannot print one. An empty name is no name: a line that led
+  // with `''` would open on a lower-case verb after nothing.
   const actor = entry.legacy || !entry.actorDisplayName ? null : entry.actorDisplayName
   const { detail } = entry
   switch (detail.kind) {

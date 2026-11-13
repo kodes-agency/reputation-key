@@ -145,13 +145,12 @@ export function InboxReopenDialog({
               <SelectContent>
                 {REOPEN_REASONS.map((option) => (
                   // MENU ITEMS, so they keep 44 px below `md` while the
-                  // trigger drops to 36 (row 20): five adjacent reasons stacked
-                  // edge to edge with no gap, where the primitive's 32 px lets
-                  // a thumb that misses one pick its neighbour — and the one
-                  // picked here is written into the reopen event as the
-                  // durable explanation for why the cycle came back. Measured
-                  // 44 px each, zero gap between neighbours, at 390 and 320.
-                  // `min-h-`, because these labels wrap at 320 px.
+                  // trigger drops to 36: five adjacent reasons stacked edge to
+                  // edge with no gap, where the primitive's 32 px lets a thumb
+                  // that misses one pick its neighbour — and the one picked
+                  // here is written into the reopen event as the durable
+                  // explanation for why the cycle came back. `min-h-`, because
+                  // these labels wrap at 320 px.
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>

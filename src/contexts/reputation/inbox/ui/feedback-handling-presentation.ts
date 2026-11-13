@@ -19,10 +19,9 @@ const OUTCOME_LABELS = {
  * `outcome` reaches the client as an unvalidated cast out of a `varchar`
  * column — in the detail bundle's `currentOutcome` exactly as in every history
  * row — so a union widened server-side arrives in a manager's cached bundle
- * with no client deploy and this index misses. The declared return used to be
- * `string`, which is a lie `noUncheckedIndexedAccess` being off lets
- * TypeScript keep: it made the one caller that guards look redundant and the
- * one that did not look correct. Each caller decides what to print instead;
+ * with no client deploy and this index misses. The return is `string | undefined`
+ * because `noUncheckedIndexedAccess` being off would let TypeScript treat a
+ * missing index as a `string`. Each caller decides what to print instead;
  * both are in this file.
  */
 export const feedbackHandlingOutcomeLabel = (
@@ -52,7 +51,7 @@ export const feedbackHandlingOutcomeLabel = (
  * into the one button that cannot complete. The split is the host's; this
  * function only says which action exists.
  *
- * Branch order is load-bearing and is the deleted card's, unchanged. `open`
+ * Branch order is load-bearing. `open`
  * first: a reopened cycle carries no outcome of its own (history is scoped to
  * `head.currentCycleNumber`, feedback-handling.store.ts:294), so `mark` is the
  * only honest offer there. Then a recorded outcome, because a correction can
@@ -105,11 +104,11 @@ const isPermanentlyUnhandleableClose = (
   PERMANENTLY_UNHANDLEABLE_CLOSES.some((reason) => reason === closeReason)
 
 /**
- * The case strip's work-status chip for a private-feedback item (row 10):
+ * The case strip's work-status chip for a private-feedback item:
  * `To handle` / `Handled · <outcome>` / `Closed — no outcome`. An open item
- * reads `To handle`, the name of the rail's queue it sits in (ADR 0057, amended
- * 2026-10-28; it read `Needs attention` before, which the AI's flag under a
- * review's topics also says).
+ * reads `To handle`, the name of the rail's queue it sits in (ADR 0057);
+ * `Needs attention` is avoided because the AI's flag under a review's topics
+ * also says it.
  *
  * The outcome is `currentOutcome`, and `currentOutcome` is `history.at(-1)`
  * over the CURRENT cycle ordered by `outcomeRevision`
@@ -127,14 +126,13 @@ const isPermanentlyUnhandleableClose = (
  *
  *  * the caller may READ private feedback but not HANDLE it, so the server
  *    withholds `feedbackHandling` entirely (`get-inbox-item-detail.ts:133-155`)
- *    and the open/handled word comes from `item.status` instead. This is the
- *    permission split PR 1 fixed by discriminating on `sourceType`, and it is
- *    why the fallback here is `itemStatus` and not a second `sourceType` test.
+ *    and the open/handled word comes from `item.status` instead. This is why
+ *    the fallback here is `itemStatus` and not a second `sourceType` test.
  *    There is no `closeReason` on that path to branch on, so it reads the bare
  *    `Handled` it always did — saying less, never something false;
  *  * the cycle closed as withdrawn or source-ineligible. The domain refuses a
  *    manager outcome for it FOREVER, so `Handled` would assert a judgement that
- *    can never exist — the very claim the deleted card was criticised for.
+ *    can never exist.
  *    That case reads `Closed — no outcome`;
  *  * the cycle closed with no outcome for some other reason — superseded by a
  *    newer guest submission, or a close this build has no word for. A reopen
@@ -142,8 +140,7 @@ const isPermanentlyUnhandleableClose = (
  *    It is NOT `Closed — no outcome`, because arriving here does not prove
  *    handling is permitted: see `isPermanentlyUnhandleableClose`;
  *  * an outcome IS recorded but its value is not in this build's union. That is
- *    the fourth case, and the one the enumeration used to omit while claiming
- *    `Handled · undefined` was unreachable. It is reachable —
+ *    the fourth case, and `Handled · undefined` is reachable —
  *    `feedbackHandlingOutcomeLabel` is a map index over a value cast straight
  *    out of `varchar` — and it renders into the chip's accessible name, not
  *    just its text. The outcome word is dropped; `Handled` is still true, and

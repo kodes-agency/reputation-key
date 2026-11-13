@@ -37,12 +37,11 @@ import type {
  *
  * `wrap-anywhere` (`overflow-wrap: anywhere`) is the wrapping half for a word
  * longer than the line — a pasted URL, a booking reference, a keyboard mash.
- * `whitespace-pre-wrap` alone breaks only at spaces: measured in Chromium
- * against `pnpm storybook` (`Inbox/Thread/Full Rail`), one 300-character
- * unbroken word in the review pushed the thread 1508 px past its 720 px pane
- * at a 1440 px viewport, 1870 px past its 358 px pane at 390 and 1940 px past
- * its 288 px pane at 320, taking the rail's content column off screen; with
- * it, zero at all three. `anywhere` rather than `break-word` because only
+ * `whitespace-pre-wrap` alone breaks only at spaces: one 300-character
+ * unbroken word in the review would push the thread 1508 px past its 720 px
+ * pane at a 1440 px viewport, 1870 px past its 358 px pane at 390 and 1940 px
+ * past its 288 px pane at 320, taking the rail's content column off screen.
+ * `anywhere` rather than `break-word` because only
  * `anywhere` also lowers the element's min-content width, and the `Google
  * translation` disclosure is `w-fit` — a fit-content box sizes from
  * min-content, so `break-word` would still overflow there.
@@ -73,13 +72,11 @@ function resolveReviewerName(detail: InboxItemDetailResult): string {
 }
 
 /**
- * The guest's disc on the rail — node zero's indicator (plan v2.1 row 10).
+ * The guest's disc on the rail — node zero's indicator.
  *
- * v1 drew a 44 px avatar INSIDE the article, beside the header, so the review
- * sat above the thread rather than in it (finding 3). The avatar now IS the
- * first `TimelineIndicator`, in row 9's 32 px weight for a person, and the
- * connector runs down from it to the first event: the guest's words are the
- * first entry of the case's record, not a heading over a list.
+ * The avatar IS the first `TimelineIndicator`, in the 32 px weight for a
+ * person, and the connector runs down from it to the first event: the guest's
+ * words are the first entry of the case's record, not a heading over a list.
  *
  * What it draws, in order:
  *
@@ -88,13 +85,13 @@ function resolveReviewerName(detail: InboxItemDetailResult): string {
  *   component on the photo URL, so a different reviewer's photo clears a
  *   previous failure instead of inheriting the fallback.
  * - The reviewer's initials, from `personInitials` (`person-initials.ts`, the
- *   one Unicode-safe helper; PR 2 fact). Row 10 says "initial": a Google
+ *   one Unicode-safe helper). A Google
  *   reviewer handle is usually one word (`majestique` on the canvas), for
  *   which the helper returns exactly that one letter. A two-word name gets two,
  *   which is what every other person's disc in this pane draws — the owner
- *   control (row 4) and a note's author (row 12) — so a person reads the same
- *   on every node. The deleted `name.charAt(0)` took a UTF-16 code unit, which
- *   is half of any letter outside the Basic Multilingual Plane.
+ *   control and a note's author — so a person reads the same on every node.
+ *   `name.charAt(0)` would take a UTF-16 code unit, which is half of any
+ *   letter outside the Basic Multilingual Plane.
  * - The person glyph, when there is no NAME to take initials from. `name` is
  *   null for private feedback (no submitter name we may show) and for a review
  *   whose name is missing: `Anonymous guest` and `Reviewer name unavailable`
@@ -154,19 +151,16 @@ function GuestNode({
 }
 
 /**
- * Row 10's header LINE: name · stars · `5.0` · date, one wrapping run, with
- * the language fact after the date where the review has one. v1 stacked a
- * 16 px name over a 12 px meta line beside the avatar; with the avatar on the
- * rail the header is one baseline, which is what the canvas draws.
+ * The header LINE: name · stars · `5.0` · date, one wrapping run, with the
+ * language fact after the date where the review has one.
  *
- * `items-center`, not the canvas's `baseline`. Measured in Chromium against
- * `pnpm storybook`: under `items-baseline` the printed `5.0` sat 2.25 px above
- * the date beside it, because `StarRating`'s first flex child is its row of
+ * `items-center`, not `baseline`: under `items-baseline` the printed `5.0` sits
+ * 2.25 px above the date beside it, because `StarRating`'s first flex child is its row of
  * glyphs, which has no text baseline, so the browser synthesises one from the
  * box edge. Centred, the `5.0` and the date share one line (both centred at the
  * same y) and the 16 px name sits 0.75 px off them. `pt-1` puts that first line
  * — the name's 24 px line box — on the middle of the 32 px indicator
- * (4 + 12 = 16; measured 0), so the disc and the name read as one row.
+ * (4 + 12 = 16), so the disc and the name read as one row.
  *
  * The name stays an `h2`: the stories pin `heading level 2` for the resolved,
  * anonymous and unavailable names alike, and it is the one heading in the
@@ -177,7 +171,7 @@ function GuestNode({
  *
  * The facts are 13 px, the thread's fact scale — the same as an event line and
  * `StarRating size="sm"` — in `text-muted-foreground`, not the canvas's
- * tertiary: `--text-tertiary` measured below 4.5:1 on both surfaces
+ * tertiary: `--text-tertiary` is below 4.5:1 on both surfaces
  * (`history-event-node.tsx`, `note-message.tsx`).
  */
 function MessageHeader({
@@ -199,13 +193,12 @@ function MessageHeader({
       {/* The deleted `RatingStars` returned null for a null rating and the
           shared primitive does not — a rating is a number or it is not
           rendered, and `StarRating` has no way to draw "no rating". So the
-          guard is the caller's now, here, where the two meanings of a
+          guard is the caller's, here, where the two meanings of a
           missing number are already known apart: a rating-only review has
-          one, an expired snippet does not (plan row 7).
+          one, an expired snippet does not.
 
           `size="sm"` (13 px) is the thread's fact scale: a larger star stands
-          taller than the text it belongs to. `tone="rating"` is the gold (v1
-          row 12) — the primitive's default stays the foreground tone its
+          taller than the text it belongs to. `tone="rating"` is the gold — the primitive's default stays the foreground tone its
           notification caller shipped with, and the number printed beside it
           is what makes the gold's low light-theme contrast acceptable here
           and nowhere the stars stand alone (`star-rating.tsx`, `TONE_CLASS`).
@@ -239,7 +232,7 @@ function UnavailableReview({ status }: Readonly<{ status: string | null }>): Rea
 /**
  * The half of the guest's two texts that is folded away — the original behind
  * `Original in Turkish`, or Google's translation behind `Google translation`.
- * Which one lands here is `presentGuestReviewBody`'s decision (plan row 8), so
+ * Which one lands here is `presentGuestReviewBody`'s decision, so
  * this component states neither: it takes the label, the text and its language
  * together.
  *
@@ -289,7 +282,7 @@ function ReviewDisclosure({
 }
 
 /**
- * The review's prose, in the arrangement plan row 8 chose for it.
+ * The review's prose, in the arrangement `presentGuestReviewBody` chose.
  *
  * The attribution line sits ABOVE the body, not under it. On both translation
  * branches the body is machine text, and a marker read after the prose
@@ -343,16 +336,13 @@ type Props = Readonly<{
 
 /**
  * The first message of the thread: what the guest said, and — for a review —
- * what it was about. The guest's identity moved here out of the pane header
- * (plan rows 2, 5), so the header carries the case and the thread carries the
- * conversation.
+ * what it was about. The guest's identity lives here, not in the pane header,
+ * so the header carries the case and the thread carries the conversation.
  *
- * Node zero of the rail (plan v2.1 row 10): this renders its own
- * `TimelineItem` — the guest's disc, the connector down to the first event,
- * and the article beside them — so `inbox-thread.tsx` maps every entry onto
- * one `Timeline` and the review is no longer split off above it. The article
- * holds exactly what it held before minus the avatar: header, the plan row 8
- * body, and the topic chips.
+ * Node zero of the rail: this renders its own `TimelineItem` — the guest's
+ * disc, the connector down to the first event, and the article beside them —
+ * so `inbox-thread.tsx` maps every entry onto one `Timeline`. The article
+ * holds the header, the body, and the topic chips.
  */
 export function GuestMessage({
   item,
@@ -405,17 +395,15 @@ export function GuestMessage({
    * `InboxThread` passes the payload's own value down as a prop today; reading
    * the payload when a caller omits it keeps the two spellings from drifting,
    * and costs one `??`. It matters twice below — the header names the language
-   * with it, and plan row 8's comparison can only use the canonical form.
+   * with it, and the body's language comparison can only use the canonical form.
    */
   const reviewLanguageTag = reviewReplyLanguage ?? detail.reviewReplyLanguage
   const language = languageDisplayName(reviewLanguageTag ?? item.reviewLanguageCode)
   /**
-   * Plan row 8's rule, decided outside React so it can be tested without one
-   * (`guest-message-view.ts`). Row 8 says `GuestMessage` gains the property's
-   * default reply language; it is already on the payload this component holds
-   * (`get-inbox-item-detail.ts:178-182`), so it is READ rather than added as a
-   * prop — a prop would have to be threaded through `inbox-thread.tsx`, which
-   * PR 3 rewrites, for a value that arrives here anyway.
+   * The body rule, decided outside React so it can be tested without one
+   * (`guest-message-view.ts`). The property's default reply language is already
+   * on the payload this component holds (`get-inbox-item-detail.ts:178-182`),
+   * so it is READ rather than threaded through `inbox-thread.tsx` as a prop.
    */
   const body = presentGuestReviewBody({
     reviewText: detail.reviewText,
@@ -443,13 +431,12 @@ export function GuestMessage({
       <article aria-label="Guest review" className="flex min-w-0 flex-col gap-4">
         <MessageHeader
           name={reviewerName}
-          /* Plan row 7. `detail.reviewRating` is the rating carried from the same
+          /* `detail.reviewRating` is the rating carried from the same
            `ReviewSnippet` as `reviewText`, so it is null for exactly the same
            reasons the words are: `expired`, `not_found`, or a review that
            carried no score. It is the ONLY source.
 
-           Row 7 as written reads `detail.reviewRating ?? item.rating`. The
-           right-hand side is a constant null here, not a fallback:
+           `item.rating` is not a fallback: it is a constant null here:
            `use-inbox-detail.ts:232` makes the pane's `item` the DETAIL's item
            whenever `detail` exists (and this component has returned above when
            it does not), and the detail read builds that item through
@@ -457,12 +444,11 @@ export function GuestMessage({
            (`inbox.mapper.ts:37`, "Legacy column values must not be served").
            The one place a row DOES carry a rating is the list projection
            (`inbox-repository.server.ts:433`), and that object never reaches here.
-           Reading it anyway would only matter the day someone re-adds a
-           rating to the detail item — and then it would print stars beside an
-           `expired` snippet, which BQC-1.2 forbids. So it is not read.
+           Reading it anyway would print stars beside an `expired` snippet,
+           which BQC-1.2 forbids. So it is not read.
 
            `?? null` only collapses the key's absence: the type keeps it
-           optional for fixtures that predate it (`domain/types.ts`), and
+           optional for fixtures that omit it (`domain/types.ts`), and
            `getInboxItemDetail` already sends `null` rather than omit it. */
           rating={detail.reviewRating ?? null}
           sourceDate={item.sourceDate}

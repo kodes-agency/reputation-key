@@ -35,14 +35,10 @@ export type DetailContentProps = Readonly<{
   /**
    * The pane's server state and its six item commands, as ONE prop.
    *
-   * Ten of these used to be spelled out individually — `detail`, `notes`, the
-   * two cache callbacks and all six commands — and both callers
-   * (`inbox-detail-panel.tsx`, `inbox-detail-sheet.tsx`) hand-copied the same
-   * ten lines off the object they already held, so adding a seventh command
-   * meant editing three files identically. `notesUnavailable` would have been
-   * the eleventh. The prop types even spelled
-   * themselves as `InboxDetailState['updateStatus']`, which is the object
-   * admitting it was the real unit.
+   * One prop rather than ten (`detail`, `notes`, the two cache callbacks and
+   * all six commands): both callers (`inbox-detail-panel.tsx`,
+   * `inbox-detail-sheet.tsx`) already hold this object, so adding a command
+   * touches one place.
    *
    * `currentItem` stays separate on purpose: the panel supplies its own
    * non-null fallback item while the state's is `InboxItem | null`.
@@ -98,10 +94,9 @@ export function InboxDetailContent({ currentItem, detailState }: DetailContentPr
   /**
    * The half-typed internal note, and the item it was typed about.
    *
-   * It lives HERE, above the composer's mode switch. That switch no longer
-   * destroys the form — both panels are force-mounted now, which is the fix for
-   * the reply half of the same defect — but the form is still keyed by item, so
-   * this is what carries a note across a change of selection and back. The form
+   * It lives HERE, above the composer's mode switch. That switch does not
+   * destroy the form — both panels are force-mounted — but the form is keyed
+   * by item, so this is what carries a note across a change of selection and back. The form
    * owns the live value while it is mounted; this is what it seeds from, so the
    * cost is one pane render per keystroke and no more.
    */
@@ -150,7 +145,7 @@ export function InboxDetailContent({ currentItem, detailState }: DetailContentPr
   })
 
   /**
-   * Region 4's primary for a feedback item (row 10), and the ONE expression
+   * Region 4's primary for a feedback item, and the ONE expression
    * both halves of the region's accent are derived from.
    *
    * The guard is here rather than inside the component because the REGION
@@ -168,7 +163,7 @@ export function InboxDetailContent({ currentItem, detailState }: DetailContentPr
    *
    * Only `correct` demotes `Add note`. A correction supersedes an outcome the
    * server has already accepted for this item, so that action is known to be
-   * permitted and row 10's one-accent-on-the-action holds. `mark` is NOT known
+   * permitted and the one-accent-on-the-action rule holds. `mark` is NOT known
    * to be permitted: `feedbackHandlingAction` reads the current cycle alone
    * (`status === 'open'`), while `handling-outcome-authority.ts` refuses an
    * outcome — forever, item-wide — once any cycle has closed as
@@ -178,8 +173,7 @@ export function InboxDetailContent({ currentItem, detailState }: DetailContentPr
    * note, and the note is discarded with it. Painting that button as the
    * region's ONLY accent would be the pane steering every manager into the one
    * action it can never complete, so `Add note` — which always works — keeps
-   * its own accent beside it. The real fix is a server field; it is recorded
-   * in the plan's open questions.
+   * its own accent beside it. The real fix is a server field.
    *
    * The permission pair is `inbox.write ∧ feedback.handle` —
    * `canHandleInboxSource`'s own conjunction (inbox-access.ts:36). Read here
@@ -199,9 +193,8 @@ export function InboxDetailContent({ currentItem, detailState }: DetailContentPr
   return (
     <ReplyDraftSessionProvider item={currentItem} detail={detailState.detail}>
       <ReplyConfirmationHold value={onConfirmationOpenChange}>
-        {/* Region 2 (plan v2.1 rows 2-6). The bag is built by a pure selector
-          rather than inline: this file was at 296 of 300 counted lines, and row
-          5 routes `escalate` / `resolveEscalation` here from the header. */}
+        {/* Region 2. The bag is built by a pure selector rather than inline;
+          `escalate` / `resolveEscalation` are routed here from the header. */}
         <InboxCaseToolbar
           {...buildInboxCaseToolbarProps({
             item: currentItem,

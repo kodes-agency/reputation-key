@@ -1,7 +1,5 @@
-// `foldEarlierEvents` (plan v2.1 row 13) in a file of its own: the builder's
-// suite, `inbox-thread-model.test.ts`, stands at 295 of the 300 counted lines
-// ESLint `max-lines` allows under `src/components`, and the fold is a separate
-// pass over the builder's output rather than part of building it.
+// `foldEarlierEvents` in a file of its own: the fold is a separate pass over
+// the builder's output rather than part of building it.
 //
 // Every fixture goes THROUGH `buildThread`, never around it: the rule is that
 // the newest events are the newest by position in the BUILT thread, so a

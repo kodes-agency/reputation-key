@@ -129,7 +129,7 @@ export type EventThreadEntry = Extract<ThreadEntry, { kind: 'event' }>
 
 /**
  * The one marker a folded thread carries in place of its earlier events —
- * `Show N earlier events`, where N is `events.length` (plan v2.1 row 13).
+ * `Show N earlier events`, where N is `events.length`.
  *
  * `events` are the hidden entries themselves, oldest first, rather than a bare
  * count: the count is derived from them, so the two cannot disagree, and the
@@ -166,8 +166,8 @@ export type FoldedEventsEntry = Readonly<{
 export type LedgerEntry = ThreadEntry | FoldedEventsEntry
 
 /**
- * Fold only when the thread holds MORE than this many system events. Row 13
- * sized it from the 390 px sheet: 844 − 52 header − 52 toolbar − 68 collapsed
+ * Fold only when the thread holds MORE than this many system events. It is
+ * sized from the 390 px sheet: 844 − 52 header − 52 toolbar − 68 collapsed
  * dock leaves 672 px; the review takes ≈260, and three 44 px event rows, a note
  * and the newest reply fit in the rest.
  */
@@ -187,7 +187,7 @@ export const FEWEST_EVENTS_FOLDED = EVENT_FOLD_THRESHOLD + 1 - EVENTS_KEPT_UNFOL
  * Whether a fold may hide this entry: a system event whose line carries no
  * person's words. `historyEventLine`'s `body` is a handling outcome's internal
  * note or a manual reopen's explanation (`history-event-line.ts`) — text a
- * manager wrote, riding on a `kind: 'event'` entry — and row 13 folds only what
+ * manager wrote, riding on a `kind: 'event'` entry — and a fold hides only what
  * the system recorded, exactly as a free-standing note never folds.
  *
  * The body is read through the line builder rather than off the detail, so the
@@ -203,16 +203,15 @@ function isHideableEvent(entry: ThreadEntry): entry is EventThreadEntry {
 /**
  * Collapse the oldest system events into one `fold` marker placed directly
  * after the guest node, once the thread holds more than
- * `EVENT_FOLD_THRESHOLD` of them (plan v2.1 row 13, amended in PR 3's review).
+ * `EVENT_FOLD_THRESHOLD` of them.
  *
  * WHAT MAY BE HIDDEN. The unbroken run of hideable events that directly follows
  * the guest, and never more than all but the newest `EVENTS_KEPT_UNFOLDED`.
  * The run ends at the first entry a fold may not hide — a note, the reply, or
- * an event carrying a person's words (`isHideableEvent`). Row 13 as written hid
- * "all but the newest three" wherever notes fell, which put a note or the reply
- * that sat AMONG the hidden events below a marker holding events newer than it:
- * `guest · Show 4 earlier events · note@5h · reply@7h · e5…` over e3@6h and
- * e4@8h, and on opening, the revealed events split around the note instead of
+ * an event carrying a person's words (`isHideableEvent`). Hiding "all but the
+ * newest three" wherever notes fell would put a note or the reply that sat
+ * AMONG the hidden events below a marker holding events newer than it, and on
+ * opening, the revealed events would split around the note instead of
  * following the toggle. One marker cannot stand for events on both sides of an
  * entry that stays on the rail, so the span never contains one. Hence the
  * invariant the tests hold every case to: replacing the marker with its events
@@ -223,8 +222,7 @@ function isHideableEvent(entry: ThreadEntry): entry is EventThreadEntry {
  * marker itself nearly occupies — cannot be produced, and neither can a fold
  * of 2 or 3: a run that ends sooner than four does not fold at all, and the
  * thread keeps every row. That is the price of the order above, and it is paid
- * in height, never in truth. The function takes no `max` parameter, although
- * the plan's sketch named one (`foldEarlierEvents(entries, max)`): the
+ * in height, never in truth. The function takes no `max` parameter: the
  * guarantee is a relation between the constants, and a caller passing its own
  * threshold of 4 would fold a single row.
  *

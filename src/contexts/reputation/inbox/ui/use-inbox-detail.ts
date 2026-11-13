@@ -214,8 +214,8 @@ function useInboxStatusMutations(
       // two from the `e` shortcut; both narrow them to `() => void`
       // (`buildInboxCaseToolbarProps`, `bindEscalationShortcutCommands`), so the
       // Action's `.error` reaches no renderer. Without a toast a refused command
-      // left the strip on its OLD value with nothing said — the manager believed
-      // the item had moved. Same wording as the reply commands
+      // would leave the strip on its OLD value with nothing said — the manager
+      // would believe the item had moved. Same wording as the reply commands
       // (`use-reply-actions.ts`): the server's sentence for a refusal, a generic
       // one for a failure; a second revision conflict is refused in the same
       // shape (`withFreshCommandRevision`).
@@ -240,7 +240,7 @@ function useInboxStatusMutations(
     },
   )
   // A colleague's change to the priority itself is a thrown 409, which the one
-  // revision retry above never replays (C-9). Re-read the detail, so the
+  // revision retry above never replays. Re-read the detail, so the
   // manager checks the level as it is now and chooses again.
   const setPriority = useActionMutation(
     withFreshCommandRevision(qc, id, inboxFns.setInboxItemPriority),

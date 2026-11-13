@@ -43,16 +43,14 @@ import {
 /**
  * The reply-due fact's text colour. Direction colour comes from the text-grade
  * tokens and never carries meaning alone — the fact prints its own words beside
- * the tint. `warning` is `--warn` (`styles.css`, plan v2.1 PR 3), the same ink
- * the internal note's label and `attention-band.tsx` use. It replaced
- * `amber-700` / `amber-400` and measured 4.69:1 on `--background` and 4.97:1 on
- * `--surface` light, 10.59:1 / 9.91:1 dark (was 4.73 / 11.69 on the pane) —
- * still over 4.5:1 for this 13 px text. `--warn` is 4.44:1 on `--muted`, so
- * this fact must never move onto a muted fill.
+ * the tint. `warning` is `--warn` (`styles.css`), the same ink
+ * the internal note's label and `attention-band.tsx` use: 4.69:1 on
+ * `--background` and 4.97:1 on `--surface` light, 10.59:1 / 9.91:1 dark — over
+ * 4.5:1 for this 13 px text. `--warn` is 4.44:1 on `--muted`, so this fact
+ * must never move onto a muted fill.
  *
- * Row 6 made this TEXT, not a chip: v1's entries painted a `bg-*` tint behind a
- * pill, which is exactly how a fact ended up wearing a control's clothes. No
- * background survives here. `muted` has no entry because it is never rendered
+ * The fact is TEXT, not a chip: a `bg-*` tint behind a pill makes a fact wear a
+ * control's clothes, so no background is drawn. `muted` has no entry because it is never rendered
  * (see `ReplyDueDetail`), and the narrower key type makes the compiler hold
  * that line rather than a comment.
  */
@@ -66,16 +64,12 @@ const TONE_CLASS: Readonly<Record<Exclude<ResponseTargetChipTone, 'muted'>, stri
 /**
  * The status dot. `open` is ink, `closed` recedes to `border-strong`, and a
  * feedback item waiting on a handler is the warning amber — `--warn`, the ink
- * `TONE_CLASS.warning` uses (it was `amber-500` until the token existed). The
- * token is darker than `amber-500` in the light theme, which only helps a 7 px
- * dot against the pane. The dot is a glance cue
- * only — it is `aria-hidden`, and the word beside it is always printed, so no
+ * `TONE_CLASS.warning` uses. The dot is a glance cue only — it is `aria-hidden`, and the word beside it is always printed, so no
  * state is ever told by colour alone.
  *
- * `open` was the accent until review: purple is interactive-only (contract,
- * "Colour and token rules"; v1 row 12), and on an open item the status is a
- * FACT, so a purple dot beside a purple owner disc told the viewer `Open` could
- * be pressed. Ink against a faded `border-strong` keeps open and closed apart
+ * `open` is not the accent: purple is interactive-only (contract, "Colour and
+ * token rules"), and on an open item the status is a FACT, so a purple dot
+ * beside a purple owner disc would tell the viewer `Open` could be pressed. Ink against a faded `border-strong` keeps open and closed apart
  * by lightness — which also survives a colour-blind reading — without
  * borrowing `--positive`, whose green already means "on time" one fact over.
  */
@@ -136,14 +130,11 @@ type StatusMemberProps = Readonly<{
 }>
 
 /**
- * First member of the group. Row 3's load-bearing correction: an OPEN item has
- * no status move to offer, because `update-inbox-status.ts:165` refuses every
+ * First member of the group. An OPEN item has no status move to offer, because `update-inbox-status.ts:165` refuses every
  * manual close ("Every close is source-specific" — Google observation closes
- * review work, a manager's outcome closes private feedback). v1 still dressed
- * the open status as a chip beside the controls; here it is a `Fact` —
- * `ButtonGroupText`, as row 3 names it, with row 2's box taken off: text and a
- * dot, no chevron, nothing to press. Only a CLOSED
- * item gets a trigger, and its only item is `Reopen`, so the pane never carries
+ * review work, a manager's outcome closes private feedback). The open
+ * status is a `Fact` — `ButtonGroupText` with the box taken off: text and a
+ * dot, no chevron, nothing to press. Only a CLOSED item gets a trigger, and its only item is `Reopen`, so the pane never carries
  * a control named exactly `Close` — the triage journey asserts there is none.
  *
  * The trigger keeps `aria-label="Work status: <label>"`. Three e2e journeys
@@ -151,10 +142,9 @@ type StatusMemberProps = Readonly<{
  * `inbox-handling-cycle.spec.ts:358`, `activity-notification-facts.spec.ts:146`)
  * and the visible word is contained in it, so label-in-name holds.
  *
- * Reopening is a manager move: the control lived behind `inbox.manage` in the
- * header the strip replaced, and a viewer without it saw the status as plain
- * text. Keep that gate here — like the owner control, a caller with no move to
- * make gets the static fact rather than a menu the server would refuse.
+ * Reopening is a manager move: a viewer without `inbox.manage` sees the status
+ * as plain text. Keep that gate here — like the owner control, a caller with no
+ * move to make gets the static fact rather than a menu the server would refuse.
  *
  * `update-inbox-status.ts:67` gates on `inbox.write`, then `:76` on
  * `canHandleInboxSource` — which is itself `inbox.write` **and**
@@ -162,12 +152,12 @@ type StatusMemberProps = Readonly<{
  * conjuncts are reproduced below, for either source type, so nothing refused is
  * ever offered: `inbox.manage` does not imply `inbox.write` anywhere — the
  * client `can` is a flat membership test over `effectivePermissions`
- * (`usePermissions.ts:26`) with no permission implication rules — so a role holding `inbox.manage` without
- * `inbox.write` would otherwise be offered a reopen the server throws on.
+ * (`usePermissions.ts:26`) with no permission implication rules — so a role
+ * holding `inbox.manage` without `inbox.write` would otherwise be offered a
+ * reopen the server throws on.
  *
  * `inbox.manage` is then added on top, deliberately narrowing the gate below
- * the server's: widening who may reopen is a product decision
- * (`docs/plan/inbox-detail-redesign.md`, row 2), not a review fix.
+ * the server's: widening who may reopen is a product decision.
  *
  * The item kind comes from `item.sourceType`, never from `feedbackHandling`:
  * `get-inbox-item-detail.ts:132` populates that field only for a caller holding
@@ -187,7 +177,7 @@ function StatusMember({
   // name below: the outcome is part of the status, not a decoration beside it,
   // so a reader that only ever hears the label still hears which outcome closed
   // the work — which is also why an outcome word this build cannot read has to
-  // be dropped rather than stringified into the name. Row 10's three feedback
+  // be dropped rather than stringified into the name. The three feedback
   // words, the four ways a closed cycle ends up with no outcome to name, and
   // which word each of them earns are all decided next door, in the pure
   // presenter the thread's outcome rows already share:
@@ -251,7 +241,7 @@ function StatusMember({
       <DropdownMenuContent align="start">
         {/* A menu ITEM keeps 44 px below `md`: it is a different target class
             from a toolbar control, stacked edge to edge with no gap between
-            neighbours, and it was never what inflated the row (row 20). */}
+            neighbours, so it does not inflate the row it opens from. */}
         <DropdownMenuItem onSelect={onReopen}>
           <RotateCcw />
           Reopen
@@ -262,14 +252,12 @@ function StatusMember({
 }
 
 /**
- * Row 6: reply due is a DETAIL — the fact's plain text, underlined dotted,
- * that opens a popover. It is still a real `button` (Radix's `PopoverTrigger`
- * without `asChild`, the precedent `features/shared/glossary-term.tsx:23` set),
- * so it stays in the tab order and announces itself by the same name v1 gave
- * it, `<label>. Show timing details`; only its clothes change, from a `Button`
- * pill to text.
+ * Reply due is a DETAIL — the fact's plain text, underlined dotted, that opens
+ * a popover. It is a real `button` (Radix's `PopoverTrigger` without `asChild`,
+ * the precedent `features/shared/glossary-term.tsx:23` set), so it stays in the
+ * tab order and announces itself as `<label>. Show timing details`.
  *
- * The deleted response-target card's prose lives in the popover: the sentence
+ * The popover holds the prose: the sentence
  * that explains when the clock started, plus the exact due time and the
  * property timezone. The toolbar itself only carries the mood and the
  * countdown.
@@ -284,10 +272,9 @@ function ReplyDueDetail({
   const chip = presentResponseTargetChip(target, now ?? ticked)
 
   // `Not measured` is the ABSENCE of a fact — an excluded, cancelled or
-  // undated cycle has no clock to report — and v1 rendered that absence as a
-  // popover trigger, so the row's quietest state was one more button. Row 6
-  // skips it here and only here: `presentResponseTargetChip` still returns it,
-  // unchanged, because a list can legitimately want to say "not measured"
+  // undated cycle has no clock to report — so it
+  // draws nothing here, and only here: `presentResponseTargetChip` still
+  // returns it, because a list can legitimately want to say "not measured"
   // about a row, and the eleven description sentences stay with the presenter.
   // Returning after the hook is deliberate — `useMinuteClock` is not live for
   // an excluded or cancelled target, so no interval runs for a fact that is
@@ -304,21 +291,19 @@ function ReplyDueDetail({
           budget that is actually short at 390 px.
 
           The dotted line is the ONLY thing that tells this text from a fact —
-          row 2 defines a detail as a fact plus the underline — so it is held to
-          WCAG 1.4.11's 3:1 for a non-text cue, at rest, with no pointer. It was
-          `border-strong` at rest, measured 1.89:1 (light) and 2.00:1 (dark)
-          against `--background`, and only took the text colour on hover, which
-          a phone never produces. It is now the text's own colour (the shared
+          a detail is a fact plus the underline — so it is held to
+          WCAG 1.4.11's 3:1 for a non-text cue, at rest, with no pointer (a
+          phone never hovers). It is the text's own colour (the shared
           `EXPLAIN_UNDERLINE`, `ui/explain-trigger.tsx`, which every
           dotted-underline explanation wears): every tone of
-          this text clears 4.5:1 on the pane (review measurement — neutral
+          this text clears 4.5:1 on the pane (neutral
           6.19 / 7.53, warning 4.73 / 11.69, negative 5.34 / 6.13, positive
           5.14 / 8.69, light / dark), so the line clears 3:1 by construction.
           Hover and the open state turn it solid, which is still the detail
           answering the pointer the way the controls beside it do.
 
-          `cursor-help` stays: row 2 names it, and the glossary term uses it
-          for the same click-to-open explanation. */}
+          `cursor-help` marks it, as on the glossary term, for the same
+          click-to-open explanation. */}
       <PopoverTrigger
         aria-label={`${chip.label}. Show timing details`}
         className={cn(
@@ -340,13 +325,13 @@ function ReplyDueDetail({
           pane is gated at: the popover would sit flush against both edges with
           no margin at all. The cap only binds below ~352 px, so the desktop
           pane is untouched and the 320 px phone gets 16 px of air either
-          side. `align="end"` because the trigger now sits on the trailing
+          side. `align="end"` because the trigger sits on the trailing
           edge: a start-aligned 320 px popover would hang off the pane's right
           side and be pushed back by collision handling anyway.
 
           Radix gives the content `role="dialog"` and moves focus into it, but
           names it nothing: `PopoverTitle` is a plain `div` that no attribute
-          points at, so a reader announced an unnamed "dialog" (axe
+          points at, so a reader would hear an unnamed "dialog" (axe
           `aria-dialog-name`, serious). The title names it and the sentence
           describes it — the same pairing a Radix `Dialog` wires up itself. */}
       <PopoverContent
@@ -371,15 +356,13 @@ function ReplyDueDetail({
 }
 
 /**
- * Region 2 of the pane (plan v2.1 row 3): ONE `ButtonGroup` — status, owner,
+ * Region 2 of the pane: ONE `ButtonGroup` — status, owner,
  * priority, escalation, in that order (the two triage signals side by side,
  * ADR 0071) — then the reply-due detail on the trailing edge.
- * Row 2's rule is what the file is for: a control is an outlined button inside
- * the group, a fact is plain text with a glyph and no box (`Fact`, in
- * `ui/fact.tsx`, with the group's edge rules in `inbox-case-member.tsx`), and a detail
- * is that text with a dotted underline. Nothing here is a pill any
- * more; `INBOX_CHIP_TRIGGER_CLASS` is deleted, and `INBOX_CHIP_STATIC_CLASS`
- * now lives in `inbox-chip.ts` for the two thread chips that genuinely remain.
+ * A control is an outlined button inside the group, a fact is plain text with
+ * a glyph and no box (`Fact`, in `ui/fact.tsx`, with the group's edge rules in
+ * `inbox-case-member.tsx`), and a detail is that text with a dotted underline.
+ * Nothing here is a pill.
  *
  * Every prop arrives already derived by `inbox-case-toolbar-props.ts` — the
  * pane is at its line limit, and the selector is where the revision fence, the
@@ -405,59 +388,46 @@ export function InboxCaseToolbar({
   priorityMenu,
 }: InboxCaseToolbarProps) {
   return (
-    // The row WRAPS; it does not scroll. v1's strip, and this toolbar until
-    // PR 2's gate measured it, was `overflow-x-auto` with the scrollbar hidden
-    // on both engines — a fallback budgeted from the canvas (`[Closed ▾][GI][⚑]`
-    // = 180 px at 390, row 20) and deferred to "PR 5's Playwright harness".
-    // Measured against the real Tailwind build (Playwright, Storybook dev,
-    // every `Inbox/Case Toolbar` state and the `Inbox/Mobile 390` sheet), the
-    // fallback was the layout in 10 of 62 phone runs, and in every one of them
-    // the hidden scrollbar left nothing on screen to say more was there:
+    // The row WRAPS; it does not scroll. A hidden-scrollbar `overflow-x-auto`
+    // leaves nothing on screen to say more is there, and it clipped real states:
     //
     // - 390 px, feedback handled: `Handled · Follow-up completed` alone is a
     //   258 px member, the group 330 px of 350, so `Handled on time` sat
-    //   entirely past the edge — only its clock glyph showed
-    //   (`scrollWidth` 496 / `clientWidth` 390).
-    // - 320 px (280 px inside `px-5`; a phone's `px-4` now leaves 288), an
-    //   ordinary closed review:
+    //   entirely past the edge — only its clock glyph showed.
+    // - 320 px (288 px inside a phone's `px-4`), an ordinary closed review:
     //   `[Closed ▾]` 103 + 36 + 36 = 175, plus `gap-3` and `Replied on time`
-    //   109 = 296, so the fact ran 16 px under the right padding (336 / 320).
-    //   `Needs attention` 137 + 72 + 12 + `Handle within 6 h` 120 = 341, the
-    //   fact wholly clipped (381 / 320). (The open feedback status now reads
-    //   `To handle`, a shorter word, so that sum is an upper bound.)
+    //   109 = 296, so the fact ran past the right padding. `Needs attention`
+    //   137 + 72 + 12 + `Handle within 6 h` 120 = 341, the fact wholly clipped.
     //
     // So: `flex-wrap`, and the reply-due detail — the only item outside the
     // group — drops to a second line, still on the trailing edge (`ml-auto`
-    // applies per flex line). One line stays exactly 48 px from `md` —
+    // applies per flex line). One line is exactly 48 px from `md` —
     // `min-h-12` is border-box, so it includes `border-b`, and `py-1` + a
-    // 36 px member + that 1 px border is 45 px, under it (`py-1.5` measured
-    // 49 px, one over the contract's 48). Below `md` the bar is 44 px like
-    // the other phone bars: `max-md:min-h-11`, with `max-md:py-0.5`, because
-    // `py-1` would make the same sum 45 (measured), one over. The rare wrapped
+    // 36 px member + that 1 px border is 45 px, under it. Below `md` the bar is
+    // 44 px like the other phone bars: `max-md:min-h-11`, with `max-md:py-0.5`,
+    // because `py-1` would make the same sum 45, one over. The rare wrapped
     // row is 85 px from `md` (4 + 36 + `gap-y-1` + 36 + 4 + 1), 81 on a phone.
-    // The group is capped at the row's width (`min-w-0 max-w-full`, replacing
-    // `shrink-0`) so that even at 320 px a `Handled · <outcome>` status
-    // truncates inside its own member rather than pushing the group past the
-    // edge — the owner and flag are 36 px squares that never shrink, and the
-    // status is the member built to give (`StatusMember`).
+    // The group is capped at the row's width (`min-w-0 max-w-full`) so that
+    // even at 320 px a `Handled · <outcome>` status truncates inside its own
+    // member rather than pushing the group past the edge — the owner and flag
+    // are 36 px squares that never shrink, and the status is the member built
+    // to give (`StatusMember`).
     //
-    // Facts that print their words at every width (row 2, after review) make
-    // the wrap commoner on a phone, and that is the trade taken: a second line
-    // costs height, a wordless square cost the meaning. Measured the same way,
-    // after the change: a Member on a closed, escalated review held by Grace
-    // (`● Closed` 65 + `GH Grace Hopper` 127 + `⚑ Escalated` 84 = 276 px)
+    // Facts that print their words at every width make the wrap commoner on a
+    // phone, and that is the trade: a second line costs height, a wordless
+    // square costs the meaning. A Member on a closed, escalated review held by
+    // Grace (`● Closed` 65 + `GH Grace Hopper` 127 + `⚑ Escalated` 84 = 276 px)
     // fits one line at 320 and puts `Replied on time` on the second at 390 and
     // 320 — 69 px, the facts' line being 20 px, not 36; a manager on an open,
     // escalated review (`● Open` 57 + 36 + 36 + `⚑ Escalated` 84 = 213 px)
-    // stays one 48 px line at 390 and wraps to 85 px at 320. No run overflowed
-    // (`scrollWidth === clientWidth` in all of them).
+    // stays one 48 px line at 390 and wraps to 85 px at 320.
     //
     // The pane is not the window on the desktop either. The detail pane is never
     // narrower than 472 px (`InboxDetailPane`'s `minSize`), which is a 1280 px
     // laptop with the app sidebar open, and the toolbar has 424 px of it inside
     // `lg:px-6`. `[Open] [owner] [Priority] [Escalate]` for a long name is
-    // 57 + 226 + 108 + 95 = 486 px, and the status, then the only member that gave,
-    // was squeezed to its dot: the `inbox-triage` journey could not see `Open`.
+    // 57 + 226 + 108 + 95 = 486 px, so the status must not be the member that
+    // is squeezed to its dot: the `inbox-triage` journey has to see `Open`.
     // Three rules hold it at that floor: this section is the `@container` the
     // Priority control sizes itself by (below 32rem Medium, Low and Not set are the
     // 36 px glyph square, and Urgent and High keep their word without the chevron
@@ -466,11 +436,9 @@ export function InboxCaseToolbar({
     // Priority beside them the reply-due detail takes the second line at the floor,
     // as it does on a 320 px phone.
     //
-    // No scroll container is left, which retires three workarounds the old
-    // one needed: the hidden scrollbar, `overscroll-x-contain` (a flick past
-    // the row's end chaining to the browser's back gesture, which pops
-    // `itemId`), and the zero-vertical-range argument for why the row could
-    // not trap a swipe meant for the thread. It also stops clipping the
+    // With no scroll container there is no hidden scrollbar, no
+    // `overscroll-x-contain` (a flick past the row's end would chain to the
+    // browser's back gesture, which pops `itemId`), and no clipping of the
     // members' focus rings at the row's edges. `min-h-12`, not `h-12`, is what
     // lets the wrapped row grow.
     <section

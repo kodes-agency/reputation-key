@@ -110,7 +110,7 @@ describe('historyEventLine — assignment', () => {
       object: null,
       body: null,
     })
-    // With no actor to lead, the holder is still named — v1's sentence.
+    // With no actor to lead, the holder is still named.
     expect(spoken(lineFor(claim, NO_ACTOR))).toBe('Assigned to Maria Petrova')
   })
 

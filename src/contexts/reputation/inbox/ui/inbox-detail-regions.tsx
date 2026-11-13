@@ -46,12 +46,12 @@ export function DetailThreadRegion({
   // `scrollable-region-focusable`, serious). That is not a hypothetical here: a
   // review with no translation disclosure, no drawn history, no notes and no
   // reply renders only headings, prose and badges — the `ReviewOnly` story is
-  // exactly it — and a long review was then unreadable without a pointer.
+  // exactly it — and a long review would be unreadable without a pointer.
   // `<section aria-label>` for the same reason region 2 carries one
   // (`inbox-case-toolbar.tsx`): naming the conversation and the composer is what
   // lets a reader move between reading the case and writing into it.
   // `INBOX_SCROLL_REGION` hands the arrow keys to this scroller: without it the
-  // page's list shortcut claimed them, and ArrowDown opened the next case
+  // page's list shortcut claims them, and ArrowDown opens the next case
   // instead of scrolling this one.
   // The focus indicator is an INSET outline: the scroller runs edge to edge
   // inside a column that clips, so a ring drawn outside it would be cut off,

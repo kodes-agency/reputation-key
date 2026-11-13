@@ -39,11 +39,8 @@ import type {
   ReplyPublicationCheckResult,
 } from '#/contexts/review/application/public-api'
 
-// The thread is ONE rail (plan v2.1 rows 9–13). v1 split the guest's review off
-// as a `subject` above the stream, at `gap-6`, then hung events, notes and the
-// reply in a `gap-2` column beside a 44 px gutter — a heading over a list, with
-// nothing connecting the two (finding 3). Now the review is node zero of a
-// single `Timeline`, and every system event, internal note and reply hangs off
+// The thread is ONE rail. The review is node zero of a single `Timeline`, and
+// every system event, internal note and reply hangs off
 // the same connector below it, so the pane reads as the record of a case.
 //
 // Every node owns its own `TimelineItem`, or composes one here, and the rail's
@@ -100,8 +97,7 @@ type Props = Readonly<{
 /**
  * Indent that lines an auxiliary line up with the rail's CONTENT column: the
  * 32 px indicator column plus the 12 px gap (`TimelineItem`'s `gap-3`) is
- * 44 px, `pl-11`. v1's `pl-14` (56 px) matched a 44 px avatar and a 12 px gap
- * that no longer exist. These lines are not nodes — they say something about
+ * 44 px, `pl-11`. These lines are not nodes — they say something about
  * the history QUERY, not about the case — so they take the column's left edge
  * and no disc, below the rail rather than on it.
  */
@@ -202,7 +198,7 @@ export function entryKey(entry: LedgerEntry, index: number): string {
 }
 
 /**
- * What the rail renders: the built thread folded (row 13), or — once the reader
+ * What the rail renders: the built thread folded, or — once the reader
  * has opened the fold — every entry, with the marker kept in its place.
  *
  * The marker SURVIVES the expansion, relabelled `Hide N earlier events`,
@@ -236,7 +232,7 @@ function railEntries(
 }
 
 /**
- * Row 13's fold node: a 24 px system-event disc beside the toggle.
+ * The fold node: a 24 px system-event disc beside the toggle.
  *
  * The button lives in `TimelineContent`, never in the indicator — the
  * indicator is `aria-hidden`, and `aria-hidden-focus` is disabled globally in
@@ -245,12 +241,9 @@ function railEntries(
  * label says what the click does.
  *
  * The toggle tells assistive tech three things, because a label swap alone
- * told it one. PR 3's review drove it in Chromium against `pnpm storybook`
- * (Tab, Enter on `Inbox/Thread/Folded History` at 1440, 390 and 320): focus
- * stayed on the button and its name changed, but it carried no
- * `aria-expanded` and the document held no live region — and VoiceOver does
- * not speak a name change on the element it is already on, so five events
- * arrived in silence.
+ * tells it one: focus stays on the button and its name changes, and VoiceOver
+ * does not speak a name change on the element it is already on, so revealed
+ * events would arrive in silence without `aria-expanded` and a live region.
  *
  * - The NAME is the visible label, `Show N earlier events` / `Hide N earlier
  *   events`, so the words a speech-control user reads are the words that

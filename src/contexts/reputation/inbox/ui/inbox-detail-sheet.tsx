@@ -2,8 +2,7 @@
 //
 // `InboxPageV2` mounts this on its mobile branch and nowhere else: below `md`
 // the three-panel `Group` is not rendered at all, and the desktop
-// `InboxDetailPanel` is `hidden md:flex`. There is no second instance — PR 6
-// deleted the permanently-closed one `InboxDetailPane` used to carry.
+// `InboxDetailPanel` is `hidden md:flex`. There is no second instance.
 import { useState } from 'react'
 import {
   Sheet,
@@ -30,9 +29,9 @@ type Props = Readonly<{
 export function InboxDetailSheet({ open, onOpenChange, item, detailState }: Props) {
   // The sheet is dismissed by dropping `itemId` from the search, so `item` goes
   // null in the SAME commit that turns `open` false. Returning null on `item`
-  // alone tore the Radix dialog out of the tree while it was still open: the
-  // `data-[state=closed]` slide-out had nothing left to play on, so a sheet
-  // covering the whole phone blinked out of existence instead of leaving. Hold
+  // alone would tear the Radix dialog out of the tree while it is still open: the
+  // `data-[state=closed]` slide-out has nothing left to play on, so a sheet
+  // covering the whole phone would blink out of existence instead of leaving. Hold
   // the last one — the exit is the only thing it is still needed for, and a
   // reopen overwrites it before anything renders.
   //
