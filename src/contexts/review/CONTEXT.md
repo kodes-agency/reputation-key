@@ -110,6 +110,18 @@ total below the stored live count stamps `review_sync_state.count_drop_seen_at`
 and, 15 minutes later, requests a full read; `sync.count-drop-persistent` counts
 Properties whose drop outlasted 72 hours of requested reads.
 
+A full read is a provider snapshot run (`review_provider_snapshot_runs` and its
+members; store in `infrastructure/repositories/review-provider-snapshot*.ts`). A
+review Google no longer lists keeps a counted hold on its provider mapping and a
+first-miss time; removal needs two listings, and a listing that recorded a
+first miss requests one more full read. A listing whose
+Google total or average moved mid-scan restarts without a failure
+(`application/snapshot-listing-change.ts`) unless the Property's runs keep
+changing. The retention sweep (`infrastructure/repositories/snapshot-run-retention.repository.ts`,
+called from `src/shared/jobs/retention-sweep.job.ts`) deletes runs and members
+no reader needs: it keeps the active run, the latest completed run of each
+source epoch and the latest three runs of each Property.
+
 ## Invariants
 
 1. Period reads use half-open bounds; daily series bucket by the Property's

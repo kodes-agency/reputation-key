@@ -14,9 +14,9 @@ import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createReviewObservationRepository } from './repositories/review-observation.repository'
 import { readObservationHistory } from './testing/review-observation-history'
 
-// On 2026-10-23 Google started sending translated reviews original-first. The
-// parser of the day stored the whole envelope as the guest's text, which read as
-// a guest edit and reopened handled Inbox items. Once the parser splits the
+// Google can send translated reviews original-first. A parser that stored the
+// whole envelope as the guest's text would read as a guest edit and reopen
+// handled Inbox items. Once the parser splits the
 // envelope again, the next read must not count as a second edit.
 //
 // Since the restatement rule, a read that differs while Google's updateTime did

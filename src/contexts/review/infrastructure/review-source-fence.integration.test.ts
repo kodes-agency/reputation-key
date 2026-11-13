@@ -1,7 +1,7 @@
 // The Review source fence guards `properties.source_epoch` and nothing else.
 //
 // It is taken by every review import, Inbox projection and AI sequence
-// allocation, so on the closed beta (2026-09-29) a 244-review import held it
+// allocation, so a large import holds it
 // almost continuously. As `FOR UPDATE` it also blocked every foreign-key check
 // against the Property: metric readings, AI settlements and notifications
 // queued behind the import and failed at the 10 s lock timeout. The fence is

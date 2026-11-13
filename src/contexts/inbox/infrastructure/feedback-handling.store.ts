@@ -101,7 +101,7 @@ const toState = (
 })
 
 /**
- * IBX-01-T5: the transitions log has exactly one reader
+ * The transitions log has exactly one reader
  * (`handling-cycle-transitions.read.ts`), shared with the Handling History read
  * model, so both agree on `state_revision` as the ordering key.
  */
