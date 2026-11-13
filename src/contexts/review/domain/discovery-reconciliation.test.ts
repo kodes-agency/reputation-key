@@ -3,10 +3,12 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  COUNT_DROP_PERSISTENT_AFTER_MS,
   DISCOVERY_LOOK_MAX_GAP_MS,
   HEAD_COVERAGE_FRESH_MS,
 } from '#/shared/domain/push-health'
 import { DISCOVERY_MAX_INTERVAL_MS } from './discovery-backoff'
+import { countDropStep } from './head-check'
 import {
   DISCOVERY_RECONCILE_WITHIN_MAX_MS,
   DISCOVERY_RECONCILE_WITHIN_MS,
@@ -540,6 +542,33 @@ describe('discoveryLookFor: head cover and requested full reads', () => {
     })
   })
 
+  it('runs a listing’s own request, made at its instant, once that listing is six hours old', () => {
+    // A listing that recorded a first miss asks for the listing that can
+    // confirm it, in the transaction that dates the listing itself.
+    const listing = ago(FULL_READ_REQUEST_SPACING_MS - MINUTE_MS)
+    const own = {
+      reconcileWithinMs: 336 * HOUR_MS,
+      interval: HOT_MS,
+      headChecks: true,
+      headCoveredAt: ago(MINUTE_MS),
+      lastReconciledAt: listing,
+      fullReadRequestedAt: listing,
+    }
+    expect(look(own).kind).toBe('skip')
+    expect(look({ ...own, now: new Date(NOW.getTime() + MINUTE_MS) })).toEqual({
+      kind: 'full',
+      reason: 'requested',
+    })
+    // The confirming listing completes later than the request: it is spent.
+    expect(
+      look({
+        ...own,
+        lastReconciledAt: new Date(NOW.getTime() + MINUTE_MS),
+        now: new Date(NOW.getTime() + 7 * HOUR_MS),
+      }).kind,
+    ).toBe('skip')
+  })
+
   it('ignores a request older than the last listing', () => {
     expect(
       look({
@@ -578,5 +607,86 @@ describe('discoveryLookFor: head cover and requested full reads', () => {
         look({ ...covered, reconcileWithinMs, lastReconciledAt: ago(cap - HOT_MS) }),
       ).toEqual({ kind: 'full', reason: 'due' })
     }
+  })
+})
+
+describe('discoveryLookFor: a drop in Google’s total that no listing heals', () => {
+  /**
+   * A head check follows every skipped look, sees Google's total below the
+   * stored count, and asks for a full read once the drop is confirmed. Returns
+   * when the sweep listed in full.
+   */
+  const alarm = (reconcileWithinMs: number, lastListingAgoMs: number) => {
+    const start = NOW.getTime()
+    let lastReconciledAt = new Date(start - lastListingAgoMs)
+    let fullReadRequestedAt: Date | null = null
+    let firstSeenAt: Date | null = null
+    const reads: number[] = []
+    for (let at = start; at < start + 7 * 24 * HOUR_MS; at += HOT_MS) {
+      const now = new Date(at)
+      const decision = discoveryLookFor({
+        reconcileWithinMs,
+        lastReconciledAt,
+        hasOutstandingFailure: false,
+        skipEnabled: true,
+        headChecks: true,
+        headCoveredAt: new Date(at - MINUTE_MS),
+        fullReadRequestedAt,
+        now,
+        interval: HOT_MS,
+      })
+      if (decision.kind === 'full') {
+        reads.push(at - start)
+        lastReconciledAt = now
+        continue
+      }
+      firstSeenAt ??= now
+      if (countDropStep({ firstSeenAt, now }) === 'confirmed') fullReadRequestedAt = now
+    }
+    return reads
+  }
+
+  it.each([0, HOUR_MS, 5 * HOUR_MS + 45 * MINUTE_MS])(
+    'reads at most once per six hours, and stops asking 72 hours after the first sighting (last listing %ims before)',
+    (lastListingAgoMs) => {
+      const reads = alarm(336 * HOUR_MS, lastListingAgoMs)
+
+      for (const [index, at] of reads.entries()) {
+        if (index > 0) {
+          expect(at - (reads[index - 1] ?? 0)).toBeGreaterThanOrEqual(
+            FULL_READ_REQUEST_SPACING_MS,
+          )
+        }
+      }
+      // Twelve six-hour slots in 72 hours, and one more for a request made in
+      // the last slot; nothing after that for the rest of the week.
+      expect(reads.length).toBeGreaterThanOrEqual(12)
+      expect(reads.length).toBeLessThanOrEqual(13)
+      expect(reads.at(-1)).toBeLessThan(
+        COUNT_DROP_PERSISTENT_AFTER_MS + FULL_READ_REQUEST_SPACING_MS,
+      )
+    },
+  )
+
+  it('costs no extra listing at the six-hour window', () => {
+    const quiet = (() => {
+      const start = NOW.getTime()
+      let lastReconciledAt = new Date(start)
+      let reads = 0
+      for (let at = start; at < start + 7 * 24 * HOUR_MS; at += HOT_MS) {
+        const decision = look({
+          lastReconciledAt,
+          headChecks: true,
+          now: new Date(at),
+        })
+        if (decision.kind === 'full') {
+          reads++
+          lastReconciledAt = new Date(at)
+        }
+      }
+      return reads
+    })()
+
+    expect(alarm(DISCOVERY_RECONCILE_WITHIN_MS, 0)).toHaveLength(quiet)
   })
 })

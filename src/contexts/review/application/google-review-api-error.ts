@@ -219,6 +219,22 @@ export function executorErrorToReviewApiError(error: unknown): GoogleReviewApiEr
   )
 }
 
+/**
+ * The `operation` the integration adapter names on the refusal of the read made
+ * before a reply is published, when its authorization or connection check
+ * refuses it. Only that refusal can be the reconnect case; a provider answer
+ * keeps its own code.
+ */
+export const REPLY_PRE_READ_REFUSAL_OPERATION = 'reviews.get.reply_publication'
+
+/** A provider failure the pre-publish read raised before it called Google. */
+export function isReplyPreReadRefusal(error: unknown): boolean {
+  return (
+    isProviderCallFailure(error) &&
+    errorField(error, 'operation') === REPLY_PRE_READ_REFUSAL_OPERATION
+  )
+}
+
 export function isGoogleReviewApiError(error: unknown): error is GoogleReviewApiError {
   return errorField(error, '_tag') === 'GoogleReviewApiError'
 }

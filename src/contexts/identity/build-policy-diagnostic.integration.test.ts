@@ -47,6 +47,7 @@ const policyAdmin = buildIdentityContext({
     verifyPassword: async () => false,
   },
   deleteAssetObject: async () => {},
+  listAssetObjects: async () => ({ objects: [], truncated: false }),
   sendEmail: async () => {},
   baseUrl: 'https://app.example.test',
   invitationExpiresInMs: 60_000,

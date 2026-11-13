@@ -215,4 +215,24 @@ export const SYNC_METRIC_DEFINITIONS = [
     description:
       'How long the longest-uncovered Property has gone without head cover. Null/absent when none is uncovered or the window is a day or less.',
   },
+  {
+    name: 'sync.count_drop_persistent',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['syncPush.countDrop.persistentCount'],
+    emitted: true,
+    description:
+      'Syncable Properties whose head checks first saw Google review total below the stored live count 72 hours ago or more and have not seen it level since. Head checks stop asking for full reads for these.',
+  },
+  {
+    name: 'sync.count_drop_oldest_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['syncPush.countDrop.oldestAgeMs'],
+    emitted: true,
+    description:
+      'How long the oldest persistent drop in Google review total has lasted. Null/absent when none has lasted 72 hours.',
+  },
 ] as const

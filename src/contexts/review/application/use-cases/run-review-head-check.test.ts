@@ -91,6 +91,9 @@ function setup(
     outstandingFailure?: boolean | Error
     recordRun?: Error
     clockTicks?: readonly Date[]
+    /** When the stored drop was first seen; the check's own start when unset. */
+    countDropSeenAt?: Date | null
+    countDropWrite?: Error
   }> = {},
 ) {
   const readReviewsHead = vi.fn(async () => {
@@ -123,6 +126,13 @@ function setup(
     }),
     recordHeadCoverage: vi.fn(async () => undefined),
     requestFullRead: vi.fn(async () => undefined),
+    recordCountDrop: vi.fn(async ({ seenAt }: { seenAt: Date }) => {
+      if (options.countDropWrite) throw options.countDropWrite
+      return options.countDropSeenAt === undefined ? seenAt : options.countDropSeenAt
+    }),
+    clearCountDrop: vi.fn(async () => {
+      if (options.countDropWrite) throw options.countDropWrite
+    }),
   } satisfies ReviewHeadCheckRepository
   const logger = { info: vi.fn(), warn: vi.fn() }
   const ticks = [...(options.clockTicks ?? [T0, new Date(T0.getTime() + 1_250)])]
@@ -230,6 +240,8 @@ describe('runReviewHeadCheck: a dark head check', () => {
         totalDifference: 1,
         averageDifference: 0,
         hasMore: true,
+        countDrop: 'cleared',
+        pages: 1,
         orderViolation: false,
         durationMs: 1_250,
       },
@@ -392,5 +404,148 @@ describe('runReviewHeadCheck: a dark head check', () => {
         expect.objectContaining({ outcome, comparison: null }),
       )
     })
+  })
+})
+
+describe('runReviewHeadCheck: a drop in Google’s total below the stored count', () => {
+  const MINUTE_MS = 60 * 1000
+  const HOUR_MS = 60 * MINUTE_MS
+  /** Google counts one review fewer than RepKey shows. */
+  const dropped = {
+    head: okHead([googleReview('r-1')], { totalReviewCount: 40 }),
+    baseline: { storedLiveCount: 41 },
+  }
+
+  it('stamps the first sighting and asks for nothing yet', async () => {
+    const { run, repository, logger } = setup(dropped)
+
+    await run(input)
+
+    expect(repository.recordCountDrop).toHaveBeenCalledExactlyOnceWith({
+      propertyId: PROPERTY,
+      seenAt: T0,
+    })
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+    expect(repository.clearCountDrop).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ countDrop: 'seen', totalDifference: -1 }),
+      'Review head check finished',
+    )
+  })
+
+  it('asks for nothing when the drop was first seen under 15 minutes ago', async () => {
+    const { run, repository } = setup({
+      ...dropped,
+      countDropSeenAt: new Date(T0.getTime() - 14 * MINUTE_MS),
+    })
+
+    await run(input)
+
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+  })
+
+  it('asks for a full read when a second check at least 15 minutes later still sees it', async () => {
+    const asked = new Date(T0.getTime() + 500)
+    const { run, repository, logger } = setup({
+      ...dropped,
+      countDropSeenAt: new Date(T0.getTime() - 15 * MINUTE_MS),
+      clockTicks: [T0, asked, new Date(T0.getTime() + 1_250)],
+    })
+
+    await run(input)
+
+    expect(repository.requestFullRead).toHaveBeenCalledExactlyOnceWith({
+      propertyId: PROPERTY,
+      requestedAt: asked,
+    })
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ countDrop: 'confirmed' }),
+      'Review head check finished',
+    )
+  })
+
+  it('asks in dark mode too: the alarm does not depend on storing anything', async () => {
+    const { run, repository } = setup({
+      ...dropped,
+      countDropSeenAt: new Date(T0.getTime() - HOUR_MS),
+    })
+
+    await run({ ...input, mode: 'dark' })
+
+    expect(repository.requestFullRead).toHaveBeenCalledOnce()
+    expect(repository.recordRun).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'head_dark' }),
+    )
+  })
+
+  it('keeps asking until 72 hours after the first sighting, then stops', async () => {
+    const at = (ageMs: number) => {
+      const { run, repository } = setup({
+        ...dropped,
+        countDropSeenAt: new Date(T0.getTime() - ageMs),
+      })
+      return { run, repository }
+    }
+    const lastAsk = at(72 * HOUR_MS - 1)
+    await lastAsk.run(input)
+    const stopped = at(72 * HOUR_MS)
+    await stopped.run(input)
+
+    expect(lastAsk.repository.requestFullRead).toHaveBeenCalledOnce()
+    expect(stopped.repository.requestFullRead).not.toHaveBeenCalled()
+    expect(stopped.repository.recordCountDrop).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['level', 41],
+    ['above the stored count', 45],
+  ])('clears the drop when Google’s total is %s', async (_case, total) => {
+    const { run, repository, logger } = setup({
+      head: okHead([googleReview('r-1')], { totalReviewCount: total }),
+      baseline: { storedLiveCount: 41 },
+    })
+
+    await run(input)
+
+    expect(repository.clearCountDrop).toHaveBeenCalledExactlyOnceWith({
+      propertyId: PROPERTY,
+    })
+    expect(repository.recordCountDrop).not.toHaveBeenCalled()
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ countDrop: 'cleared' }),
+      'Review head check finished',
+    )
+  })
+
+  it('asks for nothing for a Property the sweep has never dated', async () => {
+    const { run, repository } = setup({ ...dropped, countDropSeenAt: null })
+
+    await run(input)
+
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an order violation', { status: 'order_violation' } as const],
+    ['a provider failure', providerFailure({ code: 'rate_limited' })],
+  ])('neither stamps nor clears after %s', async (_case, head) => {
+    const { run, repository } = setup({ head })
+
+    await run(input)
+
+    expect(repository.recordCountDrop).not.toHaveBeenCalled()
+    expect(repository.clearCountDrop).not.toHaveBeenCalled()
+  })
+
+  it('logs a closed code and still completes when the stamp cannot be written', async () => {
+    const { run, logger } = setup({ ...dropped, countDropWrite: new Error('db down') })
+
+    await expect(run(input)).resolves.toMatchObject({ status: 'compared' })
+    expect(logger.warn).toHaveBeenCalledWith(
+      { event: 'review_head_check_count_drop_not_recorded' },
+      'Review head check could not record a drop in the review total',
+    )
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('db down')
   })
 })

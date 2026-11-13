@@ -10,7 +10,10 @@ import {
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
 } from '../../../../../test-fixtures/generated/google-provider-identifiers-v1'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
-import { translatedGoogleReviewApi } from '#/contexts/review/application/public-api'
+import {
+  REPLY_PRE_READ_REFUSAL_OPERATION,
+  translatedGoogleReviewApi,
+} from '#/contexts/review/application/public-api'
 import { createGoogleReviewApiAdapter } from './google-review-api.adapter'
 
 const ORG_ID = organizationId('0UM0PoDLJNJ3yGCeBMERaQkQyxer9BuC')
@@ -160,6 +163,7 @@ function createAdapter(
         logger: { warn },
       }),
     },
+    adapter,
     authorizeProviderCall,
     authorizeReplyPublicationProviderCall,
     findById,
@@ -1197,8 +1201,9 @@ describe('GoogleReviewApiAdapter reply while Google needs reconnecting', () => {
 
 // The read RepKey makes right before it publishes a reply uses the review-sync
 // authorizer, whose refusals are plain Errors with a closed `code`. For that read
-// alone they take the vocabulary the write path uses, so a Google connection that
-// waits for a reconnect is named as such and a transient outage is retried.
+// alone they leave as the one Google call error the write path throws, with
+// not-sent evidence; the Review use case decides whether a refusal is the
+// reconnect case or an outage to retry.
 describe('GoogleReviewApiAdapter reading a review before a reply is published', () => {
   const waitingForConsent = { ...connection, status: 'reauth_required' }
   const readInput = () => ({
@@ -1224,64 +1229,36 @@ describe('GoogleReviewApiAdapter reading a review before a reply is published', 
       (error: unknown) => error,
     )
     expect(outcome).toBeInstanceOf(Error)
-    return outcome as Error & { code: string; failure?: Record<string, unknown> }
+    return outcome as Error & Record<string, unknown>
   }
 
-  it('reports reauthorization_required while the connection waits for a reconnect', async () => {
-    const execute = vi.fn()
-    const { api } = createAdapter({
-      execute,
-      authorizeProviderCall: refusedWith('authorization_denied'),
-      findById: vi.fn().mockResolvedValue(waitingForConsent),
-    })
+  it.each([['authorization_denied'], ['stale_source'], ['connection_unusable']])(
+    'throws a %s refusal as a permission_denied that sent nothing',
+    async (code) => {
+      const execute = vi.fn()
+      const { adapter: api } = createAdapter({
+        execute,
+        authorizeProviderCall: refusedWith(code),
+        findById: vi.fn().mockResolvedValue(waitingForConsent),
+      })
 
-    const error = await failure(
-      api.getReview({ ...readInput(), forReplyPublication: true }),
-    )
+      const error = await failure(
+        api.getReview({ ...readInput(), forReplyPublication: true }),
+      )
 
-    expect(error).toMatchObject({
-      _tag: 'GoogleReviewApiError',
-      code: 'reauthorization_required',
-      recoverable: false,
-    })
-    expect(execute).not.toHaveBeenCalled()
-  })
+      expect(error).toMatchObject({
+        _tag: 'GbpApiError',
+        operation: REPLY_PRE_READ_REFUSAL_OPERATION,
+        code: 'permission_denied',
+        dispatch: 'not_sent',
+        executionCode: code,
+      })
+      expect(execute).not.toHaveBeenCalled()
+    },
+  )
 
-  it('keeps a refusal from a usable connection as authorization_changed, with the closed code as not-sent evidence', async () => {
-    const { api } = createAdapter({
-      execute: vi.fn(),
-      authorizeProviderCall: refusedWith('authorization_denied'),
-    })
-
-    const error = await failure(
-      api.getReview({ ...readInput(), forReplyPublication: true }),
-    )
-
-    expect(error).toMatchObject({
-      code: 'authorization_changed',
-      recoverable: false,
-      failure: { executionCode: 'authorization_denied', dispatch: 'not_sent' },
-    })
-  })
-
-  it('carries stale_source through, so the publish job can cancel it as policy', async () => {
-    const { api } = createAdapter({
-      execute: vi.fn(),
-      authorizeProviderCall: refusedWith('stale_source'),
-    })
-
-    const error = await failure(
-      api.getReview({ ...readInput(), forReplyPublication: true }),
-    )
-
-    expect(error).toMatchObject({
-      code: 'authorization_changed',
-      failure: { executionCode: 'stale_source', dispatch: 'not_sent' },
-    })
-  })
-
-  it('names an authorizer outage a retryable provider_unavailable that sent nothing', async () => {
-    const { api } = createAdapter({
+  it('throws an authorizer outage as an upstream error that sent nothing', async () => {
+    const { adapter: api } = createAdapter({
       execute: vi.fn(),
       authorizeProviderCall: refusedWith('runtime_unavailable'),
     })
@@ -1291,29 +1268,16 @@ describe('GoogleReviewApiAdapter reading a review before a reply is published', 
     )
 
     expect(error).toMatchObject({
-      code: 'provider_unavailable',
-      recoverable: true,
-      failure: { executionCode: 'runtime_unavailable', dispatch: 'not_sent' },
+      _tag: 'GbpApiError',
+      code: 'upstream_error',
+      dispatch: 'not_sent',
+      executionCode: 'runtime_unavailable',
     })
   })
 
-  it('keeps authorization_changed when the connection cannot be read', async () => {
-    const { api } = createAdapter({
-      execute: vi.fn(),
-      authorizeProviderCall: refusedWith('authorization_denied'),
-      findById: vi.fn().mockRejectedValue(new Error('database unavailable')),
-    })
-
-    const error = await failure(
-      api.getReview({ ...readInput(), forReplyPublication: true }),
-    )
-
-    expect(error.code).toBe('authorization_changed')
-  })
-
-  it('retries when the connection cannot be read after the authorizer allowed the call', async () => {
+  it('throws an unreadable connection after the authorizer allowed the call as an upstream error that sent nothing', async () => {
     const execute = vi.fn()
-    const { api } = createAdapter({
+    const { adapter: api } = createAdapter({
       execute,
       findById: vi.fn().mockRejectedValue(new Error('connection pool exhausted')),
     })
@@ -1323,16 +1287,16 @@ describe('GoogleReviewApiAdapter reading a review before a reply is published', 
     )
 
     expect(error).toMatchObject({
-      _tag: 'GoogleReviewApiError',
-      code: 'provider_unavailable',
-      recoverable: true,
-      failure: { dispatch: 'not_sent' },
+      _tag: 'GbpApiError',
+      code: 'upstream_error',
+      dispatch: 'not_sent',
     })
+    expect(error).not.toHaveProperty('executionCode')
     expect(execute).not.toHaveBeenCalled()
   })
 
-  it('retries an authorizer failure that carries no closed code', async () => {
-    const { api } = createAdapter({
+  it('throws an authorizer failure that carries no closed code as an upstream error', async () => {
+    const { adapter: api } = createAdapter({
       execute: vi.fn(),
       authorizeProviderCall: vi.fn().mockRejectedValue(new Error('socket hang up')),
     })
@@ -1341,11 +1305,30 @@ describe('GoogleReviewApiAdapter reading a review before a reply is published', 
       api.getReview({ ...readInput(), forReplyPublication: true }),
     )
 
-    expect(error).toMatchObject({ code: 'provider_unavailable', recoverable: true })
+    expect(error).toMatchObject({ code: 'upstream_error', dispatch: 'not_sent' })
+  })
+
+  it('throws a connection that is not usable as a permission_denied that sent nothing', async () => {
+    const execute = vi.fn()
+    const { adapter: api } = createAdapter({
+      execute,
+      findById: vi.fn().mockResolvedValue(waitingForConsent),
+    })
+
+    const error = await failure(
+      api.getReview({ ...readInput(), forReplyPublication: true }),
+    )
+
+    expect(error).toMatchObject({
+      code: 'permission_denied',
+      dispatch: 'not_sent',
+      operation: REPLY_PRE_READ_REFUSAL_OPERATION,
+    })
+    expect(execute).not.toHaveBeenCalled()
   })
 
   it('leaves the refusals of every other read as they were', async () => {
-    const { api } = createAdapter({
+    const { adapter: api } = createAdapter({
       execute: vi.fn(),
       authorizeProviderCall: refusedWith('authorization_denied'),
       findById: vi.fn().mockResolvedValue(waitingForConsent),
@@ -1358,11 +1341,10 @@ describe('GoogleReviewApiAdapter reading a review before a reply is published', 
 
   // The review-sync authorizer says `connection_unusable` for a connection that
   // waits for a reconnect. A sync read carries that code through untouched, so
-  // the review context can end the step quietly; the reply's read before a
-  // publish keeps its own vocabulary.
+  // the review context can end the step quietly.
   it('carries connection_unusable through a sync read untouched', async () => {
     const execute = vi.fn()
-    const { api } = createAdapter({
+    const { adapter: api } = createAdapter({
       execute,
       authorizeProviderCall: refusedWith('connection_unusable'),
       findById: vi.fn().mockResolvedValue(waitingForConsent),
@@ -1372,40 +1354,6 @@ describe('GoogleReviewApiAdapter reading a review before a reply is published', 
       code: 'connection_unusable',
     })
     expect(execute).not.toHaveBeenCalled()
-  })
-
-  it('reports reauthorization_required for a reply read refused as connection_unusable while the connection waits for a reconnect', async () => {
-    const { api } = createAdapter({
-      execute: vi.fn(),
-      authorizeProviderCall: refusedWith('connection_unusable'),
-      findById: vi.fn().mockResolvedValue(waitingForConsent),
-    })
-
-    const error = await failure(
-      api.getReview({ ...readInput(), forReplyPublication: true }),
-    )
-
-    expect(error).toMatchObject({
-      code: 'reauthorization_required',
-      recoverable: false,
-    })
-  })
-
-  it('keeps a reply read refused as connection_unusable terminal, with the closed code as not-sent evidence', async () => {
-    const { api } = createAdapter({
-      execute: vi.fn(),
-      authorizeProviderCall: refusedWith('connection_unusable'),
-    })
-
-    const error = await failure(
-      api.getReview({ ...readInput(), forReplyPublication: true }),
-    )
-
-    expect(error).toMatchObject({
-      code: 'authorization_changed',
-      recoverable: false,
-      failure: { executionCode: 'connection_unusable', dispatch: 'not_sent' },
-    })
   })
 
   it('reads the review the same way and answers a missing one as not_found', async () => {

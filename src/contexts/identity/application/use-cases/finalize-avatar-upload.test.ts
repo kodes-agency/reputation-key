@@ -30,6 +30,7 @@ const mockStorage = {
   confirmUpload: async () => {},
   inspectObject: async () => ({ contentType: 'image/png', sizeBytes: 1024 }),
   deleteObject: async () => {},
+  listObjects: async () => ({ objects: [], truncated: false }),
   getObject: async () => null,
   putObject: async () => {},
 }
@@ -155,6 +156,44 @@ describe('finalizeAvatarUpload', () => {
     })
     expect(deleteObject).toHaveBeenCalledExactlyOnceWith(key)
   })
+
+  it.each([['application/pdf'], ['text/html'], [null]])(
+    'refuses a stored object of type %s, and removes it',
+    async (contentType) => {
+      const key = `avatars/${adminCtx.userId}/${ASSET}`
+      const deleteObject = vi.fn(async () => {})
+      const useCase = finalizeAvatarUpload({
+        storage: {
+          ...mockStorage,
+          inspectObject: async () => ({ contentType, sizeBytes: 1024 }),
+          deleteObject,
+        },
+      })
+
+      await expect(useCase({ key }, adminCtx)).rejects.toMatchObject({
+        code: 'validation_error',
+      })
+      expect(deleteObject).toHaveBeenCalledExactlyOnceWith(key)
+    },
+  )
+
+  it.each([['image/png; charset=binary'], ['IMAGE/JPEG']])(
+    'accepts a stored allowed type the store reports as %s',
+    async (contentType) => {
+      const key = `avatars/${adminCtx.userId}/${ASSET}`
+      const deleteObject = vi.fn(async () => {})
+      const useCase = finalizeAvatarUpload({
+        storage: {
+          ...mockStorage,
+          inspectObject: async () => ({ contentType, sizeBytes: 1024 }),
+          deleteObject,
+        },
+      })
+
+      await expect(useCase({ key }, adminCtx)).resolves.toBeDefined()
+      expect(deleteObject).not.toHaveBeenCalled()
+    },
+  )
 
   it('refuses a key under another user', async () => {
     const useCase = finalizeAvatarUpload({ storage: mockStorage })

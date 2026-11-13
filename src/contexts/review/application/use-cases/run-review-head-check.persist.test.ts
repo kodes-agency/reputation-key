@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import type {
+  GoogleReviewHeadContinuation,
   GoogleReviewHeadResult,
   GoogleReviewRead,
 } from '../ports/google-review-api.port'
@@ -91,6 +92,8 @@ const readyState: ReviewHeadPersistState = {
 
 type Options = Readonly<{
   head?: GoogleReviewHeadResult
+  /** Answers of successive reads; a read past the end is a failure. An Error rejects. */
+  heads?: readonly (GoogleReviewHeadResult | Error)[]
   copies?: readonly HeadStoredCopy[]
   state?: ReviewHeadPersistState | Error
   /** What the second read of the state (just before the fact) answers. */
@@ -109,8 +112,16 @@ type Options = Readonly<{
 function setup(options: Options = {}) {
   const order: string[] = []
   let reads = 0
-  const readReviewsHead = vi.fn(async () => {
+  let headReads = 0
+  const readReviewsHead = vi.fn(async (_request: unknown) => {
     order.push('read')
+    if (options.heads !== undefined) {
+      const answer = options.heads[headReads++]
+      if (answer === undefined || answer instanceof Error) {
+        throw answer ?? new Error('no further page')
+      }
+      return answer
+    }
     return (
       options.head ??
       okHead([googleReview('r-1'), googleReview('r-2')], {
@@ -146,6 +157,8 @@ function setup(options: Options = {}) {
     requestFullRead: vi.fn(async () => {
       if (options.coverWrite) throw options.coverWrite
     }),
+    recordCountDrop: vi.fn(async ({ seenAt }: { seenAt: Date }) => seenAt),
+    clearCountDrop: vi.fn(async () => undefined),
   } satisfies ReviewHeadCheckRepository
   const persist = vi.fn(
     async (call: Parameters<ReviewProviderObservationWriter['persist']>[0]) => {
@@ -955,5 +968,178 @@ describe('runReviewHeadCheck: the Property’s head cover', () => {
       expect.objectContaining({ cover: null }),
       'Review head check finished',
     )
+  })
+})
+
+describe('runReviewHeadCheck: following the next page', () => {
+  const continuation = () => ({}) as GoogleReviewHeadContinuation
+  const changedPage = (prefix: string, more: boolean) =>
+    okHead(
+      Array.from({ length: 50 }, (_, index) =>
+        googleReview(`${prefix}-${index}`, {
+          sourceUpdatedAt: new Date(T0.getTime() - 1_000),
+        }),
+      ),
+      {
+        hasMore: more,
+        totalReviewCount: 120,
+        ...(more ? { continuation: continuation() } : {}),
+      },
+    )
+  const quietPage = (prefix: string, count: number) =>
+    okHead(
+      Array.from({ length: count }, (_, index) => googleReview(`${prefix}-${index}`)),
+      { totalReviewCount: 120 },
+    )
+  const copiesFor = (prefix: string, count: number, over: Partial<HeadStoredCopy> = {}) =>
+    Array.from({ length: count }, (_, index) => storedCopy(`${prefix}-${index}`, over))
+
+  it('reads page 2 only when all 50 reviews of page 1 really changed', async () => {
+    const quiet = setup({
+      heads: [
+        okHead([googleReview('a-0')], {
+          hasMore: true,
+          totalReviewCount: 120,
+          continuation: continuation(),
+        }),
+      ],
+      copies: [storedCopy('a-0')],
+    })
+    await quiet.run()
+    expect(quiet.readReviewsHead).toHaveBeenCalledOnce()
+
+    const changed = setup({
+      heads: [changedPage('a', true), quietPage('b', 10)],
+      copies: [...copiesFor('a', 50), ...copiesFor('b', 10)],
+    })
+    await changed.run()
+    expect(changed.readReviewsHead).toHaveBeenCalledTimes(2)
+  })
+
+  it('hands the first page’s continuation to the second read and takes a read generation per page', async () => {
+    const first = changedPage('a', true)
+    const { run, readReviewsHead, allocateReplyReadGeneration } = setup({
+      heads: [first, quietPage('b', 10)],
+      copies: [...copiesFor('a', 50), ...copiesFor('b', 10)],
+    })
+
+    await run()
+
+    expect(readReviewsHead.mock.calls[0]?.[0]).not.toHaveProperty('continuation')
+    expect(readReviewsHead.mock.calls[1]?.[0]).toMatchObject({
+      continuation: (first as { continuation: unknown }).continuation,
+    })
+    expect(allocateReplyReadGeneration).toHaveBeenCalledTimes(2)
+  })
+
+  it('renews the cover and asks for nothing when the second page ends the changes', async () => {
+    const { run, repository, logger } = setup({
+      heads: [changedPage('a', true), quietPage('b', 10)],
+      copies: [...copiesFor('a', 50), ...copiesFor('b', 10)],
+    })
+
+    await run()
+
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+    expect(repository.recordHeadCoverage).toHaveBeenCalledOnce()
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ pages: 2, cover: 'renewed' }),
+      'Review head check finished',
+    )
+  })
+
+  it('does not count routine five-day clock refreshes as a changed page', async () => {
+    const { run, readReviewsHead, repository } = setup({
+      heads: [
+        okHead(
+          Array.from({ length: 50 }, (_, index) => googleReview(`a-${index}`)),
+          { hasMore: true, totalReviewCount: 120, continuation: continuation() },
+        ),
+      ],
+      copies: copiesFor('a', 50, { lastFetchedAt: new Date(T0.getTime() - 6 * DAY_MS) }),
+    })
+
+    await run()
+
+    expect(readReviewsHead).toHaveBeenCalledOnce()
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+  })
+
+  it('stops after three pages and asks for a full read when the third still changed throughout', async () => {
+    const { run, readReviewsHead, repository, logger } = setup({
+      heads: [changedPage('a', true), changedPage('b', true), changedPage('c', true)],
+      copies: [],
+    })
+
+    await run()
+
+    expect(readReviewsHead).toHaveBeenCalledTimes(3)
+    expect(repository.recordHeadCoverage).not.toHaveBeenCalled()
+    expect(repository.requestFullRead).toHaveBeenCalledOnce()
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ pages: 3, cover: 'full_read_requested' }),
+      'Review head check finished',
+    )
+  })
+
+  it('asks for a full read when a further page cannot be read, keeping what page 1 stored', async () => {
+    const { run, repository, persist } = setup({
+      heads: [changedPage('a', true), new Error('Google down CANARY')],
+      copies: [],
+    })
+
+    const result = await run()
+
+    expect(result).toMatchObject({ status: 'compared' })
+    expect(persist).toHaveBeenCalledTimes(50)
+    expect(repository.requestFullRead).toHaveBeenCalledOnce()
+    expect(repository.recordHeadCoverage).not.toHaveBeenCalled()
+  })
+
+  it('asks for a full read when the next page is out of order', async () => {
+    const { run, repository } = setup({
+      heads: [changedPage('a', true), { status: 'order_violation' }],
+      copies: [],
+    })
+
+    await run()
+
+    expect(repository.requestFullRead).toHaveBeenCalledOnce()
+  })
+
+  it('renews nothing when an earlier page left a review unstored', async () => {
+    const { run, repository } = setup({
+      heads: [changedPage('a', true), quietPage('b', 10)],
+      copies: copiesFor('b', 10),
+      failPersistFor: new Set(['a-0']),
+    })
+
+    await run()
+
+    expect(repository.recordHeadCoverage).not.toHaveBeenCalled()
+    expect(repository.requestFullRead).not.toHaveBeenCalled()
+  })
+
+  it('reads one page in dark mode and without persist dependencies', async () => {
+    for (const options of [{ mode: 'dark' as const }, { withoutPersistDeps: true }]) {
+      const { run, readReviewsHead } = setup({
+        ...options,
+        heads: [changedPage('a', true), quietPage('b', 10)],
+        copies: [],
+      })
+      await run()
+      expect(readReviewsHead).toHaveBeenCalledOnce()
+    }
+  })
+
+  it('logs and records no page token', async () => {
+    const { run, logger } = setup({
+      heads: [changedPage('a', true), quietPage('b', 10)],
+      copies: [],
+    })
+
+    await run()
+
+    expect(JSON.stringify(logger.info.mock.calls)).not.toMatch(/continuation|token/i)
   })
 })

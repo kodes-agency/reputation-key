@@ -104,6 +104,12 @@ numbers acquired later. Reconciliation-age health judges each Property against
 its own window plus two hours (`REVIEW_RECONCILE_WITHIN_HOURS`); configure web
 and worker alike.
 
+A persisting head check follows to the next page (at most three) only when a
+whole page was new, edited or reply-changed. A compared check that sees Google's
+total below the stored live count stamps `review_sync_state.count_drop_seen_at`
+and, 15 minutes later, requests a full read; `sync.count-drop-persistent` counts
+Properties whose drop outlasted 72 hours of requested reads.
+
 ## Invariants
 
 1. Period reads use half-open bounds; daily series bucket by the Property's

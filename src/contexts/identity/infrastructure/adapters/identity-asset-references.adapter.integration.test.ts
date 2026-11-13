@@ -8,6 +8,10 @@ import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import {
+  PENDING_UPLOAD_GRACE_MS,
+  reclaimPendingIdentityUploads,
+} from '../../application/reclaim-pending-identity-uploads'
 import { identityAssetPath } from '../../application/identity-assets'
 import { createIdentityAssetReferences } from './identity-asset-references.adapter'
 
@@ -136,5 +140,41 @@ describe('identity asset references', () => {
 
     expect(await references.currentUserImage('nobody')).toBeNull()
     expect(await references.currentOrganizationLogo('nobody')).toBeNull()
+  })
+
+  it('reclaims only unreferenced uploads, across users and organizations', async () => {
+    const references = createIdentityAssetReferences(db)
+    const kept = avatarKey(USER_ID)
+    const keptLogo = logoKey()
+    const abandoned = avatarKey(USER_ID)
+    const abandonedOther = avatarKey(OTHER_USER_ID)
+    const abandonedLogo = logoKey()
+    await setImage(USER_ID, identityAssetPath(kept))
+    await setImage(OTHER_USER_ID, null)
+    await setLogo(ORG_ID, identityAssetPath(keptLogo))
+    const now = new Date()
+    const old = new Date(now.getTime() - PENDING_UPLOAD_GRACE_MS - 1000)
+    const stored = [kept, keptLogo, abandoned, abandonedOther, abandonedLogo]
+    const deleted: string[] = []
+
+    const outcome = await reclaimPendingIdentityUploads({
+      storage: {
+        listObjects: async (prefix) => ({
+          objects: stored
+            .filter((key) => key.startsWith(prefix))
+            .map((key) => ({ key, lastModified: old })),
+          truncated: false,
+        }),
+        deleteObject: async (key) => {
+          deleted.push(key)
+        },
+      },
+      isReferenced: references.isReferenced,
+      clock: () => now,
+      logger: { warn: () => {} },
+    })()
+
+    expect(deleted.sort()).toEqual([abandoned, abandonedOther, abandonedLogo].sort())
+    expect(outcome).toMatchObject({ reclaimed: 3, failed: 0 })
   })
 })

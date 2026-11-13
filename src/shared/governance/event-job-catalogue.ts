@@ -640,6 +640,18 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { timeoutMs: 300_000 },
   ),
   job(
+    'identity-pending-upload-reclaim',
+    'src/contexts/identity/infrastructure/jobs/reclaim-pending-identity-uploads.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:identity.pending_upload_reclaim',
+      schedule: 'every:3600000,offset:2700000',
+      registration: 'enabled',
+    },
+    { timeoutMs: 300_000 },
+  ),
+  job(
     'ai-review-analysis-enrollment-sweep',
     'src/shared/jobs/ai-review-analysis-enrollment-sweep.job.ts',
     {
