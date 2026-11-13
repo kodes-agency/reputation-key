@@ -518,7 +518,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     clock: input.clock,
   })
 
-  // BQR-2.3: atomic review upsert + outbox insert for sync path
+  // Atomic review upsert + outbox insert for the sync path.
   // A review Google reworded without moving its updateTime keeps its revision
   // and is stored as `normalization_shadow_match`, so this line is where the
   // rule shows. One content-free line per restated review (tenant ids are

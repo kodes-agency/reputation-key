@@ -15,9 +15,9 @@ import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createReviewObservationRepository } from './repositories/review-observation.repository'
 import { readObservationHistory } from './testing/review-observation-history'
 
-// On 2026-10-23 Google changed how it wraps translated review text and did not
-// move updateTime. The comparison still found a difference, created Material
-// Review Revision 2 on 62 reviews, reopened handled Inbox items and gave open
+// Google can change how it wraps translated review text without moving
+// updateTime. A comparison that still finds a difference would create Material
+// Review Revision 2, reopen handled Inbox items and gave open
 // ones a Response Target that was overdue from birth. A guest edit moves
 // Google's updateTime; a difference at an unmoved one is Google restating the
 // review, and keeps the revision. It is stored as `normalization_shadow_match`

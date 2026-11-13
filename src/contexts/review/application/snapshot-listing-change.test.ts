@@ -83,9 +83,8 @@ describe('the code a run whose listing changed under it ends with', () => {
 })
 
 // Google's total (and the average with it) moves when a guest posts, deletes
-// or re-rates a review while a run is reading the listing: on the closed beta
-// the largest location failed two runs in a row as `total_changed` on
-// 2026-10-20 (3,716 then 3,717), and its next two runs completed.
+// or re-rates a review while a run is reading the listing: a large location
+// can fail runs as `total_changed` and its next runs complete.
 describe('the code a run whose Google total or average moved mid-scan ends with', () => {
   it.each(['total_changed', 'average_changed'] as const)(
     'is quiet for the first %s',

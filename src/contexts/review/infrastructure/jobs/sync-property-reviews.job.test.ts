@@ -216,7 +216,7 @@ describe('sync-property-reviews snapshot handler', () => {
   // A guest who posts while a run is between its two listings changes the set
   // the confirmation must find again. The run removes nothing and is simply
   // run again: failing the job for it put a Sentry error, a dead letter, an
-  // alert and a repair latch on the largest Property (2026-10-19).
+  // alert and a repair latch on a large Property.
   it('starts a fresh run at once, without a failure, when the listing changed between the scans', async () => {
     const discoveryRepo = makeDiscoveryState()
     const enqueueContinuation = vi.fn(async () => undefined)
@@ -1086,7 +1086,7 @@ describe('sync-property-reviews snapshot handler', () => {
   })
 
   // Google answered 400 or 404 on reviews.list for a location whose connection
-  // is healthy (4 of 20 locations on the beta, 2026-10-26). Asking again gets
+  // is healthy. Asking again gets
   // the same answer, so the run ends as `provider_rejected` and the job parks
   // the location on the retry ladder instead of failing: three BullMQ attempts,
   // a dead letter and a repair latch per round told nobody anything new. The
@@ -1382,9 +1382,8 @@ describe('sync-property-reviews snapshot handler', () => {
       expect(logged).not.toContain(RUN_ID)
     })
 
-    // The beta on 2026-10-24: a VACUUM FULL held a lock, one step's observation
-    // write timed out and failed its run, and every retry of that step failed
-    // the job again until it was dead-lettered.
+    // A lock can time out one step's observation write and fail its run; every
+    // retry of that step must fail the job again until it is dead-lettered.
     it('fails the job for the step that failed the run, and only for that step', async () => {
       const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
       const clock = { now: NOW }

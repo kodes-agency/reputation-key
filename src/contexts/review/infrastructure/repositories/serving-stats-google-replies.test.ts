@@ -4,7 +4,7 @@
 // deleted once that observation is recorded. Counting `replies` alone showed
 // such a Property at 0% while most of its reviews were answered.
 //
-// The rules (owner decisions, 2026-10-17):
+// The rules:
 //  - A review counts as replied when its observation head is `live` or RepKey
 //    published a reply to it. Reviews are counted, never replies.
 //  - Its reply time is the published reply's `published_at` (RepKey's own
