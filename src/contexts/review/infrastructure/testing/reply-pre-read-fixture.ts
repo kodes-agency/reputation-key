@@ -10,7 +10,10 @@ import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 
 import type { Database } from '#/shared/db'
 import type { ReviewId } from '#/shared/domain/ids'
-import type { GoogleReviewApiPort } from '../../application/ports/google-review-api.port'
+import type {
+  GoogleConnectionStatusPort,
+  GoogleReviewApiPort,
+} from '../../application/ports/google-review-api.port'
 import {
   readReviewBeforePublish,
   type ReadReviewBeforePublish,
@@ -37,6 +40,8 @@ export function createReplyPreReadForTests(
      * may no longer have.
      */
     runSalt?: () => string
+    /** Where the Google connection stands; absent, no connection waits for a reconnect. */
+    connectionStatus?: GoogleConnectionStatusPort
   }>,
 ): ReadReviewBeforePublish {
   const { db, clock } = input
@@ -57,6 +62,8 @@ export function createReplyPreReadForTests(
   })
   const read = readReviewBeforePublish({
     googleReviewApi: input.googleReviewApi,
+    connectionStatus: input.connectionStatus ?? { findStatus: async () => null },
+    logger: { warn: () => {} },
     propertySourceEpoch: {
       getSourceEpoch: async () => ({ sourceEpoch: await input.sourceEpoch() }),
     },

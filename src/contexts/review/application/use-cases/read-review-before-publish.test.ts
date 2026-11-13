@@ -16,18 +16,40 @@ import type {
 } from '../ports/google-review-api.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
+import { REPLY_PRE_READ_REFUSAL_OPERATION } from '../google-review-api-error'
 import { readReviewBeforePublish } from './read-review-before-publish'
 
 /** What the integration adapter throws for a call Google answered or refused. */
 const providerFailure = (
-  fields: Readonly<{ code: string; providerStatus?: number; retryAfterMs?: number }>,
+  fields: Readonly<{
+    code: string
+    providerStatus?: number
+    retryAfterMs?: number
+    operation?: string
+    dispatch?: string
+    executionCode?: string
+  }>,
 ) =>
   Object.assign(new Error('provider call failed'), {
     _tag: 'GbpApiError',
+    operation: 'getReview',
     dispatch: 'answered',
     providerStatus: 429,
     ...fields,
   })
+
+/** What the adapter throws when the authorizer or connection check refuses the read. */
+const preReadRefusal = (
+  fields: Readonly<{
+    code: 'permission_denied' | 'upstream_error'
+    executionCode?: string
+  }>,
+) =>
+  providerFailure({
+    operation: REPLY_PRE_READ_REFUSAL_OPERATION,
+    dispatch: 'not_sent',
+    ...fields,
+  } as never)
 
 const organizationId = 'org-pre-read' as OrganizationId
 const propertyId = '00000000-0000-4000-8000-000000000021' as PropertyId
@@ -56,6 +78,8 @@ function setup(
     getResult?: Awaited<ReturnType<GoogleReviewApiPort['getReview']>>
     getError?: Error
     persistError?: Error
+    connectionStatus?: string | null
+    statusError?: Error
     epochs?: readonly (Readonly<{ sourceEpoch: number }> | null)[]
     review?: GoogleReviewRead
   }> = {},
@@ -101,8 +125,20 @@ function setup(
     activateTrustedNext: vi.fn(),
     removeRetiring: vi.fn(),
   }
+  const logger = { warn: vi.fn() }
+  const findStatus = vi.fn(
+    async () => input.connectionStatus ?? ('active' as string | null),
+  )
   const useCase = readReviewBeforePublish({
     googleReviewApi,
+    connectionStatus: {
+      findStatus: input.statusError
+        ? vi.fn(async () => {
+            throw input.statusError
+          })
+        : findStatus,
+    },
+    logger,
     propertySourceEpoch: {
       getSourceEpoch: vi.fn(async () => epochs.shift() ?? null),
     },
@@ -110,7 +146,15 @@ function setup(
     subjectKeyService,
     subjectSightings: { record: vi.fn(async () => 'linked' as const) },
   })
-  return { useCase, getReview, persist, observationWriter, subjectKeyService }
+  return {
+    useCase,
+    getReview,
+    persist,
+    observationWriter,
+    subjectKeyService,
+    findStatus,
+    logger,
+  }
 }
 
 const request = {
@@ -256,5 +300,142 @@ describe('readReviewBeforePublish', () => {
       retryAfterMs: 7_000,
     })
     expect(persist).not.toHaveBeenCalled()
+  })
+
+  describe('a read refused before it reached Google', () => {
+    it('is the reconnect case while the connection waits for a reconnect', async () => {
+      const { useCase, findStatus, persist } = setup({
+        getError: preReadRefusal({
+          code: 'permission_denied',
+          executionCode: 'authorization_denied',
+        }),
+        connectionStatus: 'reauth_required',
+      })
+
+      await expect(useCase(request)).rejects.toMatchObject({
+        _tag: 'GoogleReviewApiError',
+        code: 'reauthorization_required',
+        recoverable: false,
+        failure: { executionCode: 'authorization_denied', dispatch: 'not_sent' },
+      })
+      expect(findStatus).toHaveBeenCalledWith(organizationId, connectionId)
+      expect(persist).not.toHaveBeenCalled()
+    })
+
+    it.each(['authorization_denied', 'stale_source', 'connection_unusable'])(
+      'keeps a %s refusal from a usable connection as authorization_changed, with the closed code as not-sent evidence',
+      async (executionCode) => {
+        const { useCase } = setup({
+          getError: preReadRefusal({ code: 'permission_denied', executionCode }),
+        })
+
+        await expect(useCase(request)).rejects.toMatchObject({
+          code: 'authorization_changed',
+          recoverable: false,
+          failure: { executionCode, dispatch: 'not_sent' },
+        })
+      },
+    )
+
+    it('keeps authorization_changed when the connection does not exist', async () => {
+      const { useCase } = setup({
+        getError: preReadRefusal({ code: 'permission_denied' }),
+        connectionStatus: null,
+      })
+
+      await expect(useCase(request)).rejects.toMatchObject({
+        code: 'authorization_changed',
+      })
+    })
+
+    it('keeps authorization_changed, and logs, when the connection cannot be read', async () => {
+      const { useCase, logger } = setup({
+        getError: preReadRefusal({
+          code: 'permission_denied',
+          executionCode: 'authorization_denied',
+        }),
+        statusError: new Error('database unavailable'),
+      })
+
+      await expect(useCase(request)).rejects.toMatchObject({
+        code: 'authorization_changed',
+        recoverable: false,
+      })
+      expect(logger.warn).toHaveBeenCalledWith(
+        { event: 'google_reply_refusal_connection_unreadable' },
+        expect.any(String),
+      )
+    })
+
+    it('is a retryable provider_unavailable that sent nothing for an outage, without reading the connection', async () => {
+      const { useCase, findStatus } = setup({
+        getError: preReadRefusal({
+          code: 'upstream_error',
+          executionCode: 'runtime_unavailable',
+        }),
+        connectionStatus: 'reauth_required',
+      })
+
+      await expect(useCase(request)).rejects.toMatchObject({
+        code: 'provider_unavailable',
+        recoverable: true,
+        retryAfterMs: expect.any(Number),
+        failure: { executionCode: 'runtime_unavailable', dispatch: 'not_sent' },
+      })
+      expect(findStatus).not.toHaveBeenCalled()
+    })
+
+    it('is a retryable provider_unavailable for a failure that carried no closed code', async () => {
+      const { useCase } = setup({ getError: preReadRefusal({ code: 'upstream_error' }) })
+
+      await expect(useCase(request)).rejects.toMatchObject({
+        code: 'provider_unavailable',
+        recoverable: true,
+        failure: { executionCode: null, dispatch: 'not_sent' },
+      })
+    })
+  })
+
+  describe('a read Google answered or the gateway failed', () => {
+    it.each([
+      ['auth_failed', 401],
+      ['permission_denied', 403],
+    ])(
+      'keeps a %s answer as authorization_changed even while the connection waits for a reconnect',
+      async (code, providerStatus) => {
+        const { useCase, findStatus } = setup({
+          getError: providerFailure({ code, providerStatus }),
+          connectionStatus: 'reauth_required',
+        })
+
+        await expect(useCase(request)).rejects.toMatchObject({
+          code: 'authorization_changed',
+          recoverable: false,
+        })
+        expect(findStatus).not.toHaveBeenCalled()
+      },
+    )
+
+    it('keeps an answered 400 as a terminal provider_rejected', async () => {
+      const { useCase } = setup({
+        getError: providerFailure({ code: 'upstream_error', providerStatus: 400 }),
+      })
+
+      await expect(useCase(request)).rejects.toMatchObject({
+        code: 'provider_rejected',
+        recoverable: false,
+      })
+    })
+
+    it('keeps an upstream 503 as a retryable provider_unavailable', async () => {
+      const { useCase } = setup({
+        getError: providerFailure({ code: 'upstream_error', providerStatus: 503 }),
+      })
+
+      await expect(useCase(request)).rejects.toMatchObject({
+        code: 'provider_unavailable',
+        recoverable: true,
+      })
+    })
   })
 })

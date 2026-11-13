@@ -705,6 +705,11 @@ describe('publish-reply read before the claim over the real review adapter', () 
     })
     const readBeforePublish = readReviewBeforePublish({
       googleReviewApi: api,
+      connectionStatus: {
+        findStatus: async () =>
+          ((input.connection ?? usableConnection) as { status: string }).status,
+      },
+      logger: { warn: vi.fn() },
       propertySourceEpoch: { getSourceEpoch: vi.fn(async () => ({ sourceEpoch: 4 })) },
       observationWriter: {
         allocateReplyReadGeneration: vi.fn(async () => 1),
