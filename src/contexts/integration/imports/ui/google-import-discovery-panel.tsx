@@ -13,7 +13,7 @@ import {
 } from '#/components/ui/card'
 import { EmptyState } from '#/components/ui/empty-state'
 import { SearchField } from '#/components/ui/search-field'
-import { GoogleImportAccountList } from '#/components/features/integration/google-import-manager/google-import-account-list'
+import { GoogleImportAccountList } from './google-import-account-list'
 import { GoogleImportCandidateResults } from './google-import-candidate-results'
 import { GoogleImportSelectionFooter } from './google-import-selection-footer'
 
