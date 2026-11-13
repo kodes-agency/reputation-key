@@ -24,6 +24,7 @@ const ADOPTED_FROM = 133
 // its migrate:contract header, the release that stopped using what it removes.
 const CONTRACTIONS: ReadonlySet<string> = new Set([
   '0156_ai_operations_drop_handshake_columns',
+  '0157_drop_legacy_ratings_feedback',
 ])
 const AUTH_TABLES = [
   'user',

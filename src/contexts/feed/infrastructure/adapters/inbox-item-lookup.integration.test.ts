@@ -35,7 +35,6 @@ const { getPool } = setupIntegrationDb({
     'inbox_handling_cycles',
     'inbox_items',
     'guest_responses',
-    'feedback',
     'portals',
     'reviews',
     'properties',
