@@ -52,11 +52,16 @@ const KNOWN_GAPS: Readonly<Record<TenantScope, ReadonlyArray<string>>> = {
   property: [],
 }
 
-/** Better Auth's tables name their Organization column in camel case. */
+/**
+ * Better Auth's tables name their Organization column in camel case, and the
+ * Organization's own row is keyed by its `id`.
+ */
 const COLUMNS_FOR: Readonly<Record<TenantScope, ReadonlyArray<string>>> = {
   organization: ['organization_id', 'organizationId'],
   property: ['property_id'],
 }
+
+const ORGANIZATION_ROW_TABLE = 'organization'
 
 const tenantTables = DATA_FATE_AUTHORITY.flatMap((row) => {
   const table = (schema as Record<string, unknown>)[row.exportName]
@@ -73,8 +78,10 @@ const tenantTables = DATA_FATE_AUTHORITY.flatMap((row) => {
 
 function personalTablesOf(scope: TenantScope) {
   return tenantTables.filter(
-    ({ columns, isPersonal }) =>
-      isPersonal && COLUMNS_FOR[scope].some((column) => columns.includes(column)),
+    ({ name, columns, isPersonal }) =>
+      isPersonal &&
+      (COLUMNS_FOR[scope].some((column) => columns.includes(column)) ||
+        (scope === 'organization' && name === ORGANIZATION_ROW_TABLE)),
   )
 }
 
@@ -98,9 +105,11 @@ describe('rights coverage', () => {
   it("sees Better Auth's tables, whose Organization column is camel case", () => {
     const organizationTables = personalTablesOf('organization').map(({ name }) => name)
 
-    expect(organizationTables).toEqual(expect.arrayContaining(['invitation', 'member']))
+    expect(organizationTables).toEqual(
+      expect.arrayContaining(['invitation', 'member', ORGANIZATION_ROW_TABLE]),
+    )
     expect([...declared('organization')]).toEqual(
-      expect.arrayContaining(['invitation', 'member']),
+      expect.arrayContaining(['invitation', 'member', ORGANIZATION_ROW_TABLE]),
     )
   })
 

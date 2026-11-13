@@ -64,21 +64,30 @@ async function identityReport(
   return inventory.map((entry) => `${entry.table} ${entry.rowCount}`)
 }
 
-async function identityErase(db: Database, plan: RightsRequestPlan): Promise<number> {
+async function identityErase(
+  db: Database,
+  plan: RightsRequestPlan,
+  now: () => Date,
+): Promise<number> {
   const { organizationId, propertyId } = plan
   if (plan.scope === 'organization') {
     return db.transaction((tx) => {
       if (!isOrganizationSuspended(organizationId)) {
         throw new Error(ORGANIZATION_NOT_SUSPENDED)
       }
-      return deleteIdentityOrganizationRows(tx, organizationId)
+      // The journal records the same instant, so a replay writes the same row.
+      const closedAt = plan.verifiedAt ?? plan.receivedAt ?? now()
+      return deleteIdentityOrganizationRows(tx, organizationId, closedAt)
     })
   }
   if (!propertyId) throw new Error('--property is required')
   return db.transaction((tx) => grants.erase(tx, { organizationId, propertyId }))
 }
 
-export function createIdentityRightsExecutor(db: Database): RightsExecutor {
+export function createIdentityRightsExecutor(
+  db: Database,
+  now: () => Date,
+): RightsExecutor {
   return Object.freeze({
     name: 'identity',
     scopes: ['property', 'organization'] as const,
@@ -101,7 +110,7 @@ export function createIdentityRightsExecutor(db: Database): RightsExecutor {
     exportFiles: async () => [],
     async apply(plan) {
       try {
-        const rows = await identityErase(db, plan)
+        const rows = await identityErase(db, plan, now)
         const subject =
           plan.scope === 'organization'
             ? `org=${plan.organizationId}`
@@ -218,7 +227,8 @@ export const identityPropertyErasureReplayer: BackupErasureReplayer = Object.fre
 export const identityOrganizationErasureReplayer: BackupErasureReplayer = Object.freeze({
   context: 'identity',
   subjectClass: 'organization',
-  reErase: (tx, entry) => deleteIdentityOrganizationRows(tx, entry.organizationId),
+  reErase: (tx, entry) =>
+    deleteIdentityOrganizationRows(tx, entry.organizationId, entry.effectiveErasureAt),
 })
 
 /** Repeats the Staff directory purge for an Organization a restore brought back. */
