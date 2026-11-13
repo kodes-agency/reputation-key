@@ -18,7 +18,7 @@ import { StaffAccountsContext } from './staff-accounts-context'
 import {
   StaffManagerStory,
   STAFF_STORY_MEMBERS,
-} from '../../../../../.storybook/staff-manager-fixtures'
+} from '../../../../../../.storybook/staff-manager-fixtures'
 import { avelaResults } from '#/components/features/portal/portal-overview/portal-overview-results-fixtures'
 import { portalKeys, staffKeys } from '#/shared/queries/query-keys'
 import type { Action } from '#/components/hooks/use-action'

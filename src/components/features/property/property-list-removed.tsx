@@ -17,7 +17,7 @@ import {
 import {
   PROPERTY_LIFECYCLE_STATUS,
   propertyRestoreWindow,
-} from './property-lifecycle-model'
+} from '../../../contexts/property/lifecycle/ui/property-lifecycle-model'
 import {
   buildPropertyListRows,
   sortPropertyListRows,

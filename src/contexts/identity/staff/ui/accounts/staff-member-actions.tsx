@@ -69,8 +69,8 @@ export function StaffRetry({
     },
     {
       errorMessage: actionErrorMessage,
-      onSuccess: () => accounts?.refresh().then(() => undefined),
-      onError: () => accounts?.refresh().then(() => undefined),
+      onSuccess: () => accounts?.refresh(),
+      onError: () => accounts?.refresh(),
     },
   )
   useEffect(() => {
@@ -104,8 +104,8 @@ export function StaffInvitationRepair({ member }: Readonly<{ member: StaffMember
   const resend = useActionMutation(functions.resendStaffInvitation, {
     successMessage: 'Invitation sent',
     errorMessage: actionErrorMessage,
-    onSuccess: () => accounts?.refresh().then(() => undefined),
-    onError: () => accounts?.refresh().then(() => undefined),
+    onSuccess: () => accounts?.refresh(),
+    onError: () => accounts?.refresh(),
   })
   if (
     !accounts?.canInvite ||

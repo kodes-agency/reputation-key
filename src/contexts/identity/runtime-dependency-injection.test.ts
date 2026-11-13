@@ -9,7 +9,9 @@ const productionFiles = (directory = ''): string[] =>
   readdirSync(join(IDENTITY_ROOT, directory), { withFileTypes: true }).flatMap(
     (entry) => {
       const relativePath = join(directory, entry.name)
-      if (entry.isDirectory()) return productionFiles(relativePath)
+      // Browser screens run in the page, not in the server runtime.
+      if (entry.isDirectory())
+        return entry.name === 'ui' ? [] : productionFiles(relativePath)
       return entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')
         ? [relativePath]
         : []

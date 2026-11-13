@@ -1,8 +1,8 @@
 import { createElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { setupHookRoot } from '#/shared/testing/hook-root'
-import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
-import { StaffAccountFunctionsContext } from '#/components/features/staff/accounts/staff-account-functions'
+import { StaffAccountsProvider } from '#/contexts/identity/staff/ui/accounts/staff-accounts-provider'
+import { StaffAccountFunctionsContext } from '#/contexts/identity/staff/ui/accounts/staff-account-functions'
 import { it, expect, vi } from 'vitest'
 import { STAFF_ACCOUNT_FUNCTIONS } from './-staff-account-functions'
 const calls = vi.hoisted(() => ({

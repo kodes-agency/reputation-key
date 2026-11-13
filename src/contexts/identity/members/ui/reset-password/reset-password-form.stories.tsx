@@ -5,7 +5,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { AnyAction } from '#/components/hooks/use-action'
-import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import { AuthedRouterDecorator } from '../../../../../../.storybook/AuthedRouterDecorator'
 import { ResetPasswordForm } from './reset-password-form'
 
 type ResetInput = { email: string }

@@ -31,6 +31,13 @@ Property lookups.
   connection reference and the review URI stay on the server; the manager app is
   given the binding state and the destination's state and read time (ADR 0050).
 
+## Screens
+
+Archive and restore screens sit in `lifecycle/ui/` and Responsible Manager
+selection in `responsibility/ui/`, and the profile card in `profile/ui/`; routes
+import them from there. Screens take other contexts' server-function signatures
+as types only.
+
 ## Model
 
 A Property is the Organization unit under which product work is scoped. It owns

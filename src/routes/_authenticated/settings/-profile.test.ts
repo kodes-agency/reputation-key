@@ -95,7 +95,7 @@ vi.mock('#/shared/auth/capability-set', async (importOriginal) => {
 })
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 // The page under the route: what it is handed is what the form and avatar show.
-vi.mock('#/components/features/identity', () => ({
+vi.mock('#/contexts/identity/members/ui/profile-settings-page', () => ({
   ProfileSettingsPage: (props: unknown) => {
     server.page.current = props
     return null

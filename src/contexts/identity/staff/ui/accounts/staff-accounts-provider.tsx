@@ -32,11 +32,12 @@ export function StaffAccountsProvider({
     ...staffAccountsQuery(propertyId, functions.listStaffMembers),
     enabled: enabled && can('staff.read'),
   })
-  const refresh = () =>
-    Promise.all([
+  const refresh = async () => {
+    await Promise.all([
       client.invalidateQueries({ queryKey: staffKeys.all }),
       client.invalidateQueries({ queryKey: portalKeys.all }),
     ])
+  }
   if (!enabled) return children
   return (
     <StaffAccountsContext

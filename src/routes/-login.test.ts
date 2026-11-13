@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setupHookRoot } from '#/shared/testing/hook-root'
-import type { LoginForm } from '#/components/features/identity/login/login-form'
+import type { LoginForm } from '#/contexts/identity/members/ui/login/login-form'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 const state = vi.hoisted(() => ({
@@ -34,7 +34,7 @@ vi.mock('#/components/layout/auth-layout', () => ({
   AuthCard: ({ children }: { children: ReactNode }) => Children.toArray(children)[0],
 }))
 vi.mock('#/components/ui/inline-link', () => ({ InlineLink: () => null }))
-vi.mock('#/components/features/identity', () => ({
+vi.mock('#/contexts/identity/members/ui/login/login-form', () => ({
   LoginForm: (props: ComponentProps<typeof LoginForm>) => {
     state.form = props
     return null

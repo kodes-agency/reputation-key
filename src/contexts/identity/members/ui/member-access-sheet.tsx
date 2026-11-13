@@ -25,8 +25,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from '#/components/ui/sheet'
-import { RoleBadge } from '#/components/features/identity/shared/role-badge'
-import { roleDescription } from '#/components/features/identity/shared/role-utils'
+import { RoleBadge } from '#/contexts/identity/members/ui/role-badge'
+import { roleDescription } from '#/contexts/identity/members/ui/role-utils'
 import type { Action } from '#/components/hooks/use-action'
 import type { Role } from '#/shared/domain/roles'
 import {

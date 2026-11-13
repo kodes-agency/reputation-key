@@ -14,10 +14,10 @@ import {
   ready,
 } from './portal-group-page-fixtures'
 const header = vi.hoisted(() => vi.fn())
-vi.mock('#/components/features/staff/accounts/staff-accounts-provider', () => ({
+vi.mock('#/contexts/identity/staff/ui/accounts/staff-accounts-provider', () => ({
   StaffAccountsProvider: ({ children }: { children: ReactNode }) => children,
 }))
-vi.mock('#/components/features/staff/accounts/staff-accounts-context', () => ({
+vi.mock('#/contexts/identity/staff/ui/accounts/staff-accounts-context', () => ({
   useStaffAccounts: () => null,
 }))
 vi.mock('#/shared/hooks/useCapabilities', () => ({

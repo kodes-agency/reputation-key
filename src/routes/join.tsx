@@ -15,12 +15,10 @@ import { ensureActiveOrg } from '#/shared/auth/auth.functions'
 import { INVITATION_ID_MAX_LENGTH } from '#/shared/domain/ids'
 import { clearTenantCacheBeforeNavigation } from '#/shared/queries/tenant-cache-transition'
 import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
-import {
-  InvitationLinkStateCard,
-  InvitationSummary,
-  RegisterForm,
-} from '#/components/features/identity'
-import { JoinEntryCard } from '#/components/features/identity/registration/join-entry-card'
+import { InvitationLinkStateCard } from '#/contexts/identity/members/ui/registration/invitation-state-card'
+import { InvitationSummary } from '#/contexts/identity/members/ui/registration/invitation-summary'
+import { RegisterForm } from '#/contexts/identity/members/ui/registration/register-form'
+import { JoinEntryCard } from '#/contexts/identity/members/ui/registration/join-entry-card'
 import { registerMember } from '#/contexts/identity/server/organizations'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { InlineLink } from '#/components/ui/inline-link'

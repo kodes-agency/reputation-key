@@ -1,6 +1,11 @@
-import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
+import type { listPortalOverview } from '#/contexts/portal/server/portals'
 import { portalId, portalGroupId, propertyId } from '#/shared/domain/ids'
 import type { StaffMember } from './staff-account-view'
+/** One row of the overview as the Portal server function returns it. */
+export type PortalOverviewRow = Awaited<
+  ReturnType<typeof listPortalOverview>
+>['portals'][number]
+
 /** An interrupted setup stays repairable even before it has created a Portal. */
 export function withStaffSetupRows(
   rows: readonly PortalOverviewRow[],

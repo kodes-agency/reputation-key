@@ -16,7 +16,7 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   GOOGLE_BINDING_STATUS,
   type GoogleBindingState,
-} from '../property-lifecycle-model'
+} from '../../../../contexts/property/lifecycle/ui/property-lifecycle-model'
 import {
   googleReviewDestinationText,
   type GoogleReviewDestinationSubject,
