@@ -17,7 +17,7 @@ import type {
   InboxItemDetailResult,
   InboxRevisionConflictResult,
 } from '#/contexts/inbox/application/public-api'
-import { withFreshCommandRevision } from '../inbox/use-inbox-detail'
+import { withFreshCommandRevision } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }))
 

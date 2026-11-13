@@ -7866,7 +7866,9 @@ CREATE TABLE "public"."review_sync_state" (
     "error_retry_at" timestamp with time zone,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "head_covered_at" timestamp with time zone,
-    "full_read_requested_at" timestamp with time zone
+    "full_read_requested_at" timestamp with time zone,
+    "count_drop_seen_at" timestamp with time zone,
+    "count_drop_checked_at" timestamp with time zone
 );
 
 

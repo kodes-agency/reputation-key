@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeReviewAnalysisV3 } from './review-analysis-v3-normalizer'
+import { normalizeReviewAnalysisV3 } from '#/shared/analysis/normalizer'
 import {
   collectReviewNameTokens,
   collectVocabularyHintWords,

@@ -2,7 +2,7 @@ import { replyRequest } from '#/shared/ai-gateway-transport-contract.test-fixtur
 import OpenAI from 'openai'
 import { readOpenAiReplyStream } from './openai-stream-response'
 import { openAiRequestOf } from './review-evidence.test-fixtures'
-import { replyDraftingV2OutputSchema } from '#/shared/reply-drafting-v2-schema'
+import { replyDraftingV2OutputSchema } from '#/shared/reply/schema'
 import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { createAiEgressGatewayService } from './service'

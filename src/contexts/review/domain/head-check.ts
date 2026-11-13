@@ -6,6 +6,7 @@
 // persisting check WOULD store, so the comparison can be read for a week before
 // storing is turned on. Pure: it reads no clock; the caller passes `now`.
 
+import { COUNT_DROP_PERSISTENT_AFTER_MS } from '#/shared/domain/push-health'
 import type { GoogleReview } from './types'
 
 /**
@@ -214,6 +215,30 @@ export const headPageOverflowed = (comparison: HeadComparison): boolean =>
   comparison.hasMore &&
   comparison.listed > 0 &&
   comparison.contentChangedCount === comparison.listed
+
+/**
+ * A drop must still be there this long after a check first saw it before it
+ * asks for a full read. Google's total and RepKey's count briefly disagree
+ * while a new review reaches one before the other; a deletion does not heal.
+ */
+export const COUNT_DROP_CONFIRM_AFTER_MS = 15 * 60 * 1000
+
+/**
+ * Where a drop in Google's total stands at this check: first seen (`seen`, ask
+ * for nothing yet), still there at least 15 minutes later (`confirmed`, ask for
+ * a full read; the sweep runs at most one per six hours), or still there 72
+ * hours after it was first seen (`persistent`, stop asking; the drop is alerted
+ * on).
+ */
+export type CountDropStep = 'seen' | 'confirmed' | 'persistent'
+
+export const countDropStep = (
+  input: Readonly<{ firstSeenAt: Date; now: Date }>,
+): CountDropStep => {
+  const age = input.now.getTime() - input.firstSeenAt.getTime()
+  if (age >= COUNT_DROP_PERSISTENT_AFTER_MS) return 'persistent'
+  return age >= COUNT_DROP_CONFIRM_AFTER_MS ? 'confirmed' : 'seen'
+}
 
 /**
  * One head job per Property and time bucket, so two looks of one bucket never

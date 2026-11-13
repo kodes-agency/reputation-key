@@ -44,6 +44,7 @@ import {
   candidateEditedSinceListing,
   countRunAgainstHolds,
   foundUnlistedBefore,
+  followCompletedListing,
   holdFoundUnlisted,
   listingAgreement,
   recordMissingFromListing,
@@ -1383,7 +1384,10 @@ export const createReviewProviderSnapshotRepository = (
               .limit(1)
           : []
       const done = more.length === 0
-      if (done) await recordCompletionFacts(tx, run)
+      if (done) {
+        await recordCompletionFacts(tx, run)
+        await followCompletedListing(tx, run)
+      }
       const updated = await tx
         .update(reviewProviderSnapshotRuns)
         .set(

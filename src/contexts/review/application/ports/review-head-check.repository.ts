@@ -8,7 +8,8 @@
 // ordinary observation writer, and Google's own count and average as a fact
 // that is not a completed listing (`recordHeadFact`), and it keeps the
 // Property's head cover or asks for a full read (`recordHeadCoverage`,
-// `requestFullRead`).
+// `requestFullRead`). In either mode it tracks a drop in Google's total below
+// the stored count (`recordCountDrop`, `clearCountDrop`).
 //
 // Content-free: counts, timestamps and closed codes. The Property is named only
 // to key the history row.
@@ -143,11 +144,24 @@ export type ReviewHeadCheckRepository = Readonly<{
     input: Readonly<{ propertyId: string; coveredAt: Date }>,
   ): Promise<void>
   /**
-   * Persist mode: the whole page changed and more pages follow it, so ask the
-   * discovery sweep for a full read (`review_sync_state.full_read_requested_at`,
-   * never moved backwards). The sweep spaces the reads it runs for requests.
+   * Ask the discovery sweep for a full read
+   * (`review_sync_state.full_read_requested_at`, never moved backwards): a
+   * persisting check found the whole page changed with more pages behind it,
+   * or any check confirmed a drop in Google's total. The sweep spaces the reads
+   * it runs for requests.
    */
   requestFullRead(
     input: Readonly<{ propertyId: string; requestedAt: Date }>,
   ): Promise<void>
+  /**
+   * Google's total is below the stored live count: stamp
+   * `review_sync_state.count_drop_seen_at` unless a drop is already stamped, and
+   * return when the drop was first seen. Null for a Property the sweep has never
+   * looked at, which gets no row.
+   */
+  recordCountDrop(
+    input: Readonly<{ propertyId: string; seenAt: Date }>,
+  ): Promise<Date | null>
+  /** Google's total is at or above the stored live count: any drop is over. */
+  clearCountDrop(input: Readonly<{ propertyId: string }>): Promise<void>
 }>

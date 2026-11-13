@@ -7,7 +7,7 @@ import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
-} from '#/shared/review-analysis-v3-normalizer'
+} from '#/shared/analysis/normalizer'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'

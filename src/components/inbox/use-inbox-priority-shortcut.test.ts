@@ -13,7 +13,7 @@ import {
   type InboxShortcutInput,
 } from './use-inbox-keyboard-shortcuts'
 import { isTriageShortcutAllowed } from './use-inbox-escalation-shortcut'
-import type { InboxDetailState } from './use-inbox-detail'
+import type { InboxDetailState } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 import { useInboxPriorityShortcut } from './use-inbox-priority-shortcut'
 
 const ITEM = { id: 'item-1', sourceType: 'review' } as unknown as InboxItem

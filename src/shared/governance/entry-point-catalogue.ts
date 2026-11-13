@@ -32,6 +32,7 @@ export type ResourceScope =
 export type SystemAction =
   | 'system:integration.refresh_google_categories'
   | 'system:identity.merchant_ai_standing_renewal'
+  | 'system:identity.pending_upload_reclaim'
   // session / identity bootstrap
   | 'system:session.read'
   | 'system:session.mutate'
@@ -186,6 +187,12 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   // Cleanup of the private object store: it must run whatever the state of the
   // upload capability, because it is what makes switching uploads off safe.
   job('portal-media-sweep', 'system:portal.media_sweep', 'none', 'tenant_cross', true),
+  job(
+    'identity-pending-upload-reclaim',
+    'system:identity.pending_upload_reclaim',
+    'none',
+    'tenant_cross',
+  ),
   job('health-check', 'system:health.check', 'none', 'none'),
   job(
     'import-gbp-property-item',
@@ -725,6 +732,12 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   schedule(
     'ai-operation-execution-reaper-recurring',
     'system:ai.execution_reap',
+    'none',
+    'tenant_cross',
+  ),
+  schedule(
+    'identity-pending-upload-reclaim-recurring',
+    'system:identity.pending_upload_reclaim',
     'none',
     'tenant_cross',
   ),

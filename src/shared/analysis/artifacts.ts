@@ -1,21 +1,24 @@
 import '@tanstack/react-start/server-only'
-import { digestOf } from './ai-digest'
+import { digestOf } from '#/shared/ai-digest'
 import { z } from 'zod/v4'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from './ai-route-output-schemas'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
 import {
   REVIEW_ANALYSIS_V3_STORED_SCHEMA,
   REVIEW_ATTENTION_V2_DIGEST,
   REVIEW_ATTENTION_V2_VERSION,
-} from './review-analysis-v3'
+} from '#/shared/review-analysis-v3'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
-} from './review-analysis-v3-normalizer'
-import { REVIEW_SENTENCES_DIGEST, REVIEW_SENTENCES_VERSION } from './review-sentences'
+} from '#/shared/analysis/normalizer'
+import {
+  REVIEW_SENTENCES_DIGEST,
+  REVIEW_SENTENCES_VERSION,
+} from '#/shared/review-sentences'
 import {
   REVIEW_TOPIC_TAXONOMY_V3_DIGEST,
   REVIEW_TOPIC_TAXONOMY_VERSION,
-} from './review-topic-taxonomy'
+} from '#/shared/review-topic-taxonomy'
 
 const providerAnswerSchemaDigest = digestOf(
   'repkey-ai-output-schema-v1\0',

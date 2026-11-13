@@ -2,7 +2,7 @@ import type {
   FeedbackHandlingState,
   InboxItem,
 } from '#/contexts/inbox/application/public-api'
-import type { InboxDetailState } from '../../../../components/inbox/use-inbox-detail'
+import type { InboxDetailState } from './use-inbox-detail'
 import type { FeedbackHandlingDecision } from './feedback-handling-dialog'
 
 export type FeedbackHandlingDialogMode = 'mark' | 'correct' | null

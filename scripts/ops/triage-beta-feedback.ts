@@ -1,4 +1,4 @@
-// OBS-01 content-free internal triage. Report mode is the default. Apply
+// Content-free internal triage. Report mode is the default. Apply
 // changes one opaque feedback reference with CAS, ticket, operator identity,
 // and append-only transition evidence. It never reads/copies report text,
 // downloads attachments, or creates an engineering issue automatically.
@@ -9,6 +9,7 @@ import { parseBetaFeedbackTriageInvocation } from '../../src/contexts/identity/a
 import { BetaFeedbackTriageRepository } from '../../src/contexts/identity/infrastructure/beta-feedback-triage.repository'
 import { betaFeedbackPseudonym } from '../../src/contexts/identity/application/beta-feedback-pseudonym'
 import { resolveBetaFeedbackReporter } from '../../src/contexts/identity/infrastructure/beta-feedback-reporter'
+import { runCommandEntrypoint } from './command-entrypoint'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND = 'ops:triage-beta-feedback'
@@ -119,7 +120,4 @@ async function main(): Promise<void> {
   process.exit(result.exitCode)
 }
 
-main().catch((error) => {
-  console.error(`${COMMAND} failed`, error)
-  process.exit(1)
-})
+void runCommandEntrypoint(COMMAND, main)

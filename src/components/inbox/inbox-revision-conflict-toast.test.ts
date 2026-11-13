@@ -26,7 +26,7 @@ import {
   type InboxItemDetailResult,
   type InboxRevisionConflictResult,
 } from '#/contexts/inbox/application/public-api'
-import { withFreshCommandRevision } from './use-inbox-detail'
+import { withFreshCommandRevision } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 
 vi.mock('@tanstack/react-router', () => ({
   useRouter: () => ({ navigate: vi.fn() }),

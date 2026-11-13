@@ -1,4 +1,4 @@
-// OBS-01 — the optional `masked_layout_v1` geometry for one Bug report.
+// The optional `masked_layout_v1` geometry for one Bug report.
 //
 // Separate from `beta_feedback_triage` on purpose: that table is declared
 // content-free and holds only pseudonyms, controlled enums, provider linkage,

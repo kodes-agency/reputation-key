@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { startAiProviderStub, type AiProviderStubHandle } from './ai-provider-stub'
 import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from '../../src/shared/review-analysis-v3'
-import { replyDraftingV2OutputSchema } from '../../src/shared/reply-drafting-v2-schema'
+import { replyDraftingV2OutputSchema } from '#/shared/reply/schema'
 
 let handle: AiProviderStubHandle | undefined
 const originalUnscriptedMode = process.env.AI_PROVIDER_STUB_UNSCRIPTED

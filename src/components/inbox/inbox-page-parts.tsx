@@ -3,11 +3,7 @@
 
 import { FullBleedFrame, PageShell } from '#/components/layout/page-shell'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import type { ComposerFocusBox } from '../../contexts/reputation/inbox/ui/inbox-detail-content'
-import type { InboxAssignmentOption } from './inbox-owner-view'
-import type { InboxCurrentUser } from '../../contexts/reputation/inbox/ui/inbox-case-toolbar-props'
-import type { InboxDetailState } from './use-inbox-detail'
-import type { InboxDetailFns } from './types'
+import type { InboxDetailState } from '#/contexts/reputation/inbox/ui/use-inbox-detail'
 import { InboxDetailPanel } from '#/contexts/reputation/inbox/ui/inbox-detail-panel'
 import { PageHeader } from '#/components/layout/page-header'
 import { Panel, Separator, type LayoutStorage } from 'react-resizable-panels'
@@ -97,11 +93,6 @@ type InboxDetailPaneProps = Readonly<{
   selectedItem: InboxItem | null
   detailState: InboxDetailState
   onClose: () => void
-  detailFns: InboxDetailFns
-  currentUser?: InboxCurrentUser
-  assignmentOptions?: ReadonlyArray<InboxAssignmentOption>
-  /** Where the pane's composer publishes its focus for `r` / `n`. */
-  composerFocusRef?: ComposerFocusBox
 }>
 
 /**
@@ -124,10 +115,6 @@ export function InboxDetailPane({
   selectedItem,
   detailState,
   onClose,
-  detailFns,
-  currentUser,
-  assignmentOptions,
-  composerFocusRef,
 }: InboxDetailPaneProps) {
   return (
     <Panel id={INBOX_PANEL_IDS.detail} minSize={472} style={CLIP_PANEL_CONTENT}>
@@ -136,10 +123,6 @@ export function InboxDetailPane({
           selectedItem={selectedItem}
           detailState={detailState}
           onClose={onClose}
-          detailFns={detailFns}
-          currentUser={currentUser}
-          assignmentOptions={assignmentOptions}
-          composerFocusRef={composerFocusRef}
         />
       ) : (
         <EmptyDetailPlaceholder />

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { COUNT_DROP_PERSISTENT_AFTER_MS } from '#/shared/domain/push-health'
 import {
+  COUNT_DROP_CONFIRM_AFTER_MS,
   compareHead,
+  countDropStep,
   headReviewsToPersist,
   HEAD_LEASE_REFRESH_AFTER_MS,
   headCheckJobId,
@@ -550,5 +553,30 @@ describe('headPageOverflowed: a whole page changed with more behind it', () => {
 
   it('is false for an empty page', () => {
     expect(headPageOverflowed(compare({ reviews: [], hasMore: true }))).toBe(false)
+  })
+})
+
+describe('countDropStep', () => {
+  const SEEN = new Date('2026-11-01T00:00:00.000Z')
+  const after = (ms: number) => ({
+    firstSeenAt: SEEN,
+    now: new Date(SEEN.getTime() + ms),
+  })
+  const MINUTE_MS = 60 * 1000
+
+  it('is seen on the first check and under 15 minutes after it', () => {
+    expect(countDropStep(after(0))).toBe('seen')
+    expect(countDropStep(after(15 * MINUTE_MS - 1))).toBe('seen')
+  })
+
+  it('is confirmed from 15 minutes until 72 hours after the first sighting', () => {
+    expect(COUNT_DROP_CONFIRM_AFTER_MS).toBe(15 * MINUTE_MS)
+    expect(countDropStep(after(15 * MINUTE_MS))).toBe('confirmed')
+    expect(countDropStep(after(COUNT_DROP_PERSISTENT_AFTER_MS - 1))).toBe('confirmed')
+  })
+
+  it('is persistent from 72 hours on', () => {
+    expect(COUNT_DROP_PERSISTENT_AFTER_MS).toBe(72 * 60 * MINUTE_MS)
+    expect(countDropStep(after(COUNT_DROP_PERSISTENT_AFTER_MS))).toBe('persistent')
   })
 })

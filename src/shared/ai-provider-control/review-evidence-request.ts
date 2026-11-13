@@ -12,7 +12,7 @@ import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
   normalizeReviewAnalysisV3,
-} from '#/shared/review-analysis-v3-normalizer'
+} from '#/shared/analysis/normalizer'
 import {
   buildReviewAnalysisV3ProviderPayload,
   isCatalogueReviewPropertyContext,

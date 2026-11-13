@@ -38,6 +38,8 @@ import type { IdentityCommandStore } from './application/ports/identity-command-
 import type { InvitationEmailSender } from './application/ports/invitation-email.port'
 import type { PropertyNameLookup } from './members/invitation-read-model.port.server'
 import { retireReplacedIdentityAsset } from './application/retire-replaced-identity-asset'
+import { reclaimPendingIdentityUploads } from './application/reclaim-pending-identity-uploads'
+import type { StoragePort } from '#/contexts/portal/application/public-api'
 import { staffFailureDiagnostic } from './staff/staff-failure-diagnostic.server'
 import {
   MERCHANT_AI_NOTICE,
@@ -202,6 +204,8 @@ type IdentityContextDeps = Readonly<{
    * root: the object store is built with Portal, after Identity.
    */
   deleteAssetObject: (key: string) => Promise<void>
+  /** Lists stored avatar and logo objects (same late binding). */
+  listAssetObjects: StoragePort['listObjects']
   /** Send an invitation email. */
   sendEmail: InvitationEmailSender
   /** Base URL for building invitation links. */
@@ -729,6 +733,15 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
         logger,
       }),
       renewLapsedMerchantAiAuthorizations: merchantAi.renewal,
+      reclaimPendingUploads: reclaimPendingIdentityUploads({
+        storage: {
+          listObjects: deps.listAssetObjects,
+          deleteObject: deps.deleteAssetObject,
+        },
+        isReferenced: assetReferences.isReferenced,
+        clock,
+        logger,
+      }),
       registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) =>
         registerMemberRoleConsumers(consumerRegistry, { cleanup: memberRoleCleanup }),
     }),

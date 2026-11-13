@@ -1,6 +1,6 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply-drafting-v2-contract'
-import { resolveReplyDraftingV2Options } from '#/shared/reply-drafting-v2-request'
+import { resolveReplyDraftingV2Options } from '#/shared/reply/request'
 import { verifyAiReplyProvenance } from '#/shared/ai-reply-provenance'
 import { replyAiFrameReservations } from '#/shared/db/schema'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding'

@@ -2,12 +2,12 @@ import {
   REPLY_BODY_RULES,
   type ReplyBodyFinding,
   type ReplyBodyIssueCode,
-} from './domain/reply-body-lint-policy'
+} from '#/shared/domain/reply-body-lint-policy'
 export type {
   ReplyBodyFinding,
   ReplyBodyIssueCode,
-} from './domain/reply-body-lint-policy'
-import { digestOf } from './ai-digest'
+} from '#/shared/domain/reply-body-lint-policy'
+import { digestOf } from '#/shared/ai-digest'
 
 // Code checks for an AI reply body (Phase 0). `hard` problems trigger the one automatic retry;
 // `soft` ones are only counted. Matching ignores case and accents; short terms match whole words,

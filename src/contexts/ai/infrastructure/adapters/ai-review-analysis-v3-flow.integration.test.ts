@@ -41,7 +41,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { REVIEW_ANALYSIS_NORMALIZATION_DIGEST } from '#/shared/review-analysis-v3-normalizer'
+import { REVIEW_ANALYSIS_NORMALIZATION_DIGEST } from '#/shared/analysis/normalizer'
 import type { AiOperationId } from '../../domain/types'
 import type { AiAnalysisDerivativeV3 } from '../../application/ports/ai-output-store.port'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'

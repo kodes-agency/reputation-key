@@ -12,7 +12,7 @@ import { getPool } from '#/shared/db/pool'
 import { aiOperations, aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
-import { replyDynamicDeveloperBytes } from '#/shared/reply-drafting-v2-request'
+import { replyDynamicDeveloperBytes } from '#/shared/reply/request'
 import {
   maximumCostMicros,
   OPENAI_PRICE_CATALOGUE_V2,

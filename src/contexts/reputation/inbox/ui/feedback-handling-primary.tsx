@@ -24,7 +24,7 @@ import type {
   FeedbackHandlingState,
   InboxItem,
 } from '#/contexts/inbox/application/public-api'
-import type { InboxDetailState } from '../../../../components/inbox/use-inbox-detail'
+import type { InboxDetailState } from './use-inbox-detail'
 import type { ReactNode } from 'react'
 
 type Props = Readonly<{

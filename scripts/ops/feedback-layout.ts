@@ -1,4 +1,4 @@
-// OBS-01 — render one report's consented masked layout to a local SVG file.
+// Render one report's consented masked layout to a local SVG file.
 //
 // The geometry never leaves this deployment: it is not in monitoring and not on
 // the issue tracker, so this is how a triager looks at it. The SVG is BUILT
@@ -19,7 +19,9 @@ import {
   renderMaskedLayoutSvg,
   summarizeMaskedLayout,
 } from '../../src/shared/beta-feedback-layout'
+import { runCommandEntrypoint } from './command-entrypoint'
 import { runDatabaseOperatorCommand } from './operator-command'
+import { findNamedFeedbackRecord } from './feedback-record'
 
 const COMMAND = 'ops:feedback-layout'
 const USAGE = `pnpm ops feedback-layout <reference> [out.svg] --operator <id>`
@@ -35,18 +37,10 @@ async function main(): Promise<void> {
       usage: USAGE,
     },
     async (_context, args, io) => {
-      const reference = args.positionals[0]
-      if (!reference) {
-        io.err(`a feedback reference is required\nusage: ${USAGE}`)
-        return 2
-      }
-
       const repository = BetaFeedbackTriageRepository.create(getDb())
-      const record = await repository.find(reference)
-      if (!record) {
-        io.err(`no beta feedback record for ${reference}`)
-        return 2
-      }
+      const record = await findNamedFeedbackRecord(repository, args, io, USAGE)
+      if (record === 2) return 2
+      const { reference } = record
       if (record.attachmentKind !== 'masked_layout_v1') {
         io.err(`${reference} carries no masked layout`)
         return 2
@@ -92,7 +86,4 @@ async function main(): Promise<void> {
   process.exit(result.exitCode)
 }
 
-main().catch((error) => {
-  console.error(`${COMMAND} failed`, error)
-  process.exit(1)
-})
+void runCommandEntrypoint(COMMAND, main)
