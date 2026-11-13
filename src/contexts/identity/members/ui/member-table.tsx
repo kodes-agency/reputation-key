@@ -7,7 +7,7 @@
 
 import { Contact } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { RoleBadge } from '#/components/features/identity/shared/role-badge'
+import { RoleBadge } from '#/contexts/identity/members/ui/role-badge'
 import {
   DataTable,
   DataTableBody,

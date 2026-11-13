@@ -1,18 +1,18 @@
 import { useState, type ReactNode } from 'react'
-import { StaffAccountsContext } from '#/components/features/staff/accounts/staff-accounts-context'
+import { StaffAccountsContext } from '#/contexts/identity/staff/ui/accounts/staff-accounts-context'
 import {
   StaffAccountFunctionsContext,
   useStaffFunctions,
   type StaffAccountFunctions,
-} from '#/components/features/staff/accounts/staff-account-functions'
-import { StaffPersonSheet } from '#/components/features/staff/accounts/staff-person-sheet'
+} from '#/contexts/identity/staff/ui/accounts/staff-account-functions'
+import { StaffPersonSheet } from '#/contexts/identity/staff/ui/accounts/staff-person-sheet'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import { portalId, propertyId } from '#/shared/domain/ids'
 import {
   avelaResults,
   measuresOf,
 } from '#/components/features/portal/portal-overview/portal-overview-results-fixtures'
-import type { StaffMember } from '#/components/features/staff/accounts/staff-account-view'
+import type { StaffMember } from '#/contexts/identity/staff/ui/accounts/staff-account-view'
 
 export const STAFF_STORY_NAMES = [
   'Ana Jones',

@@ -220,6 +220,17 @@ const baseEnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  // Contact requests: a launch switch, default off, removed once the feature is
+  // approved. Both web and worker read it. Turning it on needs the sealing key.
+  CONTACT_REQUESTS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  // 32-byte hex key that seals contact details at rest (AES-256-GCM).
+  CONTACT_REQUEST_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/, 'Must be 64 hex characters (32 bytes)')
+    .optional(),
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
@@ -397,8 +408,8 @@ const baseEnvSchema = z.object({
   //   GOOGLE_CONTENT_CAPABILITIES_ALLOWED: property.import_gbp_v2,
   //     property.read_gbp_performance, property.connect_gbp,
   //     property.publish_reply
-  //   AI_CAPABILITIES_ENABLED: review_analysis, reply_drafting,
-  //     property_trends (records RELEASE_SHA on the activation)
+  //   AI_CAPABILITIES_ENABLED: review_analysis, reply_drafting
+  //     (records RELEASE_SHA on the activation)
   GOOGLE_CONTENT_CAPABILITIES_ALLOWED: z.string().optional(),
   AI_CAPABILITIES_ENABLED: z.string().optional(),
   // Explicit test/CI execution identity that authorizes the E2E rate-limit
@@ -531,6 +542,13 @@ function isSecureAuthOrigin(origin: URL): boolean {
 }
 
 const envSchema = baseEnvSchema.superRefine((env, context) => {
+  if (env.CONTACT_REQUESTS_ENABLED && env.CONTACT_REQUEST_ENCRYPTION_KEY === undefined) {
+    context.addIssue({
+      code: 'custom',
+      path: ['CONTACT_REQUEST_ENCRYPTION_KEY'],
+      message: 'CONTACT_REQUESTS_ENABLED needs CONTACT_REQUEST_ENCRYPTION_KEY',
+    })
+  }
   // A production auth origin controls trusted-origin checks, callback URLs,
   // and the Secure attribute on session cookies. Refuse the deployment before
   // either web or worker starts if a configuration mistake would make those

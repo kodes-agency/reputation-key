@@ -19,6 +19,7 @@ import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
 import type { PortalGoalAverageCommands } from './portal-goal-average-page'
 import { PortalGoalAveragePage } from './portal-goal-average-page'
 import { PortalGoalPage } from './portal-goal-page'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { SEAVIEW, personName } from './portal-goal-page.stories.fixtures'
 import {
   changeTexts,
@@ -357,7 +358,7 @@ const SINGLE_OUTLINE = [
 export const SinglePortalGoal: Story = {
   render: () => <PortalGoalPage {...subjectArgs(SINGLE_RECEPTION)} />,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(outline(canvasElement)).toEqual([
       'h1 Reception · portal goal',
@@ -418,15 +419,10 @@ export const SinglePortalGoal: Story = {
     })
     await expectToast('Portal goal stopped')
     await waitFor(() => expect(onStoppedMock).toHaveBeenCalledOnce())
-  },
-}
-
-export const SinglePortalGoalLight: Story = {
-  render: () => <PortalGoalPage {...subjectArgs(SINGLE_RECEPTION)} />,
-  parameters: { theme: 'light' },
-  play: async ({ canvasElement }) => {
-    await expect(outline(canvasElement)[0]).toBe('h1 Reception · portal goal')
-  },
+    // Each theme's checks read the page, not the toast it just raised.
+    toast.dismiss()
+    await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).toBeNull())
+  }),
 }
 
 /** The Rooms group's goal: named as the Goals list names a group, its Portals' go-live. */

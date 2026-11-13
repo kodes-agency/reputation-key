@@ -8,7 +8,7 @@
 // Construction must be query-free (repos/adapters are lazy factories), so the
 // DB is a Proxy that throws on any access — an eager query during
 // createContainer fails the suite. Deterministic backends mirror
-// shared/testing/simulation-container.server.ts (in-memory queue, fixed
+// the test kit in shared/testing (in-memory queue, fixed
 // clock, in-memory identity fake, captured email).
 
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
@@ -55,6 +55,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'goalPublicApi',
   'goalWorkerRuntime',
   'guestContactRequestRetentionSweep',
+  'guestContactRequests',
   'guestPublicApi',
   'handleResendEvent',
   'idGen',

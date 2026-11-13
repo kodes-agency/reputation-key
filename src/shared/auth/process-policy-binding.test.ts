@@ -57,6 +57,7 @@ import { getDelayedExecutionPolicy } from '#/shared/auth/system-execution-policy
 import { checkGlobalCapability } from '#/shared/auth/beta-capabilities'
 import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
 import {
+  claimProcessContainer,
   createContainer,
   DUPLICATE_CONTAINER_ERROR,
   getContainer,
@@ -69,7 +70,6 @@ import {
   PROCESS_POLICY_ALREADY_BOUND,
   type ProcessPolicyBundle,
 } from '#/shared/auth/process-policy-binding'
-import { createSimulationContainer } from '#/shared/testing/simulation-container.server'
 
 const FIXED_DATE = new Date('2026-01-15T12:00:00.000Z')
 const clock: Clock = () => FIXED_DATE
@@ -204,15 +204,10 @@ describe('building a container installs nothing (ARC-03-T8)', () => {
     expect(getExecutionPolicy()).toBe(container.executionPolicy)
   })
 
-  it('binds the claimed simulation without cold-booting a web container', async () => {
-    clearEventSchemas()
-    const { container } = await createSimulationContainer({
-      clock,
-      db: dbStub,
-      redis: undefined,
-      identityPort: createInMemoryIdentityPort(),
-      email: async () => {},
-    })
+  it('binds the claimed container without cold-booting a web container', async () => {
+    claimProcessContainer('worker')
+    const container = buildContainer()
+    bindProcessPolicies(container)
     try {
       expect(boundProcessPolicies()).toBe(container)
       expect(() => getContainer()).toThrow(DUPLICATE_CONTAINER_ERROR)

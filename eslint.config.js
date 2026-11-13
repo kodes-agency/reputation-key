@@ -101,10 +101,7 @@ const SELECTABLE_BUTTONS = [
   // The radio cards keep their roving focus and card geometry rather than action-button styling.
   ['src/contexts/identity/feedback/ui/beta-feedback-choice.tsx', 'picker-tile'],
   // The selectable account rows keep their multiline identity and active border.
-  [
-    'src/components/features/integration/google-import-manager/google-import-account-list.tsx',
-    'picker-tile',
-  ],
+  ['src/contexts/integration/imports/ui/google-import-account-list.tsx', 'picker-tile'],
   // The upload tile shares the icon radios’ grid geometry but opens the photo dialog.
   ['src/contexts/portal/editor/ui/link-tree/linktree-icon-picker.tsx', 'picker-tile'],
   // The disclosure occupies only the tile’s text, beside its separate move and menu controls.
@@ -195,7 +192,7 @@ const DRIZZLE_IMPORTS = {
 const COMPONENT_FEATURE_DEEP_IMPORTS = {
   group: ['#/components/features/*/*'],
   message:
-    'Import from the feature barrel (e.g., "#/components/features/identity"), not from sub-folders. See src/components/CONTEXT.md.',
+    'Import from the feature barrel (e.g., "#/components/features/guest"), not from sub-folders. See src/components/CONTEXT.md.',
 }
 // Feature UI reads through its context's server functions.
 const SERVER_IMPLEMENTATION_IMPORTS = {
@@ -456,6 +453,12 @@ export default tseslint.config(
                   },
                 },
               },
+            },
+            // Server-function signatures owned by another context are taken as
+            // types only; the route binds the implementations.
+            {
+              from: elementType('feature-ui'),
+              allow: { dependency: { kind: 'type' }, to: elementType('server') },
             },
             {
               from: elementTypes('routes', 'components'),

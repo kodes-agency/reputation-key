@@ -346,7 +346,7 @@ export const KeepDroppedBelow: Story = {
 export const OnPacePhone: Story = {
   ...OnPace,
   parameters: PHONE,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expectOnPaceClimb(canvas)
     await expect(canvas.getByText('It’s Tuesday')).toBeVisible()
@@ -354,7 +354,7 @@ export const OnPacePhone: Story = {
       'data-slot',
       'button',
     )
-  },
+  }),
 }
 export const FarGoalPhone: Story = { ...FarGoal, parameters: PHONE }
 export const ActualPacePhone: Story = { ...ActualPace, parameters: PHONE }
@@ -376,9 +376,4 @@ export const OpenSlowEndPhone: Story = { ...OpenSlowEnd, parameters: PHONE }
 export const OnPaceNarrowPhone: Story = {
   ...OnPace,
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-}
-
-export const OnPacePhoneLight: Story = {
-  ...OnPacePhone,
-  parameters: { ...PHONE, theme: 'light' },
 }

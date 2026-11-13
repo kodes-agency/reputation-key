@@ -20,6 +20,11 @@ import { readStructure } from './structure.server'
 // those files without recreating, dropping or rebuilding anything.
 
 const ADOPTED_FROM = 133
+// Reviewed contraction migrations after the adoption point. Each one names, in
+// its migrate:contract header, the release that stopped using what it removes.
+const CONTRACTIONS: ReadonlySet<string> = new Set([
+  '0156_ai_operations_drop_handshake_columns',
+])
 const AUTH_TABLES = [
   'user',
   'session',
@@ -129,9 +134,18 @@ it('adopts runtime-created auth tables and existing indexes without rebuilding t
     'SELECT is_contract FROM drizzle.__drizzle_migrations ORDER BY created_at',
   )
   expect(applied.rows).toHaveLength(entries.length)
-  // Expands only: the previous image stays ready after this deploy.
-  expect(applied.rows.slice(ADOPTED_FROM).every(({ is_contract }) => !is_contract)).toBe(
-    true,
+  // Expands only, apart from the reviewed contractions named in CONTRACTIONS:
+  // every other migration leaves the previous image ready after this deploy.
+  expect(
+    applied.rows
+      .slice(ADOPTED_FROM)
+      .flatMap(({ is_contract }, offset) =>
+        is_contract ? [entries[ADOPTED_FROM + offset]?.tag] : [],
+      ),
+  ).toEqual(
+    entries
+      .slice(ADOPTED_FROM)
+      .flatMap(({ tag }) => (CONTRACTIONS.has(tag) ? [tag] : [])),
   )
   expect(
     await lease.pool.query('SELECT to_regclass(\'public."organizationRole"\') AS role'),

@@ -78,13 +78,12 @@ describe('current notice corrections', () => {
     expect(agreement).toContain(
       'Erasure replay was not tested, and the app’s restore verifier was not used.',
     )
-    expect(agreement).toContain('Privacy Notice version 3.8, effective 2026-11-12')
+    expect(agreement).toContain('Privacy Notice version 3.9, effective 2026-11-13')
     expect(agreement).toContain(
       'Google Business Profile Access Disclosure version 2.7, effective 2026-11-11',
     )
     expect(agreement).not.toContain('docs/BETA.md')
     expect(agreement.match(/schedule (?:is )?maintained in/gu)).toHaveLength(2)
-    expect(agreement).not.toContain('four feature switches')
     expect(agreement).not.toContain('Property Trends')
     expect(agreement).toContain('Recent Activity')
     expect(agreement).not.toContain('does not promise unavailable self-service export')
@@ -128,6 +127,12 @@ describe('current notice corrections', () => {
     )
     expect(legalBody('internal-beta-agreement')).toContain(
       'A separate erasure record allows deletion to be repeated after a restore.',
+    )
+  })
+
+  it('names the four feature switches only as main applies them', () => {
+    expect(legalBody('internal-beta-agreement')).toContain(
+      'The Operator has four feature switches: Google for all Google calls, AI for all AI calls, Guest pages, and Optional email. The separate controls to stop everything or suspend one Organization remain. Required service, security and account emails still send when Optional email is off. Each Property’s merchant AI opt-ins remain required.',
     )
   })
 
@@ -178,8 +183,8 @@ describe('current notice corrections', () => {
 
 describe('staff account release documents', () => {
   it.each([
-    ['privacy-notice', '3.8', '2026-11-12'],
-    ['internal-beta-agreement', '2.9', '2026-11-12'],
+    ['privacy-notice', '3.9', '2026-11-13'],
+    ['internal-beta-agreement', '2.10', '2026-11-13'],
     ['google-access-disclosure', '2.7', '2026-11-11'],
   ])('publishes %s version %s on the approved release date', (file, version, date) => {
     const text = readFileSync(`docs/legal/${file}.md`, 'utf8')
@@ -195,7 +200,7 @@ describe('staff account release documents', () => {
       expect(body).toContain(
         'Managers may also see a marker when someone who has joined has had no scans for 14 days. It prompts a conversation; nothing happens automatically, and staff do not see it.',
       )
-      expect(text).toContain('amended_on: 2026-11-12')
+      expect(text).toContain('amended_on: 2026-11-13')
     },
   )
   it('preserves the Google ban and states the staff scan target and manager Google selection plainly', () => {

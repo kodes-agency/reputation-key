@@ -1,7 +1,7 @@
 import { visiblePortals } from '../portal-overview/visible-portals'
-import { withStaffSetupRows } from '#/components/features/staff/accounts/staff-overview-rows'
-import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
-import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
+import { withStaffSetupRows } from '#/contexts/identity/staff/ui/accounts/staff-overview-rows'
+import { useStaffAccounts } from '#/contexts/identity/staff/ui/accounts/staff-accounts-context'
+import { StaffAccountsProvider } from '#/contexts/identity/staff/ui/accounts/staff-accounts-provider'
 // A group's page (board 13): its results over the window the reader chose, the
 // portals in it, the goal it shares and what has happened to it. Presentational:
 // the route owns the reads and the URL. The results, the goal and the history are

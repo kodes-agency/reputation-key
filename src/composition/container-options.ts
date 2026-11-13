@@ -22,9 +22,6 @@ import type { ProviderOverrides } from './provider-runtime'
 
 export type CreateContainerOptions = {
   enableJobs?: boolean
-  /** Testing/simulation-only mutation surface. Normal application containers
-   * omit it entirely so production code cannot acquire repository writes. */
-  exposeSimulationRuntime?: true
   /** Override the database connection (simulations, per-test isolation). */
   db?: Database
   /** Override the PostgreSQL session pool used by advisory-lock and COPY-style

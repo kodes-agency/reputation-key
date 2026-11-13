@@ -2,8 +2,7 @@
 // handlers inline for deterministic, Redis-free job processing.
 //
 // Implements the same Queue interface so the container can't tell the difference.
-// Used by createSimulationContainer (ADR 0019) to exercise the full reactive
-// pipeline without Redis/BullMQ.
+// Container tests use it to exercise the reactive pipeline without Redis/BullMQ.
 
 import type { Queue, Job } from 'bullmq'
 import type { JobRegistry } from '#/shared/jobs/registry'

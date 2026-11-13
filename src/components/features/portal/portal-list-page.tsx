@@ -1,11 +1,11 @@
 import { usePortalSectionFolds } from './portal-overview/use-portal-section-folds'
 import { visiblePortals } from './portal-overview/visible-portals'
-import { withStaffSetupRows } from '#/components/features/staff/accounts/staff-overview-rows'
-import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
+import { withStaffSetupRows } from '#/contexts/identity/staff/ui/accounts/staff-overview-rows'
+import { useStaffAccounts } from '#/contexts/identity/staff/ui/accounts/staff-accounts-context'
 import type { PortalOverviewSection } from './portal-overview/portal-overview-view'
 import { portalListModel } from './portal-overview/portal-list-model'
-import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
-import { StaffAddAction } from '#/components/features/staff/accounts/staff-accounts-list'
+import { StaffAccountsProvider } from '#/contexts/identity/staff/ui/accounts/staff-accounts-provider'
+import { StaffAddAction } from '#/contexts/identity/staff/ui/accounts/staff-accounts-list'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 // Portals — every portal of a property, grouped, with the few that need
 // something marked. Status is deliberately not a panel: a live portal that needs

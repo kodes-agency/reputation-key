@@ -7,9 +7,7 @@
  * remove, so it stays string-to-string and throws on anything malformed rather
  * than silently rolling over.
  *
- * Extracted verbatim from `generate-property-trend.ts`, which was its only
- * caller until the dashboard aggregate read needed the same window maths.
- * Deliberately unchanged: a subtler loop would be faster and would risk showing
+ * Deliberately simple: a subtler loop would be faster and would risk showing
  * the wrong days.
  */
 

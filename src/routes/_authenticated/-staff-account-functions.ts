@@ -23,7 +23,7 @@ import {
   listPortals,
 } from '#/contexts/portal/server/portals'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
-import type { StaffAccountFunctions } from '#/components/features/staff/accounts/staff-account-functions'
+import type { StaffAccountFunctions } from '#/contexts/identity/staff/ui/accounts/staff-account-functions'
 /** Bindings only: constructing the manager shell invokes none of these functions. */
 export const STAFF_ACCOUNT_FUNCTIONS: StaffAccountFunctions = {
   changeStaffInvitationEmail,

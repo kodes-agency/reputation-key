@@ -1,5 +1,5 @@
 import { Button } from '#/components/ui/button'
-import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
+import { useStaffAccounts } from '#/contexts/identity/staff/ui/accounts/staff-accounts-context'
 // One Portal in the overview. One DOM for every width: below a 56 rem container
 // a row is a card (name and menu, then Edit and Share); from 56 rem it is a
 // table row. The same rule as the Properties list, so a Portal's name renders
@@ -7,7 +7,7 @@ import { useStaffAccounts } from '#/components/features/staff/accounts/staff-acc
 // journeys both rely on.
 import { OwnerDisc } from '#/components/ui/owner-disc'
 import { personInitials } from '#/components/inbox/person-initials'
-import { StaffPortalMeta } from '#/components/features/staff/accounts/staff-portal-meta'
+import { StaffPortalMeta } from '#/contexts/identity/staff/ui/accounts/staff-portal-meta'
 import type { ReactNode } from 'react'
 import { DataTableRow } from '#/components/ui/data-table'
 import { TableCell, TableHead } from '#/components/ui/table'

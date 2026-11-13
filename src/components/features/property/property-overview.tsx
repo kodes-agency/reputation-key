@@ -37,7 +37,7 @@ import {
 import { formatNumber, formatShortDate } from '#/lib/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
 import { RatingFigure } from '#/components/ui/rating-figure'
-import type { GoogleBindingState } from './property-lifecycle-model'
+import type { GoogleBindingState } from '../../../contexts/property/lifecycle/ui/property-lifecycle-model'
 import { overviewRatingMissing } from './overview-rating-missing'
 import { replyTimeMissing } from './reply-time-missing'
 

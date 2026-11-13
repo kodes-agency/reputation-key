@@ -53,7 +53,7 @@ export function buildContainerCapabilities({
   outboxRepo,
   consumerRegistry,
 }: ContainerCapabilitiesInput) {
-  const { db, pool, logger, redis, clock, env, infra, options } = runtime
+  const { db, pool, logger, redis, clock, env, infra } = runtime
   const { identityPort } = identityPorts
   const { reporting, goalCorrectionPolicy, feed } = readAndNotify
   const { activity, notification } = feed
@@ -72,6 +72,7 @@ export function buildContainerCapabilities({
     opsQueues,
     operationsSnapshot,
     guestContactRequestRetentionSweep: guest.contactRequestReadiness.retentionSweep,
+    guestContactRequests: guest.contactRequestReadiness.commands,
     reviewObservationRetentionSweep:
       review.maintenance.observationRetention.sweepExpiredSupersededCopies,
     reviewSnapshotRunRetentionSweep:
@@ -121,42 +122,6 @@ export function buildContainerCapabilities({
     }),
     /** Operator-only Review repair and lifecycle authority. */
     reviewMaintenanceRuntime: review.maintenance,
-    ...(options?.exposeSimulationRuntime
-      ? {
-          /** Narrow scenario/invariant capabilities, absent from normal app
-           * containers even though they share the same deterministic builder. */
-          simulationRuntime: Object.freeze({
-            review: Object.freeze({
-              upsert: (
-                ...args: Parameters<typeof review.internal.repos.reviewRepo.upsert>
-              ) => review.internal.repos.reviewRepo.upsert(...args),
-              findByOrganizationId: (
-                ...args: Parameters<
-                  typeof review.internal.repos.reviewRepo.findByOrganizationId
-                >
-              ) => review.internal.repos.reviewRepo.findByOrganizationId(...args),
-            }),
-            reply: Object.freeze({
-              findByReviewId: (
-                ...args: Parameters<typeof review.internal.repos.replyRepo.findByReviewId>
-              ) => review.internal.repos.replyRepo.findByReviewId(...args),
-              findCurrentGoogleReplyHeadsByReviewIds: (
-                ...args: Parameters<
-                  typeof review.internal.repos.replyRepo.findCurrentGoogleReplyHeadsByReviewIds
-                >
-              ) =>
-                review.internal.repos.replyRepo.findCurrentGoogleReplyHeadsByReviewIds(
-                  ...args,
-                ),
-            }),
-            inbox: Object.freeze({
-              findBySource: (
-                ...args: Parameters<typeof inbox.internal.repos.inboxRepo.findBySource>
-              ) => inbox.internal.repos.inboxRepo.findBySource(...args),
-            }),
-          }),
-        }
-      : {}),
     providerEphemeralReadiness,
     identityPublicApi: identity.publicApi,
     identityWorkerRuntime: identity.worker,

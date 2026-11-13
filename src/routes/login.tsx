@@ -4,7 +4,7 @@ import { useServerFn } from '@tanstack/react-start'
 import { useQueryClient } from '@tanstack/react-query'
 import { getSession, ensureActiveOrg } from '#/shared/auth/auth.functions'
 import { AuthCard } from '#/components/layout/auth-layout'
-import { LoginForm } from '#/components/features/identity'
+import { LoginForm } from '#/contexts/identity/members/ui/login/login-form'
 import {
   resendVerificationEmail,
   signInUser,

@@ -4,7 +4,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { withRole } from '../../../../../.storybook/AuthedRouterDecorator'
 import { PageHeader } from '#/components/layout/page-header'
 import { PropertyGoogleSection } from './property-google-section'
-import { PropertyProfileCard } from './property-profile-card'
+import { PropertyProfileCard } from '#/contexts/property/profile/ui/property-profile-card'
 import { PropertySettingsNav } from './property-settings-nav'
 import {
   propertySettingsHeader,

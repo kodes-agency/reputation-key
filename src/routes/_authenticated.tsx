@@ -1,4 +1,4 @@
-import { StaffAccountFunctionsContext } from '#/components/features/staff/accounts/staff-account-functions'
+import { StaffAccountFunctionsContext } from '#/contexts/identity/staff/ui/accounts/staff-account-functions'
 import { STAFF_ACCOUNT_FUNCTIONS } from './_authenticated/-staff-account-functions'
 // Authenticated layout route — protects all nested routes and renders the app shell.
 // Per better-auth TanStack Start docs: use createServerFn (getSession)

@@ -1,8 +1,6 @@
 // The four admission handshake columns of `ai_operations` and the keys that fed
-// them are history: nothing reads or writes the columns, and no configuration
-// carries the keys. Only the schema declares the columns. Whole-row statements
-// name every declared column, so dropping them takes two steps: a deploy that
-// removes the schema declarations, then the migration.
+// them are history: the columns are dropped, nothing declares, reads or writes
+// them, and no configuration carries the keys.
 //
 // This reads source text. Test code is walked too, because a test that seeds
 // the columns would keep a writer alive. The names are assembled from fragments
@@ -17,7 +15,7 @@ const WALKED = ['src', 'scripts', 'services', 'e2e', '.railway'] as const
 const WALKED_FILES = ['.env.example', '.gitleaks.toml'] as const
 
 const SCHEMA = join('src', 'shared', 'db', 'schema', 'ai.schema.ts')
-// Generated from the migrations, which declare the columns by definition.
+// Generated from the migrations.
 const GENERATED = [join('src', 'shared', 'db', 'structure.sql')] as const
 
 const NAMES = new RegExp(
@@ -60,12 +58,11 @@ describe('AI admission handshake columns', () => {
     // A broken walk would make the assertion below vacuously pass.
     expect(files.length).toBeGreaterThan(500)
     expect(existsSync(join(ROOT, SCHEMA))).toBe(true)
-    expect(NAMES.test(readFileSync(join(ROOT, SCHEMA), 'utf8'))).toBe(true)
   })
 
-  it('names the columns and their keys nowhere outside the schema', () => {
+  it('names the columns and their keys nowhere, schema included', () => {
     const named = files
-      .filter((file) => file !== SCHEMA && file !== relative(ROOT, __filename))
+      .filter((file) => file !== relative(ROOT, __filename))
       .filter((file) => NAMES.test(readFileSync(join(ROOT, file), 'utf8')))
     expect(named).toEqual([])
   })

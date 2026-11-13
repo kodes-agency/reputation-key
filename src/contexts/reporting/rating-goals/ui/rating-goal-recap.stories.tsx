@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { withPermissions } from '../../../../../.storybook/AuthedRouterDecorator'
 import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
 import {
   RatingGoalCardWithRecap,
@@ -104,7 +105,7 @@ const buttonNames = (region: ReturnType<typeof within>) =>
   region.getAllByRole('button').map((button: HTMLElement) => button.textContent)
 
 export const Monday: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const region = await expectRegion(canvas)
     await expect(
@@ -130,7 +131,7 @@ export const Monday: Story = {
         name: 'Started at 3.9. Google shows 4.0 now. Your goal is 4.1.',
       }),
     ).toBeVisible()
-  },
+  }),
 }
 
 /** Keep sends the week the check-in looked back on; the page reads the goal again. */
@@ -327,5 +328,3 @@ export const CannotChange: Story = {
 const PHONE = { viewport: { defaultViewport: 'mobileStaff' } } as const
 
 export const Phone: Story = { ...Monday, parameters: PHONE }
-export const MondayLight: Story = { ...Monday, parameters: { theme: 'light' } }
-export const PhoneLight: Story = { ...Monday, parameters: { ...PHONE, theme: 'light' } }

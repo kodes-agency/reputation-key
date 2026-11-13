@@ -14,7 +14,7 @@ import {
   ROW_NAME_LINK,
 } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
-import { PROPERTY_LIFECYCLE_STATUS } from './property-lifecycle-model'
+import { PROPERTY_LIFECYCLE_STATUS } from '#/contexts/property/lifecycle/ui/property-lifecycle-model'
 import {
   propertySetupStepLabel,
   propertySetupStepSearch,
