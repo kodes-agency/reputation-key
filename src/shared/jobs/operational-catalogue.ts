@@ -1,17 +1,14 @@
 /**
  * Operational authority for every governed BullMQ family.
  *
- * JOB_FAMILY_ROWS remains the product/governance declaration. This module is
+ * JOB_FAMILY_ROWS (derived from the job definitions) is the declaration. This module is
  * its one executable operational projection: registration posture, scheduler
  * reconciliation, freshness/queue-age objectives, owner, and report-first
  * repair ownership are derived and validated together. Worker code must not
  * maintain a second hand-written scheduler list.
  */
 
-import {
-  JOB_FAMILY_ROWS,
-  type JobFamilyRow,
-} from '#/shared/governance/event-job-catalogue'
+import { JOB_FAMILY_ROWS, type JobFamilyRow } from './job-definitions'
 import { jobEnqueueOptions } from './job-policy'
 import {
   firesOnSchedule,

@@ -23,6 +23,7 @@ import {
 } from './failure-quarantine'
 import { GateDenyRetryError } from './errors'
 import { jobEnqueueOptions } from './job-policy'
+import { JOB_DEFINITIONS } from './job-definitions'
 
 // ── Fakes ───────────────────────────────────────────────────────────
 
@@ -282,6 +283,45 @@ describe('terminal-failure publication barrier', () => {
       targetQueue: 'default',
     })
     expect(target.add).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(JOB_DEFINITIONS.filter((def) => def.redrive === 'queue'))(
+    'redrives $name with the whole attempt budget the job declares',
+    async (def) => {
+      const quarantine = fakeQueue()
+      const target = fakeQueue()
+      const original = fakeJob({
+        name: def.name,
+        queueName: def.queue,
+        data: {},
+        attemptsMade: def.attempts - 1,
+        opts: { attempts: def.attempts },
+      })
+      const staged = await quarantineFinalAttemptJob(quarantine, original, new Error('x'))
+      await confirmQuarantineFailure(quarantine, original)
+
+      const redrive = createRedriveJob(quarantine, () => target)
+      await expect(redrive(staged.quarantineJobId!)).resolves.toMatchObject({
+        redriven: true,
+      })
+      expect(target.added[0]?.opts).toEqual(jobEnqueueOptions(def.name))
+      expect(target.added[0]?.opts?.attempts).toBe(def.attempts)
+    },
+  )
+
+  it('leaves a domain-redrive job to its owning state machine', async () => {
+    const quarantine = fakeQueue()
+    const target = fakeQueue()
+    const original = fakeJob({ name: 'import-gbp-property-item', data: {} })
+    const staged = await quarantineFinalAttemptJob(quarantine, original, new Error('x'))
+    await confirmQuarantineFailure(quarantine, original)
+
+    const redrive = createRedriveJob(quarantine, () => target)
+    await expect(redrive(staged.quarantineJobId!)).resolves.toEqual({
+      redriven: false,
+      reason: 'domain-redrive-required',
+    })
+    expect(target.add).not.toHaveBeenCalled()
   })
 
   it('repairs a pending copy only when the original job is proven failed', async () => {

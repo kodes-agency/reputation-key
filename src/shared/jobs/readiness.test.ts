@@ -123,4 +123,16 @@ describe('assertJobReadiness (BQC-3.6)', () => {
       }),
     ).toThrow(new RegExp(missing.consumerName))
   })
+
+  it('names each required consumer that is missing from the registered set', () => {
+    const all = allCatalogueDurableConsumers()
+    for (const missing of all) {
+      const rest = all.filter((consumer) => consumer !== missing)
+      expect(() =>
+        assertJobReadiness(fullyRegisteredRegistry(), fakeLogger(), {
+          listConsumers: () => rest,
+        }),
+      ).toThrow(`${missing.eventType}::${missing.consumerName}`)
+    }
+  })
 })
