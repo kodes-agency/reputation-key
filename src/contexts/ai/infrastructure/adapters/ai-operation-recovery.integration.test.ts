@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { aiOperations, aiReviewAnalyses } from '#/shared/db/schema'
 import { organizationId } from '#/shared/domain/ids'
+import { withLegacyTrendRowsAllowed } from '#/shared/db/testing/legacy-trend-rows'
 import {
   installAiAnalysisFixture,
   type AiAnalysisFixture,
@@ -94,43 +95,45 @@ describe.sequential('AI recovery selection and fences (real PostgreSQL)', () => 
     },
   )
 
-  // The database still admits the retired trend command. Recovery knows it as history:
+  // A database that predates the tightened CHECK still holds the retired trend command. Recovery knows it as history:
   // it is neither adopted as a candidate nor reported as an unreadable row.
   it('skips a stored trend row: no candidate and not listed as unreadable', async () => {
-    await db
-      .update(aiOperations)
-      .set({
-        command: 'trend',
-        operationProfileVersion: 'property-trend-v1',
-        capability: 'property_trends',
-        systemPrincipal: 'property_trend_coordinator',
-        reviewId: null,
-        originEventId: null,
-        subjectHmac: null,
-        subjectHmacKeyVersion: null,
-        sourceRevision: null,
-        reviewedAtEpochMillis: null,
-        analysisSequence: null,
-        dueLocalDate: '2026-10-29',
-        terminalAnalysisSequence: 0,
-        aggregateRevision: 0,
-        state: 'pending',
-        expiresAt: new Date(DEADLINE),
+    await withLegacyTrendRowsAllowed(db, fixture.reset, async () => {
+      await db
+        .update(aiOperations)
+        .set({
+          command: 'trend',
+          operationProfileVersion: 'property-trend-v1',
+          capability: 'property_trends',
+          systemPrincipal: 'property_trend_coordinator',
+          reviewId: null,
+          originEventId: null,
+          subjectHmac: null,
+          subjectHmacKeyVersion: null,
+          sourceRevision: null,
+          reviewedAtEpochMillis: null,
+          analysisSequence: null,
+          dueLocalDate: '2026-10-29',
+          terminalAnalysisSequence: 0,
+          aggregateRevision: 0,
+          state: 'pending',
+          expiresAt: new Date(DEADLINE),
+        })
+        .where(eq(aiOperations.id, operationId))
+
+      const result = await operations.listExpiredExecutions({
+        nowEpochMillis: DEADLINE,
+        executionHorizonMillis: 15 * 60_000,
+        limit: 100,
       })
-      .where(eq(aiOperations.id, operationId))
 
-    const result = await operations.listExpiredExecutions({
-      nowEpochMillis: DEADLINE,
-      executionHorizonMillis: 15 * 60_000,
-      limit: 100,
+      expect(
+        result.candidates.filter((row) => row.organizationId === ORGANIZATION),
+      ).toEqual([])
+      expect(
+        result.unreadable.filter((row) => row.organizationId === ORGANIZATION),
+      ).toEqual([])
     })
-
-    expect(
-      result.candidates.filter((row) => row.organizationId === ORGANIZATION),
-    ).toEqual([])
-    expect(
-      result.unreadable.filter((row) => row.organizationId === ORGANIZATION),
-    ).toEqual([])
   })
 
   it.each(['ready', 'unavailable', 'missing'] as const)(
