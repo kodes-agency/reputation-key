@@ -145,9 +145,8 @@ function CopyItems({
  * one target height on a phone; 32 px from `md` up.
  *
  * The rows inside are MENU ITEMS, and the menu primitive makes them 44 px on a
- * phone. Row 20 lowered controls, not items: items stack edge to edge with no
- * gap, so a thumb that misses one selects its neighbour, and they never
- * inflated the row they open from. The Google item is a real link (a new tab,
+ * phone: items stack edge to edge with no gap, so a thumb that misses one
+ * selects its neighbour, whereas the control they open from stays 36 px. The Google item is a real link (a new tab,
  * no referrer), so it can also be opened the way a browser opens any link.
  */
 export function InboxDetailCopyMenu({

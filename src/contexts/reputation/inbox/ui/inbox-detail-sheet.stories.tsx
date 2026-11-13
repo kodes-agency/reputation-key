@@ -103,7 +103,7 @@ const item = makeInboxItem({
 const VIEWER_ID = 'user-sheet-viewer'
 const assignmentOptions = [{ userId: 'user-grace', name: 'Grace Hopper' }]
 
-// Faithful InboxDetailState (the useInboxDetail return shape, post-5.7) —
+// Faithful InboxDetailState (the useInboxDetail return shape) —
 // every key the hook returns, no dead keys, no casts.
 function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetailState {
   return {
@@ -159,7 +159,7 @@ export const Open: Story = {
         googleReviewUrl: null,
         googlePropertyReviewsUrl: null,
         reviewContentStatus: 'available',
-        // Plan row 7: the stars come from the detail payload, not the item row.
+        // The stars come from the detail payload, not the item row.
         reviewRating: 4,
         feedbackComment: null,
         feedbackRatingValue: null,
@@ -184,7 +184,7 @@ export const Open: Story = {
     await expect(
       toolbar.getByRole('button', { name: 'Assignment: Unassigned' }),
     ).toBeVisible()
-    // Plan v2.1 row 5: Escalate is the toolbar's third member now, not a
+    // Escalate is the toolbar's third member, not a
     // header button — and the ONLY one in the sheet, so the e2e journeys'
     // page-wide `exact` lookup still resolves to a single control.
     await expect(toolbar.getByRole('button', { name: 'Escalate' })).toBeVisible()

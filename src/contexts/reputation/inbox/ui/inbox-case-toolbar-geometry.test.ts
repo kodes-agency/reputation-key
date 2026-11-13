@@ -7,10 +7,10 @@
 // and not to the window (a pane 472 px wide in a 1280 px window is not a phone),
 // and the owner is the member that gives.
 //
-// The bug these hold: Priority kept its word and chevron from `md` up, the group
-// needed 478 px of a 424 px toolbar, and the status — the only member built to
-// give — was squeezed to its dot, so the `inbox-triage` journey could not see
-// `Open`.
+// What these hold: if Priority kept its word and chevron from `md` up, the group
+// would need 478 px of a 424 px toolbar, and the status — the only member built
+// to give — would be squeezed to its dot, hiding `Open` from the
+// `inbox-triage` journey.
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'

@@ -17,11 +17,9 @@ type Props = Readonly<{
    */
   isEscalationActive: boolean
   /**
-   * `isHeaderCommandPending` over all six item commands — the same predicate
-   * this button called on the whole `detailState` while it lived in the header.
-   * It is computed upstream now only because the toolbar hands one flag to all
-   * three group members; the set it covers is unchanged, so no member can lock
-   * a narrower set than its siblings (`inbox-header-command-pending.ts:19-26`).
+   * `isHeaderCommandPending` over all six item commands. It is computed
+   * upstream because the toolbar hands one flag to all three group members, so
+   * no member can lock a narrower set than its siblings (`inbox-header-command-pending.ts:19-26`).
    */
   isPending: boolean
   /** Already bound to the item's revision fence by the props selector. */
@@ -40,24 +38,21 @@ type Props = Readonly<{
 const LABEL_CLASS = 'max-md:sr-only'
 
 /**
- * Third member of the case toolbar's `ButtonGroup` (plan v2.1 row 5): the
- * escalation, moved here from the header. It is a control and a fact, kept
- * apart, because the escalation is both a thing you can DO and a thing that IS:
+ * Third member of the case toolbar's `ButtonGroup`: the escalation. It is a
+ * control and a fact, kept apart, because the escalation is both a thing you
+ * can DO and a thing that IS:
  *
  * | caller    | not escalated              | escalated                                    |
  * | --------- | -------------------------- | -------------------------------------------- |
  * | may act   | `[⚑ Escalate]` control     | `[⚐ Resolve]` control, then `⚑ Escalated`     |
  * | may not   | nothing (no fact to state) | `⚑ Escalated` fact alone                     |
  *
- * PR 2's first cut folded the state INTO the control — `Resolve` on a
- * negative-muted fill with a filled flag, and `This item is escalated` in a
- * `title` — and the review measured what that cost on a phone, where the
- * control is a 36 px glyph square (row 20): a red square with a flag and no
- * word, for a manager AND, as the static fact, for a Member. `title` never
- * shows on touch. v1's separate `Escalated` badge had printed the word at every
- * width for everyone. The word could not simply go back on the control either:
- * its accessible name is pinned to `Resolve`, and a visible `Escalated` the
- * name does not contain fails WCAG 2.5.3 (label in name).
+ * The state is not folded into the control: at 390 px the control is a 36 px
+ * glyph square, so a red square with a flag and no word would stand for the
+ * state, for a manager AND, as the static fact, for a Member, and `title` never
+ * shows on touch. The word cannot go on the control either: its accessible name
+ * is pinned to `Resolve`, and a visible `Escalated` the name does not contain
+ * fails WCAG 2.5.3 (label in name).
  *
  * So the state is a FACT, in words, at every width, for everyone — a filled
  * flag and `Escalated` in the negative text tone, which clears 4.5:1 on the
@@ -69,9 +64,8 @@ const LABEL_CLASS = 'max-md:sr-only'
  * `FlagOff`, what a press does. The fact is the control's
  * `aria-describedby`, so a reader tabbing onto `Resolve` also hears why.
  *
- * Row 5 describes the escalated look as "a filled flag on `negative-muted`";
- * the flag is still filled and still negative, but on no surface, because row 2
- * forbids a fact its box. Reported as a proposed amendment to row 5.
+ * The fact's flag is filled and negative but sits on no surface, because a fact
+ * draws no box.
  *
  * The permission gate reproduces the server's, then narrows it. Both commands
  * check `inbox.write` (`escalate-inbox-item.ts:42`, `resolve-escalation.ts:41`)
@@ -79,13 +73,12 @@ const LABEL_CLASS = 'max-md:sr-only'
  * `SOURCE_HANDLE_PERMISSION[sourceType]` (`inbox-access.ts:36-38`). Neither
  * checks `inbox.manage`, and `inbox.manage` does not imply `inbox.write` — the
  * client `can` is a flat membership test (`usePermissions.ts:26`) and custom
- * roles carry no implication rules. The header gated this button on
- * `inbox.manage` ALONE, so a custom role holding it without `inbox.write` (or
- * without `feedback.handle`, on a private-feedback item) was offered a command
- * the server throws on. Both server conjuncts are reproduced here, and
- * `inbox.manage` stays on top, deliberately narrower than the server: who may
- * escalate is a product decision (v1 row 2, v2.1 row 5), not a review fix. For
- * every built-in role the three coincide, so no seeded journey changes.
+ * roles carry no implication rules. Gating on `inbox.manage` alone would
+ * offer a custom role holding it without `inbox.write` (or without
+ * `feedback.handle`, on a private-feedback item) a command the server throws
+ * on. Both server conjuncts are reproduced here, and `inbox.manage` stays on
+ * top, deliberately narrower than the server: who may escalate is a product
+ * decision. For every built-in role the three coincide.
  *
  * Two elements, as a fragment, are two direct children of the group — which is
  * what its `[&>*]` edge rules and `CASE_GROUP_CLASS` need to see.

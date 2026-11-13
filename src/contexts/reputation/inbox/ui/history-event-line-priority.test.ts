@@ -1,5 +1,5 @@
-// The priority line of Handling History (ADR 0071; copy deck C-14 alone and
-// C-15 after a name), in a file of its own: `history-event-line.test.ts` is at
+// The priority line of Handling History (ADR 0071; one wording alone and
+// another after a name), in a file of its own: `history-event-line.test.ts` is at
 // the 300 counted lines ESLint `max-lines` allows under `src/components`.
 import { describe, expect, it } from 'vitest'
 import { inboxItemId, userId } from '#/shared/domain/ids'

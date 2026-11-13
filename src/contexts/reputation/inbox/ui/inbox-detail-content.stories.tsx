@@ -2,7 +2,7 @@
 // and the single scroller. Permission-gated: usePermissions() → can('reply.manage')
 // decides whether the ReplyEditor mounts for review items. PropertyManager grants
 // reply.manage (gate ON); restricted reader does not (gate OFF). The scroller is one
-// thread now — guest message, handling events, notes — so stories supply a mock
+// thread — guest message, handling events, notes — so stories supply a mock
 // getInboxItemHistory alongside the detail fn; the thread's own states live in
 // inbox-thread.stories.tsx. Case state (work status, owner, escalation, reply
 // due) is the case toolbar's — its own states live in
@@ -65,7 +65,7 @@ const reviewDetail: InboxItemDetailResult = {
   googleReviewUrl: null,
   googlePropertyReviewsUrl: null,
   reviewContentStatus: 'available',
-  // Plan row 7: the guest's stars reach the pane on the detail payload, from
+  // The guest's stars reach the pane on the detail payload, from
   // the same `ReviewSnippet` as `reviewText` and under the same eligibility
   // rule — null for `expired` and `not_found`.
   reviewRating: 4,
@@ -106,8 +106,8 @@ const feedbackDetail: InboxItemDetailResult = {
 
 /**
  * A reply that is LIVE on Google: read-only, so the pane has nothing writable
- * to put in the Public reply tab. That is the state the Reply / Note shell
- * used to be gated on, and the one the story below exists for.
+ * to put in the Public reply tab. The Reply / Note shell must still mount in
+ * this state, which the story below exists for.
  */
 const publishedReply: NonNullable<InboxItemDetailResult['reply']> = {
   id: replyId('66666666-6666-4666-8666-666666666666'),
@@ -147,7 +147,7 @@ const translatedReviewDetail: InboxItemDetailResult = {
   // The shape every translated Google review has in production: a Bulgarian
   // property default, and NO language on the review, because the only review
   // source hard-codes `languageCode: null` (`google-review-api.adapter.ts:450`).
-  // Unknown is not foreign, so plan row 8 (amended) keeps the guest's words
+  // Unknown is not foreign, so the guest's words stay
   // as the body.
   reviewReplyLanguage: null,
   propertyDefaultReplyLanguage: 'bg-Cyrl',
@@ -376,23 +376,21 @@ export const ReviewWithMixedAspectPolarities: Story = {
       },
     }),
   },
-  // The analysis panel is gone: what the review is about is now a row of topic
-  // chips under the guest's words, in the dashboard's vocabulary. The summary
-  // sentiment chip went with the panel — a chip per mentioned topic already
-  // says which way each one points, and one word over the top of them only
-  // disagreed with the detail underneath it.
+  // What the review is about is a row of topic chips under the guest's words,
+  // in the dashboard's vocabulary. There is no summary sentiment chip: a chip
+  // per mentioned topic already says which way each one points.
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('list', { name: 'Review topics' })).toBeVisible()
     await expect(canvas.getByText('Service · Complaint')).toBeVisible()
     await expect(canvas.getByText('Room · Praise')).toBeVisible()
-    // The AI pill is retired (owner P-5): the toolbar's Priority control says
-    // the suggestion instead, and nobody set a level here.
+    // No AI pill: the toolbar's Priority control says the suggestion, and
+    // nobody set a level here.
     await expect(canvas.queryByText('Needs attention')).toBeNull()
     await expect(
       canvas.getByRole('button', { name: 'Priority: High, suggested' }),
     ).toBeVisible()
-    // Praise / Complaint, never Positive / Negative (plan rows 11, 14).
+    // Praise / Complaint, never Positive / Negative.
     await expect(canvas.queryByText(/·\s*(Positive|Negative)$/)).toBeNull()
     await expect(canvas.queryByText(/sentiment/i)).toBeNull()
   },
@@ -417,7 +415,7 @@ export const ReviewOpenedOnATopic: Story = {
 }
 
 /**
- * Plan v2.1 row 17: the reply language is no longer a combobox in the reply
+ * The reply language is not a combobox in the reply
  * slot. It lives inside `Draft with AI ▾` as the `Write in` group, and — like
  * every assist control — it is part of the reply surface, so note mode hides it.
  *
@@ -483,8 +481,8 @@ export const ReplyToolbarWithLanguages: Story = {
 /**
  * No property default and no recorded review language: the draft starts on
  * automatic detection. After the AI draft is adopted, the detected language
- * becomes the review language — the result tag names it (row 18) and the
- * `Write in` group checks it (row 17).
+ * becomes the review language — the result tag names it and the
+ * `Write in` group checks it.
  */
 export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
   tags: ['ai-language-regression'],
@@ -504,7 +502,7 @@ export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
     }),
   },
   // The pane's session writes a draft through the progress stream, not through
-  // `detailFns.generateReplySuggestion` (which now only serves the governed
+  // `detailFns.generateReplySuggestion` (which only serves the governed
   // template). The stream answers what that mock did: a Bulgarian draft, tagged
   // with the language the boundary detected.
   beforeEach: () =>
@@ -576,15 +574,12 @@ export const ReviewAsReader: Story = {
 /**
  * Feedback item — no reply editor regardless of role (sourceType !== 'review').
  *
- * This story's first assertion used to be `getByText('Feedback handling')`, the
- * heading of the bordered section `feedback-handling-card.tsx` drew beside the
- * thread. The card is deleted (row 10) and its parts went four ways: the badge
- * is the case strip's chip, the outcome record is a `handling_outcome` thread
+ * There is no bordered `Feedback handling` section beside the thread. Its parts
+ * live elsewhere: the badge is the case strip's chip, the outcome record is a `handling_outcome` thread
  * event, the description is deleted outright, and the ACTION is region 4's
- * `singleModePrimarySlot` — which is what the click below now reaches.
+ * `singleModePrimarySlot` — which is what the click below reaches.
  *
- * So the assertion is inverted rather than dropped: the card's chrome must be
- * gone, and the one thing that survived it must be in the composer, next to the
+ * So the card's chrome must be absent, and the action must be in the composer, next to the
  * note form rather than in a section of its own halfway up the scroller. The
  * four handling states this pane can be in — open, handled, corrected,
  * withdrawn — are `inbox-feedback-pane.stories.tsx`; what stays here is that a
@@ -626,7 +621,7 @@ export const FeedbackDetail: Story = {
   },
 }
 
-// BQC-6.8 content robustness: emoji-dense long-form review text plus a
+// Content robustness: emoji-dense long-form review text plus a
 // missing reviewer name (null) — the detail must wrap long text and render
 // the name fallback without horizontal overflow.
 const longTextItem: InboxItem = {
@@ -695,10 +690,9 @@ export const StatusUpdating: Story = {
 }
 
 // Escalation in flight — every item command shares one revision fence, so the
-// toolbar's controls lock on it, and since plan v2.1 row 5 the Escalate button
-// is one of them. Without the shared predicate the status control stayed live
-// here and a second command went out on a revision that was already about to
-// go stale.
+// toolbar's controls lock on it, and the Escalate button is one of them. Without
+// the shared predicate the status control would stay live here and a second
+// command would go out on a revision that was already about to go stale.
 export const EscalationPendingLocksToolbar: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
@@ -723,7 +717,7 @@ export const EscalationPendingLocksToolbar: Story = {
 
 // Expired source content — the source cache expired, so the review text is
 // gone for good. The detail renders the honest unavailable state instead of
-// stale content (BQC-1.2: raw copies are never stored, no snippet fallback).
+// stale content (raw copies are never stored, no snippet fallback).
 export const ReviewContentExpired: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
@@ -733,7 +727,7 @@ export const ReviewContentExpired: Story = {
       detail: {
         ...translatedReviewDetail,
         reviewText: null,
-        // BQC-1.2: no words, and no score either — the rating is provider-owned
+        // No words, and no score either — the rating is provider-owned
         // content exactly like the prose.
         reviewRating: null,
         reviewContentStatus: 'expired',
@@ -785,7 +779,7 @@ export const ReviewContentNotFound: Story = {
 }
 
 // A translated review, seen from the whole pane rather than the thread alone
-// (`inbox-thread.stories.tsx` owns every side of plan row 8). What this story
+// (`inbox-thread.stories.tsx` owns every side of this arrangement). What this story
 // adds is that the arrangement survives the pane's own chrome on the input
 // production actually sends: the guest's words are the body, Google's copy is
 // one disclosure away, and BOTH are in the DOM, so nothing the pane does around
@@ -840,8 +834,8 @@ export const ReviewWithoutTranslation: Story = {
  *
  * The composer is mounted for the whole of a review the caller may reply to, in
  * EVERY reply state; only the reply SLOT is gated on there being something to
- * type into. When the whole shell was gated on that, a published reply left the
- * pane with no control named `Internal note` anywhere — two pinned e2e journeys
+ * type into. Gating the whole shell on that would leave a published reply with
+ * no control named `Internal note` anywhere — two pinned e2e journeys
  * reach for exactly that name (`inbox-triage.spec.ts:182,231`,
  * `activity-notification-facts.spec.ts:167`).
  */
@@ -864,7 +858,7 @@ export const ReadOnlyReplyKeepsTheNoteTab: Story = {
     ).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Edit reply' })).toBeVisible()
     // ...and the writable half of the pane is closed, which is precisely the
-    // condition that used to unmount the tabs.
+    // condition under which the tabs must stay mounted.
     await expect(canvas.queryByRole('textbox', { name: 'Public reply' })).toBeNull()
 
     // The shell is still here, and the note is still reachable through it.
@@ -880,9 +874,9 @@ export const ReadOnlyReplyKeepsTheNoteTab: Story = {
  * A half-typed internal note survives a look at the reply box.
  *
  * The composer's mode segment is a real Radix tab set, and Radix unmounts the
- * panel it is not showing — so the note form used to be destroyed and rebuilt
- * on every flip, and the same click threw away an unsaved reply draft, which
- * has no hoisted copy to seed from. Both panels are force-mounted now, with an
+ * panel it is not showing — so without force-mounting the note form is destroyed and rebuilt
+ * on every flip, and the same click throws away an unsaved reply draft, which
+ * has no hoisted copy to seed from. Both panels are force-mounted, with an
  * explicit `hidden` on the inactive one, so neither surface is torn down by a
  * glance at the other. The pane's `noteDraft` above that boundary is still what
  * carries a note across a change of SELECTION, which
@@ -954,15 +948,15 @@ const selectionCaret: ComposerFocusBox = { current: null }
 const EDITING_BAND = 'Editing a live reply · republishes to Google'
 
 /**
- * Row 9's lock, at the level that owns the state it protects.
+ * The reply-edit lock, at the level that owns the state it protects.
  *
  * `reply-composer.tsx` refuses a mode switch while an edit is open, but it can
  * only refuse the ones that arrive through `onValueChange` — a click or an
- * arrow key on the segment. `focusComposer` writes `mode` directly, so `n`
- * went straight past that refusal: nothing visible happened (the region's
- * `resolveMode` still forces `reply` while the lock holds), and then Cancel
- * dropped the manager into the note form on a review they were mid-edit on,
- * with the edit closed and no sign of where their words went.
+ * arrow key on the segment. `focusComposer` writes `mode` directly, so an
+ * unfenced `n` would go straight past that refusal: nothing visible happens
+ * (the region's `resolveMode` still forces `reply` while the lock holds), and
+ * then Cancel would drop the manager into the note form on a review they were
+ * mid-edit on, with the edit closed and no sign of where their words went.
  *
  * Which is why the proof is the CANCEL, not the keypress. A refused `n` is
  * silent by design — the screen is identical either way — so the only
@@ -997,7 +991,7 @@ export const NoteShortcutIsRefusedDuringALiveEdit: Story = {
     await userEvent.click(replyTab)
     await expect(replyTab).toHaveAttribute('aria-selected', 'true')
 
-    // Now open row 9's editor from the thread's own message.
+    // Now open the reply editor from the thread's own message.
     await userEvent.click(canvas.getByRole('button', { name: 'Edit reply' }))
     const band = await canvas.findByText(EDITING_BAND)
     await expect(

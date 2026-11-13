@@ -6,19 +6,19 @@ const BULGARIAN_REVIEW = 'Хотелът беше чист и уютен.'
 /**
  * Google's translations are ENGLISH in every fixture below, because that is
  * what the ingest path receives: Google picks the target from the reader
- * locale at fetch time (`google-review-api.adapter.ts:454-457`), and this repo
- * measured the translated half of 8 Bulgarian reviews as English
- * (`google-review-comment.ts:8-10`). An earlier fixture translated Turkish into
- * Bulgarian — a pairing the pipeline cannot produce, and one that made
- * "the body is the text the reader can read" look proven when it is not.
+ * locale at fetch time (`google-review-api.adapter.ts:454-457`), and the
+ * translated half of Bulgarian reviews arrives as English
+ * (`google-review-comment.ts:8-10`). A Turkish-to-Bulgarian pairing is one the
+ * pipeline cannot produce, and would make "the body is the text the reader can
+ * read" look proven when it is not.
  */
 const TURKISH_TRANSLATION = 'It was a great stay, we will come again.'
 const BULGARIAN_TRANSLATION = 'The hotel was clean and cosy.'
 
 /**
  * A Turkish review read in a property that replies in Bulgarian, with BOTH
- * languages known — the only input on which plan row 8 promotes the
- * translation. `reviewLanguageTag` is what `get-inbox-item-detail.ts:183-188`
+ * languages known — the only input on which the translation is
+ * promoted. `reviewLanguageTag` is what `get-inbox-item-detail.ts:183-188`
  * canonicalizes `tr-TR` into; `reviewLanguageCode` is the raw code beside it.
  */
 const BASE: GuestReviewBodyInput = {
@@ -53,9 +53,9 @@ const input = (overrides: Partial<GuestReviewBodyInput> = {}): GuestReviewBodyIn
 describe('presentGuestReviewBody', () => {
   describe('when the review language is unknown — the production shape', () => {
     it('keeps the guest words as the body instead of promoting the translation', () => {
-      // Review finding (critical): the first rule compared null against
-      // `bg-Cyrl`, read "not equivalent" as "foreign", and folded a Bulgarian
-      // guest's Bulgarian sentence behind a disclosure under Google's English.
+      // Comparing null against `bg-Cyrl` must not read "not equivalent" as
+      // "foreign" and fold a Bulgarian guest's Bulgarian sentence behind a
+      // disclosure under Google's English.
       expect(presentGuestReviewBody(PRODUCTION_BULGARIAN)).toEqual({
         kind: 'original_first',
         body: BULGARIAN_REVIEW,
@@ -147,8 +147,7 @@ describe('presentGuestReviewBody', () => {
 
   describe('when only part of the evidence is there', () => {
     it('keeps the original first for a known review language and no property default', () => {
-      // Plan row 8 as first written promoted the translation here. Amended:
-      // with no default there is no reader language to be foreign TO, so
+      // With no default there is no reader language to be foreign TO, so
       // nothing is proven and the guest's words keep the body.
       const view = presentGuestReviewBody(input({ propertyDefaultReplyLanguage: null }))
 
@@ -251,10 +250,10 @@ describe('presentGuestReviewBody', () => {
     })
 
     it('prints the translation when it is the only text the payload holds', () => {
-      // Review finding: `(Translated by Google) …` with no `(Original)` marker
-      // parses to `{ original: null, translation }` (`google-review-comment.ts:59`).
-      // The first rule returned `no_text` and the pane showed a review with
-      // stars, a date and topic chips and not one word of the text it held.
+      // `(Translated by Google) …` with no `(Original)` marker parses to
+      // `{ original: null, translation }` (`google-review-comment.ts:59`);
+      // returning `no_text` would show stars, a date and topic chips and not
+      // one word of the text the payload held.
       const view = presentGuestReviewBody({
         ...PRODUCTION_BULGARIAN,
         reviewText: null,

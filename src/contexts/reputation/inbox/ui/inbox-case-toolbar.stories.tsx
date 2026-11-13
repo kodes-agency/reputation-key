@@ -1,13 +1,12 @@
-// Inbox case toolbar — region 2 of the detail pane (plan v2.1 rows 2-6).
+// Inbox case toolbar — region 2 of the detail pane.
 //
 // The one idea these stories exist to hold still: a CONTROL, a FACT and a
-// DETAIL no longer wear the same pill. A control is an outlined button inside
+// DETAIL do not wear the same pill. A control is an outlined button inside
 // the `ButtonGroup` (the closed status, the owner menu, Escalate / Resolve). A
 // fact is text with a glyph and nothing to press (the open status, an owner or
 // an escalation the viewer has no move on). A detail is that text with a
-// dotted underline that opens a popover (reply due). v1 drew all three as one
-// row of identical chips, so `Open`, `Not measured` and `Unassigned` read as
-// the same kind of thing.
+// dotted underline that opens a popover (reply due). `Open`, `Not measured`
+// and `Unassigned` must not read as the same kind of thing.
 //
 // What a play here CAN prove is the half of that idea that lives in the
 // accessibility tree and the DOM: which of the three is a `button`, what it is
@@ -15,19 +14,20 @@
 // glyph a mark draws, and which members carry `data-fact` — the hook the
 // group's edge rules find facts by (`inbox-case-member.tsx`). What it CANNOT
 // prove is the other half — outline vs no box, 32 vs 36 px, the dotted
-// underline, a control's label dropping to `sr-only` below `md`. `vitest.config.ts`'s storybook project
-// builds the preview with no Tailwind plugin, so every utility class is inert
-// under the gate (measured in v1: a probe classed `flex overflow-x-auto px-5`
-// computed to `display: block; overflow-x: visible; padding-left: 0px`). No
-// play below asserts a class or a pixel; the geometry is `pnpm storybook` by
-// eye and PR 5's Playwright harness by measurement.
+// underline, a control's label dropping to `sr-only` below `md`.
+// `vitest.config.ts`'s storybook project builds the preview with no Tailwind
+// plugin, so every utility class is inert under the gate (a probe classed
+// `flex overflow-x-auto px-5` computes to `display: block; overflow-x: visible;
+// padding-left: 0px`). No play below asserts a class or a pixel; the geometry
+// is `pnpm storybook` by eye and the Playwright harness by measurement.
 //
 // Every required state has a 720 px story and a 390 px twin. The twin shares
 // the play, because with Tailwind inert the DOM is identical at both widths —
 // which is itself the claim worth making: nothing is REMOVED at 390 (a
 // control's label goes `sr-only`, never away, and a fact's words never go at
-// all), so the same roles and names must hold. Where the pane is only 720 px (the desktop split) or 390 px (the
-// phone sheet), `pnpm storybook` shows the real layout.
+// all), so the same roles and names must hold. Where the pane is only 720 px
+// (the desktop split) or 390 px (the phone sheet), `pnpm storybook` shows the
+// real layout.
 //
 // Two permission splits use exact permissions through `withPermissions`.
 // The reader holds inbox.write, without inbox.manage or feedback.handle.
@@ -65,9 +65,9 @@ const hoursFromNow = (hours: number): Date =>
 
 // ─── widths ──────────────────────────────────────────────────────────────────
 
-/** The desktop pane's share of a 1440 px split, and the plan's canvas width. */
+/** The desktop pane's share of a 1440 px split, and the design canvas width. */
 const PANE_WIDTH_PX = 720
-/** The staff phone the sheet is designed at (row 20). */
+/** The staff phone the sheet is designed at. */
 const PHONE_WIDTH_PX = 390
 
 /**
@@ -240,8 +240,7 @@ const repliedLateTarget: ResponseTargetView = {
 }
 
 // An onboarding import has no reliable start, so the cycle carries no duration,
-// no policy and no due time. v1 rendered that absence as a popover chip; row 6
-// renders nothing at all.
+// no policy and no due time, so the toolbar renders nothing for it.
 const notMeasuredTarget: ResponseTargetView = {
   ...activeTarget,
   eligibility: 'historical_onboarding',
@@ -331,8 +330,8 @@ function toolbarOf(canvas: Canvas): HTMLElement {
 
 /**
  * The `ButtonGroup`: status, owner, escalation. Everything that is a control
- * lives in here; the reply-due detail deliberately does not (row 3 puts it on
- * the trailing edge, outside the group).
+ * lives in here; the reply-due detail deliberately does not (it sits on the
+ * trailing edge, outside the group).
  */
 function controlsOf(canvas: Canvas): Canvas {
   return within(within(toolbarOf(canvas)).getByRole('group'))
@@ -361,7 +360,7 @@ function personGlyph(element: HTMLElement): 'nobody' | 'somebody' | null {
   return null
 }
 
-/** The reply-due detail's trigger, by the name v1 gave it and row 6 kept. */
+/** The reply-due detail's trigger, by its accessible name. */
 const DETAIL_NAME = /\. Show timing details$/
 
 /** Every menu item the owner control is currently offering, in order. */
@@ -527,15 +526,14 @@ export const FeedbackHandlingWithheld: Story = {
 // ─── escalation ──────────────────────────────────────────────────────────────
 
 /**
- * Escalated, for a manager. Row 5 moved the header's button into the group as
- * its third member. The escalation is two things and they are drawn as two: a
+ * Escalated, for a manager. The escalation is the group's third member, two
+ * things and they are drawn as two: a
  * CONTROL whose word says what a press does — `Resolve`, the name two e2e
  * journeys click with `exact: true` — and a FACT, `Escalated`, that says what
- * IS, after it. PR 2 first folded the state into the control (a negative fill
- * and a `title`), and on a phone, where the control is a glyph square, that
- * left a red square with no word on screen (review). The canvas's `Escalated`
- * could not go on the control instead: a visible word its name does not
- * contain fails WCAG 2.5.3. So the word is a fact, the fact is the control's
+ * IS, after it. Folding the state into the control (a negative fill
+ * and a `title`) would leave a red square with no word on a phone, where the
+ * control is a glyph square, and a visible `Escalated` on the control fails
+ * WCAG 2.5.3 because its name does not contain it. So the word is a fact, the fact is the control's
  * description, and the fact is not inside the button.
  *
  * Played in both themes, so axe `color-contrast` sees the negative `Escalated`
@@ -600,7 +598,7 @@ export const EscalationResolved390: Story = { ...EscalationResolved, parameters:
  * Inside the last twelve hours the detail changes tone without changing shape
  * — the words carry the urgency, the tint only reinforces it, and neither is a
  * box. Played in both themes: axe runs over the warning text in each, the one
- * tone with no token behind it until `--warn`.
+ * tone whose ink is the `--warn` token.
  */
 export const DueSoon: Story = {
   args: { target: dueSoonTarget },
@@ -616,8 +614,8 @@ export const DueSoon390: Story = { ...DueSoon, parameters: PHONE }
 
 /**
  * Past the target — a DETAIL, so it opens. The popover carries the sentence
- * the deleted response-target card used to hold, plus the exact due time in
- * the property's timezone; the toolbar itself stays one line.
+ * that explains the target, plus the exact due time in the property's
+ * timezone; the toolbar itself stays one line.
  */
 export const Overdue: Story = {
   args: { target: overdueTarget },
@@ -683,8 +681,7 @@ export const RepliedLate390: Story = { ...RepliedLate, parameters: PHONE }
 
 /**
  * Excluded from reporting — an onboarding import with no trustworthy start.
- * v1 drew this ABSENCE of a fact as a popover chip, one more button in the
- * row's quietest state. Row 6 skips it: no text, no button, nothing on the
+ * This ABSENCE of a fact draws no text, no button and nothing on the
  * trailing edge — while the group beside it renders as usual.
  * `presentResponseTargetChip` still returns `Not measured` for a caller that
  * wants it (`response-target-chip.test.ts`); only the toolbar declines.
@@ -760,9 +757,8 @@ export const AssignedToSomeone390: Story = { ...AssignedToSomeone, parameters: P
  * Held by someone the directory cannot name — a member whose role
  * `toInboxAssignmentOptions` filters out. The label falls back to `Assigned`,
  * and below `md` the trigger shows nothing but its mark, so the mark has to say
- * "somebody" on its own: before review it was the same `UserRound` an
- * unassigned item draws, and at 390 the two triggers were pixel-identical. The
- * held item draws `UserRoundCheck`.
+ * "somebody" on its own: an unassigned item draws `UserRound`, and the held
+ * item draws `UserRoundCheck` so the two triggers differ at 390.
  */
 export const AssignedUnresolved: Story = {
   args: { item: assignedTo(reviewItem, 'user-not-in-directory'), target: activeTarget },
@@ -778,8 +774,8 @@ export const AssignedUnresolved390: Story = { ...AssignedUnresolved, parameters:
 
 /**
  * The viewer holds it. The label is `You`, and the disc is the viewer's OWN
- * initials — row 4's reason for widening the page's `currentUserId` into
- * `currentUser`. The viewer is not in the directory here, so `MP` can only
+ * initials, which is why the page passes `currentUser` and not just an id.
+ * The viewer is not in the directory here, so `MP` can only
  * have come from the session's name.
  */
 export const AssignedToYou: Story = {
@@ -803,8 +799,7 @@ export const AssignedToYou390: Story = { ...AssignedToYou, parameters: PHONE }
  * group becomes a fact: reopening is a manager move, stealing an item held by
  * Grace needs `inbox.manage`, and so does escalation. Not one control is
  * offered that the server would refuse — and not one fact is hidden either:
- * the escalation still says `Escalated`, because v1's chip showed it to
- * everyone and a manager-only control must not make that fact manager-only.
+ * the escalation still says `Escalated`, because a manager-only control must not make that fact manager-only.
  * The reply-due detail is still a button, which is right: it opens timing
  * prose and issues nothing.
  */
@@ -912,8 +907,8 @@ export const ReaderSeesFeedbackOwnerAsText: Story = {
  * It is a fact for this restricted reader (taking it is a manager move), and the fact
  * keeps its word at every width. Beside `ReaderClaimsUnassigned` this is the
  * pair a phone must tell apart — "taken by a colleague" against "free to
- * claim" — which before review differed only by a fill: both drew `UserRound`
- * and both hid their word below `md`.
+ * claim" — which must differ by more than a fill, since both hide their word
+ * below `md`.
  */
 export const ReaderSeesColleagueWithoutDirectory: Story = {
   decorators: [
@@ -957,7 +952,7 @@ async function openPriorityMenu(name: string): Promise<ReadonlyArray<string>> {
   const body = within(document.body)
   // `find`, not `get`: a menu that has just closed keeps the rest of the page
   // aria-hidden until its exit animation ends, so for a moment the trigger is
-  // not in the accessibility tree (seen in the Storybook geometry harness).
+  // not in the accessibility tree.
   await userEvent.click(await body.findByRole('button', { name }))
   const rows = await body.findAllByRole('menuitemradio')
   await waitFor(() => expect(rows[0]).toBeVisible())
@@ -966,7 +961,7 @@ async function openPriorityMenu(name: string): Promise<ReadonlyArray<string>> {
 
 /**
  * Nobody has set a level and the review's signals suggest High: the trigger
- * says the suggestion and tags it (copy C-1, C-3, C-4). Nothing is checked in
+ * says the suggestion and tags it. Nothing is checked in
  * the menu, because the check mark is a person's choice; High carries
  * "Suggested"; and with no level set there is no way back to offer.
  */
@@ -1062,7 +1057,7 @@ export const PriorityFeedbackNotSet390: Story = {
 }
 
 /**
- * The widest phone row the plan names (§3.3): open, escalated feedback a
+ * The widest phone row: open, escalated feedback a
  * manager set to Urgent. The status member is the one built to truncate; the
  * owner, Urgent and the flag keep their size.
  */
@@ -1092,7 +1087,7 @@ export const PriorityFeedbackEscalatedUrgent320: Story = {
 
 /**
  * A viewer without Escalate's gate sees a level only when it asks for
- * attention: Urgent or High as a box-less fact (copy C-11), never a menu.
+ * attention: Urgent or High as a box-less fact, never a menu.
  */
 export const PriorityReadOnlyUrgent: Story = {
   decorators: [

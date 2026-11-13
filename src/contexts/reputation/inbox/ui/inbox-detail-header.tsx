@@ -41,10 +41,9 @@ type Props = Readonly<{
  * first. Case state (status, owner, escalation, reply due) lives in the
  * toolbar, not here.
  *
- * Plan v2.1 row 5 moved `InboxDetailManagerActions` (Escalate / Resolve) out of
- * this row and into the toolbar's `ButtonGroup`, so the header keeps exactly
- * kind · property · copy menu · close/back, and no longer reads
- * `usePermissions` or the detail state's commands at all.
+ * The header holds exactly kind · property · copy menu · close/back; the
+ * escalation controls live in the toolbar's `ButtonGroup`, so it reads neither
+ * `usePermissions` nor the detail state's commands.
  *
  * The row cannot wrap and both containers clip (`overflow-hidden` on the panel
  * root and on `SheetContent`), so the left block carries `min-w-0` and clips:
@@ -52,27 +51,13 @@ type Props = Readonly<{
  * sheet, and the dismissal is the only way out of it. The name truncates
  * instead.
  *
- * What was measured. v1 measured this row at 320 px in a real Tailwind build
- * with a 40-character property name and `inbox.manage`: the dismissal, Escalate
- * and the copy menu all fully inside the viewport, `scrollWidth ===
- * clientWidth`, and 75 px left for the name. That measurement included Escalate
- * and no longer describes this row.
- *
- * PR 5 (plan v2.1 row 20) lowered both icon controls from 44 px to 36 and
- * measured the row in Chromium against Storybook dev, where Tailwind compiles
- * (`inbox-mobile-390--review-closed`, `--header-at-320`). Before: `Back to
- * list` and `More review actions` 44x44, the name block 253 px wide at 390 and
- * 183 px at 320. After: both 36x36, the name block 271 px at 390 and 201 px at
- * 320 — 390 less the sheet's 1 px `border-l`, 40 padding, 36 back + 36 copy
- * menu, 16 for the two `gap-2`s, plus the 10 px the back button's `-ml-2.5`
- * hands back. `scrollWidth === innerWidth` at both widths, before and after.
- * The rule behind them is every control >= 36 px and no overflow.
- *
- * Phone grid since then: a 44 px bar with a 16 px gutter (`max-md:h-11
- * max-md:px-4`), and no `border-l` on the sheet below `sm`. The same sum is
- * 32 padding and no border, so 280 px at 390 and 210 at 320 (computed, not
- * re-measured). 44 px is also what the app top bar this sheet covers is on
- * inbox phones, so the top edge does not jump when a review opens.
+ * Both icon controls are 36 px (every control >= 36 px, no overflow). The phone
+ * grid is a 44 px bar with a 16 px gutter (`max-md:h-11 max-md:px-4`) and no
+ * `border-l` on the sheet below `sm`, so the name block gets 280 px at 390 and
+ * 210 at 320: the viewport less 32 padding, 36 back + 36 copy menu, 16 for the
+ * two `gap-2`s, plus the 10 px the back button's `-ml-2.5` hands back. 44 px is
+ * also the height of the app top bar this sheet covers on inbox phones, so the
+ * top edge does not jump when a review opens.
  */
 export function InboxDetailHeader({
   item,
@@ -93,11 +78,9 @@ export function InboxDetailHeader({
         <BackIconButton flush label="Back to list" onClick={onClose} />
       )}
 
-      {/* Which kind of work this is, in the rail's own words (ADR 0057, amended
-          2026-10-28): the kind's glyph, then the property, then `· Google
-          review` / `· Review` / `· Private feedback`. It replaces the decorative
-          chat glyph and the platform word, which a phone hid altogether and which
-          left private feedback with no mark but the rail it was opened from.
+      {/* Which kind of work this is, in the rail's own words (ADR 0057): the
+          kind's glyph, then the property, then `· Google review` / `· Review` /
+          `· Private feedback`.
 
           The glyph shows at every width. The words share the line with the
           property only when both fit: the block wraps, is one line high and clips,

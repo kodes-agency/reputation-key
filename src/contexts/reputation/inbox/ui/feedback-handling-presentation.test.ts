@@ -204,8 +204,7 @@ describe('handling outcome as a thread event', () => {
   // awkward there and are pinned so a copy fix is a deliberate, visible change:
   // `handled_with_team` stutters after the `Handled — ` prefix, and
   // `reviewed_no_additional_step` puts a second em dash in one line. Both are
-  // correct on the dialog's select and on the case-strip chip, which is why
-  // neither label was changed in this PR.
+  // correct on the dialog's select and on the case-strip chip.
   it('composes an event sentence for all five outcomes', () => {
     const sentences = (
       [
@@ -284,7 +283,7 @@ describe('the action a handling cycle offers', () => {
 })
 
 /**
- * The case strip's work-status chip, in words. Row 10 gives it three, and the
+ * The case strip's work-status chip, in words. It has three, and the
  * third exists because the other two can both be lies: `Handled` asserts a
  * manager judgement, and `Handled · <outcome>` names one. Every case below is
  * about which of those claims the data actually supports.
@@ -306,8 +305,7 @@ describe('the work-status chip for a feedback item', () => {
   // `handling-outcome-authority.ts` refuses a manager outcome for a withdrawn or
   // ineligible source FOREVER — no later cycle re-earns the right, and a manual
   // reopen is refused too. `Handled` there is a claim about a person that
-  // nothing can ever substantiate, which is exactly what the deleted card was
-  // criticised for. The chip must report the close, not imply a judgement.
+  // nothing can ever substantiate. The chip must report the close, not imply a judgement.
   it('refuses to claim a judgement that can never exist, for either permanent close', () => {
     expect(feedbackHandlingStatusLabel(closedWith('guest_withdrawn'), 'closed')).toBe(
       'Closed — no outcome',
@@ -390,8 +388,8 @@ describe('the work-status chip for a feedback item', () => {
   })
 
   // The guard above is only sound because the map index really can miss. If the
-  // declared return ever narrows back to `string`, every caller's guard becomes
-  // dead code again and this is the test that says so.
+  // declared return narrowed to `string`, every caller's guard would become
+  // dead code and this is the test that says so.
   it('reports an unknown outcome as undefined rather than a label', () => {
     const widened = 'guest_compensated' as Parameters<
       typeof feedbackHandlingOutcomeLabel

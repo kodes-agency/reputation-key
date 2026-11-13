@@ -327,17 +327,17 @@ export const OpenRow: Story = {
 // ─── 390 px ──────────────────────────────────────────────────────────────────
 // `mobileStaff` really is a 390 px window in this runner, but Tailwind is not
 // compiled, so nothing here asserts a rectangle: the row's text start (x = 16),
-// the 78 px height and the property's 40% cap are the Playwright metrics gate's.
-// These mount the phone states that gate measures, and pin the content.
+// the 78 px height and the property's 40% cap are the Playwright metrics'.
+// These mount the phone states those metrics read, and pin the content.
 // Fullscreen, so the list spans the window as it does on the page: a centered
-// story shrink-wraps the rows, and the gate could not read x = 16 off them.
+// story shrink-wraps the rows, so x = 16 could not be read off them.
 const PHONE = {
   layout: 'fullscreen',
   viewport: { defaultViewport: 'mobileStaff' },
 } as const
 
-// 158 px of 13px medium text (measured): over the 153 px a 65% cap allowed on
-// the 236 px identity line of a 320 px phone, and it still fits there beside
+// 158 px of 13px medium text: over the 153 px a 65% cap allows on the
+// 236 px identity line of a 320 px phone, and it still fits there beside
 // "· Spa" (158 + 14 star + 9 rating + 29 property + 12 gaps = 222).
 const NAME_FITTING_BESIDE_SHORT_PROPERTY = 'Bartholomew Featherstone'
 
@@ -349,8 +349,8 @@ const longNameItem = makeItem({
 })
 
 // A long name beside a SHORT property: name and property fit the line together,
-// so the name must not truncate (capping the name at 65% cut it at 320). The
-// metrics gate reads that off this row.
+// so the name must not truncate (capping the name at 65% would cut it at 320).
+// The Playwright metrics read that off this row.
 const shortPropertyItem = makeItem({
   id: 'rev-short-property',
   sourceType: 'review',

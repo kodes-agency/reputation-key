@@ -110,7 +110,7 @@ function describeEntry(entry: ThreadEntry): string {
 }
 
 /** A reply whose `updatedAt` the publication machine has moved past every
- *  milestone — the churn that used to decide where the reply sorted. */
+ *  milestone — churn that must not decide where the reply sorts. */
 const churned = (fields: Partial<ReplyEntityView> = {}) => makeReply(UPDATED_AT, fields)
 
 /**
