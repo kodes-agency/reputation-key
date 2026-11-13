@@ -12,6 +12,7 @@ import { getContainer, type Container } from '#/composition'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
+import { HTTP_STATUS } from '#/shared/http/status'
 import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
 import { propertyId as toPropertyId, userId } from '#/shared/domain/ids'
 import { z } from 'zod/v4'
@@ -366,7 +367,18 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
           ...(capability ? { capability } : {}),
         })
         try {
-          const { feedPublicApi } = getContainer()
+          const { feedPublicApi, propertyPublicApi } = getContainer()
+          const exists = await propertyPublicApi.propertyExists(
+            ctx.organizationId,
+            toPropertyId(data.propertyId),
+          )
+          if (!exists) {
+            throwContextError(
+              'PropertyError',
+              { code: 'property_not_found', message: 'property not found' },
+              HTTP_STATUS.NOT_FOUND,
+            )
+          }
           return await feedPublicApi.updatePreference(
             ctx.userId,
             ctx.organizationId,

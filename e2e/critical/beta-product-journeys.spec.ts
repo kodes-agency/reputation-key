@@ -711,11 +711,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
           cadence: 'daily',
         },
       })
-      // No command checks the Property first: the preference row's tenant
-      // foreign key refuses it, and the request answers with the generic
-      // internal error that carries no detail.
-      expect(emailPreferenceDenial.status).toBe(500)
-      expect(emailPreferenceDenial.code).toBe('internal_error')
+      // Another Organization's Property is not found, the answer a missing one gets.
+      expect(emailPreferenceDenial.status).toBe(404)
+      expect(emailPreferenceDenial.code).toBe('property_not_found')
     }
 
     log.assertNoExternalHosts([BASE_HOST])
