@@ -5,7 +5,7 @@ import {
   holdsForAnsweringReply,
   planReminderRelease,
   type ReminderReplyHead,
-} from './reminder-release'
+} from './reminder-release.server'
 
 const TARGET_START = new Date('2026-09-01T08:00:00.000Z')
 const SCHEDULED_FOR = new Date('2026-09-02T08:00:00.000Z')

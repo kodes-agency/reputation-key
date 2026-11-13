@@ -12,13 +12,13 @@ import type {
   ResponseTargetPolicyStore,
   ResponseTargetPolicySettings,
   ResponseTargetPolicyWriteResult,
-} from '../application/ports/response-target-policy.store'
+} from '#/contexts/inbox/application/ports/response-target-policy.store'
 import {
   DEFAULT_RESPONSE_TARGET_MINUTES,
   type ResponseTargetKind,
-} from '../domain/response-target'
-import { inboxResponseTargetPolicyChanged } from '../domain/events'
-import { inboxError } from '../domain/errors'
+} from '../../../inbox/domain/response-target'
+import { inboxResponseTargetPolicyChanged } from '#/contexts/inbox/domain/events'
+import { inboxError } from '#/contexts/inbox/domain/errors'
 
 const assertDuration = (durationMinutes: number | null, allowDisabled: boolean): void => {
   if (

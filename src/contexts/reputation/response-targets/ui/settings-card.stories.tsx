@@ -8,11 +8,11 @@ import type { ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import { propertyId } from '#/shared/domain/ids'
-import { ResponseTargetSettingsCard } from './response-target-settings-card'
+import { ResponseTargetSettingsCard } from './settings-card'
 import {
   GoogleReviewTargetSummary,
   PrivateFeedbackTargetSummary,
-} from './response-target-analytics-summary'
+} from './analytics-summary'
 
 const updatePolicy = Object.assign(
   fn(async () => undefined),
