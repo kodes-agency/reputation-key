@@ -15,13 +15,7 @@ const OBSERVED_AT = new Date('2026-08-25T12:00:00.000Z')
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
-  tables: [
-    'guest_response_private_feedback',
-    'guest_responses',
-    'feedback',
-    'portals',
-    'properties',
-  ],
+  tables: ['guest_response_private_feedback', 'guest_responses', 'portals', 'properties'],
 })
 
 async function seedPropertyAndPortal(): Promise<void> {

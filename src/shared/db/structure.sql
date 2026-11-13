@@ -4567,24 +4567,6 @@ CREATE TABLE "public"."event_consumer_receipts" (
 
 
 --
--- Name: feedback; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."feedback" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "portal_id" "uuid" NOT NULL,
-    "property_id" character varying(255) NOT NULL,
-    "session_id" character varying(255),
-    "rating_id" "uuid",
-    "comment" "text" NOT NULL,
-    "source" character varying(10) NOT NULL,
-    "ip_hash" "text",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
---
 -- Name: goal_month_target_changes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7111,23 +7093,6 @@ CREATE TABLE "public"."property_responsible_managers" (
 
 
 --
--- Name: ratings; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."ratings" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "portal_id" "uuid" NOT NULL,
-    "property_id" character varying(255) NOT NULL,
-    "session_id" character varying(255),
-    "value" integer NOT NULL,
-    "source" character varying(10) NOT NULL,
-    "ip_hash" "text",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
---
 -- Name: recent_activity_actor_label_redactions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8385,14 +8350,6 @@ ALTER TABLE ONLY "public"."event_consumer_receipts"
 
 
 --
--- Name: feedback feedback_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."feedback"
-    ADD CONSTRAINT "feedback_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: goal_month_target_changes goal_month_target_changes_change_result_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9377,14 +9334,6 @@ ALTER TABLE ONLY "public"."property_responsible_managers"
 
 
 --
--- Name: ratings ratings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ratings"
-    ADD CONSTRAINT "ratings_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: recent_activity_actor_label_redactions recent_activity_actor_label_redactions_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10169,20 +10118,6 @@ CREATE INDEX "email_queue_property_digest_idx" ON "public"."notification_email_q
 --
 
 CREATE UNIQUE INDEX "email_queue_property_idempotency_unique" ON "public"."notification_email_queue" USING "btree" ("organization_id", "property_id", "idempotency_key") WHERE ("property_id" IS NOT NULL);
-
-
---
--- Name: feedback_portal_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "feedback_portal_idx" ON "public"."feedback" USING "btree" ("portal_id");
-
-
---
--- Name: feedback_session_portal_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "feedback_session_portal_unique" ON "public"."feedback" USING "btree" ("session_id", "portal_id");
 
 
 --
@@ -11817,20 +11752,6 @@ CREATE UNIQUE INDEX "property_rm_unique_active_manager" ON "public"."property_re
 
 
 --
--- Name: ratings_portal_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "ratings_portal_idx" ON "public"."ratings" USING "btree" ("portal_id");
-
-
---
--- Name: ratings_session_portal_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "ratings_session_portal_unique" ON "public"."ratings" USING "btree" ("session_id", "portal_id");
-
-
---
 -- Name: recent_activity_actor_label_redactions_expiry_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13070,22 +12991,6 @@ ALTER TABLE ONLY "public"."event_consumer_receipts"
 
 
 --
--- Name: feedback feedback_portal_id_portals_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."feedback"
-    ADD CONSTRAINT "feedback_portal_id_portals_id_fk" FOREIGN KEY ("portal_id") REFERENCES "public"."portals"("id") ON DELETE RESTRICT;
-
-
---
--- Name: feedback feedback_rating_id_ratings_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."feedback"
-    ADD CONSTRAINT "feedback_rating_id_ratings_id_fk" FOREIGN KEY ("rating_id") REFERENCES "public"."ratings"("id") ON DELETE SET NULL;
-
-
---
 -- Name: goal_month_target_changes goal_month_target_changes_following_version_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14315,14 +14220,6 @@ ALTER TABLE ONLY "public"."property_reply_voices"
 
 ALTER TABLE ONLY "public"."property_responsible_managers"
     ADD CONSTRAINT "property_rm_property_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
-
-
---
--- Name: ratings ratings_portal_id_portals_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."ratings"
-    ADD CONSTRAINT "ratings_portal_id_portals_id_fk" FOREIGN KEY ("portal_id") REFERENCES "public"."portals"("id") ON DELETE RESTRICT;
 
 
 --

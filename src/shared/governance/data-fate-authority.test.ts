@@ -134,18 +134,10 @@ describe('data-fate authority', () => {
     }
   })
 
-  it('keeps the two mirrors nothing writes or sweeps as compatibility tables until they are dropped', () => {
-    const mirrors = DATA_FATE_AUTHORITY.filter(
-      (row) => row.disposition === 'compatibility_read',
-    ).map((row) => row.exportName)
-
-    expect(mirrors).toEqual(['feedback', 'ratings'])
-    for (const mirror of mirrors) {
-      const operations = sweepRulesOver(databaseTableName(mirror) ?? '').map(
-        ({ operation }) => operation,
-      )
-      expect(operations, mirror).toEqual([])
-    }
+  it('keeps no compatibility mirror tables', () => {
+    expect(
+      DATA_FATE_AUTHORITY.filter((row) => row.disposition === 'compatibility_read'),
+    ).toEqual([])
   })
 
   it('reaches every table a schema file exports through the schema barrel', () => {

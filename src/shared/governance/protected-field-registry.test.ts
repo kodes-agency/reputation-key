@@ -50,8 +50,6 @@ const GOVERNED_TABLES: ReadonlyArray<string> = [
   'event_consumer_receipts',
   'review_sync_state',
   'idempotency_receipts',
-  'feedback',
-  'ratings',
   'scan_events',
   'guest_network_pressure_records',
 ]
