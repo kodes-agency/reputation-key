@@ -216,13 +216,15 @@ export async function recordMissingFromListing(tx: Tx, run: RunRow): Promise<voi
 
 /**
  * A completed run asks the discovery sweep for the next full read when a
- * stored Review has a first miss no request has followed yet, so the listing
- * that can confirm the miss comes six hours after this one rather than a whole
+ * stored Review has a first miss this run's listing cannot confirm (the miss
+ * is less than 15 minutes older than the run's start), so the listing that can
+ * confirm it comes six hours after this one rather than a whole
  * reconciliation window later (Google's first page never shows a deletion).
- * The request follows the miss, not the run that recorded it: a run that
- * recorded a first miss and then failed leaves the asking to the run that
- * completes after it, and a later run that misses the same Review again does
- * not ask twice, because a request already postdates the miss. Called by the
+ * The ask follows the miss, not the run that recorded it, and not any other
+ * request: a run that recorded a first miss and then failed leaves the asking
+ * to the run that completes after it, whatever else was requested between. A
+ * later listing that misses the same Review again does not ask twice, because
+ * the miss is by then old enough for that listing to confirm. Called by the
  * transaction that completes the run, so the request carries the same instant
  * as the run's verified fact; the sweep counts a request made no earlier than
  * the last listing and runs it once that listing is six hours old. Writes
@@ -242,7 +244,7 @@ async function requestFullReadAfterFirstMiss(tx: Tx, run: RunRow): Promise<void>
           AND s.source_epoch = ${run.sourceEpoch}
           AND s.state IN ('linked', 'source_expired')
           AND s.first_missing_at IS NOT NULL
-          AND s.first_missing_at > COALESCE(st.full_read_requested_at, '-infinity')
+          AND s.first_missing_at > ${run.startedAt}::timestamptz - interval '15 minutes'
       )
   `)
 }

@@ -103,6 +103,8 @@ let listed: readonly GoogleReview[] = []
 let googleTotal = 0
 /** A confirmation scan that lists something else, once: the listing moved. */
 let movedConfirmation: GoogleReviewPage | null = null
+/** Runs when that moved confirmation scan is served: what happens elsewhere meanwhile. */
+let whenConfirmationMoves: (() => Promise<void>) | null = null
 /** The reviews a direct read finds on Google. Everything else is gone. */
 let readable: readonly GoogleReview[] = []
 
@@ -118,6 +120,7 @@ const googleReviewApi: GoogleReviewApiPort = {
     const moved = phase === 'confirmation' ? movedConfirmation : null
     if (moved === null) return listing()
     movedConfirmation = null
+    await whenConfirmationMoves?.()
     return moved
   }),
   readReviewsHead: vi.fn(async () => ({
@@ -426,6 +429,7 @@ beforeEach(async () => {
   `)
   readable = []
   movedConfirmation = null
+  whenConfirmationMoves = null
   vi.mocked(googleReviewApi.getReview).mockClear()
   listed = [deleted, first, second]
   googleTotal = 3
@@ -504,6 +508,42 @@ describe('a listing that records a first miss (real PostgreSQL)', () => {
     expect(await lookAfter(6 * HOUR_MS)).toEqual({ kind: 'full', reason: 'requested' })
 
     // The confirming listing removes the review and asks nothing more.
+    await elapse(6 * HOUR_MS)
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+    expect(await sourceStateOf(id)).toBe('provider_deleted')
+    expect((await lookAfter(6 * HOUR_MS)).kind).toBe('skip')
+  })
+
+  it('still asks when an unrelated full-read request lands between the failed run and its restart', async () => {
+    const id = await storedIdOf(deleted)
+    listed = [first, second]
+    googleTotal = 2
+    movedConfirmation = { ...listing(), reviews: [first] }
+    whenConfirmationMoves = async () => {
+      await db.execute(sql`
+        UPDATE review_sync_state
+        SET full_read_requested_at = transaction_timestamp()
+        WHERE property_id = ${PROPERTY} AND source = 'google'
+      `)
+    }
+
+    await expect(sync()).resolves.toMatchObject({ status: 'completed' })
+
+    const runs = await db.execute(sql`
+      SELECT state FROM review_provider_snapshot_runs
+      WHERE organization_id = ${ORG} ORDER BY started_at
+    `)
+    expect(runs.rows.map((row) => row.state)).toEqual([
+      'completed',
+      'failed',
+      'completed',
+    ])
+    expect(await missedOf(id)).toBe(true)
+    // The restart's own listing cannot confirm the miss, so it asks again.
+    const missed = await syncState()
+    expect(missed.requestedAt).toEqual(missed.listedAt)
+    expect(await lookAfter(6 * HOUR_MS)).toEqual({ kind: 'full', reason: 'requested' })
+
     await elapse(6 * HOUR_MS)
     await expect(sync()).resolves.toMatchObject({ status: 'completed' })
     expect(await sourceStateOf(id)).toBe('provider_deleted')
