@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
+import { dropTestDatabase } from '#/shared/testing/drop-test-database'
 import { ensureTestDatabase } from '#/shared/testing/test-db-setup'
 import {
   acquireTestLease,
@@ -58,7 +59,7 @@ describe('committed PostgreSQL structure authority', () => {
       expect(await readStructure(url)).toBe(snapshot())
       expect(await checkStructure(url)).toEqual([])
     } finally {
-      await lease.pool.query(`DROP DATABASE "${database}" WITH (FORCE)`)
+      await dropTestDatabase(lease.pool, database)
     }
   }
 
