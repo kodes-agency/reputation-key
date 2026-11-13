@@ -1,0 +1,2126 @@
+{
+  "events": [
+    {
+      "eventType": "review.created",
+      "consumers": [
+        {
+          "name": "inbox.on-review-created",
+          "module": "src/contexts/reputation/inbox/outbox-consumers.server.ts"
+        },
+        {
+          "name": "ai.analyze-review-event",
+          "module": "src/contexts/ai/infrastructure/outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.updated",
+      "consumers": [
+        {
+          "name": "inbox.on-review-updated",
+          "module": "src/contexts/reputation/inbox/outbox-consumers.server.ts"
+        },
+        {
+          "name": "ai.analyze-review-event",
+          "module": "src/contexts/ai/infrastructure/outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.source_transitioned",
+      "consumers": [
+        {
+          "name": "inbox.on-review-source-transitioned",
+          "module": "src/contexts/reputation/inbox/outbox-consumers.server.ts"
+        },
+        {
+          "name": "ai.analyze-review-event",
+          "module": "src/contexts/ai/infrastructure/outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.google_reputation_snapshot.verified",
+      "consumers": [
+        {
+          "name": "metric.current-google-reputation",
+          "module": "src/contexts/reporting/infrastructure/current-google-reputation-outbox-consumers.ts"
+        },
+        {
+          "name": "goal.google-rating-evaluation",
+          "module": "src/contexts/reporting/infrastructure/rating-goal-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.property_history_import.finished",
+      "consumers": [
+        {
+          "name": "notification.on-review-history-import-finished",
+          "module": "src/contexts/feed/infrastructure/review-import-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "ai.property_trend.generation_requested",
+      "consumers": []
+    },
+    {
+      "eventType": "ai.review_analysis.backfill_requested",
+      "consumers": [
+        {
+          "name": "ai.analyze-review-event",
+          "module": "src/contexts/ai/infrastructure/outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "ai.review_analysis.urgent_detected",
+      "consumers": [
+        {
+          "name": "notification.on-ai-review-urgent-detected",
+          "module": "src/contexts/feed/infrastructure/goal-notice-routes.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "ai.guest_voice_summary.ready",
+      "consumers": [
+        {
+          "name": "notification.on-ai-guest-voice-summary-ready",
+          "module": "src/contexts/feed/infrastructure/goal-notice-routes.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.expired",
+      "consumers": [
+        {
+          "name": "inbox.on-review-expired",
+          "module": "src/contexts/reputation/inbox/outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.reply.submitted",
+      "consumers": [
+        {
+          "name": "notification.on-review-reply-submitted",
+          "module": "src/contexts/feed/notify/inbox-workflow.server.ts"
+        },
+        {
+          "name": "inbox.on-reply-submitted",
+          "module": "src/contexts/reputation/inbox/outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.reply.approved",
+      "consumers": [
+        {
+          "name": "notification.on-review-reply-approved",
+          "module": "src/contexts/feed/notify/inbox-workflow.server.ts"
+        },
+        {
+          "name": "notification.settle-on-review-reply-approved",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.reply.publication_requested",
+      "consumers": [
+        {
+          "name": "review.on-reply-publication-requested",
+          "module": "src/contexts/review/infrastructure/outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.reply.rejected",
+      "consumers": [
+        {
+          "name": "notification.on-review-reply-rejected",
+          "module": "src/contexts/feed/notify/inbox-workflow.server.ts"
+        },
+        {
+          "name": "notification.settle-on-review-reply-rejected",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.reply.published",
+      "consumers": [
+        {
+          "name": "activity.operational-action-history",
+          "module": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts"
+        },
+        {
+          "name": "notification.on-review-reply-published",
+          "module": "src/contexts/feed/notify/inbox-workflow.server.ts"
+        },
+        {
+          "name": "notification.settle-on-review-reply-published",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        },
+        {
+          "name": "inbox.on-reply-published",
+          "module": "src/contexts/reputation/inbox/outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.reply.observed",
+      "consumers": [
+        {
+          "name": "inbox.on-reply-observed",
+          "module": "src/contexts/reputation/inbox/outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.reply.publish_failed",
+      "consumers": [
+        {
+          "name": "notification.on-review-reply-publish_failed",
+          "module": "src/contexts/feed/notify/inbox-workflow.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.reply.publication_cancelled",
+      "consumers": [
+        {
+          "name": "notification.on-review-reply-publication_cancelled",
+          "module": "src/contexts/feed/notify/inbox-workflow.server.ts"
+        },
+        {
+          "name": "notification.settle-on-review-reply-publication-cancelled",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "review.reply.updated",
+      "consumers": []
+    },
+    {
+      "eventType": "inbox.inbox_item.created",
+      "consumers": [
+        {
+          "name": "notification.on-inbox-item-created",
+          "module": "src/contexts/feed/infrastructure/notification-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.inbox_item.status_changed",
+      "consumers": []
+    },
+    {
+      "eventType": "inbox.inbox_item.assigned",
+      "consumers": [
+        {
+          "name": "notification.on-inbox-inbox_item-assigned",
+          "module": "src/contexts/feed/notify/inbox-workflow.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.inbox_item.unassigned",
+      "consumers": []
+    },
+    {
+      "eventType": "inbox.inbox_item.escalated",
+      "consumers": [
+        {
+          "name": "notification.on-inbox-inbox_item-escalated",
+          "module": "src/contexts/feed/notify/inbox-workflow.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.inbox_item.escalation_resolved",
+      "consumers": [
+        {
+          "name": "notification.on-inbox-escalation-resolved",
+          "module": "src/contexts/feed/infrastructure/inbox-notice-routes.ts"
+        },
+        {
+          "name": "notification.settle-on-inbox-escalation-resolved",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.inbox_note.added",
+      "consumers": [
+        {
+          "name": "notification.on-inbox-inbox_note-added",
+          "module": "src/contexts/feed/notify/inbox-workflow.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.inbox_item.bulk_status_changed",
+      "consumers": []
+    },
+    {
+      "eventType": "inbox.inbox_items.assignments_released",
+      "consumers": [
+        {
+          "name": "notification.on-inbox-assignments-released",
+          "module": "src/contexts/feed/infrastructure/inbox-notice-routes.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.inbox_items.bulk_assignment_completed",
+      "consumers": [
+        {
+          "name": "notification.on-inbox-bulk-assignment-completed",
+          "module": "src/contexts/feed/infrastructure/inbox-notice-routes.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.handling_cycle.opened",
+      "consumers": [
+        {
+          "name": "notification.on-inbox-handling-cycle-opened",
+          "module": "src/contexts/feed/notify/inbox-handling-cycle.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.handling_cycle.closed",
+      "consumers": [
+        {
+          "name": "notification.settle-on-inbox-handling-cycle-closed",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.handling_cycle.reopened",
+      "consumers": [
+        {
+          "name": "notification.on-inbox-handling-cycle-reopened",
+          "module": "src/contexts/feed/notify/inbox-handling-cycle.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.inbox_items.bulk_reopen_completed",
+      "consumers": [
+        {
+          "name": "notification.on-inbox-bulk-reopen-completed",
+          "module": "src/contexts/feed/notify/inbox-handling-cycle.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.response_target.reminder_due",
+      "consumers": [
+        {
+          "name": "notification.on-inbox-response-target-reminder-due",
+          "module": "src/contexts/feed/infrastructure/inbox-notice-routes.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "inbox.response_target.policy_changed",
+      "consumers": []
+    },
+    {
+      "eventType": "inbox.inbox_item.priority_changed",
+      "consumers": []
+    },
+    {
+      "eventType": "identity.organization.created",
+      "consumers": []
+    },
+    {
+      "eventType": "identity.member.invited",
+      "consumers": []
+    },
+    {
+      "eventType": "identity.invitation.accepted",
+      "consumers": [
+        {
+          "name": "notification.on-identity-invitation-accepted",
+          "module": "src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts"
+        },
+        {
+          "name": "notification.on-identity-invitation-accepted-inviter",
+          "module": "src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "identity.invitation.canceled",
+      "consumers": []
+    },
+    {
+      "eventType": "identity.beta_feedback.outcome_reached",
+      "consumers": [
+        {
+          "name": "notification.on-identity-beta-feedback-outcome",
+          "module": "src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "identity.member.removed",
+      "consumers": [
+        {
+          "name": "notification.on-identity-member-removed",
+          "module": "src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts"
+        },
+        {
+          "name": "property.on-member-removed",
+          "module": "src/contexts/property/infrastructure/member-offboarding-outbox-consumers.ts"
+        },
+        {
+          "name": "portal.on-member-removed",
+          "module": "src/contexts/portal/infrastructure/member-offboarding-outbox-consumers.ts"
+        },
+        {
+          "name": "inbox.on-member-removed",
+          "module": "src/contexts/inbox/infrastructure/member-offboarding-outbox-consumers.ts"
+        },
+        {
+          "name": "integration.on-member-removed",
+          "module": "src/contexts/integration/infrastructure/member-departure-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "identity.member.role_changed",
+      "consumers": [
+        {
+          "name": "identity.on-member-role-changed",
+          "module": "src/contexts/identity/infrastructure/member-role-outbox-consumers.ts"
+        },
+        {
+          "name": "integration.on-member-role-changed",
+          "module": "src/contexts/integration/infrastructure/member-departure-outbox-consumers.ts"
+        },
+        {
+          "name": "activity.operational-action-history",
+          "module": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts"
+        },
+        {
+          "name": "notification.on-identity-member-role-changed",
+          "module": "src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "identity.member.property_access_changed",
+      "consumers": [
+        {
+          "name": "notification.on-identity-member-property-access-changed",
+          "module": "src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "identity.merchant_ai.changed",
+      "consumers": [
+        {
+          "name": "ai.enroll-review-analysis",
+          "module": "src/contexts/ai/infrastructure/outbox-consumers.ts"
+        },
+        {
+          "name": "activity.operational-action-history",
+          "module": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "property.created",
+      "consumers": []
+    },
+    {
+      "eventType": "property.updated",
+      "consumers": [
+        {
+          "name": "portal.reconcile-health-dependencies",
+          "module": "src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "property.deleted",
+      "consumers": [
+        {
+          "name": "activity.operational-action-history",
+          "module": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts"
+        },
+        {
+          "name": "portal.reconcile-health-dependencies",
+          "module": "src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "property.archived",
+      "consumers": [
+        {
+          "name": "portal.reconcile-health-dependencies",
+          "module": "src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts"
+        },
+        {
+          "name": "activity.operational-action-history",
+          "module": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts"
+        },
+        {
+          "name": "inbox.on-property-archived",
+          "module": "src/contexts/inbox/infrastructure/property-lifecycle-outbox-consumers.ts"
+        },
+        {
+          "name": "review.on-property-archived",
+          "module": "src/contexts/review/infrastructure/outbox-consumers.ts"
+        },
+        {
+          "name": "goal.on-property-archived",
+          "module": "src/contexts/reporting/infrastructure/rating-goal-property-lifecycle-consumers.ts"
+        },
+        {
+          "name": "notification.settle-on-property-archived",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "property.restored",
+      "consumers": [
+        {
+          "name": "portal.reconcile-health-dependencies",
+          "module": "src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts"
+        },
+        {
+          "name": "portal.on-property-restored",
+          "module": "src/contexts/portal/infrastructure/property-lifecycle-outbox-consumers.ts"
+        },
+        {
+          "name": "activity.operational-action-history",
+          "module": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "property.google_binding.changed",
+      "consumers": [
+        {
+          "name": "integration.import-display-name",
+          "module": "src/contexts/integration/infrastructure/google-binding-follow-up-consumers.ts"
+        },
+        {
+          "name": "integration.import-subscription",
+          "module": "src/contexts/integration/infrastructure/google-binding-follow-up-consumers.ts"
+        },
+        {
+          "name": "integration.import-review-sync",
+          "module": "src/contexts/integration/infrastructure/google-binding-follow-up-consumers.ts"
+        },
+        {
+          "name": "integration.provider-authorization-invalidation",
+          "module": "src/contexts/integration/infrastructure/outbox-consumers.ts"
+        },
+        {
+          "name": "portal.reconcile-health-dependencies",
+          "module": "src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "property.responsibility_became_needed",
+      "consumers": [
+        {
+          "name": "notification.on-property-responsibility-needed",
+          "module": "src/contexts/feed/infrastructure/property-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "property.responsible_managers.updated",
+      "consumers": [
+        {
+          "name": "notification.settle-on-property-responsibility-restored",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "portal.created",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.updated",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.publication.published",
+      "consumers": [
+        {
+          "name": "activity.operational-action-history",
+          "module": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "portal.publication.rolled_back",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.archived",
+      "consumers": [
+        {
+          "name": "activity.operational-action-history",
+          "module": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "portal.restored",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.responsibility_became_needed",
+      "consumers": [
+        {
+          "name": "notification.on-portal-responsibility-needed",
+          "module": "src/contexts/feed/infrastructure/portal-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "portal.responsible_managers.updated",
+      "consumers": [
+        {
+          "name": "portal.reconcile-health-dependencies",
+          "module": "src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts"
+        },
+        {
+          "name": "notification.settle-on-portal-responsibility-restored",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "portal.health.changed",
+      "consumers": [
+        {
+          "name": "notification.on-portal-health-changed",
+          "module": "src/contexts/feed/infrastructure/portal-health-outbox-consumers.ts"
+        },
+        {
+          "name": "notification.settle-on-portal-health-recovered",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "portal.property_brand_profile.updated",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.property_brand_content.updated",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.localized_override.updated",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.locale_set.updated",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.approved_destination.updated",
+      "consumers": [
+        {
+          "name": "activity.operational-action-history",
+          "module": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts"
+        },
+        {
+          "name": "notification.on-portal-destination-pending",
+          "module": "src/contexts/feed/infrastructure/portal-destination-outbox-consumers.ts"
+        },
+        {
+          "name": "notification.settle-on-portal-destination-decided",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "portal.content_review.completed",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.configuration_completeness.recorded",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.approved_destination_ratio.recorded",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.deleted",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.token.issued",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.token.rotated",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.token.revoked",
+      "consumers": []
+    },
+    {
+      "eventType": "portal.access_artifact.published",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_link_category.created",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_link_category.reordered",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_link_category.updated",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_link_category.deleted",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_link.created",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_link.reordered",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_link.updated",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_link.deleted",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_group.created",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_group.updated",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_group.deleted",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_group.portal_added",
+      "consumers": []
+    },
+    {
+      "eventType": "portal_group.portal_removed",
+      "consumers": []
+    },
+    {
+      "eventType": "guest.scan.recorded",
+      "consumers": [
+        {
+          "name": "metric.guest-analytics",
+          "module": "src/contexts/reporting/readings/guest-outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "guest.qualified_scan.recorded",
+      "consumers": [
+        {
+          "name": "metric.guest-analytics",
+          "module": "src/contexts/reporting/readings/guest-outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "guest.qualified_scan.retracted",
+      "consumers": [
+        {
+          "name": "metric.guest-analytics",
+          "module": "src/contexts/reporting/readings/guest-outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "guest.rating.submitted",
+      "consumers": [
+        {
+          "name": "metric.guest-analytics",
+          "module": "src/contexts/reporting/readings/guest-outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "guest.rating.retracted",
+      "consumers": [
+        {
+          "name": "metric.guest-analytics",
+          "module": "src/contexts/reporting/readings/guest-outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "guest.feedback.submitted",
+      "consumers": [
+        {
+          "name": "inbox.on-guest-feedback-submitted",
+          "module": "src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts"
+        },
+        {
+          "name": "metric.guest-analytics",
+          "module": "src/contexts/reporting/readings/guest-outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "guest.feedback.retracted",
+      "consumers": [
+        {
+          "name": "inbox.on-guest-feedback-retracted",
+          "module": "src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts"
+        },
+        {
+          "name": "metric.guest-analytics",
+          "module": "src/contexts/reporting/readings/guest-outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "guest.review_link.clicked",
+      "consumers": [
+        {
+          "name": "metric.guest-analytics",
+          "module": "src/contexts/reporting/readings/guest-outbox-consumers.server.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "integration.google_account.connected",
+      "consumers": [
+        {
+          "name": "integration.google-category-refresh",
+          "module": "src/contexts/integration/infrastructure/google-category-refresh-outbox-consumers.ts"
+        },
+        {
+          "name": "activity.operational-action-history",
+          "module": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts"
+        },
+        {
+          "name": "notification.settle-on-google-account-connected",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "integration.google_account.disconnected",
+      "consumers": [
+        {
+          "name": "activity.operational-action-history",
+          "module": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts"
+        },
+        {
+          "name": "review.on-google-account-disconnected",
+          "module": "src/contexts/review/infrastructure/outbox-consumers.ts"
+        },
+        {
+          "name": "notification.on-google-account-disconnected",
+          "module": "src/contexts/feed/infrastructure/integration-outbox-consumers.ts"
+        },
+        {
+          "name": "notification.settle-on-google-account-disconnected",
+          "module": "src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "integration.google_account.reauthorization_required",
+      "consumers": [
+        {
+          "name": "notification.on-google-reauthorization-required",
+          "module": "src/contexts/feed/infrastructure/integration-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "integration.property_import.requested",
+      "consumers": [
+        {
+          "name": "integration.property-import-dispatch",
+          "module": "src/contexts/integration/infrastructure/outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "integration.google_review_push.accepted",
+      "consumers": [
+        {
+          "name": "integration.google-review-push-dispatch",
+          "module": "src/contexts/integration/infrastructure/google-review-push-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "integration.property_import.retention_released",
+      "consumers": [
+        {
+          "name": "property.import-retention-release",
+          "module": "src/contexts/property/infrastructure/outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "integration.google_connection.visibility_changed",
+      "consumers": []
+    },
+    {
+      "eventType": "metric.recorded",
+      "consumers": []
+    },
+    {
+      "eventType": "metric.corrected",
+      "consumers": [
+        {
+          "name": "goal.metric-correction-reconciliation",
+          "module": "src/contexts/reporting/infrastructure/metric-correction-outbox-consumers.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "goal.monthly_result.closed",
+      "consumers": [
+        {
+          "name": "notification.on-goal-monthly-result-closed",
+          "module": "src/contexts/feed/infrastructure/goal-notice-routes.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "goal.monthly_result.reconciled",
+      "consumers": []
+    },
+    {
+      "eventType": "goal.monthly_result.revised",
+      "consumers": [
+        {
+          "name": "notification.on-goal-monthly-result-revised",
+          "module": "src/contexts/feed/infrastructure/goal-notice-routes.ts"
+        }
+      ]
+    },
+    {
+      "eventType": "goal.rating_goal.transitioned",
+      "consumers": [
+        {
+          "name": "notification.on-rating-goal-transitioned",
+          "module": "src/contexts/feed/infrastructure/goal-notice-routes.ts"
+        }
+      ]
+    }
+  ],
+  "jobs": [
+    {
+      "jobName": "import-gbp-property-item",
+      "queue": "default",
+      "processor": "src/contexts/integration/infrastructure/jobs/import-gbp-property-item.job.ts",
+      "retryAttempts": 5,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 120000,
+      "schedule": "none",
+      "capability": "property.import_gbp_v2",
+      "action": "system:property.import_v2",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "import-gbp-property-item-v2",
+      "queue": "default",
+      "processor": "src/contexts/integration/infrastructure/jobs/retired-import-item.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 120000,
+      "schedule": "none",
+      "capability": "none",
+      "action": "system:property.import_retired",
+      "registration": "quarantined"
+    },
+    {
+      "jobName": "sync-property-reviews",
+      "queue": "default",
+      "processor": "src/contexts/review/infrastructure/jobs/sync-property-reviews.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "none",
+      "capability": "property.connect_gbp",
+      "action": "system:review.sync",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "ai-review-analysis-backlog-drain",
+      "queue": "background",
+      "processor": "src/contexts/ai/infrastructure/jobs/drain-review-analysis-backlog.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "fixed:5000",
+      "timeoutMs": 120000,
+      "schedule": "every:5000",
+      "capability": "ai.analyze",
+      "action": "system:ai.review_analysis_backlog_drain",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "ai-guest-voice-summary-sweep",
+      "queue": "background",
+      "processor": "src/contexts/ai/infrastructure/jobs/guest-voice-summary-sweep.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:3600000,offset:300000",
+      "capability": "ai.analyze",
+      "action": "system:ai.guest_voice_summary",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "ai-review-analysis-on-demand",
+      "queue": "default",
+      "processor": "src/contexts/ai/infrastructure/jobs/analyze-review-now.job.ts",
+      "retryAttempts": 1,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 120000,
+      "schedule": "none",
+      "capability": "ai.analyze",
+      "action": "system:ai.review_analysis_on_demand",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "expire-review-provider-source",
+      "queue": "background",
+      "processor": "src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "none",
+      "capability": "none",
+      "action": "system:review.purge",
+      "registration": "quarantined"
+    },
+    {
+      "jobName": "sweep-review-provider-tombstones",
+      "queue": "background",
+      "processor": "src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "none",
+      "capability": "none",
+      "action": "system:review.purge",
+      "registration": "quarantined"
+    },
+    {
+      "jobName": "publish-reply",
+      "queue": "default",
+      "processor": "src/contexts/review/infrastructure/jobs/publish-reply.job.ts",
+      "retryAttempts": 5,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 120000,
+      "schedule": "none",
+      "capability": "property.publish_reply",
+      "action": "system:reply.publish",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "urgent-email",
+      "queue": "default",
+      "processor": "src/contexts/feed/infrastructure/jobs/send-emails.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 120000,
+      "schedule": "none",
+      "capability": "notification.send_email",
+      "action": "system:notification.email_urgent",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "mandatory-email",
+      "queue": "default",
+      "processor": "src/contexts/feed/infrastructure/jobs/send-emails.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 120000,
+      "schedule": "none",
+      "capability": "notification.send_mandatory_email",
+      "action": "system:notification.email_mandatory",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "portal-approved-destination-revalidation",
+      "queue": "background",
+      "processor": "src/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:900000",
+      "capability": "portal.write",
+      "action": "system:portal.destination_revalidate",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "portal-media-sweep",
+      "queue": "background",
+      "processor": "src/contexts/portal/infrastructure/jobs/sweep-portal-media.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:3600000,offset:1800000",
+      "capability": "none",
+      "action": "system:portal.media_sweep",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "health-check",
+      "queue": "background",
+      "processor": "src/shared/jobs/health-check.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 30000,
+      "schedule": "every:300000",
+      "capability": "none",
+      "action": "system:health.check",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "refresh-expiring-reviews",
+      "queue": "background",
+      "processor": "src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:3600000",
+      "capability": "none",
+      "action": "system:review.refresh_sweep",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "release-response-target-reminders",
+      "queue": "background",
+      "processor": "src/contexts/reputation/inbox/response-targets/release-reminders.job.server.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 120000,
+      "schedule": "every:300000",
+      "capability": "inbox.use",
+      "action": "system:inbox.update",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "discover-new-reviews",
+      "queue": "background",
+      "processor": "src/contexts/review/infrastructure/jobs/discover-new-reviews.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:900000",
+      "capability": "none",
+      "action": "system:review.discovery_sweep",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "purge-expired-reviews",
+      "queue": "background",
+      "processor": "src/contexts/review/infrastructure/jobs/purge-expired-reviews.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "none",
+      "capability": "none",
+      "action": "system:review.purge",
+      "registration": "quarantined"
+    },
+    {
+      "jobName": "reconcile-ambiguous-publications",
+      "queue": "background",
+      "processor": "src/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:300000",
+      "timeoutMs": 300000,
+      "schedule": "every:300000",
+      "capability": "none",
+      "action": "system:review.reconcile",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "goal-program.maintain",
+      "queue": "background",
+      "processor": "src/contexts/reporting/infrastructure/jobs/goal-program-maintenance.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:3600000",
+      "capability": "goal.use",
+      "action": "system:goal.maintain",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "rating-goal.evaluate",
+      "queue": "background",
+      "processor": "src/contexts/reporting/infrastructure/jobs/rating-goal-evaluation.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:86400000,offset:7200000",
+      "capability": "goal.use",
+      "action": "system:goal.evaluate_rating_goals",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "retention-sweep",
+      "queue": "background",
+      "processor": "src/shared/jobs/retention-sweep.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 900000,
+      "schedule": "every:86400000,offset:10800000",
+      "capability": "none",
+      "action": "system:retention.sweep",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "ai-operation-execution-reaper",
+      "queue": "background",
+      "processor": "src/shared/jobs/ai-operation-execution-reaper.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:300000",
+      "capability": "none",
+      "action": "system:ai.execution_reap",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "merchant-ai-standing-renewal",
+      "queue": "background",
+      "processor": "src/contexts/identity/infrastructure/jobs/merchant-ai-standing-renewal.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:600000",
+      "capability": "none",
+      "action": "system:identity.merchant_ai_standing_renewal",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "identity-pending-upload-reclaim",
+      "queue": "background",
+      "processor": "src/contexts/identity/infrastructure/jobs/reclaim-pending-identity-uploads.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:3600000,offset:2700000",
+      "capability": "none",
+      "action": "system:identity.pending_upload_reclaim",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "ai-review-analysis-enrollment-sweep",
+      "queue": "background",
+      "processor": "src/shared/jobs/ai-review-analysis-enrollment-sweep.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:60000",
+      "capability": "none",
+      "action": "system:ai.review_analysis_enrollment_sweep",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "quarantine-ttl-sweep",
+      "queue": "background",
+      "processor": "src/shared/jobs/quarantine-ttl-sweep.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 300000,
+      "schedule": "every:86400000,offset:14400000",
+      "capability": "none",
+      "action": "system:quarantine.ttl",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "permit-start-deadline-sweep",
+      "queue": "background",
+      "processor": "src/shared/jobs/permit-start-deadline-sweep.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 60000,
+      "schedule": "every:300000",
+      "capability": "none",
+      "action": "system:permit.start_deadline_fence",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "recover-invited-registrations",
+      "queue": "background",
+      "processor": "src/contexts/identity/infrastructure/jobs/recover-invited-registrations.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "fixed:5000",
+      "timeoutMs": 60000,
+      "schedule": "every:300000",
+      "capability": "identity.invite",
+      "action": "system:identity.accept_invitation",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "google-import-claim-reaper",
+      "queue": "background",
+      "processor": "src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "fixed:5000",
+      "timeoutMs": 60000,
+      "schedule": "every:60000",
+      "capability": "property.import_gbp_v2",
+      "action": "system:property.import_claim_reap",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "reconcile-gbp-notification-subscriptions",
+      "queue": "background",
+      "processor": "src/contexts/integration/infrastructure/jobs/reconcile-gbp-notification-subscriptions.job.ts",
+      "retryAttempts": 5,
+      "retryBackoff": "exponential:60000",
+      "timeoutMs": 600000,
+      "schedule": "every:86400000",
+      "capability": "property.connect_gbp",
+      "action": "system:integration.gbp_subscription_reconcile",
+      "registration": "enabled"
+    },
+    {
+      "jobName": "digest-notification",
+      "queue": "background",
+      "processor": "src/contexts/feed/infrastructure/jobs/digest-notification.job.ts",
+      "retryAttempts": 3,
+      "retryBackoff": "exponential:30000",
+      "timeoutMs": 120000,
+      "schedule": "cron:0 * * * *",
+      "capability": "notification.send_email",
+      "action": "system:notification.email_digest",
+      "registration": "enabled"
+    }
+  ],
+  "entryPoints": [
+    {
+      "kind": "job",
+      "name": "portal-approved-destination-revalidation",
+      "action": "system:portal.destination_revalidate",
+      "capability": "portal.write",
+      "resourceScope": "tenant_cross",
+      "externalEffect": true
+    },
+    {
+      "kind": "job",
+      "name": "portal-media-sweep",
+      "action": "system:portal.media_sweep",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": true
+    },
+    {
+      "kind": "job",
+      "name": "identity-pending-upload-reclaim",
+      "action": "system:identity.pending_upload_reclaim",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "health-check",
+      "action": "system:health.check",
+      "capability": "none",
+      "resourceScope": "none",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "import-gbp-property-item",
+      "action": "system:property.import_v2",
+      "capability": "property.import_gbp_v2",
+      "resourceScope": "organization",
+      "externalEffect": true
+    },
+    {
+      "kind": "job",
+      "name": "import-gbp-property-item-v2",
+      "action": "system:property.import_retired",
+      "capability": "none",
+      "resourceScope": "none",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "sync-property-reviews",
+      "action": "system:review.sync",
+      "capability": "property.connect_gbp",
+      "resourceScope": "property",
+      "externalEffect": true
+    },
+    {
+      "kind": "job",
+      "name": "ai-review-analysis-backlog-drain",
+      "action": "system:ai.review_analysis_backlog_drain",
+      "capability": "ai.analyze",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "ai-guest-voice-summary-sweep",
+      "action": "system:ai.guest_voice_summary",
+      "capability": "ai.analyze",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "ai-review-analysis-on-demand",
+      "action": "system:ai.review_analysis_on_demand",
+      "capability": "ai.analyze",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "refresh-expiring-reviews",
+      "action": "system:review.refresh_sweep",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "release-response-target-reminders",
+      "action": "system:inbox.update",
+      "capability": "inbox.use",
+      "resourceScope": "tenant_cross",
+      "externalEffect": true
+    },
+    {
+      "kind": "job",
+      "name": "discover-new-reviews",
+      "action": "system:review.discovery_sweep",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "purge-expired-reviews",
+      "action": "system:review.purge",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "expire-review-provider-source",
+      "action": "system:review.purge",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "sweep-review-provider-tombstones",
+      "action": "system:review.purge",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "publish-reply",
+      "action": "system:reply.publish",
+      "capability": "property.publish_reply",
+      "resourceScope": "property",
+      "externalEffect": true
+    },
+    {
+      "kind": "job",
+      "name": "reconcile-ambiguous-publications",
+      "action": "system:review.reconcile",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "goal-program.maintain",
+      "action": "system:goal.maintain",
+      "capability": "goal.use",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "rating-goal.evaluate",
+      "action": "system:goal.evaluate_rating_goals",
+      "capability": "goal.use",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "merchant-ai-standing-renewal",
+      "action": "system:identity.merchant_ai_standing_renewal",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "retention-sweep",
+      "action": "system:retention.sweep",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "quarantine-ttl-sweep",
+      "action": "system:quarantine.ttl",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "ai-operation-execution-reaper",
+      "action": "system:ai.execution_reap",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "ai-review-analysis-enrollment-sweep",
+      "action": "system:ai.review_analysis_enrollment_sweep",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "permit-start-deadline-sweep",
+      "action": "system:permit.start_deadline_fence",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "recover-invited-registrations",
+      "action": "system:identity.accept_invitation",
+      "capability": "identity.invite",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "google-import-claim-reaper",
+      "action": "system:property.import_claim_reap",
+      "capability": "property.import_gbp_v2",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "job",
+      "name": "reconcile-gbp-notification-subscriptions",
+      "action": "system:integration.gbp_subscription_reconcile",
+      "capability": "property.connect_gbp",
+      "resourceScope": "tenant_cross",
+      "externalEffect": true
+    },
+    {
+      "kind": "job",
+      "name": "urgent-email",
+      "action": "system:notification.email_urgent",
+      "capability": "notification.send_email",
+      "resourceScope": "organization",
+      "externalEffect": true
+    },
+    {
+      "kind": "job",
+      "name": "mandatory-email",
+      "action": "system:notification.email_mandatory",
+      "capability": "notification.send_mandatory_email",
+      "resourceScope": "organization",
+      "externalEffect": true
+    },
+    {
+      "kind": "job",
+      "name": "digest-notification",
+      "action": "system:notification.email_digest",
+      "capability": "notification.send_email",
+      "resourceScope": "tenant_cross",
+      "externalEffect": true
+    },
+    {
+      "kind": "consumer",
+      "name": "integration.google-category-refresh",
+      "action": "system:integration.refresh_google_categories",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": true
+    },
+    {
+      "kind": "consumer",
+      "name": "review.outbox-consumers",
+      "action": "system:reply.publish",
+      "capability": "property.publish_reply",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "review.connection-lifecycle",
+      "action": "system:review.cancel_connection_publications",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "review.property-lifecycle",
+      "action": "system:review.cancel_property_publications",
+      "capability": "none",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "portal.health-outbox-consumers",
+      "action": "system:portal.health_reconcile",
+      "capability": "portal.write",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "portal.property-lifecycle",
+      "action": "system:portal.responsibility_reannounce",
+      "capability": "portal.write",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "portal.member-offboarding",
+      "action": "system:portal.release_member_responsibility",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "inbox.member-offboarding",
+      "action": "system:inbox.release_member_assignments",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "identity.member-role-cleanup",
+      "action": "system:identity.member_role_cleanup",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "integration.member-departure",
+      "action": "system:integration.release_member_google_authority",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "inbox.outbox-consumers",
+      "action": "system:inbox.project_review",
+      "capability": "inbox.use",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "inbox.guest-feedback",
+      "action": "system:inbox.project_guest_feedback",
+      "capability": "portal.read",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "inbox.property-lifecycle",
+      "action": "system:inbox.cancel_property_reminders",
+      "capability": "none",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.outbox-consumers",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.identity-account-outbox-consumers",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.workflow-outbox-consumers",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.bulk-assignment-outbox-consumers",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.assignment-release-outbox-consumers",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.escalation-resolution-outbox-consumers",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.handling-cycle-outbox-consumers",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.settlement-outbox-consumers",
+      "action": "system:notification.settle",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.response-target-outbox-consumers",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.goal-outbox-consumers",
+      "action": "system:notification.insert_goal",
+      "capability": "goal.use",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.rating-goal-notice-consumers",
+      "action": "system:notification.insert_goal",
+      "capability": "goal.use",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.ai-guest-voice-summary-notice-consumers",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.ai-urgent-review-notice-consumers",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.on-google-reauthorization-required",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.on-google-account-disconnected",
+      "action": "system:notification.insert",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.portal-outbox-consumers",
+      "action": "system:notification.insert_portal",
+      "capability": "portal.write",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.portal-destination-outbox-consumers",
+      "action": "system:notification.insert_portal",
+      "capability": "portal.write",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.portal-health-outbox-consumers",
+      "action": "system:notification.insert_portal",
+      "capability": "portal.write",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.property-outbox-consumers",
+      "action": "system:notification.insert_property_responsibility",
+      "capability": "property.create",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "notification.review-import-outbox-consumers",
+      "action": "system:notification.insert_review_import",
+      "capability": "property.import_gbp_v2",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "integration.property-import-dispatch",
+      "action": "system:property.import_v2",
+      "capability": "property.import_gbp_v2",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "integration.google-review-push-dispatch",
+      "action": "system:review.sync",
+      "capability": "property.connect_gbp",
+      "resourceScope": "property",
+      "externalEffect": true
+    },
+    {
+      "kind": "consumer",
+      "name": "property.import-retention-release",
+      "action": "system:property.import_v2",
+      "capability": "property.import_gbp_v2",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "property.member-offboarding",
+      "action": "system:property.release_member_responsibility",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "ai.review-analysis-consumers",
+      "action": "system:ai.review_analysis_event",
+      "capability": "none",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "ai.review-analysis-enrollment",
+      "action": "system:ai.review_analysis_enrollment",
+      "capability": "none",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "activity.outbox-consumers",
+      "action": "system:activity.record",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "goal.metric-correction-reconciliation",
+      "action": "system:goal.reconcile",
+      "capability": "goal.use",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "goal.google-rating-evaluation",
+      "action": "system:goal.reconcile",
+      "capability": "goal.use",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "goal.property-lifecycle",
+      "action": "system:goal.end_archived_property_goal",
+      "capability": "none",
+      "resourceScope": "property",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "metric.current-google-reputation",
+      "action": "system:metric.record_public_reputation",
+      "capability": "none",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "consumer",
+      "name": "metric.guest-analytics",
+      "action": "system:metric.record_guest_analytics",
+      "capability": "portal.read",
+      "resourceScope": "organization",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "portal-approved-destination-revalidation-recurring",
+      "action": "system:portal.destination_revalidate",
+      "capability": "portal.write",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "portal-media-sweep-recurring",
+      "action": "system:portal.media_sweep",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "health-check-recurring",
+      "action": "system:health.check",
+      "capability": "none",
+      "resourceScope": "none",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "ai-review-analysis-backlog-drain-recurring",
+      "action": "system:ai.review_analysis_backlog_drain",
+      "capability": "ai.analyze",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "ai-guest-voice-summary-sweep-recurring",
+      "action": "system:ai.guest_voice_summary",
+      "capability": "ai.analyze",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "refresh-expiring-reviews-recurring",
+      "action": "system:review.refresh_sweep",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "discover-new-reviews-recurring",
+      "action": "system:review.discovery_sweep",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "release-response-target-reminders-recurring",
+      "action": "system:inbox.update",
+      "capability": "inbox.use",
+      "resourceScope": "tenant_cross",
+      "externalEffect": true
+    },
+    {
+      "kind": "schedule",
+      "name": "reconcile-ambiguous-publications-recurring",
+      "action": "system:review.reconcile",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "retention-sweep-recurring",
+      "action": "system:retention.sweep",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "quarantine-ttl-sweep-recurring",
+      "action": "system:quarantine.ttl",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "ai-operation-execution-reaper-recurring",
+      "action": "system:ai.execution_reap",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "identity-pending-upload-reclaim-recurring",
+      "action": "system:identity.pending_upload_reclaim",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "merchant-ai-standing-renewal-recurring",
+      "action": "system:identity.merchant_ai_standing_renewal",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "ai-review-analysis-enrollment-sweep-recurring",
+      "action": "system:ai.review_analysis_enrollment_sweep",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "permit-start-deadline-sweep-recurring",
+      "action": "system:permit.start_deadline_fence",
+      "capability": "none",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "recover-invited-registrations-recurring",
+      "action": "system:identity.accept_invitation",
+      "capability": "identity.invite",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "google-import-claim-reaper-recurring",
+      "action": "system:property.import_claim_reap",
+      "capability": "property.import_gbp_v2",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "reconcile-gbp-notification-subscriptions-recurring",
+      "action": "system:integration.gbp_subscription_reconcile",
+      "capability": "property.connect_gbp",
+      "resourceScope": "tenant_cross",
+      "externalEffect": true
+    },
+    {
+      "kind": "schedule",
+      "name": "goal-program.maintain-recurring",
+      "action": "system:goal.maintain",
+      "capability": "goal.use",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "rating-goal.evaluate-recurring",
+      "action": "system:goal.evaluate_rating_goals",
+      "capability": "goal.use",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    },
+    {
+      "kind": "schedule",
+      "name": "digest-notification-recurring",
+      "action": "system:notification.email_digest",
+      "capability": "notification.send_email",
+      "resourceScope": "tenant_cross",
+      "externalEffect": false
+    }
+  ]
+}

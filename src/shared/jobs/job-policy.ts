@@ -1,6 +1,6 @@
-// BQC-3.6 — per-job enqueue policy derived from the event/job family catalogue.
+// BQC-3.6 — per-job enqueue policy derived from the job definitions.
 //
-// The catalogue (JOB_FAMILY_ROWS) is the single source of truth for
+// The definitions (JOB_DEFINITIONS) are the single source of truth for
 // attempts/backoff/timeout, pinned by the 3.1 guard and by the unit tests on
 // this module. Every enqueue site applies jobEnqueueOptions so retry policy
 // is explicit per job instead of an implicit queue-wide default.
@@ -15,11 +15,8 @@
 // via jobTimeoutMs, not by Redis.
 
 import type { JobsOptions, Queue } from 'bullmq'
-import {
-  EVENT_FAMILY_ROWS,
-  JOB_FAMILY_ROWS,
-  type JobFamilyRow,
-} from '#/shared/governance/event-job-catalogue'
+import { EVENT_TYPES } from '#/shared/events/consumer-definitions'
+import { JOB_DEFINITIONS, type JobDefinition } from './job-definitions'
 
 /**
  * Backoff jitter fraction (BullMQ BackoffOptions.jitter: "percentage of
@@ -33,18 +30,15 @@ const BACKOFF_JITTER = 0.5
 
 /** Fallback when a job has no catalogue row (defensive — readiness prevents it). */
 const DEFAULT_TIMEOUT_MS = 120_000
-const DOMAIN_REDRIVE_ONLY_JOBS: ReadonlySet<string> = new Set([
-  'import-gbp-property-item',
-])
 
-/** The catalogue row for a job name, or undefined. */
-export function jobFamilyRow(jobName: string): JobFamilyRow | undefined {
-  return JOB_FAMILY_ROWS.find((r) => r.jobName === jobName)
+/** The definition of a job by name, or undefined. */
+export function jobDefinition(jobName: string): JobDefinition | undefined {
+  return JOB_DEFINITIONS.find((def) => def.name === jobName)
 }
 
 /** Work that must converge through its owning domain state machine. */
 export function isDomainRedriveOnlyJob(jobName: string): boolean {
-  return DOMAIN_REDRIVE_ONLY_JOBS.has(jobName)
+  return jobDefinition(jobName)?.redrive === 'domain'
 }
 
 /**
@@ -54,10 +48,7 @@ export function isDomainRedriveOnlyJob(jobName: string): boolean {
  * relies on this for its no-redaction proof.
  */
 export function isCatalogueKnownWork(name: string): boolean {
-  return (
-    JOB_FAMILY_ROWS.some((r) => r.jobName === name) ||
-    EVENT_FAMILY_ROWS.some((r) => r.eventType === name)
-  )
+  return JOB_DEFINITIONS.some((def) => def.name === name) || EVENT_TYPES.includes(name)
 }
 
 /**
@@ -65,7 +56,7 @@ export function isCatalogueKnownWork(name: string): boolean {
  * dispatch closure — BullMQ v5 has no job-level timeout option.
  */
 export function jobTimeoutMs(jobName: string): number {
-  return jobFamilyRow(jobName)?.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  return jobDefinition(jobName)?.timeoutMs ?? DEFAULT_TIMEOUT_MS
 }
 
 function parseRetryBackoff(retryBackoff: string): {
@@ -87,17 +78,27 @@ function parseRetryBackoff(retryBackoff: string): {
  * typo'd producer is a config failure, never a silent default.
  */
 export function jobEnqueueOptions(jobName: string): JobsOptions {
-  const row = jobFamilyRow(jobName)
-  if (!row) {
+  const def = jobDefinition(jobName)
+  if (!def) {
     throw new Error(
-      `unknown job '${jobName}' — no JOB_FAMILY_ROWS entry; add the family to the event/job catalogue (BQC-3.6)`,
+      `unknown job '${jobName}' — no job definition; add it to src/shared/jobs/job-definitions.ts`,
     )
   }
-  const backoff = parseRetryBackoff(row.retryBackoff)
+  const backoff = parseRetryBackoff(def.backoff)
   return {
-    attempts: row.retryAttempts,
+    attempts: def.attempts,
     backoff: { type: backoff.type, delay: backoff.delay, jitter: BACKOFF_JITTER },
   }
+}
+
+/**
+ * Options for re-enqueueing a quarantined job: the same attempts and backoff a
+ * first enqueue gets, so a redrive restores the job's whole attempt budget.
+ * A job without a definition gets the queue defaults (its handler must exist
+ * after a redeploy anyway).
+ */
+export function jobRedriveOptions(jobName: string): JobsOptions {
+  return jobDefinition(jobName) ? jobEnqueueOptions(jobName) : {}
 }
 
 /**
@@ -111,13 +112,13 @@ export function jobRetryDelayUpperBoundMs(
   if (!Number.isSafeInteger(attemptOrdinal) || attemptOrdinal < 1) {
     throw new Error(`invalid attempt ordinal '${attemptOrdinal}'`)
   }
-  const row = jobFamilyRow(jobName)
-  if (!row) {
+  const def = jobDefinition(jobName)
+  if (!def) {
     throw new Error(
-      `unknown job '${jobName}' — no JOB_FAMILY_ROWS entry; add the family to the event/job catalogue (BQC-3.6)`,
+      `unknown job '${jobName}' — no job definition; add it to src/shared/jobs/job-definitions.ts`,
     )
   }
-  const backoff = parseRetryBackoff(row.retryBackoff)
+  const backoff = parseRetryBackoff(def.backoff)
   const delay =
     backoff.type === 'exponential'
       ? Math.round(2 ** (attemptOrdinal - 1) * backoff.delay)

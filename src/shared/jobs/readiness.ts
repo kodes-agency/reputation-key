@@ -6,22 +6,20 @@
 // failure taxonomy ("Unknown job/consumer → fail readiness") the worker boot
 // FAILS rather than starting half-wired:
 //
-//   (a) every JOB_FAMILY_ROWS entry with registration 'enabled' has a handler
+//   (a) every job definition with registration 'enabled' has a handler
 //       quarantined rows may retain an explicit safety/report handler;
 //       denied_dark/blocked_capability rows MUST NOT retain a handler;
-//   (b) every registered handler name exists in JOB_FAMILY_ROWS — a stale or
+//   (b) every registered handler name has a job definition — a stale or
 //       typo'd handler fails the boot. The 'domain-events' dispatcher is NOT
 //       a registered handler: it is a queue-level worker created with its own
 //       dispatch closure, so it never appears in the registry;
-//   (c) every catalogued durable consumer ref is registered. The outbox
+//   (c) every required durable consumer ref is registered. The outbox
 //       relay + dispatcher are the only delivery path, so a missing consumer
 //       is a fact with no reader.
 
-import {
-  EVENT_FAMILY_ROWS,
-  JOB_FAMILY_ROWS,
-} from '#/shared/governance/event-job-catalogue'
+import { DURABLE_CONSUMERS } from '#/shared/events/consumer-definitions'
 import type { ConsumerListing } from '#/shared/outbox'
+import { JOB_DEFINITIONS } from './job-definitions'
 import type { JobRegistry } from './registry'
 import { validateOperationalCatalogueCoverage } from './operational-catalogue'
 
@@ -42,17 +40,17 @@ export type ReadinessLogger = {
 
 function assertHandlersRegistered(registry: JobRegistry): void {
   const registered = new Set(registry.getAll().keys())
-  const rowsByName = new Map(JOB_FAMILY_ROWS.map((row) => [row.jobName, row]))
+  const defsByName = new Map(JOB_DEFINITIONS.map((def) => [def.name, def]))
 
-  const missing = JOB_FAMILY_ROWS.filter(
-    (r) => r.registration === 'enabled' && !registered.has(r.jobName),
-  ).map((r) => r.jobName)
+  const missing = JOB_DEFINITIONS.filter(
+    (def) => def.registration === 'enabled' && !registered.has(def.name),
+  ).map((def) => def.name)
   const extra = [...registered].filter((name) => {
-    const row = rowsByName.get(name)
+    const def = defsByName.get(name)
     return (
-      row === undefined ||
-      row.registration === 'blocked_capability' ||
-      row.registration === 'denied_dark'
+      def === undefined ||
+      def.registration === 'blocked_capability' ||
+      def.registration === 'denied_dark'
     )
   })
 
@@ -60,7 +58,7 @@ function assertHandlersRegistered(registry: JobRegistry): void {
     throw new Error(
       'job readiness failed (deployment/config mismatch): ' +
         `${missing.length} enabled catalogue job(s) without a handler [${missing.join(', ')}], ` +
-        `${extra.length} registered handler(s) absent or forbidden by the catalogue [${extra.join(', ')}]`,
+        `${extra.length} registered handler(s) absent or forbidden by the definitions [${extra.join(', ')}]`,
     )
   }
 }
@@ -71,20 +69,20 @@ function assertDurableConsumersRegistered(
   const registered = new Set(
     listConsumers().map((consumer) => `${consumer.eventType}::${consumer.consumerName}`),
   )
-  const missing = EVENT_FAMILY_ROWS.flatMap((row) =>
-    row.consumers.map((consumer) => `${row.eventType}::${consumer.name}`),
+  const missing = DURABLE_CONSUMERS.flatMap((consumer) =>
+    consumer.on.map((eventType) => `${eventType}::${consumer.name}`),
   ).filter((key) => !registered.has(key))
 
   if (missing.length > 0) {
     throw new Error(
       'durable consumer readiness failed (deployment/config mismatch): ' +
-        `catalogued durable consumer(s) not registered [${missing.join(', ')}]`,
+        `required durable consumer(s) not registered [${missing.join(', ')}]`,
     )
   }
 }
 
 /**
- * Fail the worker boot when registered work and the catalogue disagree.
+ * Fail the worker boot when registered work and the definitions disagree.
  * Throws on the first mismatch class found; logs the passing posture at info.
  */
 export function assertJobReadiness(
@@ -97,6 +95,6 @@ export function assertJobReadiness(
   assertDurableConsumersRegistered(options.listConsumers)
   logger.info(
     { handlers: registry.getAll().size },
-    'job readiness OK — handlers and durable consumers match the catalogue',
+    'job readiness OK — handlers and durable consumers match the definitions',
   )
 }

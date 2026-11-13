@@ -38,8 +38,7 @@ import { GateDenyRetryError } from './errors'
 import {
   isCatalogueKnownWork,
   isDomainRedriveOnlyJob,
-  jobEnqueueOptions,
-  jobFamilyRow,
+  jobRedriveOptions,
 } from './job-policy'
 import { isScheduleFiring } from './schedule-firing'
 
@@ -438,11 +437,12 @@ export function createRedriveJob(
       ...(envelope.data as Record<string, unknown>),
       redriveMetadata,
     }
-    // Fresh attempt budget from the catalogue policy; unknown jobs fall back
-    // to the queue defaults (their handler must exist post-redeploy anyway).
-    const opts = jobFamilyRow(envelope.jobName) ? jobEnqueueOptions(envelope.jobName) : {}
-
-    const job = (await target.add(envelope.jobName, data, opts)) as Job
+    // Fresh attempt budget from the job policy.
+    const job = (await target.add(
+      envelope.jobName,
+      data,
+      jobRedriveOptions(envelope.jobName),
+    )) as Job
     await quarantined.remove()
     return { redriven: true, targetQueue: envelope.originalQueue, jobId: job?.id }
   }

@@ -623,7 +623,15 @@ export default tseslint.config(
             },
             {
               from: elementType('shared-governance'),
-              allow: { to: elementTypes(...SHARED_CORE, 'shared-db') },
+              // The catalogues derive their rows from the job and consumer definitions.
+              allow: {
+                to: elementTypes(
+                  ...SHARED_CORE,
+                  'shared-db',
+                  'shared-events',
+                  'shared-jobs',
+                ),
+              },
             },
             {
               from: elementType('shared'),
