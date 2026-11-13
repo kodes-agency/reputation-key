@@ -213,7 +213,7 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     expect(titles.indexOf('Portal goals')).toBeGreaterThan(
       titles.indexOf('Google rating goal'),
     )
-    await expectPhoneLayout(page, ['appTopBar'])
+    await expectPhoneLayout(page)
 
     const section = page.locator('#portal-goals')
     await expect(
@@ -847,7 +847,7 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await clickWhenReady(page.getByRole('button', { name: 'Change number' }))
     const sheet = page.getByRole('dialog', { name: 'Change your monthly portal goal' })
     await expect(sheet).toBeVisible()
-    await expectPhoneLayout(page, ['appTopBar'])
+    await expectPhoneLayout(page)
     await sheet.getByRole('radio', { name: `From ${nextFirst}` }).click()
     await expect(sheet.getByText(`${monthName} stays at ${target}.`)).toBeVisible()
     await sheet.getByRole('spinbutton').fill(String(changed))
@@ -1050,7 +1050,7 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
 
     await page.goto(`/properties/${propertyId}/goals?view=history`)
     await waitForHydration(page)
-    await expectPhoneLayout(page, ['appTopBar'])
+    await expectPhoneLayout(page)
 
     // The tabs are the Google section's: inside its one region, and the page's only ones.
     const google = page.getByRole('region', { name: 'Google rating goal', exact: true })
@@ -1524,7 +1524,7 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(
       page.getByRole('status').filter({ hasText: 'Loading results' }),
     ).toHaveCount(0)
-    await expectPhoneLayout(page, ['appTopBar'])
+    await expectPhoneLayout(page)
     const line = page.locator('[data-slot="portal-goal-results-line"]')
     if (receptionCount > 0) {
       await expect(

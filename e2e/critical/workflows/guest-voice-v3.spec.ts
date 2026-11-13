@@ -181,7 +181,7 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
     }
     await expect(page.getByRole('link', { name: /Open the goal/u })).toHaveCount(0)
     await assertNoAxeViolations(page, 'Guest voice check-in (desktop)')
-    await expectPhoneLayout(page, ['appTopBar'])
+    await expectPhoneLayout(page)
     const opener = page
       .getByRole('button', { name: /Air conditioning.*4 guests/u })
       .first()
@@ -200,7 +200,7 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
     await expect(
       sheet.getByText('Health risk · a guest report, not a verified finding.'),
     ).toBeVisible()
-    await expectPhoneLayout(page, ['appTopBar'])
+    await expectPhoneLayout(page)
     await sheet.getByRole('button', { name: /Back to Air conditioning/u }).click()
     await expect(sheet.getByText('These guests')).toBeVisible()
     const bookmark = page.url()

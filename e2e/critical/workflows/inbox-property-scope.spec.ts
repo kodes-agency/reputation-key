@@ -67,7 +67,7 @@ test.describe('Critical workflow: inbox property scope', () => {
       rail.getByRole('combobox', { name: `Property: ${scope}` })
     await expect(propertySelect('All properties')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText(mainReviewer).first()).toBeVisible()
-    await expectPhoneLayout(page, ['appTopBar'])
+    await expectPhoneLayout(page)
     await expect(page.getByText(annexReviewer).first()).toBeVisible()
 
     // The seed organization already has eight properties, so with the annex the

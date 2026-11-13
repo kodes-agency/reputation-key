@@ -53,7 +53,7 @@ test.describe('Critical: properties shell', () => {
     await expect(page.getByRole('heading', { name: /^properties$/i })).toBeVisible()
     await expect(page.getByText(SEEDED_PROPERTY_NAME)).toBeVisible()
     await expectOneH1(page)
-    await expectPhoneLayout(page, ['appTopBar', 'propertyListSetupLinks'])
+    await expectPhoneLayout(page)
   })
 
   test('open seeded property detail', async ({ page }) => {
@@ -81,7 +81,7 @@ test.describe('Critical: inbox and members shell', () => {
     await expect(page).toHaveURL(/\/inbox/)
     await expect(inboxChrome(page)).toBeVisible({ timeout: 15_000 })
     await expectOneH1(page)
-    await expectPhoneLayout(page, ['appTopBar'])
+    await expectPhoneLayout(page)
   })
 
   test('settings members page loads', async ({ page }) => {
@@ -102,6 +102,6 @@ test.describe('Critical: inbox and members shell', () => {
     ).toBeVisible()
     await expect(page.getByRole('columnheader', { name: 'Properties' })).toBeVisible()
     await expect(page.getByRole('columnheader', { name: 'Person' })).toBeVisible()
-    await expectPhoneLayout(page, ['appTopBar'])
+    await expectPhoneLayout(page)
   })
 })

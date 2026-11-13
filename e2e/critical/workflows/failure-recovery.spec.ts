@@ -263,6 +263,6 @@ test.describe('Critical workflow: failures that recover', () => {
     await expect(page.getByText('Live on Google', { exact: true }).first()).toBeVisible({
       timeout: 15_000,
     })
-    await expectPhoneLayout(page, ['appTopBar'])
+    await expectPhoneLayout(page)
   })
 })
