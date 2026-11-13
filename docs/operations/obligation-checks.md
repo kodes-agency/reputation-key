@@ -88,9 +88,11 @@ and confirm each point is carried by the text named for it:
    manager body and Privacy Notice section 4.
 4. A reveal records the user id, time, purpose and basis: the manager body and
    Privacy Notice section 4.
-5. The request record and the reveal log outlive the erased email and name, and
-   are kept until the response row is deleted: the manager body and Privacy
-   Notice section 6.
+5. The request record and the reveal log outlive the erased email and name: the
+   manager body says only that they stay after the email and name are erased.
+   How long they are kept (until the response is deleted, with the 24-month
+   deletion not active unless scheduled retention is active) is carried by Privacy
+   Notice section 6 alone.
 
 The guest copy does not carry points 3 to 5; the Privacy Notice carries all five.
 Then withdraw a synthetic request and confirm its erasure journal entry exists

@@ -15,8 +15,11 @@ against this file.
 
 ## 1. Privacy Notice replacements
 
-### Section 1 (add after the sentence on Guest private ratings and feedback)
+### Section 1 (amend the Guest definition, then add after the sentence on Guest private ratings and feedback)
 
+> Guests — people who open a published Portal and may submit a private rating,
+> optional private feedback, or contact details to be followed up on.
+>
 > Contact details a Guest chooses to share so a manager can follow up on their
 > feedback are processed on the Guest's consent.
 
@@ -41,15 +44,17 @@ against this file.
 
 ### Section 4 (replaces the bullet beginning "Portal private feedback and Portal workflow notifications are limited")
 
-> - Portal workflow notifications go only to the current responsible managers
->   assigned to that Portal. A creator is assigned initially when eligible; creation
->   is not permanent exclusive ownership. The people who can open a Portal's private
->   feedback, and reveal contact details a Guest shared with it, are those
->   responsible managers, the Portal's creator while they still have access to the
->   Property, and the Organization's account administrators, who are the owners with
->   Organization-wide access. Contact details are hidden until someone reveals them.
->   Every reveal records the person's user id, the time, the purpose and why they had
->   access.
+> - Portal workflow notifications go to the current responsible managers assigned
+>   to that Portal. Account administrators receive them only when a Portal has no
+>   eligible responsible manager. A creator is assigned initially when eligible;
+>   creation is not permanent exclusive ownership. Account administrators, who are
+>   the owners with Organization-wide access, and the property managers assigned to
+>   the Property can open a Portal's private feedback. Of those, only the account
+>   administrators, the Portal's creator while they remain a property manager with
+>   access to the Property, and its current responsible managers can reveal contact
+>   details a Guest shared with it. Contact details are hidden until someone reveals
+>   them. Every reveal records the person's user id, the time, the purpose and why
+>   they had access.
 
 ### Section 6 (replaces "Contact Requests are disabled;")
 
@@ -58,8 +63,9 @@ against this file.
 >   by a daily job, or at once when the Guest withdraws. The request record (its
 >   time, status and the Portal version it was made under) and the log of reveals
 >   (user id, time, purpose and basis) hold no email address or name. They are kept
->   until the response they belong to is deleted, which is 24 months after the
->   initial submission under the content-free response rule above;
+>   until the response they belong to is deleted. The 24-month deletion of a response
+>   runs only when scheduled retention is active, and it is not active yet, so
+>   enforcement of that rule has not started;
 
 ### Section 7 (replaces "Contact Request remains disabled until its separate consent and withdrawal contract is accepted.")
 
@@ -95,17 +101,35 @@ against this file.
 
 ### Manager (`MANAGER_CONTACT_REQUEST_COPY`)
 
-| Key                         | Text                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| title                       | This guest asked to be contacted                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| body                        | Details are hidden until you reveal them. Each reveal records your user id, the time, the purpose and why you had access. Account admins are organization owners with organization-wide access; other managers see requests only for Portals they created or manage. Use the details only to answer this feedback. They are hidden after 30 days and erased within a day after; the request record and reveal log stay after the email and name are erased. |
-| reveal (button)             | Reveal contact                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| revealing                   | Revealing…                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| revealFailed (failure line) | The contact details could not be shown. They may have been withdrawn or expired.                                                                                                                                                                                                                                                                                                                                                                            |
-| email                       | Email                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| name                        | Name                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Key                           | Text                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| title                         | This guest asked to be contacted                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| body                          | Details are hidden until you reveal them. Each reveal records your user id, the time, the purpose and why you had access. Account admins are organization owners with organization-wide access; other managers see requests only for Portals they created or manage. Use the details only to answer this feedback. They are hidden after 30 days and erased within a day after; the request record and reveal log stay after the email and name are erased. |
+| reveal (button)               | Reveal contact                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| revealing                     | Revealing…                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| revealFailed (failure line)   | The contact details could not be shown. They may have been withdrawn or expired.                                                                                                                                                                                                                                                                                                                                                                            |
+| email                         | Email                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| hiddenLabel (screen reader)   | Hidden contact details                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| revealedLabel (screen reader) | Contact details                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| name                          | Name                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
-## 3. Which text carries which point
+## 3. Participation Agreement replacement
+
+Replaces the sentence "Contact Request remains unavailable until its separate
+release and privacy requirements are met; if activated, it is email-only." and the
+matching line in the list of capabilities:
+
+> Contact requests are unavailable until the owner switches them on, Portal by
+> Portal. Where a Portal offers them, a Guest may share an email address and an
+> optional name, and agrees by ticking a separate box that the property may contact
+> them about their feedback. Phone collection and Guest media remain outside the
+> beta.
+
+The list item "Contact Request, only after its separate privacy/handling gate
+closes" becomes "Contact requests, only on a Portal that offers them and after
+the Privacy Notice describing them is in force".
+
+## 4. Which text carries which point
 
 | Point                                                                | Guest copy | Manager text | Privacy Notice   |
 | -------------------------------------------------------------------- | ---------- | ------------ | ---------------- |
@@ -114,6 +138,7 @@ against this file.
 | Account admins are organization owners with organization-wide access | not stated | body         | section 4        |
 | A reveal records user id, time, purpose and basis                    | not stated | body         | section 4        |
 | Request record and reveal log outlive the erased email and name      | not stated | body         | section 6        |
+| How long the request record and reveal log are kept                  | not stated | not stated   | section 6        |
 
 The guest copy is not asked to carry the last three points; the manager text and
 the Notice are.
