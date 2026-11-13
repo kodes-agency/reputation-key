@@ -1,4 +1,4 @@
-// Guest context — Drizzle schema for scan_events, ratings, feedback tables
+// Guest context — Drizzle schema for scan_events and guest response tables
 // Per architecture: schemas live in shared/db/schema/ because Drizzle needs a single barrel.
 // snake_case columns, camelCase field names.
 
@@ -209,54 +209,7 @@ export const guestNetworkPressureRecords = pgTable(
   ],
 )
 
-export const ratings = pgTable(
-  'ratings',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    portalId: uuid('portal_id')
-      .notNull()
-      .references(() => portals.id, { onDelete: 'restrict' }),
-    propertyId: varchar('property_id', { length: 255 }).notNull(),
-    sessionId: varchar('session_id', { length: 255 }),
-    value: integer('value').notNull(),
-    source: varchar('source', { length: 10 }).notNull(),
-    ipHash: text('ip_hash'),
-    createdAt: createdAtColumn(),
-  },
-  (t) => [
-    uniqueIndex('ratings_session_portal_unique').on(t.sessionId, t.portalId),
-    index('ratings_portal_idx').on(t.portalId),
-  ],
-)
-
-export const feedback = pgTable(
-  'feedback',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    portalId: uuid('portal_id')
-      .notNull()
-      .references(() => portals.id, { onDelete: 'restrict' }),
-    propertyId: varchar('property_id', { length: 255 }).notNull(),
-    sessionId: varchar('session_id', { length: 255 }),
-    ratingId: uuid('rating_id').references(() => ratings.id, { onDelete: 'set null' }),
-    comment: text('comment').notNull(),
-    source: varchar('source', { length: 10 }).notNull(),
-    ipHash: text('ip_hash'),
-    createdAt: createdAtColumn(),
-  },
-  (t) => [
-    // F162: Unique constraint prevents duplicate feedback from same session+portal
-    uniqueIndex('feedback_session_portal_unique').on(t.sessionId, t.portalId),
-    index('feedback_portal_idx').on(t.portalId),
-  ],
-)
-
-/**
- * Canonical guest response aggregate. The legacy ratings/feedback tables remain
- * read-only migration sources; new public writes target this table.
- */
+/** Canonical guest response aggregate. */
 export const guestResponses = pgTable(
   'guest_responses',
   {

@@ -24,8 +24,6 @@ const EXPECTED_TABLES = [
   'portal_groups',
   'portal_link_categories',
   'portal_links',
-  'feedback',
-  'ratings',
   'scan_events',
   'guest_network_pressure_records',
   'idempotency_receipts',

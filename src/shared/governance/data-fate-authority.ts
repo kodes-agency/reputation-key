@@ -34,9 +34,6 @@ const ERASE_WITH_OWNER =
 const RETAINED_HISTORY =
   'Retain as immutable history while its owning aggregate is active or archived; include it in scoped export, restore, retention, and erasure evidence.'
 
-const COMPATIBILITY_EXIT =
-  'Keep read-only during replacement parity; remove after canonical readers, restore tooling, and historical reconciliation no longer depend on it.'
-
 /**
  * Grouping keeps the authority reviewable without weakening exhaustiveness:
  * every table export is still named exactly once, and the filesystem guard
@@ -294,17 +291,9 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'guest.schema.ts',
-    exportNames: ['feedback', 'ratings'],
-    owner: 'guest',
-    disposition: 'compatibility_read',
-    authority: 'GST-01/MET-01/CNV-01',
-    exitCriteria: COMPATIBILITY_EXIT,
-  }),
-  ...rows({
-    schemaFile: 'guest.schema.ts',
-    // Not a compatibility mirror like `feedback` and `ratings`: every Portal
-    // visit writes a row here and the visit command reads it to accept one
-    // visit per session, so its rows are current visit facts with a lifecycle.
+    // Every Portal visit writes a row here and the visit command reads it to
+    // accept one visit per session, so its rows are current visit facts with a
+    // lifecycle.
     exportNames: ['scanEvents'],
     owner: 'guest',
     disposition: 'active_authority',
