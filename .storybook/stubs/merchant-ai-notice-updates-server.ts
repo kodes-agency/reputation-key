@@ -1,6 +1,5 @@
-// The shell's lazy AI-announcement chunk imports Start server functions. Keep
-// createServerFn/composition out of the browser preview, as for reply templates.
-// The shapes are the real server functions': `get` answers the AccountAdmin's
+// In-memory stand-in for the AI-announcement server functions, handed to the
+// shell stories as a client. The shapes are the real server functions': `get` answers the AccountAdmin's
 // unseen update or null, `markSeen` takes `{ data: { noticeVersion, noticeDigest } }`.
 import { MERCHANT_AI_NOTICE_ANNOUNCEMENTS } from '../../src/shared/merchant-ai-notice-announcements'
 import type { MerchantAiNoticeUpdate } from '../../src/shared/merchant-ai-notice-announcements'
