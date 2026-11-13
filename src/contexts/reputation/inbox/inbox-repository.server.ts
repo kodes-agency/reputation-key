@@ -399,14 +399,31 @@ export const createInboxRepository = (
     ) => {
       return trace('inbox.stampReplyMilestones', async () => {
         // No `status` key is constructible here — that is the whole point.
+        // The first-reply time only moves earlier; a submit-only stamp that
+        // would not change it writes nothing and leaves commandRevision alone.
+        const { firstReplySubmittedAt: submittedAt, ...rest } = milestones
+        const conditions: SQL[] = [
+          eq(inboxItems.id, id),
+          eq(inboxItems.organizationId, orgId),
+        ]
+        if (submittedAt && !rest.firstReplyPublishedAt) {
+          conditions.push(
+            sql`(${inboxItems.firstReplySubmittedAt} IS NULL OR ${inboxItems.firstReplySubmittedAt} > ${submittedAt})`,
+          )
+        }
         const result = await db
           .update(inboxItems)
           .set({
-            ...milestones,
+            ...rest,
+            ...(submittedAt
+              ? {
+                  firstReplySubmittedAt: sql`LEAST(${inboxItems.firstReplySubmittedAt}, ${submittedAt})`,
+                }
+              : {}),
             commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
             updatedAt: now ?? runtime.clock(),
           })
-          .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
+          .where(and(...conditions))
           .returning()
         return result[0] ? withDefaults(result[0]) : null
       })

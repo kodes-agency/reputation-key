@@ -1286,6 +1286,48 @@ describe('handleInboxReplySubmitted (first-reply milestone)', () => {
     ])
   })
 
+  it('keeps the earliest time when two submissions are consumed newest first', async () => {
+    const { deps, repo } = await makeDeps({})
+
+    await handleInboxReplySubmitted(deps, submitted('2026-06-16T09:00:00.000Z'))
+    await handleInboxReplySubmitted(deps, submitted('2026-06-15T13:00:00.000Z'))
+
+    expect((await repo.items())[0]!.firstReplySubmittedAt).toEqual(
+      new Date('2026-06-15T13:00:00.000Z'),
+    )
+  })
+
+  it('leaves the time and commandRevision alone for a duplicate or later event', async () => {
+    const { deps, repo } = await makeDeps({})
+    await handleInboxReplySubmitted(deps, submitted('2026-06-15T13:00:00.000Z'))
+    const before = (await repo.items())[0]!
+
+    await handleInboxReplySubmitted(deps, submitted('2026-06-15T13:00:00.000Z'))
+    await handleInboxReplySubmitted(deps, submitted('2026-06-16T09:00:00.000Z'))
+
+    const after = (await repo.items())[0]!
+    expect(after.firstReplySubmittedAt).toEqual(before.firstReplySubmittedAt)
+    expect(after.commandRevision).toBe(before.commandRevision)
+    expect(after.updatedAt).toEqual(before.updatedAt)
+  })
+
+  it('does not move the time later when the repository is asked directly', async () => {
+    const first = new Date('2026-06-15T13:00:00.000Z')
+    const { deps, repo } = await makeDeps({
+      item: makeItem({ firstReplySubmittedAt: first }),
+    })
+    const before = (await repo.items())[0]!
+
+    const result = await deps.inboxRepo.stampReplyMilestones(
+      before.id,
+      before.organizationId,
+      { firstReplySubmittedAt: new Date('2026-06-17T00:00:00.000Z') },
+    )
+
+    expect(result).toBeNull()
+    expect((await repo.items())[0]!.commandRevision).toBe(before.commandRevision)
+  })
+
   it('records an applied receipt when no inbox item exists for the review', async () => {
     const { deps, receipts } = await makeDeps({ item: null })
 
