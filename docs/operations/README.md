@@ -15,6 +15,7 @@ is not monitoring coverage.
 | Notification or mandatory email stalled                  | Runbooks §§15, 24                                           |
 | Suspected secret leak, tenant breach or privacy incident | Runbooks §§1, 9, 11, 19, 21                                 |
 | Portal address or image problem                          | Runbooks §§20, 26, 27, 31                                   |
+| Retired print or own-look setting, retention duties      | Runbooks §§35, 36                                           |
 | AI coverage, authorization or renewal stalled            | Runbooks §§22, 32–34                                        |
 
 For a first check and action by area (site and release, restore, Google, queue and
