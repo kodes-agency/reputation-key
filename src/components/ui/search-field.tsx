@@ -105,8 +105,10 @@ export function SearchField({
       <InputGroupInput ref={inputRef} {...input} className={NO_NATIVE_CANCEL} />
       {clearable && shown !== '' ? (
         // The X is a tap target below `md` (`touch`), so the addon adds no padding of
-        // its own around it: the field is as tall as the button, not 12px taller.
-        <InputGroupAddon align="inline-end" className="py-0">
+        // its own around it: the field is as tall as the button, not 12px taller. The
+        // button is wider than the glyph the addon's negative margin lines up, so on a phone
+        // the margin goes and the button stays inside the field.
+        <InputGroupAddon align="inline-end" className="py-0 max-md:has-[>button]:mr-0">
           <IconButton
             size="icon-xs"
             touch

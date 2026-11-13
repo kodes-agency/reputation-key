@@ -48,6 +48,7 @@ export function PortalGoalChoices({
             <RadioGroupItem
               value={String(value)}
               id={id}
+              touch
               className="border-muted-foreground"
             />
             <Label

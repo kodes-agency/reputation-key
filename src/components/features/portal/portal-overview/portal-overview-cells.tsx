@@ -9,7 +9,7 @@
 import { Link } from '@tanstack/react-router'
 import { Badge } from '#/components/ui/badge'
 import { OwnerDisc } from '#/components/ui/owner-disc'
-import { ROW_NAME_LINK } from '#/components/ui/row-link'
+import { PHONE_LINK_TOUCH, ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import type {
   PortalLocalesView,
@@ -25,7 +25,7 @@ export function PortalNameLink({ row }: Readonly<{ row: RowRef }>) {
       to="/properties/$propertyId/portals/$portalId"
       params={{ propertyId: row.propertyId, portalId: row.portalId }}
       search={{ tab: 'page' }}
-      className={cn('truncate font-medium', ROW_NAME_LINK)}
+      className={cn('truncate font-medium', ROW_NAME_LINK, PHONE_LINK_TOUCH)}
     >
       {row.name}
     </Link>

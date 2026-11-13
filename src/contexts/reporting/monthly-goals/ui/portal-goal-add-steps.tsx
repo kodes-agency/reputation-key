@@ -28,7 +28,13 @@ function RadioCard({
   return (
     <div className="flex flex-col gap-1 rounded-lg border p-3 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
       <div className="flex items-start gap-3">
-        <RadioGroupItem value={value} id={id} disabled={disabled} className="mt-0.5" />
+        <RadioGroupItem
+          value={value}
+          id={id}
+          disabled={disabled}
+          touch
+          className="mt-0.5"
+        />
         <Label
           htmlFor={id}
           className="flex flex-1 flex-col items-start gap-1 font-normal"

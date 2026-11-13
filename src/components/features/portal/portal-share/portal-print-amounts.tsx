@@ -58,6 +58,7 @@ function Spares({
         checked={print.fillSpares}
         onCheckedChange={(checked) => printState.change({ fillSpares: checked === true })}
         aria-describedby="print-final-spares-note"
+        touch
         className="mt-0.5"
       />
       <div className="flex flex-col gap-0.5">
@@ -141,6 +142,7 @@ function BackPageOption({ printState, print }: StepProps) {
         checked={print.backPage}
         onCheckedChange={(checked) => printState.change({ backPage: checked === true })}
         aria-describedby="print-final-back-help"
+        touch
         className="mt-0.5"
       />
       <div className="flex flex-col gap-0.5">
@@ -164,6 +166,7 @@ function CropMarksOption({ printState, print }: StepProps) {
         checked={print.cropMarks}
         onCheckedChange={(checked) => printState.change({ cropMarks: checked === true })}
         aria-describedby="print-final-crop-marks-help"
+        touch
         className="mt-0.5"
       />
       <div className="flex flex-col gap-0.5">
@@ -189,7 +192,7 @@ function MoreOptions(props: StepProps) {
     .join(', ')
   return (
     <details className="group">
-      <summary className="focus-ring flex min-h-9 w-fit cursor-pointer items-center gap-1.5 text-[13px] text-muted-foreground">
+      <summary className="focus-ring flex min-h-9 w-fit cursor-pointer max-md:min-h-(--control-touch) items-center gap-1.5 text-[13px] text-muted-foreground">
         <ChevronRight
           aria-hidden="true"
           className="size-3.5 transition-transform group-open:rotate-90"

@@ -1,6 +1,6 @@
 import { Target } from 'lucide-react'
 import type { PortalGoalLineView } from '#/contexts/reporting/monthly-goals/contracts'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 import { resultsLineWords } from './portal-goal-results-line-view'
 
 type Props = Readonly<{
@@ -21,22 +21,22 @@ export function PortalGoalResultsLine({ line, portalName, propertyId }: Props) {
       <Target aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1">{words.text}</span>
       {words.goal.kind === 'own' ? (
-        <InlineLink
+        <TouchInlineLink
           to="/properties/$propertyId/goals/$goalId"
           params={{ propertyId, goalId: words.goal.programId }}
           // Set in the line's sentence: underlined, so it reads as a link in either theme.
           underline="always"
         >
           {words.open}
-        </InlineLink>
+        </TouchInlineLink>
       ) : (
-        <InlineLink
+        <TouchInlineLink
           to="/properties/$propertyId/goals/portals"
           params={{ propertyId }}
           underline="always"
         >
           {words.open}
-        </InlineLink>
+        </TouchInlineLink>
       )}
     </p>
   )

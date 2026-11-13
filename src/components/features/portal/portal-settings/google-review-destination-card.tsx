@@ -4,7 +4,7 @@ import {
   presentGoogleReviewDestination,
   type GoogleReviewDestinationStatus,
 } from './google-review-destination-status'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 
 export function GoogleReviewDestinationCard({
   destination,
@@ -31,14 +31,14 @@ export function GoogleReviewDestinationCard({
       {destination.state === 'unavailable' ? (
         <div className="mt-2 flex flex-col items-start gap-1">
           {canManageGoogleConnection ? (
-            <InlineLink to="/settings/integrations" className="text-xs">
+            <TouchInlineLink to="/settings/integrations" className="text-xs">
               Open Google integrations
-            </InlineLink>
+            </TouchInlineLink>
           ) : null}
           {canConfirmGoogleProperty ? (
-            <InlineLink to="/properties/import-google" className="text-xs">
+            <TouchInlineLink to="/properties/import-google" className="text-xs">
               Review property import
-            </InlineLink>
+            </TouchInlineLink>
           ) : null}
           {!canManageGoogleConnection || !canConfirmGoogleProperty ? (
             <p className="text-xs text-muted-foreground">

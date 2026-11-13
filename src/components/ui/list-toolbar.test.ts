@@ -25,6 +25,7 @@ describe('ListToolbarStatus', () => {
     expect(html).toContain('data-slot="list-toolbar-status"')
     expect(html).toContain('flex')
     expect(html).toContain('items-center')
-    expect(html).toContain('gap-2')
+    expect(html).toContain('flex-wrap')
+    expect(html).toContain('gap-x-2')
   })
 })

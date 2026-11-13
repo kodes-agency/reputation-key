@@ -503,7 +503,7 @@ export const Phone: Story = {
   args: withResults,
   decorators: [
     (Story) => (
-      <div style={{ width: 390 }}>
+      <div style={{ width: '100%', maxWidth: 390 }}>
         <Story />
       </div>
     ),

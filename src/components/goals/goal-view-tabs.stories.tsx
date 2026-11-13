@@ -3,9 +3,10 @@
 // so its name says whose views they are. Two links in a named navigation
 // landmark, the current one marked with `aria-current`, where it used to be two
 // Buttons that said nothing about which view was on. Dark is the default theme;
-// the light variant draws the same row on the light surface (axe runs on both).
+// the active view's play runs in both themes (axe runs on both).
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, userEvent, within } from 'storybook/test'
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { GoalViewTabs } from './goal-view-tabs'
 
 const meta: Meta<typeof GoalViewTabs> = {
@@ -20,7 +21,7 @@ export default meta
 type Story = StoryObj<typeof GoalViewTabs>
 
 export const ActiveView: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const nav = within(canvasElement).getByRole('navigation', {
       name: 'Google rating goal views',
     })
@@ -34,7 +35,7 @@ export const ActiveView: Story = {
     expect(within(nav).getByRole('link', { name: 'History' })).not.toHaveAttribute(
       'aria-current',
     )
-  },
+  }),
 }
 
 export const HistoryView: Story = {
@@ -80,5 +81,3 @@ export const KeyboardOrder: Story = {
     expect(canvas.getByRole('link', { name: 'History' })).toHaveFocus()
   },
 }
-
-export const ActiveViewLight: Story = { ...ActiveView, parameters: { theme: 'light' } }
