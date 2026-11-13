@@ -1,7 +1,16 @@
-import { translatedGoogleReviewApi } from '../google-review-api-error'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import {
+  executorErrorToReviewApiError,
+  isProviderCallFailure,
+  isReplyPreReadRefusal,
+} from '../google-review-api-error'
+import { withReauthorizationCause } from '../reauthorization-cause'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
-import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
+import type {
+  GoogleConnectionStatusPort,
+  GoogleReviewApiPort,
+} from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewProviderSubjectSightings } from '../ports/review-provider-subject-sightings.port'
@@ -31,11 +40,41 @@ export type ReadReviewBeforePublishResult =
 
 export type ReadReviewBeforePublishDeps = Readonly<{
   googleReviewApi: GoogleReviewApiPort
+  connectionStatus: GoogleConnectionStatusPort
+  logger: Pick<LoggerPort, 'warn'>
   propertySourceEpoch: PropertySourceEpochPort
   observationWriter: ReviewProviderObservationWriter
   subjectKeyService: ReviewProviderSubjectKeyService
   subjectSightings: ReviewProviderSubjectSightings
 }>
+
+/**
+ * The read, with a provider failure turned into the Review error the publish
+ * job classifies. A read refused before it reached Google while its connection
+ * waits for a reconnect is the reconnect case, as it is for the write.
+ */
+async function getReview(
+  deps: ReadReviewBeforePublishDeps,
+  input: ReadReviewBeforePublishInput,
+): Promise<Awaited<ReturnType<GoogleReviewApiPort['getReview']>>> {
+  try {
+    return await deps.googleReviewApi.getReview({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      connectionId: input.connectionId,
+      sourceEpoch: input.sourceEpoch,
+      locationName: input.locationName,
+      reviewName: input.reviewName,
+      forReplyPublication: true,
+    })
+  } catch (error) {
+    if (!isProviderCallFailure(error)) throw error
+    const translated = executorErrorToReviewApiError(error)
+    throw isReplyPreReadRefusal(error)
+      ? await withReauthorizationCause(deps, input, translated)
+      : translated
+  }
+}
 
 /**
  * One `reviews.get` of the review a Reply is about to be published on, recorded
@@ -59,17 +98,7 @@ export const readReviewBeforePublish =
     }
     if (!(await sourceIsCurrent())) return { status: 'obsolete' }
 
-    const providerResult = await translatedGoogleReviewApi(
-      deps.googleReviewApi,
-    ).getReview({
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      connectionId: input.connectionId,
-      sourceEpoch: input.sourceEpoch,
-      locationName: input.locationName,
-      reviewName: input.reviewName,
-      forReplyPublication: true,
-    })
+    const providerResult = await getReview(deps, input)
     if (!(await sourceIsCurrent())) return { status: 'obsolete' }
     if (providerResult.status === 'not_found') return { status: 'review_missing' }
 
