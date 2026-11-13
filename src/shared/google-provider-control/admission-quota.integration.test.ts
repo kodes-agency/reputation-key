@@ -11,7 +11,7 @@ import {
   googleQuotaCredentialFingerprint,
 } from './quota-coordinator'
 import { compileGoogleProviderRequest } from './route-catalogue'
-import { createFakeGoogleCoordinationRedis } from '#/shared/testing/fake-google-coordination-redis'
+import { useGoogleCoordinationRedis } from '#/shared/testing/google-coordination-redis'
 
 const descriptor = {
   routeKey: 'account-management.accounts.list' as const,
@@ -23,12 +23,14 @@ const admission = compileGoogleProviderRequest(descriptor, bindCredential).admis
 const projectFingerprint = 'd'.repeat(64)
 
 describe('Google admission quota accounting', () => {
+  const testRedis = useGoogleCoordinationRedis()
+
   it.each(['changed', 'expired', 'unavailable', 'throw', 'deadline'] as const)(
     'keeps the four-call burst limit after refill, consumption and delayed permit refusal (%s)',
     async (refusal) => {
       let nowMs = 1_000
       let sequence = 0
-      const redis = createFakeGoogleCoordinationRedis()
+      const redis = testRedis.create()
       const coordination = () =>
         createGoogleCoordinationLookup({
           redis,
