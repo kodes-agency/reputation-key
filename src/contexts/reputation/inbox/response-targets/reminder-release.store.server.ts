@@ -27,7 +27,7 @@ import { isSupersededReminder } from '../../../inbox/domain/response-target'
 
 type ReminderReleaseStore = Pick<
   ResponseTargetStore,
-  'releaseDueReminders' | 'listDueReminderCandidates' | 'releaseReminderSlot'
+  'listDueReminderCandidates' | 'releaseReminderSlot'
 >
 
 const MAX_REMINDER_BATCH = 100
@@ -222,24 +222,10 @@ const toCandidate = ({ reminder, target }: DueSlotRow): DueReminderCandidate => 
 })
 
 /**
- * Reminder release: the unconditional one-transaction pass, and the two steps
- * the Google pre-check needs between which no lock or transaction is held.
+ * Reminder release: the two steps the Google pre-check needs, between which no
+ * lock or transaction is held.
  */
 export const createReminderReleaseStore = (db: Database): ReminderReleaseStore => ({
-  releaseDueReminders: async ({ now, limit }) =>
-    trace('inbox.responseTarget.releaseDueReminders', async () => {
-      assertBatchLimit(limit)
-      const released = await db.transaction(async (tx) => {
-        const due = await selectDueSlots(tx, { now, limit, lock: true })
-        let count = 0
-        for (const row of due) {
-          if ((await settleLockedSlot(tx, row, now)) === 'released') count += 1
-        }
-        return count
-      })
-      return { released }
-    }),
-
   listDueReminderCandidates: async ({ now, limit, extra = 0 }) =>
     trace('inbox.responseTarget.listDueReminderCandidates', async () => {
       assertBatchLimit(limit)

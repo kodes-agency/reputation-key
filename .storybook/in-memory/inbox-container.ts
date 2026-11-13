@@ -184,7 +184,6 @@ const emptyResponseTargetStore: ResponseTargetStore = {
     legacyUnknownExcludedCount: 0,
     averageTimeToResponseMinutes: null,
   }),
-  releaseDueReminders: async () => ({ released: 0 }),
   listDueReminderCandidates: async () => [],
   releaseReminderSlot: async () => 'skipped',
   cancelArchivedPropertyRemindersOnce: async () => 'obsolete',

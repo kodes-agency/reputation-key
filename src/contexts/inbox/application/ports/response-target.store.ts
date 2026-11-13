@@ -126,12 +126,6 @@ export type ResponseTargetStore = Readonly<{
   ): Promise<
     ReadonlyMap<PropertyId, Readonly<{ activeCount: number; overdueCount: number }>>
   >
-  releaseDueReminders(
-    input: Readonly<{
-      now: Date
-      limit: number
-    }>,
-  ): Promise<Readonly<{ released: number }>>
   /**
    * The reminder slots due at `now`, with NO lock and no transaction held
    * afterwards: the caller may read Google between this and
@@ -144,8 +138,8 @@ export type ResponseTargetStore = Readonly<{
   ): Promise<ReadonlyArray<DueReminderCandidate>>
   /**
    * Release one due slot in its own short transaction: the same selection, the
-   * target lock, the one-shot guard and the outbox fact as `releaseDueReminders`,
-   * re-decided under the lock. A target completed meanwhile (a reply closed it)
+   * target lock, the one-shot guard and the outbox fact,
+   * decided under the lock. A target completed meanwhile (a reply closed it)
    * answers `skipped`, which is how a held slot is cancelled by the normal close.
    */
   releaseReminderSlot(
