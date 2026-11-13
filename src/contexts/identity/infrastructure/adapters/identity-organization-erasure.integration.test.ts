@@ -62,6 +62,14 @@ async function members(organizationId: string): Promise<unknown[]> {
   return result.rows[0]?.rows as unknown[]
 }
 
+async function organizationRow(organizationId: string): Promise<unknown> {
+  const result = await query(
+    `SELECT to_jsonb(o) AS row FROM organization o WHERE id = $1`,
+    [organizationId],
+  )
+  return result.rows[0]?.row
+}
+
 async function guardEnabled(): Promise<boolean> {
   const result = await query(
     `SELECT tgenabled FROM pg_trigger
@@ -72,7 +80,7 @@ async function guardEnabled(): Promise<boolean> {
 
 describe('Identity closure of an Organization with an owner', () => {
   beforeAll(async () => {
-    lease = await acquireTestLease(getEnv().DATABASE_URL, 2)
+    lease = await acquireTestLease(getEnv().DATABASE_URL, 4)
     db = drizzle(lease.pool) as Database
     query = (text, params) => lease.pool.query(text, params)
   })
@@ -99,11 +107,16 @@ describe('Identity closure of an Organization with an owner', () => {
     holdRightsOrganization(closed)
     const before = await members(closed)
     const neighbourBefore = await members(neighbour)
+    const neighbourRow = await organizationRow(neighbour)
+    await query(
+      `UPDATE organization SET "contactEmail" = 'owner@example.test' WHERE id = $1`,
+      [closed],
+    )
     expect(before).toHaveLength(1)
     const { store, entries } = recordingJournalStore()
 
     const result = await runRightsExecutor(
-      createIdentityRightsExecutor(db),
+      createIdentityRightsExecutor(db, () => new Date()),
       rightsPlan('organization', closed),
       store,
     )
@@ -112,6 +125,18 @@ describe('Identity closure of an Organization with an owner', () => {
     expect(result.code).toBe(0)
     expect(await members(closed)).toEqual([])
     expect(await members(neighbour)).toEqual(neighbourBefore)
+    expect(await organizationRow(neighbour)).toEqual(neighbourRow)
+    expect(await organizationRow(closed)).toMatchObject({
+      id: closed,
+      name: 'closed-organization',
+      slug: `closed-${closed}`,
+      contactEmail: null,
+      logo: null,
+      metadata: JSON.stringify({
+        closedAt: RIGHTS_FIXTURE_AT.toISOString(),
+        reason: 'closed on request',
+      }),
+    })
     expect(await guardEnabled()).toBe(true)
     await expect(
       query('DELETE FROM member WHERE "organizationId" = $1', [neighbour]),
@@ -131,8 +156,58 @@ describe('Identity closure of an Organization with an owner', () => {
 
     expect(replayed.verified).toBe(true)
     expect(await members(closed)).toEqual([])
+    expect(await organizationRow(closed)).toMatchObject({ name: 'closed-organization' })
     expect(await members(neighbour)).toEqual(neighbourBefore)
     expect(await guardEnabled()).toBe(true)
+  })
+
+  it('keeps the membership table writable for others until the closure reaches the member delete', async () => {
+    const closed = await seedOwnedOrganization()
+    const neighbour = await seedOwnedOrganization()
+    holdRightsOrganization(closed)
+    const inviter = users[users.length - 2]
+    await query(
+      `INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "inviterId")
+       VALUES ($1, $2, 'guest@example.test', 'member', 'pending', $3, $4)`,
+      [randomUUID(), closed, new Date(RIGHTS_FIXTURE_AT.getTime() + 86_400_000), inviter],
+    )
+    // The closure waits on the invitation row, before its member delete.
+    const blocker = await lease.pool.connect()
+    let closing: ReturnType<typeof runRightsExecutor> | undefined
+    try {
+      await blocker.query('BEGIN')
+      await blocker.query(
+        'SELECT 1 FROM invitation WHERE "organizationId" = $1 FOR UPDATE',
+        [closed],
+      )
+      closing = runRightsExecutor(
+        createIdentityRightsExecutor(db, () => new Date()),
+        rightsPlan('organization', closed),
+        recordingJournalStore().store,
+      )
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      const writer = await lease.pool.connect()
+      try {
+        await writer.query('BEGIN')
+        await writer.query(`SET LOCAL lock_timeout = '1s'`)
+        await writer.query(
+          `UPDATE member SET "createdAt" = "createdAt" WHERE "organizationId" = $1`,
+          [neighbour],
+        )
+        await writer.query('COMMIT')
+      } finally {
+        writer.release()
+      }
+    } finally {
+      await blocker.query('ROLLBACK')
+      blocker.release()
+    }
+    const result = await closing
+    expect(result?.err).toEqual([])
+    expect(result?.code).toBe(0)
+    expect(await members(closed)).toEqual([])
+    expect(await members(neighbour)).toHaveLength(1)
   })
 
   it('rolls the guard and the deletes back when the closure stops with the guard off', async () => {
@@ -149,7 +224,7 @@ describe('Identity closure of an Organization with an owner', () => {
       ])
 
       const result = await runRightsExecutor(
-        createIdentityRightsExecutor(db),
+        createIdentityRightsExecutor(db, () => new Date()),
         rightsPlan('organization', closed),
         recordingJournalStore().store,
       )
