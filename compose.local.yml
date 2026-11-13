@@ -68,7 +68,7 @@ services:
       test: [CMD, node, -e, "fetch('https://127.0.0.1:4100/__control/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
   ai-provider-stub:
     <<: *stub
-    # AI_PROVIDER_STUB_UNSCRIPTED: `503` (e2e default) or `respond` (`pnpm local:up`).
+    # AI_PROVIDER_STUB_UNSCRIPTED: `503` (e2e default) or `respond` (`pnpm dev`).
     environment:
       {
         BQC_STUB_KIND: ai,

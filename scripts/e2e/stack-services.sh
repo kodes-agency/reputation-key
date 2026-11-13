@@ -2,7 +2,7 @@
 # Backing services for both local stacks: certs, the Compose services
 # (Postgres, Redis, the TLS Google sandbox, the AI stub, the mail stub, the object store), the
 # deploy migration and the e2e seed. `e2e:stack:up` then starts the
-# containerised production build on top; `local:up` starts the host web and
+# containerised production build on top; `dev` starts the host web and
 # worker instead (scripts/local/host-stack.ts).
 set -eu
 set -a

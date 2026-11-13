@@ -1,4 +1,4 @@
-// Host-only accommodation for `pnpm local:up`: the web and worker run on the
+// Host-only accommodation for `pnpm dev`: the web and worker run on the
 // host while the Google sandbox, AI stub and mail stub run in Compose, whose
 // service names the host cannot resolve. `local-provider-fetch.ts` deliberately
 // compiles the AI stub address in (no environment value may retarget where the

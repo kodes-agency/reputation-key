@@ -1,4 +1,4 @@
-// `pnpm local:up`, second half: the web dev server (HMR) and the worker on the
+// `pnpm dev`, second half: the web dev server (HMR) and the worker on the
 // host, against the Compose services `scripts/e2e/stack-services.sh` started.
 // The environment is the committed `e2e/stack.env` (already exported by the
 // package script), then the gitignored `local.env` overlay if it exists, plus
@@ -23,7 +23,7 @@ const root = process.cwd()
 
 function required(name: string): string {
   const value = process.env[name]
-  if (!value) throw new Error(`${name} is not set - run this through \`pnpm local:up\``)
+  if (!value) throw new Error(`${name} is not set - run this through \`pnpm dev\``)
   return value
 }
 

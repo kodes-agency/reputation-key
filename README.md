@@ -12,32 +12,29 @@ for changes, [triage](docs/triage.md) for the work queue, and
 
 ## Quick Start
 
+Needs Node 22.23.4 (`.nvmrc`; `engines` rejects other versions), pnpm (the
+version in `package.json` through `corepack enable`), Docker with Compose, and
+`openssl`. Any Node version manager that reads `.nvmrc` works.
+
 ```bash
-# 0. Use the pinned Node runtime — 22.23.4, exactly (.nvmrc)
-fnm use            # or: nvm use
-pnpm local:doctor  # Docker, published stack ports, stale containers, VM headroom
-
-# 1. Install dependencies
 pnpm install
-
-# 2. Set up environment
-cp .env.example .env.local
-# Edit .env.local with your DATABASE_URL and BETTER_AUTH_SECRET
-
-# 3. Set up the database through the production-equivalent authority
-# (pinned Better Auth schema, the Drizzle journal, and provider-subject
-# initialization). DEPLOY_MIGRATE=1 is the explicit local/CI authority;
-# Railway deployments use platform identity instead.
-# On an empty database, also set one sealed
-# REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS entry in .env.local.
-DEPLOY_MIGRATE=1 pnpm db:migrate-deploy
-
-# 4. Generate auth secret (if not set)
-node --input-type=module -e "import { randomBytes } from 'node:crypto'; console.log(randomBytes(32).toString('base64url'))"
-
-# 5. Start dev server
+pnpm local:doctor   # optional: Docker, free ports, stale containers, memory
 pnpm dev
 ```
+
+`pnpm dev` starts Postgres, Redis, the Google, AI and mail stubs and the object
+store in Compose, runs the deploy migration and the seed, then runs the web
+server (HMR) and the worker on the host. Open `http://127.0.0.1:3000` and sign
+in as `test@example.com` (password `E2E_TEST_PASSWORD` in `e2e/stack.env`).
+No `.env` file is needed: the committed `e2e/stack.env` carries the local
+configuration. `pnpm local:down` removes the services and their volumes.
+
+`pnpm verify` runs the checks CI runs on every change: lint and static checks,
+typecheck, formatting and the unit tests.
+
+Optional extras, none needed for setup: `local.env` (see "Local stacks" below),
+`orca.yaml` (setup script for the Orca app) and `.mcp.json` (the shadcn MCP
+server for AI coding tools).
 
 ## Database Migrations
 
@@ -66,8 +63,9 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 
 | Command             | Description                                                                               |
 | ------------------- | ----------------------------------------------------------------------------------------- |
-| `pnpm dev`          | Start dev server on :3000                                                                 |
-| `pnpm local:up`     | Inner loop: services in Compose, web (HMR) + worker on the host                           |
+| `pnpm dev`          | Inner loop: services in Compose, migrate, seed, web (HMR) + worker on the host            |
+| `pnpm dev:web`      | Only the Vite dev server on :3000, against your own `.env.local` services                 |
+| `pnpm verify`       | Normal local checks: `lint:ci`, `typecheck`, `format:check`, `test:unit`                  |
 | `pnpm local:down`   | Remove the local services and their volumes                                               |
 | `pnpm build`        | Build the web, worker, and migration bundles                                              |
 | `pnpm start`        | Run built web server                                                                      |
@@ -118,7 +116,7 @@ with `openssl` into the ignored `e2e/.certs/` (the sandbox is TLS-only,
 ADR 0050), starts the services, runs the deploy migration and the e2e seed.
 Nothing here talks to real Google, OpenAI or Resend.
 
-**Inner loop - `pnpm local:up`.** The web dev server (HMR) and the worker run
+**Inner loop - `pnpm dev`.** The web dev server (HMR) and the worker run
 on the host against those services; every feature runs, including Google
 import/sync through the sandbox, the AI pipeline (the stub synthesizes answers
 for unscripted requests) and email. `http://127.0.0.1:3000`; sign in as
@@ -163,7 +161,7 @@ name fails the deploy (ADR 0032, amended 2026-09-29).
 **Real Google - `local.env` + `REPKEY_LOCAL_GOOGLE=real`.** To connect a real
 Google account and import real locations from this stack, copy
 `local.env.example` to `local.env` (gitignored) and set the real OAuth
-credentials. `pnpm local:up` then drops every `provider-sandbox` endpoint pin,
+credentials. `pnpm dev` then drops every `provider-sandbox` endpoint pin,
 selects Google's approved endpoints (`production-fixed`), and prints
 `Google: LIVE`. Nothing about that path is production-only: outside
 `NODE_ENV=production` the four provider keyrings derive local fallbacks from

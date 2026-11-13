@@ -71,7 +71,7 @@ The app loads `.env.local` last and overrides everything else. Keep `.env` as a 
 ```bash
 cp .env.example .env.local
 # Edit .env.local with your values
-pnpm dev
+pnpm dev:web   # or `pnpm dev` for the complete local stack (see README)
 ```
 
 ---
