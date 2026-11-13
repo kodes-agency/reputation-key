@@ -14,7 +14,7 @@
 import type {
   GoogleBindingState,
   PropertyLifecycleState,
-} from '../property-lifecycle-model'
+} from '../../../../contexts/property/lifecycle/ui/property-lifecycle-model'
 
 export type GoogleReviewDestinationSubject = Readonly<{
   lifecycleState: PropertyLifecycleState

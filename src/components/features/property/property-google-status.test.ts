@@ -18,11 +18,11 @@ vi.mock('#/shared/hooks/usePermissions', () => ({
   usePermissions: () => ({ can: () => true }),
 }))
 
-import { PropertyLifecycleCard } from './property-lifecycle-card'
+import { PropertyLifecycleCard } from '../../../contexts/property/lifecycle/ui/property-lifecycle-card'
 import {
   GOOGLE_BINDING_STATUS,
   type GoogleBindingState,
-} from './property-lifecycle-model'
+} from '../../../contexts/property/lifecycle/ui/property-lifecycle-model'
 import { PropertyGoogleSection } from './settings/property-google-section'
 
 const STATES = Object.keys(GOOGLE_BINDING_STATUS) as GoogleBindingState[]

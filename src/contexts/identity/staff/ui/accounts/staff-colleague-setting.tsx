@@ -10,7 +10,7 @@ export function StaffColleagueSetting() {
   const functions = useStaffFunctions()
   const setting = useActionMutation(functions.setColleagueListEnabled, {
     errorMessage: actionErrorMessage,
-    onSuccess: () => accounts?.refresh().then(() => undefined),
+    onSuccess: () => accounts?.refresh(),
   })
   if (!accounts?.canSettings) return null
   return (

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { PropertyProfileCard } from '#/components/features/property/settings/property-profile-card'
+import { PropertyProfileCard } from '#/contexts/property/profile/ui/property-profile-card'
 import { PropertyPublicDisplayNameCard } from '#/components/features/property/property-public-display-name-card'
 import { updateProperty } from '#/contexts/property/server/properties'
 import { savePropertyPublicDisplayName } from '#/contexts/portal/server/portals'

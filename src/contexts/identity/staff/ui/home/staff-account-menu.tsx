@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '#/components/ui/dialog'
-import { SecuritySettingsForm } from '#/components/features/identity/security-settings-form'
+import { SecuritySettingsForm } from '#/contexts/identity/members/ui/security-settings-form'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { useSignOut } from '#/components/hooks/use-sign-out'
 import { invalidateShellContext } from '#/shared/queries/shell-context-cache'

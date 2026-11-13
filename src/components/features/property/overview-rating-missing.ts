@@ -2,7 +2,7 @@
 // Google never sent numbers for the Property's current binding. While the link
 // is active that is a wait; otherwise it is the link, and the tile says what to
 // do about it rather than to wait (pure).
-import type { GoogleBindingState } from './property-lifecycle-model'
+import type { GoogleBindingState } from '../../../contexts/property/lifecycle/ui/property-lifecycle-model'
 
 export function overviewRatingMissing(state: GoogleBindingState): string {
   switch (state) {

@@ -12,7 +12,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type {
   InvitationLink,
   UnusableInvitationLink,
-} from '#/components/features/identity'
+} from '#/contexts/identity/members/ui/registration/invitation-link'
 import { getSession } from '#/shared/auth/auth.functions'
 import { getInvitationPreview } from '#/contexts/identity/server/organizations'
 import { pendingInvitationsQuery } from './-pending-invitations-query'

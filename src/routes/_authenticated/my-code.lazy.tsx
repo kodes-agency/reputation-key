@@ -1,6 +1,6 @@
 import { staffHomeSearch } from '#/shared/staff-home-search'
 import { createLazyFileRoute } from '@tanstack/react-router'
-import { StaffHome } from '#/components/features/staff-home'
+import { StaffHome } from '#/contexts/identity/staff/ui/home/staff-home'
 import { staffHomeFns } from '../-staff-home-fns'
 
 export const Route = createLazyFileRoute('/_authenticated/my-code')({

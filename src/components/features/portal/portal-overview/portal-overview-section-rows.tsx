@@ -1,10 +1,10 @@
-import { highRatingFromFewGuests } from '#/components/features/staff/accounts/staff-rating-hint'
+import { highRatingFromFewGuests } from '#/contexts/identity/staff/ui/accounts/staff-rating-hint'
 // One group's part of a Portals table: its head row (unless the list is flat) and
 // the Portals the group holds, unless the reader folded it. Shared by the page of
 // one Property and the page of the whole Organization, so a group reads the same
 // in both.
 import { Button } from '#/components/ui/button'
-import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
+import { useStaffAccounts } from '#/contexts/identity/staff/ui/accounts/staff-accounts-context'
 import type { ReactNode } from 'react'
 import { groupSlot, type PortalOverviewResultsState } from './portal-overview-results'
 import { portalMeasureSlot } from './portal-overview-uncounted'

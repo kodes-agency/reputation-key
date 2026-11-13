@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, screen, userEvent, within } from 'storybook/test'
-import { withRole } from '../../../../../.storybook/AuthedRouterDecorator'
+import { withRole } from '../../../../../../.storybook/AuthedRouterDecorator'
 import {
   StaffManagerStory,
   STAFF_STORY_MEMBERS,
   STAFF_VIEWPORTS,
-} from '../../../../../.storybook/staff-manager-fixtures'
+} from '../../../../../../.storybook/staff-manager-fixtures'
 import type { StaffMember } from './staff-account-view'
 function Scene({
   access = 'active',

@@ -22,8 +22,8 @@ export function StaffPersonAccess({
   const [repairing, setRepairing] = useState(false)
   const resend = useActionMutation(functions.resendStaffInvitation, {
     successMessage: 'Invitation sent',
-    onSuccess: () => accounts.refresh().then(() => undefined),
-    onError: () => accounts.refresh().then(() => undefined),
+    onSuccess: () => accounts.refresh(),
+    onError: () => accounts.refresh(),
   })
   const busy = repairing || resend.isPending
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { visiblePortals } from './portal-overview/visible-portals'
-import { useStaffOverviewRows } from '#/components/features/staff/accounts/staff-accounts-query'
+import { useStaffOverviewRows } from '#/contexts/identity/staff/ui/accounts/staff-accounts-query'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 // Portals across the whole Organization: the Organization's results strip, then
 // every Portal under the Property it belongs to, each Property headed by its own

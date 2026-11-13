@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
-import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import { AuthedRouterDecorator } from '../../../../../../.storybook/AuthedRouterDecorator'
 import { SetNewPasswordForm } from './set-new-password-form'
 
 type SetNewPasswordInput = {

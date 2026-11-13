@@ -159,4 +159,41 @@ describe('BQC-5.1: cross-context public-api rule', () => {
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
   })
+  describe('browser surface', () => {
+    const screen = 'src/contexts/property/setup/ui/sample.tsx'
+
+    it('allows a ui screen → type-only foreign server imports', async () => {
+      const messages = await lintSnippet(
+        `import type { listPortals } from '#/contexts/portal/server/portals'\nexport type Shape = typeof listPortals\n`,
+        screen,
+      )
+      expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
+    })
+
+    it('flags a ui screen taking a foreign server value', async () => {
+      const messages = await lintSnippet(
+        `import { listPortals } from '#/contexts/portal/server/portals'\nexport const read = listPortals\n`,
+        screen,
+      )
+      expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
+    })
+
+    it('flags a ui screen → foreign ui, dto and application even for types', async () => {
+      const messages = await lintSnippet(
+        `import type { Wizard } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard'\nimport type { Notice } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'\nexport type Shapes = [Wizard, Notice]\n`,
+        screen,
+      )
+      expect(
+        messages.filter((m) => m.ruleId === 'local/cross-context-public-api'),
+      ).toHaveLength(2)
+    })
+
+    it('flags a non-ui file → foreign server types', async () => {
+      const messages = await lintSnippet(
+        `import type { listPortals } from '#/contexts/portal/server/portals'\nexport type Shape = typeof listPortals\n`,
+        'src/contexts/property/application/use-cases/sample.ts',
+      )
+      expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
+    })
+  })
 })

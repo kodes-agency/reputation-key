@@ -11,7 +11,7 @@ import { searchMatcher } from '#/components/property/property-search'
 import type {
   GoogleBindingState,
   PropertyLifecycleState,
-} from './property-lifecycle-model'
+} from '../../../contexts/property/lifecycle/ui/property-lifecycle-model'
 import type { SortDirection } from '#/components/ui/list-sort'
 import type {
   PropertyListSearch,

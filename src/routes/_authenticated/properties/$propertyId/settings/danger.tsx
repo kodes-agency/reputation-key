@@ -2,8 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { PropertyLifecycleCard } from '#/components/features/property/property-lifecycle-card'
-import { propertyRestoredMessage } from '#/components/features/property/property-lifecycle-model'
+import { PropertyLifecycleCard } from '#/contexts/property/lifecycle/ui/property-lifecycle-card'
+import { propertyRestoredMessage } from '#/contexts/property/lifecycle/ui/property-lifecycle-model'
 import {
   removePropertyFromWorkspace,
   type RemovePropertyInput,

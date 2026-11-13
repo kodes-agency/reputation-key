@@ -9,8 +9,8 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setupHookRoot } from '#/shared/testing/hook-root'
-import type { RegisterForm } from '#/components/features/identity/registration/register-form'
-import type { JoinEntryCard } from '#/components/features/identity/registration/join-entry-card'
+import type { RegisterForm } from '#/contexts/identity/members/ui/registration/register-form'
+import type { JoinEntryCard } from '#/contexts/identity/members/ui/registration/join-entry-card'
 
 const state = vi.hoisted(() => ({
   form: undefined as ComponentProps<typeof RegisterForm> | undefined,
@@ -41,15 +41,19 @@ vi.mock('#/components/layout/auth-layout', () => ({
   },
   AuthFooterLink: () => null,
 }))
-vi.mock('#/components/features/identity', () => ({
+vi.mock('#/contexts/identity/members/ui/registration/invitation-state-card', () => ({
   InvitationLinkStateCard: () => null,
+}))
+vi.mock('#/contexts/identity/members/ui/registration/invitation-summary', () => ({
   InvitationSummary: () => null,
+}))
+vi.mock('#/contexts/identity/members/ui/registration/register-form', () => ({
   RegisterForm: (props: ComponentProps<typeof RegisterForm>) => {
     state.form = props
     return null
   },
 }))
-vi.mock('#/components/features/identity/registration/join-entry-card', () => ({
+vi.mock('#/contexts/identity/members/ui/registration/join-entry-card', () => ({
   JoinEntryCard: (props: ComponentProps<typeof JoinEntryCard>) => {
     state.entry = props
     return null
