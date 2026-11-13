@@ -1503,9 +1503,6 @@ export const createReviewProviderSnapshotRepository = (
             ),
           )
       }
-      await tx
-        .delete(reviewProviderSnapshotRuns)
-        .where(lte(reviewProviderSnapshotRuns.recordExpiresAt, beforeOrAt))
       return {
         deleted: rows.length,
         nextReviewId: rows.length === limit ? reviewId(rows.at(-1)!.reviewId) : null,

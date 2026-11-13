@@ -276,6 +276,38 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       .where(eq(reviewProviderSnapshotRuns.id, OTHER_RUN_ID))
   })
 
+  it('leaves snapshot runs past their record expiry to the bounded clean-up when the tombstone sweep runs', async () => {
+    const terminalAt = new Date(STARTED_AT.getTime() - 60 * 24 * 60 * 60 * 1000)
+    await db.insert(reviewProviderSnapshotRuns).values({
+      id: OTHER_RUN_ID,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: 0,
+      state: 'failed',
+      phase: 'terminal',
+      failureCode: 'listing_changed',
+      startedAt: new Date(terminalAt.getTime() - 60_000),
+      expiresAt: EXPIRES_AT,
+      terminalAt,
+      recordExpiresAt: new Date(terminalAt.getTime() + 30 * 24 * 60 * 60 * 1000),
+    })
+
+    await repository.sweepExpiredTombstones({
+      beforeOrAt: new Date(STARTED_AT.getTime() + 24 * 60 * 60 * 1000),
+      afterReviewId: null,
+      limit: 100,
+    })
+
+    const rows = await db
+      .select({ id: reviewProviderSnapshotRuns.id })
+      .from(reviewProviderSnapshotRuns)
+      .where(eq(reviewProviderSnapshotRuns.id, OTHER_RUN_ID))
+    expect(rows).toHaveLength(1)
+    await db
+      .delete(reviewProviderSnapshotRuns)
+      .where(eq(reviewProviderSnapshotRuns.id, OTHER_RUN_ID))
+  })
+
   it('co-commits completion, the minimal verified aggregate, and its outbox fact', async () => {
     await db
       .delete(reviewProviderSnapshotRuns)

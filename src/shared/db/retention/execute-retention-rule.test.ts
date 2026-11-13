@@ -55,7 +55,9 @@ describe('retention executor per-run cap (BQC-3.7)', () => {
     const firstCall = execute.mock.calls[0]
     assert.isDefined(firstCall)
     const compiled = new PgDialect().sqlToQuery(firstCall[0] as SQL)
-    expect(compiled.sql).toMatch(/LIMIT \$\d+\) AND "published_at" < \$\d+/)
+    expect(compiled.sql).toMatch(
+      /LIMIT \$\d+\) DELETE FROM .* IN \(SELECT .* FROM due\) AND "published_at" < \$\d+/,
+    )
     expect(compiled.params).toEqual([CUTOFF, 2, CUTOFF])
   })
 
@@ -302,5 +304,23 @@ describe('retention executor dependents', () => {
         { cutoff: CUTOFF },
       ),
     ).rejects.toThrow('one key column')
+  })
+})
+
+describe('retention executor row locking', () => {
+  const statementOf = async (rule: RetentionRule) => {
+    const { db, execute } = fakeDb([])
+    await executeRetentionRule(db, rule, { cutoff: CUTOFF })
+    return new PgDialect().sqlToQuery(execute.mock.calls[0]![0] as SQL).sql
+  }
+
+  it('skips rows another transaction holds when the rule asks for it', async () => {
+    expect(await statementOf({ ...RULE, skipLocked: true })).toContain(
+      'LIMIT $2 FOR UPDATE SKIP LOCKED',
+    )
+  })
+
+  it('takes no row lock for a rule that does not ask', async () => {
+    expect(await statementOf(RULE)).not.toContain('SKIP LOCKED')
   })
 })

@@ -10050,6 +10050,13 @@ CREATE INDEX "authorization_execution_permits_active_idx" ON "public"."authoriza
 
 
 --
+-- Name: authorization_execution_permits_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "authorization_execution_permits_created_at_idx" ON "public"."authorization_execution_permits" USING "btree" ("created_at");
+
+
+--
 -- Name: authorization_execution_permits_scope_idx; Type: INDEX; Schema: public; Owner: -
 --
 
