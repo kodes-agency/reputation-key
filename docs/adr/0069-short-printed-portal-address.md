@@ -5,6 +5,11 @@ date: 2026-10-23
 
 # 0069 — Short printed Portal address
 
+> **Current state.** The decision stands. Decision 12's `PORTAL_PRINT_CODES_ENABLED`
+> switch has been retired: verified print codes are always shown in QR and NFC
+> downloads, and a missing or mismatched hash falls back to the issued long address.
+> `PORTAL_PRINT_ORIGIN` remains configuration. See the Portal map and runbooks §26 and §36.
+
 Amends [ADR 0044](0044-public-portal-and-guest-response.md) ("Token and session"
 decision 1 and the printed-kit rule of its 2026-10-01 amendment),
 [ADR 0064](0064-sealed-portal-address-and-download-again.md) (decisions 1, 5 and 7,

@@ -5,6 +5,12 @@ date: 2026-10-26
 
 # 0070 — A Portal's own look
 
+> **Current state.** The decision stands. Decision 12's `PORTAL_OWN_LOOK_ENABLED`
+> dark launch is finished and the switch retired: own looks are always read,
+> previewed, published and editable by an Account Admin. The warning not to roll code
+> back past the reader still holds, and recovery is forward-only. See runbooks §31
+> and §36.
+
 Amends [ADR 0061](0061-guest-languages-and-publication-v3.md) (decision 7) and
 [ADR 0063](0063-portal-media.md) (decisions 5, 7 and 8, the garbage collection
 section and the 200-image cap), and the Portal CONTEXT section "Property look and a
