@@ -11,6 +11,7 @@
 
 import type { Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
+import { expectPhoneLayout } from '../helpers/phone-layout'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { resetGuestRateLimits } from '../helpers/fixtures'
 import { waitForHydration } from '../helpers/interaction'
@@ -46,6 +47,7 @@ test.describe('Critical: guest language sheet on the live route', () => {
     await expect(page.getByRole('dialog')).toBeVisible()
     await expect(sheetRow(page, 'en')).toHaveAttribute('aria-current', 'page')
     await expect(sheetRow(page, 'bg')).toBeVisible()
+    await expectPhoneLayout(page)
 
     await sheetRow(page, 'bg').click()
     await expect(page).toHaveURL(/\/p\/[^?]+\?locale=bg(&|$)/)

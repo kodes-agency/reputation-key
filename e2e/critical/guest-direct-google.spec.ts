@@ -1,4 +1,5 @@
 import { test, expect } from '../helpers/error-detection'
+import { expectPhoneLayout } from '../helpers/phone-layout'
 import { dbQuery, resetGuestRateLimits, waitFor } from '../helpers/fixtures'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { settleGuestConsent } from '../helpers/guest-consent'
@@ -41,6 +42,7 @@ test('a published direct Portal opens Google without a private response and coun
   await expect(page.getByRole('radio')).toHaveCount(0)
   await expect(page.getByRole('textbox')).toHaveCount(0)
   await expect(page.getByRole('button', { name: /^Your response/u })).toHaveCount(0)
+  await expectPhoneLayout(page)
   await page.getByRole('button', { name: /^Continue to Google/u }).click()
   await expect(page).toHaveURL(/^https:\/\/search\.google\.com\//u)
   await waitFor(async () => (await opens()) === before + 1, {

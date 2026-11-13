@@ -20,7 +20,9 @@
 //       review before it claims, sees the reply RepKey had not recorded, ends
 //       the cycle (cancelled, provider_truth) and issues ZERO writes
 
+import type { Page } from '@playwright/test'
 import { test, expect } from '../../helpers/error-detection'
+import { expectPhoneLayout } from '../../helpers/phone-layout'
 import { signIn } from '../../helpers/auth'
 import { clickWhenReady, dismissToasts } from '../../helpers/interaction'
 import { requireE2eSeedState } from '../../helpers/seed-state'
@@ -41,6 +43,7 @@ import {
   callServerFnGet,
   callServerFnExpectError,
   waitFor,
+  waitForQueuesIdle,
 } from '../../helpers/fixtures'
 
 const PREFIX = 'e2e-rep-'
@@ -54,6 +57,7 @@ const locationId = (name: string) => `${name}-loc-${e2eRunId}`
 
 const REPLY_FILE = 'src/contexts/review/server/reply-draft.ts'
 const REPLY_FILE_OPS = 'src/contexts/review/server/reply.ts'
+const PROPERTY_FILE = 'src/contexts/property/server/properties.ts'
 
 type Scenario = Readonly<{
   connectionId: string
@@ -70,10 +74,17 @@ type ProviderScenario = Readonly<{
 }>
 
 test.describe('Critical workflow: reply lifecycle', () => {
+  test.afterAll(async () => {
+    // The last scenario can leave an uncertain send due for reconciliation; it
+    // must not run against the next spec's provider scope.
+    await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
+  })
+
   test.beforeEach(async () => {
     // Stale provider syncs from an earlier spec retry against a stub scope that
     // has moved on, and burn the shared reviews quota this one needs.
     await drainFixtureQueue()
+    await waitForQueuesIdle()
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 
@@ -99,7 +110,11 @@ test.describe('Critical workflow: reply lifecycle', () => {
   }
 
   /** Isolated provider + data landscape for one scenario. */
-  async function setupScenario(name: string, opts: ProviderScenario): Promise<Scenario> {
+  async function setupScenario(
+    page: Page,
+    name: string,
+    opts: ProviderScenario,
+  ): Promise<Scenario> {
     const locationName = `${ACCOUNT_NAME}/locations/${locationId(name)}`
     const reviewName = `${locationName}/reviews/${name}-r1-${e2eRunId}`
     await putScenarioScope(name, opts)
@@ -120,13 +135,14 @@ test.describe('Critical workflow: reply lifecycle', () => {
       },
     })
     // GBP does not expose a review language. Configure the Property's supported
-    // manual-reply language so the real imported review can be drafted.
-    await dbQuery(
-      `UPDATE properties
-       SET default_reply_language = 'en-Latn', updated_at = now()
-       WHERE organization_id = $1 AND id = $2::uuid`,
-      [seed.organizationId, propertyId],
-    )
+    // manual-reply language, through the Property's own command, so the real
+    // imported review can be drafted.
+    await signIn(page)
+    await callServerFn(page, {
+      file: PROPERTY_FILE,
+      exportName: 'updateProperty',
+      data: { propertyId, defaultReplyLanguage: 'en-Latn' },
+    })
     await enqueueReviewSync({
       propertyId,
       organizationId: seed.organizationId,
@@ -166,7 +182,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
     }) => {
       test.setTimeout(90_000)
       const name = `stream-${width}`
-      const s = await setupScenario(name, {
+      const s = await setupScenario(page, name, {
         reviews: [
           {
             ...stubReview(name),
@@ -215,7 +231,6 @@ test.describe('Critical workflow: reply lifecycle', () => {
         })
         expect(armed.ok).toBe(true)
         await page.setViewportSize({ width, height: 900 })
-        await signIn(page)
         const identity = 'src/contexts/identity/server/merchant-ai.ts'
         const { notice } = await callServerFnGet<{
           notice: { version: string; digest: string }
@@ -325,12 +340,13 @@ test.describe('Critical workflow: reply lifecycle', () => {
     page,
   }) => {
     test.setTimeout(60_000)
-    const s = await setupScenario('happy', { reviews: [stubReview('happy')] })
-    await signIn(page)
+    const s = await setupScenario(page, 'happy', { reviews: [stubReview('happy')] })
     await page.goto(`/inbox?itemId=${s.inboxItemId}`)
     await expect(page.getByText('Reply Reviewer happy').first()).toBeVisible({
       timeout: 15_000,
     })
+    await expect(page.getByPlaceholder('Write a reply…')).toBeVisible()
+    await expectPhoneLayout(page)
 
     // Draft. There is no Save button: the composer AUTOSAVES, so the draft is
     // proven by the row appearing, not by a click.
@@ -520,11 +536,10 @@ test.describe('Critical workflow: reply lifecycle', () => {
     page,
   }) => {
     test.setTimeout(180_000)
-    const s = await setupScenario('transient', {
+    const s = await setupScenario(page, 'transient', {
       reviews: [stubReview('transient')],
       replyBehavior: { mode: 'fail-then-success', status: 500, failures: 1 },
     })
-    await signIn(page)
 
     await callServerFn(page, {
       file: REPLY_FILE,
@@ -647,11 +662,10 @@ test.describe('Critical workflow: reply lifecycle', () => {
     page,
   }) => {
     test.setTimeout(90_000)
-    const s = await setupScenario('terminal', {
+    const s = await setupScenario(page, 'terminal', {
       reviews: [stubReview('terminal')],
       replyBehavior: { mode: 'always-fail', status: 403 },
     })
-    await signIn(page)
 
     await callServerFn(page, {
       file: REPLY_FILE,
@@ -754,7 +768,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
     page,
   }) => {
     test.setTimeout(60_000)
-    const s = await setupScenario('ambig', { reviews: [stubReview('ambig')] })
+    const s = await setupScenario(page, 'ambig', { reviews: [stubReview('ambig')] })
     const admin = await getUserByEmail(seed.email)
     await seedAmbiguousReply({
       organizationId: seed.organizationId,
@@ -778,7 +792,6 @@ test.describe('Critical workflow: reply lifecycle', () => {
         },
       ],
     })
-    await signIn(page)
 
     // "Check Google again" runs the read INLINE (worker-free): the attempt is
     // too recent for dispatch evidence to settle it, the provider shows the
@@ -845,7 +858,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
     page,
   }) => {
     test.setTimeout(90_000)
-    const s = await setupScenario('external', { reviews: [stubReview('external')] })
+    const s = await setupScenario(page, 'external', { reviews: [stubReview('external')] })
     // Someone answers on Google itself. RepKey has synced the review without a
     // reply and knows nothing of it until a read records it.
     await putScenarioScope('external', {
@@ -859,7 +872,6 @@ test.describe('Critical workflow: reply lifecycle', () => {
         },
       ],
     })
-    await signIn(page)
 
     await callServerFn(page, {
       file: REPLY_FILE,
