@@ -23,8 +23,10 @@
 // renews through the same server function the button calls.
 
 import { randomUUID } from 'node:crypto'
+import type { Browser } from '@playwright/test'
 import { hashPassword } from 'better-auth/crypto'
 import { test, expect } from '../helpers/error-detection'
+import { expectPhoneLayout } from '../helpers/phone-layout'
 import { signIn, TEST_EMAIL } from '../helpers/auth'
 import { clickWhenReady, waitForHydration } from '../helpers/interaction'
 import { requireE2eSeedState } from '../helpers/seed-state'
@@ -49,23 +51,35 @@ type InvitationSeed = Readonly<{
   propertyIds?: ReadonlyArray<string>
 }>
 
-/** A stored invitation for a PropertyManager ('admin'), invited by the seeded owner. */
-async function seedInvitation(input: InvitationSeed): Promise<string> {
-  const id = `${PREFIX}inv-${randomUUID().slice(0, 8)}`
-  await dbQuery(
-    `INSERT INTO invitation
-       (id, "organizationId", email, role, status, "expiresAt", "propertyIds", "inviterId", "createdAt")
-     VALUES ($1, $2, $3, 'admin', 'pending', NOW() + make_interval(hours => $4), $5, $6, NOW())`,
-    [
-      id,
-      seed.organizationId,
-      input.email,
-      input.expiresInHours ?? 24,
-      JSON.stringify(input.propertyIds ?? []),
-      seed.managerUserId,
-    ],
-  )
-  return id
+/**
+ * An invitation for a PropertyManager, sent by the seeded owner through the
+ * invite command. A lapsed one is the same invitation with its clock moved back:
+ * the only part no command can do.
+ */
+async function seedInvitation(browser: Browser, input: InvitationSeed): Promise<string> {
+  const context = await browser.newContext({ baseURL: BASE_ORIGIN })
+  try {
+    const inviter = await context.newPage()
+    await signIn(inviter, undefined, undefined, BASE_ORIGIN)
+    const { invitationId } = await callServerFn<{ invitationId: string }>(inviter, {
+      file: 'src/contexts/identity/server/organizations.members.ts',
+      exportName: 'inviteMember',
+      data: {
+        email: input.email,
+        role: 'PropertyManager',
+        propertyIds: input.propertyIds ?? [],
+      },
+    })
+    if (input.expiresInHours !== undefined) {
+      await dbQuery(
+        `UPDATE invitation SET "expiresAt" = NOW() + make_interval(hours => $2) WHERE id = $1`,
+        [invitationId, input.expiresInHours],
+      )
+    }
+    return invitationId
+  } finally {
+    await context.close()
+  }
 }
 
 /** A user with a password, optionally unverified and optionally already a member. */
@@ -115,9 +129,10 @@ test.describe('Critical workflow: invitation link pages', () => {
 
   test('a new address sees what it is joining, and cannot change the invited email', async ({
     page,
+    browser,
   }) => {
     const email = inviteeEmail('join')
-    const id = await seedInvitation({ email, propertyIds: [seed.propertyId] })
+    const id = await seedInvitation(browser, { email, propertyIds: [seed.propertyId] })
 
     await page.goto(`/accept-invitation?id=${encodeURIComponent(id)}`)
     // No account for this address: the link goes to sign-up, not sign-in.
@@ -134,6 +149,7 @@ test.describe('Critical workflow: invitation link pages', () => {
     await expect(emailField).toHaveValue(email)
     await expect(emailField).toHaveAttribute('readonly', '')
     await expect(page.getByText('The invitation was sent to this address.')).toBeVisible()
+    await expectPhoneLayout(page)
     // Nothing was created by looking.
     expect(await invitationStatus(id)).toBe('pending')
   })
@@ -143,13 +159,18 @@ test.describe('Critical workflow: invitation link pages', () => {
     browser,
   }) => {
     const email = inviteeEmail('expired')
-    const id = await seedInvitation({ email, expiresInHours: -24 })
+    const id = await seedInvitation(browser, { email, expiresInHours: -24 })
     const link = `/accept-invitation?id=${encodeURIComponent(id)}`
+    const sendsToInvitee = async () =>
+      (await mailStubControl.sends()).filter((send) => send.to === email).length
+    // The invite command sent the first email.
+    await expect.poll(sendsToInvitee, { timeout: 15_000 }).toBe(1)
 
     const card = page.locator('[data-slot="card"]')
     await page.goto(link)
     await expect(page.getByText('This invitation has expired')).toBeVisible()
     await expect(page.getByText(`Ask ${seed.managerName} to resend it`)).toBeVisible()
+    await expectPhoneLayout(page)
     await expect(card.getByRole('link', { name: 'Sign in' })).toBeVisible()
     await expect(page.locator('form')).toHaveCount(0)
 
@@ -169,13 +190,8 @@ test.describe('Critical workflow: invitation link pages', () => {
       await adminContext.close()
     }
 
-    await expect
-      .poll(
-        async () =>
-          (await mailStubControl.sends()).filter((send) => send.to === email).length,
-        { timeout: 15_000 },
-      )
-      .toBe(1)
+    // The Resend sends exactly one more.
+    await expect.poll(sendsToInvitee, { timeout: 15_000 }).toBe(2)
 
     // The link the invitee already holds works again.
     await page.goto(link)
@@ -254,10 +270,11 @@ test.describe('Critical workflow: invitation link pages', () => {
 
   test('an existing account signs in, then confirms: opening the link accepts nothing', async ({
     page,
+    browser,
   }) => {
     const email = inviteeEmail('existing')
     await seedAccount({ email, emailVerified: true })
-    const id = await seedInvitation({ email, propertyIds: [seed.propertyId] })
+    const id = await seedInvitation(browser, { email, propertyIds: [seed.propertyId] })
 
     await page.goto(`/accept-invitation?id=${encodeURIComponent(id)}`)
     // The address has an account, so sign-up would only fail: sign in first,
@@ -283,9 +300,10 @@ test.describe('Critical workflow: invitation link pages', () => {
 
   test('someone signed in as another address sees the mismatch, and signing out carries on', async ({
     page,
+    browser,
   }) => {
     const email = inviteeEmail('mismatch')
-    const id = await seedInvitation({ email })
+    const id = await seedInvitation(browser, { email })
     await signIn(page, TEST_EMAIL, undefined, BASE_ORIGIN)
 
     await page.goto(`/accept-invitation?id=${encodeURIComponent(id)}`)
@@ -308,9 +326,10 @@ test.describe('Critical workflow: invitation link pages', () => {
 
   test('signing out from the header hands the link back, not a confirm step on a dead session', async ({
     page,
+    browser,
   }) => {
     const email = inviteeEmail('header-signout')
-    const id = await seedInvitation({ email })
+    const id = await seedInvitation(browser, { email })
     await signIn(page, TEST_EMAIL, undefined, BASE_ORIGIN)
 
     await page.goto(`/accept-invitation?id=${encodeURIComponent(id)}`)

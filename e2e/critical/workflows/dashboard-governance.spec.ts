@@ -149,6 +149,7 @@ test.describe('Critical workflow: dashboard governance (scoped login vs admin)',
         data: { propertyId: propertyBId, timeRange: 'all' },
       })
       expect(denial.status).toBe(403)
+      expect(denial.code).toBe('scope_denied')
     } finally {
       await context.close()
     }

@@ -5,6 +5,7 @@
 // app's Reviews entry opens All properties.
 
 import { test, expect } from '../../helpers/error-detection'
+import { expectPhoneLayout } from '../../helpers/phone-layout'
 import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import {
@@ -66,6 +67,7 @@ test.describe('Critical workflow: inbox property scope', () => {
       rail.getByRole('combobox', { name: `Property: ${scope}` })
     await expect(propertySelect('All properties')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText(mainReviewer).first()).toBeVisible()
+    await expectPhoneLayout(page)
     await expect(page.getByText(annexReviewer).first()).toBeVisible()
 
     // The seed organization already has eight properties, so with the annex the

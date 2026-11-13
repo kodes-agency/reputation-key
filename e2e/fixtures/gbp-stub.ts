@@ -876,6 +876,19 @@ export const gbpStubControl = {
     })
   },
 
+  /** Make the review reads of an account, or of one of its locations, fail or recover. */
+  async setFetchBehavior(
+    accountName: string,
+    behavior: FetchBehavior,
+    locationName?: string,
+  ): Promise<void> {
+    await controlFetch('/__control/fetch-behavior', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ accountName, locationName, behavior }),
+    })
+  },
+
   async setPerformanceBehavior(
     locationName: string,
     behavior: PerformanceBehavior,
