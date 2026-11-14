@@ -19,13 +19,12 @@
 import { CONSUMER_ENTRY_POINTS } from '#/shared/events/consumer-entry-points'
 import { JOB_ENTRY_POINTS, SCHEDULE_ENTRY_POINTS } from '#/shared/jobs/job-definitions'
 import type {
-  EntryPointKind,
   EntryPointRow,
   ResourceScope,
   SystemAction,
 } from '#/shared/domain/entry-point-types'
 
-export type { EntryPointKind, EntryPointRow, ResourceScope, SystemAction }
+export type { EntryPointRow, ResourceScope, SystemAction }
 
 export const ENTRY_POINT_CATALOGUE: ReadonlyArray<EntryPointRow> = [
   ...JOB_ENTRY_POINTS,

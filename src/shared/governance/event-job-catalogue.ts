@@ -11,11 +11,7 @@
 // A missing or unknown job family fails readiness or enqueue policy.
 
 import { DURABLE_CONSUMERS, EVENT_TYPES } from '#/shared/events/consumer-definitions'
-import {
-  JOB_FAMILY_ROWS,
-  type JobFamilyRow,
-  type JobRegistration,
-} from '#/shared/jobs/job-definitions'
+import { JOB_FAMILY_ROWS, type JobFamilyRow } from '#/shared/jobs/job-definitions'
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -31,8 +27,6 @@ export type EventFamilyRow = Readonly<{
   eventType: string
   consumers: ReadonlyArray<EventConsumerRef>
 }>
-
-export type { JobRegistration }
 
 export type { JobFamilyRow }
 

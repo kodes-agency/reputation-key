@@ -29,7 +29,7 @@ composition may keep the aliases `metricPublicApi`, `goalPublicApi` and
 storage and upstream reads are injected by composition
 (`infrastructure/runtime-dependency-injection.test.ts`).
 
-Jobs, registered in `src/shared/governance/event-job-catalogue-goal.ts`:
+Jobs, declared in `src/shared/jobs/job-definitions.ts`:
 `goal-program-maintenance.job.ts` (hourly, opens due months and closes finished ones) and
 `rating-goal-evaluation.job.ts` (`rating-goal.evaluate`, daily, evaluates every active
 rating goal). Outbox consumers: guest facts into readings

@@ -32,7 +32,7 @@ const BACKOFF_JITTER = 0.5
 const DEFAULT_TIMEOUT_MS = 120_000
 
 /** The definition of a job by name, or undefined. */
-export function jobDefinition(jobName: string): JobDefinition | undefined {
+function jobDefinition(jobName: string): JobDefinition | undefined {
   return JOB_DEFINITIONS.find((def) => def.name === jobName)
 }
 

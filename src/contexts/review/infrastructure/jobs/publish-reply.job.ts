@@ -1,7 +1,7 @@
 // Review context — BullMQ job handler for publishing replies to Google.
 //
-// BullMQ grants at most five executions (event-job-catalogue.ts publish-reply:
-// `retryAttempts: 5`, `exponential:30000`; job-policy.ts adds 0.5 jitter, which
+// BullMQ grants at most five executions (job-definitions.ts publish-reply:
+// `attempts: 5`, `exponential:30000`; job-policy.ts adds 0.5 jitter, which
 // BullMQ applies as 50-100% of each exponential delay, so the gaps are roughly
 // 15-30 s, 30-60 s, 60-120 s and 120-240 s). Only a RETRYABLE failure spends
 // them on further provider writes. A terminal rejection resolves on the attempt

@@ -16,7 +16,7 @@ import {
 } from '../../domain/events'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
-/** BullMQ's execution budget for one publish (event-job-catalogue.ts). */
+/** BullMQ's execution budget for one publish (job-definitions.ts). */
 export const MAX_PUBLISH_ATTEMPTS = 5
 
 export type PublishCycleDeps = Readonly<{

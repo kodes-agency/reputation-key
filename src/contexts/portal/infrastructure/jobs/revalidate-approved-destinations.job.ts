@@ -13,7 +13,7 @@ export const REVALIDATION_PAGE_SIZE = 50
 
 /**
  * No new page starts once a run has used this long. The job's own timeout is
- * 5 minutes (`PORTAL_BACKGROUND_JOB_ROWS`) and fails the run when it passes, so
+ * 5 minutes (`portal-approved-destination-revalidation` in src/shared/jobs/job-definitions.ts) and fails the run when it passes, so
  * the budget leaves the rest of it for the page already in flight.
  */
 export const REVALIDATION_RUN_BUDGET_MS = 150_000
