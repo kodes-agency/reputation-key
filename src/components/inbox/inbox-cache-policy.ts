@@ -64,7 +64,7 @@ export const UNCERTAIN_REPLY_POLL_INTERVAL_MS = 60_000
 /**
  * How long past its due time a still-checked row keeps the LIST polling: two
  * runs of the sweep that advances it (`reconcile-ambiguous-publications`,
- * `schedule: 'every:300000'` in event-job-catalogue.ts). A row still unmoved
+ * `schedule: 'every:300000'` in src/shared/jobs/job-definitions.ts). A row still unmoved
  * after that has a stalled sweep, which no browser read can advance.
  */
 export const UNCERTAIN_REPLY_LIST_DUE_SLACK_MS = 10 * 60_000

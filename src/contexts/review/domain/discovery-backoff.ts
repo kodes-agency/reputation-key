@@ -1,7 +1,7 @@
 // Review context — new-review discovery backoff ladder (pure).
 //
 // The discovery sweep FIRES every 15 minutes (the job catalogue's
-// `every:900000` in src/shared/governance/event-job-catalogue.ts) and used to
+// `every:900000` in src/shared/jobs/job-definitions.ts) and used to
 // schedule EVERY connected property back on
 // a flat 15-minute interval: 96 polls per property per day. At 500 connected
 // properties that is ~48,000 `reviews.list` calls a day — and because a

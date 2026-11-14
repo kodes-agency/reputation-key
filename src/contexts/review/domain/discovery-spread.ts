@@ -28,7 +28,7 @@
 
 /**
  * How often the discover-new-reviews sweep fires. The schedule itself lives
- * in the job catalogue (`every:900000`, shared/governance/event-job-catalogue.ts),
+ * in the job catalogue (`every:900000`, shared/jobs/job-definitions.ts),
  * which the domain does not import; the value is mirrored here and
  * discovery-spread.test.ts fails if the two ever differ.
  */
