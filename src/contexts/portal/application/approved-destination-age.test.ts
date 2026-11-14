@@ -3,15 +3,15 @@
 // be before the job takes it again, and how old the public edge lets it be.
 
 import { describe, expect, it } from 'vitest'
-import { PORTAL_BACKGROUND_JOB_ROWS } from '#/shared/governance/portal-job-rows'
+import { JOB_DEFINITIONS } from '#/shared/jobs/job-definitions'
 import {
   APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS,
   APPROVED_DESTINATION_REVALIDATION_DUE_AFTER_MS,
 } from './approved-destination-age'
 
 const revalidationJob = () => {
-  const row = PORTAL_BACKGROUND_JOB_ROWS.find(
-    ({ jobName }) => jobName === 'portal-approved-destination-revalidation',
+  const row = JOB_DEFINITIONS.find(
+    ({ name }) => name === 'portal-approved-destination-revalidation',
   )
   const interval = /^every:(\d+)/u.exec(row?.schedule ?? '')?.[1]
   if (!row || interval === undefined) throw new Error('revalidation job row not found')

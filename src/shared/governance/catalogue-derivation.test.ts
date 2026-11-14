@@ -1,63 +1,62 @@
 // The job, consumer and entry-point catalogues are derived from the definitions
 // in src/shared/jobs/job-definitions.ts and src/shared/events/consumer-definitions.ts.
-// catalogue-pinned.json holds every row as it was written by hand before the
-// derivation; these tests compare the derived rows with it field by field, so a
-// definition edit that moves a queue, retry, cadence, scope, gate or consumer is
-// a deliberate change to both.
+// The definitions are the only place a row is written; these tests check that the
+// derivation keeps every definition and that each one is complete.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { createContainer } from '#/composition'
 import { DURABLE_CONSUMERS } from '#/shared/events/consumer-definitions'
 import { CONSUMER_ENTRY_POINTS } from '#/shared/events/consumer-entry-points'
 import { JOB_DEFINITIONS } from '#/shared/jobs/job-definitions'
+import type { Database } from '#/shared/db'
+import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
+import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { ENTRY_POINT_CATALOGUE } from './entry-point-catalogue'
 import { EVENT_FAMILY_ROWS, JOB_FAMILY_ROWS } from './event-job-catalogue'
 
-type Pinned = Readonly<{
-  events: ReadonlyArray<{
-    eventType: string
-    consumers: ReadonlyArray<{ name: string; module: string }>
-  }>
-  jobs: ReadonlyArray<Record<string, unknown>>
-  entryPoints: ReadonlyArray<Record<string, unknown>>
-}>
+const SCHEDULE_DECISION = /^(none|every:\d+(,offset:\d+)?|cron:\S.*)$/
 
-const pinned: Pinned = JSON.parse(
-  readFileSync(new URL('./catalogue-pinned.json', import.meta.url), 'utf8'),
-)
-
-const byKey = <T>(rows: ReadonlyArray<T>, key: (row: T) => string): Map<string, T> =>
-  new Map(rows.map((row) => [key(row), row]))
+const duplicates = (names: ReadonlyArray<string>): ReadonlyArray<string> =>
+  names.filter((name, index) => names.indexOf(name) !== index)
 
 describe('derived job families', () => {
-  it('keep every pinned field of every job, in the pinned order', () => {
-    expect(JOB_FAMILY_ROWS).toEqual(pinned.jobs)
+  it('declare each job once', () => {
+    expect(duplicates(JOB_DEFINITIONS.map((def) => def.name))).toEqual([])
   })
 
-  it('declare each job once', () => {
-    const names = JOB_DEFINITIONS.map((def) => def.name)
-    expect(new Set(names).size).toBe(names.length)
+  it('keep every definition, in order', () => {
+    expect(JOB_FAMILY_ROWS.map((row) => row.jobName)).toEqual(
+      JOB_DEFINITIONS.map((def) => def.name),
+    )
+  })
+
+  it('give every job a schedule decision', () => {
+    const undecided = JOB_FAMILY_ROWS.filter(
+      (row) => !SCHEDULE_DECISION.test(row.schedule),
+    ).map((row) => row.jobName)
+    expect(undecided).toEqual([])
   })
 })
 
 describe('derived event families', () => {
-  it('keep every event type, in the pinned order', () => {
-    expect(EVENT_FAMILY_ROWS.map((row) => row.eventType)).toEqual(
-      pinned.events.map((row) => row.eventType),
-    )
+  it('list each event type once', () => {
+    expect(duplicates(EVENT_FAMILY_ROWS.map((row) => row.eventType))).toEqual([])
   })
 
-  it('give each event the same consumers, by name and registering module', () => {
-    const derived = byKey(EVENT_FAMILY_ROWS, (row) => row.eventType)
-    for (const row of pinned.events) {
-      const sorted = (consumers: ReadonlyArray<{ name: string; module: string }>) =>
-        [...consumers].sort((a, b) => a.name.localeCompare(b.name))
-      expect(sorted(derived.get(row.eventType)?.consumers ?? [])).toEqual(
-        sorted(row.consumers),
-      )
+  it('give each event exactly the consumers that receive it', () => {
+    for (const row of EVENT_FAMILY_ROWS) {
+      const expected = DURABLE_CONSUMERS.filter((c) => c.on.includes(row.eventType))
+        .map((c) => c.name)
+        .sort()
+      expect(row.consumers.map((c) => c.name).sort(), row.eventType).toEqual(expected)
     }
+  })
+
+  it('declare each consumer once', () => {
+    expect(duplicates(DURABLE_CONSUMERS.map((c) => c.name))).toEqual([])
   })
 
   it('only names events the outbox routes', () => {
@@ -69,14 +68,28 @@ describe('derived event families', () => {
 })
 
 describe('derived entry points', () => {
-  it('keep every pinned row of every kind field by field', () => {
-    const key = (row: { kind?: unknown; name?: unknown }) => `${row.kind}:${row.name}`
-    const derived = byKey(ENTRY_POINT_CATALOGUE, (row) => key(row))
-    expect(derived.size).toBe(ENTRY_POINT_CATALOGUE.length)
-    expect(ENTRY_POINT_CATALOGUE).toHaveLength(pinned.entryPoints.length)
-    for (const row of pinned.entryPoints) {
-      expect(derived.get(key(row))).toEqual(row)
-    }
+  const key = (row: { kind: string; name: string }) => `${row.kind}:${row.name}`
+
+  it('hold each kind and name once', () => {
+    expect(duplicates(ENTRY_POINT_CATALOGUE.map(key))).toEqual([])
+  })
+
+  it('give every job a job row and every scheduled job a schedule row', () => {
+    const keys = new Set(ENTRY_POINT_CATALOGUE.map(key))
+    const missing = JOB_DEFINITIONS.flatMap((def) => [
+      ...(keys.has(`job:${def.name}`) ? [] : [`job:${def.name}`]),
+      ...(def.schedule === 'none' || keys.has(`schedule:${def.name}-recurring`)
+        ? []
+        : [`schedule:${def.name}-recurring`]),
+    ])
+    expect(missing).toEqual([])
+  })
+
+  it('carry every consumer row', () => {
+    const keys = new Set(ENTRY_POINT_CATALOGUE.map(key))
+    expect(CONSUMER_ENTRY_POINTS.filter((row) => !keys.has(key(row))).map(key)).toEqual(
+      [],
+    )
   })
 })
 
@@ -174,21 +187,47 @@ describe('durable consumers name their entry-point row', () => {
       expect(used.has(row.name), row.name).toBe(true)
   })
 
-  it('matches the module each registration site authorizes it under', () => {
-    const root = fileURLToPath(new URL('../../..', import.meta.url))
-    const registrations = new Map<string, string>()
+  it('matches the module each registration site authorizes it under', async () => {
+    const container = createContainer({
+      clock: () => new Date('2026-01-15T12:00:00.000Z'),
+      queue: createInMemoryQueue({ clock: () => new Date('2026-01-15T12:00:00.000Z') }),
+      backgroundQueue: createInMemoryQueue({
+        clock: () => new Date('2026-01-15T12:00:00.000Z'),
+      }),
+      opsDomainEventsQueue: createInMemoryQueue({
+        clock: () => new Date('2026-01-15T12:00:00.000Z'),
+      }),
+      opsQuarantineQueue: createInMemoryQueue({
+        clock: () => new Date('2026-01-15T12:00:00.000Z'),
+      }),
+      redis: undefined,
+      enableJobs: true,
+      db: new Proxy(
+        {},
+        {
+          get: () => {
+            throw new Error('composition must not query the DB during construction')
+          },
+        },
+      ) as unknown as Database,
+      identityPort: createInMemoryIdentityPort(),
+      email: async () => {},
+    })
+    container.registerOutboxConsumers()
+
+    const unregistered: string[] = []
+    const wrongModule: string[] = []
     for (const consumer of DURABLE_CONSUMERS) {
-      const source = readFileSync(join(root, consumer.module), 'utf8')
-      const literal = new RegExp(
-        `consumerName:\\s*'${consumer.name.replace(/\./g, '\\.')}',\\s*module:\\s*'([^']+)'`,
-      )
-      const found = literal.exec(source)?.[1]
-      if (found) registrations.set(consumer.name, found)
+      const registered = consumer.on
+        .flatMap((eventType) => container.consumerRegistry.listFor(eventType))
+        .filter((registration) => registration.consumerName === consumer.name)
+      if (registered.length === 0) unregistered.push(consumer.name)
+      for (const registration of registered) {
+        if (registration.module !== consumer.entryPoint) wrongModule.push(consumer.name)
+      }
     }
-    expect(registrations.size).toBeGreaterThan(0)
-    for (const consumer of DURABLE_CONSUMERS) {
-      const found = registrations.get(consumer.name)
-      if (found) expect(consumer.entryPoint, consumer.name).toBe(found)
-    }
+    await container.shutdown.run()
+
+    expect({ unregistered, wrongModule }).toEqual({ unregistered: [], wrongModule: [] })
   })
 })

@@ -433,7 +433,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
           removeOnComplete: { count: 100 },
           removeOnFail: { count: 50 },
           // Attempts/backoff+jitter/timeout from the job catalogue
-          // (event-job-catalogue.ts publish-reply: 5 attempts, exponential
+          // (job-definitions.ts publish-reply: 5 attempts, exponential
           // from 30 s; job-policy.ts 0.5 jitter, so the first retry lands
           // 15-30 s later; 120 s timeout). Only a retryable failure spends
           // them on another write; an uncertain send is re-read on the D3

@@ -8,7 +8,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'
-import { PORTAL_BACKGROUND_JOB_ROWS } from '#/shared/governance/portal-job-rows'
+import { JOB_DEFINITIONS } from '#/shared/jobs/job-definitions'
 import { createPortalDestinationNetworkValidator } from '../adapters/portal-destination-network-validator.adapter'
 import {
   createRevalidateApprovedDestinationsHandler,
@@ -216,8 +216,8 @@ describe('Portal approved destination revalidation job', () => {
   it('leaves the job’s own timeout room for the page in flight when the budget ends', () => {
     // The worker fails a run that passes its timeout; a page started just inside
     // the budget has to finish before that.
-    const row = PORTAL_BACKGROUND_JOB_ROWS.find(
-      ({ jobName }) => jobName === 'portal-approved-destination-revalidation',
+    const row = JOB_DEFINITIONS.find(
+      ({ name }) => name === 'portal-approved-destination-revalidation',
     )
     if (!row) throw new Error('revalidation job row not found')
 

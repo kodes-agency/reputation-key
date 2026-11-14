@@ -2,7 +2,7 @@
 // serving the address behind it, and how old it may be before the job takes it
 // again.
 //
-// Revalidation is scheduled every 15 minutes (`PORTAL_BACKGROUND_JOB_ROWS`),
+// Revalidation is scheduled every 15 minutes (`portal-approved-destination-revalidation` in src/shared/jobs/job-definitions.ts),
 // with a run budget of 5 minutes. A run is due for every approval at least 10
 // minutes old, so an approval validated anywhere in one run, even at the end of
 // its budget, is due again at the start of the next: it is refreshed every
