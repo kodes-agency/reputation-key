@@ -1,5 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
-import { createGoogleConnectionCeremonyFixture as setup } from '#/shared/testing/google-connection-ceremony-fixture'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import { createGoogleConnectionCeremonyFixture as setup } from '#/contexts/integration/connections/google-connection-ceremony.test-fixtures'
 import {
   buildTestAuthContext,
   buildTestGoogleConnection,
@@ -7,6 +10,17 @@ import {
 import { integrationError, isIntegrationError } from '../../domain/errors'
 import { organizationId } from '#/shared/domain/ids'
 import type { GoogleOAuthProviderCallAuthorizer } from '../ports/google-oauth.port'
+
+const OTHER_ORG = organizationId('org-connect-gc-other')
+
+setupIntegrationDb({
+  orgA: organizationId('org-00000000-0000-0000-0000-000000000001'),
+  orgB: OTHER_ORG,
+  tables: ['google_connections', 'outbox_events'],
+})
+
+beforeAll(registerAllEventSchemas)
+afterAll(clearEventSchemas)
 
 const VERIFIER = 'test-code-verifier'
 const OIDC_NONCE = 'test-oidc-nonce'
@@ -26,28 +40,27 @@ const input = (visibility: 'private' | 'organization' = 'private') => ({
 
 describe('connectGoogleAccount', () => {
   it('creates an OIDC connection and records the v2 lifecycle fact', async () => {
-    const { useCase, connectionRepo, outbox, oauth } = setup()
+    const { useCase, connectionRepo, outbox, oauth } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const result = await useCase(input(), ctx)
 
-    expect(connectionRepo.all()).toHaveLength(1)
+    expect(await connectionRepo.all()).toHaveLength(1)
     expect(result.googleSubject).toBe('google-subject-123')
     expect(result.googleAccountEmail).toBe('owner@example.com')
     expect(result.status).toBe('active')
     expect(result.organizationId).toBe(ctx.organizationId)
     expect(oauth.exchangeVerifierCalls()).toEqual([VERIFIER])
-    const facts = outbox.byTag('integration.google_account.connected')
+    const facts = await outbox.byTag('integration.google_account.connected')
     expect(facts).toHaveLength(1)
     expect(facts[0]).toMatchObject({ connectionId: result.id })
   })
 
   it('returns the exact committed connection on callback replay without re-exchange', async () => {
-    const { useCase, exchangeCode, markAttemptCompleted } = setup()
+    const { useCase, exchangeCode } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const connected = await useCase(input(), ctx)
-    markAttemptCompleted()
     const replayed = await useCase.resume({ attemptId: input().exchangeAttemptId }, ctx)
 
     expect(replayed).toEqual(connected)
@@ -69,7 +82,7 @@ describe('connectGoogleAccount', () => {
         },
       }),
     )
-    const { useCase } = setup(authorizeProviderCall)
+    const { useCase } = await setup(authorizeProviderCall)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const result = await useCase(input(), ctx)
@@ -83,7 +96,7 @@ describe('connectGoogleAccount', () => {
   })
 
   it('rejects users without integration.manage permission before OAuth exchange', async () => {
-    const { useCase, oauth } = setup()
+    const { useCase, oauth } = await setup()
     await expect(
       useCase(input(), buildTestAuthContext({ role: 'Member' })),
     ).rejects.toSatisfy(
@@ -94,7 +107,7 @@ describe('connectGoogleAccount', () => {
   })
 
   it('propagates an OAuth exchange failure and closes the attempt as ambiguous', async () => {
-    const { useCase, oauth, finishWithoutResult } = setup()
+    const { useCase, oauth, finishWithoutResult } = await setup()
     oauth.setExchangeError(new Error('OAuth provider unreachable'))
     await expect(
       useCase(input(), buildTestAuthContext({ role: 'AccountAdmin' })),
@@ -109,7 +122,7 @@ describe('connectGoogleAccount', () => {
   })
 
   it('closes a grant without Business Profile access as failed, not ambiguous', async () => {
-    const { useCase, oauth, connectionRepo, finishWithoutResult } = setup()
+    const { useCase, oauth, connectionRepo, finishWithoutResult } = await setup()
     oauth.setExchangeError(
       integrationError('scope_not_granted', 'Business Profile access missing'),
     )
@@ -125,18 +138,17 @@ describe('connectGoogleAccount', () => {
         outcomeCode: 'scope_not_granted',
       }),
     )
-    expect(connectionRepo.all()).toEqual([])
+    expect(await connectionRepo.all()).toEqual([])
   })
 
   it('reconnects only the exact targeted subject in the same organization', async () => {
-    const { useCase, connectionRepo, outbox } = setup()
+    const { useCase, connectionRepo, outbox } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const existing = buildTestGoogleConnection({
       googleSubject: 'google-subject-123',
       status: 'disconnected',
-      visibility: 'private',
     })
-    connectionRepo.seed([existing])
+    await connectionRepo.seed([existing])
 
     const result = await useCase(
       {
@@ -155,24 +167,23 @@ describe('connectGoogleAccount', () => {
       visibility: 'organization',
       scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
     })
-    expect(connectionRepo.all()).toHaveLength(1)
-    expect(outbox.byTag('integration.google_account.connected')[0]).toMatchObject({
-      connectionId: existing.id,
-    })
+    expect(await connectionRepo.all()).toHaveLength(1)
+    expect((await outbox.byTag('integration.google_account.connected'))[0]).toMatchObject(
+      {
+        connectionId: existing.id,
+      },
+    )
   })
 
   it('leaves category refresh to the committed fact on reconnect and completed callback retry', async () => {
     const refresh = vi.fn(async () => {})
-    const { useCase, connectionRepo, markAttemptCompleted, exchangeCode } = setup(
-      undefined,
-      refresh,
-    )
+    const { useCase, connectionRepo, exchangeCode } = await setup(undefined, refresh)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const existing = buildTestGoogleConnection({
       status: 'disconnected',
       googleSubject: null,
     })
-    connectionRepo.seed([existing])
+    await connectionRepo.seed([existing])
 
     const connected = await useCase(
       {
@@ -183,7 +194,6 @@ describe('connectGoogleAccount', () => {
       ctx,
     )
     expect(refresh).not.toHaveBeenCalled()
-    markAttemptCompleted()
     refresh.mockRejectedValueOnce(new Error('category read unavailable'))
     await expect(
       useCase.resume({ attemptId: input().exchangeAttemptId }, ctx),
@@ -194,13 +204,13 @@ describe('connectGoogleAccount', () => {
   })
 
   it('refuses a reconnect that loses the race to a disconnect and keeps it disconnected', async () => {
-    const { useCase, connectionRepo, outbox } = setup()
+    const { useCase, connectionRepo, outbox } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const target = buildTestGoogleConnection({
       googleSubject: 'google-subject-123',
       status: 'reauth_required',
     })
-    connectionRepo.seed([target])
+    await connectionRepo.seed([target])
     const findSubject = connectionRepo.findByGoogleIdentityGlobal
     // Another AccountAdmin disconnects the connection after this ceremony has
     // re-proved its target and before it commits.
@@ -232,29 +242,29 @@ describe('connectGoogleAccount', () => {
       googleSubject: null,
       encryptedRefreshToken: 'redacted',
     })
-    expect(outbox.byTag('integration.google_account.connected')).toEqual([])
+    expect(await outbox.byTag('integration.google_account.connected')).toEqual([])
   })
 
   it('does not let a new ceremony adopt an existing same-organization subject', async () => {
-    const { useCase, connectionRepo, outbox } = setup()
+    const { useCase, connectionRepo, outbox } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const existing = buildTestGoogleConnection({
       googleSubject: 'google-subject-123',
       status: 'disconnected',
     })
-    connectionRepo.seed([existing])
+    await connectionRepo.seed([existing])
 
     await expect(useCase(input('organization'), ctx)).rejects.toSatisfy(
       (error: unknown) =>
         isIntegrationError(error) &&
         (error as { code: string }).code === 'account_already_connected',
     )
-    expect(connectionRepo.all()).toEqual([existing])
-    expect(outbox.byTag('integration.google_account.connected')).toEqual([])
+    expect(await connectionRepo.all()).toEqual([existing])
+    expect(await outbox.byTag('integration.google_account.connected')).toEqual([])
   })
 
   it('rejects a targeted ceremony when the returned subject belongs to another row', async () => {
-    const { useCase, connectionRepo, outbox } = setup()
+    const { useCase, connectionRepo, outbox } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const target = buildTestGoogleConnection({
       id: '00000000-0000-4000-8000-000000000111',
@@ -265,7 +275,7 @@ describe('connectGoogleAccount', () => {
       id: '00000000-0000-4000-8000-000000000222',
       googleSubject: 'google-subject-123',
     })
-    connectionRepo.seed([target, mapped])
+    await connectionRepo.seed([target, mapped])
 
     await expect(
       useCase(
@@ -281,16 +291,16 @@ describe('connectGoogleAccount', () => {
         isIntegrationError(error) &&
         (error as { code: string }).code === 'account_already_connected',
     )
-    expect(connectionRepo.all()).toEqual([target, mapped])
-    expect(outbox.byTag('integration.google_account.connected')).toEqual([])
+    expect(await connectionRepo.all()).toEqual([target, mapped])
+    expect(await outbox.byTag('integration.google_account.connected')).toEqual([])
   })
 
   it('rejects a signed subject already claimed by another organization', async () => {
-    const { useCase, connectionRepo } = setup()
-    connectionRepo.seed([
+    const { useCase, connectionRepo } = await setup()
+    await connectionRepo.seed([
       buildTestGoogleConnection({
         googleSubject: 'google-subject-123',
-        organizationId: organizationId('org-other'),
+        organizationId: OTHER_ORG,
       }),
     ])
 
@@ -301,11 +311,11 @@ describe('connectGoogleAccount', () => {
         isIntegrationError(error) &&
         (error as { code: string }).code === 'account_already_connected',
     )
-    expect(connectionRepo.all()).toHaveLength(1)
+    expect(await connectionRepo.all()).toHaveLength(1)
   })
 
   it('derives token expiry and normalizes legacy visibility to Organization ownership', async () => {
-    const { useCase, connectionRepo, oauth } = setup()
+    const { useCase, connectionRepo, oauth } = await setup()
     oauth.setExchangeResult({
       identity: { kind: 'oidc', googleSubject: 'google-subject-123', email: null },
       accessToken: 'mock-access-token',
@@ -316,14 +326,14 @@ describe('connectGoogleAccount', () => {
 
     await useCase(input('private'), buildTestAuthContext({ role: 'AccountAdmin' }))
 
-    expect(connectionRepo.all()[0]).toMatchObject({
+    expect((await connectionRepo.all())[0]).toMatchObject({
       tokenExpiresAt: new Date('2026-04-10T14:00:00Z'),
       visibility: 'organization',
     })
   })
 
   it('does not let a PropertyManager connect even with forged legacy permissions', async () => {
-    const { useCase, oauth } = setup()
+    const { useCase, oauth } = await setup()
     const manager = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(useCase(input(), manager)).rejects.toSatisfy(

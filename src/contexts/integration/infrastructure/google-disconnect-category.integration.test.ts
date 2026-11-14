@@ -12,7 +12,7 @@ import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
-import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
+import { createTestTokenEncryption } from '#/contexts/integration/connections/token-encryption.test-fixtures'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
 import { connectGoogleAccount } from '../application/use-cases/connect-google-account'
 import { disconnectGoogleAccount } from '../application/use-cases/disconnect-google-account'
@@ -139,7 +139,7 @@ function reconnect(
 ) {
   const connectionRepo = createGoogleConnectionRepository(db, () => NOW)
   const provider = createInMemoryGoogleOAuthPort()
-  const encryption = createInMemoryTokenEncryption()
+  const encryption = createTestTokenEncryption()
   const refresh = createRefreshBoundGoogleCategories({
     findPropertyIds: async (connectionId, tenant) =>
       (
@@ -435,7 +435,7 @@ describe('Google account category cleanup (PostgreSQL)', () => {
       },
       commandStore: store,
       oauth: createInMemoryGoogleOAuthPort(),
-      encryption: createInMemoryTokenEncryption(),
+      encryption: createTestTokenEncryption(),
       clock: () => NOW,
       logger: createMockLogger(),
       sourceContentPurge: {

@@ -19,7 +19,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { Tx } from '#/shared/outbox/commit'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
-import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
+import { createTestTokenEncryption } from '#/contexts/integration/connections/token-encryption.test-fixtures'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { disconnectGoogleAccount } from '#/contexts/integration/application/use-cases/disconnect-google-account'
 import { integrationGoogleAccountDisconnected } from '#/contexts/integration/domain/events'
@@ -235,7 +235,7 @@ describe('Google category publication and public disconnect commands (PostgreSQL
       connectionRepo: createGoogleConnectionRepository(db, () => NOW),
       commandStore: createAtomicIntegrationCommandStore(db, () => NOW),
       oauth: createInMemoryGoogleOAuthPort(),
-      encryption: createInMemoryTokenEncryption(),
+      encryption: createTestTokenEncryption(),
       logger: createMockLogger(),
       clock: () => NOW,
       unsubscribeFromNotifications: unsubscribe,

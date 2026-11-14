@@ -1,5 +1,5 @@
-// In-memory GoogleOAuthPort fake — for use in use case tests.
-// Implements the same port interface so use cases can't tell the difference.
+// Google OAuth provider stub — fakes only the provider transport; use cases
+// call the same GoogleOAuthPort they call in production.
 
 import type {
   GoogleOAuthPort,

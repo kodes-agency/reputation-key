@@ -3,31 +3,44 @@
 // (and future callers) no longer know about.
 
 import { describe, it, expect } from 'vitest'
+import { getDb } from '#/shared/db'
+import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import {
   createActiveConnectionTokenProvider,
   decideTokenFreshness,
 } from './active-connection-token-provider'
 import { TOKEN_EXPIRY_BUFFER_MS } from './constants'
-import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
-import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
+import { createGoogleConnectionTestStore } from '#/contexts/integration/connections/google-connection.test-fixtures'
+import { createTestTokenEncryption } from '#/contexts/integration/connections/token-encryption.test-fixtures'
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
 import { organizationId } from '#/shared/domain/ids'
 import { isIntegrationError } from '../domain/errors'
 
 const FIXED_NOW = new Date('2026-06-01T12:00:00Z')
-const ORG_ID = organizationId('org-00000000-0000-0000-0000-000000000001')
+const ORG_ID = organizationId('org-token-provider-aa')
+const OTHER_ORG_ID = organizationId('org-token-provider-bb')
 
-const setup = (
+setupIntegrationDb({
+  orgA: ORG_ID,
+  orgB: OTHER_ORG_ID,
+  tables: ['google_connections'],
+})
+
+const setup = async (
   connectionOverrides: Parameters<typeof buildTestGoogleConnection>[0] = {},
 ) => {
-  const connectionRepo = createInMemoryGoogleConnectionRepo()
-  const encryption = createInMemoryTokenEncryption()
+  const connectionRepo = createGoogleConnectionTestStore(getDb(), () => FIXED_NOW, [
+    ORG_ID,
+  ])
+  const encryption = createTestTokenEncryption()
   const conn = buildTestGoogleConnection({
+    organizationId: ORG_ID,
+    encryptedAccessToken: encryption.encrypt('stored-access-token'),
     status: 'active',
     tokenExpiresAt: new Date(FIXED_NOW.getTime() + 3600_000),
     ...connectionOverrides,
   })
-  connectionRepo.seed([conn])
+  await connectionRepo.seed([conn])
 
   const refreshCalls: Array<{ orgId: string; connectionId: string }> = []
   const refreshGoogleToken = async (orgId: string, connectionId: string) => {
@@ -36,7 +49,7 @@ const setup = (
     if (!existing) throw new Error('Connection not found for refresh')
     return {
       ...existing,
-      encryptedAccessToken: 'enc:refreshed-access-token',
+      encryptedAccessToken: encryption.encrypt('refreshed-access-token'),
       tokenExpiresAt: new Date(FIXED_NOW.getTime() + 3600_000),
     }
   }
@@ -84,27 +97,29 @@ describe('decideTokenFreshness', () => {
 
 describe('ActiveConnectionTokenProvider.getAccessToken', () => {
   it('decrypts the stored token when fresh — no refresh call', async () => {
-    const { provider, conn, encryption, refreshCalls } = setup()
+    const { provider, conn, refreshCalls } = await setup()
 
     const token = await provider.getAccessToken(ORG_ID, conn.id as string)
 
-    expect(token).toBe(encryption.decrypt(conn.encryptedAccessToken))
+    expect(token).toBe('stored-access-token')
     expect(refreshCalls()).toHaveLength(0)
   })
 
   it('refreshes then decrypts when the token expires within the buffer', async () => {
     const almostExpired = new Date(FIXED_NOW.getTime() + 3 * 60 * 1000)
-    const { provider, conn, refreshCalls } = setup({ tokenExpiresAt: almostExpired })
+    const { provider, conn, refreshCalls } = await setup({
+      tokenExpiresAt: almostExpired,
+    })
 
     const token = await provider.getAccessToken(ORG_ID, conn.id as string)
 
     expect(refreshCalls()).toHaveLength(1)
-    expect(refreshCalls()[0].connectionId).toBe(conn.id as string)
+    expect(refreshCalls()[0]?.connectionId).toBe(conn.id as string)
     expect(token).toBe('refreshed-access-token')
   })
 
   it('forces one provider refresh after a 401 even when the stored access token is fresh', async () => {
-    const { provider, conn, refreshCalls } = setup()
+    const { provider, conn, refreshCalls } = await setup()
 
     const token = await provider.forceRefreshAccessToken(
       ORG_ID,
@@ -117,10 +132,10 @@ describe('ActiveConnectionTokenProvider.getAccessToken', () => {
   })
 
   it('rejects when the connection does not exist', async () => {
-    const { provider } = setup()
+    const { provider } = await setup()
 
     await expect(
-      provider.getAccessToken(ORG_ID, 'nonexistent-0000-0000-0000-000000000001'),
+      provider.getAccessToken(ORG_ID, 'e0000009-0000-0000-0000-000000000009'),
     ).rejects.toSatisfy(
       (e: unknown) =>
         isIntegrationError(e) && (e as { code: string }).code === 'connection_not_found',
@@ -128,7 +143,7 @@ describe('ActiveConnectionTokenProvider.getAccessToken', () => {
   })
 
   it('rejects when the connection is not active', async () => {
-    const { provider, conn } = setup({ status: 'disconnected' })
+    const { provider, conn } = await setup({ status: 'disconnected' })
 
     await expect(provider.getAccessToken(ORG_ID, conn.id as string)).rejects.toSatisfy(
       (e: unknown) =>
@@ -140,7 +155,7 @@ describe('ActiveConnectionTokenProvider.getAccessToken', () => {
   // A connection Google revoked says so, so a forced refresh after a 401 can
   // tell the caller the answered 401 is final rather than an unknown outcome.
   it('refuses a connection waiting for reauthorization without refreshing it', async () => {
-    const { provider, conn, refreshCalls } = setup({ status: 'reauth_required' })
+    const { provider, conn, refreshCalls } = await setup({ status: 'reauth_required' })
     const waitingForConsent = (e: unknown) =>
       isIntegrationError(e) && e.code === 'reauthorization_required'
 
@@ -160,7 +175,7 @@ describe('ActiveConnectionTokenProvider.getAccessToken', () => {
   it.each(['cleanup_only', 'none'] as const)(
     'never decrypts or refreshes credentials in %s use state',
     async (credentialUseState) => {
-      const { provider, conn, refreshCalls } = setup({ credentialUseState })
+      const { provider, conn, refreshCalls } = await setup({ credentialUseState })
 
       await expect(provider.getAccessToken(ORG_ID, conn.id as string)).rejects.toSatisfy(
         (error: unknown) =>
