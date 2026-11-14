@@ -1,14 +1,14 @@
 // Identity context — invite member use case tests
 // Per architecture: "Every use case tested for happy path + every error path."
-// BQC-3.5: state + fact go through the sequential command-store fake (same
-// operation order as the atomic store) — the in-memory identity port now
-// only backs the read-side (inviter name resolution).
+// State + fact commit through the atomic identity command store on real
+// PostgreSQL; the in-memory identity port only backs the read-side (inviter
+// name resolution).
 
 import { describe, it, expect, vi } from 'vitest'
 import { inviteMember } from './invite-member.server'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
-import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
+import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { setupIdentityMembersDb } from '#/shared/testing/identity-members-fixtures'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../domain/errors'
 import { invitationId } from '#/shared/domain/ids'
@@ -19,10 +19,19 @@ import type { PropertyNameLookup } from './invitation-read-model.port.server'
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const INVITATION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000
 
-const setup = () => {
+const fixtures = setupIdentityMembersDb(createAtomicIdentityCommandStore)
+
+const setup = async () => {
   const identity = createInMemoryIdentityPort()
-  const outbox = createRecordedOutbox()
-  const commandStore = createSequentialIdentityCommandStore({ outbox })
+  const commandStore = fixtures.store()
+  // The inviter and the Organization an invitation row refers to.
+  const inviter = buildTestAuthContext()
+  await fixtures.seedOrganization(inviter.organizationId as string)
+  await fixtures.seedUser({
+    id: inviter.userId as string,
+    email: 'inviter@test.com',
+    emailVerified: true,
+  })
   const sendEmail = vi.fn<InvitationEmailSender>().mockResolvedValue(undefined)
   const propertyNames = vi.fn<PropertyNameLookup>(async () => [
     { id: 'prop-a', name: 'Hotel A' },
@@ -40,42 +49,43 @@ const setup = () => {
     baseUrl: 'http://localhost:3000',
     logger: { ...createMockLogger(), error: logger.error },
   })
-  return { useCase, identity, outbox, commandStore, sendEmail, propertyNames, logger }
+  return { useCase, identity, commandStore, sendEmail, propertyNames, logger }
 }
 
 describe('inviteMember', () => {
   it('rejects PropertyManager invitations during the manager-only beta', async () => {
-    const { useCase, outbox } = setup()
+    const { useCase } = await setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
       useCase({ email: 'new@test.com', role: 'PropertyManager', propertyIds: [] }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
 
-    expect(outbox.facts).toHaveLength(0)
+    expect(await fixtures.facts()).toHaveLength(0)
   })
 
   it('allows AccountAdmin to invite another beta manager', async () => {
-    const { useCase, commandStore, outbox } = setup()
+    const { useCase } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase({ email: 'admin@test.com', role: 'AccountAdmin', propertyIds: [] }, ctx)
 
-    expect(commandStore.allInvitations).toHaveLength(1)
-    expect(commandStore.allInvitations[0].email).toBe('admin@test.com')
+    const invitations = await fixtures.allInvitations()
+    expect(invitations).toHaveLength(1)
+    expect(invitations[0]?.email).toBe('admin@test.com')
     // The invitation row persists the better-auth role string (BQC-3.5:
     // app-owned write path — the row matches what BA would have written).
-    expect(commandStore.allInvitations[0].role).toBe('owner')
-    expect(commandStore.allInvitations[0].status).toBe('pending')
-    expect(commandStore.allInvitations[0].expiresAt).toEqual(
+    expect(invitations[0]?.role).toBe('owner')
+    expect(invitations[0]?.status).toBe('pending')
+    expect(invitations[0]?.expiresAt).toEqual(
       new Date(FIXED_TIME.getTime() + INVITATION_EXPIRY_MS),
     )
-    expect(outbox.facts).toHaveLength(1)
-    expect(outbox.facts[0]._tag).toBe('identity.member.invited')
+    expect(await fixtures.facts()).toHaveLength(1)
+    expect((await fixtures.facts())[0]?.tag).toBe('identity.member.invited')
   })
 
   it('rejects Member from inviting anyone', async () => {
-    const { useCase } = setup()
+    const { useCase } = await setup()
     const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(
@@ -84,7 +94,7 @@ describe('inviteMember', () => {
   })
 
   it('rejects PropertyManager inviting AccountAdmin', async () => {
-    const { useCase } = setup()
+    const { useCase } = await setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
@@ -93,9 +103,9 @@ describe('inviteMember', () => {
   })
 
   it('rejects when a pending invitation already exists for the email', async () => {
-    const { useCase, commandStore, outbox, sendEmail } = setup()
+    const { useCase, sendEmail } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    commandStore.seedInvitation({
+    await fixtures.seedInvitation({
       id: 'inv-existing',
       organizationId: ctx.organizationId as string,
       email: 'new@test.com',
@@ -111,14 +121,14 @@ describe('inviteMember', () => {
       useCase({ email: 'new@test.com', role: 'PropertyManager', propertyIds: [] }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'already_exists')
 
-    expect(outbox.facts).toHaveLength(0)
+    expect(await fixtures.facts()).toHaveLength(0)
     expect(sendEmail).not.toHaveBeenCalled()
   })
 
   it('does not email an invite that conflicts with another Organization', async () => {
-    const { useCase, commandStore, outbox, sendEmail } = setup()
+    const { useCase, sendEmail } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    commandStore.seedInvitation({
+    await fixtures.seedInvitation({
       id: 'inv-other-org',
       organizationId: 'org-other',
       email: 'new@test.com',
@@ -137,14 +147,14 @@ describe('inviteMember', () => {
         isIdentityError(error) && error.code === 'organization_conflict',
     )
 
-    expect(outbox.facts).toHaveLength(0)
+    expect(await fixtures.facts()).toHaveLength(0)
     expect(sendEmail).not.toHaveBeenCalled()
   })
 
   it('points the admin at Resend when this Organization holds a lapsed invitation', async () => {
-    const { useCase, commandStore, outbox, sendEmail } = setup()
+    const { useCase, sendEmail } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    commandStore.seedInvitation({
+    await fixtures.seedInvitation({
       id: 'inv-lapsed',
       organizationId: ctx.organizationId as string,
       email: 'new@test.com',
@@ -163,14 +173,14 @@ describe('inviteMember', () => {
         isIdentityError(e) && e.code === 'already_exists' && /Use Resend/.test(e.message),
     )
 
-    expect(outbox.facts).toHaveLength(0)
+    expect(await fixtures.facts()).toHaveLength(0)
     expect(sendEmail).not.toHaveBeenCalled()
   })
 
   it("expires another Organization's lapsed invitation and invites", async () => {
-    const { useCase, commandStore } = setup()
+    const { useCase } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    commandStore.seedInvitation({
+    await fixtures.seedInvitation({
       id: 'inv-other-lapsed',
       organizationId: 'org-other',
       email: 'new@test.com',
@@ -187,12 +197,12 @@ describe('inviteMember', () => {
       ctx,
     )
 
-    expect(commandStore.invitationById('inv-other-lapsed')?.status).toBe('expired')
-    expect(commandStore.invitationById('inv-test-1')?.status).toBe('pending')
+    expect((await fixtures.invitationById('inv-other-lapsed'))?.status).toBe('expired')
+    expect((await fixtures.invitationById('inv-test-1'))?.status).toBe('pending')
   })
 
   it('records the member.invited fact with correct data', async () => {
-    const { useCase, outbox } = setup()
+    const { useCase } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase(
@@ -200,15 +210,15 @@ describe('inviteMember', () => {
       ctx,
     )
 
-    const facts = outbox.byTag('identity.member.invited')
+    const facts = await fixtures.factsByTag('identity.member.invited')
     expect(facts).toHaveLength(1)
-    expect(facts[0]).not.toHaveProperty('email')
-    expect(facts[0].role).toBe('PropertyManager')
-    expect(facts[0].organizationId).toBe(ctx.organizationId)
+    expect(facts[0]?.payload).not.toHaveProperty('email')
+    expect(facts[0]?.payload.role).toBe('PropertyManager')
+    expect(facts[0]?.payload.organizationId).toBe(ctx.organizationId)
   })
 
   it('mails the role, the invited Properties and the lifetime after the atomic commit', async () => {
-    const { useCase, sendEmail, propertyNames } = setup()
+    const { useCase, sendEmail, propertyNames } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(
@@ -238,7 +248,7 @@ describe('inviteMember', () => {
   })
 
   it('stores and mails no Properties for an AccountAdmin invitation', async () => {
-    const { useCase, sendEmail, commandStore, propertyNames } = setup()
+    const { useCase, sendEmail, propertyNames } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase(
@@ -246,7 +256,7 @@ describe('inviteMember', () => {
       ctx,
     )
 
-    expect(commandStore.invitationById('inv-test-1')?.propertyIds).toBeNull()
+    expect((await fixtures.invitationById('inv-test-1'))?.propertyIds).toBeNull()
     expect(propertyNames).not.toHaveBeenCalled()
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({ role: 'AccountAdmin', propertyNames: [] }),
@@ -254,7 +264,7 @@ describe('inviteMember', () => {
   })
 
   it('keeps the committed invitation and reports the unsent email when the send fails', async () => {
-    const { useCase, sendEmail, commandStore, outbox, logger } = setup()
+    const { useCase, sendEmail, logger } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     sendEmail.mockRejectedValueOnce(
       Object.assign(new Error('Failed to send email: rejected new@test.com'), {
@@ -267,8 +277,8 @@ describe('inviteMember', () => {
       useCase({ email: 'new@test.com', role: 'PropertyManager', propertyIds: [] }, ctx),
     ).resolves.toEqual({ invitationId: 'inv-test-1', emailSent: false })
 
-    expect(commandStore.invitationById('inv-test-1')?.status).toBe('pending')
-    expect(outbox.facts).toHaveLength(1)
+    expect((await fixtures.invitationById('inv-test-1'))?.status).toBe('pending')
+    expect(await fixtures.facts()).toHaveLength(1)
     expect(logger.error).toHaveBeenCalledWith(
       { failure: { name: 'EmailError', code: 'send_failed' } },
       '[identity] invitation email could not be sent',
@@ -277,7 +287,7 @@ describe('inviteMember', () => {
   })
 
   it('reports the unsent email when composing it fails after the commit', async () => {
-    const { useCase, commandStore, propertyNames, sendEmail } = setup()
+    const { useCase, propertyNames, sendEmail } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     propertyNames.mockRejectedValueOnce(new Error('property lookup unavailable'))
 
@@ -288,7 +298,7 @@ describe('inviteMember', () => {
       ),
     ).resolves.toEqual({ invitationId: 'inv-test-1', emailSent: false })
 
-    expect(commandStore.invitationById('inv-test-1')?.status).toBe('pending')
+    expect((await fixtures.invitationById('inv-test-1'))?.status).toBe('pending')
     expect(sendEmail).not.toHaveBeenCalled()
   })
 })

@@ -21,20 +21,30 @@ import {
   DISCOVERY_SWEEP_CADENCE_MS,
 } from '../../domain/discovery-spread'
 import {
-  createFakeReviewDiscoveryRepository,
-  fakeDiscoveryProperty,
-  type FakeDiscoveryPropertyRow,
-} from '#/shared/testing/fake-review-discovery-repository'
+  DISCOVERY_ORG,
+  discoveryProperty,
+  setupDiscoveryDb,
+  type DiscoveryPropertyFixture,
+} from '#/shared/testing/review-discovery-fixtures'
+import { createReviewDiscoveryRepository } from '../repositories/review-discovery.repository'
 import {
   createDiscoverNewReviewsHandler,
   DEFAULT_DISCOVERY_INTERVAL_MS,
 } from './discover-new-reviews.job'
 
+const discoveryDb = setupDiscoveryDb(createReviewDiscoveryRepository)
+
+/** What the repository stored for the fixture's Property. */
+const stored = (row: DiscoveryPropertyFixture | undefined) => {
+  if (!row) throw new Error('the test seeded no such fixture row')
+  return discoveryDb.read(row.propertyId)
+}
+
 const NOW = new Date('2026-08-21T12:00:00.000Z')
 const MINUTE = 60 * 1000
 
-const prop = (n: number, over: Partial<FakeDiscoveryPropertyRow> = {}) =>
-  fakeDiscoveryProperty({
+const prop = (n: number, over: Partial<DiscoveryPropertyFixture> = {}) =>
+  discoveryProperty({
     propertyId: `aa000000-0000-4000-8000-00000000000${n}`,
     connectionId: `bb000000-0000-4000-8000-00000000000${n}`,
     gbpLocationId: `location-${n}`,
@@ -47,8 +57,8 @@ const prop = (n: number, over: Partial<FakeDiscoveryPropertyRow> = {}) =>
 const expectedLocationName = (n: number) =>
   `accounts/${prop(n).gbpAccountId}/locations/${prop(n).gbpLocationId}`
 
-function makeDeps(
-  rows: FakeDiscoveryPropertyRow[],
+async function makeDeps(
+  rows: DiscoveryPropertyFixture[],
   opts: {
     failEnqueue?: boolean
     batchSize?: number
@@ -59,7 +69,8 @@ function makeDeps(
     skipRecentlyReconciled?: boolean
   } = {},
 ) {
-  const discoveryRepo = createFakeReviewDiscoveryRepository(rows)
+  await discoveryDb.seed(rows)
+  const discoveryRepo = discoveryDb.repo()
   const findSpy = vi.spyOn(discoveryRepo, 'findDuePropertiesBatch')
   const enqueued: SyncPropertyReviewsJobData[] = []
   const enqueuedOptions: (AddSyncJobOptions | undefined)[] = []
@@ -87,14 +98,14 @@ function makeDeps(
 
 describe('discover-new-reviews sweep', () => {
   it('enqueues a sync job for a connected property with zero stored reviews', async () => {
-    const { handler, enqueued } = makeDeps([prop(1)])
+    const { handler, enqueued } = await makeDeps([prop(1)])
 
     await handler({} as never)
 
     expect(enqueued).toEqual([
       {
         propertyId: 'aa000000-0000-4000-8000-000000000001',
-        organizationId: 'org-1',
+        organizationId: DISCOVERY_ORG,
         connectionId: 'bb000000-0000-4000-8000-000000000001',
         locationName: expectedLocationName(1),
         initiator: { kind: 'system', id: 'sweep:review-discovery' },
@@ -104,7 +115,7 @@ describe('discover-new-reviews sweep', () => {
   })
 
   it('skips properties that are not Google-connected or not active', async () => {
-    const { handler, enqueued } = makeDeps([
+    const { handler, enqueued } = await makeDeps([
       prop(1, { googleBindingState: 'unbound', connectionId: null, gbpAccountId: null }),
       prop(2, { googleBindingState: 'disconnected' }),
       prop(3, { lifecycleState: 'suspended' }),
@@ -122,7 +133,7 @@ describe('discover-new-reviews sweep', () => {
   })
 
   it('skips properties whose next poll is not yet due and includes elapsed ones', async () => {
-    const { handler, enqueued } = makeDeps([
+    const { handler, enqueued } = await makeDeps([
       prop(1, { nextDueAt: new Date(NOW.getTime() + MINUTE) }),
       prop(2, { nextDueAt: new Date(NOW.getTime() - MINUTE) }),
       prop(3, { nextDueAt: NOW }),
@@ -137,31 +148,33 @@ describe('discover-new-reviews sweep', () => {
   })
 
   it('advances a recently active property by the configured base interval', async () => {
-    const { handler, rows } = makeDeps([prop(1, { lastNewReviewAt: NOW })], {
+    const { handler, rows } = await makeDeps([prop(1, { lastNewReviewAt: NOW })], {
       intervalMs: 30 * MINUTE,
     })
 
     await handler({} as never)
 
-    expect(rows[0].nextDueAt).toEqual(new Date(NOW.getTime() + 30 * MINUTE))
-    expect(rows[0].lastSuccessAt).toEqual(NOW)
-    expect(rows[0].errorClass).toBeNull()
+    expect((await stored(rows[0])).nextDueAt).toEqual(
+      new Date(NOW.getTime() + 30 * MINUTE),
+    )
+    expect((await stored(rows[0])).lastSuccessAt).toEqual(NOW)
+    expect((await stored(rows[0])).errorClass).toBeNull()
   })
 
   it('defaults the hot per-property interval to 15 minutes', async () => {
-    const { handler, rows } = makeDeps([prop(1, { lastNewReviewAt: NOW })])
+    const { handler, rows } = await makeDeps([prop(1, { lastNewReviewAt: NOW })])
 
     await handler({} as never)
 
     expect(DEFAULT_DISCOVERY_INTERVAL_MS).toBe(15 * MINUTE)
-    expect(rows[0].nextDueAt).toEqual(
+    expect((await stored(rows[0])).nextDueAt).toEqual(
       new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
     )
   })
 
   it('prices each property on its own ladder rung in a single sweep', async () => {
     const DAY = 24 * 60 * MINUTE
-    const { handler, rows } = makeDeps(
+    const { handler, rows } = await makeDeps(
       [
         // Produced a review minutes ago → hot.
         prop(1, { lastNewReviewAt: new Date(NOW.getTime() - 5 * MINUTE) }),
@@ -180,7 +193,9 @@ describe('discover-new-reviews sweep', () => {
 
     await handler({} as never)
 
-    expect(rows.map((row) => row.nextDueAt)).toEqual([
+    expect(
+      await Promise.all(rows.map(async (row) => (await stored(row)).nextDueAt)),
+    ).toEqual([
       new Date(NOW.getTime() + 15 * MINUTE),
       new Date(NOW.getTime() + 60 * MINUTE),
       new Date(NOW.getTime() + 6 * 60 * MINUTE),
@@ -190,15 +205,14 @@ describe('discover-new-reviews sweep', () => {
 
   it('excludes a property with an in-flight GBP import and includes it once the import settles', async () => {
     const importing = prop(1, { importInFlight: true })
-    const { handler, enqueued } = makeDeps([importing, prop(2)], { batchSize: 10 })
+    const { handler, enqueued } = await makeDeps([importing, prop(2)], { batchSize: 10 })
 
     await handler({} as never)
     expect(enqueued.map((d) => d.propertyId)).toEqual([
       'aa000000-0000-4000-8000-000000000002',
     ])
 
-    importing.importInFlight = false
-    importing.nextDueAt = null
+    await discoveryDb.settleImport(importing.propertyId)
     enqueued.length = 0
     await handler({} as never)
     expect(enqueued.map((d) => d.propertyId)).toContain(
@@ -207,7 +221,7 @@ describe('discover-new-reviews sweep', () => {
   })
 
   it('advances the keyset cursor between bounded batches', async () => {
-    const { handler, enqueued, findSpy } = makeDeps([prop(1), prop(2), prop(3)], {
+    const { handler, enqueued, findSpy } = await makeDeps([prop(1), prop(2), prop(3)], {
       batchSize: 2,
     })
 
@@ -219,7 +233,7 @@ describe('discover-new-reviews sweep', () => {
   })
 
   it('respects the batch budget and leaves the rest for the next firing', async () => {
-    const { handler, enqueued, findSpy } = makeDeps([prop(1), prop(2), prop(3)], {
+    const { handler, enqueued, findSpy } = await makeDeps([prop(1), prop(2), prop(3)], {
       batchSize: 1,
       maxBatches: 2,
     })
@@ -231,10 +245,13 @@ describe('discover-new-reviews sweep', () => {
   })
 
   it('failed enqueue → holds the cursor, records the failure, and rethrows', async () => {
-    const { handler, enqueued, findSpy, rows } = makeDeps([prop(1), prop(2), prop(3)], {
-      batchSize: 1,
-      failEnqueue: true,
-    })
+    const { handler, enqueued, findSpy, rows } = await makeDeps(
+      [prop(1), prop(2), prop(3)],
+      {
+        batchSize: 1,
+        failEnqueue: true,
+      },
+    )
 
     await expect(handler({} as never)).rejects.toThrow(/cursor held/)
 
@@ -243,17 +260,17 @@ describe('discover-new-reviews sweep', () => {
     expect(enqueued).toHaveLength(0)
     // The failing property is deferred (recorded, not silently retried
     // forever at the head of every batch) and never marked successful.
-    expect(rows[0].errorClass).toBe('enqueue_failed')
-    expect(rows[0].lastSuccessAt).toBeNull()
-    expect(rows[0].nextDueAt).toEqual(
+    expect((await stored(rows[0])).errorClass).toBe('enqueue_failed')
+    expect((await stored(rows[0])).lastSuccessAt).toBeNull()
+    expect((await stored(rows[0])).nextDueAt).toEqual(
       new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
     )
     // Later properties were never touched — the cursor never advanced.
-    expect(rows[1].nextDueAt).toBeNull()
+    expect((await stored(rows[1])).nextDueAt).toBeNull()
   })
 
   it('does nothing when no property is due', async () => {
-    const { handler, enqueued, findSpy } = makeDeps([
+    const { handler, enqueued, findSpy } = await makeDeps([
       prop(1, { nextDueAt: new Date(NOW.getTime() + MINUTE) }),
     ])
 
@@ -271,10 +288,10 @@ describe('discover-new-reviews sweep', () => {
 describe('discover-new-reviews sweep: spreading start times', () => {
   // Random-looking ids, like production uuids; sequential literals would not
   // exercise the spread.
-  const crowd = (count: number): FakeDiscoveryPropertyRow[] =>
+  const crowd = (count: number): DiscoveryPropertyFixture[] =>
     Array.from({ length: count }, (_, i) => {
       const hex = createHash('sha256').update(`spread-${i}`).digest('hex')
-      return fakeDiscoveryProperty({
+      return discoveryProperty({
         propertyId: `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`,
         connectionId: `bb000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
         gbpLocationId: `location-${i}`,
@@ -284,16 +301,19 @@ describe('discover-new-reviews sweep: spreading start times', () => {
     })
 
   /** Start delay handed to the queue for each enqueued job, in enqueue order. */
-  const startDelays = (result: ReturnType<typeof makeDeps>): number[] =>
+  const startDelays = (result: Awaited<ReturnType<typeof makeDeps>>): number[] =>
     result.enqueuedOptions.map((options) => options?.delayMs ?? 0)
 
-  const delayOf = (result: ReturnType<typeof makeDeps>, propertyId: string): number => {
+  const delayOf = (
+    result: Awaited<ReturnType<typeof makeDeps>>,
+    propertyId: string,
+  ): number => {
     const index = result.enqueued.findIndex((d) => d.propertyId === propertyId)
     return result.enqueuedOptions[index]?.delayMs ?? 0
   }
 
   it('hands each property to the queue with a start delay inside the spread window', async () => {
-    const deps = makeDeps(crowd(23), { batchSize: 50 })
+    const deps = await makeDeps(crowd(23), { batchSize: 50 })
 
     await deps.handler({} as never)
 
@@ -312,16 +332,14 @@ describe('discover-new-reviews sweep: spreading start times', () => {
 
   it('gives a property the same delay on every sweep', async () => {
     const rows = crowd(5)
-    const first = makeDeps(rows, { batchSize: 50 })
+    const first = await makeDeps(rows, { batchSize: 50 })
     await first.handler({} as never)
     const firstDelays = first.enqueued.map((d) => delayOf(first, d.propertyId))
     expect(Math.max(...firstDelays)).toBeGreaterThan(0)
 
     // Same properties, due again.
-    const second = makeDeps(
-      rows.map((row) => ({ ...row, nextDueAt: null })),
-      { batchSize: 50 },
-    )
+    for (const row of rows) await discoveryDb.clearDueTime(row.propertyId)
+    const second = await makeDeps(rows, { batchSize: 50 })
     await second.handler({} as never)
     const secondDelays = second.enqueued.map((d) => delayOf(second, d.propertyId))
 
@@ -329,7 +347,7 @@ describe('discover-new-reviews sweep: spreading start times', () => {
   })
 
   it('leaves the per-property due time exactly where the ladder priced it', async () => {
-    const deps = makeDeps(crowd(8), { batchSize: 50 })
+    const deps = await makeDeps(crowd(8), { batchSize: 50 })
 
     await deps.handler({} as never)
 
@@ -337,7 +355,7 @@ describe('discover-new-reviews sweep: spreading start times', () => {
     // due: a delayed start must not push a property past the next sweep.
     expect(Math.max(...startDelays(deps))).toBeGreaterThan(0)
     for (const row of deps.rows) {
-      expect(row.nextDueAt).toEqual(
+      expect((await stored(row)).nextDueAt).toEqual(
         new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
       )
     }
@@ -345,7 +363,7 @@ describe('discover-new-reviews sweep: spreading start times', () => {
 
   it('cannot re-enqueue a property while its previous job is still waiting', async () => {
     let current = NOW
-    const deps = makeDeps(crowd(6), { batchSize: 50, clock: () => current })
+    const deps = await makeDeps(crowd(6), { batchSize: 50, clock: () => current })
 
     await deps.handler({} as never)
     const firstSweep = deps.enqueued.length
@@ -367,7 +385,7 @@ describe('discover-new-reviews sweep: spreading start times', () => {
   })
 
   it('keeps the window strictly shorter than a base interval the operator shortened', async () => {
-    const deps = makeDeps(crowd(30), { batchSize: 50, intervalMs: 5 * MINUTE })
+    const deps = await makeDeps(crowd(30), { batchSize: 50, intervalMs: 5 * MINUTE })
 
     await deps.handler({} as never)
 
@@ -377,7 +395,7 @@ describe('discover-new-reviews sweep: spreading start times', () => {
   })
 
   it('keeps the window strictly shorter than the sweep cadence, even when asked for more', async () => {
-    const deps = makeDeps(crowd(30), {
+    const deps = await makeDeps(crowd(30), {
       batchSize: 50,
       intervalMs: 24 * 60 * MINUTE,
       spreadWindowMs: 3 * 60 * MINUTE,
@@ -391,7 +409,7 @@ describe('discover-new-reviews sweep: spreading start times', () => {
   })
 
   it('does not delay anything when the spread window is switched off', async () => {
-    const deps = makeDeps(crowd(5), { batchSize: 50, spreadWindowMs: 0 })
+    const deps = await makeDeps(crowd(5), { batchSize: 50, spreadWindowMs: 0 })
 
     await deps.handler({} as never)
 
@@ -401,7 +419,7 @@ describe('discover-new-reviews sweep: spreading start times', () => {
   })
 
   it('never sets a job id, so the queue-level behaviour of a sweep job is unchanged', async () => {
-    const deps = makeDeps(crowd(5), { batchSize: 50 })
+    const deps = await makeDeps(crowd(5), { batchSize: 50 })
 
     await deps.handler({} as never)
 
@@ -419,7 +437,9 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
   const HOT = { lastNewReviewAt: NOW }
 
   /** The "sweep finished" log payload of the first (only) run. */
-  const finishedLog = (result: ReturnType<typeof makeDeps>): Record<string, unknown> => {
+  const finishedLog = (
+    result: Awaited<ReturnType<typeof makeDeps>>,
+  ): Record<string, unknown> => {
     const call = result.logger.info.mock.calls.find(
       ([, message]) => message === 'Discover new reviews sweep finished',
     )
@@ -428,31 +448,31 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
 
   it('enqueues nothing for a hot Property reconciled an hour ago, and writes one wake-up', async () => {
     const reconciled = ago(HOUR)
-    const deps = makeDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })])
+    const deps = await makeDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })])
 
     await deps.handler({} as never)
 
     expect(deps.enqueued).toHaveLength(0)
-    expect(deps.rows.at(0)?.nextDueAt).toEqual(
+    expect((await stored(deps.rows[0])).nextDueAt).toEqual(
       new Date(reconciled.getTime() + 6 * HOUR - DEFAULT_DISCOVERY_INTERVAL_MS),
     )
   })
 
   it('leaves the success stamp and the failure state alone when it skips', async () => {
     const stamp = ago(3 * HOUR)
-    const deps = makeDeps([
+    const deps = await makeDeps([
       prop(1, { ...HOT, lastReconciledAt: ago(HOUR), lastSuccessAt: stamp }),
     ])
 
     await deps.handler({} as never)
 
-    expect(deps.rows.at(0)?.lastSuccessAt).toEqual(stamp)
-    expect(deps.rows.at(0)?.errorClass).toBeNull()
-    expect(deps.rows.at(0)?.errorRetryAt).toBeNull()
+    expect((await stored(deps.rows[0])).lastSuccessAt).toEqual(stamp)
+    expect((await stored(deps.rows[0])).errorClass).toBeNull()
+    expect((await stored(deps.rows[0])).errorRetryAt).toBeNull()
   })
 
   it('never defers the Property: a skip is not a failure', async () => {
-    const deps = makeDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })])
+    const deps = await makeDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })])
     const deferred = vi.spyOn(deps.discoveryRepo, 'markDiscoveryDeferred')
     const scheduled = vi.spyOn(deps.discoveryRepo, 'markDiscoveryScheduled')
     const skipped = vi.spyOn(deps.discoveryRepo, 'markDiscoverySkipped')
@@ -465,7 +485,7 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
   })
 
   it('skips a warm Property reconciled an hour ago', async () => {
-    const deps = makeDeps([
+    const deps = await makeDeps([
       prop(1, {
         lastNewReviewAt: ago(12 * HOUR),
         lastReconciledAt: ago(HOUR),
@@ -478,7 +498,7 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
   })
 
   it('always runs a cold look in full: its interval already reaches the deadline', async () => {
-    const deps = makeDeps([
+    const deps = await makeDeps([
       prop(1, {
         observedSince: ago(30 * 24 * HOUR),
         lastReconciledAt: ago(MINUTE),
@@ -488,23 +508,25 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
     await deps.handler({} as never)
 
     expect(deps.enqueued).toHaveLength(1)
-    expect(deps.rows.at(0)?.nextDueAt).toEqual(new Date(NOW.getTime() + 6 * HOUR))
+    expect((await stored(deps.rows[0])).nextDueAt).toEqual(
+      new Date(NOW.getTime() + 6 * HOUR),
+    )
   })
 
   it('runs in full, exactly as before, when the Property has never completed a reconciliation', async () => {
-    const deps = makeDeps([prop(1, { ...HOT, lastReconciledAt: null })])
+    const deps = await makeDeps([prop(1, { ...HOT, lastReconciledAt: null })])
 
     await deps.handler({} as never)
 
     expect(deps.enqueued).toHaveLength(1)
-    expect(deps.rows.at(0)?.lastSuccessAt).toEqual(NOW)
-    expect(deps.rows.at(0)?.nextDueAt).toEqual(
+    expect((await stored(deps.rows[0])).lastSuccessAt).toEqual(NOW)
+    expect((await stored(deps.rows[0])).nextDueAt).toEqual(
       new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
     )
   })
 
   it('runs in full while a failure waits for its retry, so the retry still happens', async () => {
-    const deps = makeDeps([
+    const deps = await makeDeps([
       prop(1, {
         ...HOT,
         lastReconciledAt: ago(MINUTE),
@@ -520,7 +542,7 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
 
   it('leaves a failed Property alone until its backoff retry date, then retries it in full', async () => {
     const retryAt = new Date(NOW.getTime() + 4 * HOUR)
-    const deps = makeDeps([
+    const deps = await makeDeps([
       prop(1, {
         ...HOT,
         lastReconciledAt: ago(MINUTE),
@@ -534,7 +556,7 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
     await deps.handler({} as never)
     expect(deps.enqueued).toEqual([])
 
-    const later = makeDeps(deps.rows, { clock: () => retryAt })
+    const later = await makeDeps(deps.rows, { clock: () => retryAt })
     await later.handler({} as never)
     expect(later.enqueued).toHaveLength(1)
   })
@@ -543,7 +565,7 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
     // now + interval == L + 6h  →  L = NOW - (6h - 15m)
     const atBoundary = ago(6 * HOUR - DEFAULT_DISCOVERY_INTERVAL_MS)
     const justInside = new Date(atBoundary.getTime() + 1)
-    const deps = makeDeps(
+    const deps = await makeDeps(
       [
         prop(1, { ...HOT, lastReconciledAt: atBoundary }),
         prop(2, { ...HOT, lastReconciledAt: justInside }),
@@ -561,13 +583,13 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
   it('wakes at the moment the look becomes full, and enqueues then', async () => {
     let current = NOW
     const reconciled = ago(HOUR)
-    const deps = makeDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })], {
+    const deps = await makeDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })], {
       clock: () => current,
     })
 
     await deps.handler({} as never)
     expect(deps.enqueued).toHaveLength(0)
-    const wakeUp = deps.rows.at(0)?.nextDueAt as Date
+    const wakeUp = (await stored(deps.rows[0])).nextDueAt as Date
 
     // One millisecond before the wake-up: not due, nothing happens.
     current = new Date(wakeUp.getTime() - 1)
@@ -580,7 +602,7 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
   })
 
   it('does not delay or reshape a full look in a mixed batch', async () => {
-    const deps = makeDeps(
+    const deps = await makeDeps(
       [
         prop(1, { ...HOT, lastReconciledAt: ago(HOUR) }),
         prop(2, { ...HOT, lastReconciledAt: null }),
@@ -596,13 +618,13 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
     ])
     // The cursor moved past the skipped rows: the second batch saw property 3.
     expect(deps.findSpy.mock.calls[1]?.[1]).toBe('aa000000-0000-4000-8000-000000000002')
-    expect(deps.rows.at(1)?.nextDueAt).toEqual(
+    expect((await stored(deps.rows[1])).nextDueAt).toEqual(
       new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
     )
   })
 
   it('counts a skipped Property against the sweep budget but leaves it out of the next sweep', async () => {
-    const deps = makeDeps(
+    const deps = await makeDeps(
       [
         prop(1, { ...HOT, lastReconciledAt: ago(HOUR) }),
         prop(2, { ...HOT, lastReconciledAt: ago(HOUR) }),
@@ -623,21 +645,21 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
   })
 
   it('does not skip at all when the switch is off', async () => {
-    const deps = makeDeps([prop(1, { ...HOT, lastReconciledAt: ago(MINUTE) })], {
+    const deps = await makeDeps([prop(1, { ...HOT, lastReconciledAt: ago(MINUTE) })], {
       skipRecentlyReconciled: false,
     })
 
     await deps.handler({} as never)
 
     expect(deps.enqueued).toHaveLength(1)
-    expect(deps.rows.at(0)?.lastSuccessAt).toEqual(NOW)
+    expect((await stored(deps.rows[0])).lastSuccessAt).toEqual(NOW)
     expect(finishedLog(deps)).toMatchObject({ skipped: 0, fullSkipDisabled: 1 })
   })
 
   it('keeps every look full when the caller omits the skip dependency', async () => {
-    const deps = makeDeps([prop(1, { ...HOT, lastReconciledAt: ago(MINUTE) })])
+    const deps = await makeDeps([prop(1, { ...HOT, lastReconciledAt: ago(MINUTE) })])
     const omitted = createDiscoverNewReviewsHandler({
-      discoveryRepo: createFakeReviewDiscoveryRepository(deps.rows),
+      discoveryRepo: discoveryDb.repo(),
       queue: { addSyncJob: async (data) => void deps.enqueued.push(data) },
       clock: () => NOW,
       logger: deps.logger,
@@ -651,7 +673,7 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
   })
 
   it('reports skips by tier and full looks by reason in the sweep log, without identifiers', async () => {
-    const deps = makeDeps(
+    const deps = await makeDeps(
       [
         prop(1, { ...HOT, lastReconciledAt: ago(HOUR) }),
         prop(2, { lastNewReviewAt: ago(12 * HOUR), lastReconciledAt: ago(HOUR) }),
@@ -687,7 +709,7 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
   it('keeps the push-targeted clamp semantics: a clamped look that finds a recent fact skips', async () => {
     // A push clamps next_incremental_at to about now + 15 minutes and stamps
     // last_notification_at; the property is hot and the look lands here.
-    const deps = makeDeps([
+    const deps = await makeDeps([
       prop(1, {
         lastNotificationAt: ago(MINUTE),
         nextDueAt: NOW,
@@ -714,8 +736,8 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
     options: Parameters<ReviewHeadCheckQueuePort['addHeadCheckJob']>[1]
   }>
 
-  function makeHeadDeps(
-    rows: FakeDiscoveryPropertyRow[],
+  async function makeHeadDeps(
+    rows: DiscoveryPropertyFixture[],
     opts: {
       headChecks?: ReviewHeadChecksMode
       withQueue?: boolean
@@ -727,7 +749,8 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
       batchSize?: number
     } = {},
   ) {
-    const discoveryRepo = createFakeReviewDiscoveryRepository(rows)
+    await discoveryDb.seed(rows)
+    const discoveryRepo = discoveryDb.repo()
     const syncJobs: SyncPropertyReviewsJobData[] = []
     const headCalls: HeadCall[] = []
     const headQueue: ReviewHeadCheckQueuePort = {
@@ -754,13 +777,13 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
     return { handler, discoveryRepo, rows, syncJobs, headCalls, logger }
   }
 
-  const finishedLog = (result: ReturnType<typeof makeHeadDeps>) =>
+  const finishedLog = (result: Awaited<ReturnType<typeof makeHeadDeps>>) =>
     (result.logger.info.mock.calls.find(
       ([, message]) => message === 'Discover new reviews sweep finished',
     )?.[0] ?? {}) as Record<string, unknown>
 
   it('enqueues a head job for a skipped look and wakes the Property at now + the ladder interval', async () => {
-    const deps = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })], {
+    const deps = await makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })], {
       headChecks: 'dark',
     })
 
@@ -772,7 +795,7 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
         data: {
           mode: 'head',
           propertyId: 'aa000000-0000-4000-8000-000000000001',
-          organizationId: 'org-1',
+          organizationId: DISCOVERY_ORG,
           connectionId: 'bb000000-0000-4000-8000-000000000001',
           locationName: expectedLocationName(1),
           initiator: { kind: 'system', id: 'sweep:review-discovery' },
@@ -787,13 +810,13 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
         },
       },
     ])
-    expect(deps.rows.at(0)?.nextDueAt).toEqual(
+    expect((await stored(deps.rows[0])).nextDueAt).toEqual(
       new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
     )
   })
 
   it('wakes a warm Property at now + an hour', async () => {
-    const deps = makeHeadDeps(
+    const deps = await makeHeadDeps(
       [prop(1, { lastNewReviewAt: ago(12 * HOUR), lastReconciledAt: ago(HOUR) })],
       { headChecks: 'dark' },
     )
@@ -801,24 +824,24 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
     await deps.handler({} as never)
 
     expect(deps.headCalls).toHaveLength(1)
-    expect(deps.rows.at(0)?.nextDueAt).toEqual(new Date(NOW.getTime() + HOUR))
+    expect((await stored(deps.rows[0])).nextDueAt).toEqual(new Date(NOW.getTime() + HOUR))
   })
 
   it('leaves the success stamp and the failure state alone, as any skip does', async () => {
     const stamp = ago(3 * HOUR)
-    const deps = makeHeadDeps(
+    const deps = await makeHeadDeps(
       [prop(1, { ...HOT, lastReconciledAt: ago(HOUR), lastSuccessAt: stamp })],
       { headChecks: 'dark' },
     )
 
     await deps.handler({} as never)
 
-    expect(deps.rows.at(0)?.lastSuccessAt).toEqual(stamp)
-    expect(deps.rows.at(0)?.errorClass).toBeNull()
+    expect((await stored(deps.rows[0])).lastSuccessAt).toEqual(stamp)
+    expect((await stored(deps.rows[0])).errorClass).toBeNull()
   })
 
   it('leaves every full look alone: no head job beside a snapshot, none for a retry', async () => {
-    const deps = makeHeadDeps(
+    const deps = await makeHeadDeps(
       [
         prop(1, { ...HOT, lastReconciledAt: null }),
         prop(2, {
@@ -839,25 +862,29 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
 
   it('with head checks off, behaves exactly as before: nothing enqueued, one wake-up near the deadline', async () => {
     const reconciled = ago(HOUR)
-    const off = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })], {
+    const woken = new Date(
+      reconciled.getTime() + 6 * HOUR - DEFAULT_DISCOVERY_INTERVAL_MS,
+    )
+    const off = await makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })], {
       headChecks: 'off',
     })
-    const omitted = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })])
-
     await off.handler({} as never)
-    await omitted.handler({} as never)
+    expect(off.syncJobs).toHaveLength(0)
+    expect(off.headCalls).toHaveLength(0)
+    expect((await stored(off.rows[0])).nextDueAt).toEqual(woken)
 
-    for (const deps of [off, omitted]) {
-      expect(deps.syncJobs).toHaveLength(0)
-      expect(deps.headCalls).toHaveLength(0)
-      expect(deps.rows.at(0)?.nextDueAt).toEqual(
-        new Date(reconciled.getTime() + 6 * HOUR - DEFAULT_DISCOVERY_INTERVAL_MS),
-      )
-    }
+    await discoveryDb.reset()
+    const omitted = await makeHeadDeps([
+      prop(1, { ...HOT, lastReconciledAt: reconciled }),
+    ])
+    await omitted.handler({} as never)
+    expect(omitted.syncJobs).toHaveLength(0)
+    expect(omitted.headCalls).toHaveLength(0)
+    expect((await stored(omitted.rows[0])).nextDueAt).toEqual(woken)
   })
 
   it('follows a skipped look with a head job in persist mode too', async () => {
-    const deps = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })], {
+    const deps = await makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })], {
       headChecks: 'persist',
     })
 
@@ -865,22 +892,23 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
 
     expect(deps.syncJobs).toHaveLength(0)
     expect(deps.headCalls).toHaveLength(1)
-    expect(deps.rows.at(0)?.nextDueAt).toEqual(
+    expect((await stored(deps.rows[0])).nextDueAt).toEqual(
       new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
     )
   })
 
   it('skips a Property reconciled ten hours ago when the window is twenty-four hours, and a six hour window does not', async () => {
-    const widened = makeHeadDeps(
+    const widened = await makeHeadDeps(
       [prop(1, { ...HOT, lastReconciledAt: ago(10 * HOUR) })],
       { headChecks: 'persist', reconcileWithinMs: 24 * HOUR },
     )
-    const standard = makeHeadDeps(
+    await widened.handler({} as never)
+
+    await discoveryDb.reset()
+    const standard = await makeHeadDeps(
       [prop(1, { ...HOT, lastReconciledAt: ago(10 * HOUR) })],
       { headChecks: 'persist' },
     )
-
-    await widened.handler({} as never)
     await standard.handler({} as never)
 
     expect(widened.syncJobs).toHaveLength(0)
@@ -891,7 +919,7 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
 
   it('passes each Property’s head cover and request to the rule at a weekly window, and logs why looks ran full', async () => {
     const WEEK = 7 * 24 * HOUR
-    const deps = makeHeadDeps(
+    const deps = await makeHeadDeps(
       [
         // Covered a minute ago, listed two days ago: a head check, no listing.
         prop(1, { ...HOT, lastReconciledAt: ago(48 * HOUR), headCoveredAt: ago(MINUTE) }),
@@ -930,7 +958,7 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
   })
 
   it('ignores head cover at a daily window', async () => {
-    const deps = makeHeadDeps(
+    const deps = await makeHeadDeps(
       [prop(1, { ...HOT, lastReconciledAt: ago(10 * HOUR), headCoveredAt: null })],
       { headChecks: 'persist', reconcileWithinMs: 24 * HOUR },
     )
@@ -944,23 +972,26 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
 
   it('treats a missing head queue as off rather than waking the Property early for nothing', async () => {
     const reconciled = ago(HOUR)
-    const deps = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })], {
+    const deps = await makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })], {
       headChecks: 'dark',
       withQueue: false,
     })
 
     await deps.handler({} as never)
 
-    expect(deps.rows.at(0)?.nextDueAt).toEqual(
+    expect((await stored(deps.rows[0])).nextDueAt).toEqual(
       new Date(reconciled.getTime() + 6 * HOUR - DEFAULT_DISCOVERY_INTERVAL_MS),
     )
   })
 
   it('does not skip, and so does not check, when the skip switch is off', async () => {
-    const deps = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(MINUTE) })], {
-      headChecks: 'dark',
-      skipRecentlyReconciled: false,
-    })
+    const deps = await makeHeadDeps(
+      [prop(1, { ...HOT, lastReconciledAt: ago(MINUTE) })],
+      {
+        headChecks: 'dark',
+        skipRecentlyReconciled: false,
+      },
+    )
 
     await deps.handler({} as never)
 
@@ -970,15 +1001,19 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
 
   it('names one job per Property and interval bucket, so two looks never stack', async () => {
     const later = new Date(NOW.getTime() + 5 * MINUTE)
-    const first = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })], {
+    const first = await makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })], {
       headChecks: 'dark',
     })
-    const second = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })], {
-      headChecks: 'dark',
-      clock: () => later,
-    })
-
     await first.handler({} as never)
+
+    await discoveryDb.reset()
+    const second = await makeHeadDeps(
+      [prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })],
+      {
+        headChecks: 'dark',
+        clock: () => later,
+      },
+    )
     await second.handler({} as never)
 
     expect(first.headCalls.at(0)?.options.jobId).toBe(
@@ -990,7 +1025,7 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
     const rows = [1, 2, 3, 4, 5].map((n) =>
       prop(n, { ...HOT, lastReconciledAt: ago(HOUR) }),
     )
-    const deps = makeHeadDeps(rows, {
+    const deps = await makeHeadDeps(rows, {
       headChecks: 'dark',
       spreadWindowMs: DISCOVERY_SPREAD_WINDOW_MS,
     })
@@ -1003,7 +1038,7 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
   })
 
   it('does not fail the sweep, hold its cursor or skip the date when a head job cannot be enqueued', async () => {
-    const deps = makeHeadDeps(
+    const deps = await makeHeadDeps(
       [
         prop(1, { ...HOT, lastReconciledAt: ago(HOUR) }),
         prop(2, { ...HOT, lastReconciledAt: ago(HOUR) }),
@@ -1013,11 +1048,13 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
 
     await expect(deps.handler({} as never)).resolves.toBeUndefined()
 
-    expect(deps.rows.map((row) => row.nextDueAt)).toEqual([
+    expect(
+      await Promise.all(deps.rows.map(async (row) => (await stored(row)).nextDueAt)),
+    ).toEqual([
       new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
       new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
     ])
-    expect(deps.rows.every((row) => row.errorClass === null)).toBe(true)
+    for (const row of deps.rows) expect((await stored(row)).errorClass).toBeNull()
     expect(deps.logger.warn).toHaveBeenCalledTimes(2)
     expect(finishedLog(deps)).toMatchObject({
       candidatesSeen: 2,
@@ -1028,7 +1065,7 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
   })
 
   it('counts the head jobs in the sweep log without naming a Property', async () => {
-    const deps = makeHeadDeps(
+    const deps = await makeHeadDeps(
       [
         prop(1, { ...HOT, lastReconciledAt: ago(HOUR) }),
         prop(2, { ...HOT, lastReconciledAt: null }),
