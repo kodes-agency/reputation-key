@@ -27,6 +27,7 @@ import {
   CARD_SCHEDULED,
   SEAVIEW,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.fixtures'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const notNowMock = fn<(month: string) => void>()
 const changeNowMock = fn<PortalGoalCheckInCommands['changeMonthlyPortalGoalNowFn']>(
@@ -118,34 +119,34 @@ export const Ready: Story = {
 }
 
 /** The running month as the Goals page's card says it, and View details. */
-export const Running: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expectTitle(canvas)
-    await expect(canvas.getByText('Below pace', { exact: true })).toBeVisible()
-    await expect(headlineOf(canvas, '17 private ratings to 40')).toBeVisible()
-    await expect(
-      canvas.getByText('9 days left in November. About 2 a day gets you there.'),
-    ).toBeVisible()
-    await expect(
-      canvas.getByRole('img', {
-        name: '23 of 40 private ratings so far. A steady month would be at about 29 by today.',
-      }),
-    ).toBeVisible()
-    await expect(canvas.queryByText(/on pace/iu)).toBeNull()
-    // Name order, never by count, in a narrow slot as in a wide one.
-    await expect(portalRows(canvas)).toEqual([
-      ['Reception', '3'],
-      ['Restaurant', '0'],
-      ['Spa', '20'],
-    ])
-    const details = canvas.getByRole('link', { name: 'View details' })
-    await expect(details).toHaveAttribute(
-      'href',
-      `/properties/${SEAVIEW.propertyId}/goals/portals`,
-    )
-  },
+const playRunning: NonNullable<Story['play']> = async ({ canvasElement }) => {
+  const canvas = within(canvasElement)
+  await expectTitle(canvas)
+  await expect(canvas.getByText('Below pace', { exact: true })).toBeVisible()
+  await expect(headlineOf(canvas, '17 private ratings to 40')).toBeVisible()
+  await expect(
+    canvas.getByText('9 days left in November. About 2 a day gets you there.'),
+  ).toBeVisible()
+  await expect(
+    canvas.getByRole('img', {
+      name: '23 of 40 private ratings so far. A steady month would be at about 29 by today.',
+    }),
+  ).toBeVisible()
+  await expect(canvas.queryByText(/on pace/iu)).toBeNull()
+  // Name order, never by count, in a narrow slot as in a wide one.
+  await expect(portalRows(canvas)).toEqual([
+    ['Reception', '3'],
+    ['Restaurant', '0'],
+    ['Spa', '20'],
+  ])
+  const details = canvas.getByRole('link', { name: 'View details' })
+  await expect(details).toHaveAttribute(
+    'href',
+    `/properties/${SEAVIEW.propertyId}/goals/portals`,
+  )
 }
+
+export const Running: Story = { play: playInThemes(playRunning) }
 
 /** On Dec 1 the check-in, the strip above the card; Keep is sent once. */
 export const CheckIn: Story = {
@@ -205,10 +206,10 @@ const fitsTheWidth: Story['play'] = async ({ canvasElement }) => {
 
 export const Phone320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-  play: async (context) => {
-    await Running.play?.(context)
+  play: playInThemes(async (context) => {
+    await playRunning(context)
     await fitsTheWidth(context)
-  },
+  }),
 }
 
 export const ReadyPhone320: Story = {
@@ -223,11 +224,6 @@ export const ReadyPhone320: Story = {
 export const RunningOnADesktop: Story = {
   ...Running,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const RunningLight: Story = {
-  ...Running,
-  parameters: { theme: 'light' },
 }
 
 export const RunningOnATablet: Story = {

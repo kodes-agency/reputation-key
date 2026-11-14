@@ -194,7 +194,6 @@ export function PrintWhoStep({
           value={print.printer}
           onValueChange={(printer) => printState.choosePrinter(printer as PrintPrinter)}
           options={PRINTER_OPTIONS}
-          touch
         />
         <div className="flex items-center gap-2">
           <Label

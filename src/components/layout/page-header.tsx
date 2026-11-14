@@ -116,7 +116,7 @@ export function PageHeader({
         {actions && (
           <div
             data-slot="page-header-actions"
-            className="flex shrink-0 flex-wrap items-center gap-2"
+            className="flex shrink-0 flex-wrap items-center gap-2 max-md:min-w-0 max-md:shrink"
           >
             {actions}
           </div>

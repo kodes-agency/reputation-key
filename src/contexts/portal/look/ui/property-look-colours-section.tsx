@@ -75,7 +75,6 @@ export function PropertyLookColoursFields({
           </span>
           <SegmentedControl
             aria-labelledby={labelId}
-            touch
             value={draft.backgroundMode}
             onValueChange={(mode) =>
               onChange(

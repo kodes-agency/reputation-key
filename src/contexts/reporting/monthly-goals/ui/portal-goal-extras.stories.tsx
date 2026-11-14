@@ -17,6 +17,7 @@ import type {
   GoalMetric,
   GoalSubject,
 } from '#/contexts/reporting/application/public-api'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 import { PortalGoalExtras } from './portal-goal-extras'
 
 /** A goal as the Goals list reads it. */
@@ -188,7 +189,7 @@ const rowNames = (canvasElement: HTMLElement): string[] =>
 
 /** Six goals: the first five, named for whom and what, then the way to see them all. */
 export const FirstFiveThenSeeAll: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
       canvas.getByRole('heading', { level: 3, name: 'More portal goals' }),
@@ -207,7 +208,7 @@ export const FirstFiveThenSeeAll: Story = {
     await expect(
       canvas.getByRole('link', { name: 'See all on the goal page' }),
     ).toHaveAttribute('href', '/properties/p1/goals/portals')
-  },
+  }),
 }
 
 /**
@@ -255,13 +256,6 @@ export const MonthsUnreadable: Story = {
     await expect(
       within(canvasElement).getByText('This month’s figures can’t be read right now.'),
     ).toBeVisible()
-    await expect(rowNames(canvasElement)).toHaveLength(5)
-  },
-}
-
-export const FirstFiveLight: Story = {
-  parameters: { theme: 'light' },
-  play: async ({ canvasElement }) => {
     await expect(rowNames(canvasElement)).toHaveLength(5)
   },
 }

@@ -3,8 +3,7 @@
 // The primitive owns two things every caller used to re-derive:
 //   - the pending state: a spinner, aria-busy, disabled, and an optional label
 //     swap, so a click is acknowledged the same way everywhere;
-//   - the touch density: 44px below `md`, 36px inside a `data-density="compact"`
-//     bar (the top bar), the desktop heights unchanged.
+//   - the touch density: 44px below `md` everywhere, the desktop heights unchanged.
 //
 // The heights are CSS, so the checks read the class list and the stylesheet's
 // density tokens; the geometry itself is measured in Storybook's phone metrics.
@@ -77,24 +76,17 @@ describe('Button pending', () => {
 })
 
 describe('Button density', () => {
-  it.each(['default', 'sm', 'lg'] as const)(
+  it.each(['default', 'xs', 'sm', 'lg'] as const)(
     'gives size %s the touch height below md, from the density token',
     (size) => {
       expect(render({ size })).toContain('max-md:min-h-(--control-touch)')
     },
   )
 
-  it.each(['icon', 'icon-sm', 'icon-lg'] as const)(
+  it.each(['icon', 'icon-xs', 'icon-sm', 'icon-lg'] as const)(
     'gives size %s a square touch target below md, from the density token',
     (size) => {
       expect(render({ size })).toContain('max-md:min-w-(--control-touch)')
-    },
-  )
-
-  it.each(['xs', 'icon-xs'] as const)(
-    'leaves size %s alone: a text-sized control, not a tap target',
-    (size) => {
-      expect(render({ size })).not.toContain('--control-touch')
     },
   )
 
@@ -174,17 +166,9 @@ describe('Button inline size', () => {
 
 describe('density tokens', () => {
   const root = /:root\s*\{[^}]*?--control-touch:\s*([\d.]+)rem/u.exec(STYLES)
-  const compact =
-    /\[data-density=['"]compact['"]\]\s*\{[^}]*?--control-touch:\s*([\d.]+)rem/u.exec(
-      STYLES,
-    )
 
   it('is 44px below md by default', () => {
     expect(Number(root?.[1])).toBe(2.75)
-  })
-
-  it('is 36px in a compact workspace', () => {
-    expect(Number(compact?.[1])).toBe(2.25)
   })
 })
 

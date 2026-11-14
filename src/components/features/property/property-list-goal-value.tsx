@@ -20,12 +20,8 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { googleGoalCell } from './property-list-goal'
 import type { DataState, PropertyComparison } from './property-list-view'
 
-/**
- * Stacked, the line is 16px and the row's gap 6px: the link reaches 6px above
- * and below into the gaps (28px), never over the lines beside it. In the table
- * it is the text it holds.
- */
-const PHONE_TAP_AREA = 'min-h-7 -my-1.5 @4xl:min-h-0 @4xl:my-0'
+/** Stacked on a phone the link is the 44px target; in the table it is the text it holds. */
+const PHONE_TAP_AREA = 'max-md:min-h-(--control-touch) max-md:min-w-(--control-touch)'
 
 /**
  * "4.5" over "On pace" in the table (the goal's page), "Set goal" (the wizard),

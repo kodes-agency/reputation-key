@@ -41,7 +41,7 @@ const meta: Meta<typeof NotificationRow> = {
   decorators: [
     (Story) => (
       // The row IS an <li>; a bare <li> outside a list is an axe violation.
-      <ul className="w-[26rem] rounded-xl border bg-popover p-1 text-popover-foreground">
+      <ul className="w-[26rem] max-w-full rounded-xl border bg-popover p-1 text-popover-foreground">
         <Story />
       </ul>
     ),

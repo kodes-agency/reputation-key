@@ -100,27 +100,6 @@ export const WithCancel: Story = {
   },
 }
 
-/**
- * The dense-workspace density (the Inbox's panes) is not a prop of the panel: a
- * container says `data-density="compact"` and every Button inside takes the 36px
- * touch height instead of the 44px default. This story pins that the recovery
- * reads the shared token, not a height of its own.
- */
-export const CompactDensity: Story = {
-  args: { size: 'compact' },
-  decorators: [
-    (Story) => (
-      <div data-density="compact">
-        <Story />
-      </div>
-    ),
-  ],
-  play: async ({ canvasElement }) => {
-    const button = within(canvasElement).getByRole('button', { name: 'Try again' })
-    expect(button.getBoundingClientRect().height).toBe(window.innerWidth < 768 ? 36 : 32)
-  },
-}
-
 /** A press that succeeds is the region's to resolve: here it clears the panel. */
 export const RecoversOnRetry: Story = {
   render: function Render(args) {

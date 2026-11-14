@@ -124,7 +124,7 @@ export const Default: Story = {
     const trigger = await within(canvasElement).findByRole('button', {
       name: /feedback/i,
     })
-    // 36 px tall below md (the top bar's compact density, through the Button),
+    // 44 px tall below md (the touch token, through the Button),
     // and a square of that height where the "Feedback" label is hidden (below
     // sm). Tailwind is not compiled in this runner, so this pins the classes.
     expect(trigger).toHaveClass(

@@ -88,7 +88,7 @@ const ITEM_HREF = (item: string) =>
 
 /** Harborline twenty days in: where it stands, the three bands, and what happened. */
 export const Monitoring: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const where = whereOf(canvasElement)
     await expect(where.getByText(wholeText('18 new reviews to 4.1'))).toBeVisible()
@@ -149,15 +149,7 @@ export const Monitoring: Story = {
       ),
     ).toBeVisible()
     await expectNoExactAverage(canvasElement)
-  },
-}
-
-export const MonitoringLight: Story = {
-  parameters: { theme: 'light' },
-  play: async ({ canvasElement }) => {
-    await expect(figureOf(within(canvasElement), LINE)).toBeVisible()
-    await expect(figureOf(within(canvasElement), BARS)).toBeVisible()
-  },
+  }),
 }
 
 /** The line and the bars read point by point from the keyboard, as under a pointer. */
@@ -638,7 +630,7 @@ export const NoGoal: StoryObj<typeof RatingGoalMissing> = {
 /** On a phone the bands stack under the card; every figure is still named and every question asked. */
 export const Phone: Story = {
   parameters: PHONE,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
       whereOf(canvasElement).getByRole('img', {
@@ -651,12 +643,7 @@ export const Phone: Story = {
     await expect(figureOf(canvas, LINE)).toBeVisible()
     await expect(figureOf(canvas, BARS)).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'What happened' })).toBeVisible()
-  },
-}
-
-export const PhoneLight: Story = {
-  parameters: { ...PHONE, theme: 'light' },
-  play: Phone.play,
+  }),
 }
 
 /** On the narrowest phone the same page, the same words. */

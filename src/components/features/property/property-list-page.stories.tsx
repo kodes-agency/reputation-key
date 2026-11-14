@@ -6,6 +6,7 @@ import { useState, type MouseEvent } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { withRole, withPermissions } from '../../../../.storybook/AuthedRouterDecorator'
+import { playInThemes } from '../../../../.storybook/play-in-themes'
 import type { PropertySetupStep } from '#/contexts/reporting/application/public-api'
 import {
   PropertyListPage,
@@ -206,7 +207,7 @@ const bodyRows = (canvas: ReturnType<typeof within>) =>
 
 export const Default: Story = {
   args: ready,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     for (const p of properties) {
       // One DOM for every width: each name renders exactly once.
@@ -251,10 +252,8 @@ export const Default: Story = {
     expect(canvas.queryByText('harborline', { exact: true })).toBeNull()
     // The org setup banner is gone; per-property setup carries it.
     expect(canvas.queryByText(/^Setup: \d of \d done$/)).toBeNull()
-  },
+  }),
 }
-
-export const DefaultLight: Story = { args: ready, parameters: { theme: 'light' } }
 
 /** The Google goal column (decision 13): a goal's target and status, "Set goal", or a dash. */
 export const GoogleGoalColumn: Story = {
@@ -336,7 +335,7 @@ export const GoogleGoalLongStatuses: Story = {
   },
   decorators: [
     (Story) => (
-      <div style={{ width: 1000 }}>
+      <div style={{ maxWidth: 1000 }}>
         <Story />
       </div>
     ),

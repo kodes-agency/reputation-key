@@ -31,7 +31,7 @@ const onEnd = fn(async () => undefined)
 /** A manager sees both actions; ending confirms first, in the destructive tone. */
 export const Actions: Story = {
   render: () => (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       <RatingGoalDetailActions
         propertyId={FIXTURE_PROPERTY_ID}
         goal={DETAIL}
@@ -73,7 +73,7 @@ const endRefused = fn(() => refusedEnd(undefined))
 /** Ending refused (another manager changed it first): the confirmation stays and says why. */
 export const EndRefused: Story = {
   render: () => (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       <RatingGoalDetailActions
         propertyId={FIXTURE_PROPERTY_ID}
         goal={DETAIL}
@@ -102,7 +102,7 @@ export const EndRefused: Story = {
 export const ActionsHiddenWithoutPermission: Story = {
   decorators: [withPermissions(['goal.read', 'portal.read', 'property.read'])],
   render: () => (
-    <div data-testid="actions" className="flex gap-2">
+    <div data-testid="actions" className="flex flex-wrap gap-2">
       <RatingGoalDetailActions
         propertyId={FIXTURE_PROPERTY_ID}
         goal={DETAIL}
@@ -120,7 +120,7 @@ export const ActionsHiddenWithoutPermission: Story = {
 /** A goal to keep changes only to a plan the setup offers: none while Google shows 5.0. */
 export const KeepGoalWithNothingHigher: Story = {
   render: () => (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       <RatingGoalDetailActions
         propertyId={FIXTURE_PROPERTY_ID}
         goal={{ ...DETAIL, mode: 'keep', paceTenthsPerWeek: null }}

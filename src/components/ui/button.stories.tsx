@@ -4,8 +4,8 @@
 //
 // The Storybook Vitest project compiles no Tailwind, so no height is read back
 // here. The plays prove what a screenshot cannot: a pending button is busy and
-// inert and its name does not move, a press on it does nothing, and a
-// `data-density="compact"` container changes the one token the controls read.
+// inert and its name does not move, a press on it does nothing, and the one
+// token the controls read is the 44px target.
 import type { Meta, StoryObj } from '@storybook/react'
 import { Plus } from 'lucide-react'
 import { expect, fn, userEvent, within } from 'storybook/test'
@@ -139,9 +139,9 @@ export const BlockedWithReason: Story = {
   },
 }
 
-function Density({ density }: Readonly<{ density?: 'compact' }>) {
+function Density() {
   return (
-    <div data-density={density} data-testid={density ?? 'default'} className="flex gap-3">
+    <div data-testid="default" className="flex flex-wrap gap-3">
       <Button>Save</Button>
       <Button variant="outline" size="sm">
         Cancel
@@ -155,23 +155,16 @@ function Density({ density }: Readonly<{ density?: 'compact' }>) {
 
 /**
  * The density is one token on a container. Below `md` a control is `--control-touch`
- * tall: 44px by default, 36px inside a `data-density="compact"` workspace (the
- * Inbox, the top bar). A Button never says either number itself.
+ * tall: 44px, in every workspace. A Button never says the number itself.
  */
 export const DensityToken: Story = {
-  render: () => (
-    <div className="flex flex-col gap-4">
-      <Density />
-      <Density density="compact" />
-    </div>
-  ),
+  render: () => <Density />,
   play: async ({ canvasElement }) => {
     const touch = (id: string): string =>
       getComputedStyle(within(canvasElement).getByTestId(id)).getPropertyValue(
         '--control-touch',
       )
     expect(touch('default').trim()).toBe('2.75rem')
-    expect(touch('compact').trim()).toBe('2.25rem')
     for (const button of within(canvasElement).getAllByRole('button', { name: 'Save' })) {
       expect(button.className).toContain('max-md:min-h-(--control-touch)')
     }
