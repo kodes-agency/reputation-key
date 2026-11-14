@@ -5,7 +5,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { resendInvitation } from './resend-invitation.server'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
-import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
+import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { setupIdentityMembersDb } from '#/shared/testing/identity-members-fixtures'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../domain/errors'
@@ -18,9 +19,11 @@ const NOW = new Date('2026-09-30T12:00:00.000Z')
 const TTL_MS = 7 * 24 * 60 * 60 * 1000
 const RENEWED_UNTIL = new Date(NOW.getTime() + TTL_MS)
 
+const fixtures = setupIdentityMembersDb(createAtomicIdentityCommandStore)
+
 const setup = () => {
   const identity = createInMemoryIdentityPort()
-  const commandStore = createSequentialIdentityCommandStore({})
+  const commandStore = fixtures.store()
   const renewInvitation = vi.fn(commandStore.renewInvitation)
   const sendEmail = vi.fn<InvitationEmailSender>().mockResolvedValue(undefined)
   const getOrganizationName = vi.fn().mockResolvedValue('Test Organization')
@@ -44,7 +47,6 @@ const setup = () => {
   return {
     useCase,
     identity,
-    commandStore,
     renewInvitation,
     sendEmail,
     getOrganizationName,
@@ -52,12 +54,11 @@ const setup = () => {
   }
 }
 
-const seedInvitation = (
-  fixture: ReturnType<typeof setup>,
+const seedInvitation = async (
   ctx: AuthContext,
   patch: Readonly<{ id?: string; status?: string; role?: string; expiresAt?: Date }> = {},
 ) =>
-  fixture.commandStore.seedInvitation({
+  await fixtures.seedInvitation({
     id: patch.id ?? 'inv-1',
     organizationId: ctx.organizationId as string,
     email: 'invited@example.com',
@@ -85,7 +86,7 @@ describe('resendInvitation', () => {
         createdAt: new Date('2026-04-01T00:00:00Z'),
       },
     ])
-    seedInvitation(fixture, ctx)
+    await seedInvitation(ctx)
 
     await expect(fixture.useCase({ invitationId: 'inv-1' }, ctx)).resolves.toEqual({
       expiresAt: RENEWED_UNTIL,
@@ -98,7 +99,7 @@ describe('resendInvitation', () => {
       now: NOW,
       expiresAt: RENEWED_UNTIL,
     })
-    expect(fixture.commandStore.invitationById('inv-1')).toMatchObject({
+    expect(await fixtures.invitationById('inv-1')).toMatchObject({
       status: 'pending',
       expiresAt: RENEWED_UNTIL,
     })
@@ -117,11 +118,11 @@ describe('resendInvitation', () => {
   it('reopens an invitation marked expired', async () => {
     const fixture = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    seedInvitation(fixture, ctx, { status: 'expired' })
+    await seedInvitation(ctx, { status: 'expired' })
 
     await fixture.useCase({ invitationId: 'inv-1' }, ctx)
 
-    expect(fixture.commandStore.invitationById('inv-1')?.status).toBe('pending')
+    expect((await fixtures.invitationById('inv-1'))?.status).toBe('pending')
   })
 
   it.each(['accepted', 'canceled'])(
@@ -129,7 +130,7 @@ describe('resendInvitation', () => {
     async (status) => {
       const fixture = setup()
       const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-      seedInvitation(fixture, ctx, { status })
+      await seedInvitation(ctx, { status })
 
       await expect(fixture.useCase({ invitationId: 'inv-1' }, ctx)).rejects.toSatisfy(
         (e: unknown) =>
@@ -144,14 +145,14 @@ describe('resendInvitation', () => {
   it('keeps the renewal and reports the unsent email when the send fails', async () => {
     const fixture = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    seedInvitation(fixture, ctx)
+    await seedInvitation(ctx)
     fixture.sendEmail.mockRejectedValueOnce(new Error('transport down'))
 
     await expect(fixture.useCase({ invitationId: 'inv-1' }, ctx)).resolves.toEqual({
       expiresAt: RENEWED_UNTIL,
       emailSent: false,
     })
-    expect(fixture.commandStore.invitationById('inv-1')?.expiresAt).toEqual(RENEWED_UNTIL)
+    expect((await fixtures.invitationById('inv-1'))?.expiresAt).toEqual(RENEWED_UNTIL)
     expect(fixture.logger.error).toHaveBeenCalledTimes(1)
   })
 

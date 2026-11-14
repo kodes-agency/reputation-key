@@ -1,7 +1,7 @@
 import { APIError } from 'better-auth'
 import { describe, expect, it, vi } from 'vitest'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
-import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
+import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { setupIdentityMembersDb } from '#/shared/testing/identity-members-fixtures'
 import { invitationId, organizationId } from '#/shared/domain/ids'
 import { identityError, isIdentityError } from '../domain/errors'
 import {
@@ -14,11 +14,19 @@ const NOW = new Date('2026-08-25T12:00:00.000Z')
 const INVITATION_ID = invitationId('inv-register-manager')
 const PROPERTY_ID = 'd4000000-0000-4000-8000-000000000001'
 
-function setup(clock: () => Date = () => NOW) {
-  const outbox = createRecordedOutbox()
-  const commandStore = createSequentialIdentityCommandStore({ outbox })
-  commandStore.seedProperty('org-manager', PROPERTY_ID)
-  commandStore.seedInvitation({
+const fixtures = setupIdentityMembersDb(createAtomicIdentityCommandStore)
+
+async function setup(clock: () => Date = () => NOW) {
+  const commandStore = fixtures.store()
+  await fixtures.seedProperty('org-manager', PROPERTY_ID)
+  // The account the identity provider creates for the invitee. The provider is
+  // a stub here, so it exists from the start.
+  await fixtures.seedUser({
+    id: 'user-preallocated-manager',
+    email: 'manager@example.com',
+    emailVerified: false,
+  })
+  await fixtures.seedInvitation({
     id: INVITATION_ID as string,
     organizationId: 'org-manager',
     email: 'manager@example.com',
@@ -61,7 +69,7 @@ function setup(clock: () => Date = () => NOW) {
     registrationStore: { prepare, claimDue, complete, reconcile },
     invitations: {
       findOrganizationId: async (id) => {
-        const invitation = commandStore.invitationById(id as string)
+        const invitation = await fixtures.invitationById(id as string)
         return invitation ? organizationId(invitation.organizationId) : null
       },
     },
@@ -80,8 +88,6 @@ function setup(clock: () => Date = () => NOW) {
   return {
     useCase,
     input,
-    commandStore,
-    outbox,
     signUp,
     logger,
     acceptInvitation,
@@ -94,7 +100,7 @@ function setup(clock: () => Date = () => NOW) {
 
 describe('registerInvitedUser', () => {
   it('creates the account and atomically consumes its exact manager invitation', async () => {
-    const fixture = setup()
+    const fixture = await setup()
 
     await expect(fixture.useCase(fixture.input)).resolves.toEqual({
       organizationId: 'org-manager',
@@ -121,20 +127,20 @@ describe('registerInvitedUser', () => {
       now: NOW,
       nextRecoveryAt: new Date('2026-08-25T12:05:00.000Z'),
     })
-    expect(fixture.commandStore.invitationById(INVITATION_ID)?.status).toBe('accepted')
-    expect(fixture.commandStore.allMembers).toEqual([
+    expect((await fixtures.invitationById(INVITATION_ID))?.status).toBe('accepted')
+    expect(await fixtures.allMembers()).toEqual([
       expect.objectContaining({
         userId: 'user-preallocated-manager',
         organizationId: 'org-manager',
         role: 'admin',
       }),
     ])
-    const accepted = fixture.outbox.byTag('identity.invitation.accepted')
+    const accepted = await fixtures.factsByTag('identity.invitation.accepted')
     expect(accepted).toHaveLength(1)
-    expect(accepted[0]?.inviterId).toBe('user-inviter')
+    expect(accepted[0]?.payload.inviterId).toBe('user-inviter')
     expect(fixture.complete).toHaveBeenCalledWith('10000000-0000-4000-8000-000000000001')
     // The acceptance granted the invited Property; nothing runs after it.
-    expect(fixture.commandStore.allPropertyGrants).toEqual([
+    expect(await fixtures.allPropertyGrants()).toEqual([
       {
         organizationId: 'org-manager',
         propertyId: PROPERTY_ID,
@@ -147,7 +153,7 @@ describe('registerInvitedUser', () => {
   })
 
   it('verifies the email by consuming the invitation, inside the acceptance', async () => {
-    const fixture = setup()
+    const fixture = await setup()
 
     await fixture.useCase(fixture.input)
 
@@ -157,11 +163,11 @@ describe('registerInvitedUser', () => {
         markEmailVerified: true,
       }),
     )
-    expect(fixture.commandStore.verifiedUserIds).toEqual(['user-preallocated-manager'])
+    expect(await fixtures.verifiedUserIds()).toEqual(['user-preallocated-manager'])
   })
 
   it('refuses an address that already has an account before creating anything', async () => {
-    const fixture = setup()
+    const fixture = await setup()
     fixture.prepare.mockRejectedValueOnce(
       identityError('account_exists', ACCOUNT_EXISTS_MESSAGE),
     )
@@ -176,7 +182,7 @@ describe('registerInvitedUser', () => {
   })
 
   it('preflights the email before creating an account', async () => {
-    const fixture = setup()
+    const fixture = await setup()
 
     await expect(
       fixture.useCase({ ...fixture.input, email: 'attacker@example.com' }),
@@ -187,7 +193,7 @@ describe('registerInvitedUser', () => {
   })
 
   it('finishes acceptance when provider failure occurs after its fenced commit', async () => {
-    const fixture = setup()
+    const fixture = await setup()
     fixture.signUp.mockRejectedValueOnce(new Error('response interrupted'))
     fixture.reconcile.mockResolvedValueOnce({
       kind: 'ready_to_accept',
@@ -215,7 +221,7 @@ describe('registerInvitedUser', () => {
   })
 
   it('fails closed when the provider violates the fenced user ID', async () => {
-    const fixture = setup()
+    const fixture = await setup()
     fixture.signUp.mockResolvedValueOnce('unexpected-provider-user')
 
     await expect(fixture.useCase(fixture.input)).rejects.toSatisfy(
@@ -232,7 +238,7 @@ describe('registerInvitedUser', () => {
   })
 
   it('compensates the new account if authoritative acceptance loses a race', async () => {
-    const fixture = setup()
+    const fixture = await setup()
     fixture.acceptInvitation.mockRejectedValueOnce({
       _tag: 'IdentityError',
       code: 'invitation_not_found',
@@ -248,7 +254,7 @@ describe('registerInvitedUser', () => {
       now: NOW,
       nextRecoveryAt: new Date('2026-08-25T12:05:00.000Z'),
     })
-    expect(fixture.outbox.facts).toHaveLength(0)
+    expect(await fixtures.facts()).toHaveLength(0)
   })
 
   it('rechecks expiry with a fresh clock value after sign-up', async () => {
@@ -256,17 +262,17 @@ describe('registerInvitedUser', () => {
       .fn<() => Date>()
       .mockReturnValueOnce(NOW)
       .mockReturnValueOnce(new Date('2026-09-02T12:00:00.000Z'))
-    const fixture = setup(clock)
+    const fixture = await setup(clock)
     fixture.reconcile.mockResolvedValueOnce({ kind: 'compensated' })
 
     await expect(fixture.useCase(fixture.input)).rejects.toSatisfy(
       (error: unknown) => isIdentityError(error) && error.code === 'invitation_expired',
     )
-    expect(fixture.commandStore.invitationById(INVITATION_ID)?.status).toBe('pending')
+    expect((await fixtures.invitationById(INVITATION_ID))?.status).toBe('pending')
   })
 
   it('records a recovery failure for an ambiguous provider account', async () => {
-    const fixture = setup()
+    const fixture = await setup()
     fixture.acceptInvitation.mockRejectedValueOnce({
       _tag: 'IdentityError',
       code: 'organization_conflict',
@@ -289,7 +295,7 @@ describe('registerInvitedUser', () => {
   // R5G-03: a suspended or stopped Organization must not gain members, and
   // no account is created for an invitation that cannot be consumed.
   it("refuses, before any account exists, while the invitation's Organization may not gain members", async () => {
-    const fixture = setup()
+    const fixture = await setup()
     fixture.authorizeOrganization.mockResolvedValue(false)
 
     await expect(fixture.useCase(fixture.input)).rejects.toSatisfy(
@@ -302,16 +308,16 @@ describe('registerInvitedUser', () => {
     expect(fixture.authorizeOrganization.mock.calls).toEqual([['org-manager']])
     expect(fixture.prepare).not.toHaveBeenCalled()
     expect(fixture.signUp).not.toHaveBeenCalled()
-    expect(fixture.commandStore.invitationById(INVITATION_ID)?.status).toBe('pending')
-    expect(fixture.commandStore.allMembers).toEqual([])
+    expect((await fixtures.invitationById(INVITATION_ID))?.status).toBe('pending')
+    expect(await fixtures.allMembers()).toEqual([])
   })
 
   it('registers and logs, by count only, an invited Property it could not grant', async () => {
-    const fixture = setup()
-    const invitation = fixture.commandStore.invitationById(INVITATION_ID)
+    const fixture = await setup()
+    const invitation = await fixtures.invitationById(INVITATION_ID)
     if (!invitation) throw new Error('fixture invitation is missing')
     // A Property deleted after the invitation was sent.
-    fixture.commandStore.seedInvitation({
+    await fixtures.seedInvitation({
       ...invitation,
       propertyIds: JSON.stringify([PROPERTY_ID, 'd4000000-0000-4000-8000-0000000000ff']),
     })
@@ -319,10 +325,10 @@ describe('registerInvitedUser', () => {
     await expect(fixture.useCase(fixture.input)).resolves.toEqual({
       organizationId: 'org-manager',
     })
-    expect(fixture.commandStore.invitationById(INVITATION_ID)?.status).toBe('accepted')
-    expect(
-      fixture.commandStore.allPropertyGrants.map((grant) => grant.propertyId),
-    ).toEqual([PROPERTY_ID])
+    expect((await fixtures.invitationById(INVITATION_ID))?.status).toBe('accepted')
+    expect((await fixtures.allPropertyGrants()).map((grant) => grant.propertyId)).toEqual(
+      [PROPERTY_ID],
+    )
     expect(fixture.logger.error).toHaveBeenCalledTimes(1)
     expect(fixture.logger.error).toHaveBeenCalledWith(
       { failedPropertyCount: 1, requestedPropertyCount: 2 },
@@ -360,7 +366,7 @@ describe('registerInvitedUser sign-up failures', () => {
       },
     )
 
-  const rejection = async (fixture: ReturnType<typeof setup>) =>
+  const rejection = async (fixture: Awaited<ReturnType<typeof setup>>) =>
     fixture.useCase(fixture.input).then(
       () => {
         throw new Error('expected the registration to be refused')
@@ -369,7 +375,7 @@ describe('registerInvitedUser sign-up failures', () => {
     )
 
   it('returns a fixed message, never the text of an unexpected sign-up failure', async () => {
-    const fixture = setup()
+    const fixture = await setup()
     fixture.signUp.mockRejectedValueOnce(uniqueViolation())
 
     const error = await rejection(fixture)
@@ -383,7 +389,7 @@ describe('registerInvitedUser sign-up failures', () => {
   })
 
   it('returns a fixed message when the reconciliation read itself fails', async () => {
-    const fixture = setup()
+    const fixture = await setup()
     fixture.signUp.mockRejectedValueOnce(new Error('socket hang up'))
     fixture.reconcile.mockRejectedValueOnce(failedQuery())
 
@@ -425,7 +431,7 @@ describe('registerInvitedUser sign-up failures', () => {
   ] as const)(
     'keeps a clear, fixed message for the %s refusal the invitee can act on',
     async (code, status, providerMessage, expected) => {
-      const fixture = setup()
+      const fixture = await setup()
       fixture.signUp.mockRejectedValueOnce(
         APIError.from(status, { code, message: providerMessage }),
       )
@@ -442,7 +448,7 @@ describe('registerInvitedUser sign-up failures', () => {
   it.each(['FAILED_TO_CREATE_USER', 'constructor'])(
     'gives an unrecognized provider refusal (%s) the fixed generic message',
     async (code) => {
-      const fixture = setup()
+      const fixture = await setup()
       fixture.signUp.mockRejectedValueOnce(
         APIError.from('UNPROCESSABLE_ENTITY', {
           code,
@@ -458,7 +464,7 @@ describe('registerInvitedUser sign-up failures', () => {
   )
 
   it('logs the cause by name and code only — no email, password or message text', async () => {
-    const fixture = setup()
+    const fixture = await setup()
     fixture.signUp.mockRejectedValueOnce(
       Object.assign(uniqueViolation(), {
         message: 'Key (email)=(manager@example.com) already exists',
@@ -480,7 +486,7 @@ describe('registerInvitedUser sign-up failures', () => {
   })
 
   it('logs a failed reconciliation by name and its driver code', async () => {
-    const fixture = setup()
+    const fixture = await setup()
     fixture.signUp.mockRejectedValueOnce(
       APIError.from('UNPROCESSABLE_ENTITY', {
         code: 'FAILED_TO_CREATE_USER',

@@ -10,9 +10,11 @@ import {
 import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
 import type { ReviewDiscoveryRepository } from '../../application/ports/review-discovery.repository'
 import {
-  createFakeReviewDiscoveryRepository,
-  fakeDiscoveryProperty,
-} from '#/shared/testing/fake-review-discovery-repository'
+  discoveryProperty,
+  setupDiscoveryDb,
+  type DiscoveryPropertyFixture,
+} from '#/shared/testing/review-discovery-fixtures'
+import { createReviewDiscoveryRepository } from '../repositories/review-discovery.repository'
 import { ReviewProviderSnapshotFailure } from './review-provider-snapshot-failure'
 import { createSyncPropertyReviewsHandler } from './sync-property-reviews.job'
 
@@ -28,6 +30,17 @@ vi.mock('#/shared/observability/trace', () => ({
 beforeEach(() => {
   mocks.capture.mockClear()
 })
+
+const discoveryDb = setupDiscoveryDb(createReviewDiscoveryRepository)
+
+/** The repository over a database seeded with the fixtures. */
+async function seedRepo(rows: DiscoveryPropertyFixture[]) {
+  await discoveryDb.seed(rows)
+  return discoveryDb.repo()
+}
+
+/** What the repository stored for the fixture's Property. */
+const stored = (row: DiscoveryPropertyFixture) => discoveryDb.read(row.propertyId)
 
 const NOW = new Date('2026-08-21T12:00:00.000Z')
 const HOT_INTERVAL_MS = 15 * 60 * 1000
@@ -348,12 +361,12 @@ describe('sync-property-reviews snapshot handler', () => {
     const MINUTE_MS = 60 * 1000
     const HOUR_MS = 60 * MINUTE_MS
 
-    function failingHandler(
-      rows: ReturnType<typeof fakeDiscoveryProperty>[],
+    async function failingHandler(
+      rows: DiscoveryPropertyFixture[],
       outcome: { status: 'failed'; runId: string; code: 'provider_failure' | string },
       clock: { now: Date },
     ) {
-      const discoveryRepo = createFakeReviewDiscoveryRepository(rows)
+      const discoveryRepo = await seedRepo(rows)
       const logger = { warn: vi.fn(), info: vi.fn() }
       const handler = createSyncPropertyReviewsHandler({
         runSnapshot: vi.fn(async () => outcome) as never,
@@ -381,16 +394,18 @@ describe('sync-property-reviews snapshot handler', () => {
     }
 
     it('dates the retry 15 minutes, then 1 hour, then 4 hours, then 6 hours after consecutive failures', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
       const clock = { now: NOW }
-      const { handler } = failingHandler([row], FAILED as never, clock)
+      const { handler } = await failingHandler([row], FAILED as never, clock)
       const waits: number[] = []
 
       for (let failure = 0; failure < 5; failure++) {
         await failOnce(handler as never)
-        waits.push((row.nextDueAt as Date).getTime() - clock.now.getTime())
+        waits.push(
+          ((await stored(row)).nextDueAt as Date).getTime() - clock.now.getTime(),
+        )
         // The scheduled retry comes due and fails again.
-        clock.now = row.nextDueAt as Date
+        clock.now = (await stored(row)).nextDueAt as Date
       }
 
       expect(waits).toEqual([
@@ -403,22 +418,22 @@ describe('sync-property-reviews snapshot handler', () => {
     })
 
     it('keeps the retry date and the next look together at every deferral', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
       const clock = { now: NOW }
-      const { handler } = failingHandler([row], FAILED as never, clock)
+      const { handler } = await failingHandler([row], FAILED as never, clock)
 
       await failOnce(handler as never)
-      clock.now = row.nextDueAt as Date
+      clock.now = (await stored(row)).nextDueAt as Date
       await failOnce(handler as never)
 
-      expect(row.errorRetryAt).toEqual(row.nextDueAt)
-      expect(row.lastFailureAt).toEqual(clock.now)
+      expect((await stored(row)).errorRetryAt).toEqual((await stored(row)).nextDueAt)
+      expect((await stored(row)).lastFailureAt).toEqual(clock.now)
     })
 
     it('does not climb the ladder when the queue retries the same failed job before the retry came due', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
       const clock = { now: NOW }
-      const { handler } = failingHandler([row], FAILED as never, clock)
+      const { handler } = await failingHandler([row], FAILED as never, clock)
 
       await failOnce(handler as never)
       clock.now = new Date(NOW.getTime() + 2 * MINUTE_MS) // BullMQ attempt 2
@@ -426,17 +441,19 @@ describe('sync-property-reviews snapshot handler', () => {
       clock.now = new Date(NOW.getTime() + 5 * MINUTE_MS) // BullMQ attempt 3
       await failOnce(handler as never)
 
-      expect((row.nextDueAt as Date).getTime() - clock.now.getTime()).toBe(15 * MINUTE_MS)
+      expect(
+        ((await stored(row)).nextDueAt as Date).getTime() - clock.now.getTime(),
+      ).toBe(15 * MINUTE_MS)
     })
 
     it('starts again at 15 minutes after a completed run clears the failure', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
       const clock = { now: NOW }
-      const failing = failingHandler([row], FAILED as never, clock)
+      const failing = await failingHandler([row], FAILED as never, clock)
       await failOnce(failing.handler as never)
-      clock.now = row.nextDueAt as Date
+      clock.now = (await stored(row)).nextDueAt as Date
       await failOnce(failing.handler as never)
-      expect(row.errorRetryAt).not.toBeNull()
+      expect((await stored(row)).errorRetryAt).not.toBeNull()
 
       const completing = createSyncPropertyReviewsHandler({
         runSnapshot: vi.fn(async () => ({
@@ -451,37 +468,41 @@ describe('sync-property-reviews snapshot handler', () => {
         hotIntervalMs: HOT_INTERVAL_MS,
       })
       await completing({ id: 'job-ok', data: JOB_DATA } as never)
-      expect(row.errorClass).toBeNull()
+      expect((await stored(row)).errorClass).toBeNull()
 
       clock.now = new Date(clock.now.getTime() + HOUR_MS)
       await failOnce(failing.handler as never)
-      expect((row.nextDueAt as Date).getTime() - clock.now.getTime()).toBe(15 * MINUTE_MS)
+      expect(
+        ((await stored(row)).nextDueAt as Date).getTime() - clock.now.getTime(),
+      ).toBe(15 * MINUTE_MS)
     })
 
     it('parks a location over the cap for a day however often it failed before', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
       const clock = { now: NOW }
-      const failing = failingHandler([row], FAILED as never, clock)
+      const failing = await failingHandler([row], FAILED as never, clock)
       await failOnce(failing.handler as never)
-      clock.now = row.nextDueAt as Date
+      clock.now = (await stored(row)).nextDueAt as Date
 
-      const tooLarge = failingHandler(
+      const tooLarge = await failingHandler(
         [row],
         { ...FAILED, code: 'review_cap_exceeded' } as never,
         clock,
       )
       await tooLarge.handler({ id: 'job-too-large', data: JOB_DATA } as never)
 
-      expect((row.nextDueAt as Date).getTime() - clock.now.getTime()).toBe(24 * HOUR_MS)
+      expect(
+        ((await stored(row)).nextDueAt as Date).getTime() - clock.now.getTime(),
+      ).toBe(24 * HOUR_MS)
     })
 
     it('logs the chosen interval and nothing from the payload', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
       const clock = { now: NOW }
-      const { handler, logger } = failingHandler([row], FAILED as never, clock)
+      const { handler, logger } = await failingHandler([row], FAILED as never, clock)
 
       await failOnce(handler as never)
-      clock.now = row.nextDueAt as Date
+      clock.now = (await stored(row)).nextDueAt as Date
       await failOnce(handler as never)
 
       expect(logger.warn).toHaveBeenLastCalledWith(
@@ -498,10 +519,10 @@ describe('sync-property-reviews snapshot handler', () => {
     it.each(['cursor_lost', 'listing_changed'] as const)(
       'restarts at once after %s and records no failure or interval',
       async (code) => {
-        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
         const clock = { now: NOW }
         const enqueueContinuation = vi.fn(async () => undefined)
-        const discoveryRepo = createFakeReviewDiscoveryRepository([row])
+        const discoveryRepo = await seedRepo([row])
         const handler = createSyncPropertyReviewsHandler({
           runSnapshot: vi.fn(async () => ({ ...FAILED, code })) as never,
           propertySourceEpoch,
@@ -515,9 +536,9 @@ describe('sync-property-reviews snapshot handler', () => {
         await handler({ id: 'job-restart', data: JOB_DATA } as never)
 
         expect(enqueueContinuation).toHaveBeenCalledTimes(1)
-        expect(row.errorClass).toBeNull()
-        expect(row.nextDueAt).toBeNull()
-        expect(row.lastFailureAt).toBeNull()
+        expect((await stored(row)).errorClass).toBeNull()
+        expect((await stored(row)).nextDueAt).toBeNull()
+        expect((await stored(row)).lastFailureAt).toBeNull()
       },
     )
   })
@@ -980,8 +1001,8 @@ describe('sync-property-reviews snapshot handler', () => {
         code: 'connection_unusable' as const,
       }
 
-      function snapshotHandler(rows: ReturnType<typeof fakeDiscoveryProperty>[]) {
-        const discoveryRepo = createFakeReviewDiscoveryRepository(rows)
+      async function snapshotHandler(rows: DiscoveryPropertyFixture[]) {
+        const discoveryRepo = await seedRepo(rows)
         const markDeferred = vi.spyOn(discoveryRepo, 'markDiscoveryDeferred')
         const markSucceeded = vi.spyOn(discoveryRepo, 'markSyncSucceeded')
         const logger = { warn: vi.fn() }
@@ -1007,9 +1028,9 @@ describe('sync-property-reviews snapshot handler', () => {
       }
 
       it('ends a run caught mid-way quietly, with no failure recorded and nothing continued', async () => {
-        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
         const { handler, logger, enqueueContinuation, markDeferred, markSucceeded } =
-          snapshotHandler([row])
+          await snapshotHandler([row])
 
         await expect(
           handler({
@@ -1031,28 +1052,28 @@ describe('sync-property-reviews snapshot handler', () => {
 
       it('leaves the discovery state alone, so the first poll after a reconnect starts a fresh run', async () => {
         const dueAt = new Date(NOW.getTime() + HOT_INTERVAL_MS)
-        const row = fakeDiscoveryProperty({
+        const row = discoveryProperty({
           propertyId: JOB_DATA.propertyId,
           nextDueAt: dueAt,
         })
-        const { discoveryRepo, handler } = snapshotHandler([row])
+        const { discoveryRepo, handler } = await snapshotHandler([row])
 
         await handler({ id: 'job-snapshot-unusable', data: JOB_DATA } as never)
 
         // No failure recorded and no wait pushed out: the backoff ladder never
         // sees a failure that only a reconnect can cure.
-        expect(row.errorClass).toBeNull()
-        expect(row.errorRetryAt).toBeNull()
-        expect(row.lastFailureAt).toBeNull()
-        expect(row.nextDueAt).toEqual(dueAt)
+        expect((await stored(row)).errorClass).toBeNull()
+        expect((await stored(row)).errorRetryAt).toBeNull()
+        expect((await stored(row)).lastFailureAt).toBeNull()
+        expect((await stored(row)).nextDueAt).toEqual(dueAt)
 
         // While the connection waits, the sweep does not select the Property
         // (it never enqueues a job that cannot run). Once it is reconnected the
         // Property is due on its own date and comes back as a candidate with no
         // outstanding failure.
-        row.connectionStatus = 'reauth_required'
+        await discoveryDb.setConnectionStatus(row.connectionId!, 'reauth_required')
         expect(await discoveryRepo.findDuePropertiesBatch(dueAt, null, 10)).toEqual([])
-        row.connectionStatus = 'active'
+        await discoveryDb.setConnectionStatus(row.connectionId!, 'active')
         const [candidate] = await discoveryRepo.findDuePropertiesBatch(dueAt, null, 10)
         expect(candidate).toMatchObject({
           propertyId: JOB_DATA.propertyId,
@@ -1061,8 +1082,8 @@ describe('sync-property-reviews snapshot handler', () => {
       })
 
       it('still records the failure and throws for authorization_denied, the refusal of a usable connection', async () => {
-        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
-        const discoveryRepo = createFakeReviewDiscoveryRepository([row])
+        const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const discoveryRepo = await seedRepo([row])
         const handler = createSyncPropertyReviewsHandler({
           runSnapshot: vi.fn(async () => ({
             ...FAILED_UNUSABLE,
@@ -1080,7 +1101,7 @@ describe('sync-property-reviews snapshot handler', () => {
         await expect(
           handler({ id: 'job-snapshot-denied', data: JOB_DATA } as never),
         ).rejects.toMatchObject({ failureCode: 'authorization_denied' })
-        expect(row.errorClass).toBe('authorization_denied')
+        expect((await stored(row)).errorClass).toBe('authorization_denied')
       })
     })
   })
@@ -1102,12 +1123,12 @@ describe('sync-property-reviews snapshot handler', () => {
       code: 'provider_rejected',
     }
 
-    function rejectedHandler(
-      row: ReturnType<typeof fakeDiscoveryProperty>,
+    async function rejectedHandler(
+      row: DiscoveryPropertyFixture,
       clock: { now: Date } = { now: NOW },
       outcome: unknown = REJECTED,
     ) {
-      const discoveryRepo = createFakeReviewDiscoveryRepository([row])
+      const discoveryRepo = await seedRepo([row])
       const markDeferred = vi.spyOn(discoveryRepo, 'markDiscoveryDeferred')
       const markSucceeded = vi.spyOn(discoveryRepo, 'markSyncSucceeded')
       const logger = { warn: vi.fn() }
@@ -1126,9 +1147,9 @@ describe('sync-property-reviews snapshot handler', () => {
     }
 
     it('ends the first step of a run without throwing, dated on the discovery interval', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
       const { handler, markDeferred, markSucceeded, enqueueContinuation } =
-        rejectedHandler(row)
+        await rejectedHandler(row)
 
       await expect(
         handler({ id: 'job-rejected', data: JOB_DATA } as never),
@@ -1147,26 +1168,30 @@ describe('sync-property-reviews snapshot handler', () => {
     })
 
     it('keeps the failure and its retry date recorded so sync.failed-nonzero can name it once the date passes', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
-      const { handler } = rejectedHandler(row)
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler } = await rejectedHandler(row)
 
       await handler({ id: 'job-rejected', data: JOB_DATA } as never)
 
-      expect(row.errorClass).toBe('provider_rejected')
-      expect(row.errorRetryAt).toEqual(new Date(NOW.getTime() + HOT_INTERVAL_MS))
-      expect(row.lastFailureAt).toEqual(NOW)
+      expect((await stored(row)).errorClass).toBe('provider_rejected')
+      expect((await stored(row)).errorRetryAt).toEqual(
+        new Date(NOW.getTime() + HOT_INTERVAL_MS),
+      )
+      expect((await stored(row)).lastFailureAt).toEqual(NOW)
     })
 
     it('waits 15 minutes, then 1 hour, 4 hours and 6 hours after consecutive rejections', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
       const clock = { now: NOW }
-      const { handler } = rejectedHandler(row, clock)
+      const { handler } = await rejectedHandler(row, clock)
       const waits: number[] = []
 
       for (let round = 0; round < 5; round++) {
         await handler({ id: 'job-ladder', data: JOB_DATA } as never)
-        waits.push((row.nextDueAt as Date).getTime() - clock.now.getTime())
-        clock.now = row.nextDueAt as Date
+        waits.push(
+          ((await stored(row)).nextDueAt as Date).getTime() - clock.now.getTime(),
+        )
+        clock.now = (await stored(row)).nextDueAt as Date
       }
 
       expect(waits).toEqual([
@@ -1179,9 +1204,9 @@ describe('sync-property-reviews snapshot handler', () => {
     })
 
     it('ends a step that continues a run without throwing or reporting it', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
       const { handler, markDeferred, markSucceeded, enqueueContinuation } =
-        rejectedHandler(row)
+        await rejectedHandler(row)
 
       await expect(handler({ id: 'job-rejected', data: STEP } as never)).resolves.toEqual(
         REJECTED,
@@ -1199,8 +1224,8 @@ describe('sync-property-reviews snapshot handler', () => {
     })
 
     it('logs the deferral with the code and the chosen wait, and no tenant identifier', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
-      const { handler, logger } = rejectedHandler(row)
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler, logger } = await rejectedHandler(row)
 
       await handler({ id: 'job-rejected', data: STEP } as never)
 
@@ -1218,15 +1243,14 @@ describe('sync-property-reviews snapshot handler', () => {
     // The retry of a step that failed its run finds it failed (run_already_failed)
     // and records nothing when the failing step dated the failure.
     it('ends the replay of a rejected run quietly and leaves the earned wait alone', async () => {
-      const row = fakeDiscoveryProperty({
+      const row = discoveryProperty({
         propertyId: JOB_DATA.propertyId,
         errorClass: 'provider_rejected',
         lastFailureAt: NOW,
         errorRetryAt: new Date(NOW.getTime() + HOT_INTERVAL_MS),
         nextDueAt: new Date(NOW.getTime() + HOT_INTERVAL_MS),
       })
-      const before = { ...row }
-      const { handler, markDeferred } = rejectedHandler(
+      const { handler, markDeferred } = await rejectedHandler(
         row,
         { now: NOW },
         {
@@ -1234,6 +1258,7 @@ describe('sync-property-reviews snapshot handler', () => {
           alreadyFailed: { failedAt: NOW },
         },
       )
+      const before = await stored(row)
 
       await expect(handler({ id: 'job-replay', data: STEP } as never)).resolves.toEqual({
         status: 'skipped',
@@ -1241,13 +1266,13 @@ describe('sync-property-reviews snapshot handler', () => {
       })
 
       expect(markDeferred).not.toHaveBeenCalled()
-      expect(row).toEqual(before)
+      expect(await stored(row)).toEqual(before)
       expect(mocks.capture).not.toHaveBeenCalled()
     })
 
     it('records the replay of a rejection nobody dated, on the ladder, and still ends quietly', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
-      const { handler, markDeferred } = rejectedHandler(
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler, markDeferred } = await rejectedHandler(
         row,
         { now: NOW },
         {
@@ -1297,12 +1322,12 @@ describe('sync-property-reviews snapshot handler', () => {
       alreadyFailed: { failedAt },
     })
 
-    function replayHandler(
+    async function replayHandler(
       outcomes: readonly unknown[],
-      row: ReturnType<typeof fakeDiscoveryProperty>,
+      row: DiscoveryPropertyFixture,
       clock: { now: Date } = { now: NOW },
     ) {
-      const discoveryRepo = createFakeReviewDiscoveryRepository([row])
+      const discoveryRepo = await seedRepo([row])
       const markDeferred = vi.spyOn(discoveryRepo, 'markDiscoveryDeferred')
       const markSucceeded = vi.spyOn(discoveryRepo, 'markSyncSucceeded')
       const logger = { warn: vi.fn() }
@@ -1324,7 +1349,7 @@ describe('sync-property-reviews snapshot handler', () => {
 
     // The Property is inside the backoff the failing attempt earned.
     const failedRow = () =>
-      fakeDiscoveryProperty({
+      discoveryProperty({
         propertyId: JOB_DATA.propertyId,
         errorClass: 'observation_failed',
         lastFailureAt: NOW,
@@ -1343,9 +1368,9 @@ describe('sync-property-reviews snapshot handler', () => {
       'ends quietly when the run failed as %s: no throw, no failure recorded, nothing continued',
       async (code) => {
         const row = failedRow()
-        const before = { ...row }
         const { handler, enqueueContinuation, markDeferred, markSucceeded } =
-          replayHandler([replay(code)], row)
+          await replayHandler([replay(code)], row)
+        const before = await stored(row)
 
         await expect(handler({ id: 'job-replay', data: STEP } as never)).resolves.toEqual(
           SKIPPED,
@@ -1354,13 +1379,13 @@ describe('sync-property-reviews snapshot handler', () => {
         expect(markDeferred).not.toHaveBeenCalled()
         expect(markSucceeded).not.toHaveBeenCalled()
         expect(enqueueContinuation).not.toHaveBeenCalled()
-        expect(row).toEqual(before)
+        expect(await stored(row)).toEqual(before)
         expect(mocks.capture).not.toHaveBeenCalled()
       },
     )
 
     it('writes one warning of closed codes and names no tenant identifier', async () => {
-      const { handler, logger } = replayHandler(
+      const { handler, logger } = await replayHandler(
         [replay('observation_failed')],
         failedRow(),
       )
@@ -1385,9 +1410,9 @@ describe('sync-property-reviews snapshot handler', () => {
     // A lock can time out one step's observation write and fail its run; every
     // retry of that step must fail the job again until it is dead-lettered.
     it('fails the job for the step that failed the run, and only for that step', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
       const clock = { now: NOW }
-      const { handler, markDeferred, logger } = replayHandler(
+      const { handler, markDeferred, logger } = await replayHandler(
         [
           fresh('observation_failed'),
           replay('observation_failed'),
@@ -1404,8 +1429,10 @@ describe('sync-property-reviews snapshot handler', () => {
         message: 'observation_failed',
         failureCode: 'observation_failed',
       })
-      const earned = { ...row }
-      expect((row.nextDueAt as Date).getTime() - NOW.getTime()).toBe(HOT_INTERVAL_MS)
+      const earned = await stored(row)
+      expect(((await stored(row)).nextDueAt as Date).getTime() - NOW.getTime()).toBe(
+        HOT_INTERVAL_MS,
+      )
 
       clock.now = new Date(NOW.getTime() + 18 * MINUTE_MS) // BullMQ attempt 2
       await expect(handler({ id: 'job-incident', data: STEP } as never)).resolves.toEqual(
@@ -1424,7 +1451,7 @@ describe('sync-property-reviews snapshot handler', () => {
         new Date(NOW.getTime() + HOT_INTERVAL_MS),
         'observation_failed',
       )
-      expect(row).toEqual(earned)
+      expect(await stored(row)).toEqual(earned)
       expect(
         logger.warn.mock.calls.filter(
           ([fields]) => fields.event === 'review_snapshot_failure_deferred',
@@ -1435,8 +1462,8 @@ describe('sync-property-reviews snapshot handler', () => {
     })
 
     it('records the failure and throws when the run fails in this very step', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
-      const { handler, markDeferred, logger } = replayHandler(
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler, markDeferred, logger } = await replayHandler(
         [fresh('provider_failure')],
         row,
       )
@@ -1454,7 +1481,7 @@ describe('sync-property-reviews snapshot handler', () => {
         new Date(NOW.getTime() + HOT_INTERVAL_MS),
         'provider_failure',
       )
-      expect(row.errorClass).toBe('provider_failure')
+      expect((await stored(row)).errorClass).toBe('provider_failure')
       expect(logger.warn).toHaveBeenCalledWith(
         {
           event: 'review_snapshot_failure_deferred',
@@ -1473,8 +1500,8 @@ describe('sync-property-reviews snapshot handler', () => {
     it.each(['observation_failed', 'provider_failure', 'cursor_failure'] as const)(
       'reports a step that fails its run as %s once, before it throws',
       async (code) => {
-        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
-        const { handler, markDeferred } = replayHandler([fresh(code)], row)
+        const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const { handler, markDeferred } = await replayHandler([fresh(code)], row)
 
         const thrown = await handler({ id: 'job-reported', data: STEP } as never).catch(
           (err: unknown) => err,
@@ -1490,7 +1517,7 @@ describe('sync-property-reviews snapshot handler', () => {
           jobName: 'sync-property-reviews',
         })
         expect(markDeferred).toHaveBeenCalledTimes(1)
-        expect(row.errorClass).toBe(code)
+        expect((await stored(row)).errorClass).toBe(code)
       },
     )
 
@@ -1505,9 +1532,9 @@ describe('sync-property-reviews snapshot handler', () => {
     ])(
       'builds the error of %s in runSnapshotStep, where its issue is grouped',
       async (_name, data) => {
-        const { handler } = replayHandler(
+        const { handler } = await replayHandler(
           [fresh('observation_failed')],
-          fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId }),
+          discoveryProperty({ propertyId: JOB_DATA.propertyId }),
         )
 
         const thrown = await handler({ id: 'job-stack', data } as never).catch(
@@ -1523,9 +1550,9 @@ describe('sync-property-reviews snapshot handler', () => {
     // finds the run failed and ends quietly (see the incident above). Nothing
     // is terminal, so the worker neither reports it again nor dead-letters it.
     it('keeps the failure of a step that continues a run retryable', async () => {
-      const { handler } = replayHandler(
+      const { handler } = await replayHandler(
         [fresh('observation_failed')],
-        fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId }),
+        discoveryProperty({ propertyId: JOB_DATA.propertyId }),
       )
 
       const failure = await handler({ id: 'job-retryable', data: STEP } as never).catch(
@@ -1538,8 +1565,8 @@ describe('sync-property-reviews snapshot handler', () => {
     // A location over the cap is parked and the job ends normally: nothing
     // throws, so nothing is reported, as before the run id mattered.
     it('does not report a location parked for being over the cap', async () => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
-      const { handler } = replayHandler([fresh('review_cap_exceeded')], row)
+      const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler } = await replayHandler([fresh('review_cap_exceeded')], row)
 
       await expect(handler({ id: 'job-cap', data: STEP } as never)).resolves.toEqual(
         fresh('review_cap_exceeded'),
@@ -1551,9 +1578,9 @@ describe('sync-property-reviews snapshot handler', () => {
     // The first step of a run has no run id: its retry starts a new run, which
     // can succeed, so it keeps its attempts and is terminal when they are spent.
     it('keeps the failure of the first step of a run retryable until its attempts are spent', async () => {
-      const { handler } = replayHandler(
+      const { handler } = await replayHandler(
         [fresh('observation_failed')],
-        fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId }),
+        discoveryProperty({ propertyId: JOB_DATA.propertyId }),
       )
 
       const failure = await handler({
@@ -1573,9 +1600,9 @@ describe('sync-property-reviews snapshot handler', () => {
     // worker does, once, when the attempts are spent. Reporting here as well
     // would count one failure twice.
     it('leaves the report of the failure of the first step of a run to the worker', async () => {
-      const { handler } = replayHandler(
+      const { handler } = await replayHandler(
         [fresh('observation_failed')],
-        fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId }),
+        discoveryProperty({ propertyId: JOB_DATA.propertyId }),
       )
 
       await expect(
@@ -1591,9 +1618,9 @@ describe('sync-property-reviews snapshot handler', () => {
     // can record it.
     describe('and the step that failed it never recorded the failure', () => {
       it('records the failure once, dates the retry, and still ends quietly', async () => {
-        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
         const clock = { now: new Date(NOW.getTime() + 30 * 1000) }
-        const { handler, markDeferred, logger } = replayHandler(
+        const { handler, markDeferred, logger } = await replayHandler(
           [replay('observation_failed'), replay('observation_failed')],
           row,
           clock,
@@ -1614,7 +1641,7 @@ describe('sync-property-reviews snapshot handler', () => {
           new Date(NOW.getTime() + 30 * 1000 + HOT_INTERVAL_MS),
           'observation_failed',
         )
-        expect(row.errorClass).toBe('observation_failed')
+        expect((await stored(row)).errorClass).toBe('observation_failed')
         expect(
           logger.warn.mock.calls.filter(
             ([fields]) => fields.event === 'review_snapshot_failure_deferred',
@@ -1625,14 +1652,14 @@ describe('sync-property-reviews snapshot handler', () => {
 
       it('records it when the Property holds only an older failure, climbing the ladder', async () => {
         const olderFailureAt = new Date(NOW.getTime() - 2 * 60 * MINUTE_MS)
-        const row = fakeDiscoveryProperty({
+        const row = discoveryProperty({
           propertyId: JOB_DATA.propertyId,
           errorClass: 'provider_failure',
           lastFailureAt: olderFailureAt,
           errorRetryAt: new Date(olderFailureAt.getTime() + HOT_INTERVAL_MS),
           nextDueAt: new Date(olderFailureAt.getTime() + HOT_INTERVAL_MS),
         })
-        const { handler, markDeferred } = replayHandler(
+        const { handler, markDeferred } = await replayHandler(
           [replay('observation_failed', new Date(NOW.getTime() - MINUTE_MS))],
           row,
         )
@@ -1650,8 +1677,8 @@ describe('sync-property-reviews snapshot handler', () => {
       })
 
       it('parks a location over the cap for a day, as the failing step would have', async () => {
-        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
-        const { handler, markDeferred } = replayHandler(
+        const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const { handler, markDeferred } = await replayHandler(
           [replay('review_cap_exceeded')],
           row,
         )
@@ -1670,13 +1697,13 @@ describe('sync-property-reviews snapshot handler', () => {
 
       // A dead letter redriven days later, after a run has completed since.
       it('records nothing for a failure a later success has cleared', async () => {
-        const row = fakeDiscoveryProperty({
+        const row = discoveryProperty({
           propertyId: JOB_DATA.propertyId,
           errorClass: null,
           lastFailureAt: NOW,
           errorRetryAt: null,
         })
-        const { handler, markDeferred } = replayHandler(
+        const { handler, markDeferred } = await replayHandler(
           [replay('observation_failed', new Date(NOW.getTime() - MINUTE_MS))],
           row,
         )
@@ -1686,36 +1713,36 @@ describe('sync-property-reviews snapshot handler', () => {
         )
 
         expect(markDeferred).not.toHaveBeenCalled()
-        expect(row.errorClass).toBeNull()
+        expect((await stored(row)).errorClass).toBeNull()
       })
 
       it('records nothing when the store has no date for the run and the Property holds a failure', async () => {
         const row = failedRow()
-        const before = { ...row }
-        const { handler, markDeferred } = replayHandler(
+        const { handler, markDeferred } = await replayHandler(
           [replay('observation_failed', null)],
           row,
         )
+        const before = await stored(row)
 
         await expect(
           handler({ id: 'job-undated', data: STEP } as never),
         ).resolves.toEqual(SKIPPED)
 
         expect(markDeferred).not.toHaveBeenCalled()
-        expect(row).toEqual(before)
+        expect(await stored(row)).toEqual(before)
       })
     })
 
     it('leaves a location parked for being over the cap parked', async () => {
       const parkedUntil = new Date(NOW.getTime() + 24 * 60 * MINUTE_MS)
-      const row = fakeDiscoveryProperty({
+      const row = discoveryProperty({
         propertyId: JOB_DATA.propertyId,
         errorClass: 'review_cap_exceeded',
         lastFailureAt: NOW,
         errorRetryAt: parkedUntil,
         nextDueAt: parkedUntil,
       })
-      const { handler, markDeferred } = replayHandler(
+      const { handler, markDeferred } = await replayHandler(
         [replay('review_cap_exceeded')],
         row,
       )
@@ -1725,7 +1752,7 @@ describe('sync-property-reviews snapshot handler', () => {
       )
 
       expect(markDeferred).not.toHaveBeenCalled()
-      expect(row.nextDueAt).toEqual(parkedUntil)
+      expect((await stored(row)).nextDueAt).toEqual(parkedUntil)
     })
 
     // The step that lost the run may have died before it queued the fresh one
@@ -1733,8 +1760,8 @@ describe('sync-property-reviews snapshot handler', () => {
     it.each(['cursor_lost', 'listing_changed'] as const)(
       'still starts the fresh run when it finds the run lost as %s',
       async (code) => {
-        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
-        const { handler, enqueueContinuation, markDeferred } = replayHandler(
+        const row = discoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const { handler, enqueueContinuation, markDeferred } = await replayHandler(
           [replay(code)],
           row,
         )
@@ -1746,12 +1773,12 @@ describe('sync-property-reviews snapshot handler', () => {
         expect(enqueueContinuation).toHaveBeenCalledTimes(1)
         expect(enqueueContinuation).toHaveBeenCalledWith({ ...JOB_DATA, sourceEpoch: 7 })
         expect(markDeferred).not.toHaveBeenCalled()
-        expect(row.errorClass).toBeNull()
+        expect((await stored(row)).errorClass).toBeNull()
       },
     )
 
     it('keeps the reconnect skip for a run that failed as connection_unusable', async () => {
-      const { handler, logger, markDeferred } = replayHandler(
+      const { handler, logger, markDeferred } = await replayHandler(
         [replay('connection_unusable')],
         failedRow(),
       )

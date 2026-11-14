@@ -1,7 +1,6 @@
 // Review context — Drizzle new-review discovery repository.
 //
-// Candidate predicate (mirrored by the in-memory fake in
-// shared/testing/fake-review-discovery-repository.ts):
+// Candidate predicate:
 //   - property not soft-deleted and lifecycle-active;
 //   - google_binding_state = 'active' — the migration-0031 CHECK constraint
 //     guarantees google_connection_id / gbp_account_id / gbp_location_id are
