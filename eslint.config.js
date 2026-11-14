@@ -1201,7 +1201,12 @@ export default tseslint.config(
 
   // ─── Test files: relaxed boundary rules ────────────────────────────
   {
-    files: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/test-setup.ts'],
+    files: [
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      'src/test-setup.ts',
+      'src/contexts/*/*/*.test-fixtures.ts',
+    ],
     rules: {
       'boundaries/dependencies': 'off',
       'boundaries/no-unknown-files': 'off',

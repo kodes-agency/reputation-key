@@ -1,12 +1,18 @@
 // Integration context — refresh Google token use case tests
 
-import { beforeEach, describe, it, expect, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, it, expect, vi } from 'vitest'
 import { refreshGoogleToken } from './refresh-google-token'
-import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
+import { getDb } from '#/shared/db'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import {
+  createGoogleConnectionTestStore,
+  createOutboxReader,
+} from '#/contexts/integration/connections/google-connection.test-fixtures'
+import { createAtomicIntegrationCommandStore } from '../../infrastructure/integration-command-store'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
-import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
-import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequential-integration-command-store'
+import { createTestTokenEncryption } from '#/contexts/integration/connections/token-encryption.test-fixtures'
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
 import { isIntegrationError } from '../../domain/errors'
 import { organizationId, userId } from '#/shared/domain/ids'
@@ -18,29 +24,56 @@ import { createGoogleOAuthAdapter } from '../../infrastructure/adapters/google-o
 const FIXED_NOW = new Date('2026-01-15T12:00:00Z')
 const clock = () => FIXED_NOW
 
+const ORG_ID = organizationId('org-refresh-token-aa')
+const OTHER_ORG_ID = organizationId('org-refresh-token-bb')
+
+setupIntegrationDb({
+  orgA: ORG_ID,
+  orgB: OTHER_ORG_ID,
+  tables: ['google_connections', 'outbox_events'],
+})
+
+beforeAll(registerAllEventSchemas)
+afterAll(clearEventSchemas)
+
+const sealed = createTestTokenEncryption()
+const openAccessToken = (connection: { encryptedAccessToken: string }) =>
+  sealed.decrypt(connection.encryptedAccessToken)
+const openRefreshToken = (connection: { encryptedRefreshToken: string }) =>
+  sealed.decrypt(connection.encryptedRefreshToken)
+
+const buildConnection = (
+  overrides: Parameters<typeof buildTestGoogleConnection>[0] = {},
+) =>
+  buildTestGoogleConnection({
+    organizationId: ORG_ID,
+    encryptedAccessToken: sealed.encrypt('stored-access-token'),
+    encryptedRefreshToken: sealed.encrypt('stored-refresh-token'),
+    ...overrides,
+  })
+
 const setup = () => {
-  const connectionRepo = createInMemoryGoogleConnectionRepo()
-  const outbox = createRecordedOutbox()
-  const commandStore = createSequentialIntegrationCommandStore({ connectionRepo, outbox })
+  const db = getDb()
+  const connectionRepo = createGoogleConnectionTestStore(db, clock, [ORG_ID])
+  const outbox = createOutboxReader(db, [ORG_ID])
+  const commandStore = createAtomicIntegrationCommandStore(db, clock)
   const oauth = createInMemoryGoogleOAuthPort()
-  const encryption = createInMemoryTokenEncryption()
+  const encryption = createTestTokenEncryption()
   const deps = { connectionRepo, commandStore, oauth, encryption, clock }
   const useCase = refreshGoogleToken(deps)
   return { useCase, connectionRepo, commandStore, outbox, oauth, encryption }
 }
-
-const ORG_ID = organizationId('org-00000000-0000-0000-0000-000000000001')
 
 describe('refreshGoogleToken', () => {
   it('returns connection as-is when token is still valid', async () => {
     const { useCase, connectionRepo } = setup()
     // Token expires 1 hour from FIXED_NOW — well beyond the 5-minute buffer
     const farFuture = new Date(FIXED_NOW.getTime() + 60 * 60 * 1000)
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       status: 'active',
       tokenExpiresAt: farFuture,
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
 
     const result = await useCase(ORG_ID, connection.id as string)
 
@@ -50,12 +83,12 @@ describe('refreshGoogleToken', () => {
 
   it('forces a refresh after a provider 401 even when the token is not near expiry', async () => {
     const { useCase, connectionRepo, oauth } = setup()
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       status: 'active',
       tokenExpiresAt: new Date(FIXED_NOW.getTime() + 60 * 60 * 1000),
       credentialGeneration: 7,
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
     oauth.setRefreshResult({ accessToken: 'forced-access-token', expiresIn: 3600 })
 
     const result = await useCase(ORG_ID, connection.id, {
@@ -63,20 +96,20 @@ describe('refreshGoogleToken', () => {
       expectedCredentialGeneration: 7,
     })
 
-    expect(result.encryptedAccessToken).toBe('enc:forced-access-token')
+    expect(openAccessToken(result)).toBe('forced-access-token')
     expect(result.credentialGeneration).toBe(8)
     expect(result.accessVersion).toBe(connection.accessVersion)
   })
 
   it('uses a newer credential without refreshing when the failed generation is stale', async () => {
     const { useCase, connectionRepo, oauth } = setup()
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       status: 'active',
       tokenExpiresAt: new Date(FIXED_NOW.getTime() + 60 * 60 * 1000),
       credentialGeneration: 8,
-      encryptedAccessToken: 'enc:newer-access-token',
+      encryptedAccessToken: sealed.encrypt('newer-access-token'),
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
 
     const result = await useCase(ORG_ID, connection.id, {
       force: true,
@@ -91,19 +124,19 @@ describe('refreshGoogleToken', () => {
     const { useCase, connectionRepo, oauth } = setup()
     // Token expired 1 hour before FIXED_NOW
     const past = new Date(FIXED_NOW.getTime() - 60 * 60 * 1000)
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       status: 'active',
       tokenExpiresAt: past,
-      encryptedAccessToken: 'enc:old-access-token',
-      encryptedRefreshToken: 'enc:old-refresh-token',
+      encryptedAccessToken: sealed.encrypt('old-access-token'),
+      encryptedRefreshToken: sealed.encrypt('old-refresh-token'),
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
 
     oauth.setRefreshResult({ accessToken: 'new-access-token', expiresIn: 3600 })
 
     const result = await useCase(ORG_ID, connection.id as string)
 
-    expect(result.encryptedAccessToken).toBe('enc:new-access-token')
+    expect(openAccessToken(result)).toBe('new-access-token')
     // Token expiry should be FIXED_NOW + 3600*1000
     expect(result.tokenExpiresAt.getTime()).toBe(FIXED_NOW.getTime() + 3600 * 1000)
   })
@@ -111,12 +144,12 @@ describe('refreshGoogleToken', () => {
   it('authorizes refresh as the AccountAdmin who owns the current grant, not first-connection provenance', async () => {
     const { connectionRepo, commandStore, oauth, encryption } = setup()
     const currentGrantOwner = userId('user-current-google-grant-owner')
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       connectedBy: userId('user-original-google-connector'),
       credentialAuthorizedBy: currentGrantOwner,
       tokenExpiresAt: new Date(FIXED_NOW.getTime() - 60 * 60 * 1000),
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
     const authorizeProviderCall = vi.fn(async () => ({
       capability: 'property.import_gbp_v2' as const,
       organizationId: ORG_ID,
@@ -151,7 +184,7 @@ describe('refreshGoogleToken', () => {
     const { useCase } = setup()
 
     await expect(
-      useCase(ORG_ID, 'nonexistent-0000-0000-0000-000000000001'),
+      useCase(ORG_ID, 'e0000009-0000-0000-0000-000000000009'),
     ).rejects.toSatisfy(
       (error: unknown) =>
         isIntegrationError(error) && error.code === 'connection_not_found',
@@ -160,11 +193,11 @@ describe('refreshGoogleToken', () => {
 
   it('throws for disconnected connections', async () => {
     const { useCase, connectionRepo } = setup()
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       status: 'disconnected',
       tokenExpiresAt: new Date(FIXED_NOW.getTime() - 60 * 60 * 1000),
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
 
     await expect(useCase(ORG_ID, connection.id as string)).rejects.toSatisfy(
       (error: unknown) =>
@@ -175,29 +208,29 @@ describe('refreshGoogleToken', () => {
   it('keeps the same refresh token after update', async () => {
     const { useCase, connectionRepo, oauth } = setup()
     const past = new Date(FIXED_NOW.getTime() - 60 * 60 * 1000)
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       status: 'active',
       tokenExpiresAt: past,
-      encryptedRefreshToken: 'enc:original-refresh-token',
+      encryptedRefreshToken: sealed.encrypt('original-refresh-token'),
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
 
     oauth.setRefreshResult({ accessToken: 'refreshed-access', expiresIn: 3600 })
 
     const result = await useCase(ORG_ID, connection.id as string)
 
     // Refresh token should remain unchanged — only access token changes
-    expect(result.encryptedRefreshToken).toBe('enc:original-refresh-token')
-    expect(result.encryptedAccessToken).toBe('enc:refreshed-access')
+    expect(openRefreshToken(result)).toBe('original-refresh-token')
+    expect(openAccessToken(result)).toBe('refreshed-access')
   })
 
   it('rejects cleanup-only credentials before decrypting or refreshing', async () => {
     const { useCase, connectionRepo } = setup()
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       credentialUseState: 'cleanup_only',
       tokenExpiresAt: new Date(FIXED_NOW.getTime() - 60 * 60 * 1000),
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
 
     await expect(useCase(ORG_ID, connection.id)).rejects.toSatisfy(
       (error: unknown) =>
@@ -207,10 +240,10 @@ describe('refreshGoogleToken', () => {
 
   it('discards a provider refresh when credential authority is removed before commit', async () => {
     const { connectionRepo, commandStore, oauth, encryption } = setup()
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       tokenExpiresAt: new Date(FIXED_NOW.getTime() - 60 * 60 * 1000),
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
     const racedRepo = {
       ...connectionRepo,
       updateTokens: async () => false,
@@ -227,24 +260,24 @@ describe('refreshGoogleToken', () => {
       (error: unknown) =>
         isIntegrationError(error) && error.code === 'connection_disconnected',
     )
-    expect(connectionRepo.all()[0]?.encryptedAccessToken).toBe(
+    expect((await connectionRepo.all())[0]?.encryptedAccessToken).toBe(
       connection.encryptedAccessToken,
     )
   })
 
   it('coordinates a refresh across replicas and accepts the committed credential generation', async () => {
     const { connectionRepo, commandStore, oauth, encryption } = setup()
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       tokenExpiresAt: new Date(FIXED_NOW.getTime() - 60 * 60 * 1000),
       credentialGeneration: 7,
     })
-    const committed = buildTestGoogleConnection({
+    const committed = buildConnection({
       ...connection,
-      encryptedAccessToken: 'enc:replica-committed-access-token',
+      encryptedAccessToken: sealed.encrypt('replica-committed-access-token'),
       tokenExpiresAt: new Date(FIXED_NOW.getTime() + 60 * 60 * 1000),
       credentialGeneration: 8,
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
     let coordinationCalls = 0
     const coordination: GoogleRefreshCoordination = {
       run: async (input) => {
@@ -252,7 +285,7 @@ describe('refreshGoogleToken', () => {
         expect(input.organizationId).toBe(ORG_ID)
         expect(input.connectionId).toBe(connection.id)
         expect(input.expectedCredentialGeneration).toBe(7)
-        connectionRepo.seed([committed])
+        await connectionRepo.replace(committed)
         const latest = await input.loadLatest()
         if (latest === null) throw new Error('expected committed replica refresh')
         return { ok: true, value: latest }
@@ -274,10 +307,10 @@ describe('refreshGoogleToken', () => {
 
   it('fails closed before decrypting or calling Google when shared coordination denies', async () => {
     const { connectionRepo, commandStore, oauth, encryption } = setup()
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       tokenExpiresAt: new Date(FIXED_NOW.getTime() - 60 * 60 * 1000),
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
     const decrypt = vi.spyOn(encryption, 'decrypt')
     const useCase = refreshGoogleToken({
       connectionRepo,
@@ -364,12 +397,12 @@ describe('refreshGoogleToken — a grant Google no longer accepts', () => {
 
   it('moves the connection to reauth_required and records why, in one step', async () => {
     const { useCase, connectionRepo, outbox } = wiredToGoogle()
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       tokenExpiresAt: expired,
       lifecycleVersion: 4,
       credentialGeneration: 6,
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
     tokenEndpointAnswers(400, {
       error: 'invalid_grant',
       error_description: 'Token has been expired or revoked.',
@@ -379,26 +412,26 @@ describe('refreshGoogleToken — a grant Google no longer accepts', () => {
       requiresReauthorization,
     )
 
-    expect(connectionRepo.all()[0]).toMatchObject({
+    expect((await connectionRepo.all())[0]).toMatchObject({
       status: 'reauth_required',
       credentialUseState: 'active',
       credentialGeneration: 6,
     })
-    expect(outbox.facts).toEqual([
+    expect(await outbox.facts()).toEqual([
       expect.objectContaining({
         _tag: 'integration.google_account.reauthorization_required',
         connectionId: connection.id,
         organizationId: ORG_ID,
         cause: 'provider_revoked',
-        occurredAt: FIXED_NOW,
+        occurredAt: FIXED_NOW.toISOString(),
       }),
     ])
   })
 
   it('never asks Google again once the connection needs reauthorization', async () => {
     const { useCase, connectionRepo, outbox } = wiredToGoogle()
-    const connection = buildTestGoogleConnection({ tokenExpiresAt: expired })
-    connectionRepo.seed([connection])
+    const connection = buildConnection({ tokenExpiresAt: expired })
+    await connectionRepo.seed([connection])
     tokenEndpointAnswers(400, { error: 'invalid_grant' })
 
     await expect(useCase(ORG_ID, connection.id)).rejects.toSatisfy(
@@ -409,13 +442,13 @@ describe('refreshGoogleToken — a grant Google no longer accepts', () => {
     )
 
     expect(execute).toHaveBeenCalledTimes(1)
-    expect(outbox.facts).toHaveLength(1)
+    expect(await outbox.facts()).toHaveLength(1)
   })
 
   it('keeps a failure Google may recover from retryable and the connection active', async () => {
     const { useCase, connectionRepo, outbox } = wiredToGoogle()
-    const connection = buildTestGoogleConnection({ tokenExpiresAt: expired })
-    connectionRepo.seed([connection])
+    const connection = buildConnection({ tokenExpiresAt: expired })
+    await connectionRepo.seed([connection])
     tokenEndpointAnswers(503, { error: 'backend_error' })
 
     await expect(useCase(ORG_ID, connection.id)).rejects.toSatisfy(
@@ -423,30 +456,30 @@ describe('refreshGoogleToken — a grant Google no longer accepts', () => {
         isIntegrationError(error) && error.code === 'token_refresh_failed',
     )
 
-    expect(connectionRepo.all()[0]?.status).toBe('active')
-    expect(outbox.facts).toEqual([])
+    expect((await connectionRepo.all())[0]?.status).toBe('active')
+    expect(await outbox.facts()).toEqual([])
   })
 
   it('leaves a reconnect that committed during the refresh untouched', async () => {
     const { connectionRepo, commandStore, outbox, encryption } = wiredToGoogle()
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       tokenExpiresAt: expired,
       lifecycleVersion: 4,
       credentialGeneration: 6,
     })
-    const reconnected = buildTestGoogleConnection({
+    const reconnected = buildConnection({
       ...connection,
-      encryptedRefreshToken: 'enc:fresh-consent-refresh-token',
+      encryptedRefreshToken: sealed.encrypt('fresh-consent-refresh-token'),
       lifecycleVersion: 5,
       credentialGeneration: 7,
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
     tokenEndpointAnswers(400, { error: 'invalid_grant' })
     const useCase = refreshGoogleToken({
       connectionRepo,
       commandStore: {
         requireReauthorization: async (command) => {
-          connectionRepo.seed([reconnected])
+          await connectionRepo.replace(reconnected)
           return commandStore.requireReauthorization(command)
         },
       },
@@ -461,18 +494,18 @@ describe('refreshGoogleToken — a grant Google no longer accepts', () => {
         isIntegrationError(error) && error.code === 'connection_disconnected',
     )
 
-    expect(connectionRepo.all()).toEqual([reconnected])
-    expect(outbox.facts).toEqual([])
+    expect(await connectionRepo.all()).toEqual([reconnected])
+    expect(await outbox.facts()).toEqual([])
   })
 
   it('refuses a connection that already needs reauthorization before any provider work', async () => {
     const { useCase, connectionRepo, oauth, encryption } = setup()
     const decrypt = vi.spyOn(encryption, 'decrypt')
-    const connection = buildTestGoogleConnection({
+    const connection = buildConnection({
       status: 'reauth_required',
       tokenExpiresAt: expired,
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
 
     await expect(useCase(ORG_ID, connection.id)).rejects.toSatisfy(
       requiresReauthorization,
@@ -483,18 +516,16 @@ describe('refreshGoogleToken — a grant Google no longer accepts', () => {
 
   it('stops a waiting replica once another replica found the grant revoked', async () => {
     const { connectionRepo, commandStore, oauth, encryption } = setup()
-    const connection = buildTestGoogleConnection({ tokenExpiresAt: expired })
-    connectionRepo.seed([connection])
+    const connection = buildConnection({ tokenExpiresAt: expired })
+    await connectionRepo.seed([connection])
     const coordination: GoogleRefreshCoordination = {
       run: async (input) => {
         // The leader on another replica has just recorded the revocation.
-        connectionRepo.seed([
-          {
-            ...connection,
-            status: 'reauth_required',
-            lifecycleVersion: connection.lifecycleVersion + 1,
-          },
-        ])
+        await connectionRepo.replace({
+          ...connection,
+          status: 'reauth_required',
+          lifecycleVersion: connection.lifecycleVersion + 1,
+        })
         const latest = await input.loadLatest()
         if (latest !== null) return { ok: true, value: latest }
         return { ok: true, value: await input.refresh(async () => undefined) }

@@ -1,12 +1,18 @@
 // Integration context — disconnect Google account use case tests
 
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { disconnectGoogleAccount } from './disconnect-google-account'
-import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
-import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequential-integration-command-store'
+import { getDb } from '#/shared/db'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import {
+  createGoogleConnectionTestStore,
+  createOutboxReader,
+} from '#/contexts/integration/connections/google-connection.test-fixtures'
+import { createAtomicIntegrationCommandStore } from '../../infrastructure/integration-command-store'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
-import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
+import { createTestTokenEncryption } from '#/contexts/integration/connections/token-encryption.test-fixtures'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   buildTestAuthContext,
@@ -24,20 +30,47 @@ import { createRunReviewSourceContentLifecycle } from '#/contexts/review/applica
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
+const ORG_ID = organizationId('org-disconnect-gc-aa')
+const SECOND_ORG_ID = organizationId('org-disconnect-gc-bb')
+
+setupIntegrationDb({
+  orgA: ORG_ID,
+  orgB: SECOND_ORG_ID,
+  tables: ['google_connections', 'outbox_events'],
+})
+
+beforeAll(registerAllEventSchemas)
+afterAll(clearEventSchemas)
+
+const sealed = createTestTokenEncryption()
+
+const buildConnection = (
+  overrides: Parameters<typeof buildTestGoogleConnection>[0] = {},
+) =>
+  buildTestGoogleConnection({
+    organizationId: ORG_ID,
+    encryptedAccessToken: sealed.encrypt('access-token'),
+    encryptedRefreshToken: sealed.encrypt('refresh-token'),
+    ...overrides,
+  })
+
+const adminContext = (overrides: Parameters<typeof buildTestAuthContext>[0] = {}) =>
+  buildTestAuthContext({ organizationId: ORG_ID, ...overrides })
+
 const setup = () => {
-  const connectionRepo = createInMemoryGoogleConnectionRepo()
+  const db = getDb()
+  const connectionRepo = createGoogleConnectionTestStore(db, () => FIXED_TIME, [
+    ORG_ID,
+    SECOND_ORG_ID,
+  ])
   const oauth = createInMemoryGoogleOAuthPort()
-  const encryption = createInMemoryTokenEncryption()
-  const outbox = createRecordedOutbox()
+  const encryption = createTestTokenEncryption()
+  const outbox = createOutboxReader(db, [ORG_ID, SECOND_ORG_ID])
   const baseDeps = {
     connectionRepo,
     oauth,
     encryption,
-    commandStore: createSequentialIntegrationCommandStore({
-      connectionRepo,
-      outbox,
-      clock: () => FIXED_TIME,
-    }),
+    commandStore: createAtomicIntegrationCommandStore(db, () => FIXED_TIME),
     clock: () => FIXED_TIME,
     logger: createMockLogger(),
   }
@@ -54,19 +87,20 @@ const setup = () => {
 describe('disconnectGoogleAccount', () => {
   it('keeps a shared account subscribed until the last organization disconnects', async () => {
     const { baseDeps, connectionRepo, outbox } = setup()
-    const first = buildTestAuthContext({ role: 'AccountAdmin' })
-    const second = buildTestAuthContext({
+    const first = adminContext({ role: 'AccountAdmin' })
+    const second = adminContext({
       role: 'AccountAdmin',
-      organizationId: organizationId('org-second'),
+      organizationId: SECOND_ORG_ID,
     })
-    const connectionA = buildTestGoogleConnection({
+    const connectionA = buildConnection({
       organizationId: first.organizationId,
     })
-    const connectionB = buildTestGoogleConnection({
+    const connectionB = buildConnection({
       organizationId: second.organizationId,
       id: googleConnectionId('e0000000-0000-0000-0000-000000000002'),
+      googleSubject: 'google-subject-second-account',
     })
-    connectionRepo.seed([connectionA, connectionB])
+    await connectionRepo.seed([connectionA, connectionB])
     const gbpAccountId = 'repkey-synthetic-do-not-use-account-0001'
     const bindingReads = {
       findLinkedPropertyIds: async () => ['10000000-0000-4000-8000-000000000001'],
@@ -143,14 +177,14 @@ describe('disconnectGoogleAccount', () => {
         connectionId: connectionB.id,
       },
     })
-    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(2)
+    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(2)
   })
 
   it('redacts the signed identity and secrets, purges source content, and records a fact', async () => {
     const { baseDeps, connectionRepo, outbox } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const connection = buildTestGoogleConnection({ status: 'active' })
-    connectionRepo.seed([connection])
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const connection = buildConnection({ status: 'active' })
+    await connectionRepo.seed([connection])
     const forConnection = vi.fn(async () => ({
       subject: 'reviews.purge.connection',
       batches: 1,
@@ -181,7 +215,9 @@ describe('disconnectGoogleAccount', () => {
       scopes: [],
       credentialUseState: 'none',
     })
-    expect(outbox.byTag('integration.google_account.disconnected')[0]).toMatchObject({
+    expect(
+      (await outbox.byTag('integration.google_account.disconnected'))[0],
+    ).toMatchObject({
       connectionId: connection.id,
       organizationId: ctx.organizationId,
     })
@@ -190,7 +226,7 @@ describe('disconnectGoogleAccount', () => {
   it('rejects users without integration.manage permission', async () => {
     const { useCase } = setup()
     await expect(
-      useCase({ connectionId: 'any-id' }, buildTestAuthContext({ role: 'Member' })),
+      useCase({ connectionId: 'any-id' }, adminContext({ role: 'Member' })),
     ).rejects.toSatisfy(
       (error: unknown) =>
         isIntegrationError(error) && (error as { code: string }).code === 'forbidden',
@@ -201,8 +237,8 @@ describe('disconnectGoogleAccount', () => {
     const { useCase } = setup()
     await expect(
       useCase(
-        { connectionId: 'nonexistent-0000-0000-0000-000000000001' },
-        buildTestAuthContext({ role: 'AccountAdmin' }),
+        { connectionId: 'e0000009-0000-0000-0000-000000000009' },
+        adminContext({ role: 'AccountAdmin' }),
       ),
     ).rejects.toSatisfy(
       (error: unknown) =>
@@ -213,24 +249,24 @@ describe('disconnectGoogleAccount', () => {
 
   it('returns an already-disconnected connection without another fact', async () => {
     const { useCase, connectionRepo, outbox } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const connection = buildTestGoogleConnection({ status: 'disconnected' })
-    connectionRepo.seed([connection])
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const connection = buildConnection({ status: 'disconnected' })
+    await connectionRepo.seed([connection])
 
-    await expect(useCase({ connectionId: connection.id as string }, ctx)).resolves.toBe(
-      connection,
-    )
-    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
+    await expect(
+      useCase({ connectionId: connection.id as string }, ctx),
+    ).resolves.toEqual(connection)
+    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
   })
 
   it('keeps the original content deadline through repeated disconnect inspections', async () => {
     const { baseDeps, connectionRepo, outbox } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const connection = buildTestGoogleConnection({
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const connection = buildConnection({
       id: 'b8000000-0000-4000-8000-000000000002',
       status: 'active',
     })
-    connectionRepo.seed([connection])
+    await connectionRepo.seed([connection])
     let now = FIXED_TIME
     const rows = [
       {
@@ -277,14 +313,14 @@ describe('disconnectGoogleAccount', () => {
         apply: { enabled: false },
       })
     }
-    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
   })
 
   it('retries local cleanup and an interrupted source purge without repeating provider cleanup', async () => {
     const { baseDeps, connectionRepo, outbox } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const connection = buildTestGoogleConnection({ status: 'active' })
-    connectionRepo.seed([connection])
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const connection = buildConnection({ status: 'active' })
+    await connectionRepo.seed([connection])
     const cleanup = vi.spyOn(baseDeps.commandStore, 'disconnectGoogleAccount')
     const unsubscribe = vi.fn()
     const forConnection = vi.fn().mockRejectedValueOnce(new Error('purge interrupted'))
@@ -308,14 +344,14 @@ describe('disconnectGoogleAccount', () => {
     expect(cleanup).toHaveBeenCalledTimes(2)
     expect(forConnection).toHaveBeenCalledTimes(2)
     expect(unsubscribe).toHaveBeenCalledTimes(1)
-    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
   })
 
   it('returns the connection an overlapping disconnect committed first, without a second fact', async () => {
     const { baseDeps, connectionRepo, outbox } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const connection = buildTestGoogleConnection({ status: 'active' })
-    connectionRepo.seed([connection])
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const connection = buildConnection({ status: 'active' })
+    await connectionRepo.seed([connection])
     const overlapping = disconnectGoogleAccount(baseDeps)
     const useCase = disconnectGoogleAccount({
       ...baseDeps,
@@ -332,14 +368,14 @@ describe('disconnectGoogleAccount', () => {
       status: 'disconnected',
       encryptedRefreshToken: 'redacted',
     })
-    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
   })
 
   it('leaves a reconnect that commits before a disconnected retry locked read intact', async () => {
     const { baseDeps, connectionRepo, outbox } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const disconnected = buildTestGoogleConnection({ status: 'disconnected' })
-    connectionRepo.seed([disconnected])
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const disconnected = buildConnection({ status: 'disconnected' })
+    await connectionRepo.seed([disconnected])
     const forConnection = vi.fn()
     const disconnect = baseDeps.commandStore.disconnectGoogleAccount
     const command = disconnectGoogleAccount({
@@ -353,8 +389,8 @@ describe('disconnectGoogleAccount', () => {
             expected: disconnected,
             googleSubject: 'reconnected-subject',
             googleAccountEmail: null,
-            encryptedAccessToken: 'enc:new-access',
-            encryptedRefreshToken: 'enc:new-refresh',
+            encryptedAccessToken: sealed.encrypt('new-access'),
+            encryptedRefreshToken: sealed.encrypt('new-refresh'),
             tokenExpiresAt: new Date(FIXED_TIME.getTime() + 3_600_000),
             scopes: ['https://www.googleapis.com/auth/business.manage'],
             visibility: 'organization',
@@ -382,17 +418,17 @@ describe('disconnectGoogleAccount', () => {
       connectionRepo.findById(ctx.organizationId, disconnected.id),
     ).resolves.toMatchObject({
       status: 'active',
-      encryptedRefreshToken: 'enc:new-refresh',
+      encryptedRefreshToken: expect.any(String),
     })
     expect(forConnection).not.toHaveBeenCalled()
-    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
+    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
   })
 
   it('still disconnects when a token refresh commits between its read and its write', async () => {
     const { baseDeps, connectionRepo, outbox } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const connection = buildTestGoogleConnection({ status: 'active' })
-    connectionRepo.seed([connection])
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const connection = buildConnection({ status: 'active' })
+    await connectionRepo.seed([connection])
     const useCase = disconnectGoogleAccount({
       ...baseDeps,
       // A background refresh rotates the credential after the disconnect read
@@ -405,8 +441,8 @@ describe('disconnectGoogleAccount', () => {
             lifecycleVersion: connection.lifecycleVersion,
             credentialGeneration: connection.credentialGeneration,
           },
-          'enc:access-token-2',
-          'enc:refresh-token-2',
+          sealed.encrypt('access-token-2'),
+          sealed.encrypt('refresh-token-2'),
           new Date('2026-12-31T23:59:59Z'),
         )
       },
@@ -419,19 +455,19 @@ describe('disconnectGoogleAccount', () => {
       encryptedAccessToken: 'redacted',
       encryptedRefreshToken: 'redacted',
     })
-    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
   })
 
   it('leaves a disconnect in flight to its governed attempt and records nothing', async () => {
     const { useCase, connectionRepo, outbox } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const inFlight = buildTestGoogleConnection({
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const inFlight = buildConnection({
       status: 'disconnecting',
       credentialUseState: 'cleanup_only',
       cleanupMaterialDeadlineAt: new Date(FIXED_TIME.getTime() + 30_000),
       lifecycleVersion: 2,
     })
-    connectionRepo.seed([inFlight])
+    await connectionRepo.seed([inFlight])
 
     await expect(useCase({ connectionId: inFlight.id as string }, ctx)).rejects.toSatisfy(
       (error: unknown) =>
@@ -439,22 +475,22 @@ describe('disconnectGoogleAccount', () => {
         (error as { code: string }).code === 'invalid_transition',
     )
     // The governed attempt still owns the row, so its settle can redact it.
-    await expect(connectionRepo.findById(ctx.organizationId, inFlight.id)).resolves.toBe(
-      inFlight,
-    )
-    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
+    await expect(
+      connectionRepo.findById(ctx.organizationId, inFlight.id),
+    ).resolves.toEqual(inFlight)
+    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
   })
 
   it('finishes a disconnecting connection locally once its cleanup window has closed', async () => {
     const { useCase, connectionRepo, outbox } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const stranded = buildTestGoogleConnection({
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const stranded = buildConnection({
       status: 'disconnecting',
       credentialUseState: 'cleanup_only',
       cleanupMaterialDeadlineAt: new Date(FIXED_TIME.getTime() - 1),
       lifecycleVersion: 2,
     })
-    connectionRepo.seed([stranded])
+    await connectionRepo.seed([stranded])
 
     await expect(
       useCase({ connectionId: stranded.id as string }, ctx),
@@ -464,14 +500,14 @@ describe('disconnectGoogleAccount', () => {
       encryptedRefreshToken: 'redacted',
       cleanupMaterialDeadlineAt: null,
     })
-    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
   })
 
   it('fails closed on import cancellation before provider or connection mutation', async () => {
     const { baseDeps, connectionRepo, oauth } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const connection = buildTestGoogleConnection({ status: 'active' })
-    connectionRepo.seed([connection])
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const connection = buildConnection({ status: 'active' })
+    await connectionRepo.seed([connection])
     const cancelGoogleImportsForConnection = vi.fn(async () => {
       throw new Error('import lifecycle unavailable')
     })
@@ -497,9 +533,9 @@ describe('disconnectGoogleAccount', () => {
 
   it('unsubscribes but never falls back to an undurable direct revoke', async () => {
     const { baseDeps, connectionRepo, oauth, outbox } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const connection = buildTestGoogleConnection({ status: 'active' })
-    connectionRepo.seed([connection])
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const connection = buildConnection({ status: 'active' })
+    await connectionRepo.seed([connection])
     const order: string[] = []
     ;(oauth as Record<string, unknown>).revokeToken = async () => {
       order.push('revoke')
@@ -516,14 +552,14 @@ describe('disconnectGoogleAccount', () => {
       useCase({ connectionId: connection.id as string }, ctx),
     ).resolves.toMatchObject({ status: 'disconnected' })
     expect(order).toEqual(['unsubscribe'])
-    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+    expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
   })
 
   it('binds a durable revoke attempt to the current AccountAdmin and exact connection', async () => {
     const { baseDeps, connectionRepo, oauth } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const connection = buildTestGoogleConnection({ status: 'active' })
-    connectionRepo.seed([connection])
+    const ctx = adminContext({ role: 'AccountAdmin' })
+    const connection = buildConnection({ status: 'active' })
+    await connectionRepo.seed([connection])
     const authorizeProviderCall = vi.fn(async (input) => ({
       capability: 'property.import_gbp_v2' as const,
       organizationId: ctx.organizationId,
@@ -602,16 +638,16 @@ describe('disconnectGoogleAccount', () => {
   // refusal that happens before that attempt exists leaves nothing for recovery
   // to find, so none of them may be reported as "completed by recovery".
   describe('when governed cleanup cannot start or cannot read the token', () => {
-    const governed = (
+    const governed = async (
       over: Readonly<{
         decrypt?: () => string
         settle?: GoogleDisconnectRevokeStore['settle']
       }> = {},
     ) => {
       const fixture = setup()
-      const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-      const connection = buildTestGoogleConnection({ status: 'active' })
-      fixture.connectionRepo.seed([connection])
+      const ctx = adminContext({ role: 'AccountAdmin' })
+      const connection = buildConnection({ status: 'active' })
+      await fixture.connectionRepo.seed([connection])
       const revokeTokenWithOutcome = vi.fn(async () => 'confirmed_not_sent' as const)
       ;(fixture.oauth as Record<string, unknown>).revokeTokenWithOutcome =
         revokeTokenWithOutcome
@@ -650,7 +686,7 @@ describe('disconnectGoogleAccount', () => {
 
     it('disconnects locally when the stored refresh token cannot be decrypted', async () => {
       const { useCase, ctx, connection, connectionRepo, outbox, revokeTokenWithOutcome } =
-        governed({
+        await governed({
           decrypt: () => {
             throw integrationError('encryption_error', 'Unknown key version')
           },
@@ -667,7 +703,9 @@ describe('disconnectGoogleAccount', () => {
       await expect(
         connectionRepo.findById(ctx.organizationId, connection.id),
       ).resolves.toMatchObject({ status: 'disconnected' })
-      expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+      expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(
+        1,
+      )
     })
 
     // `prepare` refused (a concurrent attempt, versions that moved after the
@@ -676,7 +714,8 @@ describe('disconnectGoogleAccount', () => {
     // disconnect, which itself refuses while another attempt's window is open,
     // finishes the request.
     it('disconnects locally when the attempt was never prepared', async () => {
-      const { useCase, ctx, connection, connectionRepo, outbox, settle } = governed()
+      const { useCase, ctx, connection, connectionRepo, outbox, settle } =
+        await governed()
 
       await expect(
         useCase({ connectionId: connection.id as string }, ctx),
@@ -689,11 +728,13 @@ describe('disconnectGoogleAccount', () => {
       await expect(
         connectionRepo.findById(ctx.organizationId, connection.id),
       ).resolves.toMatchObject({ status: 'disconnected' })
-      expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+      expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(
+        1,
+      )
     })
 
     it('still reports recovery for an attempt that exists but could not settle', async () => {
-      const { useCase, ctx, connection, connectionRepo, outbox } = governed({
+      const { useCase, ctx, connection, connectionRepo, outbox } = await governed({
         settle: async () => ({ ok: false, code: 'concurrent_attempt' }),
       })
 
@@ -704,7 +745,9 @@ describe('disconnectGoogleAccount', () => {
       await expect(
         connectionRepo.findById(ctx.organizationId, connection.id),
       ).resolves.toMatchObject({ status: 'active' })
-      expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
+      expect(await outbox.byTag('integration.google_account.disconnected')).toHaveLength(
+        0,
+      )
     })
   })
 })

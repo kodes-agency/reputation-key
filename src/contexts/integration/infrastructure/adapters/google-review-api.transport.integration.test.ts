@@ -5,7 +5,10 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
+import { getDb } from '#/shared/db'
+import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import { createGoogleConnectionTestStore } from '#/contexts/integration/connections/google-connection.test-fixtures'
+import { createTestTokenEncryption } from '#/contexts/integration/connections/token-encryption.test-fixtures'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
@@ -38,16 +41,24 @@ const AUTHORIZATION = {
   authorizationVector: { generation: 3, propertySourceEpoch: REQUEST.sourceEpoch },
 } satisfies GoogleProviderCallAuthorization
 
-function createAdapter(execute: GoogleAuthorizedProviderExecutor['execute']) {
-  const connectionRepo = createInMemoryGoogleConnectionRepo()
-  connectionRepo.seed([
+setupIntegrationDb({
+  orgA: REQUEST.organizationId,
+  orgB: organizationId('synthetic-organization-b'),
+  tables: ['google_connections'],
+})
+
+async function createAdapter(execute: GoogleAuthorizedProviderExecutor['execute']) {
+  const connectionRepo = createGoogleConnectionTestStore(getDb(), () => NOW, [
+    REQUEST.organizationId,
+  ])
+  await connectionRepo.seed([
     {
       id: REQUEST.connectionId,
       organizationId: REQUEST.organizationId,
       googleSubject: 'synthetic-subject',
       googleAccountEmail: null,
-      encryptedAccessToken: 'encrypted-access',
-      encryptedRefreshToken: 'encrypted-refresh',
+      encryptedAccessToken: createTestTokenEncryption().encrypt('access'),
+      encryptedRefreshToken: createTestTokenEncryption().encrypt('refresh'),
       tokenExpiresAt: NOW,
       scopes: ['https://www.googleapis.com/auth/business.manage'],
       credentialAuthorizedBy: userId('synthetic-user'),
@@ -59,7 +70,7 @@ function createAdapter(execute: GoogleAuthorizedProviderExecutor['execute']) {
       lifecycleVersion: 7,
       accessVersion: 11,
       credentialGeneration: 3,
-      encryptionKeyId: 'synthetic-key',
+      encryptionKeyId: 'v1',
       lastSuccessfulSyncAt: null,
       statusReason: null,
       statusChangedAt: null,
@@ -101,7 +112,6 @@ afterEach(() => vi.useRealTimers())
 
 describe('single-review provider transport', () => {
   it('bounds a non-cooperative executor and scrubs its late response', async () => {
-    vi.useFakeTimers()
     let complete!: (result: GoogleProviderExecutionResult) => void
     const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(
       () =>
@@ -109,7 +119,8 @@ describe('single-review provider transport', () => {
           complete = resolve
         }),
     )
-    const { api, authorize } = createAdapter(execute)
+    const { api, authorize } = await createAdapter(execute)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     let outcome: unknown = 'pending'
     const read = api.getReview(REQUEST).then(
       (result) => {
@@ -119,6 +130,10 @@ describe('single-review provider transport', () => {
         outcome = error
       },
     )
+    // The connection read is real I/O: let it finish before the clock moves.
+    while (execute.mock.calls.length === 0) {
+      await new Promise((resolve) => setImmediate(resolve))
+    }
     await vi.advanceTimersByTimeAsync(29_999)
     expect(outcome).toBe('pending')
     expect(execute).toHaveBeenCalledWith(
@@ -148,7 +163,7 @@ describe('single-review provider transport', () => {
     const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(async () =>
       response(403, body),
     )
-    const { api } = createAdapter(execute)
+    const { api } = await createAdapter(execute)
     await expect(api.getReview(REQUEST)).rejects.toMatchObject({
       code: 'authorization_changed',
       recoverable: false,
@@ -169,7 +184,7 @@ describe('single-review provider transport', () => {
     const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(async () =>
       response(403, body),
     )
-    const { raw } = createAdapter(execute)
+    const { raw } = await createAdapter(execute)
     await expect(raw.getReview(REQUEST)).rejects.toMatchObject({
       _tag: 'GbpApiError',
       code: 'permission_denied',
@@ -184,7 +199,7 @@ describe('single-review provider transport', () => {
     ['invalid JSON', new TextEncoder().encode('{')],
     ['an oversized body', new Uint8Array(5 * 1024 * 1024 + 1).fill(32)],
   ])('keeps %s as a terminal malformed response and scrubs it', async (_label, body) => {
-    const { api } = createAdapter(async () => response(200, body))
+    const { api } = await createAdapter(async () => response(200, body))
     await expect(api.getReview(REQUEST)).rejects.toMatchObject({
       code: 'malformed_response',
       recoverable: false,

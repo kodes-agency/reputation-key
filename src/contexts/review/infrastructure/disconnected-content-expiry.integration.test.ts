@@ -10,7 +10,7 @@ import {
   buildTestGoogleConnection,
 } from '#/shared/testing/fixtures'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
-import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
+import { createTestTokenEncryption } from '#/contexts/integration/connections/token-encryption.test-fixtures'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { disconnectGoogleAccount } from '#/contexts/integration/application/use-cases/disconnect-google-account'
 import { refreshGoogleToken } from '#/contexts/integration/application/use-cases/refresh-google-token'
@@ -59,6 +59,8 @@ beforeEach(() => {
   registerAllEventSchemas()
 })
 
+const sealer = createTestTokenEncryption()
+
 async function setup() {
   let now = STOPPED_AT
   const clock = () => now
@@ -68,6 +70,8 @@ async function setup() {
     id: 'b8000000-0000-4000-8000-000000000003',
     organizationId: ORG,
     googleSubject: 'disconnected-content-expiry-subject',
+    encryptedAccessToken: sealer.encrypt('access-token'),
+    encryptedRefreshToken: sealer.encrypt('refresh-token'),
     tokenExpiresAt: new Date(STOPPED_AT.getTime() - 1),
   })
   await connectionRepo.insert(connection)
@@ -151,7 +155,7 @@ async function setup() {
   )
   const commandStore = createAtomicIntegrationCommandStore(db, clock)
   const oauth = createInMemoryGoogleOAuthPort()
-  const encryption = createInMemoryTokenEncryption()
+  const encryption = createTestTokenEncryption()
   const disconnect = disconnectGoogleAccount({
     connectionRepo,
     commandStore,
