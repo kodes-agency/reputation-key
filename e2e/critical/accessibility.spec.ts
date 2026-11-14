@@ -45,13 +45,10 @@ import { signIn } from '../helpers/auth'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { assertNoAxeViolations } from '../helpers/a11y'
 import { clickWhenReady, waitForHydration } from '../helpers/interaction'
-import {
-  e2eRunId,
-  cleanupE2eData,
-  seedProperty,
-  seedReview,
-  seedReviewInboxItemWithCycle,
-} from '../helpers/fixtures'
+import { e2eRunId } from '../helpers/fixture-db'
+import { cleanupE2eData } from '../helpers/fixture-cleanup'
+import { seedProperty, seedReview } from '../helpers/fixture-seeds'
+import { seedReviewInboxItemWithCycle } from '../helpers/fixture-inbox-seeds'
 
 const PREFIX = 'e2e-a11y-'
 const seed = requireE2eSeedState()

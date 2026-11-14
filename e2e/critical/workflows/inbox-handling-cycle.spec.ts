@@ -25,26 +25,24 @@ import { test, expect } from '../../helpers/error-detection'
 import { expectPhoneLayout } from '../../helpers/phone-layout'
 import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
+import { e2eRunId } from '../../helpers/fixture-db'
+import { cleanupE2eData } from '../../helpers/fixture-cleanup'
 import {
-  e2eRunId,
-  cleanupE2eData,
   cleanupE2ePrivateFeedback,
-  seedReview,
   seedReviewInboxItemWithCycle,
   seedPrivateFeedbackInboxItem,
-  seedMemberUserWithGrant,
   withdrawPrivateFeedbackInboxItem,
   closeInboxItemBySourceAuthority,
   reopenInboxItemBySourceAuthority,
-  getInboxItemById,
   getInboxHandlingCycles,
   getInboxHandlingCycleHead,
   getInboxHandlingTransitions,
   getFeedbackHandlingOutcomes,
-  callServerFn,
-  callServerFnGet,
-  waitFor,
-} from '../../helpers/fixtures'
+} from '../../helpers/fixture-inbox-seeds'
+import { seedReview, seedMemberUserWithGrant } from '../../helpers/fixture-seeds'
+import { getInboxItemById } from '../../helpers/fixture-reads'
+import { callServerFn, callServerFnGet } from '../../helpers/server-fn'
+import { waitFor } from '../../helpers/wait-for'
 
 const PREFIX = 'e2e-hc-'
 const seed = requireE2eSeedState()

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { callServerFnGet } from './fixtures'
+import { callServerFnGet } from './server-fn'
 
 /** Hand back the version read by Review & publish, including when a readiness check blocks it. */
 export async function reviewedPortalInput(page: Page, portalId: string) {

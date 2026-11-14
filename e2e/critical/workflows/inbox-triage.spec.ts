@@ -21,22 +21,22 @@ import { test, expect } from '../../helpers/error-detection'
 import { signIn } from '../../helpers/auth'
 import { dismissToasts } from '../../helpers/interaction'
 import { requireE2eSeedState } from '../../helpers/seed-state'
+import { e2eRunId } from '../../helpers/fixture-db'
+import { cleanupE2eData } from '../../helpers/fixture-cleanup'
+import { seedReview, seedMemberUserWithGrant } from '../../helpers/fixture-seeds'
 import {
-  e2eRunId,
-  cleanupE2eData,
-  seedReview,
   seedReviewInboxItemWithCycle,
-  seedMemberUserWithGrant,
   closeInboxItemBySourceAuthority,
-  getInboxItemById,
   getInboxHandlingCycles,
   getInboxHandlingCycleHead,
+} from '../../helpers/fixture-inbox-seeds'
+import {
+  getInboxItemById,
   getInboxNotes,
   getInboxPriorityHistory,
-  callServerFn,
-  callServerFnExpectError,
-  waitFor,
-} from '../../helpers/fixtures'
+} from '../../helpers/fixture-reads'
+import { callServerFn, callServerFnExpectError } from '../../helpers/server-fn'
+import { waitFor } from '../../helpers/wait-for'
 
 const PREFIX = 'e2e-tri-'
 const seed = requireE2eSeedState()

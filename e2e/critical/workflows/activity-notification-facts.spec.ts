@@ -10,19 +10,22 @@ import { gbpStubControl } from '../../fixtures/gbp-stub'
 import {
   drainFixtureQueue,
   waitForQueuesIdle,
-  e2eRunId,
-  cleanupE2eData,
+  enqueueReviewSync,
+} from '../../helpers/fixture-queues'
+import { e2eRunId, dbQuery } from '../../helpers/fixture-db'
+import { cleanupE2eData } from '../../helpers/fixture-cleanup'
+import {
   seedGoogleConnection,
   seedProperty,
   getUserByEmail,
-  dbQuery,
+} from '../../helpers/fixture-seeds'
+import {
   getInboxItemForReview,
   getInboxItemById,
-  closeInboxItemBySourceAuthority,
   getNotificationsForUser,
-  enqueueReviewSync,
-  waitFor,
-} from '../../helpers/fixtures'
+} from '../../helpers/fixture-reads'
+import { closeInboxItemBySourceAuthority } from '../../helpers/fixture-inbox-seeds'
+import { waitFor } from '../../helpers/wait-for'
 
 const PREFIX = 'e2e-not-'
 const seed = requireE2eSeedState()

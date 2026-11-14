@@ -25,13 +25,11 @@ import { expectPhoneLayout } from '../helpers/phone-layout'
 import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady } from '../helpers/interaction'
 import { requireE2eSeedState } from '../helpers/seed-state'
-import {
-  callServerFnExpectError,
-  dbQuery,
-  getNotificationsForUser,
-  getUserByEmail,
-  waitFor,
-} from '../helpers/fixtures'
+import { callServerFnExpectError } from '../helpers/server-fn'
+import { dbQuery } from '../helpers/fixture-db'
+import { getNotificationsForUser } from '../helpers/fixture-reads'
+import { getUserByEmail } from '../helpers/fixture-seeds'
+import { waitFor } from '../helpers/wait-for'
 
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 const seed = requireE2eSeedState()

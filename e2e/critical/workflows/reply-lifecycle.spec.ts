@@ -27,24 +27,26 @@ import { signIn } from '../../helpers/auth'
 import { clickWhenReady, dismissToasts } from '../../helpers/interaction'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { gbpStubControl, type StubReview } from '../../fixtures/gbp-stub'
+import { dbQuery, e2eRunId } from '../../helpers/fixture-db'
 import {
-  dbQuery,
   drainFixtureQueue,
   enqueueReviewSync,
-  e2eRunId,
-  cleanupE2eData,
+  waitForQueuesIdle,
+} from '../../helpers/fixture-queues'
+import { cleanupE2eData } from '../../helpers/fixture-cleanup'
+import {
   seedGoogleConnection,
   seedProperty,
-  seedAmbiguousReply,
   getUserByEmail,
-  getReplyForReview,
-  getInboxItemForReview,
+} from '../../helpers/fixture-seeds'
+import { seedAmbiguousReply } from '../../helpers/fixture-inbox-seeds'
+import { getReplyForReview, getInboxItemForReview } from '../../helpers/fixture-reads'
+import {
   callServerFn,
   callServerFnGet,
   callServerFnExpectError,
-  waitFor,
-  waitForQueuesIdle,
-} from '../../helpers/fixtures'
+} from '../../helpers/server-fn'
+import { waitFor } from '../../helpers/wait-for'
 
 const PREFIX = 'e2e-rep-'
 const seed = requireE2eSeedState()

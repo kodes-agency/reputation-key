@@ -8,7 +8,7 @@
 // stop being decryptable, and the symptom surfaces as a product error from a
 // server function, far from the edit that caused it.
 //
-// This is not hypothetical. `e2e/helpers/fixtures.ts` reimplemented the token
+// This is not hypothetical. The e2e fixtures module (now `e2e/helpers/fixture-*.ts`) reimplemented the token
 // format under a comment reading "must match token-encryption.adapter.ts". When
 // the adapter gained its version prefix it stopped matching, and the only thing
 // that noticed was the critical e2e gate failing with `Invalid ciphertext
@@ -116,7 +116,7 @@ describe('ciphertext format singleton', () => {
     expect(sources.length).toBeGreaterThan(500)
     const files = sources.map(({ file }) => file)
     for (const owner of FORMAT_OWNERS) expect(files).toContain(owner)
-    expect(files).toContain(join('e2e', 'helpers', 'fixtures.ts'))
+    expect(files).toContain(join('e2e', 'helpers', 'fixture-db.ts'))
   })
 
   it('constructs an AES cipher in exactly the modules that own a format', () => {
