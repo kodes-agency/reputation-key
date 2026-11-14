@@ -48,6 +48,7 @@ import { createAtomicReplyCommandStore } from './reply-command-store'
 import { createGoogleReplyObservationStore } from './google-reply-observation-store'
 import { createPublishReplyHandler } from './jobs/publish-reply.job'
 import { createReplyPreReadForTests } from './testing/reply-pre-read-fixture'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG = organizationId('org-archive-publication-000000000001')
 const PROPERTY = propertyId('2c000000-0000-4000-8000-000000000001')
@@ -87,17 +88,21 @@ async function seed(): Promise<void> {
      VALUES ($1, $2, 'Archive publication property', $3, 'UTC', NOW(), NOW())`,
     [PROPERTY, ORG, `archive-publication-${process.pid}`],
   )
-  await pool.query(
-    `INSERT INTO google_connections
-       (id, organization_id, google_subject, encrypted_access_token,
-        encrypted_refresh_token, token_expires_at, scopes, connected_by,
-        credential_authorized_by, credential_authorized_at, visibility, status,
-        credential_use_state, created_at, updated_at, status_changed_at)
-     VALUES ($1, $2, $3, 'sealed-access', 'sealed-refresh', $4,
-             ARRAY['business.manage'], $5, $5, $4,
-             'organization', 'active', 'active', $4, $4, $4)`,
-    [CONNECTION, ORG, `archive-publication-subject-${process.pid}`, NOW, AUTHOR],
-  )
+  await seedGoogleConnection(pool, {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: `archive-publication-subject-${process.pid}`,
+    accessToken: 'sealed-access',
+    refreshToken: 'sealed-refresh',
+    tokenExpiresAt: NOW,
+    scopes: ['business.manage'],
+    connectedBy: AUTHOR,
+    credentialAuthorizedBy: AUTHOR,
+    credentialAuthorizedAt: NOW,
+    createdAt: NOW,
+    updatedAt: NOW,
+    statusChangedAt: NOW,
+  })
 }
 
 const review = (): Review => ({

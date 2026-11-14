@@ -18,6 +18,8 @@ import {
   CURRENT_MERCHANT_AI_CAPABILITIES,
   type MerchantAiConsentCeremonyInput,
 } from './merchant-ai-authorization.server'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 // Fixtures are distinct from the single-Property store suite: integration files
 // share one PostgreSQL database.
@@ -163,18 +165,14 @@ beforeAll(async () => {
       ('member-merchant-ai-ceremony-owner', ${OWNER}, ${ORG}, 'owner', now()),
       ('member-merchant-ai-ceremony-manager', ${MANAGER}, ${ORG}, 'admin', now())
   `)
-  await db.execute(sql`
-    INSERT INTO google_connections (
-      id, organization_id, google_subject, encrypted_access_token,
-      encrypted_refresh_token, token_expires_at, scopes, connected_by,
-      visibility, status
-    ) VALUES (
-      ${CONNECTION}::uuid, ${ORG}, 'merchant-ai-ceremony-subject',
-      'encrypted-access', 'encrypted-refresh', now() + interval '1 hour',
-      ARRAY['https://www.googleapis.com/auth/business.manage'], ${OWNER},
-      'organization', 'active'
-    )
-  `)
+  await seedGoogleConnection(drizzleSeedRunner(db), {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: 'merchant-ai-ceremony-subject',
+    accessToken: 'encrypted-access',
+    refreshToken: 'encrypted-refresh',
+    connectedBy: OWNER,
+  })
 })
 
 beforeEach(async () => {

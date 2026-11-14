@@ -13,6 +13,8 @@ import {
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 const db = getDb()
 const now = new Date('2026-08-10T10:00:00.000Z')
@@ -296,31 +298,19 @@ describe('Google Content authority repository', () => {
         (${randomUUID()}, ${manager}, ${organization}, 'admin', ${now}),
         (${randomUUID()}, ${staff}, ${organization}, 'member', ${now})
     `)
-    await db.execute(sql`
-      INSERT INTO google_connections (
-        id, organization_id, google_subject, encrypted_access_token,
-        encrypted_refresh_token, token_expires_at, scopes, connected_by,
-        visibility, status, credential_use_state, lifecycle_version,
-        access_version, credential_generation, encryption_key_id
-      )
-      VALUES (
-        ${connection}::uuid,
-        ${organization},
-        ${`subject-${connection}`},
-        'encrypted-access',
-        'encrypted-refresh',
-        ${new Date('2026-08-12T12:00:00.000Z')},
-        ARRAY['https://www.googleapis.com/auth/business.manage']::text[],
-        ${`former-connector-${connection}`},
-        'organization',
-        'active',
-        'active',
-        3,
-        4,
-        5,
-        'v1'
-      )
-    `)
+    await seedGoogleConnection(drizzleSeedRunner(db), {
+      id: connection,
+      organizationId: organization,
+      googleSubject: `subject-${connection}`,
+      accessToken: 'encrypted-access',
+      refreshToken: 'encrypted-refresh',
+      tokenExpiresAt: new Date('2026-08-12T12:00:00.000Z'),
+      connectedBy: `former-connector-${connection}`,
+      lifecycleVersion: 3,
+      accessVersion: 4,
+      credentialGeneration: 5,
+      encryptionKeyId: 'v1',
+    })
     await db.execute(sql`
       INSERT INTO properties (
         id,

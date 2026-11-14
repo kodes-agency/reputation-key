@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { Pool } from 'pg'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 import { createDatabase, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
@@ -196,12 +198,12 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
         INSERT INTO organization (id, name, slug, "createdAt")
         VALUES (${organizationId}, 'Google import recovery', ${organizationId}, ${NOW})
       `)
-      await db.insert(googleConnections).values({
+      await seedGoogleConnection(drizzleSeedRunner(db), {
         id: organizationId === ORG_A ? CONNECTION_A : CONNECTION_B,
         organizationId,
         googleSubject: organizationId,
-        encryptedAccessToken: 'test-access',
-        encryptedRefreshToken: 'test-refresh',
+        accessToken: 'test-access',
+        refreshToken: 'test-refresh',
         tokenExpiresAt: new Date(NOW.getTime() + 86_400_000),
         scopes: ['https://www.googleapis.com/auth/business.manage'],
         connectedBy: USER_ID,

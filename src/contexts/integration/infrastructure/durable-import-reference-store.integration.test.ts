@@ -13,6 +13,7 @@ import {
   invalidationScopeFor,
 } from './durable-import-reference-keys'
 import { createDurableGoogleImportReferenceStore } from './durable-import-reference-store'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORGANIZATION_ID = 'org-durable-google-import-discovery'
 const USER_ID = 'user-durable-google-import-discovery'
@@ -108,20 +109,20 @@ describe('durable Google import discovery checkpoint', () => {
     await lease.pool.query('DELETE FROM google_connections WHERE organization_id = $1', [
       ORGANIZATION_ID,
     ])
-    await lease.pool.query(
-      `INSERT INTO google_connections (
-         id, organization_id, google_subject, encrypted_access_token,
-         encrypted_refresh_token, token_expires_at, scopes, connected_by,
-         credential_authorized_by, credential_authorized_at, visibility,
-         status, credential_use_state, lifecycle_version, access_version,
-         credential_generation
-       ) VALUES (
-         $1, $2, $3, 'access', 'refresh', now() + interval '1 hour',
-         ARRAY['scope']::text[], $4, $4, now(), 'organization', 'active',
-         'active', 3, 5, 7
-       )`,
-      [CONNECTION_ID, ORGANIZATION_ID, 'durable-subject', USER_ID],
-    )
+    await seedGoogleConnection(lease.pool, {
+      id: CONNECTION_ID,
+      organizationId: ORGANIZATION_ID,
+      googleSubject: 'durable-subject',
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      scopes: ['scope'],
+      connectedBy: USER_ID,
+      credentialAuthorizedBy: USER_ID,
+      credentialAuthorizedAt: new Date(),
+      lifecycleVersion: 3,
+      accessVersion: 5,
+      credentialGeneration: 7,
+    })
   })
 
   beforeEach(async () => {

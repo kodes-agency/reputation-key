@@ -50,6 +50,8 @@ import { createAtomicReviewCommandStore } from './review-command-store'
 import { createReviewHeadCheckRepository } from './repositories/review-head-check.repository'
 import { createReviewProviderSnapshotRepository } from './repositories/review-provider-snapshot.repository'
 import { createReviewRepository } from './repositories/review.repository'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 const ORG = organizationId('review-count-drop-org')
 const PROPERTY = propertyId('77000000-0000-4000-8000-00000000a001')
@@ -406,18 +408,14 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await clear()
-  await db.execute(sql`
-    INSERT INTO google_connections (
-      id, organization_id, google_subject, encrypted_access_token,
-      encrypted_refresh_token, token_expires_at, scopes, connected_by,
-      visibility, status
-    ) VALUES (
-      ${CONNECTION}, ${ORG}, 'count-drop-subject', 'sealed-access',
-      'sealed-refresh', now() + interval '1 hour',
-      ARRAY['https://www.googleapis.com/auth/business.manage'], 'count-drop-user',
-      'organization', 'active'
-    )
-  `)
+  await seedGoogleConnection(drizzleSeedRunner(db), {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: 'count-drop-subject',
+    accessToken: 'sealed-access',
+    refreshToken: 'sealed-refresh',
+    connectedBy: 'count-drop-user',
+  })
   await db.execute(sql`
     INSERT INTO properties (id, organization_id, name, slug, timezone, source_epoch)
     VALUES (${PROPERTY}, ${ORG}, 'Count drop property', 'count-drop', 'UTC', 0)

@@ -35,6 +35,7 @@ import {
   createPropertyRatingGoalRepository,
   createRatingGoalPropertyFactsReader,
 } from './repositories/property-rating-goal.repository'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG = 'org-rating-goal-e2e-000000001'
 const USER = 'user-rating-goal-e2e-000000001'
@@ -57,19 +58,15 @@ async function seedBoundProperty(): Promise<void> {
      VALUES ($1, 'Rating goal manager', 'rating-goal-e2e@example.com', true, now(), now())`,
     [USER],
   )
-  await held.client.query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       visibility, status, credential_use_state, lifecycle_version,
-       access_version, credential_generation
-     ) VALUES (
-       $1, $2, 'rating-goal-e2e-subject', 'encrypted-access', 'encrypted-refresh',
-       now() + interval '1 hour', ARRAY['test'], $3, 'organization', 'active', 'active',
-       1, 1, 1
-     )`,
-    [CONNECTION, ORG, USER],
-  )
+  await seedGoogleConnection(held.client, {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: 'rating-goal-e2e-subject',
+    accessToken: 'encrypted-access',
+    refreshToken: 'encrypted-refresh',
+    scopes: ['test'],
+    connectedBy: USER,
+  })
   await held.client.query(
     `INSERT INTO properties (
        id, organization_id, name, slug, timezone, google_connection_id,

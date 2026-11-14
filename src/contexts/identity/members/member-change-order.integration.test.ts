@@ -41,6 +41,7 @@ import { registerMemberDepartureConsumers } from '#/contexts/integration/infrast
 import { createActiveMemberAuthResolver } from '#/contexts/integration/infrastructure/active-member-auth.adapter'
 import { createGoogleConnectorDepartureStore } from '#/contexts/integration/infrastructure/google-connector-departure.store'
 import { prepareGoogleConnectorDeparture } from '#/contexts/integration/application/use-cases/prepare-google-connector-departure'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const PREFIX = 'mco-integration-'
 const NOW = new Date('2026-11-11T12:00:00.000Z')
@@ -134,17 +135,14 @@ async function insertSession(fixture: Fixture, id: string): Promise<void> {
 
 async function insertConnection(fixture: Fixture, connectorUserId: string) {
   const id = randomUUID()
-  await lease.pool.query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by
-     ) VALUES (
-       $1::uuid, $2, $3, 'encrypted-access', 'encrypted-refresh',
-       NOW() + interval '1 hour',
-       ARRAY['https://www.googleapis.com/auth/business.manage']::text[], $4
-     )`,
-    [id, fixture.organizationId, `subject-${id}`, connectorUserId],
-  )
+  await seedGoogleConnection(lease.pool, {
+    id,
+    organizationId: fixture.organizationId,
+    googleSubject: `subject-${id}`,
+    accessToken: 'encrypted-access',
+    refreshToken: 'encrypted-refresh',
+    connectedBy: connectorUserId,
+  })
   return id
 }
 

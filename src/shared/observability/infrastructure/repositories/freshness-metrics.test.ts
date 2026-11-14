@@ -23,6 +23,8 @@ import { sql, type SQL } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { createHealthChecker } from '#/shared/observability/health-metrics'
 import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 // Provider resource literals may only come from the generated fixture catalogue.
 const { accountId: GBP_ACCOUNT_ID, locationId: GBP_LOCATION_ID } =
@@ -71,19 +73,15 @@ async function seedSyncConnection(
     VALUES (${MARKER_ORG}, 'Freshness Org', 't-obs-freshness', NOW())
     ON CONFLICT (id) DO NOTHING
   `)
-  await db.execute(sql`
-    INSERT INTO google_connections
-      (id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       credential_authorized_at, visibility, status, credential_use_state,
-       created_at, updated_at)
-    VALUES (${id}, ${MARKER_ORG}, ${`subject-${id}`}, 'enc-a', 'enc-r',
-            NOW() + INTERVAL '1 day',
-            ARRAY['https://www.googleapis.com/auth/business.manage'],
-            'seed-user', NOW() - (${authorizedMinutesAgo} * INTERVAL '1 minute'),
-            'organization', ${status}, 'active', NOW(), NOW())
-    ON CONFLICT (id) DO NOTHING
-  `)
+  await seedGoogleConnection(drizzleSeedRunner(db), {
+    id: id,
+    organizationId: MARKER_ORG,
+    googleSubject: `subject-${id}`,
+    tokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    credentialAuthorizedAt: new Date(Date.now() - authorizedMinutesAgo * 60_000),
+    status: status,
+    onExistingId: 'keep',
+  })
 }
 
 type SyncProperty = Readonly<{

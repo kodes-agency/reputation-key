@@ -11,6 +11,7 @@ import {
 } from '../../../scripts/ci/populated-upgrade-fixture'
 import manifest from '../../../test-fixtures/populated-upgrade/manifest.json'
 import { migrateJournal } from './migrate-journal.server'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const CONTRACTION = '0124_drop_old_google_import_tables'
 const TABLES = [
@@ -73,19 +74,22 @@ it('refuses to drop the old import tables while a row is active, then drops them
     const requestId = randomUUID()
     const itemId = randomUUID()
     const now = new Date()
-    await client.query(
-      `INSERT INTO google_connections (
-         id, organization_id, google_subject, encrypted_access_token,
-         encrypted_refresh_token, token_expires_at, scopes, connected_by,
-         credential_authorized_by, credential_authorized_at, visibility, status,
-         last_successful_sync_at, status_reason, status_changed_at, created_at, updated_at
-       ) VALUES (
-         $1, $2, 'contract-subject', 'access', 'refresh', $3,
-         ARRAY['https://www.googleapis.com/auth/business.manage'], 'contract-test',
-         'contract-test', $4, 'organization', 'active', $4, 'connected', $4, $4, $4
-       )`,
-      [connectionId, property.organization_id, new Date(now.getTime() + 3_600_000), now],
-    )
+    await seedGoogleConnection(client, {
+      id: connectionId,
+      organizationId: property.organization_id,
+      googleSubject: 'contract-subject',
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      tokenExpiresAt: new Date(now.getTime() + 3_600_000),
+      connectedBy: 'contract-test',
+      credentialAuthorizedBy: 'contract-test',
+      credentialAuthorizedAt: now,
+      lastSuccessfulSyncAt: now,
+      statusReason: 'connected',
+      statusChangedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
     await client.query(
       `INSERT INTO gbp_import_sagas (
          id, organization_id, request_id, initiated_by, total_count, batch_count,

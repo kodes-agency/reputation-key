@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import type { Tx } from '#/shared/outbox/commit'
 import { googleConnections } from './google-connection.schema'
 import { googleImportItems, googleImports } from './google-import.schema'
@@ -38,12 +40,12 @@ async function withImport(
         createdAt: NOW,
         updatedAt: NOW,
       }
-      await tx.insert(googleConnections).values({
+      await seedGoogleConnection(drizzleSeedRunner(tx), {
         id: connectionId,
         organizationId,
         googleSubject: randomUUID(),
-        encryptedAccessToken: 'synthetic-access',
-        encryptedRefreshToken: 'synthetic-refresh',
+        accessToken: 'synthetic-access',
+        refreshToken: 'synthetic-refresh',
         tokenExpiresAt: DEADLINE,
         scopes: ['https://www.googleapis.com/auth/business.manage'],
         connectedBy: root.initiatedBy,
@@ -133,12 +135,12 @@ describe('single-root Google import checkpoints (PostgreSQL)', () => {
   it('refuses a connection from another organization', () =>
     withImport(async ({ tx, root, item }) => {
       const connectionId = randomUUID()
-      await tx.insert(googleConnections).values({
+      await seedGoogleConnection(drizzleSeedRunner(tx), {
         id: connectionId,
         organizationId: randomUUID(),
         googleSubject: randomUUID(),
-        encryptedAccessToken: 'synthetic-access',
-        encryptedRefreshToken: 'synthetic-refresh',
+        accessToken: 'synthetic-access',
+        refreshToken: 'synthetic-refresh',
         tokenExpiresAt: DEADLINE,
         scopes: ['https://www.googleapis.com/auth/business.manage'],
         connectedBy: root.initiatedBy,

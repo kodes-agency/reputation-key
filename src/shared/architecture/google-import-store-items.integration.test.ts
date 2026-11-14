@@ -5,6 +5,8 @@ import { organizationId, propertyId, googleConnectionId } from '#/shared/domain/
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 import { createDatabase, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -235,12 +237,12 @@ describe('Google import item behaviour on the import store (real PostgreSQL)', (
       INSERT INTO organization (id, name, slug, "createdAt")
       VALUES (${ORG_ID}, 'Google import items test', ${ORG_ID}, ${NOW})
     `)
-    await db.insert(googleConnections).values({
+    await seedGoogleConnection(drizzleSeedRunner(db), {
       id: CONNECTION_ID,
       organizationId: ORG_ID,
       googleSubject: 'google-import-items-subject',
-      encryptedAccessToken: 'encrypted-access',
-      encryptedRefreshToken: 'encrypted-refresh',
+      accessToken: 'encrypted-access',
+      refreshToken: 'encrypted-refresh',
       tokenExpiresAt: new Date(NOW.getTime() + DAY_MS),
       scopes: ['https://www.googleapis.com/auth/business.manage'],
       connectedBy: USER_ID,

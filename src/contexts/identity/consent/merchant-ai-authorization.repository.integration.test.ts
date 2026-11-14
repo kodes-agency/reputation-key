@@ -40,6 +40,8 @@ import {
   getAiRuntimeCapability,
   isExecutionCompatibleWithConsent,
 } from '#/shared/ai-runtime-capability-contract'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 const db = getDb()
 let cleanupPool: Pool
@@ -308,18 +310,14 @@ beforeAll(async () => {
     INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
     VALUES ('member-merchant-ai-store', ${USER}, ${ORG}, 'owner', now())
   `)
-  await db.execute(sql`
-    INSERT INTO google_connections (
-      id, organization_id, google_subject, encrypted_access_token,
-      encrypted_refresh_token, token_expires_at, scopes, connected_by,
-      visibility, status
-    ) VALUES (
-      ${CONNECTION}::uuid, ${ORG}, 'merchant-ai-store-subject',
-      'encrypted-access', 'encrypted-refresh', now() + interval '1 hour',
-      ARRAY['https://www.googleapis.com/auth/business.manage'], ${USER},
-      'organization', 'active'
-    )
-  `)
+  await seedGoogleConnection(drizzleSeedRunner(db), {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: 'merchant-ai-store-subject',
+    accessToken: 'encrypted-access',
+    refreshToken: 'encrypted-refresh',
+    connectedBy: USER,
+  })
   await insertProperty()
 })
 
@@ -1680,18 +1678,15 @@ describe('Merchant AI authorization store at source epoch 0', () => {
     // `properties_google_binding_tuple_valid` requires a connection plus account
     // and location ids whenever the binding is `active`, and `enable` refuses a
     // property whose Google source is not active — so the connection lands first.
-    await db.execute(sql`
-      INSERT INTO google_connections (
-        id, organization_id, google_subject, encrypted_access_token,
-        encrypted_refresh_token, token_expires_at, scopes, connected_by, status,
-        credential_use_state
-      ) VALUES (
-        ${EPOCH_ZERO_CONNECTION_ID}::uuid, ${EPOCH_ZERO_ORGANIZATION_ID}, 'google-subject-epoch-zero',
-        'encrypted-access', 'encrypted-refresh', ${EPOCH_ZERO_NOW},
-        ARRAY['https://www.googleapis.com/auth/business.manage']::text[],
-        ${EPOCH_ZERO_ACTOR_USER_ID}, 'active', 'active'
-      )
-    `)
+    await seedGoogleConnection(drizzleSeedRunner(db), {
+      id: EPOCH_ZERO_CONNECTION_ID,
+      organizationId: EPOCH_ZERO_ORGANIZATION_ID,
+      googleSubject: 'google-subject-epoch-zero',
+      accessToken: 'encrypted-access',
+      refreshToken: 'encrypted-refresh',
+      tokenExpiresAt: EPOCH_ZERO_NOW,
+      connectedBy: EPOCH_ZERO_ACTOR_USER_ID,
+    })
     await db.insert(properties).values({
       id: EPOCH_ZERO_PROPERTY_ID,
       organizationId: EPOCH_ZERO_ORGANIZATION_ID,

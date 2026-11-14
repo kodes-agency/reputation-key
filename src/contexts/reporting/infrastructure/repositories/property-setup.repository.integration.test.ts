@@ -11,6 +11,7 @@ import {
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { createPropertySetupRepository } from './property-setup.repository'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG = organizationId(`org-property-setup-${randomUUID()}`)
 const OTHER_ORG = organizationId(`org-property-setup-other-${randomUUID()}`)
@@ -282,16 +283,14 @@ beforeAll(async () => {
      VALUES ($1, $2, $3, 'owner', $4)`,
     [`member-${OWNER}`, OWNER, ORG, AT],
   )
-  await pool.query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       visibility, status
-     ) VALUES ($1, $2, $3, 'sealed-access', 'sealed-refresh', now() + interval '1 hour',
-               ARRAY['https://www.googleapis.com/auth/business.manage'], $4,
-               'organization', 'active')`,
-    [CONNECTION, ORG, `setup-subject-${randomUUID()}`, OWNER],
-  )
+  await seedGoogleConnection(pool, {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: `setup-subject-${randomUUID()}`,
+    accessToken: 'sealed-access',
+    refreshToken: 'sealed-refresh',
+    connectedBy: OWNER,
+  })
 
   // Every step holds.
   await insertProperty({

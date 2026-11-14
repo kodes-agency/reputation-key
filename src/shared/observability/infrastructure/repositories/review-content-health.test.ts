@@ -30,6 +30,7 @@ import {
   insertLegacyTombstone,
   insertLiveReview,
 } from '#/shared/testing/review-tombstone-fixtures'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 // Provider resource literals may only come from the generated fixture catalogue.
 const { accountId: GBP_ACCOUNT_ID, locationId: GBP_LOCATION_ID } =
@@ -61,17 +62,12 @@ beforeEach(async () => {
      VALUES ($1, 'Review content health', $1, NOW())`,
     [ORG],
   )
-  await pool.query(
-    `INSERT INTO google_connections
-       (id, organization_id, google_subject, encrypted_access_token,
-        encrypted_refresh_token, token_expires_at, scopes, connected_by,
-        visibility, status, credential_use_state, created_at, updated_at)
-     VALUES ($1, $2, 'subject-review-content-health', 'enc-a', 'enc-r',
-             NOW() + INTERVAL '1 day',
-             ARRAY['https://www.googleapis.com/auth/business.manage'],
-             'seed-user', 'organization', 'active', 'active', NOW(), NOW())`,
-    [CONNECTION, ORG],
-  )
+  await seedGoogleConnection(pool, {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: 'subject-review-content-health',
+    tokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  })
   // A Property the refresh sweep serves: live, bound to Google, usable connection.
   await pool.query(
     `INSERT INTO properties

@@ -1,6 +1,8 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from 'vitest'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 import { getDb } from '#/shared/db'
 import {
   googleConnections,
@@ -292,12 +294,12 @@ beforeEach(async () => {
     OTHER_CONNECTION,
   ].entries()) {
     const tenant = index === 2 ? OTHER_ORG : ORG
-    await db.insert(googleConnections).values({
+    await seedGoogleConnection(drizzleSeedRunner(db), {
       id: connectionId,
       organizationId: tenant,
       googleSubject: `disconnect-category-${index}`,
-      encryptedAccessToken: 'synthetic-access',
-      encryptedRefreshToken: 'synthetic-refresh',
+      accessToken: 'synthetic-access',
+      refreshToken: 'synthetic-refresh',
       tokenExpiresAt: new Date(NOW.getTime() + 60_000),
       scopes: ['synthetic-scope'],
       connectedBy: ACTOR,
