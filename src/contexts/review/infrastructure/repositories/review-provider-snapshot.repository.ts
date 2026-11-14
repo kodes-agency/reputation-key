@@ -47,6 +47,7 @@ import {
   followCompletedListing,
   holdFoundUnlisted,
   listingAgreement,
+  mappingObservedAfterRunStart,
   recordMissingFromListing,
   refuseRemovalWithoutExactListing,
 } from './review-provider-snapshot-listing'
@@ -665,16 +666,17 @@ function pageCommitUpdate(
 
 /** A mapping of the observed review, written by a sighting after the run
  * began, at the observed revision or a newer one. */
-function sameReviewMovedOn(
+async function sameReviewMovedOn(
+  tx: Tx,
   run: RunRow,
   observation: ReviewProviderPersistedObservation,
   mapping: SubjectRow,
-): boolean {
+): Promise<boolean> {
   return (
     mapping.reviewId === observation.reviewId &&
     verifiedCandidateOf(observation, mapping) != null &&
     mapping.lastSourceRevision >= observation.sourceRevision &&
-    mapping.lastObservedAt > run.startedAt
+    (await mappingObservedAfterRunStart(tx, run, mapping.reviewId))
   )
 }
 
@@ -718,7 +720,7 @@ async function recordObservationMapping(
     throw new SnapshotConflict(
       written.length === 1 &&
         mapped != null &&
-        sameReviewMovedOn(run, observation, mapped)
+        (await sameReviewMovedOn(tx, run, observation, mapped))
         ? 'review_edited'
         : 'resource_collision',
     )
@@ -735,7 +737,9 @@ async function recordObservationMapping(
     // began moved the mapping on: the review was edited on Google while the
     // run listed it, which a fresh run reads as it is now.
     throw new SnapshotConflict(
-      match.lastObservedAt > run.startedAt ? 'review_edited' : 'review_mutation',
+      (await mappingObservedAfterRunStart(tx, run, match.reviewId))
+        ? 'review_edited'
+        : 'review_mutation',
     )
   }
 
