@@ -21,6 +21,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { PropertyGoogleBindingStore } from './application/ports/property-google-binding.port'
 import { createPropertyGoogleBindingStore } from './profile/google-binding-store.server'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 // Pass-through, so one test can hand the build a stub binding store.
 vi.mock('./profile/google-binding-store.server', async (importOriginal) => {
@@ -114,16 +115,16 @@ const build = (overrides: Parameters<typeof buildTestProperty>[0] = {}) =>
 // active or disconnected binding needs its account and location with it.
 const seed = async (...properties: ReadonlyArray<ReturnType<typeof build>>) => {
   for (const connection of [CONNECTION, READ_CONNECTION]) {
-    await getPool().query(
-      `INSERT INTO google_connections (
-         id, organization_id, google_subject,
-         encrypted_access_token, encrypted_refresh_token, token_expires_at,
-         scopes, connected_by, created_at, updated_at
-       ) VALUES ($1, $2, $3, 'encrypted', 'encrypted', NOW(),
-                 ARRAY['https://www.googleapis.com/auth/business.manage'], 'user-1', NOW(), NOW())
-       ON CONFLICT (id) DO NOTHING`,
-      [connection, ORG_A, `build-subject-${connection}`],
-    )
+    await seedGoogleConnection(getPool(), {
+      id: connection,
+      organizationId: ORG_A,
+      googleSubject: `build-subject-${connection}`,
+      accessToken: 'encrypted',
+      refreshToken: 'encrypted',
+      tokenExpiresAt: new Date(),
+      connectedBy: 'user-1',
+      onExistingId: 'keep',
+    })
   }
   for (const property of properties) await seedTestProperty(db, property)
 }

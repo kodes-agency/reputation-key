@@ -25,6 +25,7 @@ import { runRightsExecutors } from '#/shared/ops/rights/rights-executor'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createAiRightsExecutor } from './ai-rights.adapter'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const NOW = new Date('2026-09-01T00:00:00.000Z')
 const FUTURE = new Date('2027-08-01T00:00:00.000Z')
@@ -96,16 +97,16 @@ describe.sequential('AI Organization export through the rights command', () => {
        VALUES ($1, $2, $3, 'owner', now()) ON CONFLICT DO NOTHING`,
       [`ai-export-member-${organizationId}`, userId, organizationId],
     )
-    await query(
-      `INSERT INTO google_connections (
-         id, organization_id, google_subject, encrypted_access_token,
-         encrypted_refresh_token, token_expires_at, scopes, connected_by,
-         visibility, status
-       ) VALUES ($1, $2, $3, 'encrypted-access', 'encrypted-refresh',
-                 now() + interval '1 hour',
-                 ARRAY['https://www.googleapis.com/auth/business.manage'], $4,
-                 'organization', 'active')`,
-      [connectionId, organizationId, `subject-${connectionId}`, userId],
+    await seedGoogleConnection(
+      { query },
+      {
+        id: connectionId,
+        organizationId,
+        googleSubject: `subject-${connectionId}`,
+        accessToken: 'encrypted-access',
+        refreshToken: 'encrypted-refresh',
+        connectedBy: userId,
+      },
     )
     await query(
       `UPDATE properties SET lifecycle_state = 'active', google_connection_id = $3,

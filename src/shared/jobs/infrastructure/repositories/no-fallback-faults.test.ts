@@ -97,6 +97,8 @@ import {
   reviewReplyPublicationRequested,
 } from '#/contexts/review/domain/events'
 import { AMBIGUOUS_RECONCILE_DELAY_MS } from '#/contexts/review/domain/reply-publication-workflow'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 // Queue names are unique to this suite — the shared Redis hosts other suites'
 // queues, and BullMQ cross-talk is ruled out by name.
@@ -453,16 +455,14 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
       VALUES (${PROP_C}, ${ORG_C}, 'BQC46 Property C', 'bqc46-prop-c', 'UTC', NOW(), NOW())
     `)
-    await db.execute(sql`
-      INSERT INTO google_connections
-        (id, organization_id, google_subject,
-         encrypted_access_token, encrypted_refresh_token, token_expires_at,
-         scopes, connected_by)
-      VALUES
-        (${CONN_C}, ${ORG_C}, 'bqc46-google-subject-c',
-         'enc-access', 'enc-refresh', NOW() + INTERVAL '1 hour',
-         ARRAY['https://www.googleapis.com/auth/business.manage'], ${USER_C})
-    `)
+    await seedGoogleConnection(drizzleSeedRunner(db), {
+      id: CONN_C,
+      organizationId: ORG_C,
+      googleSubject: 'bqc46-google-subject-c',
+      accessToken: 'enc-access',
+      refreshToken: 'enc-refresh',
+      connectedBy: USER_C,
+    })
   })
 
   afterAll(async () => {

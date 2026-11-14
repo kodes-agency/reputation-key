@@ -1,6 +1,8 @@
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 import { getDb, type Database } from '#/shared/db'
 import {
   googleConnections,
@@ -180,12 +182,12 @@ beforeAll(() => {
 })
 beforeEach(async () => {
   await cleanup()
-  await db.insert(googleConnections).values({
+  await seedGoogleConnection(drizzleSeedRunner(db), {
     id: CONNECTION,
     organizationId: ORG,
     googleSubject: 'category-publication-subject',
-    encryptedAccessToken: 'synthetic',
-    encryptedRefreshToken: 'synthetic',
+    accessToken: 'synthetic',
+    refreshToken: 'synthetic',
     tokenExpiresAt: new Date(NOW.getTime() + 60_000),
     connectedBy: ACTOR,
     scopes: ['https://www.googleapis.com/auth/business.manage'],

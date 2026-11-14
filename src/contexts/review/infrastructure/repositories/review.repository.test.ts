@@ -21,6 +21,7 @@ import type { Review } from '../../domain/types'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG_A = organizationId('org-rev-test-aaaa-1111111111111111')
 const ORG_B = organizationId('org-rev-test-bbbb-2222222222222222')
@@ -102,17 +103,14 @@ async function seedSweepProperty(options: SweepPropertyOptions) {
     [SWEEP_CONNECTION, options.connectionStatus ?? 'active'],
     [SWEEP_OTHER_CONNECTION, 'active'],
   ] as const) {
-    await pool.query(
-      `INSERT INTO google_connections
-         (id, organization_id, google_subject, encrypted_access_token,
-          encrypted_refresh_token, token_expires_at, scopes, connected_by,
-          visibility, status, credential_use_state, created_at, updated_at)
-       VALUES ($1, $2, $3, 'enc-a', 'enc-r', NOW() + INTERVAL '1 day',
-               ARRAY['https://www.googleapis.com/auth/business.manage'],
-               'seed-user', 'organization', $4, 'active', NOW(), NOW())
-       ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status`,
-      [id, ORG_A, `subject-${id}`, status],
-    )
+    await seedGoogleConnection(pool, {
+      id: id,
+      organizationId: ORG_A,
+      googleSubject: `subject-${id}`,
+      tokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      status: status,
+      onExistingId: 'refresh-status',
+    })
   }
   const bindingState = options.bindingState ?? 'active'
   await pool.query(

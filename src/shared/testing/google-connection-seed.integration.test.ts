@@ -90,4 +90,61 @@ describe('seedGoogleConnection', () => {
       seedGoogleConnection(getPool(), { organizationId: ORG_A, googleSubject }),
     ).rejects.toThrow(/google_connections_google_subject/)
   })
+
+  it('writes the optional columns it is given and keeps an existing id on request', async () => {
+    const id = randomUUID()
+    const authorizedAt = new Date('2026-01-02T03:04:05.000Z')
+    const options = {
+      id,
+      organizationId: ORG_A,
+      googleSubject: null,
+      status: 'disconnected',
+      credentialUseState: 'none',
+      scopes: [],
+      credentialAuthorizedBy: 'authorizer',
+      credentialAuthorizedAt: authorizedAt,
+      lifecycleVersion: 3,
+      accessVersion: 4,
+      credentialGeneration: 5,
+      onExistingId: 'keep',
+    } as const
+    await seedGoogleConnection(getPool(), options)
+    await seedGoogleConnection(getPool(), { ...options, lifecycleVersion: 9 })
+
+    const stored = (
+      await getPool().query(
+        `SELECT google_subject, status, scopes, credential_authorized_by, credential_authorized_at,
+                lifecycle_version, access_version, credential_generation
+           FROM google_connections WHERE id = $1`,
+        [id],
+      )
+    ).rows[0]
+    expect(stored).toEqual({
+      google_subject: null,
+      status: 'disconnected',
+      scopes: [],
+      credential_authorized_by: 'authorizer',
+      credential_authorized_at: authorizedAt,
+      lifecycle_version: 3,
+      access_version: 4,
+      credential_generation: 5,
+    })
+  })
+
+  it('refreshes only the status of an existing id when asked', async () => {
+    const id = randomUUID()
+    await seedGoogleConnection(getPool(), { id, organizationId: ORG_A })
+    await seedGoogleConnection(getPool(), {
+      id,
+      organizationId: ORG_A,
+      status: 'reauth_required',
+      accessToken: 'ignored',
+      onExistingId: 'refresh-status',
+    })
+
+    expect(await row(id)).toMatchObject({
+      status: 'reauth_required',
+      encrypted_access_token: 'enc-a',
+    })
+  })
 })

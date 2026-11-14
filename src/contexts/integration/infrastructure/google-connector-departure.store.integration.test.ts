@@ -5,6 +5,7 @@ import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createGoogleConnectorDepartureStore } from './google-connector-departure.store'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORGANIZATION_ID = organizationId('org-google-connector-departure-store')
 const CONNECTOR_USER_ID = userId('user-google-connector-departure-store')
@@ -26,35 +27,51 @@ describe('PostgreSQL Google connector departure store', () => {
     await lease.pool.query('DELETE FROM google_connections WHERE organization_id = $1', [
       ORGANIZATION_ID,
     ])
-    await lease.pool.query(
-      `INSERT INTO google_connections (
-         id, organization_id, google_subject, encrypted_access_token,
-         encrypted_refresh_token, token_expires_at, scopes, connected_by,
-         credential_authorized_by, credential_authorized_at, visibility,
-         status, credential_use_state, lifecycle_version, access_version,
-         credential_generation
-       ) VALUES
-         ($1, $4, $7, 'access-a', 'refresh-a', now() + interval '1 hour',
-          ARRAY['scope']::text[], $5, $5, now(), 'organization', 'active',
-          'active', 7, 11, 3),
-         ($2, $4, $8, 'access-b', 'refresh-b', now() + interval '1 hour',
-          ARRAY['scope']::text[], $5, $5, now(), 'organization', 'degraded',
-          'active', 13, 17, 5),
-         ($3, $4, $9, 'access-c', 'refresh-c', now() + interval '1 hour',
-          ARRAY['scope']::text[], $5, $6, now(), 'organization', 'active',
-          'active', 19, 23, 7)`,
-      [
-        CONNECTION_A,
-        CONNECTION_B,
-        CONNECTION_REAUTHORIZED,
-        ORGANIZATION_ID,
-        CONNECTOR_USER_ID,
-        REAUTHORIZER_USER_ID,
-        `subject-${CONNECTION_A}`,
-        `subject-${CONNECTION_B}`,
-        `subject-${CONNECTION_REAUTHORIZED}`,
-      ],
-    )
+    await seedGoogleConnection(lease.pool, {
+      id: CONNECTION_A,
+      organizationId: ORGANIZATION_ID,
+      googleSubject: `subject-${CONNECTION_A}`,
+      accessToken: 'access-a',
+      refreshToken: 'refresh-a',
+      scopes: ['scope'],
+      connectedBy: CONNECTOR_USER_ID,
+      credentialAuthorizedBy: CONNECTOR_USER_ID,
+      credentialAuthorizedAt: new Date(),
+      status: 'active',
+      lifecycleVersion: 7,
+      accessVersion: 11,
+      credentialGeneration: 3,
+    })
+    await seedGoogleConnection(lease.pool, {
+      id: CONNECTION_B,
+      organizationId: ORGANIZATION_ID,
+      googleSubject: `subject-${CONNECTION_B}`,
+      accessToken: 'access-b',
+      refreshToken: 'refresh-b',
+      scopes: ['scope'],
+      connectedBy: CONNECTOR_USER_ID,
+      credentialAuthorizedBy: CONNECTOR_USER_ID,
+      credentialAuthorizedAt: new Date(),
+      status: 'degraded',
+      lifecycleVersion: 13,
+      accessVersion: 17,
+      credentialGeneration: 5,
+    })
+    await seedGoogleConnection(lease.pool, {
+      id: CONNECTION_REAUTHORIZED,
+      organizationId: ORGANIZATION_ID,
+      googleSubject: `subject-${CONNECTION_REAUTHORIZED}`,
+      accessToken: 'access-c',
+      refreshToken: 'refresh-c',
+      scopes: ['scope'],
+      connectedBy: CONNECTOR_USER_ID,
+      credentialAuthorizedBy: REAUTHORIZER_USER_ID,
+      credentialAuthorizedAt: new Date(),
+      status: 'active',
+      lifecycleVersion: 19,
+      accessVersion: 23,
+      credentialGeneration: 7,
+    })
   })
 
   afterAll(async () => {

@@ -13,6 +13,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db'
 import { readSyncPushHealth } from '#/shared/db/sync-push-health'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 const ORG = 'org-obs-sync-push'
 const CONNECTION = '5a6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e70'
@@ -49,19 +51,15 @@ async function seedConnection(id: string, status: string) {
     VALUES (${ORG}, 'Sync push Org', 't-obs-sync-push', NOW())
     ON CONFLICT (id) DO NOTHING
   `)
-  await db.execute(sql`
-    INSERT INTO google_connections
-      (id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       credential_authorized_at, visibility, status, credential_use_state,
-       created_at, updated_at)
-    VALUES (${id}, ${ORG}, ${`subject-${id}`}, 'enc-a', 'enc-r',
-            NOW() + INTERVAL '1 day',
-            ARRAY['https://www.googleapis.com/auth/business.manage'],
-            'seed-user', NOW() - (${SETTLED} * INTERVAL '1 minute'),
-            'organization', ${status}, 'active', NOW(), NOW())
-    ON CONFLICT (id) DO NOTHING
-  `)
+  await seedGoogleConnection(drizzleSeedRunner(db), {
+    id: id,
+    organizationId: ORG,
+    googleSubject: `subject-${id}`,
+    tokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    credentialAuthorizedAt: new Date(Date.now() - SETTLED * 60_000),
+    status: status,
+    onExistingId: 'keep',
+  })
 }
 
 type SeedProperty = Readonly<{

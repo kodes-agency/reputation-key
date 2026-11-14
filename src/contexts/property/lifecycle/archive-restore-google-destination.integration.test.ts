@@ -42,6 +42,7 @@ import { createPortalPublicationRepository } from '#/contexts/portal/infrastruct
 import { buildGoogleImportedProperty } from '../application/build-google-imported-property'
 import { buildPropertyContext } from '../build'
 import { createPropertyRepository } from '../infrastructure/repositories/property.repository'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG = organizationId('org-property-archive-restore-google')
 const ADMIN = userId('admin-archive-restore-google')
@@ -354,17 +355,16 @@ beforeAll(async () => {
      ON CONFLICT (id) DO NOTHING`,
     [ORG],
   )
-  await pool.query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject,
-       encrypted_access_token, encrypted_refresh_token, token_expires_at,
-       scopes, connected_by, created_at, updated_at
-     )
-     VALUES ($1, $2, 'archive-restore-subject', 'encrypted', 'encrypted', NOW(),
-             ARRAY['https://www.googleapis.com/auth/business.manage'], $3, NOW(), NOW())
-     ON CONFLICT (id) DO NOTHING`,
-    [CONNECTION, ORG, ADMIN],
-  )
+  await seedGoogleConnection(pool, {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: 'archive-restore-subject',
+    accessToken: 'encrypted',
+    refreshToken: 'encrypted',
+    tokenExpiresAt: new Date(),
+    connectedBy: ADMIN,
+    onExistingId: 'keep',
+  })
 })
 
 beforeEach(async () => {

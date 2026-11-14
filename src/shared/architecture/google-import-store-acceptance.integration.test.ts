@@ -10,6 +10,8 @@ import {
   vi,
 } from 'vitest'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 import { createDatabase, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -176,18 +178,17 @@ describe('public Google imports against the import store (PostgreSQL, fake trans
       .insert(permissionVersion)
       .values({ organizationId: orgId, version: 1 })
       .onConflictDoNothing()
-    await db.insert(googleConnections).values({
+    await seedGoogleConnection(drizzleSeedRunner(db), {
       id: connectionId,
       organizationId: orgId,
       googleSubject: randomUUID(),
-      encryptedAccessToken: encryption.encrypt('acceptance-access'),
-      encryptedRefreshToken: encryption.encrypt('acceptance-refresh'),
+      accessToken: encryption.encrypt('acceptance-access'),
+      refreshToken: encryption.encrypt('acceptance-refresh'),
       tokenExpiresAt: new Date(now.getTime() + IMPORT_TEST_DAY_MS),
       scopes: ['https://www.googleapis.com/auth/business.manage'],
       connectedBy: userId,
       credentialAuthorizedBy: userId,
       credentialAuthorizedAt: now,
-      visibility: 'organization',
       createdAt: now,
       updatedAt: now,
     })

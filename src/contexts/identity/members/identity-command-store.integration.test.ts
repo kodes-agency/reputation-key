@@ -28,6 +28,7 @@ import {
 import type { IdentityMemberInvited } from '../domain/events'
 import { isIdentityError } from '../domain/errors'
 import { createAtomicIdentityCommandStore as createAtomicIdentityCommandStoreWithDeps } from '../infrastructure/identity-command-store'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const createAtomicIdentityCommandStore = (db: Database) =>
   createAtomicIdentityCommandStoreWithDeps(db, randomUUID)
@@ -760,19 +761,15 @@ describe.sequential('identityCommandStore (integration)', () => {
   const CONNECTION_A = '00000000-0000-4000-8000-0000000000a1'
   const CONNECTION_B = '00000000-0000-4000-8000-0000000000b1'
 
-  const seedGoogleConnection = (connectionId: string, connectorUserId: string) =>
-    pool.query(
-      `INSERT INTO google_connections (
-         id, organization_id, google_subject, encrypted_access_token,
-         encrypted_refresh_token, token_expires_at, scopes, connected_by
-       )
-       VALUES (
-         $1::uuid, $2, $3, 'encrypted-access', 'encrypted-refresh',
-         NOW() + interval '1 hour',
-         ARRAY['https://www.googleapis.com/auth/business.manage']::text[], $4
-       )`,
-      [connectionId, ORG_ID, `subject-${connectionId}`, connectorUserId],
-    )
+  const seedConnection = (connectionId: string, connectorUserId: string) =>
+    seedGoogleConnection(pool, {
+      id: connectionId,
+      organizationId: ORG_ID,
+      googleSubject: `subject-${connectionId}`,
+      accessToken: 'encrypted-access',
+      refreshToken: 'encrypted-refresh',
+      connectedBy: connectorUserId,
+    })
 
   const connectionStates = async () =>
     (
@@ -795,8 +792,8 @@ describe.sequential('identityCommandStore (integration)', () => {
 
   it("changeMemberRole fences the demoted AccountAdmin's Google connection in the same transaction", async () => {
     await seedTwoOwners()
-    await seedGoogleConnection(CONNECTION_A, INVITER_ID)
-    await seedGoogleConnection(CONNECTION_B, ACCEPTOR_ID)
+    await seedConnection(CONNECTION_A, INVITER_ID)
+    await seedConnection(CONNECTION_B, ACCEPTOR_ID)
 
     await demoteOwner('member-idcmd-owner-b', ACCEPTOR_ID)
 
@@ -821,8 +818,8 @@ describe.sequential('identityCommandStore (integration)', () => {
 
   it("a refused concurrent demotion leaves the remaining AccountAdmin's Google connection active", async () => {
     await seedTwoOwners()
-    await seedGoogleConnection(CONNECTION_A, INVITER_ID)
-    await seedGoogleConnection(CONNECTION_B, ACCEPTOR_ID)
+    await seedConnection(CONNECTION_A, INVITER_ID)
+    await seedConnection(CONNECTION_B, ACCEPTOR_ID)
 
     await Promise.allSettled([
       demoteOwner('member-idcmd-owner-a', INVITER_ID),

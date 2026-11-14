@@ -39,6 +39,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { handleGbpNotification } from '../application/use-cases/handle-gbp-notification'
 import { createGbpReviewPushReceiptStore } from './gbp-review-push-receipt.store'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const SEGMENTS = GOOGLE_PROVIDER_FIXTURES_V1['google-review-primary'].expectedSegments
 /** The account and location the push names. */
@@ -225,22 +226,16 @@ beforeAll(async () => {
        ON CONFLICT (id) DO NOTHING`,
       [tenant.organizationId],
     )
-    await pool.query(
-      `INSERT INTO google_connections (
-         id, organization_id, google_subject,
-         encrypted_access_token, encrypted_refresh_token, token_expires_at,
-         scopes, connected_by, created_at, updated_at
-       )
-       VALUES ($1, $2, $3, 'encrypted', 'encrypted', NOW(),
-               ARRAY['https://www.googleapis.com/auth/business.manage'], $4, NOW(), NOW())
-       ON CONFLICT (id) DO NOTHING`,
-      [
-        tenant.connectionId,
-        tenant.organizationId,
-        `subject-${tenant.organizationId}`,
-        tenant.adminId,
-      ],
-    )
+    await seedGoogleConnection(pool, {
+      id: tenant.connectionId,
+      organizationId: tenant.organizationId,
+      googleSubject: `subject-${tenant.organizationId}`,
+      accessToken: 'encrypted',
+      refreshToken: 'encrypted',
+      tokenExpiresAt: new Date(),
+      connectedBy: tenant.adminId,
+      onExistingId: 'keep',
+    })
   }
 })
 

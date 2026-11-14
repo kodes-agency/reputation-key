@@ -16,6 +16,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createReviewRepository } from './repositories/review.repository'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 // Each snapshot pass reads every review twice. A read that leaves the Review
 // and its current Material Review Revision as stored writes neither row; a
@@ -395,17 +396,14 @@ describe('the Review row write compares every column it sets', () => {
        VALUES ($1, 'Unchanged rows manager', $2, true, now(), now())`,
       [userId, `${userId}@example.test`],
     )
-    await pool.query(
-      `INSERT INTO google_connections (
-         id, organization_id, google_subject, encrypted_access_token,
-         encrypted_refresh_token, token_expires_at, scopes, connected_by,
-         visibility, status
-       ) VALUES ($1, $2, $3, 'encrypted-access', 'encrypted-refresh',
-                 now() + interval '1 hour',
-                 ARRAY['https://www.googleapis.com/auth/business.manage'], $4,
-                 'organization', 'active')`,
-      [connectionId, ORG, `subject-${connectionId}`, userId],
-    )
+    await seedGoogleConnection(pool, {
+      id: connectionId,
+      organizationId: ORG,
+      googleSubject: `subject-${connectionId}`,
+      accessToken: 'encrypted-access',
+      refreshToken: 'encrypted-refresh',
+      connectedBy: userId,
+    })
     return connectionId
   }
 

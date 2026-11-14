@@ -16,6 +16,8 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from './merchant-ai-authorization.server'
 import { createMerchantAiAuthorizationStore } from './merchant-ai-authorization.repository.server'
 import { createMerchantAiDecisionDeferralStore } from './merchant-ai-decision.repository.server'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 const db = getDb()
 let cleanupPool: Pool
@@ -172,18 +174,14 @@ beforeAll(async () => {
       VALUES (${`member-${userId}`}, ${userId}, ${ORG}, ${role}, now())
     `)
   }
-  await db.execute(sql`
-    INSERT INTO google_connections (
-      id, organization_id, google_subject, encrypted_access_token,
-      encrypted_refresh_token, token_expires_at, scopes, connected_by,
-      visibility, status
-    ) VALUES (
-      ${CONNECTION}::uuid, ${ORG}, ${`deferral-subject-${SUFFIX}`},
-      'encrypted-access', 'encrypted-refresh', now() + interval '1 hour',
-      ARRAY['https://www.googleapis.com/auth/business.manage'], ${OWNER},
-      'organization', 'active'
-    )
-  `)
+  await seedGoogleConnection(drizzleSeedRunner(db), {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: `deferral-subject-${SUFFIX}`,
+    accessToken: 'encrypted-access',
+    refreshToken: 'encrypted-refresh',
+    connectedBy: OWNER,
+  })
 })
 
 beforeEach(async () => {

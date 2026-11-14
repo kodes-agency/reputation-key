@@ -26,6 +26,7 @@ import {
 import { runRightsExecutors } from './rights-executor'
 import { createRightsJournal, type RightsJournalStore } from './rights-journal'
 import { planRightsRequest, rightsRequestCommandSpec } from './rights-request-command'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const CREATED_AT = new Date('2026-08-01T00:00:00.000Z')
 const NOW = new Date('2026-11-08T12:00:00.000Z')
@@ -89,31 +90,25 @@ async function seed(options: { live: boolean }): Promise<Fixture> {
      VALUES ($1, $2, $3, 'owner', $4)`,
     [fixture.memberId, fixture.userId, fixture.organizationId, CREATED_AT],
   )
-  await q(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       credential_authorized_by, credential_authorized_at, visibility, status,
-       credential_use_state, last_successful_sync_at, status_reason, status_changed_at,
-       created_at, updated_at
-     ) VALUES (
-       $1, $2, $3, $4, $5, $6, $9::text[], $7, $7, $8, 'organization', $10,
-       $11, $8, 'connected', $8, $8, $8
-     )`,
-    [
-      fixture.connectionId,
-      fixture.organizationId,
-      options.live ? `${MARKERS.googleSubject}-${suffix}` : null,
-      options.live ? MARKERS.accessToken : 'redacted',
-      options.live ? MARKERS.refreshToken : 'redacted',
-      new Date(CREATED_AT.getTime() + 3_600_000),
-      fixture.userId,
-      CREATED_AT,
-      options.live ? ['https://www.googleapis.com/auth/business.manage'] : [],
-      options.live ? 'active' : 'disconnected',
-      options.live ? 'active' : 'none',
-    ],
-  )
+  await seedGoogleConnection(lease.pool, {
+    id: fixture.connectionId,
+    organizationId: fixture.organizationId,
+    googleSubject: options.live ? `${MARKERS.googleSubject}-${suffix}` : null,
+    accessToken: options.live ? MARKERS.accessToken : 'redacted',
+    refreshToken: options.live ? MARKERS.refreshToken : 'redacted',
+    tokenExpiresAt: new Date(CREATED_AT.getTime() + 3_600_000),
+    scopes: options.live ? ['https://www.googleapis.com/auth/business.manage'] : [],
+    connectedBy: fixture.userId,
+    credentialAuthorizedBy: fixture.userId,
+    credentialAuthorizedAt: CREATED_AT,
+    status: options.live ? 'active' : 'disconnected',
+    credentialUseState: options.live ? 'active' : 'none',
+    lastSuccessfulSyncAt: CREATED_AT,
+    statusReason: 'connected',
+    statusChangedAt: CREATED_AT,
+    createdAt: CREATED_AT,
+    updatedAt: CREATED_AT,
+  })
   await q(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
      VALUES ($1, $2, 'Rights Property', $3, 'UTC', $4, $4)`,

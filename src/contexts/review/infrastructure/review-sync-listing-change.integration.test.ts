@@ -54,6 +54,8 @@ import { createSyncPropertyReviewsHandler } from './jobs/sync-property-reviews.j
 import { createAtomicReviewCommandStore } from './review-command-store'
 import { createReviewProviderSnapshotRepository } from './repositories/review-provider-snapshot.repository'
 import { createReviewRepository } from './repositories/review.repository'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 const ORG = organizationId('review-listing-change-org')
 const PROPERTY = propertyId('75000000-0000-4000-8000-00000000a001')
@@ -362,18 +364,14 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await clear()
-  await db.execute(sql`
-    INSERT INTO google_connections (
-      id, organization_id, google_subject, encrypted_access_token,
-      encrypted_refresh_token, token_expires_at, scopes, connected_by,
-      visibility, status
-    ) VALUES (
-      ${CONNECTION}, ${ORG}, 'listing-change-subject', 'sealed-access',
-      'sealed-refresh', now() + interval '1 hour',
-      ARRAY['https://www.googleapis.com/auth/business.manage'], 'listing-change-user',
-      'organization', 'active'
-    )
-  `)
+  await seedGoogleConnection(drizzleSeedRunner(db), {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: 'listing-change-subject',
+    accessToken: 'sealed-access',
+    refreshToken: 'sealed-refresh',
+    connectedBy: 'listing-change-user',
+  })
   await db.execute(sql`
     INSERT INTO properties (id, organization_id, name, slug, timezone, source_epoch)
     VALUES (${PROPERTY}, ${ORG}, 'Listing change property', 'listing-change', 'UTC', 0)
