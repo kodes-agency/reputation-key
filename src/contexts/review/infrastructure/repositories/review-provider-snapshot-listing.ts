@@ -16,6 +16,33 @@ import {
 
 type RunRow = typeof reviewProviderSnapshotRuns.$inferSelect
 
+/**
+ * The run's start as the database stored it. A `Date` read into the worker
+ * holds milliseconds only, so a mapping observed in the same millisecond, after
+ * the run began, would compare as older than the run.
+ */
+const runStartedAt = (run: RunRow) =>
+  sql`(SELECT started_at FROM review_provider_snapshot_runs WHERE id = ${run.id} AND organization_id = ${run.organizationId})`
+
+/** Whether the Review's mapping was observed after the run began, judged on
+ * the stored microseconds of both times. */
+export async function mappingObservedAfterRunStart(
+  tx: Tx,
+  run: RunRow,
+  reviewId: string,
+): Promise<boolean> {
+  const rows = await tx.execute(sql`
+    SELECT 1
+    FROM review_provider_subjects s
+    WHERE s.organization_id = ${run.organizationId}
+      AND s.property_id = ${run.propertyId}
+      AND s.source_epoch = ${run.sourceEpoch}
+      AND s.review_id = ${reviewId}
+      AND s.last_observed_at > ${runStartedAt(run)}
+  `)
+  return rows.rows.length > 0
+}
+
 /** How the run's main listing compares with the Google total it froze. */
 export const listingAgreement = (run: RunRow): SnapshotCountAgreement =>
   run.expectedTotal == null
@@ -189,11 +216,11 @@ export async function recordMissingFromListing(tx: Tx, run: RunRow): Promise<voi
       AND s.property_id = ${run.propertyId}
       AND s.source_epoch = ${run.sourceEpoch}
       AND s.state IN ('linked', 'source_expired')
-      AND s.last_observed_at <= ${run.startedAt}
+      AND s.last_observed_at <= ${runStartedAt(run)}
       AND m.review_id IS NULL
       AND s.first_missing_at IS NOT NULL
       AND s.first_missing_snapshot_run_id <> ${run.id}
-      AND s.first_missing_at <= ${run.startedAt}::timestamptz - interval '15 minutes'
+      AND s.first_missing_at <= ${runStartedAt(run)} - interval '15 minutes'
       AND COALESCE((${holdRunsLeft}), 0) = 0
     ON CONFLICT (run_id, review_id) DO NOTHING
   `)
@@ -206,7 +233,7 @@ export async function recordMissingFromListing(tx: Tx, run: RunRow): Promise<voi
       AND s.property_id = ${run.propertyId}
       AND s.source_epoch = ${run.sourceEpoch}
       AND s.state IN ('linked', 'source_expired')
-      AND s.last_observed_at <= ${run.startedAt}
+      AND s.last_observed_at <= ${runStartedAt(run)}
       AND NOT EXISTS (
         SELECT 1 FROM review_provider_snapshot_members m
         WHERE m.run_id = ${run.id} AND m.review_id = s.review_id AND m.main_seen
@@ -244,7 +271,7 @@ async function requestFullReadAfterFirstMiss(tx: Tx, run: RunRow): Promise<void>
           AND s.source_epoch = ${run.sourceEpoch}
           AND s.state IN ('linked', 'source_expired')
           AND s.first_missing_at IS NOT NULL
-          AND s.first_missing_at > ${run.startedAt}::timestamptz - interval '15 minutes'
+          AND s.first_missing_at > ${runStartedAt(run)} - interval '15 minutes'
       )
   `)
 }
@@ -312,7 +339,7 @@ export async function candidateEditedSinceListing(
       AND c.state = 'pending'
       AND s.state = 'linked'
       AND s.last_source_revision > c.expected_source_revision
-      AND s.last_observed_at > ${run.startedAt}
+      AND s.last_observed_at > ${runStartedAt(run)}
   `)
   return rows.rows.length > 0
 }
