@@ -20,7 +20,7 @@ import {
   buildTestAuthContext,
   buildTestGoogleConnection,
 } from '#/shared/testing/fixtures'
-import { createGoogleConnectionCeremonyFixture } from '#/shared/testing/google-connection-ceremony-fixture'
+import { createGoogleConnectionCeremonyFixture } from '#/contexts/integration/connections/google-connection-ceremony.test-fixtures'
 import { requestGooglePrimaryCategoryRefresh } from '#/shared/db/google-primary-category-refresh'
 import { createRefreshBoundGoogleCategories } from '#/contexts/integration/application/refresh-bound-google-categories'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/profile/google-binding-store.server'
@@ -523,16 +523,16 @@ describe('turning review analysis off (real PostgreSQL)', () => {
   it('keeps AI erasure on completed OAuth callback replay without re-reading Google', async () => {
     const subject = await reconnectRefresh()
     const refresh = vi.fn(async () => subject.refresh())
-    const fixture = createGoogleConnectionCeremonyFixture(undefined, refresh)
-    fixture.connectionRepo.seed([
-      {
-        ...subject.connection,
+    const fixture = await createGoogleConnectionCeremonyFixture(undefined, refresh)
+    await db
+      .update(googleConnections)
+      .set({
         lifecycleVersion: 1,
         accessVersion: 1,
         googleSubject: 'google-subject-123',
         status: 'disconnected',
-      },
-    ])
+      })
+      .where(eq(googleConnections.id, CONNECTION))
     const attemptId = '78000000-0004-4000-8000-000000000001'
     const connected = await fixture.useCase(
       {
@@ -550,7 +550,6 @@ describe('turning review analysis off (real PostgreSQL)', () => {
       },
       subject.actor,
     )
-    fixture.markAttemptCompleted()
     const posture: Posture = {
       state: 'revoked',
       capabilities: [],
