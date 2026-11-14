@@ -17,6 +17,8 @@ import { createPropertySetupRepository } from '#/contexts/reporting/infrastructu
 import { createReviewHeadCheckRepository } from './review-head-check.repository'
 import { recordedFailureCode } from './review-provider-snapshot-listing-change'
 import {
+  candidateEditedSinceListing,
+  mappingObservedAfterRunStart,
   recordMissingFromListing,
   UNLISTED_REVIEW_HOLD_RUNS,
 } from './review-provider-snapshot-listing'
@@ -486,5 +488,83 @@ describe('snapshot run retention (real PostgreSQL)', () => {
     await sweep()
 
     expect(await read()).toEqual(before)
+  })
+})
+
+describe('a mapping stored inside the run start millisecond (real PostgreSQL)', () => {
+  // The run row read into the worker keeps milliseconds; the database keeps
+  // microseconds. These mappings fall between the two.
+  const RUN_STARTED_AT = '2026-11-01T10:00:00.123456Z'
+
+  async function startedRun(): Promise<RunRow> {
+    const id = await insertRun({ state: 'scanning', hour: 10 })
+    await db.execute(sql`
+      UPDATE review_provider_snapshot_runs SET started_at = ${RUN_STARTED_AT}::timestamptz
+      WHERE id = ${id}
+    `)
+    return runRow(id)
+  }
+
+  async function observedAt(reviewId: string, microsecondOffset: number) {
+    await db.execute(sql`
+      UPDATE review_provider_subjects
+      SET last_observed_at = ${RUN_STARTED_AT}::timestamptz
+        + ${microsecondOffset} * interval '1 microsecond'
+      WHERE organization_id = ${ORG} AND review_id = ${reviewId}
+    `)
+  }
+
+  it('reads the run as started before a mapping stored a microsecond later', async () => {
+    const run = await startedRun()
+    const later = await insertSubject(null)
+    const same = await insertSubject(null)
+    const earlier = await insertSubject(null)
+    await observedAt(later, 1)
+    await observedAt(same, 0)
+    await observedAt(earlier, -1)
+
+    const after = (reviewId: string) =>
+      db.transaction((tx) => mappingObservedAfterRunStart(tx, run, reviewId))
+
+    expect(await after(later)).toBe(true)
+    expect(await after(same)).toBe(false)
+    expect(await after(earlier)).toBe(false)
+  })
+
+  it('records a first-missed mapping stored a microsecond before the run, not one stored after', async () => {
+    const run = await startedRun()
+    const before = await insertSubject(null)
+    const after = await insertSubject(null)
+    await observedAt(before, -1)
+    await observedAt(after, 1)
+
+    await db.transaction((tx) => recordMissingFromListing(tx, run))
+
+    const candidates = await db.execute<{ review_id: string }>(sql`
+      SELECT review_id FROM review_provider_deletion_candidates WHERE run_id = ${run.id}
+    `)
+    expect(candidates.rows.map((row) => row.review_id)).toEqual([before])
+  })
+
+  it('finds a candidate edited a microsecond after the run began, not one a microsecond before', async () => {
+    const run = await startedRun()
+    const edited = await insertSubject(null)
+    const untouched = await insertSubject(null)
+    await observedAt(edited, 1)
+    await observedAt(untouched, -1)
+    await db.execute(sql`
+      UPDATE review_provider_subjects SET last_source_revision = 2
+      WHERE organization_id = ${ORG} AND review_id IN (${edited}, ${untouched})
+    `)
+    await insertCandidate(run.id, edited, 'pending')
+    await insertCandidate(run.id, untouched, 'pending')
+
+    const editedSince = (reviewId: string) =>
+      db.transaction((tx) =>
+        candidateEditedSinceListing(tx, run, { reviewId, expectedSourceRevision: 1 }),
+      )
+
+    expect(await editedSince(edited)).toBe(true)
+    expect(await editedSince(untouched)).toBe(false)
   })
 })
