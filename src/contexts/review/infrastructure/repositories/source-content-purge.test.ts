@@ -10,6 +10,8 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from '../../application/use-cases/run-source-content-lifecycle'
 import { createSourceContentPurge } from '../source-content-purge'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 const db = getDb()
 const ORG = 'org-purge-test'
@@ -50,16 +52,16 @@ async function reset(): Promise<void> {
 }
 
 async function seedConnection(id: string, accountSuffix: string): Promise<void> {
-  await db.execute(sql`
-    INSERT INTO google_connections (
-      id, organization_id, google_subject,
-      encrypted_access_token, encrypted_refresh_token, token_expires_at,
-      scopes, connected_by, status
-    ) VALUES (
-      ${id}, ${ORG}, ${'subject-' + accountSuffix},
-      'tok', 'rtok', now(), ARRAY['x'], 'user-1', 'active'
-    )
-  `)
+  await seedGoogleConnection(drizzleSeedRunner(db), {
+    id: id,
+    organizationId: ORG,
+    googleSubject: 'subject-' + accountSuffix,
+    accessToken: 'tok',
+    refreshToken: 'rtok',
+    tokenExpiresAt: new Date(),
+    scopes: ['x'],
+    connectedBy: 'user-1',
+  })
 }
 
 async function seedReview(

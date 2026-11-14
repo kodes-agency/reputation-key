@@ -16,6 +16,7 @@ import { createPropertyGoogleBindingStore } from './google-binding-store.server'
 import { seedTestProperty } from '../infrastructure/property-test-fixtures'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { propertyReceiptKey, propertyReceiptPayload } from './operation-receipts.server'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG_ID = organizationId('org-google-binding-integration')
 const OTHER_ORG_ID = organizationId('org-google-binding-other')
@@ -100,18 +101,21 @@ beforeAll(async () => {
      ON CONFLICT (id) DO NOTHING`,
     [ORG_ID, 'Google Binding Integration', 'google-binding-integration'],
   )
-  await pool.query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject,
-       encrypted_access_token, encrypted_refresh_token, token_expires_at,
-       scopes, connected_by, created_at, updated_at
-     )
-     VALUES
-       ($1, $3, 'binding-subject-1', 'encrypted', 'encrypted', NOW(), ARRAY['https://www.googleapis.com/auth/business.manage'], 'user-1', NOW(), NOW()),
-       ($2, $3, 'binding-subject-2', 'encrypted', 'encrypted', NOW(), ARRAY['https://www.googleapis.com/auth/business.manage'], 'user-2', NOW(), NOW())
-     ON CONFLICT (id) DO NOTHING`,
-    [CONNECTION_ID, CONNECTION_ID_2, ORG_ID],
-  )
+  for (const [id, subject, connectedBy] of [
+    [CONNECTION_ID, 'binding-subject-1', 'user-1'],
+    [CONNECTION_ID_2, 'binding-subject-2', 'user-2'],
+  ] as const) {
+    await seedGoogleConnection(pool, {
+      id,
+      organizationId: ORG_ID,
+      googleSubject: subject,
+      accessToken: 'encrypted',
+      refreshToken: 'encrypted',
+      tokenExpiresAt: new Date(),
+      connectedBy,
+      onExistingId: 'keep',
+    })
+  }
 })
 
 beforeEach(async () => {

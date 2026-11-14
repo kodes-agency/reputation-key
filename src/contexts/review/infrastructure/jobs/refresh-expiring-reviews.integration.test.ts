@@ -33,6 +33,7 @@ import { createReviewRepository } from '../repositories/review.repository'
 import { createReviewRefreshRunRepository } from '../repositories/review-refresh-run.repository'
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 import { createRefreshExpiringReviewsHandler } from './refresh-expiring-reviews.job'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG = organizationId('org-refresh-sweep-tombstone-11111111')
 const PROPERTY = propertyId('7e200000-0000-4000-8000-000000000001')
@@ -79,13 +80,16 @@ async function seedTenant(): Promise<void> {
      VALUES ($1, $2, 'Refresh sweep property', $3, 'UTC', NOW(), NOW())`,
     [PROPERTY, ORG, `refresh-sweep-property-${process.pid}`],
   )
-  await pool.query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by, status
-     ) VALUES ($1, $2, $3, 'tok', 'rtok', NOW(), ARRAY['x'], 'user-1', 'active')`,
-    [CONNECTION, ORG, `subject-refresh-sweep-${process.pid}`],
-  )
+  await seedGoogleConnection(pool, {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: `subject-refresh-sweep-${process.pid}`,
+    accessToken: 'tok',
+    refreshToken: 'rtok',
+    tokenExpiresAt: new Date(),
+    scopes: ['x'],
+    connectedBy: 'user-1',
+  })
   // The sweep offers only reviews a sync can still run for: the Property is
   // bound to Google through the connection the reviews were fetched with.
   await pool.query(

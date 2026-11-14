@@ -24,6 +24,7 @@ import { runRightsExecutors, type RightsExecutor } from './rights-executor'
 import { createRightsJournal, type RightsJournalStore } from './rights-journal'
 import { planRightsRequest, rightsRequestCommandSpec } from './rights-request-command'
 import { holdRightsOrganization } from '#/shared/db/testing/rights-isolation-fixture'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const CREATED_AT = new Date('2026-08-01T00:00:00.000Z')
 const NOW = new Date('2026-11-09T12:00:00.000Z')
@@ -65,25 +66,25 @@ async function seedTenant(): Promise<Tenant> {
      VALUES ($1, 'Rights Manager', $2, true, $3, $3)`,
     [tenant.userId, `${suffix}@example.test`, CREATED_AT],
   )
-  await q(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       credential_authorized_by, credential_authorized_at, visibility, status,
-       credential_use_state, last_successful_sync_at, status_reason, status_changed_at,
-       created_at, updated_at
-     ) VALUES (
-       $1, $2, NULL, 'redacted', 'redacted', $3, '{}'::text[], $4, $4, $5,
-       'organization', 'disconnected', 'none', $5, 'connected', $5, $5, $5
-     )`,
-    [
-      tenant.connectionId,
-      tenant.organizationId,
-      new Date(CREATED_AT.getTime() + 3_600_000),
-      tenant.userId,
-      CREATED_AT,
-    ],
-  )
+  await seedGoogleConnection(lease.pool, {
+    id: tenant.connectionId,
+    organizationId: tenant.organizationId,
+    googleSubject: null,
+    accessToken: 'redacted',
+    refreshToken: 'redacted',
+    tokenExpiresAt: new Date(CREATED_AT.getTime() + 3_600_000),
+    scopes: [],
+    connectedBy: tenant.userId,
+    credentialAuthorizedBy: tenant.userId,
+    credentialAuthorizedAt: CREATED_AT,
+    status: 'disconnected',
+    credentialUseState: 'none',
+    lastSuccessfulSyncAt: CREATED_AT,
+    statusReason: 'connected',
+    statusChangedAt: CREATED_AT,
+    createdAt: CREATED_AT,
+    updatedAt: CREATED_AT,
+  })
   for (const [index, propertyId] of [tenant.propertyA, tenant.propertyB].entries()) {
     await q(
       `INSERT INTO properties (

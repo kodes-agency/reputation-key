@@ -22,6 +22,7 @@ import {
   disconnectPropertyGoogleBinding,
   restoreProperty,
 } from './property-lifecycle'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const NOW = new Date('2026-08-28T12:00:00.000Z')
 const ORG_A = organizationId('org-property-lifecycle-a')
@@ -40,16 +41,16 @@ const staffPublicApi = { getAccessiblePropertyIds: async () => null }
 const CONNECTION = googleConnectionId('80000000-0000-4000-8000-000000000001')
 
 const seedConnection = () =>
-  getPool().query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject,
-       encrypted_access_token, encrypted_refresh_token, token_expires_at,
-       scopes, connected_by, created_at, updated_at
-     ) VALUES ($1, $2, 'lifecycle-subject', 'encrypted', 'encrypted', NOW(),
-               ARRAY['https://www.googleapis.com/auth/business.manage'], 'user-1', NOW(), NOW())
-     ON CONFLICT (id) DO NOTHING`,
-    [CONNECTION, ORG_A],
-  )
+  seedGoogleConnection(getPool(), {
+    id: CONNECTION,
+    organizationId: ORG_A,
+    googleSubject: 'lifecycle-subject',
+    accessToken: 'encrypted',
+    refreshToken: 'encrypted',
+    tokenExpiresAt: new Date(),
+    connectedBy: 'user-1',
+    onExistingId: 'keep',
+  })
 
 /** A Google binding the database accepts: connection, account and location together. */
 const BOUND = {

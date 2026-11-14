@@ -16,6 +16,7 @@ import {
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORGANIZATION_ID = 'org-google-admission-authority-test'
 const USER_ID = 'user-google-admission-authority-test'
@@ -199,19 +200,16 @@ beforeAll(async () => {
      ON CONFLICT (id) DO NOTHING`,
     [MEMBER_ID, USER_ID, ORGANIZATION_ID],
   )
-  await pool.query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       visibility, status, credential_use_state, lifecycle_version,
-       access_version, credential_generation
-     ) VALUES (
-       $1, $2, 'google-admission-authority-subject', 'encrypted-access',
-       'encrypted-refresh', now() + interval '1 hour', ARRAY['test'], $3,
-       'organization', 'active', 'active', 1, 1, 1
-     ) ON CONFLICT (id) DO NOTHING`,
-    [CONNECTION_ID, ORGANIZATION_ID, 'former-google-connector'],
-  )
+  await seedGoogleConnection(pool, {
+    id: CONNECTION_ID,
+    organizationId: ORGANIZATION_ID,
+    googleSubject: 'google-admission-authority-subject',
+    accessToken: 'encrypted-access',
+    refreshToken: 'encrypted-refresh',
+    scopes: ['test'],
+    connectedBy: 'former-google-connector',
+    onExistingId: 'keep',
+  })
   const control = await pool.query<NonNullable<typeof originalControl>>(
     `SELECT denied, emergency_kill_version, denied_at, drained_at, cleanup_drained_at
        FROM capability_execution_control

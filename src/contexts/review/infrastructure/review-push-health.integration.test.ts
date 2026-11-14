@@ -37,6 +37,8 @@ import { createReviewFirstSightingRecorder } from './repositories/review-first-s
 import { createReviewProviderSubjectSightings } from './repositories/review-provider-subject-link'
 import { createReviewProviderSnapshotRepository } from './repositories/review-provider-snapshot.repository'
 import { createReviewRepository } from './repositories/review.repository'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 const ORG = organizationId('review-push-health-org-a')
 const OTHER_ORG = organizationId('review-push-health-org-b')
@@ -291,18 +293,14 @@ beforeEach(async () => {
     [ORG, CONNECTION, PROPERTY],
     [OTHER_ORG, OTHER_CONNECTION, OTHER_PROPERTY],
   ] as const) {
-    await db.execute(sql`
-      INSERT INTO google_connections (
-        id, organization_id, google_subject, encrypted_access_token,
-        encrypted_refresh_token, token_expires_at, scopes, connected_by,
-        visibility, status
-      ) VALUES (
-        ${connection}, ${org}, ${`push-health-subject-${org}`}, 'sealed-access',
-        'sealed-refresh', now() + interval '1 hour',
-        ARRAY['https://www.googleapis.com/auth/business.manage'], 'push-health-user',
-        'organization', 'active'
-      )
-    `)
+    await seedGoogleConnection(drizzleSeedRunner(db), {
+      id: connection,
+      organizationId: org,
+      googleSubject: `push-health-subject-${org}`,
+      accessToken: 'sealed-access',
+      refreshToken: 'sealed-refresh',
+      connectedBy: 'push-health-user',
+    })
     await db.execute(sql`
       INSERT INTO properties (id, organization_id, name, slug, timezone, source_epoch)
       VALUES (${property}, ${org}, 'Push health property',

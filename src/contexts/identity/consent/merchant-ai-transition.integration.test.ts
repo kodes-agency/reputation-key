@@ -29,6 +29,8 @@ import { createMerchantAiManagementAuthorizer } from './merchant-ai-management.s
 import { createMerchantAiNoticeUpdateStore } from './merchant-ai-notice-updates.repository.server'
 import { createStandingRenewalStore } from './merchant-ai-standing-renewal.repository.server'
 import { renewLapsedMerchantAiAuthorizations } from './renew-lapsed-merchant-ai-authorizations.server'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 // The consent promises, end to end on PostgreSQL through the use cases a
 // manager's request reaches: every write runs the one Merchant AI transition.
@@ -107,8 +109,14 @@ async function seedProperty(): Promise<Fixture> {
   await db.execute(
     sql`INSERT INTO member (id, "userId", "organizationId", role, "createdAt") VALUES (${randomUUID()}, ${f.actorUserId}, ${f.organizationId}, 'owner', now())`,
   )
-  await db.execute(sql`INSERT INTO google_connections (id, organization_id, google_subject, encrypted_access_token, encrypted_refresh_token, token_expires_at, scopes, connected_by, visibility, status)
-    VALUES (${f.connectionId}::uuid, ${f.organizationId}, ${f.connectionId}, 'fixture', 'fixture', now() + interval '1 hour', ARRAY['https://www.googleapis.com/auth/business.manage'], ${f.actorUserId}, 'organization', 'active')`)
+  await seedGoogleConnection(drizzleSeedRunner(db), {
+    id: f.connectionId,
+    organizationId: f.organizationId,
+    googleSubject: f.connectionId,
+    accessToken: 'fixture',
+    refreshToken: 'fixture',
+    connectedBy: f.actorUserId,
+  })
   await db.execute(sql`INSERT INTO properties (id, organization_id, name, slug, timezone, lifecycle_state, google_connection_id, gbp_account_id, gbp_location_id, google_binding_state, profile_source, source_epoch)
     VALUES (${f.propertyId}::uuid, ${f.organizationId}, 'Consent property', ${f.propertyId}, 'UTC', 'active', ${f.connectionId}::uuid, 'account', ${f.propertyId}, 'active', 'legacy', 0)`)
   await db.execute(sql`INSERT INTO review_ai_analysis_heads (organization_id, property_id, source_epoch, head_sequence)

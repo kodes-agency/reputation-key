@@ -36,6 +36,7 @@ import { createReviewSourceContentLifecycleStore } from './repositories/source-c
 import { createReviewRepository } from './repositories/review.repository'
 import { createAtomicReviewCommandStore } from './review-command-store'
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG = organizationId('review-google-page-org-a')
 const OTHER_ORG = organizationId('review-google-page-org-b')
@@ -221,19 +222,14 @@ beforeEach(async () => {
      VALUES ($1, $2, 'Google page property', 'review-google-page-property', 'UTC', 0)`,
     [PROPERTY, ORG],
   )
-  await getPool().query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       visibility, status
-     ) VALUES (
-       $1, $2, 'review-google-page-subject', 'sealed-access', 'sealed-refresh',
-       now() + interval '1 hour',
-       ARRAY['https://www.googleapis.com/auth/business.manage'],
-       'review-google-page-user', 'organization', 'active'
-     )`,
-    [CONNECTION, ORG],
-  )
+  await seedGoogleConnection(getPool(), {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: 'review-google-page-subject',
+    accessToken: 'sealed-access',
+    refreshToken: 'sealed-refresh',
+    connectedBy: 'review-google-page-user',
+  })
 })
 
 describe.sequential("a Review's own page on Google", () => {

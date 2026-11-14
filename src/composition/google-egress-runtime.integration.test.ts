@@ -42,6 +42,7 @@ import {
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { createInProcessGoogleEgressRuntime } from './google-egress-runtime'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORGANIZATION_ID = 'org-google-egress-notifications-test'
 const USER_ID = 'user-google-egress-notifications-test'
@@ -208,19 +209,16 @@ beforeAll(async () => {
      ON CONFLICT (id) DO NOTHING`,
     [MEMBER_ID, USER_ID, ORGANIZATION_ID],
   )
-  await pool.query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       visibility, status, credential_use_state, lifecycle_version,
-       access_version, credential_generation
-     ) VALUES (
-       $1, $2, 'google-egress-notifications-subject', 'encrypted-access',
-       'encrypted-refresh', now() + interval '1 hour', ARRAY['test'], $3,
-       'organization', 'active', 'active', 1, 1, 1
-     ) ON CONFLICT (id) DO NOTHING`,
-    [CONNECTION_ID, ORGANIZATION_ID, USER_ID],
-  )
+  await seedGoogleConnection(pool, {
+    id: CONNECTION_ID,
+    organizationId: ORGANIZATION_ID,
+    googleSubject: 'google-egress-notifications-subject',
+    accessToken: 'encrypted-access',
+    refreshToken: 'encrypted-refresh',
+    scopes: ['test'],
+    connectedBy: USER_ID,
+    onExistingId: 'keep',
+  })
   await pool.query(
     `INSERT INTO properties (
       id, organization_id, name, slug, timezone, google_connection_id,

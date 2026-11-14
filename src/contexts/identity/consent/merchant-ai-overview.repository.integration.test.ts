@@ -14,6 +14,7 @@ import {
 import { listMerchantAiOverview } from './merchant-ai-overview.server'
 import { resolveMemberPermissionPropertyScope } from '../infrastructure/repositories/member-property-authority'
 import { createMerchantAiOverviewReader } from './merchant-ai-overview.repository.server'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 const ORG = `org-ai-overview-${randomUUID()}`
 const OTHER_ORG = `org-ai-overview-other-${randomUUID()}`
@@ -154,16 +155,14 @@ beforeAll(async () => {
       [`member-${userId}`, userId, ORG, role, AT],
     )
   }
-  await pool.query(
-    `INSERT INTO google_connections (
-       id, organization_id, google_subject, encrypted_access_token,
-       encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       visibility, status
-     ) VALUES ($1, $2, $3, 'sealed-access', 'sealed-refresh', now() + interval '1 hour',
-               ARRAY['https://www.googleapis.com/auth/business.manage'], $4,
-               'organization', 'active')`,
-    [CONNECTION, ORG, `overview-subject-${randomUUID()}`, OWNER],
-  )
+  await seedGoogleConnection(pool, {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: `overview-subject-${randomUUID()}`,
+    accessToken: 'sealed-access',
+    refreshToken: 'sealed-refresh',
+    connectedBy: OWNER,
+  })
 
   await insertProperty({ id: ALPHA, organization: ORG, name: 'alpha', bound: true })
   await insertProperty({ id: BETA, organization: ORG, name: 'Beta', bound: true })

@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto'
 import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 import { getDb } from '#/shared/db'
 import {
   aiReviewAnalysisMentionCorrections,
@@ -242,12 +244,12 @@ async function reconnectRefresh() {
     lifecycleVersion: 2,
     accessVersion: 2,
   })
-  await db.insert(googleConnections).values({
+  await seedGoogleConnection(drizzleSeedRunner(db), {
     id: CONNECTION,
     organizationId: IDS.organizationId,
     googleSubject: 'turn-off-category-subject',
-    encryptedAccessToken: 'synthetic',
-    encryptedRefreshToken: 'synthetic',
+    accessToken: 'synthetic',
+    refreshToken: 'synthetic',
     tokenExpiresAt: new Date(NOW.getTime() + 60_000),
     connectedBy: actor.userId,
     lifecycleVersion: 2,

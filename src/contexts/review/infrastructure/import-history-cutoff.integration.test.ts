@@ -56,6 +56,8 @@ import { createGoogleReplyObservationStore } from './google-reply-observation-st
 import { createAtomicReviewCommandStore } from './review-command-store'
 import { createReviewProviderSnapshotRepository } from './repositories/review-provider-snapshot.repository'
 import { createReviewRepository } from './repositories/review.repository'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 const ORG = organizationId('review-history-cutoff-org')
 const CONNECTION = googleConnectionId('74000000-0000-4000-8000-00000000c001')
@@ -459,18 +461,14 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await clear()
-  await db.execute(sql`
-    INSERT INTO google_connections (
-      id, organization_id, google_subject, encrypted_access_token,
-      encrypted_refresh_token, token_expires_at, scopes, connected_by,
-      visibility, status
-    ) VALUES (
-      ${CONNECTION}, ${ORG}, 'history-cutoff-subject', 'sealed-access',
-      'sealed-refresh', now() + interval '1 hour',
-      ARRAY['https://www.googleapis.com/auth/business.manage'], 'history-cutoff-user',
-      'organization', 'active'
-    )
-  `)
+  await seedGoogleConnection(drizzleSeedRunner(db), {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: 'history-cutoff-subject',
+    accessToken: 'sealed-access',
+    refreshToken: 'sealed-refresh',
+    connectedBy: 'history-cutoff-user',
+  })
   for (const property of PROPERTIES) {
     await db.execute(sql`
       INSERT INTO properties (id, organization_id, name, slug, timezone, source_epoch)

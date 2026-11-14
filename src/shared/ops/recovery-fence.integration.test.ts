@@ -18,6 +18,8 @@ import {
   applyRecoveryFence,
   inspectRecoveryFence,
 } from '#/shared/db/recovery/postgres-recovery-fence'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
+import { drizzleSeedRunner } from '#/shared/db/testing/drizzle-seed-runner'
 
 const db = getDb()
 const ROLLBACK = new Error('rollback recovery fence integration proof')
@@ -95,18 +97,16 @@ describe('restore recovery fence (REG-04, integration)', () => {
             'recovery-proof-organization', clock_timestamp()
           )
         `)
-        await transaction.execute(sql`
-          INSERT INTO google_connections (
-            id, organization_id, google_subject, encrypted_access_token,
-            encrypted_refresh_token, token_expires_at, scopes, connected_by,
-            visibility, status, credential_use_state, created_at, updated_at
-          ) VALUES (
-            ${GOOGLE_CONNECTION_ID}::uuid, 'org-recovery-proof',
-            'recovery-proof-google-subject', 'encrypted-access', 'encrypted-refresh',
-            clock_timestamp() + interval '1 day', ARRAY['business.manage'], ${USER_ID},
-            'organization', 'active', 'active', clock_timestamp(), clock_timestamp()
-          )
-        `)
+        await seedGoogleConnection(drizzleSeedRunner(transaction), {
+          id: GOOGLE_CONNECTION_ID,
+          organizationId: 'org-recovery-proof',
+          googleSubject: 'recovery-proof-google-subject',
+          accessToken: 'encrypted-access',
+          refreshToken: 'encrypted-refresh',
+          tokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          scopes: ['business.manage'],
+          connectedBy: USER_ID,
+        })
         await transaction.execute(sql`
           INSERT INTO properties (
             id, organization_id, name, slug, timezone, country_code
