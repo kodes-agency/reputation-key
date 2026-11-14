@@ -2,17 +2,16 @@
 // Per architecture: "Every use case tested for happy path + every error path."
 // This use case evolved from thin to full: it loads the target member and checks
 // the actual role hierarchy.
-// BQC-3.5: the role update + role_changed fact go through the sequential
-// command-store fake. Members are seeded in BOTH surfaces: the identity port
-// backs the read-side UX guards, the command store backs the atomic write.
+// The role update + role_changed fact commit through the atomic identity
+// command store on real PostgreSQL. Members are seeded in BOTH surfaces: the
+// identity port backs the read-side UX guards, the database backs the write.
 
 import { describe, it, expect, vi } from 'vitest'
 import { updateMemberRole } from './update-member-role.server'
 import { roleChangeCleanup } from './member-role-cleanup.server'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
-import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
-import type { SequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
+import { createAtomicIdentityCommandStore } from '../infrastructure/identity-command-store'
+import { setupIdentityMembersDb } from '#/shared/testing/identity-members-fixtures'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../domain/errors'
 import type { MemberRecord } from '../application/ports/identity.port'
@@ -68,14 +67,15 @@ const ADMIN_ACTOR = userId('user-admin-actor')
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const DEFAULT_ORG_ID = 'org-00000000-0000-0000-0000-000000000001'
 
-/** Seed the same member into the identity port (reads) and the store (write). */
-const seedMemberBoth = (
+const fixtures = setupIdentityMembersDb(createAtomicIdentityCommandStore)
+
+/** Seed the same member into the identity port (reads) and the database (write). */
+const seedMemberBoth = async (
   identity: ReturnType<typeof createInMemoryIdentityPort>,
-  commandStore: SequentialIdentityCommandStore,
   member: MemberRecord,
 ) => {
   identity.seedMembers([member])
-  commandStore.seedMember({
+  await fixtures.seedMember({
     id: member.id,
     organizationId: DEFAULT_ORG_ID,
     userId: member.userId,
@@ -86,9 +86,9 @@ const seedMemberBoth = (
 }
 
 /** The requesting AccountAdmins, as the store re-checks them under its lock. */
-const seedActors = (commandStore: SequentialIdentityCommandStore) => {
+const seedActors = async () => {
   for (const actor of [buildTestAuthContext().userId, ADMIN_ACTOR]) {
-    commandStore.seedMember({
+    await fixtures.seedMember({
       id: `actor-${actor}`,
       organizationId: DEFAULT_ORG_ID,
       userId: actor,
@@ -99,7 +99,7 @@ const seedActors = (commandStore: SequentialIdentityCommandStore) => {
   }
 }
 
-const setup = (
+const setup = async (
   reconcileResponsibleManagerEligibility?: (
     organizationId: string,
     userId: string,
@@ -107,40 +107,39 @@ const setup = (
   ) => Promise<void>,
 ) => {
   const identity = createInMemoryIdentityPort()
-  const outbox = createRecordedOutbox()
-  const commandStore = createSequentialIdentityCommandStore({ outbox })
-  seedActors(commandStore)
+  const commandStore = fixtures.store()
+  await seedActors()
   const useCase = updateMemberRole({
     identity,
     commandStore,
     clock: () => FIXED_TIME,
     cleanup: roleChangeCleanup({ commandStore, reconcileResponsibleManagerEligibility }),
   })
-  return { useCase, identity, outbox, commandStore }
+  return { useCase, identity, commandStore }
 }
 
 describe('updateMemberRole', () => {
   it('reconciles manager responsibilities after a role change', async () => {
     const calls: string[][] = []
-    const { useCase, identity, commandStore } = setup(async (...input) => {
+    const { useCase, identity } = await setup(async (...input) => {
       calls.push(input)
     })
-    seedMemberBoth(identity, commandStore, PM_MEMBER)
+    await seedMemberBoth(identity, PM_MEMBER)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase({ memberId: PM_MEMBER.id, role: 'AccountAdmin' }, ctx)
 
     expect(calls).toEqual([[ctx.organizationId, PM_MEMBER.userId, ctx.userId]])
-    expect(commandStore.memberById(PM_MEMBER.id)?.role).toBe('owner')
+    expect((await fixtures.memberById(PM_MEMBER.id))?.role).toBe('owner')
   })
 
   it('resumes a failed cleanup when the same request is sent again, and only then succeeds', async () => {
     let attempts = 0
-    const { useCase, identity, outbox, commandStore } = setup(async () => {
+    const { useCase, identity } = await setup(async () => {
       attempts += 1
       if (attempts === 1) throw new Error('temporary reconciliation failure')
     })
-    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
+    await seedMemberBoth(identity, MEMBER_RECORD)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(
@@ -155,7 +154,7 @@ describe('updateMemberRole', () => {
       useCase({ memberId: MEMBER_RECORD.id, role: 'PropertyManager' }, ctx),
     ).resolves.toEqual({ success: true })
     expect(attempts).toBe(2)
-    expect(outbox.byTag('identity.member.role_changed')).toHaveLength(1)
+    expect(await fixtures.factsByTag('identity.member.role_changed')).toHaveLength(1)
 
     // Finished: the same request is now an ordinary no-op change.
     await expect(
@@ -165,8 +164,8 @@ describe('updateMemberRole', () => {
   })
 
   it('allows AccountAdmin to promote Member to PropertyManager', async () => {
-    const { useCase, identity, outbox, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
+    const { useCase, identity } = await setup()
+    await seedMemberBoth(identity, MEMBER_RECORD)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const result = await useCase(
@@ -177,18 +176,18 @@ describe('updateMemberRole', () => {
     expect(result.success).toBe(true)
 
     // The member row carries the better-auth role string
-    expect(commandStore.memberById('member-standard')?.role).toBe('admin')
+    expect((await fixtures.memberById('member-standard'))?.role).toBe('admin')
 
     // Verify the durable fact.
-    const facts = outbox.byTag('identity.member.role_changed')
+    const facts = await fixtures.factsByTag('identity.member.role_changed')
     expect(facts).toHaveLength(1)
-    expect(facts[0].previousRole).toBe('Member')
-    expect(facts[0].newRole).toBe('PropertyManager')
+    expect(facts[0]?.payload.previousRole).toBe('Member')
+    expect(facts[0]?.payload.newRole).toBe('PropertyManager')
   })
 
   it('rejects PropertyManager from changing any member role', async () => {
-    const { useCase, identity, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
+    const { useCase, identity } = await setup()
+    await seedMemberBoth(identity, MEMBER_RECORD)
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
@@ -197,8 +196,8 @@ describe('updateMemberRole', () => {
   })
 
   it('rejects Member from changing any role', async () => {
-    const { useCase, identity, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
+    const { useCase, identity } = await setup()
+    await seedMemberBoth(identity, MEMBER_RECORD)
     const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(
@@ -207,8 +206,8 @@ describe('updateMemberRole', () => {
   })
 
   it('rejects PropertyManager from changing another PropertyManager', async () => {
-    const { useCase, identity, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, PM_MEMBER)
+    const { useCase, identity } = await setup()
+    await seedMemberBoth(identity, PM_MEMBER)
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
@@ -217,8 +216,8 @@ describe('updateMemberRole', () => {
   })
 
   it('rejects PropertyManager from assigning AccountAdmin', async () => {
-    const { useCase, identity, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
+    const { useCase, identity } = await setup()
+    await seedMemberBoth(identity, MEMBER_RECORD)
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
@@ -227,7 +226,7 @@ describe('updateMemberRole', () => {
   })
 
   it('throws member_not_found when target does not exist', async () => {
-    const { useCase } = setup()
+    const { useCase } = await setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(
@@ -236,24 +235,25 @@ describe('updateMemberRole', () => {
   })
 
   it('records member.role-changed with previous and new role', async () => {
-    const { useCase, identity, outbox, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
+    const { useCase, identity } = await setup()
+    await seedMemberBoth(identity, MEMBER_RECORD)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase({ memberId: 'member-standard', role: 'PropertyManager' }, ctx)
 
-    const [event] = outbox.byTag('identity.member.role_changed')
-    expect(event.previousRole).toBe('Member')
-    expect(event.newRole).toBe('PropertyManager')
-    expect(event.userId).toBe(ctx.userId)
-    expect(event.organizationId).toBe(ctx.organizationId)
-    expect(event.memberUserId).toBe('user-member')
+    const [fact] = await fixtures.factsByTag('identity.member.role_changed')
+    const event = fact?.payload
+    expect(event?.previousRole).toBe('Member')
+    expect(event?.newRole).toBe('PropertyManager')
+    expect(event?.userId).toBe(ctx.userId)
+    expect(event?.organizationId).toBe(ctx.organizationId)
+    expect(event?.memberUserId).toBe('user-member')
   })
 
   it('forbids demoting the last AccountAdmin of the organization', async () => {
-    const { useCase, identity, commandStore } = setup()
+    const { useCase, identity } = await setup()
     // Only one admin in the org — the last-admin guard must fire.
-    seedMemberBoth(identity, commandStore, ADMIN_MEMBER)
+    await seedMemberBoth(identity, ADMIN_MEMBER)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(
@@ -263,30 +263,30 @@ describe('updateMemberRole', () => {
     // The admin was not demoted (neither read-side nor write-side).
     const still = await identity.getMember(ctx, 'member-admin')
     expect(still?.role).toBe('AccountAdmin')
-    expect(commandStore.memberById('member-admin')?.role).toBe('owner')
+    expect((await fixtures.memberById('member-admin'))?.role).toBe('owner')
   })
 
   it('lets an AccountAdmin demote another AccountAdmin while a second one remains (D2)', async () => {
-    const { useCase, identity, outbox, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, ADMIN_MEMBER)
-    seedMemberBoth(identity, commandStore, ADMIN_MEMBER_2)
+    const { useCase, identity } = await setup()
+    await seedMemberBoth(identity, ADMIN_MEMBER)
+    await seedMemberBoth(identity, ADMIN_MEMBER_2)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin', userId: ADMIN_ACTOR })
 
     await expect(
       useCase({ memberId: 'member-admin', role: 'PropertyManager' }, ctx),
     ).resolves.toEqual({ success: true })
 
-    expect(commandStore.memberById('member-admin')?.role).toBe('admin')
-    const [fact] = outbox.byTag('identity.member.role_changed')
-    expect(fact?.previousRole).toBe('AccountAdmin')
-    expect(fact?.newRole).toBe('PropertyManager')
-    expect(fact?.memberUserId).toBe('user-admin')
+    expect((await fixtures.memberById('member-admin'))?.role).toBe('admin')
+    const [fact] = await fixtures.factsByTag('identity.member.role_changed')
+    expect(fact?.payload.previousRole).toBe('AccountAdmin')
+    expect(fact?.payload.newRole).toBe('PropertyManager')
+    expect(fact?.payload.memberUserId).toBe('user-admin')
   })
 
   it('refuses a member changing their own role, before the last-owner guard', async () => {
-    const { useCase, identity, outbox, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, ADMIN_MEMBER)
-    seedMemberBoth(identity, commandStore, ADMIN_MEMBER_2)
+    const { useCase, identity } = await setup()
+    await seedMemberBoth(identity, ADMIN_MEMBER)
+    await seedMemberBoth(identity, ADMIN_MEMBER_2)
     // The caller is the target itself, and another AccountAdmin exists, so
     // only the self-change rule can refuse this.
     const ctx = buildTestAuthContext({
@@ -302,25 +302,25 @@ describe('updateMemberRole', () => {
         e.code === 'forbidden' &&
         e.message === 'Ask another Account Admin to change your role',
     )
-    expect(commandStore.memberById('member-admin')?.role).toBe('owner')
-    expect(outbox.byTag('identity.member.role_changed')).toHaveLength(0)
+    expect((await fixtures.memberById('member-admin'))?.role).toBe('owner')
+    expect(await fixtures.factsByTag('identity.member.role_changed')).toHaveLength(0)
   })
 
   it('refuses a change to the role the member already holds', async () => {
-    const { useCase, identity, outbox, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, ADMIN_MEMBER)
-    seedMemberBoth(identity, commandStore, ADMIN_MEMBER_2)
+    const { useCase, identity } = await setup()
+    await seedMemberBoth(identity, ADMIN_MEMBER)
+    await seedMemberBoth(identity, ADMIN_MEMBER_2)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin', userId: ADMIN_ACTOR })
 
     await expect(
       useCase({ memberId: 'member-admin', role: 'AccountAdmin' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'validation_error')
-    expect(outbox.byTag('identity.member.role_changed')).toHaveLength(0)
+    expect(await fixtures.factsByTag('identity.member.role_changed')).toHaveLength(0)
   })
 
   it('refuses a same-role change of the last AccountAdmin as validation, not last-owner', async () => {
-    const { useCase, identity, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, ADMIN_MEMBER)
+    const { useCase, identity } = await setup()
+    await seedMemberBoth(identity, ADMIN_MEMBER)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin', userId: ADMIN_ACTOR })
 
     await expect(
@@ -330,11 +330,11 @@ describe('updateMemberRole', () => {
 
   it('refuses an actor demoted since the request was admitted, without a write or cleanup', async () => {
     const reconcile = vi.fn(async () => undefined)
-    const { useCase, identity, outbox, commandStore } = setup(reconcile)
-    seedMemberBoth(identity, commandStore, ADMIN_MEMBER)
-    seedMemberBoth(identity, commandStore, ADMIN_MEMBER_2)
+    const { useCase, identity } = await setup(reconcile)
+    await seedMemberBoth(identity, ADMIN_MEMBER)
+    await seedMemberBoth(identity, ADMIN_MEMBER_2)
     // A concurrent demotion of the actor committed after admission.
-    commandStore.seedMember({
+    await fixtures.seedMember({
       id: `actor-${ADMIN_ACTOR}`,
       organizationId: DEFAULT_ORG_ID,
       userId: ADMIN_ACTOR,
@@ -349,16 +349,16 @@ describe('updateMemberRole', () => {
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
 
     expect(reconcile).not.toHaveBeenCalled()
-    expect(commandStore.memberById(ADMIN_MEMBER.id)?.role).toBe('owner')
-    expect(outbox.byTag('identity.member.role_changed')).toHaveLength(0)
+    expect((await fixtures.memberById(ADMIN_MEMBER.id))?.role).toBe('owner')
+    expect(await fixtures.factsByTag('identity.member.role_changed')).toHaveLength(0)
   })
 
   it('counts a multi-role owner via rawRole for the last-owner guard (H2/M4)', async () => {
-    const { useCase, identity, commandStore } = setup()
+    const { useCase, identity } = await setup()
     // A multi-role owner: built-in Role is null, but rawRole 'owner,editor' grants owner.
     // Previously this member crashed listMembers (toDomainRoleStrict) AND escaped the
     // last-owner guard (role !== ADMIN_ROLE). Now it must be counted as an owner.
-    seedMemberBoth(identity, commandStore, {
+    await seedMemberBoth(identity, {
       id: 'multi-owner',
       userId: 'user-multi',
       email: 'multi@test.com',

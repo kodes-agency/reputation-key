@@ -2,9 +2,11 @@ import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/goog
 import { describe, expect, it, vi } from 'vitest'
 import { GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID } from '../../application/ports/review-queue.port'
 import {
-  createFakeReviewDiscoveryRepository,
-  fakeDiscoveryProperty,
-} from '#/shared/testing/fake-review-discovery-repository'
+  discoveryProperty,
+  setupDiscoveryDb,
+  DISCOVERY_ORG,
+} from '#/shared/testing/review-discovery-fixtures'
+import { createReviewDiscoveryRepository } from '../repositories/review-discovery.repository'
 import { createSyncPropertyReviewsHandler } from './sync-property-reviews.job'
 
 vi.mock('#/shared/observability/trace', () => ({
@@ -14,10 +16,11 @@ vi.mock('#/shared/observability/trace', () => ({
 const NOW = new Date('2026-08-21T12:00:00.000Z')
 const JOB_DATA = {
   propertyId: '11111111-1111-4111-8111-111111111111',
-  organizationId: '33333333-3333-4333-8333-333333333333',
+  organizationId: DISCOVERY_ORG,
   connectionId: '22222222-2222-4222-8222-222222222222',
   locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
 }
+const discoveryDb = setupDiscoveryDb(createReviewDiscoveryRepository)
 const propertySourceEpoch = { getSourceEpoch: async () => ({ sourceEpoch: 7 }) }
 const makeSyncActivity = () => ({
   recordNewReviewObserved: vi.fn(),
@@ -25,7 +28,7 @@ const makeSyncActivity = () => ({
 })
 const ladderDeps = (
   syncActivity: ReturnType<typeof makeSyncActivity>,
-  discoveryRepo = createFakeReviewDiscoveryRepository([]),
+  discoveryRepo = discoveryDb.repo(),
 ) => ({
   syncActivity,
   discoveryRepo,
@@ -86,11 +89,17 @@ describe('durable initial import sync jobs', () => {
   it.each(['review_cap_exceeded', 'provider_rejected'] as const)(
     'acknowledges an initial %s only after Review records its retry schedule',
     async (code) => {
-      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
-      const discoveryRepo = createFakeReviewDiscoveryRepository([row])
+      await discoveryDb.seed([
+        discoveryProperty({
+          propertyId: JOB_DATA.propertyId,
+          connectionId: JOB_DATA.connectionId,
+        }),
+      ])
+      const discoveryRepo = discoveryDb.repo()
       const acknowledgeImportSync = vi.fn(async () => {
-        expect(row.errorClass).toBe(code)
-        expect(row.errorRetryAt!.getTime()).toBeGreaterThan(NOW.getTime())
+        const stored = await discoveryDb.read(JOB_DATA.propertyId)
+        expect(stored.errorClass).toBe(code)
+        expect(stored.errorRetryAt!.getTime()).toBeGreaterThan(NOW.getTime())
       })
       const enqueueContinuation = vi.fn()
       const handler = createSyncPropertyReviewsHandler({
@@ -113,7 +122,9 @@ describe('durable initial import sync jobs', () => {
       expect(acknowledgeImportSync).toHaveBeenCalledTimes(1)
       expect(enqueueContinuation).not.toHaveBeenCalled()
       if (code === 'review_cap_exceeded')
-        expect(row.errorRetryAt).toEqual(new Date(NOW.getTime() + 86_400_000))
+        expect((await discoveryDb.read(JOB_DATA.propertyId)).errorRetryAt).toEqual(
+          new Date(NOW.getTime() + 86_400_000),
+        )
     },
   )
 })

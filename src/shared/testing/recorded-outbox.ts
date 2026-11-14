@@ -1,5 +1,5 @@
 // Recorded outbox - the in-memory stand-in for the `outbox_events` table used
-// by the sequential command-store fakes. Every fact a store would have
+// by command-store fakes. Every fact a store would have
 // inserted in its commit transaction lands here, in commit order. Tests assert
 // on it directly: there is no in-process bus, so nothing is "emitted" - a fact
 // exists exactly when its outbox row does.

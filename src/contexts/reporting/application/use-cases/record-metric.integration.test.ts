@@ -1,16 +1,20 @@
-import { describe, expect, it } from 'vitest'
+import { randomUUID } from 'node:crypto'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { eq, sql } from 'drizzle-orm'
+import { getDb } from '#/shared/db'
+import { metricReadings } from '#/shared/db/schema/metric.schema'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   recordMetric,
   type RecordMetricDeps,
   type RecordMetricInput,
 } from './record-metric'
-import type { MetricReading } from '../../domain/metric-reading'
 import type {
   MetricSourceReceipt,
   RecordMetricsCommand,
 } from '../ports/metric-command-store.port'
 import type { GovernedMetricVersion } from '../../readings/contracts'
-import { createSequentialMetricCommandStore } from '#/shared/testing/sequential-metric-command-store'
+import { createAtomicMetricCommandStore } from '../../readings/metric-command-store.server'
 import {
   metricReadingId,
   organizationId,
@@ -19,7 +23,15 @@ import {
   propertyId,
 } from '#/shared/domain/ids'
 
+const db = getDb()
 const NOW = new Date('2026-08-08T12:00:00Z')
+const ORG = organizationId('org-record-metric-use-case')
+const PROPERTY = propertyId('d4000000-0000-4000-8000-000000000051')
+const GROUP = portalGroupId('d4000000-0000-4000-8000-000000000061')
+const LINK_PORTAL = portalId('10000000-0000-4000-8000-000000000001')
+const RATING_PORTAL = portalId('d4000000-0000-4000-8000-000000000081')
+const EVENT = 'd4000000-0000-4000-8000-0000000000e1'
+const OTHER_EVENT = 'd4000000-0000-4000-8000-0000000000e2'
 
 const governed: GovernedMetricVersion = {
   definition: {
@@ -49,12 +61,12 @@ const governed: GovernedMetricVersion = {
 }
 
 const input = (overrides: Partial<RecordMetricInput> = {}): RecordMetricInput => ({
-  organizationId: organizationId('org-1'),
-  propertyId: propertyId('d4000000-0000-4000-8000-000000000051'),
+  organizationId: ORG,
+  propertyId: PROPERTY,
   portalId: null,
-  portalGroupId: portalGroupId('d4000000-0000-4000-8000-000000000061'),
+  portalGroupId: GROUP,
   definitionVersionId: governed.version.id,
-  sourceEventId: 'event-1',
+  sourceEventId: EVENT,
   sourcePolicy: 'first_party_workflow',
   scope: 'portal_group',
   value: 1,
@@ -64,19 +76,80 @@ const input = (overrides: Partial<RecordMetricInput> = {}): RecordMetricInput =>
   ...overrides,
 })
 
+const readReadings = () =>
+  db.select().from(metricReadings).where(eq(metricReadings.organizationId, ORG))
+
+const readReceipts = async (): Promise<MetricSourceReceipt[]> => {
+  const { rows } = await db.execute<{ event_id: string; consumer_name: string }>(sql`
+    SELECT event_id, consumer_name FROM event_consumer_receipts
+    WHERE event_id IN (${EVENT}::uuid, ${OTHER_EVENT}::uuid)
+  `)
+  return rows.map((row) => ({ eventId: row.event_id, consumerName: row.consumer_name }))
+}
+
+const clean = async () => {
+  await db.execute(sql`DELETE FROM metric_readings WHERE organization_id = ${ORG}`)
+  await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
+}
+
+const insertOutbox = (eventId: string) =>
+  db.execute(sql`
+    INSERT INTO outbox_events (
+      id, event_type, event_version, payload, organization_id, property_id,
+      source_context, source_aggregate_id
+    ) VALUES (
+      ${eventId}::uuid, 'portal.approved_destination_ratio.recorded', 1, '{}'::jsonb,
+      ${ORG}, ${PROPERTY}, 'portal', ${LINK_PORTAL}
+    )
+  `)
+
+beforeAll(async () => {
+  await db.execute(sql`
+    INSERT INTO organization (id, name, slug, "createdAt")
+    VALUES (${ORG}, 'Record Metric Use Case', ${ORG}, now())
+    ON CONFLICT (id) DO NOTHING
+  `)
+  await db.execute(sql`
+    INSERT INTO properties (id, organization_id, name, slug, timezone)
+    VALUES (${PROPERTY}, ${ORG}, 'Record Metric Property', 'record-metric-property', 'UTC')
+    ON CONFLICT (id) DO NOTHING
+  `)
+  await db.execute(sql`
+    INSERT INTO portal_groups (id, organization_id, property_id, name)
+    VALUES (${GROUP}, ${ORG}, ${PROPERTY}, 'Record Metric Group')
+    ON CONFLICT (id) DO NOTHING
+  `)
+  for (const [id, slug] of [
+    [LINK_PORTAL, 'record-metric-link-portal'],
+    [RATING_PORTAL, 'record-metric-rating-portal'],
+  ] as const) {
+    await db.execute(sql`
+      INSERT INTO portals (
+        id, organization_id, property_id, entity_type, entity_id, name, slug,
+        publication_state
+      ) VALUES (${id}, ${ORG}, ${PROPERTY}, 'property', ${PROPERTY}, ${slug}, ${slug}, 'published')
+      ON CONFLICT (id) DO NOTHING
+    `)
+  }
+})
+
+beforeEach(async () => {
+  await clean()
+  await insertOutbox(EVENT)
+  await insertOutbox(OTHER_EVENT)
+})
+
+afterAll(async () => {
+  await clean()
+  await db.execute(sql`DELETE FROM portals WHERE organization_id = ${ORG}`)
+  await db.execute(sql`DELETE FROM portal_groups WHERE organization_id = ${ORG}`)
+  await db.execute(sql`DELETE FROM properties WHERE id = ${PROPERTY}`)
+  await deleteTestOrganizations(db, [ORG])
+})
+
 const createDeps = (version: GovernedMetricVersion | null = governed) => {
-  const readings: MetricReading[] = []
-  const receipts: MetricSourceReceipt[] = []
   const commands: RecordMetricsCommand[] = []
-  const commandStore = createSequentialMetricCommandStore({
-    insertReading: async (reading) => {
-      readings.push(reading)
-      return reading
-    },
-    recordReceipt: async (receipt) => {
-      receipts.push(receipt)
-    },
-  })
+  const commandStore = createAtomicMetricCommandStore(db, randomUUID)
   const deps: RecordMetricDeps = {
     commandStore: {
       ...commandStore,
@@ -90,7 +163,7 @@ const createDeps = (version: GovernedMetricVersion | null = governed) => {
     idGen: () => metricReadingId('d4000000-0000-4000-8000-000000000071'),
     resolvePropertyLocalDate: async () => '2026-08-08',
   }
-  return { deps, readings, receipts, commands }
+  return { deps, commands }
 }
 
 describe('recordMetric', () => {
@@ -99,13 +172,14 @@ describe('recordMetric', () => {
     const result = await recordMetric(fakes.deps)(input())
 
     expect(result.status).toBe('recorded')
-    expect(fakes.readings).toHaveLength(1)
-    expect(fakes.readings[0]).toMatchObject({
+    const readings = await readReadings()
+    expect(readings).toHaveLength(1)
+    expect(readings[0]).toMatchObject({
       definitionVersionId: governed.version.id,
       metricKey: 'portal.content_review.completed',
-      sourceEventId: 'event-1',
+      sourceEventId: EVENT,
       sourcePolicy: 'first_party_workflow',
-      portalGroupId: 'd4000000-0000-4000-8000-000000000061',
+      groupId: GROUP,
       propertyLocalDate: '2026-08-08',
     })
     expect(fakes.commands[0]?.readings[0]).not.toHaveProperty('event')
@@ -129,14 +203,14 @@ describe('recordMetric', () => {
       const fakes = createDeps(version)
       const result = await recordMetric(fakes.deps)(
         input({
-          portalId: portalId('10000000-0000-4000-8000-000000000001'),
+          portalId: LINK_PORTAL,
           scope: 'portal',
           destinationKind,
           portalLinkId,
         }),
       )
       expect(result.status).toBe('recorded')
-      expect(fakes.readings[0]?.portalLinkId).toBe(expected)
+      expect((await readReadings())[0]?.portalLinkId).toBe(expected)
     },
   )
 
@@ -172,7 +246,7 @@ describe('recordMetric', () => {
 
     await recordMetric(deps)(
       input({
-        portalId: portalId('d4000000-0000-4000-8000-000000000081'),
+        portalId: RATING_PORTAL,
         portalGroupId: null,
         definitionVersionId: rating.version.id,
         sourcePolicy: 'first_party_guest_private',
@@ -191,9 +265,9 @@ describe('recordMetric', () => {
     expect(result).toEqual({
       status: 'rejected',
       reason: 'unknown_definition_version',
-      sourceEventId: 'event-1',
+      sourceEventId: EVENT,
     })
-    expect(fakes.readings).toEqual([])
+    expect(await readReadings()).toEqual([])
     expect(fakes.commands).toEqual([])
   })
 
@@ -206,7 +280,7 @@ describe('recordMetric', () => {
     const result = await recordMetric(fakes.deps)(input(overrides))
 
     expect(result).toMatchObject({ status: 'rejected', reason })
-    expect(fakes.readings).toEqual([])
+    expect(await readReadings()).toEqual([])
   })
 
   it('reports insufficient ratio data without persisting a misleading zero', async () => {
@@ -239,7 +313,7 @@ describe('recordMetric', () => {
       minimumSample: 5,
       actualSample: 2,
     })
-    expect(fakes.readings).toEqual([])
+    expect(await readReadings()).toEqual([])
   })
 
   it('commits no receipt when a refused fact carries none', async () => {
@@ -247,13 +321,13 @@ describe('recordMetric', () => {
 
     await recordMetric(fakes.deps)(input({ attributionQuality: 'unresolved' }))
 
-    expect(fakes.receipts).toEqual([])
+    expect(await readReceipts()).toEqual([])
   })
 })
 
 describe('recordMetric for a durable delivery that yields no reading', () => {
   const receipt: MetricSourceReceipt = {
-    eventId: 'event-1',
+    eventId: EVENT,
     consumerName: 'metric.portal-workflow',
   }
   const ratio: GovernedMetricVersion = {
@@ -284,8 +358,8 @@ describe('recordMetric for a durable delivery that yields no reading', () => {
     )
 
     expect(result.status).toBe('insufficient_data')
-    expect(fakes.receipts).toEqual([receipt])
-    expect(fakes.readings).toEqual([])
+    expect(await readReceipts()).toEqual([receipt])
+    expect(await readReadings()).toEqual([])
   })
 
   it.each([
@@ -305,8 +379,8 @@ describe('recordMetric for a durable delivery that yields no reading', () => {
       )
 
       expect(result).toMatchObject({ status: 'rejected', reason })
-      expect(fakes.receipts).toEqual([receipt])
-      expect(fakes.readings).toEqual([])
+      expect(await readReceipts()).toEqual([receipt])
+      expect(await readReadings()).toEqual([])
     },
   )
 
@@ -322,7 +396,7 @@ describe('recordMetric for a durable delivery that yields no reading', () => {
         recordMetric(fakes.deps)(input({ ...overrides, sourceReceipt: receipt })),
       ).rejects.toThrow(`Metric reading was refused by governance: ${reason}`)
 
-      expect(fakes.receipts).toEqual([])
+      expect(await readReceipts()).toEqual([])
     },
   )
 
@@ -334,7 +408,7 @@ describe('recordMetric for a durable delivery that yields no reading', () => {
     ).rejects.toThrow(
       'Metric reading was refused by governance: unknown_definition_version',
     )
-    expect(fakes.receipts).toEqual([])
+    expect(await readReceipts()).toEqual([])
   })
 
   it('refuses a receipt that names another fact than the one it settles', async () => {
@@ -344,10 +418,10 @@ describe('recordMetric for a durable delivery that yields no reading', () => {
       recordMetric(fakes.deps)(
         input({
           attributionQuality: 'unresolved',
-          sourceReceipt: { ...receipt, eventId: 'another-event' },
+          sourceReceipt: { ...receipt, eventId: OTHER_EVENT },
         }),
       ),
     ).rejects.toThrow('Metric source receipt event does not match its reading')
-    expect(fakes.receipts).toEqual([])
+    expect(await readReceipts()).toEqual([])
   })
 })
