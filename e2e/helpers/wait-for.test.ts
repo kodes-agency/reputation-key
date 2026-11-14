@@ -6,7 +6,7 @@
 // why the Google import spec was re-run rather than diagnosed five times.
 
 import { describe, it, expect, vi } from 'vitest'
-import { waitFor, bailWait, WaitBailedError } from './fixtures'
+import { waitFor, bailWait, WaitBailedError } from './wait-for'
 
 /**
  * Narrow a rejection to an Error, and fail loudly if it never rejected.

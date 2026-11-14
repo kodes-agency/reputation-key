@@ -12,6 +12,7 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import type { ReviewDiscoveryRepository } from '#/contexts/review/application/ports/review-discovery.repository'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 
 /** The Organization every discovery fixture belongs to. */
 export const DISCOVERY_ORG = 'org-review-discovery-jobs-1111111111'
@@ -113,22 +114,13 @@ async function seedConnections(
   for (const row of rows) {
     if (row.connectionId === null || seen.has(row.connectionId)) continue
     seen.add(row.connectionId)
-    await pool.query(
-      `INSERT INTO google_connections
-         (id, organization_id, google_subject, encrypted_access_token,
-          encrypted_refresh_token, token_expires_at, scopes, connected_by,
-          visibility, status, credential_use_state, created_at, updated_at)
-       VALUES ($1, $2, $3, 'enc-a', 'enc-r', NOW() + INTERVAL '1 day',
-               ARRAY['https://www.googleapis.com/auth/business.manage'],
-               'seed-user', 'organization', $4, $5, NOW(), NOW())`,
-      [
-        row.connectionId,
-        row.organizationId,
-        `subject-${row.connectionId}`,
-        row.connectionStatus,
-        row.credentialUseState,
-      ],
-    )
+    await seedGoogleConnection(pool, {
+      id: row.connectionId,
+      organizationId: row.organizationId,
+      googleSubject: `subject-${row.connectionId}`,
+      status: row.connectionStatus,
+      credentialUseState: row.credentialUseState,
+    })
   }
 }
 

@@ -90,8 +90,8 @@ import {
   callServerFn,
   callServerFnGet,
   callServerFnGetExpectError,
-  dbQuery,
-} from '../../helpers/fixtures'
+} from '../../helpers/server-fn'
+import { dbQuery } from '../../helpers/fixture-db'
 import { assertNoAxeViolations } from '../../helpers/a11y'
 import {
   clickWhenReady,

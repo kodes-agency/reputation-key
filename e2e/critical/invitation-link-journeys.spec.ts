@@ -30,13 +30,10 @@ import { expectPhoneLayout } from '../helpers/phone-layout'
 import { signIn, TEST_EMAIL } from '../helpers/auth'
 import { clickWhenReady, waitForHydration } from '../helpers/interaction'
 import { requireE2eSeedState } from '../helpers/seed-state'
-import {
-  callServerFn,
-  cleanupE2eData,
-  dbQuery,
-  e2eRunId,
-  resetGuestRateLimits,
-} from '../helpers/fixtures'
+import { callServerFn } from '../helpers/server-fn'
+import { cleanupE2eData } from '../helpers/fixture-cleanup'
+import { dbQuery, e2eRunId } from '../helpers/fixture-db'
+import { resetGuestRateLimits } from '../helpers/fixture-reset'
 import { mailStubControl } from '../fixtures/mail-stub'
 
 const PREFIX = `e2e-invlink-${e2eRunId}-`

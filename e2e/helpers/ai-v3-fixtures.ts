@@ -22,14 +22,10 @@ import { tsImport } from 'tsx/esm/api'
 import type { SeededIds } from '../../src/contexts/ai/infrastructure/testing/ai-v3-seed'
 import { testEnvironment } from '../../src/shared/testing/test-environment'
 import type * as SeedFactory from './ai-v3-seed-factory'
-import {
-  cleanupE2eData,
-  dbQuery,
-  e2eRunId,
-  seedMemberUserWithGrant,
-  seedProperty,
-  seedReviewInboxItemWithCycle,
-} from './fixtures'
+import { cleanupE2eData } from './fixture-cleanup'
+import { dbQuery, e2eRunId } from './fixture-db'
+import { seedMemberUserWithGrant, seedProperty } from './fixture-seeds'
+import { seedReviewInboxItemWithCycle } from './fixture-inbox-seeds'
 
 const TEST_ENV = testEnvironment()
 const DAY_MS = 24 * 60 * 60 * 1000

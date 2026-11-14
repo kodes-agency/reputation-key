@@ -33,6 +33,7 @@ import { createEligibleReads } from '../../application/eligible-reads'
 import { createAiReviewSource } from '../../application/ai-review-source'
 import { requireAccessibleReview } from '../../application/use-cases/reply-access'
 import { createReviewRepository } from './review.repository'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { eraseReviewSourceContent } from '#/contexts/reputation/application/public-api'
 
 const ORG = organizationId('org-review-tombstone-reads-1111111111')
@@ -89,17 +90,11 @@ async function seedTenant(): Promise<void> {
  * sits on a Property bound to Google through an active connection.
  */
 async function bindPropertyToGoogle(): Promise<void> {
-  await pool.query(
-    `INSERT INTO google_connections
-       (id, organization_id, google_subject, encrypted_access_token,
-        encrypted_refresh_token, token_expires_at, scopes, connected_by,
-        visibility, status, credential_use_state, created_at, updated_at)
-     VALUES ($1, $2, 'subject-tombstone-reads', 'enc-a', 'enc-r',
-             NOW() + INTERVAL '1 day',
-             ARRAY['https://www.googleapis.com/auth/business.manage'],
-             'seed-user', 'organization', 'active', 'active', NOW(), NOW())`,
-    [CONNECTION, ORG],
-  )
+  await seedGoogleConnection(pool, {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: 'subject-tombstone-reads',
+  })
   await pool.query(
     `UPDATE properties
         SET google_connection_id = $1, gbp_account_id = $2, gbp_location_id = $3,

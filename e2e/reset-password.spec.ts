@@ -21,7 +21,8 @@ import { waitForHydration, clickWhenReady } from './helpers/interaction'
 import { mailStubControl } from './fixtures/mail-stub'
 import { registerInvitedAccount } from './helpers/auth'
 import { requireE2eSeedState } from './helpers/seed-state'
-import { cleanupE2eData, dbQuery } from './helpers/fixtures'
+import { cleanupE2eData } from './helpers/fixture-cleanup'
+import { dbQuery } from './helpers/fixture-db'
 
 const PREFIX = 'e2e-reset'
 

@@ -41,18 +41,16 @@ import type { Page } from '@playwright/test'
 import { test, expect } from '../../helpers/error-detection'
 import { expectPhoneLayout } from '../../helpers/phone-layout'
 import { signIn } from '../../helpers/auth'
+import { callServerFn, callServerFnGetExpectError } from '../../helpers/server-fn'
+import { cleanupE2eData } from '../../helpers/fixture-cleanup'
+import { dbQuery, e2eRunId } from '../../helpers/fixture-db'
 import {
-  callServerFn,
-  callServerFnGetExpectError,
-  cleanupE2eData,
-  dbQuery,
-  e2eRunId,
   getUserByEmail,
   seedGoogleConnection,
   seedProperty,
   seedReview,
-  seedReviewInboxItemWithCycle,
-} from '../../helpers/fixtures'
+} from '../../helpers/fixture-seeds'
+import { seedReviewInboxItemWithCycle } from '../../helpers/fixture-inbox-seeds'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { assertNoAxeViolations } from '../../helpers/a11y'
 import { clickWhenReady, waitForHydration } from '../../helpers/interaction'

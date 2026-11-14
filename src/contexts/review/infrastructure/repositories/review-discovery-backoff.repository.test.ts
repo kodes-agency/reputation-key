@@ -13,6 +13,7 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { snapshotFailureRetryMs } from '../../domain/snapshot-failure-backoff'
 import { createReviewDiscoveryRepository } from './review-discovery.repository'
 
@@ -108,16 +109,11 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await clearSeed()
-  await pool.query(
-    `INSERT INTO google_connections
-       (id, organization_id, google_subject, encrypted_access_token,
-        encrypted_refresh_token, token_expires_at, scopes, connected_by,
-        visibility, status, credential_use_state, created_at, updated_at)
-     VALUES ($1, $2, $3, 'enc-a', 'enc-r', NOW() + INTERVAL '1 day',
-             ARRAY['https://www.googleapis.com/auth/business.manage'],
-             'seed-user', 'organization', 'active', 'active', NOW(), NOW())`,
-    [CONNECTION, ORG, `subject-${CONNECTION}`],
-  )
+  await seedGoogleConnection(pool, {
+    id: CONNECTION,
+    organizationId: ORG,
+    googleSubject: `subject-${CONNECTION}`,
+  })
   for (const id of ALL_PROPS) {
     await pool.query(
       `INSERT INTO properties

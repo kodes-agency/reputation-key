@@ -26,7 +26,7 @@ import { signIn, registerInvitedAccount } from '../../helpers/auth'
 import { assertNoAxeViolations } from '../../helpers/a11y'
 import { waitForHydration, clickWhenReady } from '../../helpers/interaction'
 import { requireE2eSeedState } from '../../helpers/seed-state'
-import { dbQuery, e2eRunId } from '../../helpers/fixtures'
+import { dbQuery, e2eRunId } from '../../helpers/fixture-db'
 import { mailStubControl } from '../../fixtures/mail-stub'
 import { deriveOrganizationSlug } from '../../../src/shared/domain/organization-slug'
 

@@ -13,13 +13,10 @@ import {
   seedSmallCheckIn,
   type V3Fixture,
 } from '../../helpers/ai-v3-fixtures'
-import {
-  cleanupE2eData,
-  closeInboxItemBySourceAuthority,
-  findOutboxEvents,
-  getNotificationsForUser,
-  waitFor,
-} from '../../helpers/fixtures'
+import { cleanupE2eData } from '../../helpers/fixture-cleanup'
+import { closeInboxItemBySourceAuthority } from '../../helpers/fixture-inbox-seeds'
+import { findOutboxEvents, getNotificationsForUser } from '../../helpers/fixture-reads'
+import { waitFor } from '../../helpers/wait-for'
 
 const PREFIX = 'e2e-gv3-'
 /** Its own prefix: tearing down a fixture clears every row under its prefix. */

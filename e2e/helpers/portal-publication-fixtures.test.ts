@@ -9,14 +9,23 @@ const transport = vi.hoisted(() => ({
   callServerFnGet: vi.fn(),
 }))
 
-vi.mock('./fixtures', () => ({
-  ...transport,
+vi.mock('./server-fn', () => transport)
+
+vi.mock('./fixture-db', () => ({
   dbQuery: vi.fn(async () => []),
   e2eRunId: 'publication-fixture',
+}))
+
+vi.mock('./fixture-seeds', () => ({
   getUserByEmail: vi.fn(async () => ({ id: 'manager' })),
   seedProperty: vi.fn(async () => ({ propertyId: 'property' })),
-  waitFor: vi.fn(),
 }))
+
+vi.mock('./fixture-queues', () => ({
+  enqueueGoalProgramMaintenance: vi.fn(),
+}))
+
+vi.mock('./wait-for', () => ({ waitFor: vi.fn() }))
 
 vi.mock('./seed-state', () => ({
   requireE2eSeedState: () => ({

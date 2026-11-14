@@ -13,7 +13,7 @@ import { attachRequestLog } from '../helpers/request-log'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { installWebVitals, readWebVitals, vitalsViolations } from '../helpers/web-vitals'
 import { settleGuestConsent } from '../helpers/guest-consent'
-import { resetGuestRateLimits } from '../helpers/fixtures'
+import { resetGuestRateLimits } from '../helpers/fixture-reset'
 import { assertDownloadBudget, attachDownloadLog } from '../helpers/download-log'
 
 const seed = requireE2eSeedState()
