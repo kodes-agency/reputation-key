@@ -20,22 +20,22 @@ import { test, expect } from '../../helpers/error-detection'
 import { expectPhoneLayout } from '../../helpers/phone-layout'
 import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
+import { e2eRunId } from '../../helpers/fixture-db'
+import { cleanupE2eData } from '../../helpers/fixture-cleanup'
 import {
-  e2eRunId,
-  cleanupE2eData,
   drainFixtureQueue,
   waitForQueuesIdle,
-  seedProperty,
-  seedReview,
-  seedReviewInboxItemWithCycle,
-  seedApprovedReply,
-  getReviewById,
-  getReplyById,
-  callServerFnGet,
   enqueuePurgeExpiredReviews,
   waitForFixtureJobSettled,
   waitForFixtureJobsFinished,
-} from '../../helpers/fixtures'
+} from '../../helpers/fixture-queues'
+import { seedProperty, seedReview } from '../../helpers/fixture-seeds'
+import {
+  seedReviewInboxItemWithCycle,
+  seedApprovedReply,
+} from '../../helpers/fixture-inbox-seeds'
+import { getReviewById, getReplyById } from '../../helpers/fixture-reads'
+import { callServerFnGet } from '../../helpers/server-fn'
 
 const PREFIX = 'e2e-exp-'
 const seed = requireE2eSeedState()

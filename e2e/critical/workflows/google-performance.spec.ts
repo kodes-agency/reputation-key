@@ -8,16 +8,15 @@ import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { gbpStubControl, type StubScope } from '../../fixtures/gbp-stub'
 import type { PropertyGooglePerformanceResultV1 } from '../../../src/shared/google-performance-report-contract'
+import { callServerFn, callServerFnGet } from '../../helpers/server-fn'
+import { cleanupE2eData } from '../../helpers/fixture-cleanup'
+import { e2eRunId } from '../../helpers/fixture-db'
 import {
-  callServerFn,
-  callServerFnGet,
-  cleanupE2eData,
-  e2eRunId,
   getUserByEmail,
   seedGoogleConnection,
   seedProperty,
-  waitFor,
-} from '../../helpers/fixtures'
+} from '../../helpers/fixture-seeds'
+import { waitFor } from '../../helpers/wait-for'
 
 const PREFIX = 'e2e-perf-'
 const seed = requireE2eSeedState()

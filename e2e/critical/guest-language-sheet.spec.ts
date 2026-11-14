@@ -13,7 +13,7 @@ import type { Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
 import { expectPhoneLayout } from '../helpers/phone-layout'
 import { requireE2eSeedState } from '../helpers/seed-state'
-import { resetGuestRateLimits } from '../helpers/fixtures'
+import { resetGuestRateLimits } from '../helpers/fixture-reset'
 import { waitForHydration } from '../helpers/interaction'
 
 const seed = requireE2eSeedState()

@@ -1,7 +1,7 @@
 // E2E auth helpers — shared login/registration utilities
 
 import { expect, type Page } from '@playwright/test'
-import { serverFnUrl } from './fixtures'
+import { serverFnUrl } from './server-fn'
 import { clickWhenReady, waitForHydration } from './interaction'
 import { readE2eSeedState } from './seed-state'
 

@@ -17,21 +17,18 @@ import type {
   ImportCandidatePageDto,
   ImportProgressDto,
 } from '../../../src/contexts/integration/application/public-api'
+import { callServerFn, callServerFnGet } from '../../helpers/server-fn'
+import { cleanupE2eData } from '../../helpers/fixture-cleanup'
+import { drainFixtureQueue, enqueueReviewSync } from '../../helpers/fixture-queues'
+import { e2eRunId } from '../../helpers/fixture-db'
 import {
-  callServerFn,
-  callServerFnGet,
-  cleanupE2eData,
-  drainFixtureQueue,
-  e2eRunId,
-  enqueueReviewSync,
   getInboxItemForReview,
   getPropertyByGbpLocationId,
   getReplyForReview,
   getReviewsForProperty,
-  getUserByEmail,
-  seedGoogleConnection,
-  waitFor,
-} from '../../helpers/fixtures'
+} from '../../helpers/fixture-reads'
+import { getUserByEmail, seedGoogleConnection } from '../../helpers/fixture-seeds'
+import { waitFor } from '../../helpers/wait-for'
 import { expectPhoneLayout } from '../../helpers/phone-layout'
 
 const PREFIX = 'e2e-fail-'

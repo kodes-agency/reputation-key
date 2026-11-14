@@ -12,6 +12,7 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { seedGoogleConnection } from '#/shared/testing/google-connection-seed'
 import { createReviewDiscoveryRepository } from './review-discovery.repository'
 import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 
@@ -88,16 +89,12 @@ let pool: Pool
 const db = getDb()
 
 async function seedConnection(id: string, status: string): Promise<void> {
-  await pool.query(
-    `INSERT INTO google_connections
-       (id, organization_id, google_subject, encrypted_access_token,
-        encrypted_refresh_token, token_expires_at, scopes, connected_by,
-        visibility, status, credential_use_state, created_at, updated_at)
-     VALUES ($1, $2, $3, 'enc-a', 'enc-r', NOW() + INTERVAL '1 day',
-             ARRAY['https://www.googleapis.com/auth/business.manage'],
-             'seed-user', 'organization', $4, 'active', NOW(), NOW())`,
-    [id, ORG, `subject-${id}`, status],
-  )
+  await seedGoogleConnection(pool, {
+    id,
+    organizationId: ORG,
+    googleSubject: `subject-${id}`,
+    status,
+  })
 }
 
 type SeedProperty = Readonly<{

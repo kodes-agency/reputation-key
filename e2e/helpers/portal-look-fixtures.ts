@@ -7,14 +7,10 @@
 // sees a pending change it left. Properties and Portals are never deleted, as the
 // monthly portal goal fixtures' header explains: the stack is disposable.
 import type { Page } from '@playwright/test'
-import {
-  callServerFn,
-  callServerFnGet,
-  dbQuery,
-  e2eRunId,
-  seedProperty,
-  waitFor,
-} from './fixtures'
+import { callServerFn, callServerFnGet } from './server-fn'
+import { dbQuery, e2eRunId } from './fixture-db'
+import { seedProperty } from './fixture-seeds'
+import { waitFor } from './wait-for'
 import { verifyGoogleReviewDestination } from './portal-goal-fixtures'
 import { requireE2eSeedState } from './seed-state'
 import { reviewedPortalInput } from './portal-review-fixtures'

@@ -20,16 +20,15 @@
 import { test, expect } from '../../helpers/error-detection'
 import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
+import { e2eRunId } from '../../helpers/fixture-db'
+import { cleanupE2eData } from '../../helpers/fixture-cleanup'
 import {
-  e2eRunId,
-  cleanupE2eData,
   seedProperty,
   seedReview,
-  seedPublishedReply,
   seedMemberUserWithGrant,
-  callServerFnGet,
-  callServerFnGetExpectError,
-} from '../../helpers/fixtures'
+} from '../../helpers/fixture-seeds'
+import { seedPublishedReply } from '../../helpers/fixture-inbox-seeds'
+import { callServerFnGet, callServerFnGetExpectError } from '../../helpers/server-fn'
 
 const PREFIX = 'e2e-gov-'
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'

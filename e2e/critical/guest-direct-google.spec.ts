@@ -1,6 +1,8 @@
 import { test, expect } from '../helpers/error-detection'
 import { expectPhoneLayout } from '../helpers/phone-layout'
-import { dbQuery, resetGuestRateLimits, waitFor } from '../helpers/fixtures'
+import { dbQuery } from '../helpers/fixture-db'
+import { resetGuestRateLimits } from '../helpers/fixture-reset'
+import { waitFor } from '../helpers/wait-for'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { settleGuestConsent } from '../helpers/guest-consent'
 

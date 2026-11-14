@@ -12,7 +12,8 @@
 import { test, expect } from './helpers/error-detection'
 import { registerInvitedAccount } from './helpers/auth'
 import { mailStubControl } from './fixtures/mail-stub'
-import { cleanupE2eData, dbQuery, e2eRunId } from './helpers/fixtures'
+import { cleanupE2eData } from './helpers/fixture-cleanup'
+import { dbQuery, e2eRunId } from './helpers/fixture-db'
 import { requireE2eSeedState } from './helpers/seed-state'
 
 const PREFIX = `e2e-register-${e2eRunId}`
