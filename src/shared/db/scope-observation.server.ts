@@ -2,8 +2,9 @@
 // touches a table with an `organization_id` column is checked against the
 // scope it runs under, and what a policy keyed on that column would refuse is
 // counted and logged by reason, entry point and table. Requests also record
-// their statement and transaction timing, which prices running every read in
-// a short scoped transaction before any policy is enabled.
+// their statement and transaction timing and the time spent setting their
+// scope on the database, which prices scoping every statement before any
+// policy is enabled.
 
 import { AsyncResource } from 'node:async_hooks'
 import { performance } from 'node:perf_hooks'
@@ -53,11 +54,32 @@ const END = /^\s*(?:commit|end|rollback)\s*;?\s*$/iu
 
 let tenantTables: ReadonlySet<string> | undefined
 const shapes = new Map<string, StatementShape>()
-const counts = new Map<string, WouldRefuse>()
-const clients = new WeakMap<ClientBase, ClientState>()
-const timings = new WeakMap<RequestContext, RequestDatabaseTiming>()
-let flushTimer: ReturnType<typeof setInterval> | undefined
-let observerFailed = false
+
+// The production build inlines this module twice, and the pool's clients are
+// observed by whichever copy created the pool, so what one copy records the
+// other must read: a request's timing and the would-refuse counts are
+// process-wide.
+const OBSERVATION_KEY = Symbol.for('repkey.shared.db.scope-observation')
+
+type ObservationStore = {
+  counts: Map<string, WouldRefuse>
+  clients: WeakMap<ClientBase, ClientState>
+  timings: WeakMap<RequestContext, RequestDatabaseTiming>
+  flushTimer: ReturnType<typeof setInterval> | undefined
+  observerFailed: boolean
+}
+
+function observation(): ObservationStore {
+  const global = globalThis as { [OBSERVATION_KEY]?: ObservationStore }
+  global[OBSERVATION_KEY] ??= {
+    counts: new Map(),
+    clients: new WeakMap(),
+    timings: new WeakMap(),
+    flushTimer: undefined,
+    observerFailed: false,
+  }
+  return global[OBSERVATION_KEY]
+}
 
 /** Tables a row-security policy on `organization_id` would cover. */
 export function tenantTableNames(): ReadonlySet<string> {
@@ -114,6 +136,8 @@ function wouldRefuse(
 }
 
 function count(reason: WouldRefuseReason, tables: readonly string[]): void {
+  const store = observation()
+  const counts = store.counts
   const entry = currentScope()?.name ?? getSpanAttrs().useCase ?? 'unattributed'
   for (const table of tables) {
     const key = `${reason}\u0000${entry}\u0000${table}`
@@ -125,13 +149,14 @@ function count(reason: WouldRefuseReason, tables: readonly string[]): void {
       statements: (seen?.statements ?? 0) + 1,
     })
   }
-  flushTimer ??= setInterval(flushScopeObservations, FLUSH_INTERVAL_MS)
-  flushTimer.unref?.()
+  store.flushTimer ??= setInterval(flushScopeObservations, FLUSH_INTERVAL_MS)
+  store.flushTimer.unref?.()
 }
 
 function requestTiming(): RequestDatabaseTiming | undefined {
   const request = getRequestContext()
   if (!request) return undefined
+  const timings = observation().timings
   let timing = timings.get(request)
   if (!timing) {
     timing = {
@@ -150,10 +175,10 @@ function requestTiming(): RequestDatabaseTiming | undefined {
 /** Database timing of the current request, when it ran any statement. */
 export function getRequestDatabaseTiming(): Readonly<RequestDatabaseTiming> | undefined {
   const request = getRequestContext()
-  return request ? timings.get(request) : undefined
+  return request ? observation().timings.get(request) : undefined
 }
 
-/** Time spent setting the scope at the start of a transaction. */
+/** Time spent setting the scope on a session or at the start of a transaction. */
 export function recordScopeSetting(ms: number): void {
   const timing = requestTiming()
   if (timing) timing.scopeSettingMs += ms
@@ -161,6 +186,7 @@ export function recordScopeSetting(ms: number): void {
 
 /** Log and clear the would-refuse counts gathered since the last flush. */
 export function flushScopeObservations(): readonly WouldRefuse[] {
+  const counts = observation().counts
   const observed = [...counts.values()]
   counts.clear()
   const logger = getLogger()
@@ -179,6 +205,7 @@ function observeStatement(
   values: readonly unknown[] | undefined,
 ): () => void {
   const shape = statementShape(text)
+  const clients = observation().clients
   const state = clients.get(client) ?? { transactionStartedAt: undefined }
   clients.set(client, state)
   const timing = requestTiming()
@@ -229,8 +256,9 @@ function statementOf(args: readonly unknown[]): {
 
 function reportObserverFailure(error: unknown): void {
   // Observation must never change a statement's outcome; report it once.
-  if (observerFailed) return
-  observerFailed = true
+  const store = observation()
+  if (store.observerFailed) return
+  store.observerFailed = true
   getLogger().error({ err: error }, 'database scope observe failed')
 }
 

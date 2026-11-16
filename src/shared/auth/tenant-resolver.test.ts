@@ -46,6 +46,7 @@ import { organizationId, userId } from '#/shared/domain/ids'
 import { VALID_PERMISSIONS } from './permission-catalogue'
 import { can, canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import { toDomainRoleStrict } from '#/shared/domain/roles'
+import { getDatabaseScope } from '#/shared/db/tenant-scope.server'
 
 const makeHeaders = (extra: Record<string, string> = {}): Headers => {
   const h = new Headers()
@@ -269,6 +270,38 @@ describe('resolveTenant', () => {
     expect(ctx.userId).toBe('user-456')
     expect(ctx.organizationId).toBe('org-123')
     expect(ctx.role).toBe('AccountAdmin')
+  })
+
+  it('reads the membership and permission version under the session Organization', async () => {
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-1', activeOrganizationId: 'org-123' },
+      user: { id: 'user-456' },
+    })
+    const scopes: unknown[] = []
+    mockGetActiveMember.mockImplementation(async () => {
+      scopes.push(getDatabaseScope())
+      return { role: 'owner' }
+    })
+    mockDbSelect.mockImplementation(() => {
+      scopes.push(getDatabaseScope())
+      return versionRows(1)()
+    })
+
+    await resolveTenant(makeHeaders())
+
+    expect(scopes).toHaveLength(2)
+    expect(scopes).toEqual([
+      expect.objectContaining({
+        kind: 'tenant',
+        organizationId: 'org-123',
+        entry: 'session',
+      }),
+      expect.objectContaining({
+        kind: 'tenant',
+        organizationId: 'org-123',
+        entry: 'session',
+      }),
+    ])
   })
 
   it('maps admin role to PropertyManager', async () => {

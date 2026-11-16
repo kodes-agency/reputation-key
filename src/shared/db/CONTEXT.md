@@ -35,15 +35,43 @@ opened outside the pool (a script's own `pg.Client`) keeps the server default.
 
 Every unit of work carries a database scope: a tenant (`tenant-scope.server.ts`)
 or named system work (`system-scope.server.ts`). Auth enters the session's
-Organization in `resolveTenantContext`; an allowed `decidePublicExecution`
-enters a public request's Organization; the delayed execution gate runs
-Organization- and Property-scoped jobs and outbox consumers under their
-Organization and tenant-cross or unscoped work as system work. Transactions
-opened through `createDatabase` set `app.scope` and `app.organization_id` with
-`set_config(..., true)`, so the values end with the transaction and a pooled
-client never carries them to its next user. A process that serves requests
-declares itself in `getContainer`, after which system scope throws; the lint
-rule `source-policy/system-scope` keeps the module out of request code.
+Organization in `resolveTenantContext` and `resolveStaff`, and reads the
+membership that proves it under that Organization; an allowed
+`decidePublicExecution` enters a public request's Organization; the delayed
+execution gate runs Organization- and Property-scoped jobs and outbox consumers
+under their Organization and tenant-cross or unscoped work as system work. A
+process that serves requests declares itself in `getContainer`, after which
+system scope throws; the lint rule `source-policy/system-scope` keeps the
+module out of request code.
+
+Every statement runs under the scope of the unit of work that sent it
+(`statement-scope.server.ts`). Outside a transaction a pooled client's session
+holds `app.scope` and `app.organization_id`; before a statement whose scope
+differs from what the session holds, the client sets them, and the statement
+waits for that setting and is refused if it failed. A client therefore never
+runs one request's or job's statement under another's tenant, and an unscoped
+statement clears what the previous user left. Transactions opened through
+`createDatabase` also set both values with `set_config(..., true)`.
+`tenant-scope.integration.test.ts` interleaves two tenants, an unscoped request
+and system work on one client.
+
+The request context, the scope store, the pool and the observer's state are
+process-wide (`Symbol.for`): the production build inlines these modules into
+both the Nitro chunk and the SSR chunk, and a statement must see the request
+that sent it whichever copy created the pool. Server functions name their entry
+point through `tracedHandler`; server routes through `runServerRoute`.
+
+Some entry points have no tenant when they start, and look one up first:
+the Google push webhook (the notification's location names a connected
+Property), the Resend events webhook (the event's message id names a queued
+email; suppression events name an address), the unsubscribe link (its signed
+token names an email or digest row), public Portal pages and their link clicks
+(the token or print code names a Portal), print downloads and stored media (the
+asset names its owner), Better Auth's own routes (sign-in and the
+Organization list are keyed by user) and the removed-access notice on
+`/unavailable` (keyed by user, with no active Organization). Each needs a
+resolver that reads only the key it was given before it enters the Organization
+it found.
 
 Nothing is refused yet and the application still connects with its existing
 credential. `scope-observation.server.ts` watches every pooled client: a
@@ -52,8 +80,9 @@ statement on a table with an `organization_id` column and no scope, or with an
 logged each minute as `database scope observe: row security would refuse` by
 reason, entry point and table, never by identifier. Each server function's
 `request complete` line also carries its statement, autocommit, transaction and
-scope-setting time (`db*` fields), which prices running every read in a short
-scoped transaction before policies are enabled.
+scope-setting time (`db*` fields); the scope-setting time includes the session
+settings above, which prices scoping every statement before policies are
+enabled.
 
 ## Independent erasure evidence
 

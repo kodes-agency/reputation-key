@@ -46,7 +46,20 @@ export interface RequestContext {
   resolvedTenantCtx?: import('#/shared/domain/auth-context').AuthContext
 }
 
-const asyncLocalStorage = new AsyncLocalStorage<RequestContext>()
+// The production build inlines this module into both the Nitro chunk and the
+// SSR chunk. The pool, the database scope and the statement observer are
+// process-wide, so the request they read must be too: with one storage per
+// copy, a statement sent from a server function looked like it ran outside
+// any request.
+const STORAGE_KEY = Symbol.for('repkey.shared.observability.request-context')
+
+function storage(): AsyncLocalStorage<RequestContext> {
+  const global = globalThis as { [STORAGE_KEY]?: AsyncLocalStorage<RequestContext> }
+  global[STORAGE_KEY] ??= new AsyncLocalStorage<RequestContext>()
+  return global[STORAGE_KEY]
+}
+
+const asyncLocalStorage = storage()
 
 export function getRequestContext(): RequestContext | undefined {
   return asyncLocalStorage.getStore()
@@ -76,6 +89,18 @@ export function runWithContext<T>(
   identifiers: Readonly<{ causationId?: string; commandId?: string }> = {},
 ): Promise<T> {
   return asyncLocalStorage.run({ requestId, spanAttrs: {}, ...identifiers }, fn)
+}
+
+/**
+ * Run a server route's handler as one request named by its route, so its log
+ * lines and database statements carry that entry point. Server functions get
+ * the same from `tracedHandler`.
+ */
+export function runServerRoute<T>(route: string, fn: () => Promise<T>): Promise<T> {
+  return runWithContext(generateRequestId(), async () => {
+    enrichSpan({ useCase: route })
+    return fn()
+  })
 }
 
 export function generateRequestId(): string {

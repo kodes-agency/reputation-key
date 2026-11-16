@@ -165,6 +165,27 @@ describe('request timing', () => {
   })
 })
 
+describe('bundle copies', () => {
+  it('a request reads the timing that the copy observing the pool recorded', async () => {
+    // The production build inlines this module and the request context twice;
+    // the pool is observed by whichever copy created it.
+    vi.resetModules()
+    const observer = await import('./scope-observation.server')
+    vi.resetModules()
+    const handler = await import('./scope-observation.server')
+    const context = await import('#/shared/observability/request-context')
+    const client = { query: vi.fn(async () => ({ rows: [] })) } as unknown as ClientBase
+    observer.observeClient(client)
+
+    const timing = await context.runWithContext('request', async () => {
+      await client.query('select 1')
+      return handler.getRequestDatabaseTiming()
+    })
+
+    expect(timing).toMatchObject({ statements: 1, autocommitStatements: 1 })
+  })
+})
+
 describe('pool checkouts', () => {
   it('run a queued checkout callback in the scope that asked for it', async () => {
     let release: (() => void) | undefined
