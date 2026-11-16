@@ -550,10 +550,9 @@ back every Organization, Property and privacy subject erased after the restore
 point. That is the worst outcome in the whole lifecycle package: data the
 product promised was destroyed becomes readable again.
 
-**Inactive foundations.** The table `backup_erasure_ledger` and the append
-helper in `src/shared/db/lifecycle/backup-erasure-ledger.ts` exist, but no
-production caller records erasures through that helper. This is not an active
-erasure journal.
+**Inactive foundation.** The table `backup_erasure_ledger` still exists but
+nothing writes or reads it; the bucket erasure journal is the record restore
+uses.
 
 `ops:restore-verify` feeds a local journal export (`journal=<file>`) to
 `applyRestoreResurrectionFence` with the replayers composed by
