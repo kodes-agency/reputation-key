@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { inboxNoteFromRow, inboxNoteToInsertRow } from './inbox-note.mapper'
-import type { inboxNotes } from '#/shared/db/schema/inbox.schema'
+import type { inboxNotes } from '#/shared/db/schema/inbox-workspace.schema'
 
 type InboxNoteRow = typeof inboxNotes.$inferSelect
 

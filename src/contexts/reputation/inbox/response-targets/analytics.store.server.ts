@@ -5,7 +5,7 @@ import {
   notExcludedFromResponseTargetReporting,
 } from '#/shared/db/inbox-response-target-exclusions'
 import {
-  inboxHandlingCycleHeads,
+  inboxItems,
   inboxHandlingCycleResponseTargets,
 } from '#/shared/db/schema/inbox.schema'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
@@ -23,10 +23,10 @@ type AnalyticsStore = Pick<
   | 'getGoogleReviewTargetCountsByProperty'
 >
 
-/** Every target with its handling-cycle head and cycle, as `target`, `head` and `cycle`. */
+/** Every target with its Inbox item and cycle, as `target`, `item` and `cycle`. */
 const targetCycles = sql`FROM ${inboxHandlingCycleResponseTargets} target
-  INNER JOIN ${inboxHandlingCycleHeads} head
-    ON head.inbox_item_id = target.inbox_item_id
+  INNER JOIN ${inboxItems} item
+    ON item.id = target.inbox_item_id
   INNER JOIN inbox_handling_cycles cycle
     ON cycle.inbox_item_id = target.inbox_item_id
    AND cycle.cycle_number = target.cycle_number`
@@ -76,13 +76,13 @@ export const createResponseTargetAnalyticsStore = (db: Database): AnalyticsStore
           count(*) FILTER (WHERE target.result IS DISTINCT FROM 'cancelled')::integer AS measured_cycle_count,
           count(*) FILTER (
             WHERE target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
+              AND item.current_cycle_number = target.cycle_number
+              AND item.status = 'open'
           )::integer AS active_count,
           count(*) FILTER (
             WHERE target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
+              AND item.current_cycle_number = target.cycle_number
+              AND item.status = 'open'
               AND target.due_at <= ${now}
           )::integer AS current_overdue_count,
           count(*) FILTER (WHERE target.result = 'on_time')::integer AS handled_on_time_count,
@@ -151,14 +151,14 @@ export const createResponseTargetAnalyticsStore = (db: Database): AnalyticsStore
           count(*) FILTER (
             WHERE target.performance_eligibility = 'measured'
               AND target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
+              AND item.current_cycle_number = target.cycle_number
+              AND item.status = 'open'
           )::integer AS active_count,
           count(*) FILTER (
             WHERE target.performance_eligibility = 'measured'
               AND target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
+              AND item.current_cycle_number = target.cycle_number
+              AND item.status = 'open'
               AND target.due_at <= ${now}
           )::integer AS current_overdue_count,
           count(*) FILTER (WHERE target.result = 'on_time')::integer
@@ -225,13 +225,13 @@ export const createResponseTargetAnalyticsStore = (db: Database): AnalyticsStore
           target.property_id,
           count(*) FILTER (
             WHERE target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
+              AND item.current_cycle_number = target.cycle_number
+              AND item.status = 'open'
           )::integer AS active_count,
           count(*) FILTER (
             WHERE target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
+              AND item.current_cycle_number = target.cycle_number
+              AND item.status = 'open'
               AND target.due_at <= ${now}
           )::integer AS overdue_count
         ${targetCycles}

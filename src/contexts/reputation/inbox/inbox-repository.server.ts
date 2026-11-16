@@ -10,7 +10,6 @@ import {
   asc,
   desc,
   eq,
-  getTableColumns,
   gt,
   gte,
   inArray,
@@ -25,7 +24,7 @@ import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Tx } from '#/shared/outbox/commit'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { inboxHandlingCycleHeads, inboxItems } from '#/shared/db/schema/inbox.schema'
+import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import type {
   InboxRepository,
   InboxFilters,
@@ -35,7 +34,7 @@ import type {
 } from '#/contexts/inbox/application/ports/inbox.repository'
 import type { ReviewSnippet } from '#/contexts/inbox/application/ports/review-lookup.port'
 import type { FeedbackSnippet } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { InboxItem, InboxStatus, SourceType } from '#/contexts/inbox/domain/types'
+import type { InboxItem, SourceType } from '#/contexts/inbox/domain/types'
 import type {
   InboxItemId,
   FeedbackId,
@@ -71,27 +70,12 @@ const withDefaults = (row: InboxItemRow): InboxItem => ({
 })
 
 /**
- * Source rows are actionable only through their canonical Handling Cycle
- * head. Every active read uses the same exact tenant/property/source identity
- * join; an orphan or mismatched compatibility projection is deliberately
- * invisible. `findBySource` remains the raw repair/materialization seam.
+ * Source rows are actionable only while they carry a current Handling Cycle.
+ * An item that never opened one (an orphan or a legacy projection) is
+ * deliberately invisible. `findBySource` remains the raw repair/materialization
+ * seam.
  */
-const activeHandlingCycleJoin = and(
-  eq(inboxHandlingCycleHeads.inboxItemId, inboxItems.id),
-  eq(inboxHandlingCycleHeads.organizationId, inboxItems.organizationId),
-  sql`${inboxHandlingCycleHeads.propertyId}::text = ${inboxItems.propertyId}`,
-  eq(inboxHandlingCycleHeads.sourceType, inboxItems.sourceType),
-  eq(inboxHandlingCycleHeads.sourceId, inboxItems.sourceId),
-)
-
-const hasActiveHandlingAuthority = isNotNull(inboxHandlingCycleHeads.inboxItemId)
-
-const effectiveInboxStatus = sql<InboxStatus>`${inboxHandlingCycleHeads.status}`
-
-const activeInboxItemColumns = {
-  ...getTableColumns(inboxItems),
-  status: effectiveInboxStatus,
-}
+const hasActiveHandlingAuthority = isNotNull(inboxItems.currentCycleNumber)
 
 /**
  * Count inbox items matching `conditions`, optionally narrowed to a property
@@ -117,7 +101,6 @@ async function countWhere(
   const result = await db
     .select({ count: sql<number>`count(*)` })
     .from(inboxItems)
-    .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
     .where(and(hasActiveHandlingAuthority, ...all))
   return Number(result[0]?.count ?? 0)
 }
@@ -154,9 +137,8 @@ export const createInboxRepository = (
         const start = runtime.clock().getTime()
         log.debug('querying inbox findById')
         const rows = await db
-          .select(activeInboxItemColumns)
+          .select()
           .from(inboxItems)
-          .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
           .where(
             and(
               hasActiveHandlingAuthority,
@@ -177,9 +159,8 @@ export const createInboxRepository = (
       return trace('inbox.findByIds', async () => {
         if (ids.length === 0) return []
         const rows = await db
-          .select(activeInboxItemColumns)
+          .select()
           .from(inboxItems)
-          .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
           .where(
             and(
               hasActiveHandlingAuthority,
@@ -223,7 +204,6 @@ export const createInboxRepository = (
         const rows = await db
           .select({ id: inboxItems.id, sourceId: inboxItems.sourceId })
           .from(inboxItems)
-          .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
           .where(
             and(
               hasActiveHandlingAuthority,
@@ -270,12 +250,10 @@ export const createInboxRepository = (
           db
             .select({ count: sql<number>`count(*)` })
             .from(inboxItems)
-            .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
             .where(and(...conditions)),
           db
-            .select(activeInboxItemColumns)
+            .select()
             .from(inboxItems)
-            .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
             .where(and(...pageConditions))
             .orderBy(
               ...(sort === 'newest'
@@ -365,7 +343,6 @@ export const createInboxRepository = (
         const rows = await db
           .select({ count: sql<number>`count(*)` })
           .from(inboxItems)
-          .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
           .where(and(...conditions))
         return Number(rows[0]?.count ?? 0)
       })
@@ -378,7 +355,6 @@ export const createInboxRepository = (
         const rows = await db
           .select({ propertyId: inboxItems.propertyId, count: sql<number>`count(*)` })
           .from(inboxItems)
-          .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
           .where(and(...conditions))
           .groupBy(inboxItems.propertyId)
         return rows.map((row) => ({
@@ -436,7 +412,7 @@ export const createInboxRepository = (
       sourceScopes?: ReadonlyArray<InboxSourceScope>,
     ) => {
       return trace('inbox.countOpenSince', async () => {
-        const conditions: SQL[] = [sql`${effectiveInboxStatus} = 'open'`]
+        const conditions: SQL[] = [eq(inboxItems.status, 'open')]
         if (since) conditions.push(gte(inboxItems.createdAt, since))
         return countWhere(db, orgId, propertyIds, sourceScopes, ...conditions)
       })
@@ -468,9 +444,8 @@ export const createInboxRepository = (
         const start = runtime.clock().getTime()
         log.debug('querying inbox findDetailById')
         const rows = await db
-          .select(activeInboxItemColumns)
+          .select()
           .from(inboxItems)
-          .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
           .where(
             and(
               hasActiveHandlingAuthority,
@@ -534,8 +509,8 @@ function propertyFilterCondition(filters: InboxFilters): SQL | null | undefined 
 function statusFilterCondition(filters: InboxFilters): SQL | undefined {
   if (!filters.status) return undefined
   return typeof filters.status === 'string'
-    ? sql`${effectiveInboxStatus} = ${filters.status}`
-    : sql`${effectiveInboxStatus} = ANY(${sql.param([...filters.status])}::inbox_status[])`
+    ? eq(inboxItems.status, filters.status)
+    : inArray(inboxItems.status, [...filters.status])
 }
 
 function escalationFilterConditions(filters: InboxFilters): SQL[] {

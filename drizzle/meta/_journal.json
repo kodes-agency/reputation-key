@@ -1108,6 +1108,20 @@
       "when": 1802189408000,
       "tag": "0157_drop_legacy_ratings_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 158,
+      "version": "7",
+      "when": 1802190408000,
+      "tag": "0158_inbox_items_cycle_head_facts",
+      "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1802191408000,
+      "tag": "0159_inbox_items_cycle_head_facts_validate",
+      "breakpoints": true
     }
   ]
 }

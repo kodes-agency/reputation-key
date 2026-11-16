@@ -2,8 +2,8 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { excludedFromResponseTargetReporting } from '#/shared/db/inbox-response-target-exclusions'
 import {
-  inboxHandlingCycleHeads,
   inboxHandlingCycleResponseTargets,
+  inboxItems,
   inboxPrivateFeedbackTargetPropertyOverrides,
   inboxResponseTargetOrganizationPolicies,
   inboxResponseTargetReminders,
@@ -548,14 +548,11 @@ export const createResponseTargetStore = (db: Database): ResponseTargetStore => 
         })
         .from(inboxHandlingCycleResponseTargets)
         .innerJoin(
-          inboxHandlingCycleHeads,
+          inboxItems,
           and(
+            eq(inboxItems.id, inboxHandlingCycleResponseTargets.inboxItemId),
             eq(
-              inboxHandlingCycleHeads.inboxItemId,
-              inboxHandlingCycleResponseTargets.inboxItemId,
-            ),
-            eq(
-              inboxHandlingCycleHeads.currentCycleNumber,
+              inboxItems.currentCycleNumber,
               inboxHandlingCycleResponseTargets.cycleNumber,
             ),
           ),

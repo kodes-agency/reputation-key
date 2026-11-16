@@ -24,11 +24,11 @@ export async function seedInboxItemForReview(input: {
 /**
  * IBX-01-T9: the Handling Cycle authority for a seeded Inbox projection.
  *
- * Every serving read resolves status from `inbox_handling_cycle_heads`, so an
- * `inbox_items` row on its own is INVISIBLE to the product. Fixtures that seed
- * the projection directly must seed its cycle one, head, and opening transition
- * too, or the detail panel renders nothing and the failure looks like a routing
- * bug rather than a missing fixture.
+ * Every serving read needs the current cycle facts on the `inbox_items` row, so
+ * a row without them is INVISIBLE to the product. Fixtures that seed the
+ * projection directly must seed its cycle one, head, those facts and the opening
+ * transition too, or the detail panel renders nothing and the failure looks like
+ * a routing bug rather than a missing fixture.
  */
 export async function seedInboxHandlingCycle(input: {
   organizationId: string
@@ -71,6 +71,12 @@ export async function seedInboxHandlingCycle(input: {
        created_at, updated_at
      ) VALUES ($1, $2, $3, $4, 1, $5, 1, 'open', $6, $7, $8, $9, $9)`,
     scope,
+  )
+  await dbQuery(
+    `UPDATE inbox_items
+     SET current_cycle_number = 1, current_source_revision = $2, state_revision = 1
+     WHERE id = $1`,
+    [input.inboxItemId, sourceRevision],
   )
   // Numbered for THIS statement rather than reusing `scope` positionally.
   // The transitions table has no review_id or material_review_revision, so the
@@ -241,8 +247,8 @@ export async function closeInboxItemBySourceAuthority(input: {
   await dbQuery(
     `UPDATE inbox_items
      SET status = 'closed', closed_at = $2, command_revision = command_revision + 1,
-         updated_at = $2
-     WHERE id = $1 AND organization_id = $3`,
+         state_revision = state_revision + 1, updated_at = $2
+     WHERE id = $1 AND organization_id = $3 AND status = 'open'`,
     [input.inboxItemId, closedAt, input.organizationId],
   )
 }
@@ -296,7 +302,8 @@ export async function reopenInboxItemBySourceAuthority(input: {
   await dbQuery(
     `UPDATE inbox_items
      SET status = 'open', closed_at = NULL, command_revision = command_revision + 1,
-         updated_at = $2
+         current_cycle_number = current_cycle_number + 1,
+         state_revision = state_revision + 1, updated_at = $2
      WHERE id = $1 AND organization_id = $3`,
     [input.inboxItemId, reopenedAt, input.organizationId],
   )
@@ -388,13 +395,13 @@ export async function getInboxHandlingTransitions(inboxItemId: string) {
   )
 }
 
-/** The current Handling Cycle head — the status authority every read uses. */
+/** The current Handling Cycle facts on the Inbox row — the status authority every read uses. */
 export async function getInboxHandlingCycleHead(inboxItemId: string) {
   const rows = await dbQuery(
     `SELECT current_cycle_number::int AS current_cycle_number,
             current_source_revision::int AS current_source_revision,
             state_revision::int AS state_revision, status
-     FROM inbox_handling_cycle_heads WHERE inbox_item_id = $1`,
+     FROM inbox_items WHERE id = $1`,
     [inboxItemId],
   )
   return rows[0] ?? null
