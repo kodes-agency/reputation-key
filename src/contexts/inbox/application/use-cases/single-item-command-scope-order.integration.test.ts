@@ -27,7 +27,7 @@ import { isInboxError } from '../../domain/errors'
 import {
   clearInboxOrganization,
   createInboxUseCaseDatabase,
-  dropInboxUseCaseTenant,
+  dropInboxOrganization,
   seedInboxOrganization,
 } from '../../infrastructure/inbox-database-fixtures'
 import { addInboxNote } from './add-inbox-note'
@@ -105,7 +105,7 @@ beforeAll(async () => {
 beforeEach(() => clearInboxOrganization(pool, ORG_ID))
 
 afterAll(async () => {
-  await dropInboxUseCaseTenant(pool, ORG_ID, [ITEM_PROPERTY, GRANTED_PROPERTY])
+  await dropInboxOrganization(pool, ORG_ID)
   await pool.end()
 })
 

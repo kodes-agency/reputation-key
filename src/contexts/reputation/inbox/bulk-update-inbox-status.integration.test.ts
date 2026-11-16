@@ -128,7 +128,7 @@ const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
     repo,
     commandStore,
     clock: () => FIXED_TIME,
-    idGen: () => '6a000000-0000-4000-8000-000000000002',
+    idGen: () => '6d000000-0000-4000-8000-000000000002',
     staffPublicApi: peopleApi,
     reviewSourceLookup,
     responseTargetAuthority,
