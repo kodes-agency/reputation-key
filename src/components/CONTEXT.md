@@ -397,6 +397,48 @@ tier, under } }`, see `page-identity.ts`): that gives its fallbacks their frame
 - `features/<feature>/` contains feature presentation grouped by user concept;
   `shared/` inside one feature is not a cross-feature dumping ground.
 
+### Where screens live
+
+A screen that belongs to one context lives beside it, in that context's feature
+folder under `ui/`, and routes import it from there. Screens take other contexts'
+server-function signatures as types only.
+
+- Identity: `src/contexts/identity/members/ui/` (member directory, invitations,
+  role change, removal, Property access, sign-in in `login/`, registration in
+  `registration/`, reset password, profile and security settings),
+  `consent/ui/` (organization AI settings and notice updates), `updates/ui/`
+  (What's new), `feedback/ui/` (beta feedback), `operator/ui/` (platform console).
+- Staff: `src/contexts/identity/staff/ui/accounts/` (the roster, person sheet and
+  Add staff) and `src/contexts/identity/staff/ui/home/` (the personal staff home).
+- Property: `src/contexts/property/lifecycle/ui/` (archive and restore),
+  `responsibility/ui/` (Responsible Manager selection) and `profile/ui/` (the
+  profile card).
+
+These screens stay in `features/` because each one composes several contexts and
+no single context owns it:
+
+- Organization settings (`features/organization/`): the Organization form and
+  identity card are Identity's (its organization DTOs and server functions), but
+  the page is composed by the `settings/organization` route with Reputation's
+  Response Target card and analytics summary (read through Inbox server
+  functions), and its read
+  region and cache policy serve all of them.
+- The Property setup wizard (`features/property-setup/`): the wizard, its steps,
+  questionnaire, review and results. One run reads Identity (AI notice and
+  consent), AI (analysis), Portal, Property (profile and Responsible Managers),
+  Review (reply library) and Reporting (the rating goal offer), and writes them
+  through one plan (`run-setup-plan.ts`).
+- The Property setup strip and its steps (`features/property/settings/`:
+  `property-setup-strip.tsx`, `property-setup-steps.ts`,
+  `property-setup-not-now-step.tsx`): the strip on a Property's settings page
+  that reads Reporting's rating-goal facts beside the Property's own setup state.
+- The Property public display name card
+  (`features/property/property-public-display-name-card.tsx`): a Property page
+  field whose schema is the Portal's `propertyPublicDisplayNameFormInputSchema`.
+
+The rest of `features/property/` (list, overview, Google, reply voice and
+templates, ratings) and `features/settings/` also still live here.
+
 Use named exports. Export page-level feature components from the feature barrel;
 keep concept-specific children internal.
 
