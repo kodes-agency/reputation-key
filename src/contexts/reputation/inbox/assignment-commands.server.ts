@@ -1,9 +1,5 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import {
-  inboxAssignmentHistory,
-  inboxHandlingCycleHeads,
-  inboxItems,
-} from '#/shared/db/schema/inbox.schema'
+import { inboxAssignmentHistory, inboxItems } from '#/shared/db/schema/inbox.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import {
   inboxItemId,
@@ -23,6 +19,11 @@ import {
   type InboxAssignmentReleaseReason,
 } from '#/contexts/inbox/domain/events'
 import { inTransaction } from '#/contexts/inbox/infrastructure/inbox-command-transaction'
+import {
+  cycleHeadItemColumns,
+  mirrorCycleHead,
+  persistedHeadFromItemRow,
+} from '#/contexts/inbox/infrastructure/inbox-cycle-head'
 import { createNextHandlingCycle } from '#/contexts/inbox/domain/handling-cycles'
 import type { InboxCommandStore } from '#/contexts/inbox/application/ports/inbox-command-store.port'
 import {
@@ -130,9 +131,8 @@ export const createAssignmentCommands = (
   }>
 
   /**
-   * Clear a preselected set in canonical lock order. Review heads are locked
-   * before Inbox items to match Handling Cycle commands; Inbox rows are then
-   * locked and updated by item ID. A racing release is an idempotent no-op.
+   * Clear a preselected set in canonical lock order: Inbox rows are locked and
+   * updated by item ID. A racing release is an idempotent no-op.
    */
   /** Accumulator shape for the release groups below. */
   type Mutable<T> = { -readonly [K in keyof T]: T[K] }
@@ -143,38 +143,6 @@ export const createAssignmentCommands = (
     candidateIds: readonly string[],
   ): Promise<number> => {
     if (candidateIds.length === 0) return 0
-
-    const reviewCycleRows = await tx
-      .select({
-        inboxItemId: inboxHandlingCycleHeads.inboxItemId,
-        currentCycleNumber: inboxHandlingCycleHeads.currentCycleNumber,
-      })
-      .from(inboxHandlingCycleHeads)
-      .innerJoin(
-        inboxItems,
-        and(
-          eq(inboxItems.id, inboxHandlingCycleHeads.inboxItemId),
-          eq(inboxItems.organizationId, inboxHandlingCycleHeads.organizationId),
-          // Canonical heads use UUIDs while retained Inbox projections may
-          // contain legacy text. Cast the canonical side so such a value cannot
-          // abort this authority-removal path.
-          sql`${inboxHandlingCycleHeads.propertyId}::text = ${inboxItems.propertyId}`,
-          eq(inboxItems.sourceType, inboxHandlingCycleHeads.sourceType),
-          eq(inboxItems.sourceId, inboxHandlingCycleHeads.sourceId),
-        ),
-      )
-      .where(
-        and(
-          eq(inboxItems.organizationId, input.organizationId),
-          eq(inboxItems.assignedTo, input.userId),
-          inArray(inboxItems.id, [...candidateIds]),
-        ),
-      )
-      .orderBy(inboxHandlingCycleHeads.inboxItemId)
-      .for('share', { of: inboxHandlingCycleHeads })
-    const cycleByItem = new Map(
-      reviewCycleRows.map((row) => [row.inboxItemId, row.currentCycleNumber]),
-    )
 
     const lockedRows = await tx
       .select()
@@ -214,7 +182,7 @@ export const createAssignmentCommands = (
         resultingCommandRevision: row.commandRevision,
         organizationId: row.organizationId,
         propertyId: row.propertyId,
-        handlingCycleNumber: cycleByItem.get(row.id) ?? null,
+        handlingCycleNumber: current.currentCycleNumber,
         previousAssignee: input.userId,
         nextAssignee: null,
         reason: 'eligibility_lost',
@@ -403,19 +371,6 @@ export const createAssignmentCommands = (
         }
 
         return inTransaction(db, lent, async (tx) => {
-          const headRows = await tx
-            .select()
-            .from(inboxHandlingCycleHeads)
-            .where(
-              and(
-                eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-                eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-                eq(inboxHandlingCycleHeads.sourceType, item.sourceType),
-                eq(inboxHandlingCycleHeads.sourceId, item.sourceId),
-              ),
-            )
-            .for('update')
-            .limit(1)
           const itemRows = await tx
             .select()
             .from(inboxItems)
@@ -429,8 +384,8 @@ export const createAssignmentCommands = (
             )
             .for('update')
             .limit(1)
-          const headRow = headRows[0]
           const itemRow = itemRows[0]
+          const headRow = itemRow ? persistedHeadFromItemRow(itemRow) : null
           if (!headRow || !itemRow) {
             throw inboxError(
               'not_found',
@@ -444,7 +399,6 @@ export const createAssignmentCommands = (
           if (
             !expectedMatches ||
             headRow.status !== 'closed' ||
-            itemRow.status !== headRow.status ||
             itemRow.commandRevision !== item.commandRevision
           ) {
             throw inboxError(
@@ -510,42 +464,11 @@ export const createAssignmentCommands = (
             now,
             command.responseTarget,
           )
-          const [updatedHead] = await tx
-            .update(inboxHandlingCycleHeads)
-            .set({
-              currentCycleNumber: decision.value.head.currentCycleNumber,
-              currentSourceRevision: decision.value.head.currentSourceRevision,
-              ...(item.sourceType === 'review'
-                ? {
-                    currentMaterialReviewRevision:
-                      decision.value.head.currentSourceRevision,
-                  }
-                : {}),
-              stateRevision: decision.value.head.stateRevision,
-              status: 'open',
-              updatedAt: now,
-            })
-            .where(
-              and(
-                eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-                eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-                eq(inboxHandlingCycleHeads.currentCycleNumber, expected.cycleNumber),
-                eq(inboxHandlingCycleHeads.currentSourceRevision, expectedSourceRevision),
-                eq(inboxHandlingCycleHeads.stateRevision, expected.stateRevision),
-                eq(inboxHandlingCycleHeads.status, 'closed'),
-              ),
-            )
-            .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-          if (!updatedHead) {
-            throw inboxError(
-              'revision_conflict',
-              'Inbox Handling Cycle changed during reopen',
-            )
-          }
           const [updatedItem] = await tx
             .update(inboxItems)
             .set({
               status: 'open',
+              ...cycleHeadItemColumns(decision.value.head),
               closedAt: null,
               assignedTo,
               commandRevision: item.commandRevision + 1,
@@ -556,6 +479,9 @@ export const createAssignmentCommands = (
                 eq(inboxItems.id, item.id),
                 eq(inboxItems.organizationId, item.organizationId),
                 eq(inboxItems.commandRevision, item.commandRevision),
+                eq(inboxItems.currentCycleNumber, expected.cycleNumber),
+                eq(inboxItems.currentSourceRevision, expectedSourceRevision),
+                eq(inboxItems.stateRevision, expected.stateRevision),
                 eq(inboxItems.status, 'closed'),
               ),
             )
@@ -563,6 +489,13 @@ export const createAssignmentCommands = (
           if (!updatedItem) {
             throw inboxError('revision_conflict', 'Inbox item changed during reopen')
           }
+          await mirrorCycleHead(tx, {
+            inboxItemId: item.id,
+            organizationId: item.organizationId,
+            sourceType: item.sourceType,
+            head: decision.value.head,
+            updatedAt: now,
+          })
           if (unassignedFact) {
             await tx.insert(inboxAssignmentHistory).values({
               inboxItemId: item.id,
@@ -608,28 +541,10 @@ export const createAssignmentCommands = (
           const ordered = [...items].sort((left, right) =>
             left.id.localeCompare(right.id),
           )
-          const cycleItems = ordered
 
-          // Canonical workflow lock order: every Review head, then every Inbox
-          // row, both sorted by stable Inbox identity. A shared head lock keeps
-          // each history row anchored to the cycle that owned the assignment.
-          const headRows =
-            cycleItems.length === 0
-              ? []
-              : await tx
-                  .select()
-                  .from(inboxHandlingCycleHeads)
-                  .where(
-                    and(
-                      eq(inboxHandlingCycleHeads.organizationId, commandOrganizationId),
-                      inArray(
-                        inboxHandlingCycleHeads.inboxItemId,
-                        cycleItems.map((item) => item.id),
-                      ),
-                    ),
-                  )
-                  .orderBy(inboxHandlingCycleHeads.inboxItemId)
-                  .for('share')
+          // Every Inbox row is locked by stable Inbox identity; each carries its
+          // Handling Cycle facts, so one lock keeps every history row anchored to
+          // the cycle that owned the assignment.
           const lockedRows = await tx
             .select()
             .from(inboxItems)
@@ -641,8 +556,13 @@ export const createAssignmentCommands = (
             )
             .orderBy(inboxItems.id)
             .for('update')
-          const headByItemId = new Map(headRows.map((row) => [row.inboxItemId, row]))
           const rowByItemId = new Map(lockedRows.map((row) => [row.id, row]))
+          const headByItemId = new Map(
+            lockedRows.flatMap((row) => {
+              const head = persistedHeadFromItemRow(row)
+              return head ? [[row.id, head] as const] : []
+            }),
+          )
           const exact = items.every((item) =>
             matchesLockedBulkAssignState(
               item,

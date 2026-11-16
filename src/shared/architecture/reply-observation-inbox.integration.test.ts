@@ -771,7 +771,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     })
   })
 
-  it('takes the head lock before the item on the lent transaction without deadlocking', async () => {
+  it('takes the one Inbox row lock on the lent transaction without deadlocking', async () => {
     const item = await seed()
     await insertObservation(live)
     await seedDeliveryEvent(EVENT_LIVE)
@@ -791,7 +791,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     const closedHead = await cycleStore.findHead(ITEM, ORG)
     if (closedHead === null) throw new Error('seeded Handling Cycle is missing')
 
-    const waitingOnHeads = async (atLeast: number) =>
+    const waitingOnItem = async (atLeast: number) =>
       vi.waitFor(
         async () => {
           const waiting = await pool.query(
@@ -799,7 +799,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
              FROM pg_stat_activity
              WHERE datname = current_database()
                AND wait_event_type = 'Lock'
-               AND query LIKE '%inbox_handling_cycle_heads%'`,
+               AND query LIKE '%inbox_items%'`,
           )
           expect(waiting.rows[0].n).toBeGreaterThanOrEqual(atLeast)
         },
@@ -814,9 +814,9 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
       await blocker.query('BEGIN')
       blockerOpen = true
       await blocker.query(
-        `SELECT inbox_item_id
-         FROM inbox_handling_cycle_heads
-         WHERE inbox_item_id = $1 AND organization_id = $2
+        `SELECT id
+         FROM inbox_items
+         WHERE id = $1 AND organization_id = $2
          FOR UPDATE`,
         [ITEM, ORG],
       )
@@ -831,12 +831,12 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
         openedAt: OBSERVED_AT,
         responseTarget: responseTargetPermit(1),
       })
-      await waitingOnHeads(1)
+      await waitingOnItem(1)
       observedClose = handleInboxReplyObserved(
         consumerDeps(),
         observedEvent(EVENT_LOCK_ORDER, newerLive),
       )
-      await waitingOnHeads(2)
+      await waitingOnItem(2)
 
       await blocker.query('COMMIT')
       blockerOpen = false
@@ -892,8 +892,8 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     if (closedHead === null) throw new Error('seeded Handling Cycle is missing')
 
     // Hold the shared first lock so both public command paths queue in a known
-    // order. Once released, the reopen must acquire head -> item and commit;
-    // the observed close then acquires the same order and closes that new cycle.
+    // order. Once released, the reopen must take the row and commit;
+    // the observed close then takes the same row and closes that new cycle.
     const blocker = await pool.connect()
     let blockerOpen = false
     let reopen: ReturnType<typeof openNextReviewCycleForTest> | null = null
@@ -902,9 +902,9 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
       await blocker.query('BEGIN')
       blockerOpen = true
       await blocker.query(
-        `SELECT inbox_item_id
-         FROM inbox_handling_cycle_heads
-         WHERE inbox_item_id = $1 AND organization_id = $2
+        `SELECT id
+         FROM inbox_items
+         WHERE id = $1 AND organization_id = $2
          FOR UPDATE`,
         [ITEM, ORG],
       )
@@ -927,7 +927,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
              FROM pg_stat_activity
              WHERE datname = current_database()
                AND wait_event_type = 'Lock'
-               AND query LIKE '%inbox_handling_cycle_heads%'`,
+               AND query LIKE '%inbox_items%'`,
           )
           expect(waiting.rows[0].n).toBeGreaterThanOrEqual(1)
         },
@@ -942,7 +942,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
              FROM pg_stat_activity
              WHERE datname = current_database()
                AND wait_event_type = 'Lock'
-               AND query LIKE '%inbox_handling_cycle_heads%'`,
+               AND query LIKE '%inbox_items%'`,
           )
           expect(waiting.rows[0].n).toBeGreaterThanOrEqual(2)
         },

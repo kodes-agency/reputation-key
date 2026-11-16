@@ -1,5 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm'
-import { inboxHandlingCycleHeads, inboxItems } from '#/shared/db/schema/inbox.schema'
+import { inboxItems } from '#/shared/db/schema/inbox.schema'
+import { persistedHeadFromItemRow } from '#/contexts/inbox/infrastructure/inbox-cycle-head'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
@@ -158,24 +159,9 @@ export const createStatusCommands = (
             }))
             .sort((left, right) => left.item.id.localeCompare(right.item.id))
 
-          // Canonical lock order is all source heads by item ID, followed by
-          // all Inbox rows by item ID. Opposite-order overlapping batches can
-          // therefore wait, but cannot deadlock or observe a split authority.
-          const cycleIds = ordered.map(({ item }) => item.id)
-          const headRows =
-            cycleIds.length === 0
-              ? []
-              : await tx
-                  .select()
-                  .from(inboxHandlingCycleHeads)
-                  .where(
-                    and(
-                      eq(inboxHandlingCycleHeads.organizationId, commandOrganizationId),
-                      inArray(inboxHandlingCycleHeads.inboxItemId, [...cycleIds]),
-                    ),
-                  )
-                  .orderBy(inboxHandlingCycleHeads.inboxItemId)
-                  .for('update')
+          // Every Inbox row is locked by item ID, and each carries its Handling
+          // Cycle facts. Opposite-order overlapping batches can therefore wait,
+          // but cannot deadlock or observe a split authority.
           const lockedItemRows = await tx
             .select()
             .from(inboxItems)
@@ -190,16 +176,15 @@ export const createStatusCommands = (
             )
             .orderBy(inboxItems.id)
             .for('update')
-          const headByItemId = new Map(headRows.map((row) => [row.inboxItemId, row]))
           const itemById = new Map(lockedItemRows.map((row) => [row.id, row]))
           const reopened: InboxBulkReopenedCycle[] = []
 
           for (const { event, item, originalIndex } of ordered) {
             const itemRow = itemById.get(item.id)
-            const headRow = headByItemId.get(item.id)
+            const headRow = itemRow ? persistedHeadFromItemRow(itemRow) : null
             const stillExact =
               itemRow !== undefined &&
-              headRow !== undefined &&
+              headRow !== null &&
               matchesLockedBulkReopenState(item, itemRow, headRow)
             if (!stillExact) {
               results[originalIndex] = {
