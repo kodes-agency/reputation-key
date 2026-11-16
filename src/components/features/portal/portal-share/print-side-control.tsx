@@ -23,7 +23,6 @@ export function PrintSideControl({ side, onChange }: Props) {
       value={side}
       onValueChange={(value) => onChange(value as PrintSide)}
       options={OPTIONS}
-      touch
     />
   )
 }

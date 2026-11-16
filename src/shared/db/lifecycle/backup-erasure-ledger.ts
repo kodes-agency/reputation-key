@@ -1,17 +1,12 @@
-// Database receipts remain available to existing lifecycle writers. Restore replay
-// takes independent journal evidence, because a restore can lose these receipts.
+// Restore replay takes independent journal evidence, because a restore can lose
+// database receipts.
 
-import { sql } from 'drizzle-orm'
 import {
   BACKUP_ERASURE_LEDGER_CONTEXTS,
   BACKUP_ERASURE_SUBJECT_CLASSES,
   type BackupErasureLedgerContext,
   type BackupErasureSubjectClass,
 } from '#/shared/db/schema/backup-erasure-ledger.schema'
-import {
-  appendBackupErasureHoldReleaseEvent,
-  readBackupErasureHoldReleaseEvents,
-} from './backup-erasure-hold-release'
 import type { Tx } from '#/shared/outbox/commit'
 
 export type { BackupErasureLedgerContext, BackupErasureSubjectClass }
@@ -19,16 +14,13 @@ export type { BackupErasureLedgerContext, BackupErasureSubjectClass }
 /**
  * The contexts an erasure journal entry may name: the lifecycle contexts, then
  * `platform` for the shared work items an Organization closure erases. Journal
- * entries live in the private bucket; the ledger table keeps its check on the
- * lifecycle contexts, and nothing appends a `platform` row to it.
+ * entries live in the private bucket.
  */
 export const ERASURE_JOURNAL_CONTEXTS = [
   ...BACKUP_ERASURE_LEDGER_CONTEXTS,
   'platform',
 ] as const
 export type ErasureJournalContext = (typeof ERASURE_JOURNAL_CONTEXTS)[number]
-
-const LEDGER_TABLE_CONTEXTS: ReadonlySet<string> = new Set(BACKUP_ERASURE_LEDGER_CONTEXTS)
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const CONTENT_FREE_REF = /^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$/u
@@ -155,121 +147,6 @@ export function validateBackupErasureLedgerAppend(
   }
   assertReferenceShapes(entry)
   assertSubjectShapeMatchesClass(entry)
-}
-
-/**
- * Append one erasure to the ledger, in the erasure's own transaction.
- *
- * Idempotent by lineage: replaying the same purge phase re-appends nothing and
- * returns the existing entry id, so a retried purge cannot inflate the counts
- * the fence later replays.
- */
-export async function appendBackupErasureLedgerEntry(
-  tx: Tx,
-  entry: BackupErasureLedgerAppend,
-): Promise<string> {
-  validateBackupErasureLedgerAppend(entry)
-  if (!LEDGER_TABLE_CONTEXTS.has(entry.context)) {
-    throw new Error('the backup erasure ledger table holds lifecycle contexts only')
-  }
-  const inserted = await tx.execute(sql`
-    INSERT INTO backup_erasure_ledger (
-      subject_class, organization_id, property_id, subject_ref, context,
-      closure_lineage_id, lifecycle_revision, effective_erasure_at,
-      erased_row_count, evidence_ref, hold_reference
-    ) VALUES (
-      ${entry.subjectClass}, ${entry.organizationId},
-      ${entry.propertyId ?? null}, ${entry.subjectRef ?? null}, ${entry.context},
-      ${entry.closureLineageId}::uuid, ${entry.lifecycleRevision},
-      ${entry.effectiveErasureAt.toISOString()}::timestamptz,
-      ${entry.erasedRowCount}, ${entry.evidenceRef},
-      ${entry.holdReference ?? null}
-    )
-    ON CONFLICT (subject_class, closure_lineage_id, lifecycle_revision, context)
-    DO NOTHING
-    RETURNING id
-  `)
-  const insertedId = (inserted.rows[0] as { id: string } | undefined)?.id
-  if (insertedId) return insertedId
-  const existing = await tx.execute(sql`
-    SELECT id FROM backup_erasure_ledger
-    WHERE subject_class = ${entry.subjectClass}
-      AND closure_lineage_id = ${entry.closureLineageId}::uuid
-      AND lifecycle_revision = ${entry.lifecycleRevision}
-      AND context = ${entry.context}
-  `)
-  const existingId = (existing.rows[0] as { id: string } | undefined)?.id
-  if (!existingId) throw new Error('backup erasure ledger append did not persist')
-  return existingId
-}
-
-/** Append the counsel-authorised release of a documented legal hold. */
-export async function releaseBackupErasureHold(
-  tx: Tx,
-  release: Readonly<{
-    ledgerEntryId: string
-    holdReference: string
-    authorityRef: string
-    releasedAt: Date
-  }>,
-): Promise<void> {
-  assertContentFreeRef(release.holdReference, 'holdReference')
-  assertContentFreeRef(release.authorityRef, 'authorityRef')
-  await appendBackupErasureHoldReleaseEvent(tx, release)
-}
-
-type LedgerRow = Readonly<{
-  id: string
-  subject_class: BackupErasureSubjectClass
-  organization_id: string
-  property_id: string | null
-  subject_ref: string | null
-  context: BackupErasureLedgerContext
-  closure_lineage_id: string
-  lifecycle_revision: number
-  effective_erasure_at: string | Date
-  erased_row_count: number
-  evidence_ref: string
-  hold_reference: string | null
-}>
-
-function entryFromRow(
-  row: LedgerRow,
-  holdReleasedAt: Date | undefined,
-): BackupErasureLedgerEntry {
-  return {
-    id: row.id,
-    subjectClass: row.subject_class,
-    organizationId: row.organization_id,
-    ...(row.property_id ? { propertyId: row.property_id } : {}),
-    ...(row.subject_ref ? { subjectRef: row.subject_ref } : {}),
-    context: row.context,
-    closureLineageId: row.closure_lineage_id,
-    lifecycleRevision: Number(row.lifecycle_revision),
-    effectiveErasureAt: new Date(row.effective_erasure_at),
-    erasedRowCount: Number(row.erased_row_count),
-    evidenceRef: row.evidence_ref,
-    ...(row.hold_reference ? { holdReference: row.hold_reference } : {}),
-    ...(holdReleasedAt ? { holdReleasedAt } : {}),
-  }
-}
-
-/** Every ledger entry, oldest effect first. */
-export async function readBackupErasureLedger(
-  tx: Tx,
-): Promise<readonly BackupErasureLedgerEntry[]> {
-  const releases = await readBackupErasureHoldReleaseEvents(tx)
-  const releasedAtByEntryId = new Map(
-    releases.map((release) => [release.ledgerEntryId, release.releasedAt]),
-  )
-  const result = await tx.execute(sql`
-    SELECT l.*
-    FROM backup_erasure_ledger l
-    ORDER BY l.effective_erasure_at ASC, l.id ASC
-  `)
-  return (result.rows as unknown as LedgerRow[]).map((row) =>
-    entryFromRow(row, releasedAtByEntryId.get(row.id)),
-  )
 }
 
 // ── The restore resurrection fence ───────────────────────────────────

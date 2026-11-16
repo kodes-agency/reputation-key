@@ -8,7 +8,11 @@ import { Check, Link2Off } from 'lucide-react'
 import { RatingFigure } from '#/components/ui/rating-figure'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { Skeleton } from '#/components/ui/skeleton'
-import { ROW_FIGURE_LINK, ROW_NAME_LINK } from '#/components/ui/row-link'
+import {
+  PHONE_LINK_TOUCH,
+  ROW_FIGURE_LINK,
+  ROW_NAME_LINK,
+} from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import { PROPERTY_LIFECYCLE_STATUS } from '#/contexts/property/lifecycle/ui/property-lifecycle-model'
 import {
@@ -27,6 +31,10 @@ import {
 } from './property-list-view'
 import { formatNumber, formatShortDate } from '#/lib/format'
 
+/** A link that keeps its own display and still reaches 44 px on a phone. */
+const PHONE_TOUCH_BOX =
+  'max-md:min-h-(--control-touch) max-md:min-w-(--control-touch) max-md:content-center'
+
 function Pending({ className }: Readonly<{ className?: string }>) {
   return <Skeleton className={cn('h-4', className)} aria-hidden="true" />
 }
@@ -40,7 +48,7 @@ export function PropertyNameCell({ row }: Readonly<{ row: PropertyListRow }>) {
         <Link
           to="/properties/$propertyId"
           params={{ propertyId: property.id }}
-          className={cn('truncate font-medium', ROW_NAME_LINK)}
+          className={cn('truncate font-medium', PHONE_LINK_TOUCH, ROW_NAME_LINK)}
         >
           {property.name}
         </Link>
@@ -58,6 +66,7 @@ export function PropertyNameCell({ row }: Readonly<{ row: PropertyListRow }>) {
               aria-label={`${notice} for ${property.name}`}
               className={cn(
                 'inline-flex items-center gap-1 font-medium text-warn',
+                PHONE_TOUCH_BOX,
                 ROW_NAME_LINK,
               )}
             >
@@ -170,7 +179,11 @@ export function AttentionValue({
       ))}
     </>
   )
-  const className = cn('inline-flex flex-wrap items-baseline gap-x-1.5', ROW_FIGURE_LINK)
+  const className = cn(
+    'inline-flex flex-wrap items-baseline gap-x-1.5',
+    PHONE_TOUCH_BOX,
+    ROW_FIGURE_LINK,
+  )
   // Work the fleet counts without a page to open (a rating drop, on a bounded
   // window): the figure stands, without a link.
   if (target === null) {
@@ -293,7 +306,10 @@ export function SetupValue({
       params={{ propertyId }}
       search={propertySetupStepSearch(nextStep)}
       aria-label={`Setup ${completedCount} of ${stepCount} at ${propertyName}. Next: ${next}`}
-      className={cn('flex flex-col gap-0.5', ROW_FIGURE_LINK)}
+      className={cn(
+        'flex flex-col gap-0.5 max-md:min-h-(--control-touch) max-md:justify-center',
+        ROW_FIGURE_LINK,
+      )}
     >
       {progress}
       <span className={NEXT_STEP_LINE} title={`Next: ${next}`}>

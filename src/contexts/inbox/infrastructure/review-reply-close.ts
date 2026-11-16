@@ -3,12 +3,11 @@
 // Two writers close a Review cycle on Google's reply truth, both inside
 // Review's exact-current observation permit: the `inbox.on-reply-observed`
 // consumer, and the projection rebuild when it recreates a missing item whose
-// review Google already answers. They share the lock order and the close here;
+// review Google already answers. They share the row lock and the close here;
 // only the consumer records facts and a receipt.
 
 import { and, eq, sql } from 'drizzle-orm'
 import {
-  inboxHandlingCycleHeads,
   inboxHandlingCycleTransitions,
   inboxItems,
 } from '#/shared/db/schema/inbox.schema'
@@ -33,33 +32,24 @@ import {
   type PersistedHead,
   type PersistedItem,
 } from './inbox-command-guards'
+import {
+  cycleHeadItemColumns,
+  mirrorCycleHead,
+  persistedHeadFromItemRow,
+} from './inbox-cycle-head'
 import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head'
 
 /**
- * Canonical Review Handling Cycle lock order is head -> Inbox item. Every
- * cycle-opening writer uses the same order; reversing it here lets a material revision/reopen race
- * form a PostgreSQL row-lock cycle. A Review-attested epoch carry advances only
- * the head's exact-material fence under this lock; cycle, state, and status stay
- * unchanged because the normalized material did not create work.
+ * The Inbox row carries the Handling Cycle facts, so one row lock covers the
+ * cycle and the item. A Review-attested epoch carry advances only the exact-material
+ * fence under this lock; cycle, state, and status stay unchanged because the
+ * normalized material did not create work.
  */
 export async function lockReviewRowsForObservation(
   tx: Tx,
   item: InboxItem,
   observation: CurrentReplyObservationPermit,
 ): Promise<Readonly<{ headRow: PersistedHead; itemRow: PersistedItem }>> {
-  const headRows = await tx
-    .select()
-    .from(inboxHandlingCycleHeads)
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-        eq(inboxHandlingCycleHeads.sourceType, 'review'),
-        eq(inboxHandlingCycleHeads.sourceId, observation.reviewId),
-      ),
-    )
-    .for('update')
-    .limit(1)
   const itemRows = await tx
     .select()
     .from(inboxItems)
@@ -74,16 +64,10 @@ export async function lockReviewRowsForObservation(
     )
     .for('update')
     .limit(1)
-  let headRow = headRows[0]
   const itemRow = itemRows[0]
+  let headRow = itemRow ? persistedHeadFromItemRow(itemRow) : null
   if (!itemRow || !headRow) {
     throw inboxError('not_found', 'Review Inbox item or Handling Cycle head not found')
-  }
-  if (itemRow.status !== headRow.status) {
-    throw inboxError(
-      'revision_conflict',
-      'Review Inbox Handling Cycle is not current for this observation',
-    )
   }
 
   if (headRow.currentSourceRevision !== observation.materialReviewRevision) {
@@ -162,32 +146,11 @@ export async function closeReviewCycleOnGoogleReply(
   await tx
     .insert(inboxHandlingCycleTransitions)
     .values(transitionInsert(decision.value.transition, observation.observedAt))
-  const [updatedHead] = await tx
-    .update(inboxHandlingCycleHeads)
-    .set({
-      status: 'closed',
-      stateRevision: decision.value.head.stateRevision,
-      updatedAt: recordedAt,
-    })
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-        eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-        eq(inboxHandlingCycleHeads.status, 'open'),
-      ),
-    )
-    .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-  if (!updatedHead) {
-    throw inboxError(
-      'revision_conflict',
-      'Review Handling Cycle changed during reply close',
-    )
-  }
   const [updatedItem] = await tx
     .update(inboxItems)
     .set({
       status: 'closed',
+      ...cycleHeadItemColumns(decision.value.head),
       closedAt: observation.observedAt,
       ...(itemRow.firstReplyPublishedAt === null
         ? { firstReplyPublishedAt: repliedOnGoogleAt }
@@ -199,13 +162,24 @@ export async function closeReviewCycleOnGoogleReply(
       and(
         eq(inboxItems.id, item.id),
         eq(inboxItems.organizationId, item.organizationId),
+        eq(inboxItems.stateRevision, headRow.stateRevision),
         eq(inboxItems.status, 'open'),
       ),
     )
     .returning()
   if (!updatedItem) {
-    throw inboxError('revision_conflict', 'Inbox item changed during reply close')
+    throw inboxError(
+      'revision_conflict',
+      'Review Handling Cycle changed during reply close',
+    )
   }
+  await mirrorCycleHead(tx, {
+    inboxItemId: item.id,
+    organizationId: item.organizationId,
+    sourceType: 'review',
+    head: decision.value.head,
+    updatedAt: recordedAt,
+  })
   return {
     item: itemFromRow(updatedItem),
     cycleFact: lifecycleFactFor(decision.value.transition),

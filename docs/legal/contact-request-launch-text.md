@@ -64,9 +64,8 @@ against this file.
 >   by a daily job, or at once when the Guest withdraws. The request record (its
 >   time, status and the Portal version it was made under) and the log of reveals
 >   (user id, time, purpose and basis) hold no email address or name. They are kept
->   until the response they belong to is deleted. The 24-month deletion of a response
->   runs only when scheduled retention is active, and it is not active yet, so
->   enforcement of that rule has not started;
+>   until the response they belong to is deleted. A response is deleted by the same
+>   daily job 24 months after its first rating;
 
 ### Section 7 (replaces "Contact Request remains disabled until its separate consent and withdrawal contract is accepted.")
 

@@ -1,3 +1,4 @@
+import { PHONE_LINK_TOUCH } from '#/components/ui/row-link'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -45,7 +46,7 @@ function AnalysisRow({
         <Link
           to="/properties/$propertyId/settings/ai"
           params={{ propertyId: property.propertyId }}
-          className="text-sm font-medium underline-offset-4 hover:underline"
+          className={`text-sm font-medium underline-offset-4 hover:underline ${PHONE_LINK_TOUCH}`}
         >
           {property.propertyName}
         </Link>

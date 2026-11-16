@@ -82,6 +82,7 @@ export function NotificationRefreshNotice({ error, onRetry }: FailureProps) {
       ) : (
         <RetryButton
           size="xs"
+          touch
           retrying={triedFor === error || reloading}
           onRetry={tryAgain}
         />

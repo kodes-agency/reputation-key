@@ -2,8 +2,8 @@ import { and, asc, eq, isNull, lte, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notExcludedFromResponseTargetReporting } from '#/shared/db/inbox-response-target-exclusions'
 import {
-  inboxHandlingCycleHeads,
   inboxHandlingCycleResponseTargets,
+  inboxItems,
   inboxResponseTargetReminders,
 } from '#/shared/db/schema/inbox.schema'
 import {
@@ -125,14 +125,11 @@ const selectDueSlots = (
       ),
     )
     .innerJoin(
-      inboxHandlingCycleHeads,
+      inboxItems,
       and(
-        eq(inboxHandlingCycleHeads.inboxItemId, inboxResponseTargetReminders.inboxItemId),
-        eq(
-          inboxHandlingCycleHeads.currentCycleNumber,
-          inboxResponseTargetReminders.cycleNumber,
-        ),
-        eq(inboxHandlingCycleHeads.status, 'open'),
+        eq(inboxItems.id, inboxResponseTargetReminders.inboxItemId),
+        eq(inboxItems.currentCycleNumber, inboxResponseTargetReminders.cycleNumber),
+        eq(inboxItems.status, 'open'),
       ),
     )
     .where(and(...conditions))

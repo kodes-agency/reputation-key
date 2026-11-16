@@ -15,7 +15,7 @@
  * navs' rows have padding around them for the shared `focus-ring` and wear that.
  */
 export const LINE_TAB_CLASS =
-  "relative inline-flex min-h-9 max-md:min-h-(--control-touch) items-center justify-center gap-1.5 px-3 text-sm whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:font-medium data-[state=active]:text-foreground after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent data-[state=active]:after:bg-primary [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+  "relative inline-flex min-h-9 max-md:min-h-(--control-touch) max-md:min-w-(--control-touch) items-center justify-center gap-1.5 px-3 text-sm whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:font-medium data-[state=active]:text-foreground after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent data-[state=active]:after:bg-primary [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
 
 /** The list the tabs sit in: transparent, with the baseline the underline rests on. */
 export const LINE_TABS_LIST_CLASS = 'w-full justify-start gap-1 border-b bg-transparent'

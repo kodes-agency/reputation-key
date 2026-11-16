@@ -1,6 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm'
 import {
-  inboxHandlingCycleHeads,
   inboxHandlingCycleTransitions,
   inboxHandlingCycles,
   inboxItems,
@@ -42,6 +41,11 @@ import {
   type PersistedHead,
   type PersistedItem,
 } from './inbox-command-guards'
+import {
+  cycleHeadItemColumns,
+  mirrorCycleHead,
+  persistedHeadFromItemRow,
+} from './inbox-cycle-head'
 import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head'
 import { closeReviewCycleOnGoogleReply } from './review-reply-close'
 
@@ -234,24 +238,11 @@ export async function updateItemRow(
   return updated
 }
 
-/** Canonical projection lock order: Handling Cycle head first, then the Inbox row. */
+/** Lock the Inbox row, which carries the current Handling Cycle's facts. */
 export async function lockReviewProjectionRows(
   tx: Tx,
   item: InboxItem,
 ): Promise<Readonly<{ headRow: PersistedHead; itemRow: PersistedItem }>> {
-  const [headRow] = await tx
-    .select()
-    .from(inboxHandlingCycleHeads)
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-        eq(inboxHandlingCycleHeads.sourceType, 'review'),
-        eq(inboxHandlingCycleHeads.sourceId, item.sourceId),
-      ),
-    )
-    .for('update')
-    .limit(1)
   const [itemRow] = await tx
     .select()
     .from(inboxItems)
@@ -266,6 +257,7 @@ export async function lockReviewProjectionRows(
     )
     .for('update')
     .limit(1)
+  const headRow = itemRow ? persistedHeadFromItemRow(itemRow) : null
   if (!headRow || !itemRow) {
     throw inboxError(
       'not_found',
@@ -339,34 +331,32 @@ export async function catchUpProjectionRevisions(
       input.active ? projectionTargetAnchor(revision) : null,
       { openedWithItem: input.withItemCreation },
     )
-    const [advancedHead] = await tx
-      .update(inboxHandlingCycleHeads)
-      .set({
-        currentCycleNumber: decision.value.head.currentCycleNumber,
-        currentSourceRevision: decision.value.head.currentSourceRevision,
-        currentMaterialReviewRevision: decision.value.head.currentSourceRevision,
-        stateRevision: decision.value.head.stateRevision,
-        status: 'open',
-        updatedAt: revision.observedAt,
-      })
+    // The Inbox row's own status follows when the projection converges.
+    const [advancedItem] = await tx
+      .update(inboxItems)
+      .set(cycleHeadItemColumns(decision.value.head))
       .where(
         and(
-          eq(inboxHandlingCycleHeads.inboxItemId, input.item.id),
-          eq(inboxHandlingCycleHeads.organizationId, input.item.organizationId),
-          eq(inboxHandlingCycleHeads.stateRevision, current.stateRevision),
-          eq(
-            inboxHandlingCycleHeads.currentSourceRevision,
-            current.currentSourceRevision,
-          ),
+          eq(inboxItems.id, input.item.id),
+          eq(inboxItems.organizationId, input.item.organizationId),
+          eq(inboxItems.stateRevision, current.stateRevision),
+          eq(inboxItems.currentSourceRevision, current.currentSourceRevision),
         ),
       )
-      .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-    if (!advancedHead) {
+      .returning({ id: inboxItems.id })
+    if (!advancedItem) {
       throw inboxError(
         'revision_conflict',
         'Inbox Review projection changed during history catch-up',
       )
     }
+    await mirrorCycleHead(tx, {
+      inboxItemId: input.item.id,
+      organizationId: input.item.organizationId,
+      sourceType: 'review',
+      head: { ...decision.value.head, status: 'open' },
+      updatedAt: revision.observedAt,
+    })
     for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
     advanced = true
     current = decision.value.head
@@ -402,28 +392,30 @@ export async function closeCycleForErasedSource(
   await tx
     .insert(inboxHandlingCycleTransitions)
     .values(transitionInsert(closed.value.transition, erasedAt))
-  const [closedHead] = await tx
-    .update(inboxHandlingCycleHeads)
-    .set({
-      stateRevision: closed.value.head.stateRevision,
-      status: 'closed',
-      updatedAt: erasedAt,
-    })
+  const [closedItem] = await tx
+    .update(inboxItems)
+    .set(cycleHeadItemColumns(closed.value.head))
     .where(
       and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-        eq(inboxHandlingCycleHeads.stateRevision, current.stateRevision),
-        eq(inboxHandlingCycleHeads.status, 'open'),
+        eq(inboxItems.id, item.id),
+        eq(inboxItems.organizationId, item.organizationId),
+        eq(inboxItems.stateRevision, current.stateRevision),
       ),
     )
-    .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-  if (!closedHead) {
+    .returning({ id: inboxItems.id })
+  if (!closedItem) {
     throw inboxError(
       'revision_conflict',
       'Inbox Review projection changed during inactive-source close',
     )
   }
+  await mirrorCycleHead(tx, {
+    inboxItemId: item.id,
+    organizationId: item.organizationId,
+    sourceType: item.sourceType,
+    head: closed.value.head,
+    updatedAt: erasedAt,
+  })
   const fact = lifecycleFactFor(closed.value.transition)
   await insertOutboxRow(tx, fact)
   return closed.value.head
@@ -565,34 +557,11 @@ export async function reopenCycleOnDeletedReply(
       targetStart: { basis: 'operational_reopen', at: observation.observedAt },
     },
   )
-  const [updatedHead] = await tx
-    .update(inboxHandlingCycleHeads)
-    .set({
-      currentCycleNumber: decision.value.head.currentCycleNumber,
-      currentSourceRevision: decision.value.head.currentSourceRevision,
-      currentMaterialReviewRevision: decision.value.head.currentSourceRevision,
-      stateRevision: decision.value.head.stateRevision,
-      status: 'open',
-      updatedAt: observation.observedAt,
-    })
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
-        eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-        eq(inboxHandlingCycleHeads.status, 'closed'),
-      ),
-    )
-    .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-  if (!updatedHead) {
-    throw inboxError(
-      'revision_conflict',
-      'Review Handling Cycle changed during provider reopen',
-    )
-  }
   const [updatedItem] = await tx
     .update(inboxItems)
     .set({
       status: 'open',
+      ...cycleHeadItemColumns(decision.value.head),
       closedAt: null,
       commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
       updatedAt: observation.observedAt,
@@ -601,13 +570,24 @@ export async function reopenCycleOnDeletedReply(
       and(
         eq(inboxItems.id, command.item.id),
         eq(inboxItems.organizationId, command.item.organizationId),
+        eq(inboxItems.stateRevision, headRow.stateRevision),
         eq(inboxItems.status, 'closed'),
       ),
     )
     .returning({ id: inboxItems.id })
   if (!updatedItem) {
-    throw inboxError('revision_conflict', 'Inbox item changed during provider reopen')
+    throw inboxError(
+      'revision_conflict',
+      'Review Handling Cycle changed during provider reopen',
+    )
   }
+  await mirrorCycleHead(tx, {
+    inboxItemId: command.item.id,
+    organizationId: command.item.organizationId,
+    sourceType: 'review',
+    head: decision.value.head,
+    updatedAt: observation.observedAt,
+  })
   await insertOutboxRow(tx, command.reopenFact)
   for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
 }
@@ -623,19 +603,20 @@ export async function openNextFeedbackCycleOnResubmission(
   cycleAnchor: HandlingCycleCreationAnchor,
   item: InboxItem,
 ): Promise<readonly DomainEvent[] | null> {
-  const [headRow] = await tx
+  const [itemRow] = await tx
     .select()
-    .from(inboxHandlingCycleHeads)
+    .from(inboxItems)
     .where(
       and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-        eq(inboxHandlingCycleHeads.sourceType, 'feedback'),
-        eq(inboxHandlingCycleHeads.sourceId, item.sourceId),
+        eq(inboxItems.id, item.id),
+        eq(inboxItems.organizationId, item.organizationId),
+        eq(inboxItems.sourceType, 'feedback'),
+        eq(inboxItems.sourceId, item.sourceId),
       ),
     )
     .for('update')
     .limit(1)
+  const headRow = itemRow ? persistedHeadFromItemRow(itemRow) : null
   if (!headRow || cycleAnchor.sourceRevision <= headRow.currentSourceRevision) {
     return null
   }
@@ -656,32 +637,10 @@ export async function openNextFeedbackCycleOnResubmission(
     cycleAnchor.openedAt,
   )
   const [advanced] = await tx
-    .update(inboxHandlingCycleHeads)
-    .set({
-      currentCycleNumber: decision.value.head.currentCycleNumber,
-      currentSourceRevision: decision.value.head.currentSourceRevision,
-      stateRevision: decision.value.head.stateRevision,
-      status: 'open',
-      updatedAt: cycleAnchor.openedAt,
-    })
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.stateRevision, current.stateRevision),
-        eq(inboxHandlingCycleHeads.currentSourceRevision, current.currentSourceRevision),
-      ),
-    )
-    .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-  if (!advanced) {
-    throw inboxError(
-      'revision_conflict',
-      'Guest Handling Cycle changed during feedback submission',
-    )
-  }
-  await tx
     .update(inboxItems)
     .set({
       status: 'open',
+      ...cycleHeadItemColumns(decision.value.head),
       closedAt: null,
       sourceDate: command.item.sourceDate,
       commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
@@ -693,8 +652,24 @@ export async function openNextFeedbackCycleOnResubmission(
         eq(inboxItems.organizationId, item.organizationId),
         eq(inboxItems.sourceType, 'feedback'),
         eq(inboxItems.sourceId, item.sourceId),
+        eq(inboxItems.stateRevision, current.stateRevision),
+        eq(inboxItems.currentSourceRevision, current.currentSourceRevision),
       ),
     )
+    .returning({ id: inboxItems.id })
+  if (!advanced) {
+    throw inboxError(
+      'revision_conflict',
+      'Guest Handling Cycle changed during feedback submission',
+    )
+  }
+  await mirrorCycleHead(tx, {
+    inboxItemId: item.id,
+    organizationId: item.organizationId,
+    sourceType: 'feedback',
+    head: decision.value.head,
+    updatedAt: cycleAnchor.openedAt,
+  })
   for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
   return cycleFacts
 }
@@ -730,28 +705,30 @@ export async function closeCycleForSourceTransition(
   await tx
     .insert(inboxHandlingCycleTransitions)
     .values(transitionInsert(cycleDecision.value.transition, transitionedAt))
-  const [closedHead] = await tx
-    .update(inboxHandlingCycleHeads)
-    .set({
-      stateRevision: cycleDecision.value.head.stateRevision,
-      status: 'closed',
-      updatedAt: transitionedAt,
-    })
+  const [closedItem] = await tx
+    .update(inboxItems)
+    .set(cycleHeadItemColumns(cycleDecision.value.head))
     .where(
       and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-        eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-        eq(inboxHandlingCycleHeads.status, 'open'),
+        eq(inboxItems.id, item.id),
+        eq(inboxItems.organizationId, item.organizationId),
+        eq(inboxItems.stateRevision, headRow.stateRevision),
       ),
     )
-    .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-  if (!closedHead) {
+    .returning({ id: inboxItems.id })
+  if (!closedItem) {
     throw inboxError(
       'revision_conflict',
       'Review Handling Cycle changed during source transition',
     )
   }
+  await mirrorCycleHead(tx, {
+    inboxItemId: item.id,
+    organizationId: item.organizationId,
+    sourceType: 'review',
+    head: cycleDecision.value.head,
+    updatedAt: transitionedAt,
+  })
   return cycleFact
 }
 

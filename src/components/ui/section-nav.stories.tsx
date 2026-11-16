@@ -9,6 +9,7 @@ import { Bell, Building2, Palette, Shield, User, Users } from 'lucide-react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { useGrownAfterMount } from '../../../.storybook/use-grown-after-mount'
 import { NavCount } from './nav-count'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { SectionNav } from './section-nav'
 import { SectionNavLayout } from './section-nav-layout'
 import type { SectionNavItem } from './section-nav-types'
@@ -72,6 +73,14 @@ const meta: Meta<typeof SectionNav> = {
   component: SectionNav,
   tags: ['autodocs'],
   parameters: { layout: 'padded' },
+  decorators: [
+    // The page's own gutter: a strip bleeds out of it to the screen edge.
+    (Story) => (
+      <div className={PAGE_GUTTER_X}>
+        <Story />
+      </div>
+    ),
+  ],
   args: {
     'aria-label': 'Property settings sections',
     items: HUB,
@@ -196,7 +205,7 @@ function GrowingStrip(args: Parameters<typeof SectionNav>[0]) {
     section('people', grown ? GROWN_LABEL : 'People', 'Responsible managers'),
   ]
   return (
-    <div style={{ width: 340 }}>
+    <div style={{ width: '100%', maxWidth: 340 }}>
       <SectionNav {...args} items={items} />
     </div>
   )
@@ -240,7 +249,7 @@ export const StripThatFits: Story = {
 export const AutoInANarrowSpace: Story = {
   args: { current: 'people' },
   render: (args) => (
-    <div style={{ width: '26rem' }}>
+    <div style={{ width: '100%', maxWidth: '26rem' }}>
       <SectionNavLayout frame="inline">
         <SectionNav {...args} />
         <p>Section content</p>
@@ -259,7 +268,7 @@ export const AutoInANarrowSpace: Story = {
 export const AutoInAWideSpace: Story = {
   args: { current: 'people' },
   render: (args) => (
-    <div style={{ width: '60rem' }}>
+    <div style={{ width: '100%', maxWidth: '60rem' }}>
       <SectionNavLayout frame="inline">
         <SectionNav {...args} />
         <p>Section content</p>

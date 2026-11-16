@@ -28,6 +28,7 @@ import {
   barLines,
   barsOf,
 } from '#/contexts/reporting/monthly-goals/ui/portal-goal.stories.play'
+import { playInThemes } from '../../../../../.storybook/play-in-themes'
 
 const meta: Meta<typeof PortalGoalResults> = {
   title: 'Goals/PortalGoalResults',
@@ -175,20 +176,15 @@ async function expectEveryResultInView(canvasElement: HTMLElement) {
 
 export const Phone320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-  play: async (context) => {
+  play: playInThemes(async (context) => {
     await Ended.play?.(context)
     await expectEveryResultInView(context.canvasElement)
-  },
+  }),
 }
 
 export const OnADesktop: Story = {
   ...Phone320,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const Light: Story = {
-  ...Phone320,
-  parameters: { theme: 'light' },
 }
 
 type ResultsProps = Parameters<typeof PortalGoalResults>[0]
@@ -213,7 +209,7 @@ function Arrivals(props: ResultsProps) {
   const atEnded = useRouterState({ select: (state) => state.location.hash === 'ended' })
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {ARRIVALS.map(({ label, ...to }) => (
           <Button key={label} onClick={() => void navigate({ to: '.', ...to })}>
             {label}

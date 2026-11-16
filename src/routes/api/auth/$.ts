@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { runServerRoute } from '#/shared/observability/request-context'
 import { getAuth } from '#/shared/auth/auth'
 import {
   claimsE2ERateLimitBypass,
@@ -131,8 +132,14 @@ export async function handleAuthRequest(
 export const Route = createFileRoute('/api/auth/$')({
   server: {
     handlers: {
-      GET: ({ request }) => handleAuthRequest(request, { rateLimit: false }),
-      POST: ({ request }) => handleAuthRequest(request, { rateLimit: true }),
+      GET: ({ request }) =>
+        runServerRoute('/api/auth', () =>
+          handleAuthRequest(request, { rateLimit: false }),
+        ),
+      POST: ({ request }) =>
+        runServerRoute('/api/auth', () =>
+          handleAuthRequest(request, { rateLimit: true }),
+        ),
     },
   },
 })

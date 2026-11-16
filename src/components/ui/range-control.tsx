@@ -73,7 +73,6 @@ export function RangeControl<T extends string>({
         value={value}
         onValueChange={choose}
         options={options}
-        touch
         className="hidden sm:inline-flex"
       />
     </>

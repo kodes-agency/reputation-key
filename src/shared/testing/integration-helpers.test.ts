@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { deleteTestOrganizations } from './integration-helpers'
 
 describe('integration Organization fixture cleanup', () => {
-  it('deletes lifecycle events before the Better Auth Organization', async () => {
+  it('deletes each distinct Better Auth Organization once', async () => {
     const query = vi.fn(async () => ({ rows: [] }))
 
     await deleteTestOrganizations(
@@ -11,16 +11,6 @@ describe('integration Organization fixture cleanup', () => {
     )
 
     expect(query.mock.calls).toEqual([
-      [
-        'ALTER TABLE organization_lifecycle_events DISABLE TRIGGER organization_lifecycle_events_append_only',
-      ],
-      [
-        'DELETE FROM organization_lifecycle_events WHERE organization_id = ANY($1::text[])',
-        [['org-b', 'org-a']],
-      ],
-      [
-        'ALTER TABLE organization_lifecycle_events ENABLE TRIGGER organization_lifecycle_events_append_only',
-      ],
       ['DELETE FROM organization WHERE id = ANY($1::text[])', [['org-b', 'org-a']]],
     ])
   })

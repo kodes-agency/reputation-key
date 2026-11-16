@@ -82,7 +82,6 @@ export function PortalVersionPreview({
       {preview !== null && preview.locales.length > 1 ? (
         <SegmentedControl
           aria-label="Preview language"
-          touch
           value={locale}
           onValueChange={(value) => {
             const next = preview.locales.find((candidate) => candidate === value)

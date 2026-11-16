@@ -2,7 +2,6 @@ import { and, asc, desc, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   inboxFeedbackHandlingOutcomes,
-  inboxHandlingCycleHeads,
   inboxHandlingCycleTransitions,
   inboxItems,
 } from '#/shared/db/schema/inbox.schema'
@@ -41,11 +40,17 @@ import {
 } from '#/contexts/inbox/infrastructure/handling-cycle-transitions.read'
 import { assertManagerHandlingPermitted } from '#/contexts/inbox/domain/handling-outcome-authority'
 import { inboxItemFromRow } from '#/contexts/inbox/infrastructure/mappers/inbox.mapper'
+import {
+  cycleHeadItemColumns,
+  mirrorCycleHead,
+  persistedHeadFromItemRow,
+  type PersistedHead,
+} from '#/contexts/inbox/infrastructure/inbox-cycle-head'
 import { transitionInsert } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { completePrivateFeedbackTarget } from '#/contexts/reputation/inbox/response-targets/store.server'
 
 type OutcomeRow = typeof inboxFeedbackHandlingOutcomes.$inferSelect
-type HeadRow = typeof inboxHandlingCycleHeads.$inferSelect
+type HeadRow = PersistedHead
 type ItemRow = typeof inboxItems.$inferSelect
 
 const outcomeFromRow = (row: OutcomeRow): FeedbackHandlingOutcomeFact => ({
@@ -146,19 +151,6 @@ async function lockCurrent(
   tx: Tx,
   item: InboxItem,
 ): Promise<Readonly<{ item: ItemRow; head: HeadRow }>> {
-  const [head] = await tx
-    .select()
-    .from(inboxHandlingCycleHeads)
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-        eq(inboxHandlingCycleHeads.sourceType, 'feedback'),
-        eq(inboxHandlingCycleHeads.sourceId, item.sourceId),
-      ),
-    )
-    .for('update')
-    .limit(1)
   const [currentItem] = await tx
     .select()
     .from(inboxItems)
@@ -172,11 +164,9 @@ async function lockCurrent(
     )
     .for('update')
     .limit(1)
+  const head = currentItem ? persistedHeadFromItemRow(currentItem) : null
   if (!head || !currentItem) {
     throw inboxError('not_found', 'Private-feedback Handling Cycle not found')
-  }
-  if (head.propertyId !== currentItem.propertyId) {
-    throw inboxError('revision_conflict', 'Private-feedback cycle scope changed')
   }
   return { item: currentItem, head }
 }
@@ -279,17 +269,18 @@ export const createFeedbackHandlingStore = (
   return {
     getState: async (itemId, orgId) =>
       trace('inbox.feedbackHandling.getState', async () => {
-        const [row] = await db
+        const [itemRow] = await db
           .select()
-          .from(inboxHandlingCycleHeads)
+          .from(inboxItems)
           .where(
             and(
-              eq(inboxHandlingCycleHeads.inboxItemId, itemId),
-              eq(inboxHandlingCycleHeads.organizationId, orgId),
-              eq(inboxHandlingCycleHeads.sourceType, 'feedback'),
+              eq(inboxItems.id, itemId),
+              eq(inboxItems.organizationId, orgId),
+              eq(inboxItems.sourceType, 'feedback'),
             ),
           )
           .limit(1)
+        const row = itemRow ? persistedHeadFromItemRow(itemRow) : null
         if (!row) return null
         const head = headFromRow(row)
         return toState(
@@ -382,25 +373,11 @@ export const createFeedbackHandlingStore = (
           await tx
             .insert(inboxHandlingCycleTransitions)
             .values(transitionInsert(transition, command.recordedAt))
-          const [savedHead] = await tx
-            .update(inboxHandlingCycleHeads)
-            .set({
-              stateRevision: closed.value.head.stateRevision,
-              status: 'closed',
-              updatedAt: command.recordedAt,
-            })
-            .where(
-              and(
-                eq(inboxHandlingCycleHeads.inboxItemId, locked.head.inboxItemId),
-                eq(inboxHandlingCycleHeads.stateRevision, locked.head.stateRevision),
-                eq(inboxHandlingCycleHeads.status, 'open'),
-              ),
-            )
-            .returning()
           const [savedItem] = await tx
             .update(inboxItems)
             .set({
               status: 'closed',
+              ...cycleHeadItemColumns(closed.value.head),
               closedAt: command.recordedAt,
               commandRevision: nextCommandRevision,
               updatedAt: command.recordedAt,
@@ -410,11 +387,19 @@ export const createFeedbackHandlingStore = (
                 eq(inboxItems.id, locked.item.id),
                 eq(inboxItems.organizationId, locked.item.organizationId),
                 eq(inboxItems.commandRevision, locked.item.commandRevision),
+                eq(inboxItems.stateRevision, locked.head.stateRevision),
                 eq(inboxItems.status, 'open'),
               ),
             )
             .returning()
-          if (!savedHead || !savedItem) throw conflict(locked.item, locked.head)
+          if (!savedItem) throw conflict(locked.item, locked.head)
+          await mirrorCycleHead(tx, {
+            inboxItemId: locked.item.id,
+            organizationId: locked.item.organizationId,
+            sourceType: 'feedback',
+            head: closed.value.head,
+            updatedAt: command.recordedAt,
+          })
           await tx
             .insert(inboxFeedbackHandlingOutcomes)
             .values(

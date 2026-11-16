@@ -201,6 +201,8 @@ export const createGoogleConnectionRepository = (
           encryptedRefreshToken: refreshToken,
           tokenExpiresAt: expiresAt,
           status: 'active',
+          statusReason: null,
+          statusChangedAt: credentialAuthorizedAt,
           visibility,
           scopes: [...scopes],
           credentialAuthorizedBy,

@@ -4,7 +4,7 @@
 
 import { and, eq, desc } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { inboxNotes } from '#/shared/db/schema/inbox.schema'
+import { inboxNotes } from '#/shared/db/schema/inbox-workspace.schema'
 import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
 import type { InboxNote } from '#/contexts/inbox/domain/types'
 import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'

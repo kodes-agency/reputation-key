@@ -11,7 +11,7 @@ through the manual procedure in [rights-requests.md](rights-requests.md).
 
 The Organization lifecycle authority tables, their triggers and the lifecycle
 event are gone. Only `organization_lifecycle_events` remains, an append-only
-ledger that backup erasure hold releases read and write.
+table that nothing writes or reads.
 
 ## Property lifecycle
 

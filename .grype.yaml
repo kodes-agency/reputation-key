@@ -94,7 +94,8 @@ ignore:
   # from the app. Drop this entry at the first trixie gcc-14 update that
   # fixes it. Extended 2026-10-01: the Debian tracker lists every release
   # vulnerable with no fixed package, and apt in the pinned base offers only
-  # 14.2.0-19. expiresAt: 2026-11-15
+  # 14.2.0-19. Renewed 2026-11-16: the scan still matches only 14.2.0-19 and
+  # no newer trixie gcc-14 build is available to pin. expiresAt: 2026-11-30
   - vulnerability: CVE-2026-102010
 
   # ── libgcc-s1 / libstdc++6 / gcc-14-base 14.2.0-19: second unfixed CVE ──
@@ -110,8 +111,8 @@ ignore:
   # never matched. Drop at the first trixie gcc-14 update that fixes it.
   # Renewed 2026-10-18: packages.debian.org still lists trixie gcc-14 at
   # 14.2.0-19, so there is no newer build to pin, and the scan still matches
-  # only that version (the Debian tracker did not answer that day). Same
-  # horizon as CVE-2026-102010 above. expiresAt: 2026-11-15
+  # only that version (the Debian tracker did not answer that day). Renewed
+  # 2026-11-16 on the same grounds as CVE-2026-102010 above. expiresAt: 2026-11-30
   - vulnerability: CVE-2026-95619
     package:
       version: 14.2.0-19

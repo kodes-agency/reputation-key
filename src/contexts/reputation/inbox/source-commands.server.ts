@@ -1,10 +1,14 @@
 import { and, eq, sql } from 'drizzle-orm'
 import {
-  inboxHandlingCycleHeads,
   inboxHandlingCycleTransitions,
   inboxItems,
 } from '#/shared/db/schema/inbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
+import {
+  cycleHeadItemColumns,
+  mirrorCycleHead,
+  persistedHeadFromItemRow,
+} from '#/contexts/inbox/infrastructure/inbox-cycle-head'
 import {
   insertReceiptRow,
   reserveReceiptRow,
@@ -164,9 +168,9 @@ export const createSourceCommands = (
             for (const fact of inserted.openingFacts) await insertOutboxRow(tx, fact)
           }
 
-          // Canonical lock order for an existing projection is head -> item.
-          // For a just-inserted projection both rows are already ours, but the
-          // same reads keep this path identical under an insert race.
+          // The Inbox row carries the Handling Cycle facts, so one row lock covers
+          // both. For a just-inserted projection the row is already ours, but the
+          // same read keeps this path identical under an insert race.
           const { headRow, itemRow } = await lockReviewProjectionRows(tx, inserted.item)
 
           let current = handlingCycleHeadFromRow(headRow)
@@ -257,19 +261,20 @@ export const createSourceCommands = (
           if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
             return 'applied' as const
           }
-          const [headRow] = await tx
+          const [lockedItem] = await tx
             .select()
-            .from(inboxHandlingCycleHeads)
+            .from(inboxItems)
             .where(
               and(
-                eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
-                eq(inboxHandlingCycleHeads.organizationId, command.item.organizationId),
-                eq(inboxHandlingCycleHeads.sourceType, command.item.sourceType),
-                eq(inboxHandlingCycleHeads.sourceId, command.item.sourceId),
+                eq(inboxItems.id, command.item.id),
+                eq(inboxItems.organizationId, command.item.organizationId),
+                eq(inboxItems.sourceType, command.item.sourceType),
+                eq(inboxItems.sourceId, command.item.sourceId),
               ),
             )
             .for('update')
             .limit(1)
+          const headRow = lockedItem ? persistedHeadFromItemRow(lockedItem) : null
           if (!headRow) return 'obsolete' as const
           const current = handlingCycleHeadFromRow(headRow)
           if (
@@ -296,32 +301,11 @@ export const createSourceCommands = (
           await tx
             .insert(inboxHandlingCycleTransitions)
             .values(transitionInsert(decision.value.transition, command.now))
-          const [updatedHead] = await tx
-            .update(inboxHandlingCycleHeads)
-            .set({
-              stateRevision: decision.value.head.stateRevision,
-              status: 'closed',
-              updatedAt: command.now,
-            })
-            .where(
-              and(
-                eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
-                eq(inboxHandlingCycleHeads.organizationId, command.item.organizationId),
-                eq(inboxHandlingCycleHeads.stateRevision, current.stateRevision),
-                eq(inboxHandlingCycleHeads.status, 'open'),
-              ),
-            )
-            .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-          if (!updatedHead) {
-            throw inboxError(
-              'revision_conflict',
-              'Handling Cycle changed during withdrawal',
-            )
-          }
           const [updatedItem] = await tx
             .update(inboxItems)
             .set({
               status: 'closed',
+              ...cycleHeadItemColumns(decision.value.head),
               closedAt: command.now,
               commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
               updatedAt: command.now,
@@ -332,12 +316,24 @@ export const createSourceCommands = (
                 eq(inboxItems.organizationId, command.item.organizationId),
                 eq(inboxItems.sourceType, command.item.sourceType),
                 eq(inboxItems.sourceId, command.item.sourceId),
+                eq(inboxItems.stateRevision, current.stateRevision),
+                eq(inboxItems.status, 'open'),
               ),
             )
             .returning({ id: inboxItems.id })
           if (!updatedItem) {
-            throw inboxError('revision_conflict', 'Inbox item changed during withdrawal')
+            throw inboxError(
+              'revision_conflict',
+              'Handling Cycle changed during withdrawal',
+            )
           }
+          await mirrorCycleHead(tx, {
+            inboxItemId: command.item.id,
+            organizationId: command.item.organizationId,
+            sourceType: command.item.sourceType,
+            head: decision.value.head,
+            updatedAt: command.now,
+          })
           await insertOutboxRow(tx, command.fact)
           await insertOutboxRow(tx, lifecycleFact)
           return 'applied' as const
@@ -367,26 +363,6 @@ export const createSourceCommands = (
           if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName)))
             return
 
-          const [headRow] = await tx
-            .select()
-            .from(inboxHandlingCycleHeads)
-            .where(
-              and(
-                eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-                eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-                eq(inboxHandlingCycleHeads.sourceType, 'review'),
-                eq(inboxHandlingCycleHeads.sourceId, item.sourceId),
-              ),
-            )
-            .for('update')
-            .limit(1)
-          if (command.closeIfOpen && !headRow) {
-            throw inboxError(
-              'not_found',
-              'Review source transition is waiting for its Handling Cycle',
-            )
-          }
-
           const [current] = await tx
             .select()
             .from(inboxItems)
@@ -401,6 +377,13 @@ export const createSourceCommands = (
             )
             .for('update')
             .limit(1)
+          const headRow = current ? persistedHeadFromItemRow(current) : null
+          if (command.closeIfOpen && !headRow) {
+            throw inboxError(
+              'not_found',
+              'Review source transition is waiting for its Handling Cycle',
+            )
+          }
           if (!current) return
 
           const shouldCloseItem = command.closeIfOpen && current.status === 'open'

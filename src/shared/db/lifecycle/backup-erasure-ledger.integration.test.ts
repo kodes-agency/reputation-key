@@ -4,10 +4,10 @@
 // database is later restored from a backup taken BEFORE that purge, and the
 // purged Organization's guest feedback is quietly readable again.
 //
-// An outer transaction always rolls the proof back, so no ledger entry or
-// tenant fixture leaks into the shared scratch database. That matters more here
-// than usual: the ledger's triggers refuse DELETE by design, so a leaked entry
-// could not be cleaned up afterwards.
+// An outer transaction always rolls the proof back, so no ledger row or tenant
+// fixture leaks into the shared scratch database. That matters more here than
+// usual: the ledger's triggers refuse DELETE by design, so a leaked row could not
+// be cleaned up afterwards.
 
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
@@ -15,11 +15,9 @@ import { describe, expect, it } from 'vitest'
 import { createGuestBackupErasureReplayer } from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
 import { getDb, type Database } from '#/shared/db'
 import {
-  appendBackupErasureLedgerEntry,
   applyRestoreResurrectionFence,
-  readBackupErasureLedger,
-  releaseBackupErasureHold,
   type BackupErasureLedgerAppend,
+  type BackupErasureLedgerEntry,
 } from './backup-erasure-ledger'
 import { assertRestoredDatabaseVerified } from '#/shared/ops/recovery-fence'
 import type { Tx } from '#/shared/outbox/commit'
@@ -104,6 +102,28 @@ const entryFor = (fixture: Fixture): BackupErasureLedgerAppend => ({
   evidenceRef: `guest:purge:complete:${fixture.lineage}:r4`,
 })
 
+const ledgerEntryFor = (fixture: Fixture): BackupErasureLedgerEntry => ({
+  id: randomUUID(),
+  ...entryFor(fixture),
+})
+
+async function insertLedgerRow(tx: Tx, fixture: Fixture): Promise<string> {
+  const entry = entryFor(fixture)
+  const inserted = await tx.execute(sql`
+    INSERT INTO backup_erasure_ledger (
+      subject_class, organization_id, context, closure_lineage_id,
+      lifecycle_revision, effective_erasure_at, erased_row_count, evidence_ref
+    ) VALUES (
+      ${entry.subjectClass}, ${entry.organizationId}, ${entry.context},
+      ${entry.closureLineageId}::uuid, ${entry.lifecycleRevision},
+      ${entry.effectiveErasureAt.toISOString()}::timestamptz,
+      ${entry.erasedRowCount}, ${entry.evidenceRef}
+    )
+    RETURNING id
+  `)
+  return (inserted.rows[0] as { id: string }).id
+}
+
 /**
  * The driver wraps a raised exception in a `Failed query:` error, so the
  * trigger's own message only appears on the cause.
@@ -129,7 +149,7 @@ async function guestRowCount(tx: Tx, organizationId: string): Promise<number> {
   return Number((result.rows[0] as { rows: number | string } | undefined)?.rows ?? 0)
 }
 
-describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', () => {
+describe('restore resurrection fence and ledger guards (LIF-01-T15)', () => {
   it('re-applies an erasure a restore undid and leaves zero rows for the org', async () => {
     let proofCompleted = false
 
@@ -137,28 +157,14 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
       db.transaction(async (raw) => {
         const tx = raw as unknown as Tx
         const fixture = await seedPurgedOrganization(tx)
-        // The purge appended exactly one entry per context plan. Guest's is the
-        // one under test; a replay of the same phase must not append a second.
-        const entryId = await appendBackupErasureLedgerEntry(tx, entryFor(fixture))
-        expect(await appendBackupErasureLedgerEntry(tx, entryFor(fixture))).toBe(entryId)
-        const ledger = await readBackupErasureLedger(tx)
-        expect(ledger.filter((e) => e.organizationId === fixture.organizationId)).toEqual(
-          [
-            expect.objectContaining({
-              id: entryId,
-              context: 'guest',
-              erasedRowCount: 2,
-              organizationId: fixture.organizationId,
-            }),
-          ],
-        )
+        const entries = [ledgerEntryFor(fixture)]
 
         // The restore rolled the database back to before the erasure, so the
         // rows are back.
         expect(await guestRowCount(tx, fixture.organizationId)).toBe(2)
 
         const replayed = await applyRestoreResurrectionFence(tx, {
-          entries: await readBackupErasureLedger(tx),
+          entries,
           restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
           replayers: [createGuestBackupErasureReplayer()],
         })
@@ -176,7 +182,7 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
         // Convergent: a restore that already post-dates the entry re-erases
         // nothing and reports zero, rather than double-counting.
         const converged = await applyRestoreResurrectionFence(tx, {
-          entries: await readBackupErasureLedger(tx),
+          entries,
           restorePointAt: new Date(ERASED_AT.getTime() + 60_000),
           replayers: [createGuestBackupErasureReplayer()],
         })
@@ -198,13 +204,13 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
       db.transaction(async (raw) => {
         const tx = raw as unknown as Tx
         const fixture = await seedPurgedOrganization(tx)
-        await appendBackupErasureLedgerEntry(tx, entryFor(fixture))
+        const entries = [ledgerEntryFor(fixture)]
 
         // No replayer is registered for guest/organization, so the fence cannot
         // re-erase what the restore brought back. A partially re-erased restore
         // must never be declared verified.
         const result = await applyRestoreResurrectionFence(tx, {
-          entries: await readBackupErasureLedger(tx),
+          entries,
           restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
           replayers: [],
         })
@@ -224,36 +230,33 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
       db.transaction(async (raw) => {
         const tx = raw as unknown as Tx
         const fixture = await seedPurgedOrganization(tx)
-        const entryId = await appendBackupErasureLedgerEntry(tx, {
-          ...entryFor(fixture),
-          holdReference: 'legal-hold:2027-03:counsel-4471',
-        })
+        const holdReference = 'legal-hold:2027-03:counsel-4471'
+        const heldEntry: BackupErasureLedgerEntry = {
+          ...ledgerEntryFor(fixture),
+          holdReference,
+        }
         const restorePointAt = new Date(ERASED_AT.getTime() - 60_000)
         const replayers = [createGuestBackupErasureReplayer()]
 
         const held = await applyRestoreResurrectionFence(tx, {
-          entries: await readBackupErasureLedger(tx),
+          entries: [heldEntry],
           restorePointAt,
           replayers,
         })
-        expect(held.heldEntryIds).toContain(entryId)
+        expect(held.heldEntryIds).toContain(heldEntry.id)
         expect(held.counts.ledgerRowsReErased).toBe(0)
         // A documented hold is a policy decision, not a fence failure.
         expect(held.verified).toBe(true)
         expect(await guestRowCount(tx, fixture.organizationId)).toBe(2)
 
-        await releaseBackupErasureHold(tx, {
-          ledgerEntryId: entryId,
-          holdReference: 'legal-hold:2027-03:counsel-4471',
-          authorityRef: 'counsel:release:2027-03-15',
-          releasedAt: new Date('2027-03-15T00:00:00.000Z'),
-        })
         const released = await applyRestoreResurrectionFence(tx, {
-          entries: await readBackupErasureLedger(tx),
+          entries: [
+            { ...heldEntry, holdReleasedAt: new Date('2027-03-15T00:00:00.000Z') },
+          ],
           restorePointAt,
           replayers,
         })
-        expect(released.heldEntryIds).not.toContain(entryId)
+        expect(released.heldEntryIds).not.toContain(heldEntry.id)
         expect(released.counts.ledgerRowsReErased).toBeGreaterThanOrEqual(1)
         expect(await guestRowCount(tx, fixture.organizationId)).toBe(0)
 
@@ -269,7 +272,7 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
         db.transaction(async (raw) => {
           const tx = raw as unknown as Tx
           const fixture = await seedPurgedOrganization(tx)
-          const entryId = await appendBackupErasureLedgerEntry(tx, entryFor(fixture))
+          const entryId = await insertLedgerRow(tx, fixture)
 
           // An entry an operator can remove after a bad restore is exactly the
           // resurrection this ledger prevents, so both paths must be closed.
@@ -290,7 +293,7 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
         db.transaction(async (raw) => {
           const tx = raw as unknown as Tx
           const fixture = await seedPurgedOrganization(tx)
-          const entryId = await appendBackupErasureLedgerEntry(tx, entryFor(fixture))
+          const entryId = await insertLedgerRow(tx, fixture)
           const database = raw as unknown as Database
           await tx.execute(sql`SET LOCAL session_replication_role = ${sql.raw(role)}`)
           expect(

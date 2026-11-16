@@ -25,7 +25,11 @@ import type { Role } from '#/shared/domain/roles'
 import { toDomainRole } from '#/shared/domain/roles'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { throwAuthError } from './auth-errors'
-import { enrichSpan, getRequestContext } from '#/shared/observability/request-context'
+import {
+  enrichSpan,
+  getRequestContext,
+  getSpanAttrs,
+} from '#/shared/observability/request-context'
 import { getLogger } from '#/shared/observability/logger'
 import type { Permission } from '#/shared/domain/permissions'
 import type { DataScope } from '#/shared/domain/data-scope'
@@ -35,6 +39,7 @@ import {
   type RoleDefinitionDatabase,
 } from '#/shared/db/role-definitions'
 import { getDb } from '#/shared/db'
+import { withTenantScope } from '#/shared/db/tenant-scope.server'
 import { resolveSessionOrganization } from './session-organization'
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 
@@ -320,6 +325,24 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
 
   const { session, activeOrgId } = await resolveSessionOrganization(headers)
 
+  // The membership and permission version are read under the Organization the
+  // session names: they prove the session belongs to it, and they see only its
+  // rows.
+  return withTenantScope(
+    {
+      organizationId: activeOrgId,
+      entry: 'session',
+      name: getSpanAttrs().useCase ?? 'session',
+    },
+    () => resolveSessionMember(headers, session.user.id, activeOrgId),
+  )
+}
+
+async function resolveSessionMember(
+  headers: Headers,
+  sessionUserId: string,
+  activeOrgId: string,
+): Promise<AuthContext> {
   // Stage 1 — tenant-cache freshness decision table. Keyed per (session, org) so
   // an org switch A→B resolves fresh instead of serving org A's context.
   const key = tenantCacheKey(headers, activeOrgId)
@@ -348,7 +371,7 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
   const resolved = await resolveMemberAuthContext({
     memberRole: member.role,
     organizationId: activeOrgId,
-    userId: session.user.id,
+    userId: sessionUserId,
   })
   const ctx = resolved.context
 

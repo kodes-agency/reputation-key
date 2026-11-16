@@ -1,7 +1,7 @@
 // Keep counts in name order with no rankings, bars or shares. Display them only when
 // they reconcile to the month's total.
 
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 import type { fromPortalsWords } from './portal-goal-page-view'
 
 type Props = Readonly<{
@@ -22,14 +22,14 @@ function QuietLine({
     <span className="flex flex-wrap items-baseline gap-x-2 text-sm">
       <span className="text-warn">{fact.since}</span>
       {/* In a sentence: underlined, so it reads as a link in any ink. */}
-      <InlineLink
+      <TouchInlineLink
         underline="always"
         to="/properties/$propertyId/portals/$portalId"
         params={{ propertyId, portalId: fact.portalId }}
         search={{ tab: 'share' }}
       >
         {fact.open}
-      </InlineLink>
+      </TouchInlineLink>
     </span>
   )
 }

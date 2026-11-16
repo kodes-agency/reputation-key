@@ -110,11 +110,12 @@ describe('RetryButton', () => {
     expect(html).toContain('>Try again<')
   })
 
-  it('has no phone height of its own at the extra-small size', () => {
+  it('takes its phone height from the Button, not from a size of its own', () => {
     const html = renderToStaticMarkup(
       createElement(RetryButton, { onRetry: () => undefined, size: 'xs' }),
     )
 
-    expect(html).not.toContain('max-md:')
+    expect(html).toContain('max-md:min-h-(--control-touch)')
+    expect(html).not.toMatch(/max-md:h-/u)
   })
 })

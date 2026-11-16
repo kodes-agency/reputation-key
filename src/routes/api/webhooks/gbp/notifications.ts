@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { runServerRoute } from '#/shared/observability/request-context'
 import { JOSEError, JWKSInvalid, JWKSTimeout } from 'jose/errors'
 import type pino from 'pino'
 import { z, ZodError } from 'zod/v4'
@@ -230,5 +231,12 @@ export async function handleGbpWebhookPost(request: Request): Promise<Response> 
 }
 
 export const Route = createFileRoute('/api/webhooks/gbp/notifications')({
-  server: { handlers: { POST: ({ request }) => handleGbpWebhookPost(request) } },
+  server: {
+    handlers: {
+      POST: ({ request }) =>
+        runServerRoute('/api/webhooks/gbp/notifications', () =>
+          handleGbpWebhookPost(request),
+        ),
+    },
+  },
 })

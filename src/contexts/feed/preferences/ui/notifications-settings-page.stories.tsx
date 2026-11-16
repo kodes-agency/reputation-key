@@ -1325,7 +1325,7 @@ const goalRowsAt = (
   parameters: { viewport: { defaultViewport: viewport }, theme },
   decorators: [
     (Story) => (
-      <div data-testid="goal-rows-frame" style={{ width }}>
+      <div data-testid="goal-rows-frame" style={{ width, maxWidth: '100%' }}>
         {theme === 'light' ? <style>{UTILITY_LAYER}</style> : null}
         <Story />
       </div>

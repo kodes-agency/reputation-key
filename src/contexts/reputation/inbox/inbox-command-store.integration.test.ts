@@ -2316,7 +2316,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     },
   )
 
-  it('applySourceWithdrawnOnce repairs a closed compatibility row under an open cycle head', async () => {
+  it('applySourceWithdrawnOnce closes the item from its own cycle and settles a drifted head mirror', async () => {
     const store = createAtomicInboxCommandStore(db)
     const item = makeItem({
       sourceType: 'feedback',
@@ -2330,11 +2330,9 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       triggerEventId: null,
       openedAt: NOW,
     })
-    const driftedClosedAt = new Date('2026-05-31T12:00:00.000Z')
     await pool.query(
-      `UPDATE inbox_items SET status = 'closed', closed_at = $2
-       WHERE id = $1`,
-      [item.id, driftedClosedAt],
+      `UPDATE inbox_handling_cycle_heads SET status = 'closed' WHERE inbox_item_id = $1`,
+      [item.id],
     )
     const source = guestFeedbackRetracted({
       feedbackId: FEEDBACK_A,
@@ -2358,7 +2356,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       store.applySourceWithdrawnOnce({
         eventId: source.eventId,
         consumerName: 'inbox.on-guest-feedback-retracted',
-        item: { ...item, status: 'closed', closedAt: driftedClosedAt },
+        item,
         sourceRevision: 1,
         now: NOW,
         fact,

@@ -1,6 +1,7 @@
 // Seeds every table the Review and Inbox rights reports count: two Properties of
 // different sizes under one Organization, and the same shape under another.
 
+import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
 import { randomUUID } from 'node:crypto'
 import { deleteTestOrganizations } from './integration-helpers'
 import type { TestLease } from './test-environment-lease'
@@ -350,6 +351,7 @@ async function seedInbox(
             ($5, $2, $3, 'review', $6, 1, $6, 1, 1, 1, 'open')`,
     [feedbackItem, org, propertyId, feedbackId, reviewItem, reviewId],
   )
+  await q(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
   await q(
     `INSERT INTO inbox_handling_cycle_transitions (
        inbox_item_id, state_revision, cycle_number, organization_id, property_id,

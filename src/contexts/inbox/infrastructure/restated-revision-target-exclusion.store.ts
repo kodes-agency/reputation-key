@@ -13,7 +13,7 @@
 // tables, so the operator command passes that list in. This store finds the
 // cycles that list names (`scan`) and writes the rows (`apply`).
 //
-// `apply` works one item per transaction, in the lock order head, item,
+// `apply` works one item per transaction, in the lock order item,
 // target, reminders, with `organization_id` on every statement. It writes the
 // ledger row and cancels the cycle's still-pending reminder slots through the
 // slots' own one-shot column. It moves no `state_revision` or
@@ -27,7 +27,6 @@ import {
   aliasedResponseTargetKey,
 } from '#/shared/db/inbox-response-target-exclusions'
 import {
-  inboxHandlingCycleHeads,
   inboxHandlingCycleResponseTargets,
   inboxHandlingCycles,
   inboxItems,
@@ -142,41 +141,27 @@ async function scanCandidates(
   return rows.rows.map(candidateFromRow)
 }
 
-/** Lock the item's head, then the item: the order every Review projection takes. */
-async function lockHeadThenItem(
+/** Lock the item, which carries its current Handling Cycle's facts. */
+async function lockItemWithCycle(
   tx: Tx,
   scope: ExclusionScope,
   candidate: ExclusionCandidate,
 ): Promise<boolean> {
-  const [head] = await tx
-    .select({ inboxItemId: inboxHandlingCycleHeads.inboxItemId })
-    .from(inboxHandlingCycleHeads)
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.inboxItemId, candidate.inboxItemId),
-        eq(inboxHandlingCycleHeads.organizationId, scope.organizationId),
-        eq(inboxHandlingCycleHeads.propertyId, scope.propertyId),
-        eq(inboxHandlingCycleHeads.sourceType, 'review'),
-        eq(inboxHandlingCycleHeads.sourceId, candidate.reviewId),
-      ),
-    )
-    .for('update')
-    .limit(1)
-  if (!head) return false
   const [item] = await tx
-    .select({ id: inboxItems.id })
+    .select({ currentCycleNumber: inboxItems.currentCycleNumber })
     .from(inboxItems)
     .where(
       and(
         eq(inboxItems.id, candidate.inboxItemId),
         eq(inboxItems.organizationId, scope.organizationId),
+        eq(inboxItems.propertyId, scope.propertyId),
         eq(inboxItems.sourceType, 'review'),
         eq(inboxItems.sourceId, candidate.reviewId),
       ),
     )
     .for('update')
     .limit(1)
-  return item !== undefined
+  return item !== undefined && item.currentCycleNumber !== null
 }
 
 /** The cycle is still the one opened for this revision of this Review. */
@@ -282,7 +267,7 @@ type Verdict =
     }>
   | Readonly<{ outcome: 'excluded' | 'already_excluded'; cancelledReminderSlots: number }>
 
-/** One candidate in one transaction: head, item, target, then the slots. */
+/** One candidate in one transaction: item, target, then the slots. */
 async function excludeOne(
   db: Database,
   scope: ExclusionScope,
@@ -291,7 +276,7 @@ async function excludeOne(
 ): Promise<CandidateExclusionResult> {
   const verdict: Verdict = await db.transaction(async (tx) => {
     if (
-      !(await lockHeadThenItem(tx, scope, candidate)) ||
+      !(await lockItemWithCycle(tx, scope, candidate)) ||
       !(await cycleStillRecorded(tx, scope, candidate))
     ) {
       return { outcome: 'refused_cycle_changed' }

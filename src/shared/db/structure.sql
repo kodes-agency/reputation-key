@@ -5449,7 +5449,11 @@ CREATE TABLE "public"."inbox_items" (
     "manager_priority" "public"."inbox_priority_level",
     "manager_priority_set_by" character varying(255),
     "manager_priority_set_at" timestamp with time zone,
+    "current_cycle_number" bigint,
+    "current_source_revision" bigint,
+    "state_revision" bigint,
     CONSTRAINT "inbox_items_command_revision_safe" CHECK ((("command_revision" >= 1) AND ("command_revision" <= '9007199254740991'::bigint))),
+    CONSTRAINT "inbox_items_cycle_head_facts_valid" CHECK (((("current_cycle_number" IS NULL) = ("current_source_revision" IS NULL)) AND (("current_cycle_number" IS NULL) = ("state_revision" IS NULL)) AND (("current_cycle_number" IS NULL) OR ((("current_cycle_number" >= 1) AND ("current_cycle_number" <= '9007199254740991'::bigint)) AND (("current_source_revision" >= 1) AND ("current_source_revision" <= '9007199254740991'::bigint)) AND (("state_revision" >= 1) AND ("state_revision" <= '9007199254740991'::bigint)))))),
     CONSTRAINT "inbox_items_manager_priority_stamped" CHECK (((("manager_priority" IS NULL) = ("manager_priority_set_by" IS NULL)) AND (("manager_priority" IS NULL) = ("manager_priority_set_at" IS NULL)))),
     CONSTRAINT "inbox_items_review_source_content_free" CHECK ((("source_type" <> 'review'::"public"."inbox_source_type") OR (("rating" IS NULL) AND ("snippet" IS NULL) AND ("reviewer_name" IS NULL))))
 );

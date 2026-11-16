@@ -150,7 +150,6 @@ function StaffListToolbar({
       {pending > 0 && pending < members.length ? (
         <SegmentedControl
           aria-label="Show staff"
-          touch
           value={joined}
           onValueChange={onJoined}
           options={[

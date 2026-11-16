@@ -165,6 +165,8 @@ export const createAtomicIntegrationCommandStore = (
                 tokenExpiresAt: command.tokenExpiresAt,
                 scopes: [...command.scopes],
                 status: 'active',
+                statusReason: null,
+                statusChangedAt: command.event.occurredAt,
                 visibility: command.visibility,
                 credentialUseState: 'active',
                 credentialAuthorizedBy: command.event.userId,
