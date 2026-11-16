@@ -61,6 +61,20 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/feed/audit/copy-operational-history.server.ts',
+    symbol: 'readBatch',
+    reason:
+      'The operator copy lists earlier history records without an audit twin across tenants, in id order and bounded batches. Each record is written under its own Organization and the statement returns no content to the operator.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/feed/audit/copy-operational-history.server.ts',
+    symbol: 'uncopied',
+    reason:
+      'The operator copy matches each earlier history record to its twin on Organization and provenance; the copy runs across tenants on purpose and reports counts only.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-profile-rebuild.ts',
     symbol: 'listPendingProfileRebuilds',
     reason:

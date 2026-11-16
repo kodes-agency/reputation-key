@@ -42,7 +42,8 @@ release readiness, the core product includes:
 - Property and fleet dashboards;
 - Staff participation and attribution;
 - in-app required and workflow notifications;
-- Recent Activity; and
+- Recent Activity;
+- a content-free audit trail of important account actions (who did what, to which item, and when), kept 365 days; and
 - internal operational metrics and analytics needed to operate those journeys.
 
 Core analytics are part of the Service. There is no product option to decline

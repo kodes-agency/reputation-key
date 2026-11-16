@@ -1,6 +1,10 @@
 // Feed context — governed cross-context surface for activity and notifications.
 import { createServerOnlyFn } from '@tanstack/react-start'
 import { copyAuditLogs, countAuditLogsToCopy } from '../audit/copy-audit-logs.server'
+import {
+  copyOperationalHistory,
+  countOperationalHistoryToCopy,
+} from '../audit/copy-operational-history.server'
 import { queryAuditEvents } from '../audit/read.server'
 import { AUDIT_EVENT_RETENTION_RULE } from '../audit/retention.server'
 import {
@@ -23,6 +27,11 @@ export const writeAuditEvent = createServerOnlyFn(
 )
 export const copyAuditLogsToAuditEvents = createServerOnlyFn(copyAuditLogs)
 export const countAuditLogsToCopyAsEvents = createServerOnlyFn(countAuditLogsToCopy)
+export const copyOperationalHistoryToAuditEvents =
+  createServerOnlyFn(copyOperationalHistory)
+export const countOperationalHistoryToCopyAsEvents = createServerOnlyFn(
+  countOperationalHistoryToCopy,
+)
 export const copyNotificationCategoryDefaults = createServerOnlyFn(
   copyCategoryDefaultsToPreferences,
 )

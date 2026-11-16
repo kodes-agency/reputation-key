@@ -41,7 +41,9 @@ describe('current notice corrections', () => {
     expect(privacy).not.toContain('can therefore bring back information erased')
     expect(privacy).toContain('except the stored business category')
     expect(privacy).toContain('expire after 730 days and are deleted by daily cleanup')
-    expect(privacy).toContain('Operational Action History has no active deletion rule')
+    expect(privacy).toContain(
+      '| Operational Action History (the audit trail) | 365 days from the action, then deleted by a daily clean-up.',
+    )
     expect(privacy).toContain(
       'Existing copies remain with no enforced expiry and are being removed.',
     )
@@ -85,6 +87,7 @@ describe('current notice corrections', () => {
     expect(agreement).not.toContain('docs/BETA.md')
     expect(agreement.match(/schedule (?:is )?maintained in/gu)).toHaveLength(2)
     expect(agreement).not.toContain('Property Trends')
+    expect(agreement).toContain('a content-free audit trail of important account actions')
     expect(agreement).toContain('Recent Activity')
     expect(agreement).not.toContain('does not promise unavailable self-service export')
   })

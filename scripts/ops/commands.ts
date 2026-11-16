@@ -7,6 +7,7 @@ export const COMMANDS: Readonly<
 > = Object.freeze({
   ai: ['scripts/ops/ai-release-orphan-sequences.ts'],
   'audit-events': ['scripts/ops/audit-events.ts'],
+  'copy-audit-history': ['scripts/ops/copy-audit-history.ts'],
   'audit-logs-copy': ['scripts/ops/audit-logs-copy.ts'],
   'ai-approve-enrollment': ['scripts/ops/ai-approve-enrollment.ts'],
   'ai-control': ['scripts/ops/ai-execution-control.ts'],
