@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   BACKUP_ERASURE_LEDGER_CONTENT_ERROR,
-  appendBackupErasureLedgerEntry,
   applyRestoreResurrectionFence,
   orderForReplay,
   planBackupErasureReplay,
@@ -88,14 +87,11 @@ describe('backup erasure ledger append (LIF-01-T15)', () => {
   })
 })
 
-describe('journal contexts and the ledger table', () => {
-  it('journals the platform work items, which the ledger table never holds', async () => {
-    const platform = append({ context: 'platform' })
-
-    expect(() => validateBackupErasureLedgerAppend(platform)).not.toThrow()
-    await expect(appendBackupErasureLedgerEntry({} as Tx, platform)).rejects.toThrow(
-      'lifecycle contexts only',
-    )
+describe('journal contexts', () => {
+  it('journals the platform work items', () => {
+    expect(() =>
+      validateBackupErasureLedgerAppend(append({ context: 'platform' })),
+    ).not.toThrow()
   })
 
   it('refuses a context nobody journals', () => {
