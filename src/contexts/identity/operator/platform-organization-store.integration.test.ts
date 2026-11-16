@@ -9,12 +9,13 @@
 //   - the first-admin round trip ends with exactly one AccountAdmin, after
 //     which the console refuses to act; cancel and resend (of a lapsed row or
 //     one marked expired) stay inside the Organization;
-//   - every change commits one audit_logs row naming the Organization, the
+//   - every change commits one audit event naming the Organization, the
 //     operator and the action; a refused change writes none.
 
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
+import { ZodError } from 'zod/v4'
 import { getDb } from '#/shared/db/index'
 import { getEnv } from '#/shared/config/env'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
@@ -97,18 +98,19 @@ async function count(text: string, values: unknown[]): Promise<number> {
 }
 
 type AuditRow = Readonly<{
-  user_id: string
+  actor_id: string | null
+  actor_type: string
+  source_kind: string
   action: string
   resource_type: string
   resource_id: string | null
-  details: unknown
 }>
 
 /** The audit rows for one Organization, by action (the fixed clock ties their times). */
 async function auditRows(orgId: string): Promise<ReadonlyArray<AuditRow>> {
   const result = await pool.query<AuditRow>(
-    `SELECT user_id, action, resource_type, resource_id, details
-       FROM audit_logs WHERE organization_id = $1 ORDER BY action, resource_id`,
+    `SELECT actor_id, actor_type, source_kind, action, resource_type, resource_id
+       FROM audit_events WHERE organization_id = $1 ORDER BY action, resource_id`,
     [orgId],
   )
   return result.rows
@@ -144,7 +146,7 @@ async function cleanup(): Promise<void> {
     await client.query(
       `DELETE FROM outbox_events WHERE organization_id LIKE 'org-plat-%'`,
     )
-    await client.query(`DELETE FROM audit_logs WHERE organization_id LIKE 'org-plat-%'`)
+    await client.query(`DELETE FROM audit_events WHERE organization_id LIKE 'org-plat-%'`)
     await client.query(
       `DELETE FROM invitation
         WHERE "organizationId" LIKE 'org-plat-%' OR email LIKE 'plat-%@test.com'`,
@@ -226,11 +228,12 @@ describe.sequential('provisionOrganization', () => {
     // Who made the change: the audit row, committed with it.
     expect(await auditRows(command.organizationId)).toEqual([
       {
-        user_id: OPERATOR.userId,
+        actor_id: OPERATOR.userId,
+        actor_type: 'operator',
+        source_kind: 'operator_command',
         action: 'platform.organization_provisioned',
         resource_type: 'organization',
         resource_id: command.organizationId,
-        details: { invitationId: command.firstAdmin.invitationId },
       },
     ])
   })
@@ -287,7 +290,7 @@ describe.sequential('provisionOrganization', () => {
       await one(
         `SELECT (SELECT count(*)::int FROM invitation WHERE email = $2) AS invitations,
                 (SELECT count(*)::int FROM outbox_events WHERE organization_id = $1) AS facts,
-                (SELECT count(*)::int FROM audit_logs WHERE organization_id = $1) AS audits`,
+                (SELECT count(*)::int FROM audit_events WHERE organization_id = $1) AS audits`,
         [loser.organizationId, loser.firstAdmin.email],
       ),
     ).toEqual({ invitations: 0, facts: 0, audits: 0 })
@@ -321,6 +324,34 @@ describe.sequential('provisionOrganization', () => {
       ),
     ).toBe(0)
     expect(await auditRows(command.organizationId)).toEqual([])
+  })
+})
+
+describe.sequential('malformed audit identity', () => {
+  it('fails the change loudly and leaves the change undone', async () => {
+    const command = provisionCommand({ slug: 'plat-malformed', email: 'plat-m@test.com' })
+    await store.provisionOrganization(command)
+
+    await expect(
+      store.cancelAdminInvitation(
+        {
+          invitationId: command.firstAdmin.invitationId,
+          organizationId: command.organizationId,
+          event: identityInvitationCanceled({
+            organizationId: command.organizationId,
+            invitationId: command.firstAdmin.invitationId,
+            occurredAt: NOW,
+          }),
+        },
+        userId('not a valid id'),
+      ),
+    ).rejects.toBeInstanceOf(ZodError)
+    expect(
+      await one(`SELECT status FROM invitation WHERE id = $1`, [
+        command.firstAdmin.invitationId,
+      ]),
+    ).toEqual({ status: 'pending' })
+    expect(await auditRows(command.organizationId)).toHaveLength(1)
   })
 })
 
@@ -631,27 +662,36 @@ describe.sequential('the platform console end to end', () => {
     ).rejects.toMatchObject({ code: 'invitation_not_found' })
 
     const rows = await auditRows(orgId)
-    expect(rows.map(({ details: _details, ...row }) => row)).toEqual([
+    expect(rows.every((row) => row.actor_type === 'operator')).toBe(true)
+    expect(rows.every((row) => row.source_kind === 'operator_command')).toBe(true)
+    expect(
+      rows.map((row) => ({
+        actor_id: row.actor_id,
+        action: row.action,
+        resource_type: row.resource_type,
+        resource_id: row.resource_id,
+      })),
+    ).toEqual([
       {
-        user_id: OPERATOR.userId,
+        actor_id: OPERATOR.userId,
         action: 'platform.admin_invitation_canceled',
         resource_type: 'invitation',
         resource_id: second.invitationId,
       },
       {
-        user_id: OPERATOR.userId,
+        actor_id: OPERATOR.userId,
         action: 'platform.admin_invitation_resent',
         resource_type: 'invitation',
         resource_id: provisioned.invitationId,
       },
       {
-        user_id: OPERATOR.userId,
+        actor_id: OPERATOR.userId,
         action: 'platform.admin_invited',
         resource_type: 'invitation',
         resource_id: second.invitationId,
       },
       {
-        user_id: OPERATOR.userId,
+        actor_id: OPERATOR.userId,
         action: 'platform.organization_provisioned',
         resource_type: 'organization',
         resource_id: orgId,

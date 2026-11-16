@@ -53,6 +53,7 @@ container and need the full settings. `--help` opens neither.
 | `ai-control`                                              | database    | Stop, resume and inspect AI execution.                                                                                                                             |
 | `ai-reopen-analyses`                                      | database    | Reopens analyses the automatic reopen gave up on.                                                                                                                  |
 | `audit-events`                                            | application | Reads the audit trail.                                                                                                                                             |
+| `audit-logs-copy`                                         | application | Copies earlier console and goal audit rows into the audit trail.                                                                                                   |
 | `bootstrap-owner`                                         | application | First Organization on an empty database.                                                                                                                           |
 | `check-google-oauth`                                      | application | Release check on the Google OAuth setup.                                                                                                                           |
 | `copy-notification-defaults`                              | application | Copies notification defaults to Properties.                                                                                                                        |
@@ -238,14 +239,14 @@ of any Organization that has no AccountAdmin yet.
   the Organization two AccountAdmins, and once one has joined the console can no
   longer cancel the other. Cancel a mistaken invitation before inviting the
   right address; the console warns on a row while more than one is live.
-- **Audit.** Each change commits one `audit_logs` row with it: the
-  Organization (`organization_id`), the operator (`user_id`) and the action
+- **Audit.** Each change commits one audit event with it: the
+  Organization, the operator (`actor_id`) and the action
   (`platform.organization_provisioned`, `platform.admin_invited`,
   `platform.admin_invitation_resent`, `platform.admin_invitation_canceled`),
   with the invitation or Organization id as `resource_id`. It is the only
   durable record of who made a console change: log lines carry no identifiers,
-  and `identity.invitation.canceled` names no actor. To investigate, query
-  `audit_logs WHERE action LIKE 'platform.%'`. The rows are kept 365 days. Each
+  and `identity.invitation.canceled` names no actor. To investigate, run
+  `pnpm ops audit-events --org <id>`. The rows are kept 365 days. Each
   change also writes a content-free log line of the same name, and a refused
   attempt logs `platform.operator_denied`.
 
@@ -284,4 +285,5 @@ a reload cannot recover the browser's adopted baseline. Published counts require
 confirmed Google observation, rather than approval or dispatch. No `--apply` mode.
 
 - `ops:audit-events --operator <id> --org <id> [--property <id>] [--batch-size <1..100>]` — read the new content-free audit table for one Organization, newest first, within 365 days of occurrence. Reads only; no copying or writer cutover. See [audit operations](audit-events.md).
+- `ops:audit-logs-copy --operator <id> [--reason <text> --apply] [--batch-size <1..5000>]` — copy `audit_logs` rows from the last 365 days that have no audit event twin into the audit trail, and print counts only. Dry-run by default: it reports how many rows it would copy and how many it cannot map (apply then refuses and writes nothing). A second apply copies nothing. Run it once after the release that moves the writers.
 - `ops:copy-notification-defaults --operator <id> [--reason <text> --apply] [--batch-size <1..5000>]` — copy each person's notification category defaults into preference rows with no Property, in batches, and print counts only. Dry-run by default: it reports how many defaults are missing a copy or differ from it. A second run writes nothing, and a copy left stale by a rolled-back release is brought up to date. Run it after the release that adds those rows. Reads take the newer of the two answers, so a rollback needs no rerun for correct defaults; a rerun just brings the copy up to date.
