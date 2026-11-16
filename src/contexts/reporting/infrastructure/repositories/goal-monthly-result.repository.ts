@@ -5,9 +5,9 @@
 // The Program, version and assignment writes stay there; the row mapping both
 // modules use is in goal-program.rows.ts.
 import { and, asc, desc, eq, gt, lte, or, sql, type SQL } from 'drizzle-orm'
+import { writeGoalAudit } from './goal-audit'
 import type { Database } from '#/shared/db'
 import { lockMetricSource } from '#/shared/db/metric-source-lock'
-import { auditLogs } from '#/shared/db/schema/audit'
 import {
   goalMonthlyResults,
   goalPrograms,
@@ -433,21 +433,15 @@ export const createGoalMonthlyResultRepository = (
 
           const outcomeChanged = current.evaluation.achieved !== input.evaluation.achieved
           const availabilityChanged = current.evaluation.state !== input.evaluation.state
-          await tx.insert(auditLogs).values({
+          await writeGoalAudit(tx, {
             organizationId: current.organizationId,
-            userId: input.createdBy,
+            propertyId: current.propertyId,
+            actorId: input.createdBy,
             action: 'goal.monthly_result.revised',
             resourceType: 'goal_monthly_result',
             resourceId: current.id,
-            details: {
-              propertyId: current.propertyId,
-              programId: current.programId,
-              revision,
-              supersedesRevisionId: latestRow?.id ?? null,
-              changeReason: input.changeReason,
-              outcomeChanged,
-              availabilityChanged,
-            },
+            sourceId: inserted.id,
+            at: input.at,
           })
           const event = goalMonthlyResultRevised({
             organizationId: current.organizationId,

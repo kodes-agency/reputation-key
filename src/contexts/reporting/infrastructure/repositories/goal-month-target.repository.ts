@@ -6,9 +6,9 @@
 // carries the target into the months after, in the same transaction, and this
 // module must not import the module that composes it.
 import { and, asc, eq, gt, inArray, lte, ne } from 'drizzle-orm'
+import { writeGoalAudit } from './goal-audit'
 import type { Database } from '#/shared/db'
 import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
-import { auditLogs } from '#/shared/db/schema/audit'
 import {
   goalMonthlyResults,
   goalMonthTargetChanges,
@@ -233,26 +233,14 @@ export const createGoalMonthTargetRepository = (
             createdAt: input.at,
           })),
         )
-        await tx.insert(auditLogs).values({
+        await writeGoalAudit(tx, {
           organizationId: input.organizationId,
-          userId: input.actorId,
+          propertyId: input.propertyId,
+          actorId: input.actorId,
           action: 'goal.month_target.changed',
-          resourceType: 'goal_program',
           resourceId: input.programId,
-          details: {
-            propertyId: input.propertyId,
-            changeId: input.changeId,
-            // The version the months belong to, which a change waiting for its
-            // month makes different from the head.
-            programVersionId: locked[0]?.programVersionId,
-            monthCount: input.months.length,
-            previousTargetValue: input.months[0]?.previousTargetValue,
-            targetValue: input.targetValue,
-            followingOutcome: outcome,
-            // The note stays in the log of the change; it is not copied here.
-            ...(reason === null ? {} : { followingReason: reason }),
-            ...(revision ? { followingVersionId: revision.version.id } : {}),
-          },
+          sourceId: input.changeId,
+          at: input.at,
         })
         return 'changed' as const
       })

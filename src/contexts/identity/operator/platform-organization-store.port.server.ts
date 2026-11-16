@@ -4,9 +4,9 @@
 // Reads every Organization across tenants (the console is the only caller),
 // creates one without making the operator its member, and runs the console's
 // invitation changes. Uses the Identity-owned tables organization, member,
-// and invitation, and writes `audit_logs`.
+// and invitation, and writes audit events.
 //
-// Every change commits an `audit_logs` row in the same transaction: the
+// Every change commits an audit event in the same transaction: the
 // Organization, the operator's user id and the action. Log lines and spans
 // carry no identifiers, and `identity.invitation.canceled` names no actor, so
 // that row is the only durable record of who made a console change.

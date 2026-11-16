@@ -47,6 +47,20 @@ export type TenantPredicateExemption = Readonly<{
 
 export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = [
   {
+    file: 'src/contexts/feed/audit/copy-audit-logs.server.ts',
+    symbol: 'readBatch',
+    reason:
+      'The operator copy lists earlier audit rows without a twin across tenants, in id order and bounded batches. Each row is written under its own Organization and the statement returns no content to the operator.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/feed/audit/copy-audit-logs.server.ts',
+    symbol: 'uncopied',
+    reason:
+      'The operator copy matches each earlier audit row to its twin on Organization and source id; the copy runs across tenants on purpose and reports counts only.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-profile-rebuild.ts',
     symbol: 'listPendingProfileRebuilds',
     reason:

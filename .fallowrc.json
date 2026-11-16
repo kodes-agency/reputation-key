@@ -34,6 +34,7 @@
     "scripts/ops/ai-release-orphan-sequences.ts",
     "scripts/ops/ai-reopen-analyses.ts",
     "scripts/ops/audit-events.ts",
+    "scripts/ops/audit-logs-copy.ts",
     "scripts/ops/bootstrap-owner.ts",
     "scripts/ops/check-google-oauth.ts",
     "scripts/ops/deploy-ci-images.ts",

@@ -1905,13 +1905,17 @@ describe.sequential('Goal Program repository (integration)', () => {
     }
 
     const auditDetails = async (programId: string, action: string) => {
-      const { rows } = await lease.pool.query<{ details: Record<string, unknown> }>(
-        `SELECT details FROM audit_logs
+      const { rows } = await lease.pool.query<{
+        property_id: string | null
+        actor_id: string | null
+        outcome: string
+      }>(
+        `SELECT property_id, actor_id, outcome FROM audit_events
           WHERE organization_id = $1 AND resource_id = $2 AND action = $3
-          ORDER BY created_at`,
+          ORDER BY occurred_at`,
         [organizationId, programId, action],
       )
-      return rows.map(({ details }) => details)
+      return rows
     }
 
     it('a status change without a note stores no status reason', async () => {
@@ -1934,7 +1938,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       await expect(
         auditDetails(bundle.program.id, 'goal.program.status_changed'),
       ).resolves.toEqual([
-        { propertyId: targetPropertyId, previousStatus: 'scheduled', status: 'ended' },
+        { property_id: targetPropertyId, actor_id: 'manager-1', outcome: 'succeeded' },
       ])
     })
 

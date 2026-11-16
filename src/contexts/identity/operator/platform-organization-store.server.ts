@@ -1,6 +1,6 @@
 // Platform operator console store (ADR 0065) over the Identity-owned tables
 // organization, member and invitation, plus
-// the `audit_logs` rows it writes.
+// the audit events it writes.
 //
 // Provisioning is ONE transaction: the Organization insert (its insert
 // trigger writes the lifecycle authority row; the slug's unique index refuses
@@ -10,14 +10,14 @@
 // refused invitation therefore rolls the Organization back too, and no
 // Organization is ever left half-made. The operator never gets a member row.
 //
-// Every change (provision, invite, resend, cancel) commits one `audit_logs`
-// row in the same transaction: the Organization, the operator and the action.
+// Every change (provision, invite, resend, cancel) commits one audit
+// event in the same transaction: the Organization, the operator and the action.
 // It is the durable record of who made the change — log lines, spans and the
 // canceled fact name no one — and it carries ids only, never an address.
 
 import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
+import { writeAuditEvent } from '#/contexts/feed/application/public-api'
 import type { Database, Tx } from '#/shared/db/index'
-import { auditLogs } from '#/shared/db/schema/audit'
 import { invitation, member, organization } from '#/shared/db/schema/auth'
 import { trace } from '#/shared/observability/trace'
 import { isOwnerToken } from '#/shared/domain/roles'
@@ -50,7 +50,7 @@ const SLUG_UNIQUE_INDEX = 'organization_slug_key'
 /** Open invitation statuses: the ones Resend and Cancel still act on. */
 const OPEN_INVITATION_STATUSES = ['pending', 'expired'] as const
 
-/** One `audit_logs` row per console change: who, on which Organization, what. */
+/** One audit event per console change: who, on which Organization, what. */
 type OperatorAudit = Readonly<{
   organizationId: OrganizationId
   operatorUserId: UserId
@@ -61,21 +61,31 @@ type OperatorAudit = Readonly<{
     | 'platform.admin_invitation_canceled'
   resourceType: 'organization' | 'invitation'
   resourceId: string
-  /** Ids only: the row never carries an address. */
-  details?: Readonly<Record<string, string>>
   at: Date
 }>
 
-async function writeOperatorAudit(tx: Tx, audit: OperatorAudit): Promise<void> {
-  await tx.insert(auditLogs).values({
+async function writeOperatorAudit(
+  tx: Tx,
+  audit: OperatorAudit,
+  sourceId: string,
+): Promise<void> {
+  // The event shape refuses a malformed id, which rolls the change back.
+  await writeAuditEvent(tx, {
     organizationId: audit.organizationId as string,
-    userId: audit.operatorUserId as string,
+    propertyId: null,
+    actorType: 'operator',
+    actorId: audit.operatorUserId as string,
     action: audit.action,
+    outcome: 'succeeded',
     resourceType: audit.resourceType,
     resourceId: audit.resourceId,
-    details: audit.details ?? null,
-    createdAt: audit.at,
-    updatedAt: audit.at,
+    sourceKind: 'operator_command',
+    sourceId,
+    sourceEventType: null,
+    sourceEventVersion: null,
+    sourceContext: null,
+    sourceAggregateId: null,
+    occurredAt: audit.at,
   })
 }
 
@@ -240,7 +250,7 @@ export function createPlatformOrganizationStore(
   ): Promise<T> =>
     db.transaction(async (tx) => {
       const result = await run(createAtomicIdentityCommandStore(tx, idGen))
-      await writeOperatorAudit(tx, audit)
+      await writeOperatorAudit(tx, audit, idGen())
       return result
     })
 
@@ -315,15 +325,18 @@ export function createPlatformOrganizationStore(
             await createAtomicIdentityCommandStore(tx, idGen).inviteMember(
               command.firstAdmin,
             )
-            await writeOperatorAudit(tx, {
-              organizationId: command.organizationId,
-              operatorUserId: command.firstAdmin.inviterId,
-              action: 'platform.organization_provisioned',
-              resourceType: 'organization',
-              resourceId: command.organizationId as string,
-              details: { invitationId: command.firstAdmin.invitationId as string },
-              at: command.now,
-            })
+            await writeOperatorAudit(
+              tx,
+              {
+                organizationId: command.organizationId,
+                operatorUserId: command.firstAdmin.inviterId,
+                action: 'platform.organization_provisioned',
+                resourceType: 'organization',
+                resourceId: command.organizationId as string,
+                at: command.now,
+              },
+              idGen(),
+            )
           })
         } catch (error) {
           if (violatesSlugUniqueness(error)) {
