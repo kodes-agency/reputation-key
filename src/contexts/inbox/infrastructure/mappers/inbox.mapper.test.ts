@@ -37,6 +37,9 @@ const sampleRow: InboxItemRow = {
   managerPriority: null,
   managerPrioritySetBy: null,
   managerPrioritySetAt: null,
+  currentCycleNumber: null,
+  currentSourceRevision: null,
+  stateRevision: null,
 }
 
 describe('inboxItemFromRow', () => {

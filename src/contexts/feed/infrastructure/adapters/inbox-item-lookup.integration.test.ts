@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
 import { feedbackId, inboxItemId, organizationId, portalId } from '#/shared/domain/ids'
 import type { Database } from '#/shared/db'
 import { createInboxItemLookupAdapter } from './inbox-item-lookup.adapter'
@@ -97,6 +98,7 @@ async function seedFeedbackHandlingCycle(
      VALUES ($1, $2, $3, 'feedback', $4, 1, 1, 1, 'open')`,
     [id, organization, property, sourceId],
   )
+  await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
 }
 
 /**
@@ -300,14 +302,20 @@ describe('createInboxItemLookupAdapter.countOpenReviewItemsForProperty', () => {
       findPortalId: vi.fn().mockResolvedValue(null),
     })
   /** The open head the Inbox projection commits beside a Review's first cycle. */
-  const seedOpenReviewHead = (item: string, review: string, status: 'open' | 'closed') =>
-    getPool().query(
+  const seedOpenReviewHead = async (
+    item: string,
+    review: string,
+    status: 'open' | 'closed',
+  ) => {
+    await getPool().query(
       `INSERT INTO inbox_handling_cycle_heads
          (inbox_item_id, organization_id, property_id, source_type, source_id,
           current_source_revision, current_cycle_number, state_revision, status)
        VALUES ($1, $2, $3, 'review', $4, 1, 1, 1, $5)`,
       [item, ORG_A, PROPERTY_A, review, status],
     )
+    await getPool().query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
+  }
 
   it('counts the imported reviews a Property still owes a reply', async () => {
     await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
@@ -480,6 +488,7 @@ describe('createInboxItemLookupAdapter.findWaitingSince', () => {
       `UPDATE inbox_handling_cycle_heads SET status = 'closed' WHERE inbox_item_id = $1`,
       [ITEM_A],
     )
+    await getPool().query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
 
     await expect(lookup().findWaitingSince(ITEM_A, ORG_A)).resolves.toBeNull()
   })

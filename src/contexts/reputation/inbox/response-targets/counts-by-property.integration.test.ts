@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
@@ -172,6 +173,7 @@ async function seedReviewTarget(input: ReviewTargetFixture): Promise<void> {
      ) VALUES ($1, $2, $3, 'review', $4, 1, $4, 1, 1, 1, $5, $6, $6)`,
     [input.itemId, ORG, input.propertyId, input.reviewId, headStatus, STARTED_AT],
   )
+  await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
   await pool.query(
     `INSERT INTO inbox_handling_cycle_response_targets (
        inbox_item_id, cycle_number, organization_id, property_id,
@@ -226,6 +228,7 @@ async function seedPrivateFeedbackTarget(): Promise<void> {
      ) VALUES ($1, $2, $3, 'feedback', $4, 1, 1, 1, 'open', $5, $5)`,
     [PRIVATE_FEEDBACK_ITEM, ORG, OVERDUE_PROPERTY, PRIVATE_FEEDBACK, STARTED_AT],
   )
+  await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
   await pool.query(
     `INSERT INTO inbox_handling_cycle_response_targets (
        inbox_item_id, cycle_number, organization_id, property_id,

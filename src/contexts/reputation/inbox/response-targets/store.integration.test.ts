@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
 import { openNextReviewCycleForTest } from '#/contexts/inbox/infrastructure/review-cycle-reopen.test-fixtures'
 import { releaseDueSlots } from '#/contexts/reputation/inbox/response-targets/release-due-slots.test-fixtures'
 import { Pool } from 'pg'
@@ -1344,6 +1345,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
        ) VALUES ($1, $2, $3, 'feedback', $4, 1, 1, 1, 'open', $5, $5)`,
       [LEGACY_ITEM, ORG, PROPERTY, LEGACY_FEEDBACK, OPENED_AT],
     )
+    await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
     await pool.query(
       `INSERT INTO inbox_handling_cycle_response_targets (
          inbox_item_id, cycle_number, organization_id, property_id,

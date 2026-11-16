@@ -7,7 +7,7 @@
 
 import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { inboxHandlingCycleHeads, inboxItems } from '#/shared/db/schema/inbox.schema'
+import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import { inboxEscalationHistory } from '#/shared/db/schema/inbox-triage-history.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import { inboxError } from '../domain/errors'
@@ -45,8 +45,7 @@ export type InboxEscalationHistoryView = Readonly<{
  * escalation decision.
  *
  * This read intentionally happens before the Inbox item compare-and-swap and
- * does not lock the head. Cycle commands lock head -> item. If one of
- * those commands commits first, the item revision CAS rejects this command;
+ * does not lock the row. If a cycle command commits first, the item revision CAS rejects this command;
  * if this command wins the item row, the cycle observed here is the cycle in
  * which the decision occurred.
  */
@@ -55,20 +54,24 @@ export async function readCurrentCycleNumber(
   item: InboxItem,
 ): Promise<number | null> {
   const rows = await tx
-    .select({ currentCycleNumber: inboxHandlingCycleHeads.currentCycleNumber })
-    .from(inboxHandlingCycleHeads)
+    .select({ currentCycleNumber: inboxItems.currentCycleNumber })
+    .from(inboxItems)
     .where(
       and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-        eq(inboxHandlingCycleHeads.propertyId, item.propertyId),
-        eq(inboxHandlingCycleHeads.sourceType, item.sourceType),
-        eq(inboxHandlingCycleHeads.sourceId, item.sourceId),
+        eq(inboxItems.id, item.id),
+        eq(inboxItems.organizationId, item.organizationId),
+        eq(inboxItems.propertyId, item.propertyId),
+        eq(inboxItems.sourceType, item.sourceType),
+        eq(inboxItems.sourceId, item.sourceId),
       ),
     )
     .limit(1)
   const cycleNumber = rows[0]?.currentCycleNumber
-  return Number.isSafeInteger(cycleNumber) && cycleNumber >= 1 ? cycleNumber : null
+  return typeof cycleNumber === 'number' &&
+    Number.isSafeInteger(cycleNumber) &&
+    cycleNumber >= 1
+    ? cycleNumber
+    : null
 }
 
 /**

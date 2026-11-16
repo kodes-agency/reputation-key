@@ -25,6 +25,7 @@ export const COMMANDS: Readonly<
   'feedback-sync': ['scripts/ops/feedback-sync.ts'],
   'gbp-subscribe': ['scripts/ops/gbp-subscribe.ts'],
   inbox: ['scripts/ops/inbox-exclude-restated-revision-targets.ts'],
+  'inbox-cycle-facts': ['scripts/ops/inbox-cycle-facts.ts'],
   inspect: ['scripts/ops/inspect-decision.ts'],
   jobs: ['scripts/ops/job-repair.ts'],
   purge: ['scripts/ops/enqueue-purge.ts'],

@@ -8,6 +8,7 @@
 // rows for the organization and Property it is given; the caller cleans up with
 // `cleanRestatedRevisionScope`.
 
+import { SYNC_INBOX_ITEMS_FROM_HEADS_SQL } from '#/shared/testing/inbox-cycle-head-sync'
 import type { Pool } from 'pg'
 import { deleteTestOrganizations } from './integration-helpers'
 
@@ -244,6 +245,7 @@ export async function seedInboxItem(pool: Pool, input: InboxItemFixture): Promis
       last.openedAt,
     ],
   )
+  await pool.query(SYNC_INBOX_ITEMS_FROM_HEADS_SQL)
 }
 
 async function seedCycle(
