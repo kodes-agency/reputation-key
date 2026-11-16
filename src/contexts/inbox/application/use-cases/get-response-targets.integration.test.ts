@@ -14,7 +14,7 @@ import {
   clearInboxOrganization,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
-  dropInboxUseCaseTenant,
+  dropInboxOrganization,
   openFixturePool,
   runScopedId,
   seedInboxItem,
@@ -116,7 +116,7 @@ describe.sequential('Response Target manager reads', () => {
       'DELETE FROM inbox_response_target_organization_policies WHERE organization_id = $1',
       [ORG],
     )
-    await dropInboxUseCaseTenant(pool, ORG, [PROPERTY, OTHER_PROPERTY])
+    await dropInboxOrganization(pool, ORG)
     await pool.end()
   })
 

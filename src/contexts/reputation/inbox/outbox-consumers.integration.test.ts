@@ -51,7 +51,7 @@ import { createAtomicInboxCommandStore } from '#/contexts/reputation/inbox/comma
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { createInboxRepository } from '#/contexts/reputation/inbox/inbox-repository.server'
 import {
-  dropInboxUseCaseTenant,
+  dropInboxOrganization,
   seedInboxItem,
   seedInboxOrganization,
   seedReviewSource,
@@ -290,7 +290,7 @@ beforeAll(() => {
 })
 
 afterEach(async () => {
-  await dropInboxUseCaseTenant(pool, ORG, [PROP, PROP2])
+  await dropInboxOrganization(pool, ORG)
 })
 
 afterAll(async () => {

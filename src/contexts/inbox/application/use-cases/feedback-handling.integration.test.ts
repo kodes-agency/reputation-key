@@ -8,7 +8,7 @@ import {
   clearInboxOrganization,
   createUseCaseDatabase,
   createUseCaseInboxRepository,
-  dropInboxUseCaseTenant,
+  dropInboxOrganization,
   openFixturePool,
   runScopedId,
   seedInboxItem,
@@ -119,7 +119,7 @@ describe.sequential('feedback handling commands', () => {
 
   afterAll(async () => {
     clearEventSchemas()
-    await dropInboxUseCaseTenant(pool, ORG_ID, [PROPERTY_ID])
+    await dropInboxOrganization(pool, ORG_ID)
     await pool.end()
   })
 
